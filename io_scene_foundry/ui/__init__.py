@@ -60,11 +60,19 @@ class NWO_SceneProps(Panel):
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
         row = col.row()
+        if managed_blam_active():
+            row.enabled = False
         row.prop(scene_nwo, "game_version", text='Game', expand=True)
+        row = col.row()
         col.separator()
         col = col.row()
         col.scale_y = 1.5
         col.operator("nwo.set_unit_scale")
+        if not managed_blam_active():
+            col.separator()
+            col.operator("managed_blam.init", text="Initialise ManagedBlam")
+        else:
+            col.label(text="ManagedBlam Active")
 
 class NWO_SetUnitScale(Operator):
     """Sets up the scene for Halo: Sets the unit scale to match Halo's and sets the frame rate to 30fps"""
@@ -156,6 +164,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 from ..utils.nwo_utils import (
     frame_prefixes,
     get_asset_info,
+    managed_blam_active,
     marker_prefixes,
     run_ek_cmd,
     special_prefixes,

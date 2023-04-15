@@ -54,7 +54,7 @@ from os import remove as os_remove
 import ctypes
 
 
-from io_scene_foundry.utils.nwo_utils import CheckPath, get_data_path, get_asset_info, get_ek_path, get_tool_path
+from io_scene_foundry.utils.nwo_utils import CheckPath, get_data_path, get_asset_info, get_ek_path, get_tool_path, managed_blam_active
 
 # lightmapper_run_once = False
 sidecar_read = False
@@ -629,7 +629,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
         box.label(text="Settings")
 
         col = box.column()
-        col.prop(self, "game_version", text='Game Version')
+        row = col.row()
+        if managed_blam_active():
+            row.enabled = False
+        row.prop(self, "game_version", text='Game Version')
+        row = col.row()
         col.prop(self, "sidecar_type", text='Asset Type')
         col.prop(self, "show_output", text='Toggle Output')
         # NWO SETTINGS #

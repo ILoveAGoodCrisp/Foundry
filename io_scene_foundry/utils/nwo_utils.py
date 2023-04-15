@@ -856,3 +856,12 @@ def is_shader(mat):
     no_special_material_name = True if not mat.name.lower().startswith(special_materials) else False
 
     return shader_path_not_empty and no_material_override and no_special_material_name
+
+def print_warning(string = 'Warning'):
+    print("\033[33m" + string + "\033[0m")
+
+def print_error(string = 'Error'):
+    print("\033[31m" + string + "\033[0m")
+
+def managed_blam_active():
+    return os.path.exists(os.path.join(bpy.app.tempdir, 'blam.txt'))

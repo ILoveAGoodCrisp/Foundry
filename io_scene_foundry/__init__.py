@@ -46,11 +46,13 @@ bl_info = {
 from . import tools
 from . import ui
 from . import export
+from . import managed_blam
 
 modules = [
     tools,
     ui,
     export,
+    managed_blam
 ]
 
 class HREKLocationPath(Operator):
