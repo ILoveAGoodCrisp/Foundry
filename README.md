@@ -11,10 +11,10 @@ The following games are or will be supported by this script:
  * Halo 2 Anniversary Multiplayer MCC
  
   * Discord user General 101
-   * Building the original Halo Asset Blender Development Toolset
+    * Building the original Halo Asset Blender Development Toolset
 
  * Discord user General Heed
    * Coding advice, implementation and scale model work
 
  * Discord user Crisp
-   * Rolling the ball into Halo Reach
+   * Addon developer
