@@ -30,6 +30,7 @@
 import bpy
 from bpy.types import AddonPreferences, Operator
 from bpy.props import StringProperty, EnumProperty, BoolProperty
+from bpy.app.handlers import persistent
 
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
@@ -198,15 +199,23 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.label(text='Tool Type')
         row.prop(self, 'tool_type', expand=True)
 
+@persistent
+def load_handler(dummy):
+    # run ManagedBlam on startup if enabled
+    if bpy.context.scene.nwo_global.mb_startup:
+        bpy.ops.managed_blam.init()
+
 def register():
     bpy.utils.register_class(ToolkitLocationPreferences)
     bpy.utils.register_class(HREKLocationPath)
     bpy.utils.register_class(H4EKLocationPath)
     bpy.utils.register_class(H2AMPEKLocationPath)
+    bpy.app.handlers.load_post.append(load_handler)
     for module in modules:
         module.register()
 
 def unregister():
+    bpy.app.handlers.load_post.remove(load_handler)
     bpy.utils.unregister_class(ToolkitLocationPreferences)
     bpy.utils.unregister_class(HREKLocationPath)
     bpy.utils.unregister_class(H4EKLocationPath)

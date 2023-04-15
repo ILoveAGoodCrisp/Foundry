@@ -2,6 +2,7 @@
 from io_scene_foundry.utils.nwo_utils import print_warning
 import bpy
 from bpy.types import Operator
+from bpy.app.handlers import persistent
 
 def callback():
     pass
@@ -28,6 +29,7 @@ class ManagedBlam_Init(Operator):
         import sys
         import os
         import subprocess
+        import ctypes
 
         # append the blender python module path to the sys PATH
         packages_path = os.path.join(sys.exec_prefix, 'lib', 'site-packages')
@@ -56,12 +58,17 @@ class ManagedBlam_Init(Operator):
                 print('Failed to add reference to ManagedBlam')
                 return({'CANCELLED'})
         except:
-            print("Couldn't find clr module, attempting install")
+            print("Couldn't find clr module, attempting pythonnet install")
             try:
                 subprocess.check_call([sys.executable, "-m", "pip", "install", 'pythonnet'])
+                print("Succesfully installed necessary modules")
+                open(os.path.join(bpy.app.tempdir, 'blam_new.txt'), 'x')
+                ctypes.windll.user32.MessageBoxW(0, "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.", f"Pythonnet Installed for Blender", 0)
             except:
-                print('Failed to install clr')
+                print('Failed to install pythonnet')
                 return({'CANCELLED'})
+            else:
+                return({'FINISHED'})
 
         else:
             # Initialise ManagedBlam     
@@ -86,5 +93,6 @@ def unregister():
     bpy.utils.unregister_class(ManagedBlam_Init)
     
 if __name__ == '__main__':
-    Bungie = register()
+    register()
+
 

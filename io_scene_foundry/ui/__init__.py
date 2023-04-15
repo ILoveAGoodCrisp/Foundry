@@ -57,22 +57,26 @@ class NWO_SceneProps(Panel):
         layout = self.layout
         scene = context.scene
         scene_nwo = scene.nwo_global
+        mb_active = managed_blam_active()
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
         row = col.row()
-        if managed_blam_active():
+        if mb_active:
             row.enabled = False
         row.prop(scene_nwo, "game_version", text='Game', expand=True)
         row = col.row()
+        if mb_active or scene_nwo.mb_startup:
+            col.prop(scene_nwo, 'mb_startup')
         col.separator()
         col = col.row()
         col.scale_y = 1.5
         col.operator("nwo.set_unit_scale")
-        if not managed_blam_active():
-            col.separator()
-            col.operator("managed_blam.init", text="Initialise ManagedBlam")
-        else:
+        if mb_active:
             col.label(text="ManagedBlam Active")
+        elif os.path.exists(os.path.join(bpy.app.tempdir, 'blam_new.txt')):
+            col.label(text="Blender Restart Required for ManagedBlam")
+        else:
+            col.operator("managed_blam.init", text="Initialise ManagedBlam")
 
 class NWO_SetUnitScale(Operator):
     """Sets up the scene for Halo: Sets the unit scale to match Halo's and sets the frame rate to 30fps"""
@@ -117,6 +121,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 ('h4', "Halo 4", "Show properties for Halo 4 MCC"),
                 ('h2a', "Halo 2AMP", "Show properties for Halo 2AMP MCC"),
                ]
+        )
+    
+    mb_startup: BoolProperty(
+        name="Run ManagedBlam on Startup",
+        description="Runs ManagedBlam.dll on Blender startup, this will lock the selected game on startup. Disable and and restart blender if you wish to change the selected game.",
         )
     
     def get_temp_settings(self):
