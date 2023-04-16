@@ -35,7 +35,7 @@ from bpy.app.handlers import persistent
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
-    "version": (1, 0, 0),
+    "version": (117, 343, 65521),
     "blender": (3, 5, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",
