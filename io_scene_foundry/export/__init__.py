@@ -582,6 +582,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
             from .prepare_scene import prepare_scene
             (model_armature, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action
             ) = prepare_scene(context, self.report, **keywords) # prepares the scene for processing and returns information about the scene
+            # if self.build_shaders:
+            #     shader_builder()
             # try:
             from .process_scene import process_scene
             process_scene(self, context, keywords, self.report, model_armature, asset_path, asset, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, UsingBetterFBX(), selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action, **keywords)

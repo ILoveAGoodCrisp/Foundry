@@ -1,11 +1,10 @@
 
-from io_scene_foundry.utils.nwo_utils import print_warning
+from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_tag_and_path
+from io_scene_foundry.utils.nwo_utils import get_asset_path, get_valid_shader_name, print_warning
 import bpy
+import os
 from bpy.types import Operator
-from bpy.app.handlers import persistent
-
-def callback():
-    pass
+from bpy.props import StringProperty
 
 # def create_shader_tag(blender_material):
 #     # Check if bitmaps exist already, if not, create them
@@ -90,12 +89,58 @@ class ManagedBlam_Init(Operator):
                 print("game_version locked")
                 open(os.path.join(bpy.app.tempdir, 'blam.txt'), 'x')
                 return({'FINISHED'})
+            
+class ManagedBlam_NewShader(Operator):
+    """Runs a ManagedBlam Operation"""
+    bl_idname = "managed_blam.new_shader"
+    bl_label = "ManagedBlam"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_description="Runs a ManagedBlam Operation"
+
+    blender_material: StringProperty(
+        default="Material",
+        name="Blender Material",
+    )
+
+    def get_path(self):
+        asset_path = get_asset_path()
+        shaders_dir = os.path.join(asset_path, 'shaders')
+        shader_name = get_valid_shader_name(self.blender_material)
+        shader_path = os.path.join(shaders_dir, shader_name + '.shader')
+
+        return shader_path
+
+    path: StringProperty(
+        default="",
+        get=get_path,
+        name="Tag Path",
+    )
+
+    def execute(self, context):
+        Bungie = get_bungie(self.report)
+        tag, tag_path = get_tag_and_path(Bungie, self.path)
+        print(self.path)
+        try:
+            tag.New(tag_path)
+            tag.Save()
+
+        finally:
+            tag.Dispose()
+
+        return({'FINISHED'})
+
+classeshalo = (
+    ManagedBlam_Init,
+    ManagedBlam_NewShader,
+)
 
 def register():
-    bpy.utils.register_class(ManagedBlam_Init)
+    for clshalo in classeshalo:
+        bpy.utils.register_class(clshalo)
 
 def unregister():
-    bpy.utils.unregister_class(ManagedBlam_Init)
+    for clshalo in classeshalo:
+        bpy.utils.unregister_class(clshalo)
     
 if __name__ == '__main__':
     register()

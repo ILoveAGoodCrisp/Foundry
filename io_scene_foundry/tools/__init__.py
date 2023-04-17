@@ -43,7 +43,7 @@ from bpy.props import (
         FloatProperty,
         )
 
-from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_data_path, get_tags_path, not_bungie_game, nwo_asset_type, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_data_path, get_tags_path, managed_blam_active, not_bungie_game, nwo_asset_type, valid_nwo_asset
 from bpy_extras.object_utils import AddObjectHelper
 
 is_blender_startup = True
@@ -1806,9 +1806,9 @@ class NWO_BitmapExportPropertiesGroup(PropertyGroup):
         items=[('active', 'Active', 'Export the active material only'), ('all', 'All', 'Export all blender textures'), ('bake', 'Bake', 'Bakes textures for the currently selected objects and exports the results')]
     )
 
-class NWO_ShaderCreate(Panel):
-    bl_label = "Build Shader"
-    bl_idname = "NWO_PT_ShaderCreate"
+class NWO_Shader(Panel):
+    bl_label = "Shader Tools"
+    bl_idname = "NWO_PT_Shader"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_options = {'DEFAULT_CLOSED'}
@@ -1817,24 +1817,50 @@ class NWO_ShaderCreate(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-
+        nwo_shader_build = scene.nwo_shader_build
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
         col.scale_y = 1.5
-        # col.operator('nwo.build_shader')
+        col.operator('nwo.build_shader')
+        col.separator()
+        col = flow.column(heading="Update")
+        col.prop(nwo_shader_build, 'update', text='Existing')
+        row = col.row()
+        row.prop(nwo_shader_build, 'material_selection', expand=True)
 
-class NWO_ShaderCreate_Create(Operator):
+class NWO_Shader_Build(Operator):
     """Makes a shader"""
     bl_idname = 'nwo.build_shader'
     bl_label = 'Build Shader'
     bl_options = {"REGISTER", "UNDO"}
     bl_description = "Makes a shader"
 
+    @classmethod
+    def poll(cls, context):
+        scene = context.scene
+        nwo_shader_build = scene.nwo_shader_build
+        return managed_blam_active() and (nwo_shader_build.material_selection == 'all' or context.active_object.active_material)
+
     def execute(self, context):
         scene = context.scene
-        from .build_shader import build_shader
-        return build_shader()
+        nwo_shader_build = scene.nwo_shader_build
+        from .shader_builder import build_shaders
+        return build_shaders(context.active_object.active_material, nwo_shader_build.material_selection, nwo_shader_build.update)
+    
+class NWO_ShaderPropertiesGroup(PropertyGroup):
+    update: BoolProperty(
+        name="Update",
+        description="Enable to overwrite already existing asset shaders",
+        options=set(),
+    )
+    material_selection: EnumProperty(
+        name='Selection',
+        default='active',
+        description="Choose whether to build a shader for the active material, or build shaders for all appropriate materials",
+        options=set(),
+        items=[('active', 'Active', 'Build a shader for the active material only'), ('all', 'All', 'Builds shaders for all appropriate materials')]
+    )
 
 classeshalo = (
     NWO_HaloExport,
@@ -1880,8 +1906,9 @@ classeshalo = (
     NWO_BitmapExport,
     NWO_BitmapExport_Export,
     NWO_BitmapExportPropertiesGroup,
-    NWO_ShaderCreate,
-    NWO_ShaderCreate_Create,
+    NWO_Shader,
+    NWO_Shader_Build,
+    NWO_ShaderPropertiesGroup,
     NWO_ScaleModels_Add,
     #NWO_GunRigMaker,
     #NWO_GunRigMaker_Start,
@@ -1898,6 +1925,7 @@ def register():
     bpy.types.Scene.nwo_collection_manager = PointerProperty(type=NWO_HaloCollectionManagerPropertiesGroup, name="Collection Manager", description="")
     bpy.types.Scene.nwo_armature_creator = PointerProperty(type=NWO_ArmatureCreatorPropertiesGroup, name="Halo Armature", description="")
     bpy.types.Scene.nwo_bitmap_export = PointerProperty(type=NWO_BitmapExportPropertiesGroup, name="Halo Bitmap Export", description="")
+    bpy.types.Scene.nwo_shader_build = PointerProperty(type=NWO_ShaderPropertiesGroup, name="Halo Shader Export", description="")
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
     
 def unregister():

@@ -64,6 +64,8 @@ all_prefixes = ('+slip_surface', '+soft_ceiling', '+soft_kill', '+decorator', '+
 # Material Prefixes #
 special_materials = ('+collision', '+physics', '+portal', '+seamsealer','+sky', '+slip_surface', '+soft_ceiling', '+soft_kill', '+weatherpoly', '+override')
 special_materials_h4 = ('+sky', '+physics', '+seam', '+portal', '+collision', '+player_collision', '+wall_collision', '+bullet_collision', '+cookie_cutter', '+rain_blocker', '+water_volume', '+structure')
+protected_materials = ('+sky', '+physics', '+seam', '+portal', '+collision', '+player_collision', '+wall_collision', '+bullet_collision', '+cookie_cutter', '+rain_blocker', '+water_volume', '+structure', '+weatherpoly', '+override', '+slip_surface', '+soft_ceiling', '+soft_kill',
+                       'invisibleSky', 'physicsVolume', 'Seam', 'Portal', 'collisionVolume', 'playerCollision', 'wallCollision', 'bulletCollision', 'cookieCutter', 'rainBlocker', 'waterVolume', 'Structure', 'weatherPoly', 'Override', 'seamSealer', 'slipSurface', 'softCeiling', 'softKill')
 # Enums #
 special_mesh_types = ('_connected_geometry_mesh_type_boundary_surface', '_connected_geometry_mesh_type_collision','_connected_geometry_mesh_type_decorator','_connected_geometry_mesh_type_poop','_connected_geometry_mesh_type_planar_fog_volume','_connected_geometry_mesh_type_portal','_connected_geometry_mesh_type_seam','_connected_geometry_mesh_type_water_physics_volume', '_connected_geometry_mesh_type_obb_volume')
 invalid_mesh_types = ('_connected_geometry_mesh_type_boundary_surface', '_connected_geometry_mesh_type_cookie_cutter', '_connected_geometry_mesh_type_poop_marker', '_connected_geometry_mesh_type_poop_rain_blocker', '_connected_geometry_mesh_type_poop_vertical_rain_sheet', '_connected_geometry_mesh_type_lightmap_region', '_connected_geometry_mesh_type_planar_fog_volume', '_connected_geometry_mesh_type_portal', '_connected_geometry_mesh_type_seam', '_connected_geometry_mesh_type_water_physics_volume', '_connected_geometry_mesh_type_obb_volume')
@@ -249,6 +251,19 @@ def get_asset_info(filepath):
     asset = asset.replace('.fbx', '')
 
     return asset_path, asset
+
+def get_asset_path():
+    """Returns the path to the asset folder. """
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition('\\')[0]
+    return asset_path
+
+def get_asset_path_full(tags=False):
+    """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition('\\')[0]
+    if tags:
+        return get_tags_path() + asset_path
+    else:
+        return get_data_path() + asset_path
 
 # -------------------------------------------------------------------------------------------------------------------
 
@@ -865,3 +880,41 @@ def print_error(string = 'Error'):
 
 def managed_blam_active():
     return os.path.exists(os.path.join(bpy.app.tempdir, 'blam.txt'))
+
+def get_valid_shader_name(string):
+    shader_name = get_valid_material_name(string)
+    return cull_invalid_chars(shader_name)
+
+def get_valid_material_name(material_name):
+    """Removes characters from a blender material name that would have been used in legacy material properties"""
+    material_parts = material_name.split(' ')
+    # clean material name
+    if len(material_parts) > 1:
+        material_name = material_parts[1]
+    else:
+        material_name = material_parts[0]
+    # ignore if duplicate name
+    dot_partition(material_name)
+    # ignore material suffixes
+    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['0")
+    # dot partition again in case a pesky dot remains
+    return dot_partition(material_name).lower()
+
+def cull_invalid_chars(string):
+    """Calls invalid characters from a string to make a valid path. Spaces are replaced with underscores"""
+    path = string.replace(' ', '_')
+    path = path.replace('<', '')
+    path = path.replace('>', '')
+    path = path.replace(':', '')
+    path = path.replace('"', '')
+    path = path.replace('/', '')
+    path = path.replace('\\', '')
+    path = path.replace('|', '')
+    path = path.replace('?', '')
+    path = path.replace('*', '')
+
+    return path
+
+def protected_material_name(material_name):
+    """Returns True if the passed material name is equal to a protected material"""
+    return material_name.startswith(protected_materials)

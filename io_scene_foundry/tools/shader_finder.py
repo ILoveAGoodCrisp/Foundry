@@ -27,6 +27,7 @@
 import bpy
 import os
 from io_scene_foundry.utils.nwo_utils import (
+    dot_partition,
     get_tags_path,
     shader_exts,
 )
@@ -70,10 +71,11 @@ def FindShaderMatch(mat, shaders, tags_path):
     else:
         material_name = material_parts[0]
     # ignore if duplicate name
-    if material_name.rpartition('.')[0] != '':
-        material_name = material_name.rpartition('.')[0]
+    dot_partition(material_name)
     # ignore material suffixes
     material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['0")
+    # dot partition again in case a pesky dot remains
+    dot_partition(material_name)
     for s in shaders:
         # get just the shader name
         shader_name = s.rpartition('\\')[2]
