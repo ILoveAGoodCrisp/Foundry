@@ -59,16 +59,21 @@ class ManagedBlam_Init(Operator):
                 return({'CANCELLED'})
         except:
             print("Couldn't find clr module, attempting pythonnet install")
-            try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", 'pythonnet'])
-                print("Succesfully installed necessary modules")
-                open(os.path.join(bpy.app.tempdir, 'blam_new.txt'), 'x')
-                ctypes.windll.user32.MessageBoxW(0, "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.", f"Pythonnet Installed for Blender", 0)
-            except:
-                print('Failed to install pythonnet')
+            print("Blender Version: " + bpy.app.version_string)
+            if bpy.app.version < (3, 4, 0):
+                ctypes.windll.user32.MessageBoxW(0, "Your blender version (" + bpy.app.version_string + ") is too old. Minimum required version is 3.4.0 to install Pythonnet for ManagedBlam.", f"Blender Version Too Old", 0)
                 return({'CANCELLED'})
             else:
-                return({'FINISHED'})
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", 'pythonnet'])
+                    print("Succesfully installed necessary modules")
+                    open(os.path.join(bpy.app.tempdir, 'blam_new.txt'), 'x')
+                    ctypes.windll.user32.MessageBoxW(0, "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.", f"Pythonnet Installed for Blender", 0)
+                except:
+                    print('Failed to install pythonnet')
+                    return({'CANCELLED'})
+                else:
+                    return({'FINISHED'})
 
         else:
             # Initialise ManagedBlam     
