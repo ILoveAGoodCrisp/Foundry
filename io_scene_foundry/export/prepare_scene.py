@@ -735,10 +735,12 @@ def FixMissingMaterials(context, sidecar_type):
         if is_mesh(ob): # check if we're processing a mesh
             # remove empty material slots
             for index, slot in enumerate(ob.material_slots.items()):
-                if slot[0] == '':
-                    context.object.active_material_index = index
-                    ops.object.material_slot_remove()
-
+                if slot == '':
+                    override = context.copy()
+                    override["object.active_material_index"] = index
+                    with context.temp_override(override):
+                        ops.object.material_slot_remove()
+                    
             if len(ob.material_slots) <= 0: # if no material slots...
                 # determine what kind of mesh this is
                 if CheckType.collision(ob):
