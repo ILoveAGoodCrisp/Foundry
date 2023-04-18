@@ -122,6 +122,26 @@ class ManagedBlam_NewShader(Operator):
         print(self.path)
         try:
             tag.New(tag_path)
+            
+            # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
+            # parameters = field
+            # for index, p in enumerate(self.parameters):
+            #     parameters.AddElement()
+                
+            #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/StringId:parameter name")
+            #     name = field
+            #     type.SetStringData(p.name)
+                
+            #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/LongEnum:parameter type")
+            #     type = field
+            #     type.SetStringData(p.name)
+                
+
+            #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/Reference:bitmap")
+            #     bitmap = field
+            #     bitmap.Reference.Path = get_tag_and_path(Bungie, p.bitmap)
+
+
             tag.Save()
 
         finally:

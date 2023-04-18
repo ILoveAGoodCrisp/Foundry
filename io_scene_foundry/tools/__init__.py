@@ -1803,7 +1803,7 @@ class NWO_BitmapExportPropertiesGroup(PropertyGroup):
         default='active',
         description="Choose whether to only export textures attached to the active material, or all scene textures",
         options=set(),
-        items=[('active', 'Active', 'Export the active material only'), ('all', 'All', 'Export all blender textures'), ('bake', 'Bake', 'Bakes textures for the currently selected objects and exports the results')]
+        items=[('active', 'Active', 'Export the active material only'), ('all', 'All', 'Export all blender textures')] #('bake', 'Bake', 'Bakes textures for the currently selected objects and exports the results')]
     )
 
 class NWO_Shader(Panel):

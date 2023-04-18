@@ -4653,6 +4653,230 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         default=0,
         min=0,
     )
+
+# FACE LEVEL PROPERTIES
+class NWO_FaceMapProps(Panel):
+    bl_label = "Face Properties"
+    bl_idname = "NWO_PT_FaceMapDetailsPanel"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_parent_id = "DATA_PT_face_maps"
+
+    @classmethod
+    def poll(cls, context):
+        return False
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+
+        me = context.object.data
+        me_nwo = me.nwo
+
+        col = flow.column()
+        if me_nwo.face_type_override:
+            col.prop(me_nwo, "face_type")
+        if me_nwo.face_mode_override:
+            col.prop(me_nwo, "face_mode")
+        if me_nwo.face_sides_override:
+            col.prop(me_nwo, "face_sides")
+        if me_nwo.face_draw_distance_override:
+            col.prop(me_nwo, "face_draw_distance")
+        if me_nwo.texcoord_usage_override:
+            col.prop(me_nwo, 'texcoord_usage')
+        if me_nwo.mesh_tessellation_density_override:
+            col.prop(me_nwo, "mesh_tessellation_density")
+        if me_nwo.region_name_override:
+            col.prop(me_nwo, "region_name")
+        if me_nwo.face_global_material_override:
+            col.prop(me_nwo, "face_global_material")
+        if me_nwo.sky_permutation_index_override:
+            col.prop(me_nwo, "sky_permutation_index")
+        if me_nwo.conveyor_override:
+            col.prop(me_nwo, "conveyor")
+
+
+class NWO_FacePropertiesGroup(PropertyGroup):
+    face_type_override : BoolProperty()
+    face_mode_override : BoolProperty()
+    face_sides_override : BoolProperty()
+    face_draw_distance_override : BoolProperty()
+    texcoord_usage_override : BoolProperty()
+    mesh_tessellation_density_override : BoolProperty()
+    region_name_override : BoolProperty()
+    is_pca_override : BoolProperty()
+    face_global_material_override : BoolProperty()
+    sky_permutation_index_override : BoolProperty()
+    conveyor_override : BoolProperty()
+    ladder_override : BoolProperty()
+    slip_surface_override : BoolProperty()
+    decal_offset_override : BoolProperty()
+    group_transparents_by_plane_override : BoolProperty()
+    no_shadow_override : BoolProperty()
+    precise_position_override : BoolProperty()
+    no_lightmap_override : BoolProperty()
+    no_pvs_override : BoolProperty()
+
+    face_type : EnumProperty(
+        name="Face Type",
+        options=set(),
+        description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
+        default = '_connected_geometry_face_type_normal',
+        items=[ ('_connected_geometry_face_type_normal', "Normal", "This face type has no special properties"),
+                ('_connected_geometry_face_type_seam_sealer', "Seam Sealer", "Set mesh faces to have the special seam sealer property. Collsion only geometry"),
+                ('_connected_geometry_face_type_sky', "Sky", "Set mesh faces to render the sky"),
+               ]
+        )
+
+    face_mode : EnumProperty(
+        name="Face Mode",
+        options=set(),
+        description="Sets face mode for this mesh",
+        default = '_connected_geometry_face_mode_normal',
+        items=[ ('_connected_geometry_face_mode_normal', "Normal", "This face mode has no special properties"),
+                ('_connected_geometry_face_mode_render_only', "Render Only", "Faces set to render only"),
+                ('_connected_geometry_face_mode_collision_only', "Collision Only", "Faces set to collision only"),
+                ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Faces set to sphere collision only. Only objects with physics models can collide with these faces"),
+                ('_connected_geometry_face_mode_shadow_only', "Shadow Only", "Faces set to only cast shadows"),
+                ('_connected_geometry_face_mode_lightmap_only', "Lightmap Only", "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry"),
+                ('_connected_geometry_face_mode_breakable', "Breakable", "Faces set to be breakable"),
+               ]
+        )
+
+    face_sides : EnumProperty(
+        name="Face Sides",
+        options=set(),
+        description="Sets the face sides for this mesh",
+        default = '_connected_geometry_face_sides_one_sided',
+        items=[ ('_connected_geometry_face_sides_one_sided', "One Sided", "Faces set to only render on one side (the direction of face normals)"),
+                ('_connected_geometry_face_sides_one_sided_transparent', "One Sided Transparent", "Faces set to only render on one side (the direction of face normals), but also render geometry behind them"),
+                ('_connected_geometry_face_sides_two_sided', "Two Sided", "Faces set to render on both sides"),
+                ('_connected_geometry_face_sides_two_sided_transparent', "Two Sided Transparent", "Faces set to render on both sides and are transparent"),
+                ('_connected_geometry_face_sides_mirror', "Mirror", "H4+ only"),
+                ('_connected_geometry_face_sides_mirror_transparent', "Mirror Transparent", "H4+ only"),
+                ('_connected_geometry_face_sides_keep', "Keep", "H4+ only"),
+                ('_connected_geometry_face_sides_keep_transparent', "Keep Transparent", "H4+ only"),
+               ]
+        )
+
+    face_draw_distance : EnumProperty(
+        name="Face Draw Distance",
+        options=set(),
+        description="Select the draw distance for faces on this mesh",
+        default = "_connected_geometry_face_draw_distance_normal",
+        items=[ ('_connected_geometry_face_draw_distance_normal', "Normal", ""),
+                ('_connected_geometry_face_draw_distance_detail_mid', "Mid", ""),
+                ('_connected_geometry_face_draw_distance_detail_close', "Close", ""),
+               ]
+        ) 
+
+    texcoord_usage : EnumProperty(
+        name="Texture Coordinate Usage",
+        options=set(),
+        description="",
+        default = '_connected_material_texcoord_usage_default',
+        items=[ ('_connected_material_texcoord_usage_default', "Default", ""),
+                ('_connected_material_texcoord_usage_none', "None", ""),
+                ('_connected_material_texcoord_usage_anisotropic', "Ansiotropic", ""),
+               ]
+        )
+    
+    mesh_tessellation_density : EnumProperty(
+        name="Mesh Tessellation Density",
+        options=set(),
+        description="Select the tesselation density you want applied to this mesh",
+        default = "_connected_geometry_mesh_tessellation_density_none",
+        items=[ ('_connected_geometry_mesh_tessellation_density_none', "None", ""),
+                ('_connected_geometry_mesh_tessellation_density_4x', "4x", "4 times"),
+                ('_connected_geometry_mesh_tessellation_density_9x', "9x", "9 times"),
+                ('_connected_geometry_mesh_tessellation_density_36x', "36x", "36 times"),
+               ]
+        )
+
+    region_name: StringProperty(
+        name="Face Region",
+        default='default',
+        description="Define the name of the region these faces should be associated with",
+    )
+
+    face_global_material: StringProperty(
+        name="Global Material",
+        default='',
+        description="Set the global material of this mesh. If the global material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct global material response type, otherwise, the global material override can be manually defined in the .model tag",
+    )
+
+    sky_permutation_index: IntProperty(
+        name="Sky Permutation Index",
+        options=set(),
+        description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
+        min=0,
+    )
+
+    conveyor: BoolProperty(
+        name ="Conveyor",
+        options=set(),
+        description = "Enables the conveyor property",
+        default = True,
+        )
+
+    ladder: BoolProperty(
+        name ="Ladder",
+        options=set(),
+        description = "Makes faces climbable",
+        default = True,
+    )
+
+    slip_surface: BoolProperty(
+        name ="Slip Surface",
+        options=set(),
+        description = "Makes faces slippery for units",
+        default = True,
+    )
+
+    decal_offset: BoolProperty(
+        name ="Decal Offset",
+        options=set(),
+        description = "Enable to offset these faces so that they appear to be layered on top of another face",
+        default = True,
+    )
+
+    group_transparents_by_plane: BoolProperty(
+        name ="Group Transparents By Plane",
+        options=set(),
+        description = "Enable to group transparent geometry by fitted planes",
+        default = True,
+    )
+
+    no_shadow: BoolProperty(
+        name ="No Shadow",
+        options=set(),
+        description = "Enable to prevent faces from casting shadows",
+        default = True,
+    )
+
+    precise_position: BoolProperty(
+        name ="Precise Position",
+        options=set(),
+        description = "Enable to prevent faces from being altered during the import process",
+        default = True,
+    )
+
+    no_lightmap: BoolProperty(
+        name ="Exclude From Lightmap",
+        options=set(),
+        description = "",
+        default = True,
+    )
+
+    no_pvs: BoolProperty(
+        name ="Invisible To PVS",
+        options=set(),
+        description = "",
+        default = True,
+    )
+
+##################################################
     
 def draw_filepath(self, context):
     layout = self.layout
@@ -4698,6 +4922,8 @@ classeshalo = (
     NWO_List_Remove_Animation_Event,
     NWO_Animation_ListItems,
     NWO_ActionPropertiesGroup,
+    NWO_FaceMapProps,
+    NWO_FacePropertiesGroup,
 )
 
 def register():
@@ -4710,6 +4936,7 @@ def register():
     bpy.types.Material.nwo = PointerProperty(type=NWO_MaterialPropertiesGroup, name="Halo NWO Properties", description="Set Halo Material Properties") 
     bpy.types.Bone.nwo = PointerProperty(type=NWO_BonePropertiesGroup, name="Halo NWO Properties", description="Set Halo Bone Properties")
     bpy.types.Action.nwo = PointerProperty(type=NWO_ActionPropertiesGroup, name="Halo NWO Properties", description="Set Halo Animation Properties")
+    bpy.types.Mesh.nwo = PointerProperty(type=NWO_FacePropertiesGroup, name="Halo NWO Properties", description="Set Halo Face Properties")
     bpy.types.TOPBAR_HT_upper_bar.prepend(draw_filepath)
 
 def unregister():
