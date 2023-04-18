@@ -4662,10 +4662,6 @@ class NWO_FaceMapProps(Panel):
     bl_region_type = "WINDOW"
     bl_parent_id = "DATA_PT_face_maps"
 
-    @classmethod
-    def poll(cls, context):
-        return False
-
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -4695,6 +4691,22 @@ class NWO_FaceMapProps(Panel):
             col.prop(me_nwo, "sky_permutation_index")
         if me_nwo.conveyor_override:
             col.prop(me_nwo, "conveyor")
+        if me_nwo.ladder_override:
+            col.prop(me_nwo, "ladder")
+        if me_nwo.slip_surface_override:
+            col.prop(me_nwo, "slip_surface")
+        if me_nwo.decal_offset_override:
+            col.prop(me_nwo, "decal_offset")
+        if me_nwo.group_transparents_by_plane_override:
+            col.prop(me_nwo, "group_transparents_by_plane")
+        if me_nwo.no_shadow_override:
+            col.prop(me_nwo, "no_shadow")
+        if me_nwo.precise_position_override:
+            col.prop(me_nwo, "precise_position")
+        if me_nwo.no_lightmap_override:
+            col.prop(me_nwo, "no_lightmap")
+        if me_nwo.no_pvs_override:
+            col.prop(me_nwo, "no_pvs")
 
 
 class NWO_FacePropertiesGroup(PropertyGroup):
