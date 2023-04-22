@@ -5055,7 +5055,17 @@ class NWO_FacePropertiesGroup(PropertyGroup):
 
                     index +=1
 
-            context.area.tag_redraw()
+                context.area.tag_redraw()
+
+            elif len(context.object.face_maps) == len(context.object.nwo_face.face_props):
+                item = context.object.nwo_face.face_props[context.object.face_maps.active_index]
+                if item.name != context.object.face_maps.active.name:
+                        face_map_names = []
+                        for face_map in context.object.face_maps:
+                            face_map_names.append(face_map.name)
+                        if item.name not in face_map_names:
+                            item.name = context.object.face_maps.active.name
+                            context.area.tag_redraw()
 
         return False
 
