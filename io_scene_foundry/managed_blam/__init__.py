@@ -148,10 +148,50 @@ class ManagedBlam_NewShader(Operator):
             tag.Dispose()
 
         return({'FINISHED'})
+    
+class ManagedBlam_NewMaterial(Operator):
+    """Runs a ManagedBlam Operation"""
+    bl_idname = "managed_blam.new_material"
+    bl_label = "ManagedBlam"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_description="Runs a ManagedBlam Operation"
+
+    blender_material: StringProperty(
+        default="Material",
+        name="Blender Material",
+    )
+
+    def get_path(self):
+        asset_path = get_asset_path()
+        shaders_dir = os.path.join(asset_path, 'materials')
+        shader_name = get_valid_shader_name(self.blender_material)
+        shader_path = os.path.join(shaders_dir, shader_name + '.material')
+
+        return shader_path
+
+    path: StringProperty(
+        default="",
+        get=get_path,
+        name="Tag Path",
+    )
+
+    def execute(self, context):
+        Bungie = get_bungie(self.report)
+        tag, tag_path = get_tag_and_path(Bungie, self.path)
+        print(self.path)
+        try:
+            tag.New(tag_path)
+            tag.Save()
+
+        finally:
+            tag.Dispose()
+
+        return({'FINISHED'})
 
 classeshalo = (
     ManagedBlam_Init,
     ManagedBlam_NewShader,
+    ManagedBlam_NewMaterial,
 )
 
 def register():

@@ -1822,7 +1822,10 @@ class NWO_Shader(Panel):
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
         col.scale_y = 1.5
-        col.operator('nwo.build_shader')
+        if not_bungie_game():
+            col.operator('nwo.build_shader', text='Build Materials')
+        else:
+            col.operator('nwo.build_shader', text='Build Shaders')
         col.separator()
         col = flow.column(heading="Update")
         col.prop(nwo_shader_build, 'update', text='Existing')
@@ -1840,13 +1843,13 @@ class NWO_Shader_Build(Operator):
     def poll(cls, context):
         scene = context.scene
         nwo_shader_build = scene.nwo_shader_build
-        return managed_blam_active() and (nwo_shader_build.material_selection == 'all' or context.active_object.active_material)
+        return context.object and context.object.type == 'MESH' and managed_blam_active() and (nwo_shader_build.material_selection == 'all' or context.active_object.active_material)
 
     def execute(self, context):
         scene = context.scene
         nwo_shader_build = scene.nwo_shader_build
         from .shader_builder import build_shaders
-        return build_shaders(context.active_object.active_material, nwo_shader_build.material_selection, nwo_shader_build.update)
+        return build_shaders(context, nwo_shader_build.material_selection, nwo_shader_build.update)
     
 class NWO_ShaderPropertiesGroup(PropertyGroup):
     update: BoolProperty(
