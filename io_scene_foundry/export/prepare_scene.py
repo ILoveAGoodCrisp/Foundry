@@ -74,6 +74,8 @@ def prepare_scene(context, report, sidecar_type, export_hidden, use_armature_def
     fixup_missing_uvs(context)
     # run find shaders code if any empty paths
     find_shaders_on_export(bpy.data.materials, context, report)
+    # Set up facemap properties
+    apply_face_properties(context)
     # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
     regions_dict = get_regions_dict(context.view_layer.objects)
     # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
@@ -150,6 +152,122 @@ class HaloObjects():
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
+
+# FACEMAP SPLIT
+
+def remove_unused_facemaps(ob, context):
+    if ob.type == 'MESH':
+        ob.select_set(True)
+        context.view_layer.objects.active = ob
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        if len(ob.face_maps) > 0:
+            faces = ob.data.polygons
+            for f in faces:                   
+                f.select = False
+            index = 0 
+            for _ in range(len(ob.face_maps)):
+                ob.face_maps.active_index = index
+                bpy.ops.object.face_map_select()
+                if ob.data.count_selected_items()[2] > 0:
+                    bpy.ops.object.face_map_deselect()
+                    index +=1
+                else:
+                    bpy.ops.object.face_map_remove()
+                
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            ob.select_set(False)
+
+def split_by_face_map(ob, context):
+    # remove unused face maps
+    ob.select_set(True)
+    set_active_object(ob)
+    if ob.type == 'MESH' and len(ob.face_maps) > 0:
+        remove_unused_facemaps(ob, context)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        while len(ob.face_maps) > 0:
+            # Deselect all faces except those in the current face map
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bpy.ops.object.face_map_select()
+                    
+            # Split the mesh by the selected faces
+            bpy.ops.mesh.separate(type='SELECTED')
+
+            bpy.ops.object.face_map_remove()
+            
+            # Rename the newly created object to match the face map name
+            # new_ob = bpy.context.active_object
+            # new_ob.name = 'TEST'
+            # new_ob.data.name = 'test'
+
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # Remove unused face maps for objects
+        new_selection = context.selected_objects
+        for ob in new_selection:
+            remove_unused_facemaps(ob, context)
+            ob.name = f'{dot_partition(ob.name)}({ob.face_maps[0].name})'
+
+        return new_selection
+
+def face_prop_to_mesh_prop(ob):
+    # ignore unused face_prop items
+    if ob.face_maps:
+        for item in ob.nwo_face.face_props:
+            if item.name == ob.face_maps[0].name:
+                face_props = item
+                mesh_props = ob.nwo
+                # run through each face prop and apply it to the mesh if override set
+                if face_props.face_type_override:
+                    mesh_props.Face_Type = face_props.face_type
+                    mesh_props.Sky_Permutation_Index = face_props.sky_permutation_index
+                if face_props.face_mode_override:
+                    mesh_props.Face_Mode = face_props.face_mode
+                if face_props.face_sides_override:
+                    mesh_props.Face_Sides = face_props.face_sides
+                if face_props.face_draw_distance_override:
+                    mesh_props.Face_Draw_Distance = face_props.face_draw_distance
+                if face_props.texcoord_usage_override:
+                    mesh_props.texcoord_usage = face_props.texcoord_usage
+                if face_props.region_name_override:
+                    mesh_props.Region_Name = face_props.region_name
+                if face_props.face_global_material_override:
+                    mesh_props.Face_Global_Material = face_props.face_global_material
+                if face_props.ladder_override:
+                    mesh_props.Ladder = face_props.ladder
+                if face_props.slip_surface_override:
+                    mesh_props.Slip_Surface = face_props.slip_surface
+                if face_props.decal_offset_override:
+                    mesh_props.Decal_Offset = face_props.decal_offset
+                if face_props.group_transparents_by_plane_override:
+                    mesh_props.Group_Transparents_By_Plane = face_props.group_transparents_by_plane
+                if face_props.no_shadow_override:
+                    mesh_props.No_Shadow = face_props.no_shadow
+                if face_props.precise_position_override:
+                    mesh_props.Precise_Position = face_props.precise_position
+                if face_props.no_lightmap_override:
+                    mesh_props.no_lightmap = face_props.no_lightmap
+                if face_props.no_pvs_override:
+                    mesh_props.no_pvs = face_props.no_pvs
+
+                break
+
+
+def apply_face_properties(context):
+    objects = []
+    for ob in context.view_layer.objects:
+        objects.append(ob)
+    for ob in objects:
+        deselect_all_objects()
+        ob.select_set(True)
+        set_active_object(ob)
+        # must make single user for this process
+        bpy.ops.object.make_single_user(object=True, obdata=True)
+        if ob.face_maps:
+            split_objects = split_by_face_map(ob, context)
+            for ob in split_objects:
+                face_prop_to_mesh_prop(ob)
+            # set mode again
+            set_object_mode(context)
 
 def z_rotate_and_apply(ob, angle):
     angle = radians(angle)

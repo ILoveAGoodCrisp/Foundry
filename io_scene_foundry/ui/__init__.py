@@ -4807,6 +4807,9 @@ class NWO_FacePropAdd(Operator):
         ob_nwo_face = ob.nwo_face
         item = ob_nwo_face.face_props[ob.face_maps.active_index]
         item.name = ob.face_maps.active.name
+        if self.options == 'region':
+            r_name = item.name.split(' ')
+            item.region_name = r_name[-1].lower()
         context.area.tag_redraw()
 
         return {'FINISHED'}
@@ -5059,7 +5062,7 @@ class NWO_FacePropertiesGroup(PropertyGroup):
 
             elif len(context.object.face_maps) == len(context.object.nwo_face.face_props):
                 item = context.object.nwo_face.face_props[context.object.face_maps.active_index]
-                if item.name != context.object.face_maps.active.name:
+                if context.object.face_maps.active and item.name != context.object.face_maps.active.name:
                         face_map_names = []
                         for face_map in context.object.face_maps:
                             face_map_names.append(face_map.name)
