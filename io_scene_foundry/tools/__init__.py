@@ -1237,11 +1237,6 @@ class NWO_HaloExport_ExportQuick(Operator):
         return ExportQuick(bpy.ops.export_scene.nwo, self.report, context, scene_nwo_export.export_gr2_files, scene_nwo_export.export_hidden, scene_nwo_export.export_all_bsps, scene_nwo_export.export_all_perms, scene_nwo_export.export_sidecar_xml, scene_nwo_export.import_to_game, scene_nwo_export.import_draft, scene_nwo_export.lightmap_structure, scene_nwo_export.lightmap_quality_h4, scene_nwo_export.lightmap_quality_custom, scene_nwo_export.lightmap_quality, scene_nwo_export.lightmap_specific_bsp, scene_nwo_export.lightmap_all_bsps, scene_nwo_export.export_animations, scene_nwo_export.export_skeleton, scene_nwo_export.export_render, scene_nwo_export.export_collision, scene_nwo_export.export_physics, scene_nwo_export.export_markers, scene_nwo_export.export_structure, scene_nwo_export.export_design, scene_nwo_export.use_mesh_modifiers, scene_nwo_export.use_triangles, scene_nwo_export.global_scale, scene_nwo_export.use_armature_deform_only, scene_nwo_export.meshes_to_empties, scene_nwo_export.show_output, scene_nwo_export.keep_fbx, scene_nwo_export.keep_json)
 
 class NWO_HaloExportPropertiesGroup(PropertyGroup):
-    final_report: StringProperty(
-        name="",
-        description="",
-        default='',
-    )
     export_gr2_files: BoolProperty(
         name='Export GR2 Files',
         default=True,

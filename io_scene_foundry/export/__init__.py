@@ -586,7 +586,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             #     shader_builder()
             # try:
             from .process_scene import process_scene
-            process_scene(self, context, keywords, self.report, model_armature, asset_path, asset, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, UsingBetterFBX(), selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action, **keywords)
+            final_report = process_scene(self, context, keywords, self.report, model_armature, asset_path, asset, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, UsingBetterFBX(), selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action, **keywords)
             # except Exception:
             #     from traceback import print_exc
             #     print_exc()
@@ -616,6 +616,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 temp_file.write(f'{self.output_vehicle}\n')
                 temp_file.write(f'{self.output_weapon}\n')
                 temp_file.write(f'{context.scene.nwo_export.show_output}\n')
+                if self.quick_export:
+                    temp_file.write(f'{final_report}\n')
+                else:
+                    self.report({'INFO'}, final_report)
 
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()

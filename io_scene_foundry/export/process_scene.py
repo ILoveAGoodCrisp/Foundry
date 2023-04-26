@@ -84,7 +84,6 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                   export_sidecar_xml,
                   lightmap_structure,
                   lightmap_quality,
-                  quick_export,
                   import_to_game,
                   #import_bitmaps,
                   export_gr2_files,
@@ -359,10 +358,7 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
         if idx + 1 < len(reports):
             final_report = final_report + ' | '
 
-    if quick_export:
-        context.scene.nwo_export.final_report = final_report
-    else:
-        report({'INFO'}, final_report)
+    return final_report
 
 
 #####################################################################################
