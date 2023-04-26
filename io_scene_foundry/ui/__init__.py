@@ -734,18 +734,18 @@ class NWO_ObjectMeshProps(Panel):
                 col.label(text="Physics mesh type only valid for Model and Reach Scenario exports", icon='ERROR')
 
 class NWO_ObjectMeshFaceProps(Panel):
-    bl_label = "Face Properties"
+    bl_label = "Defaults"
     bl_idname = "NWO_PT_MeshFaceDetailsPanel"
+    bl_options = {"DEFAULT_CLOSED"}
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
-    bl_parent_id = "NWO_PT_MeshDetailsPanel"
+    bl_parent_id = "NWO_PT_FaceMapDetailsPanel"
 
     @classmethod
     def poll(cls, context):
-        return False
-        # ob = context.active_object
+        ob = context.active_object
 
-        # return CheckType.render(ob) or CheckType.poop(ob) or CheckType.decorator(ob) or CheckType.object_instance(ob) or CheckType.water_surface(ob)
+        return CheckType.render(ob) or CheckType.poop(ob) or CheckType.decorator(ob) or CheckType.object_instance(ob) or CheckType.water_surface(ob)
 
     def draw(self, context):
         layout = self.layout
@@ -4644,6 +4644,17 @@ class NWO_FaceMapProps(Panel):
         obj = context.object
         engine = context.engine
         return (obj and obj.type == 'MESH') and (engine in cls.COMPAT_ENGINES)
+    
+    def draw(self, context):
+        pass
+    
+
+class NWO_FaceMapFaceProps(Panel):
+    bl_label = "Overrides"
+    bl_idname = "NWO_PT_FaceMapPropertiesDetailsPanel"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_parent_id = "NWO_PT_FaceMapDetailsPanel"
 
     def draw(self, context):
         layout = self.layout
@@ -4824,6 +4835,23 @@ class NWO_FaceMapAdd(Operator):
         ob.face_maps[ob.face_maps.active_index].name = 'default'
 
         return {'FINISHED'}
+    
+class NWO_EditMode(Operator):
+    """Switch to Edit Mode and to local view"""
+    bl_idname = "nwo_face.add_face_map"
+    bl_label = "Add Face Properties"
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
+
+    def execute(self, context):
+        ob = context.object
+        bpy.ops.object.face_map_add()
+        ob.face_maps[ob.face_maps.active_index].name = 'default'
+
+        return {'FINISHED'}
+
 
 
 class NWO_FacePropAdd(Operator):
@@ -5168,9 +5196,6 @@ classeshalo = (
     NWO_ShaderPath,
     NWO_ObjectProps,
     NWO_ObjectMeshProps,
-    NWO_ObjectMeshFaceProps,
-    NWO_ObjectMeshMaterialLightingProps,
-    NWO_ObjectMeshLightmapProps,
     NWO_ObjectMarkerProps,
     NWO_MaterialProps,
     NWO_MaterialOpenTag,
@@ -5194,6 +5219,10 @@ classeshalo = (
     NWO_FacePropRemove,
     NWO_FaceMapAdd,
     NWO_FaceProperties_ListItems,
+    NWO_ObjectMeshFaceProps,
+    NWO_ObjectMeshMaterialLightingProps,
+    NWO_ObjectMeshLightmapProps,
+    NWO_FaceMapFaceProps,
     NWO_FacePropertiesGroup,
 )
 

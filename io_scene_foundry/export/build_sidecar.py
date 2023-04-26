@@ -148,10 +148,10 @@ def add_null_render(asset_path):
         try:
             import shutil
             script_folder_path = path.dirname(path.dirname(__file__))
-            null_gr2 = path.join(script_folder_path, 'file_gr2', 'resources', 'null_render.gr2')
+            null_gr2 = path.join(script_folder_path, 'export', 'resources', 'null_render.gr2')
             shutil.copy(null_gr2, null_gr2_path)
         except:
-            print("Unable to copy null gr2 from io_scene_nwo to asset folder")
+            print("Unable to copy null gr2 from io_scene_foundry to asset folder")
 
 
 def WriteHeader(metadata):
