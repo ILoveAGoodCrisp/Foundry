@@ -51,7 +51,7 @@ from ..utils.nwo_utils import(
 #####################################################################################
 #####################################################################################
 # MAIN FUNCTION
-def prepare_scene(context, report, sidecar_type, export_hidden, use_armature_deform_only, game_version, meshes_to_empties, export_animations, **kwargs):
+def prepare_scene(context, report, sidecar_type, export_hidden, use_armature_deform_only, game_version, meshes_to_empties, export_animations, export_gr2_files, **kwargs):
     # Exit local view. Must do this otherwise fbx export will fail.
     ExitLocalView(context)
     # Disable collections with the +exclude prefix. This way they are treated as if they are not part of the asset at all
@@ -70,29 +70,33 @@ def prepare_scene(context, report, sidecar_type, export_hidden, use_armature_def
     # apply_maya_namespaces(context)
     # update bsp/perm/region names in case any are null.
     fix_blank_group_names(context)
-    # add a uv map to meshes without one. This prevents an export assert
-    fixup_missing_uvs(context)
-    # run find shaders code if any empty paths
-    find_shaders_on_export(bpy.data.materials, context, report)
-    # Set up facemap properties
-    apply_face_properties(context)
+    if export_gr2_files:
+        # add a uv map to meshes without one. This prevents an export assert
+        fixup_missing_uvs(context)
+        # run find shaders code if any empty paths
+        find_shaders_on_export(bpy.data.materials, context, report)
+        # Set up facemap properties
+        apply_face_properties(context)
     # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
     regions_dict = get_regions_dict(context.view_layer.objects)
     # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
     global_materials_dict = get_global_materials_dict(context.view_layer.objects)
-    # Convert mesh markers to empty objects. Especially useful with complex marker shapes, such as prefabs
-    MeshesToEmpties(context, meshes_to_empties)
-    # poop proxy madness
-    SetPoopProxies(context.view_layer.objects)
+    if export_gr2_files:
+        # Convert mesh markers to empty objects. Especially useful with complex marker shapes, such as prefabs
+        MeshesToEmpties(context, meshes_to_empties)
+        # poop proxy madness
+        SetPoopProxies(context.view_layer.objects)
     # get all objects that we plan to export later
     halo_objects = HaloObjects(sidecar_type)
-    # Add materials to all objects without one. No materials = unhappy Tool.exe
-    FixMissingMaterials(context, sidecar_type)
-    # Get and set the model armature, or create one if none exists.
+    if export_gr2_files:
+        # Add materials to all objects without one. No materials = unhappy Tool.exe
+        FixMissingMaterials(context, sidecar_type)
+        # Get and set the model armature, or create one if none exists.
     model_armature, temp_armature, no_parent_objects = GetSceneArmature(context, sidecar_type, game_version)
     # set bone names equal to their name overrides (if not blank)
-    if model_armature is not None:
-        set_bone_names(model_armature)
+    if export_gr2_files:
+        if model_armature is not None:
+            set_bone_names(model_armature)
     # Handle spooky scary skeleton bones
     skeleton_bones = {}
     current_action = None
@@ -107,15 +111,19 @@ def prepare_scene(context, report, sidecar_type, export_hidden, use_armature_def
     # Set timeline range for use during animation export
     timeline_start, timeline_end = SetTimelineRange(context)
     # rotate the model armature if needed
-    fix_armature_rotation(model_armature, sidecar_type, context, export_animations, current_action, timeline_start, timeline_end)
-    # Set animation name overrides / fix them up for the exporter
+    if export_gr2_files:
+        fix_armature_rotation(model_armature, sidecar_type, context, export_animations, current_action, timeline_start, timeline_end)
+        # Set animation name overrides / fix them up for the exporter
     set_animation_overrides(model_armature, current_action)
      # get the max LOD count in the scene if we're exporting a decorator
     lod_count = GetDecoratorLODCount(halo_objects, sidecar_type == 'DECORATOR SET')
-    # get selected perms for use later
-    selected_perms = GetSelectedPermutations(objects_selection)
-    # get selected bsps for use later
-    selected_bsps = GetSelectedBSPs(objects_selection)
+    selected_perms = []
+    selected_bsps = []
+    if export_gr2_files:
+        # get selected perms for use later
+        selected_perms = GetSelectedPermutations(objects_selection)
+        # get selected bsps for use later
+        selected_bsps = GetSelectedBSPs(objects_selection)
 
     return model_armature, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action
 
