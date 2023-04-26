@@ -742,9 +742,10 @@ class NWO_ObjectMeshFaceProps(Panel):
 
     @classmethod
     def poll(cls, context):
-        ob = context.active_object
+        return False
+        # ob = context.active_object
 
-        return CheckType.render(ob) or CheckType.poop(ob) or CheckType.decorator(ob) or CheckType.object_instance(ob) or CheckType.water_surface(ob)
+        # return CheckType.render(ob) or CheckType.poop(ob) or CheckType.decorator(ob) or CheckType.object_instance(ob) or CheckType.water_surface(ob)
 
     def draw(self, context):
         layout = self.layout
@@ -4618,6 +4619,59 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
 
 # FACE LEVEL PROPERTIES
 
+    @classmethod
+    def poll(cls, context):
+        engine = context.engine
+        return context.mesh and (engine in cls.COMPAT_ENGINES)
+
+class NWO_FaceMapCopy(Panel):
+    bl_label = "Face Maps"
+    bl_idname = "NWO_PT_FaceMapCopy"
+    # bl_options = {'DEFAULT_CLOSED'}
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH', 'BLENDER_WORKBENCH_NEXT'}
+    bl_parent_id = "NWO_PT_FaceMapDetailsPanel"
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        engine = context.engine
+        return (obj and obj.type == 'MESH') and (engine in cls.COMPAT_ENGINES) and obj.face_maps
+
+    def draw(self, context):
+        layout = self.layout
+
+        ob = context.object
+        facemap = ob.face_maps.active
+
+        rows = 2
+        if facemap:
+            rows = 4
+
+        row = layout.row()
+        row.template_list("MESH_UL_fmaps", "", ob, "face_maps", ob.face_maps, "active_index", rows=rows)
+
+        col = row.column(align=True)
+        col.operator("nwo_face.add_face_map", icon='ADD', text="")
+        col.operator("object.face_map_remove", icon='REMOVE', text="")
+
+        if facemap:
+            col.separator()
+            col.operator("object.face_map_move", icon='TRIA_UP', text="").direction = 'UP'
+            col.operator("object.face_map_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
+
+        if ob.face_maps and (ob.mode == 'EDIT' and ob.type == 'MESH'):
+            row = layout.row()
+
+            sub = row.row(align=True)
+            sub.operator("object.face_map_assign", text="Assign")
+            sub.operator("object.face_map_remove_from", text="Remove")
+
+            sub = row.row(align=True)
+            sub.operator("object.face_map_select", text="Select")
+            sub.operator("object.face_map_deselect", text="Deselect")
+
 class NWO_UL_FaceMapProps(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -4631,11 +4685,11 @@ class NWO_UL_FaceMapProps(UIList):
 
 
 class NWO_FaceMapProps(Panel):
-    bl_label = "Halo Face Properties"
+    bl_label = "Face Properties"
     bl_idname = "NWO_PT_FaceMapDetailsPanel"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
-    bl_parent_id = "DATA_PT_face_maps"
+    bl_parent_id = "NWO_PT_MeshDetailsPanel"
 
     # @classmethod
     # def poll(cls, context):
@@ -4662,7 +4716,7 @@ class NWO_FaceMapProps(Panel):
         row = col.row()
         # row.template_list("NWO_UL_FaceMapProps", "", ob.nwo_face, "face_props", ob.face_maps, "active_index", rows=2)
         if len(ob.face_maps) <= 0:
-            col.label(text="Add a Face Map to begin editing Halo Face Properties")
+            col.operator('nwo_face.add_face_property', text='', icon='ADD')
         else:
             try:
                 item = ob_nwo_face.face_props[ob.face_maps.active.name]
@@ -4774,10 +4828,31 @@ def toggle_override(context, option, bool_var):
         case 'no_pvs':
             item.no_pvs_override = bool_var
 
+class NWO_FaceMapAdd(Operator):
+    """Adds a facemap and assigns all faces to it"""
+    bl_idname = "nwo_face.add_face_map"
+    bl_label = "Add Face Properties"
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
+
+    def execute(self, context):
+        ob = context.object
+        bpy.ops.object.face_map_add()
+        ob.face_maps[ob.face_maps.active_index].name = 'default'
+
+        return {'FINISHED'}
+
+
 class NWO_FacePropAdd(Operator):
     """Adds a face property that will override face properties set in the mesh"""
     bl_idname = "nwo_face.add_face_property"
     bl_label = "Add"
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
 
     options: EnumProperty(
         default="region",
@@ -4802,8 +4877,18 @@ class NWO_FacePropAdd(Operator):
 
 
     def execute(self, context):
-        toggle_override(context, self.options, True)
         ob = context.object
+        # if no face maps, make one and assign all faces to it
+        if len(ob.face_maps) < 1:
+            bpy.ops.object.face_map_add()
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            bpy.ops.mesh.select_all()
+            bpy.ops.object.face_map_assign()
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            ob.face_maps[0].name = 'default'
+            bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
+
+        toggle_override(context, self.options, True)
         ob_nwo_face = ob.nwo_face
         item = ob_nwo_face.face_props[ob.face_maps.active_index]
         item.name = ob.face_maps.active.name
@@ -5052,7 +5137,6 @@ class NWO_FacePropertiesGroup(PropertyGroup):
                     face_map_names.append(face_map.name)
                 index = 0
                 for item in context.object.nwo_face.face_props:
-                    print(item.name)
                     if item.name not in face_map_names:
                         context.object.nwo_face.face_props.remove(index)
 
@@ -5125,8 +5209,10 @@ classeshalo = (
     NWO_ActionPropertiesGroup,
     NWO_UL_FaceMapProps,
     NWO_FaceMapProps,
+    NWO_FaceMapCopy,
     NWO_FacePropAdd,
     NWO_FacePropRemove,
+    NWO_FaceMapAdd,
     NWO_FaceProperties_ListItems,
     NWO_FacePropertiesGroup,
 )
