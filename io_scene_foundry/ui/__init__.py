@@ -4619,59 +4619,6 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
 
 # FACE LEVEL PROPERTIES
 
-    @classmethod
-    def poll(cls, context):
-        engine = context.engine
-        return context.mesh and (engine in cls.COMPAT_ENGINES)
-
-class NWO_FaceMapCopy(Panel):
-    bl_label = "Face Maps"
-    bl_idname = "NWO_PT_FaceMapCopy"
-    # bl_options = {'DEFAULT_CLOSED'}
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH', 'BLENDER_WORKBENCH_NEXT'}
-    bl_parent_id = "NWO_PT_FaceMapDetailsPanel"
-
-    @classmethod
-    def poll(cls, context):
-        obj = context.object
-        engine = context.engine
-        return (obj and obj.type == 'MESH') and (engine in cls.COMPAT_ENGINES) and obj.face_maps
-
-    def draw(self, context):
-        layout = self.layout
-
-        ob = context.object
-        facemap = ob.face_maps.active
-
-        rows = 2
-        if facemap:
-            rows = 4
-
-        row = layout.row()
-        row.template_list("MESH_UL_fmaps", "", ob, "face_maps", ob.face_maps, "active_index", rows=rows)
-
-        col = row.column(align=True)
-        col.operator("nwo_face.add_face_map", icon='ADD', text="")
-        col.operator("object.face_map_remove", icon='REMOVE', text="")
-
-        if facemap:
-            col.separator()
-            col.operator("object.face_map_move", icon='TRIA_UP', text="").direction = 'UP'
-            col.operator("object.face_map_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
-
-        if ob.face_maps and (ob.mode == 'EDIT' and ob.type == 'MESH'):
-            row = layout.row()
-
-            sub = row.row(align=True)
-            sub.operator("object.face_map_assign", text="Assign")
-            sub.operator("object.face_map_remove_from", text="Remove")
-
-            sub = row.row(align=True)
-            sub.operator("object.face_map_select", text="Select")
-            sub.operator("object.face_map_deselect", text="Deselect")
-
 class NWO_UL_FaceMapProps(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -4690,10 +4637,13 @@ class NWO_FaceMapProps(Panel):
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_parent_id = "NWO_PT_MeshDetailsPanel"
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH', 'BLENDER_WORKBENCH_NEXT'}
 
-    # @classmethod
-    # def poll(cls, context):
-    #     return context.object.face_maps.active
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        engine = context.engine
+        return (obj and obj.type == 'MESH') and (engine in cls.COMPAT_ENGINES)
 
     def draw(self, context):
         layout = self.layout
@@ -4706,19 +4656,50 @@ class NWO_FaceMapProps(Panel):
         # )
         layout = self.layout
         layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
         ob = context.object
         ob_nwo_face = ob.nwo_face
         
 
-        col = flow.column()
-        row = col.row()
         # row.template_list("NWO_UL_FaceMapProps", "", ob.nwo_face, "face_props", ob.face_maps, "active_index", rows=2)
         if len(ob.face_maps) <= 0:
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+            col = flow.column()
             col.operator('nwo_face.add_face_property', text='', icon='ADD')
         else:
             try:
+                facemap = ob.face_maps.active
+
+                rows = 2
+                if facemap:
+                    rows = 4
+
+                row = layout.row()
+                row.template_list("MESH_UL_fmaps", "", ob, "face_maps", ob.face_maps, "active_index", rows=rows)
+
+                col = row.column(align=True)
+                col.operator("nwo_face.add_face_map", icon='ADD', text="")
+                col.operator("object.face_map_remove", icon='REMOVE', text="")
+
+                if facemap:
+                    col.separator()
+                    col.operator("object.face_map_move", icon='TRIA_UP', text="").direction = 'UP'
+                    col.operator("object.face_map_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
+
+                if ob.face_maps and (ob.mode == 'EDIT' and ob.type == 'MESH'):
+                    row = layout.row()
+
+                    sub = row.row(align=True)
+                    sub.operator("object.face_map_assign", text="Assign")
+                    sub.operator("object.face_map_remove_from", text="Remove")
+
+                    sub = row.row(align=True)
+                    sub.operator("object.face_map_select", text="Select")
+                    sub.operator("object.face_map_deselect", text="Deselect")
+                
+                flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+                col = flow.column()
+                row = col.row()
                 item = ob_nwo_face.face_props[ob.face_maps.active.name]
                 # row.prop(item, 'name')
                 if item.region_name_override:
@@ -4857,7 +4838,7 @@ class NWO_FacePropAdd(Operator):
     options: EnumProperty(
         default="region",
         items=[
-        ('region', 'Region', ''),
+        ('region', 'Region Override', ''),
         ('face_type', 'Face Type', ''),
         ('face_mode', 'Face Mode', ''),
         ('face_sides', 'Face Sides', ''),
@@ -4916,7 +4897,7 @@ class NWO_FacePropRemove(Operator):
     options: EnumProperty(
         default="region",
         items=[
-        ('region', 'Region', ''),
+        ('region', 'Region Override', ''),
         ('face_type', 'Face Type', ''),
         ('face_mode', 'Face Mode', ''),
         ('face_sides', 'Face Sides', ''),
@@ -5028,7 +5009,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         )
 
     region_name: StringProperty(
-        name="Face Region",
+        name="Region Override",
         default='default',
         description="Define the name of the region these faces should be associated with",
     )
@@ -5209,7 +5190,6 @@ classeshalo = (
     NWO_ActionPropertiesGroup,
     NWO_UL_FaceMapProps,
     NWO_FaceMapProps,
-    NWO_FaceMapCopy,
     NWO_FacePropAdd,
     NWO_FacePropRemove,
     NWO_FaceMapAdd,
