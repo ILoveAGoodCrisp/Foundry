@@ -733,66 +733,6 @@ class NWO_ObjectMeshProps(Panel):
             else:
                 col.label(text="Physics mesh type only valid for Model and Reach Scenario exports", icon='ERROR')
 
-class NWO_ObjectMeshFaceProps(Panel):
-    bl_label = "Defaults"
-    bl_idname = "NWO_PT_MeshFaceDetailsPanel"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_parent_id = "NWO_PT_FaceMapDetailsPanel"
-
-    @classmethod
-    def poll(cls, context):
-        ob = context.active_object
-
-        return CheckType.render(ob) or CheckType.poop(ob) or CheckType.decorator(ob) or CheckType.object_instance(ob) or CheckType.water_surface(ob)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
-        ob = context.object
-        ob_nwo = ob.nwo
-
-        col = flow.column()
-        col.prop(ob_nwo, "Face_Type", text='Face Type')
-        if ob_nwo.Face_Type == '_connected_geometry_face_type_sky':
-            sub = col.column(align=True)
-            sub.prop(ob_nwo, "Sky_Permutation_Index", text='Sky Permutation Index')
-            col.separator()
-
-        col.prop(ob_nwo, "Face_Mode", text='Face Mode')
-        col.prop(ob_nwo, "Face_Sides", text='Face Sides')
-        col.prop(ob_nwo, "Face_Draw_Distance", text='Draw Distance')
-        col.prop(ob_nwo, 'texcoord_usage')
-        col.prop(ob_nwo, "Mesh_Tessellation_Density", text='Tessellation Density')
-        if not_bungie_game():
-            col.prop(ob_nwo, "Mesh_Compression", text='Compression')
-
-        col.separator()
-
-        col = layout.column(heading="Flags")
-        sub = col.column(align=True)
-        # sub.prop(ob_nwo, "Conveyor", text='Conveyor') removed as it seems non-functional. Leaving here in case conveyor functionality is ever fixed/added
-        if poll_ui(('SCENARIO', 'PREFAB')):
-            sub.prop(ob_nwo, "Ladder", text='Ladder')
-            sub.prop(ob_nwo, "Slip_Surface", text='Slip Surface')
-        sub.prop(ob_nwo, "Decal_Offset", text='Decal Offset')
-        sub.prop(ob_nwo, "Group_Transparents_By_Plane", text='Group Transparents By Plane')
-        sub.prop(ob_nwo, "No_Shadow", text='No Shadow')
-        sub.prop(ob_nwo, "Precise_Position", text='Precise Position')
-        if not_bungie_game():
-            if poll_ui(('SCENARIO', 'PREFAB')):
-                sub.prop(ob_nwo, "no_lightmap")
-                sub.prop(ob_nwo, "no_pvs")
-            if CheckType.poop(ob) or CheckType.default(ob):
-                sub.prop(ob_nwo, 'compress_verts')
-            if CheckType.default(ob):
-                sub.prop(ob_nwo, 'uvmirror_across_entire_model')
-
-
-
 class NWO_ObjectMeshMaterialLightingProps(Panel):
     bl_label = "Lighting Properties"
     bl_idname = "NWO_PT_MeshMaterialLightingDetailsPanel"
@@ -4633,7 +4573,7 @@ class NWO_UL_FaceMapProps(UIList):
 
 class NWO_FaceMapProps(Panel):
     bl_label = "Face Properties"
-    bl_idname = "NWO_PT_FaceMapDetailsPanel"
+    bl_idname = "NWO_PT_MeshFaceDetailsPanel"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_parent_id = "NWO_PT_MeshDetailsPanel"
@@ -4646,33 +4586,54 @@ class NWO_FaceMapProps(Panel):
         return (obj and obj.type == 'MESH') and (engine in cls.COMPAT_ENGINES)
     
     def draw(self, context):
-        pass
-    
-
-class NWO_FaceMapFaceProps(Panel):
-    bl_label = "Overrides"
-    bl_idname = "NWO_PT_FaceMapPropertiesDetailsPanel"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_parent_id = "NWO_PT_FaceMapDetailsPanel"
-
-    def draw(self, context):
-        layout = self.layout
-        # draw_ui_list(
-        #     layout,
-        #     context,
-        #     unique_id="halo_face_props",
-        #     list_path="object.nwo_face.face_props",
-        #     active_index_path="object.face_maps.active_index"
-        # )
         layout = self.layout
         layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
         ob = context.object
+        ob_nwo = ob.nwo
         ob_nwo_face = ob.nwo_face
-        
+        col = flow.column()
+        if not ob.nwo_face.toggle_face_defaults:
+            col.operator('nwo_face.toggle_defaults', text='Show Defaults')
+        else:
+            col.operator('nwo_face.toggle_defaults', text='Hide Defaults')
+            col = flow.column()
+            col.prop(ob_nwo, "Face_Type", text='Face Type')
+            if ob_nwo.Face_Type == '_connected_geometry_face_type_sky':
+                sub = col.column(align=True)
+                sub.prop(ob_nwo, "Sky_Permutation_Index", text='Sky Permutation Index')
+                col.separator()
 
-        # row.template_list("NWO_UL_FaceMapProps", "", ob.nwo_face, "face_props", ob.face_maps, "active_index", rows=2)
+            col.prop(ob_nwo, "Face_Mode", text='Face Mode')
+            col.prop(ob_nwo, "Face_Sides", text='Face Sides')
+            col.prop(ob_nwo, "Face_Draw_Distance", text='Draw Distance')
+            col.prop(ob_nwo, 'texcoord_usage')
+            col.prop(ob_nwo, "Mesh_Tessellation_Density", text='Tessellation Density')
+            if not_bungie_game():
+                col.prop(ob_nwo, "Mesh_Compression", text='Compression')
+
+            col.separator()
+
+            col = layout.column(heading="Flags")
+            sub = col.column(align=True)
+            # sub.prop(ob_nwo, "Conveyor", text='Conveyor') removed as it seems non-functional. Leaving here in case conveyor functionality is ever fixed/added
+            if poll_ui(('SCENARIO', 'PREFAB')):
+                sub.prop(ob_nwo, "Ladder", text='Ladder')
+                sub.prop(ob_nwo, "Slip_Surface", text='Slip Surface')
+            sub.prop(ob_nwo, "Decal_Offset", text='Decal Offset')
+            sub.prop(ob_nwo, "Group_Transparents_By_Plane", text='Group Transparents By Plane')
+            sub.prop(ob_nwo, "No_Shadow", text='No Shadow')
+            sub.prop(ob_nwo, "Precise_Position", text='Precise Position')
+            if not_bungie_game():
+                if poll_ui(('SCENARIO', 'PREFAB')):
+                    sub.prop(ob_nwo, "no_lightmap")
+                    sub.prop(ob_nwo, "no_pvs")
+                if CheckType.poop(ob) or CheckType.default(ob):
+                    sub.prop(ob_nwo, 'compress_verts')
+                if CheckType.default(ob):
+                    sub.prop(ob_nwo, 'uvmirror_across_entire_model')
+    
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
@@ -4819,6 +4780,22 @@ def toggle_override(context, option, bool_var):
             item.no_lightmap_override = bool_var
         case 'no_pvs':
             item.no_pvs_override = bool_var
+
+
+class NWO_FaceDefaultsToggle(Operator):
+    """Toggles the default Face Properties display"""
+    bl_idname = "nwo_face.toggle_defaults"
+    bl_label = "Toggle Defaults"
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
+
+    def execute(self, context):
+        
+        context.object.nwo_face.toggle_face_defaults = not context.object.nwo_face.toggle_face_defaults
+
+        return {'FINISHED'}
 
 class NWO_FaceMapAdd(Operator):
     """Adds a facemap and assigns all faces to it"""
@@ -5119,6 +5096,10 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
 class NWO_FacePropertiesGroup(PropertyGroup):
+
+
+    toggle_face_defaults : BoolProperty()
+
     face_props : CollectionProperty(
         type=NWO_FaceProperties_ListItems,
     )
@@ -5214,15 +5195,14 @@ classeshalo = (
     NWO_Animation_ListItems,
     NWO_ActionPropertiesGroup,
     NWO_UL_FaceMapProps,
-    NWO_FaceMapProps,
     NWO_FacePropAdd,
     NWO_FacePropRemove,
     NWO_FaceMapAdd,
+    NWO_FaceDefaultsToggle,
     NWO_FaceProperties_ListItems,
-    NWO_ObjectMeshFaceProps,
+    NWO_FaceMapProps,
     NWO_ObjectMeshMaterialLightingProps,
     NWO_ObjectMeshLightmapProps,
-    NWO_FaceMapFaceProps,
     NWO_FacePropertiesGroup,
 )
 
