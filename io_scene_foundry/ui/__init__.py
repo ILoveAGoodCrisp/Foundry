@@ -4593,46 +4593,46 @@ class NWO_FaceMapProps(Panel):
         ob = context.object
         ob_nwo = ob.nwo
         ob_nwo_face = ob.nwo_face
-        col = flow.column()
-        if not ob.nwo_face.toggle_face_defaults:
-            col.operator('nwo_face.toggle_defaults', text='Show Defaults')
-        else:
-            col.operator('nwo_face.toggle_defaults', text='Hide Defaults')
-            col = flow.column()
-            col.prop(ob_nwo, "Face_Type", text='Face Type')
-            if ob_nwo.Face_Type == '_connected_geometry_face_type_sky':
-                sub = col.column(align=True)
-                sub.prop(ob_nwo, "Sky_Permutation_Index", text='Sky Permutation Index')
-                col.separator()
+        # col = flow.column()
+        # if not ob.nwo_face.toggle_face_defaults:
+        #     col.operator('nwo_face.toggle_defaults', text='Show Defaults')
+        # else:
+        #     col.operator('nwo_face.toggle_defaults', text='Hide Defaults')
+        #     col = flow.column()
+        #     col.prop(ob_nwo, "Face_Type", text='Face Type')
+        #     if ob_nwo.Face_Type == '_connected_geometry_face_type_sky':
+        #         sub = col.column(align=True)
+        #         sub.prop(ob_nwo, "Sky_Permutation_Index", text='Sky Permutation Index')
+        #         col.separator()
 
-            col.prop(ob_nwo, "Face_Mode", text='Face Mode')
-            col.prop(ob_nwo, "Face_Sides", text='Face Sides')
-            col.prop(ob_nwo, "Face_Draw_Distance", text='Draw Distance')
-            col.prop(ob_nwo, 'texcoord_usage')
-            col.prop(ob_nwo, "Mesh_Tessellation_Density", text='Tessellation Density')
-            if not_bungie_game():
-                col.prop(ob_nwo, "Mesh_Compression", text='Compression')
+        #     col.prop(ob_nwo, "Face_Mode", text='Face Mode')
+        #     col.prop(ob_nwo, "Face_Sides", text='Face Sides')
+        #     col.prop(ob_nwo, "Face_Draw_Distance", text='Draw Distance')
+        #     col.prop(ob_nwo, 'texcoord_usage')
+        #     col.prop(ob_nwo, "Mesh_Tessellation_Density", text='Tessellation Density')
+        #     if not_bungie_game():
+        #         col.prop(ob_nwo, "Mesh_Compression", text='Compression')
 
-            col.separator()
+        #     col.separator()
 
-            col = layout.column(heading="Flags")
-            sub = col.column(align=True)
-            # sub.prop(ob_nwo, "Conveyor", text='Conveyor') removed as it seems non-functional. Leaving here in case conveyor functionality is ever fixed/added
-            if poll_ui(('SCENARIO', 'PREFAB')):
-                sub.prop(ob_nwo, "Ladder", text='Ladder')
-                sub.prop(ob_nwo, "Slip_Surface", text='Slip Surface')
-            sub.prop(ob_nwo, "Decal_Offset", text='Decal Offset')
-            sub.prop(ob_nwo, "Group_Transparents_By_Plane", text='Group Transparents By Plane')
-            sub.prop(ob_nwo, "No_Shadow", text='No Shadow')
-            sub.prop(ob_nwo, "Precise_Position", text='Precise Position')
-            if not_bungie_game():
-                if poll_ui(('SCENARIO', 'PREFAB')):
-                    sub.prop(ob_nwo, "no_lightmap")
-                    sub.prop(ob_nwo, "no_pvs")
-                if CheckType.poop(ob) or CheckType.default(ob):
-                    sub.prop(ob_nwo, 'compress_verts')
-                if CheckType.default(ob):
-                    sub.prop(ob_nwo, 'uvmirror_across_entire_model')
+        #     col = layout.column(heading="Flags")
+        #     sub = col.column(align=True)
+        #     # sub.prop(ob_nwo, "Conveyor", text='Conveyor') removed as it seems non-functional. Leaving here in case conveyor functionality is ever fixed/added
+        #     if poll_ui(('SCENARIO', 'PREFAB')):
+        #         sub.prop(ob_nwo, "Ladder", text='Ladder')
+        #         sub.prop(ob_nwo, "Slip_Surface", text='Slip Surface')
+        #     sub.prop(ob_nwo, "Decal_Offset", text='Decal Offset')
+        #     sub.prop(ob_nwo, "Group_Transparents_By_Plane", text='Group Transparents By Plane')
+        #     sub.prop(ob_nwo, "No_Shadow", text='No Shadow')
+        #     sub.prop(ob_nwo, "Precise_Position", text='Precise Position')
+        #     if not_bungie_game():
+        #         if poll_ui(('SCENARIO', 'PREFAB')):
+        #             sub.prop(ob_nwo, "no_lightmap")
+        #             sub.prop(ob_nwo, "no_pvs")
+        #         if CheckType.poop(ob) or CheckType.default(ob):
+        #             sub.prop(ob_nwo, 'compress_verts')
+        #         if CheckType.default(ob):
+        #             sub.prop(ob_nwo, 'uvmirror_across_entire_model')
     
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
@@ -4839,9 +4839,48 @@ class NWO_FacePropAdd(Operator):
     @classmethod
     def poll(cls, context):
         return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
+    
+    sub_option : EnumProperty(
+        items=[
+        ('region', 'region', ''),
+        ('face_global_material', 'face_global_material', ''),
+        ('faces', 'faces', ''),
+        ('flags', 'flags', ''),
+        ('misc', 'misc', ''),
+        ]
+    )
+    
+    options_faces : EnumProperty(
+        items=[
+        ('face_type', 'Face Type', ''),
+        ('face_mode', 'Face Mode', ''),
+        ('face_sides', 'Face Sides', ''),
+        ]
+    )
+
+    options_flags : EnumProperty(
+        items=[
+        ('precise_position', 'Precise Position', ''),
+        ('ladder', 'Ladder', ''),
+        ('slip_surface', 'Slip Surface', ''),
+        ('decal_offset', 'Decal Offset', ''),
+        ('group_transparents_by_plane', 'Group Transparents by Plane', ''),
+        ('no_shadow', 'No Shadow', ''),
+        ('no_lightmap', 'No Lightmap', ''),
+        ('no_pvs', 'No PVS', ''),
+        ]
+    )
+
+    options_misc : EnumProperty(
+        items=[
+        ('face_draw_distance', 'Draw Distance', ''),
+        ('texcoord_usage', 'Texcord Usage', ''),
+        ('face_sides', 'Face Sides', ''),
+        ]
+    )
 
     options: EnumProperty(
-        default="region",
+        default="Menu",
         items=[
         ('region', 'Region Override', ''),
         ('face_type', 'Face Type', ''),
