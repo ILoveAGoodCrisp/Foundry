@@ -33,7 +33,8 @@ from bpy.types import (
         Operator,
         Panel,
         UIList,
-        PropertyGroup
+        PropertyGroup,
+        Menu
         )
 
 from bpy.props import (
@@ -4637,7 +4638,7 @@ class NWO_FaceMapProps(Panel):
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
-            col.operator('nwo_face.add_face_property', text='', icon='ADD')
+            col.menu(NWO_FacePropAddMenu.bl_idname, text='', icon='ADD')
         else:
             try:
                 facemap = ob.face_maps.active
@@ -4674,6 +4675,7 @@ class NWO_FaceMapProps(Panel):
                 row = col.row()
                 item = ob_nwo_face.face_props[ob.face_maps.active.name]
                 # row.prop(item, 'name')
+                col.menu(NWO_FacePropAddMenu.bl_idname, text='', icon='ADD')
                 if item.region_name_override:
                     row = col.row()
                     row.prop(item, "region_name")
@@ -4739,7 +4741,6 @@ class NWO_FaceMapProps(Panel):
                     row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
             except:
                 pass
-            col.operator("nwo_face.add_face_property", text='', icon='ADD')
 
 def toggle_override(context, option, bool_var):
     ob = context.object
@@ -4752,12 +4753,51 @@ def toggle_override(context, option, bool_var):
     match option:
         case 'region':
             item.region_name_override = bool_var
-        case 'face_type':
+        case '_connected_geometry_face_type_sky':
             item.face_type_override = bool_var
-        case 'face_mode':
+            item.face_type = '_connected_geometry_face_type_sky'
+        case '_connected_geometry_face_type_seam_sealer':
+            item.face_type_override = bool_var
+            item.face_type = '_connected_geometry_face_type_seam_sealer'
+        case '_connected_geometry_face_mode_render_only':
             item.face_mode_override = bool_var
-        case 'face_sides':
+            item.face_mode = '_connected_geometry_face_mode_render_only'
+        case '_connected_geometry_face_mode_collision_only':
+            item.face_mode_override = bool_var
+            item.face_mode = '_connected_geometry_face_mode_collision_only'
+        case '_connected_geometry_face_mode_sphere_collision_only':
+            item.face_mode_override = bool_var
+            item.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
+        case '_connected_geometry_face_mode_shadow_only':
+            item.face_mode_override = bool_var
+            item.face_mode = '_connected_geometry_face_mode_shadow_only'
+        case '_connected_geometry_face_mode_lightmap_only':
+            item.face_mode_override = bool_var
+            item.face_mode = '_connected_geometry_face_mode_lightmap_only'
+        case '_connected_geometry_face_mode_breakable':
+            item.face_mode_override = bool_var
+            item.face_mode = '_connected_geometry_face_mode_breakable'
+        case '_connected_geometry_face_sides_one_sided_transparent':
             item.face_sides_override = bool_var
+            item.face_sides = '_connected_geometry_face_sides_one_sided_transparent'
+        case '_connected_geometry_face_sides_two_sided':
+            item.face_sides_override = bool_var
+            item.face_sides = '_connected_geometry_face_sides_two_sided'
+        case '_connected_geometry_face_sides_two_sided_transparent':
+            item.face_sides_override = bool_var
+            item.face_sides = '_connected_geometry_face_sides_two_sided_transparent'
+        case '_connected_geometry_face_sides_mirror':
+            item.face_sides_override = bool_var
+            item.face_sides = '_connected_geometry_face_sides_mirror'
+        case '_connected_geometry_face_sides_mirror_transparent':
+            item.face_sides_override = bool_var
+            item.face_sides = '_connected_geometry_face_sides_mirror_transparent'
+        case '_connected_geometry_face_sides_keep':
+            item.face_sides_override = bool_var
+            item.face_sides = '_connected_geometry_face_sides_keep'
+        case '_connected_geometry_face_sides_keep_transparent':
+            item.face_sides_override = bool_var
+            item.face_sides = '_connected_geometry_face_sides_keep_transparent'
         case 'face_draw_distance':
             item.face_draw_distance_override = bool_var
         case 'texcoord_usage':
@@ -4781,6 +4821,37 @@ def toggle_override(context, option, bool_var):
         case 'no_pvs':
             item.no_pvs_override = bool_var
 
+class NWO_FacePropAddMenu(Menu):
+    bl_label = "Add Face Property"
+    bl_idname = "NWO_MT_FacePropAdd"
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.operator("nwo_face.add_face_property", text='Region').options = 'region'
+        layout.operator("nwo_face.add_face_property", text='Global Material').options = 'face_global_material'
+        layout.operator("nwo_face.add_face_property", text='Precise').options = 'precise_position'
+
+        layout.operator_menu_enum("nwo_face.add_face_property_face_type",
+                                  property="options",
+                                  text="Type",
+                                  )
+        layout.operator_menu_enum("nwo_face.add_face_property_face_mode",
+                                  property="options",
+                                  text="Mode",
+                                  )
+        layout.operator_menu_enum("nwo_face.add_face_property_face_sides",
+                                  property="options",
+                                  text="Sides",
+                                  )
+        layout.operator_menu_enum("nwo_face.add_face_property_flags",
+                                  property="options",
+                                  text="Flags",
+                                  )
+        layout.operator_menu_enum("nwo_face.add_face_property_misc",
+                                  property="options",
+                                  text="Other",
+                                  )
 
 class NWO_FaceDefaultsToggle(Operator):
     """Toggles the default Face Properties display"""
@@ -4829,8 +4900,6 @@ class NWO_EditMode(Operator):
 
         return {'FINISHED'}
 
-
-
 class NWO_FacePropAdd(Operator):
     """Adds a face property that will override face properties set in the mesh"""
     bl_idname = "nwo_face.add_face_property"
@@ -4839,67 +4908,15 @@ class NWO_FacePropAdd(Operator):
     @classmethod
     def poll(cls, context):
         return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
-    
-    sub_option : EnumProperty(
-        items=[
-        ('region', 'region', ''),
-        ('face_global_material', 'face_global_material', ''),
-        ('faces', 'faces', ''),
-        ('flags', 'flags', ''),
-        ('misc', 'misc', ''),
-        ]
-    )
-    
-    options_faces : EnumProperty(
-        items=[
-        ('face_type', 'Face Type', ''),
-        ('face_mode', 'Face Mode', ''),
-        ('face_sides', 'Face Sides', ''),
-        ]
-    )
-
-    options_flags : EnumProperty(
-        items=[
-        ('precise_position', 'Precise Position', ''),
-        ('ladder', 'Ladder', ''),
-        ('slip_surface', 'Slip Surface', ''),
-        ('decal_offset', 'Decal Offset', ''),
-        ('group_transparents_by_plane', 'Group Transparents by Plane', ''),
-        ('no_shadow', 'No Shadow', ''),
-        ('no_lightmap', 'No Lightmap', ''),
-        ('no_pvs', 'No PVS', ''),
-        ]
-    )
-
-    options_misc : EnumProperty(
-        items=[
-        ('face_draw_distance', 'Draw Distance', ''),
-        ('texcoord_usage', 'Texcord Usage', ''),
-        ('face_sides', 'Face Sides', ''),
-        ]
-    )
 
     options: EnumProperty(
-        default="Menu",
+        default="region",
         items=[
         ('region', 'Region Override', ''),
-        ('face_type', 'Face Type', ''),
-        ('face_mode', 'Face Mode', ''),
-        ('face_sides', 'Face Sides', ''),
-        ('face_draw_distance', 'Draw Distance', ''),
-        ('texcoord_usage', 'Texcord Usage', ''),
         ('face_global_material', 'Global Material', ''),
-        ('ladder', 'Ladder', ''),
-        ('slip_surface', 'Slip Surface', ''),
-        ('decal_offset', 'Decal Offset', ''),
-        ('group_transparents_by_plane', 'Group Transparents by Plane', ''),
-        ('no_shadow', 'No Shadow', ''),
         ('precise_position', 'Precise Position', ''),
-        ('no_lightmap', 'No Lightmap', ''),
-        ('no_pvs', 'No PVS', ''),
         ]
         )
-
 
     def execute(self, context):
         ob = context.object
@@ -4912,7 +4929,7 @@ class NWO_FacePropAdd(Operator):
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             ob.face_maps[0].name = 'default'
             bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
-
+        
         toggle_override(context, self.options, True)
         ob_nwo_face = ob.nwo_face
         item = ob_nwo_face.face_props[ob.face_maps.active_index]
@@ -4923,15 +4940,6 @@ class NWO_FacePropAdd(Operator):
         context.area.tag_redraw()
 
         return {'FINISHED'}
-    
-    def draw(self, context):
-        layout = self.layout
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        col = flow.column()
-        col.prop(self, 'options', expand=True)
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
 
 class NWO_FacePropRemove(Operator):
     """Removes a face property"""
@@ -4965,6 +4973,79 @@ class NWO_FacePropRemove(Operator):
         context.area.tag_redraw()
 
         return {'FINISHED'}
+    
+class NWO_FacePropAddFaceType(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_face_type"
+    bl_label = "Add"
+
+    options: EnumProperty(
+        items=[
+        ('_connected_geometry_face_type_sky', 'Sky', ''),
+        ('_connected_geometry_face_type_seam_sealer', 'Seam Sealer', ''),
+        ]
+        )
+    
+class NWO_FacePropAddFaceMode(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_face_mode"
+    bl_label = "Add"
+
+    options: EnumProperty(
+        items=[
+        ('_connected_geometry_face_mode_render_only', 'Render Only', ''),
+        ('_connected_geometry_face_mode_collision_only', 'Collision Only', ''),
+        ('_connected_geometry_face_mode_sphere_collision_only', 'Sphere Collision Only', ''),
+        ('_connected_geometry_face_mode_shadow_only', 'Shadow Only', ''),
+        ('_connected_geometry_face_mode_lightmap_only', 'Lightmap Only', ''),
+        ('_connected_geometry_face_mode_breakable', 'Breakable', ''),
+        ]
+        )
+class NWO_FacePropAddFaceSides(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_face_sides"
+    bl_label = "Add"
+
+    options: EnumProperty(
+        items=[
+        ('_connected_geometry_face_sides_one_sided_transparent', 'Transparent', ''),
+        ('_connected_geometry_face_sides_two_sided', 'Two Side', ''),
+        ('_connected_geometry_face_sides_two_sided_transparent', 'Two Side Transparent', ''),
+        ('_connected_geometry_face_sides_mirror', 'Mirror', ''),
+        ('_connected_geometry_face_sides_mirror_transparent', 'Mirror Transparent', ''),
+        ('_connected_geometry_face_sides_keep', 'Keep', ''),
+        ('_connected_geometry_face_sides_keep_transparent', 'Keep Transparent', ''),
+        ]
+        )
+
+class NWO_FacePropAddFlags(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_flags"
+    bl_label = "Add"
+
+    options : EnumProperty(
+        items=[
+        ('ladder', 'Ladder', ''),
+        ('slip_surface', 'Slip Surface', ''),
+        ('decal_offset', 'Decal Offset', ''),
+        ('group_transparents_by_plane', 'Group Transparents by Plane', ''),
+        ('no_shadow', 'No Shadow', ''),
+        ('no_lightmap', 'No Lightmap', ''),
+        ('no_pvs', 'No PVS', ''),
+        ]
+    )
+
+class NWO_FacePropAddMisc(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_misc"
+    bl_label = "Add"
+
+    options : EnumProperty(
+        items=[
+        ('face_draw_distance', 'Draw Distance', ''),
+        ('texcoord_usage', 'Texcord Usage', ''),
+        ]
+    )
 
 class NWO_FaceProperties_ListItems(PropertyGroup):
 
@@ -4992,8 +5073,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name="Face Type",
         options=set(),
         description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
-        default = '_connected_geometry_face_type_normal',
-        items=[ ('_connected_geometry_face_type_normal', "Normal", "This face type has no special properties"),
+        items=[ 
                 ('_connected_geometry_face_type_seam_sealer', "Seam Sealer", "Set mesh faces to have the special seam sealer property. Collsion only geometry"),
                 ('_connected_geometry_face_type_sky', "Sky", "Set mesh faces to render the sky"),
                ]
@@ -5003,8 +5083,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name="Face Mode",
         options=set(),
         description="Sets face mode for this mesh",
-        default = '_connected_geometry_face_mode_normal',
-        items=[ ('_connected_geometry_face_mode_normal', "Normal", "This face mode has no special properties"),
+        items=[ 
                 ('_connected_geometry_face_mode_render_only', "Render Only", "Faces set to render only"),
                 ('_connected_geometry_face_mode_collision_only', "Collision Only", "Faces set to collision only"),
                 ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Faces set to sphere collision only. Only objects with physics models can collide with these faces"),
@@ -5018,8 +5097,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name="Face Sides",
         options=set(),
         description="Sets the face sides for this mesh",
-        default = '_connected_geometry_face_sides_one_sided',
-        items=[ ('_connected_geometry_face_sides_one_sided', "One Sided", "Faces set to only render on one side (the direction of face normals)"),
+        items=[ 
                 ('_connected_geometry_face_sides_one_sided_transparent', "One Sided Transparent", "Faces set to only render on one side (the direction of face normals), but also render geometry behind them"),
                 ('_connected_geometry_face_sides_two_sided', "Two Sided", "Faces set to render on both sides"),
                 ('_connected_geometry_face_sides_two_sided_transparent', "Two Sided Transparent", "Faces set to render on both sides and are transparent"),
@@ -5234,6 +5312,11 @@ classeshalo = (
     NWO_Animation_ListItems,
     NWO_ActionPropertiesGroup,
     NWO_UL_FaceMapProps,
+    NWO_FacePropAddFaceType,
+    NWO_FacePropAddFaceMode,
+    NWO_FacePropAddFaceSides,
+    NWO_FacePropAddFlags,
+    NWO_FacePropAddMisc,
     NWO_FacePropAdd,
     NWO_FacePropRemove,
     NWO_FaceMapAdd,
@@ -5242,6 +5325,8 @@ classeshalo = (
     NWO_FaceMapProps,
     NWO_ObjectMeshMaterialLightingProps,
     NWO_ObjectMeshLightmapProps,
+    NWO_FacePropAddMenu,
+
     NWO_FacePropertiesGroup,
 )
 
