@@ -193,11 +193,16 @@ def remove_unused_facemaps(ob, context):
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             ob.select_set(False)
 
+def any_face_props(ob):
+    True
+
 def split_by_face_map(ob, context):
     # remove unused face maps
     ob.select_set(True)
     set_active_object(ob)
     if ob.type == 'MESH' and len(ob.face_maps) > 0:
+        normals_mesh = ob.copy()
+        normals_mesh.data = ob.data.copy()
         remove_unused_facemaps(ob, context)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         while len(ob.face_maps) > 0:
@@ -221,6 +226,12 @@ def split_by_face_map(ob, context):
         new_selection = context.selected_objects
         for obj in new_selection:
             remove_unused_facemaps(obj, context)
+            # set up data transfer modifier to retain normals
+            mod = obj.modifiers.new("DataTransfer", "DATA_TRANSFER")
+            mod.object = normals_mesh
+            mod.use_object_transform = False
+            mod.use_loop_data = True
+            mod.data_types_loops = {'CUSTOM_NORMAL'}
             if len(obj.face_maps) > 0:
                 obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
                     
