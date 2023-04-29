@@ -214,20 +214,16 @@ def split_by_face_map(ob, context):
             bpy.ops.mesh.separate(type='SELECTED')
 
             bpy.ops.object.face_map_remove()
-            
-            # Rename the newly created object to match the face map name
-            # new_ob = bpy.context.active_object
-            # new_ob.name = 'TEST'
-            # new_ob.data.name = 'test'
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         # Remove unused face maps for objects
-        ob.select_set(True)
         new_selection = context.selected_objects
-        for obj in new_selection:
+        ob.select_set(True)
+        selection_ob = context.selected_objects
+        for obj in selection_ob:
             remove_unused_facemaps(obj, context)
             # set up data transfer modifier to retain normals
-            mod = obj.modifiers.new("DataTransfer", "DATA_TRANSFER")
+            mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
             mod.object = normals_mesh
             mod.use_object_transform = False
             mod.use_loop_data = True
@@ -289,17 +285,39 @@ def apply_face_properties(context):
             deselect_all_objects()
             ob.select_set(True)
             set_active_object(ob)
-            # must make single user for this process
-            bpy.ops.object.make_single_user(object=True, obdata=True)
+            # split for all linked objects
+            me = ob.data
+            linked_objects = []
+            for obj in context.view_layer.objects:
+                if obj.data == me and obj != ob:
+                    linked_objects.append(obj)
             if ob.face_maps:
-                split_objects = split_by_face_map(ob, context)
+                split_objects= split_by_face_map(ob, context)
                 for ob in split_objects:
                     # check the whole mesh hasn't been deleted
                     if len(ob.face_maps) > 0:
-                        face_prop_to_mesh_prop(ob) 
-                    
+                        face_prop_to_mesh_prop(ob)
+
                 # set mode again
                 set_object_mode(context)
+
+                # copy all new face split objects to all linked objects
+                for obj in linked_objects:
+                    deselect_all_objects()
+                    override = context.copy()
+                    override["selected_objects"] = split_objects
+                    with context.temp_override(**override):
+                        bpy.ops.object.duplicate_move_linked(OBJECT_OT_duplicate={"linked":True, "mode":'TRANSLATION'}, TRANSFORM_OT_translate={"value":(obj.location.x, obj.location.y, obj.location.z), "orient_axis_ortho":'X', "orient_type":'GLOBAL', "orient_matrix":((1, 0, 0), (0, 1, 0), (0, 0, 1)), "orient_matrix_type":'GLOBAL', "constraint_axis":(False, False, False), "mirror":False, "use_proportional_edit":False, "proportional_edit_falloff":'SMOOTH', "proportional_size":1, "use_proportional_connected":False, "use_proportional_projected":False, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "cursor_transform":False, "texture_space":False, "remove_on_cancel":False, "view2d_edge_pan":False, "release_confirm":False, "use_accurate":False, "use_automerge_and_split":False})
+                    # update data transfer reference and object names
+                    # obje.name = obj.name + '(' + obje.name.rpartition('(')[2].rpartition('.0')[0]
+                    mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
+                    mod.object = ob.modifiers["HaloDataTransfer"].object
+                    mod.use_object_transform = False
+                    mod.use_loop_data = True
+                    mod.data_types_loops = {'CUSTOM_NORMAL'}
+
+    
+                
 
 def z_rotate_and_apply(ob, angle):
     angle = radians(angle)
