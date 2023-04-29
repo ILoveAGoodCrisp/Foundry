@@ -4638,14 +4638,14 @@ class NWO_FaceMapProps(Panel):
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
-            col.menu(NWO_FacePropAddMenu.bl_idname, text='', icon='ADD')
+            col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
         else:
             try:
                 facemap = ob.face_maps.active
 
                 rows = 2
                 if facemap:
-                    rows = 4
+                    rows = 5
 
                 row = layout.row()
                 row.template_list("MESH_UL_fmaps", "", ob, "face_maps", ob.face_maps, "active_index", rows=rows)
@@ -4653,6 +4653,10 @@ class NWO_FaceMapProps(Panel):
                 col = row.column(align=True)
                 col.operator("nwo_face.add_face_map", icon='ADD', text="")
                 col.operator("object.face_map_remove", icon='REMOVE', text="")
+
+                col.separator()
+
+                col.operator("nwo_face.edit_face_map", text='', icon='EDITMODE_HLT')
 
                 if facemap:
                     col.separator()
@@ -4675,7 +4679,12 @@ class NWO_FaceMapProps(Panel):
                 row = col.row()
                 item = ob_nwo_face.face_props[ob.face_maps.active.name]
                 # row.prop(item, 'name')
-                col.menu(NWO_FacePropAddMenu.bl_idname, text='', icon='ADD')
+                if not (item.region_name_override and item.face_type_override and item.face_mode_override and item.face_sides_override and item.face_draw_distance_override and item.texcoord_usage_override
+                         and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
+                           and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
+                        ):
+                    
+                    col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
                 if item.region_name_override:
                     row = col.row()
                     row.prop(item, "region_name")
@@ -4753,6 +4762,12 @@ def toggle_override(context, option, bool_var):
     match option:
         case 'region':
             item.region_name_override = bool_var
+        case 'face_type':
+            item.face_type_override = bool_var
+        case 'face_mode':
+            item.face_mode_override = bool_var
+        case 'face_sides':
+            item.face_sides_override = bool_var
         case '_connected_geometry_face_type_sky':
             item.face_type_override = bool_var
             item.face_type = '_connected_geometry_face_type_sky'
@@ -4885,18 +4900,16 @@ class NWO_FaceMapAdd(Operator):
         return {'FINISHED'}
     
 class NWO_EditMode(Operator):
-    """Switch to Edit Mode and to local view"""
-    bl_idname = "nwo_face.add_face_map"
-    bl_label = "Add Face Properties"
+    """Toggles Edit Mode for face map editing"""
+    bl_idname = "nwo_face.edit_face_map"
+    bl_label = "Enter Edit Mode"
 
     @classmethod
     def poll(cls, context):
         return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
 
     def execute(self, context):
-        ob = context.object
-        bpy.ops.object.face_map_add()
-        ob.face_maps[ob.face_maps.active_index].name = 'default'
+        bpy.ops.object.mode_set(mode='EDIT', toggle=True)
 
         return {'FINISHED'}
 
@@ -5260,6 +5273,9 @@ class NWO_FacePropertiesGroup(PropertyGroup):
                         if item.name not in face_map_names:
                             item.name = context.object.face_maps.active.name
                             context.area.tag_redraw()
+                elif item.region_name_override and item.region_name not in context.object.face_maps.active.name:
+                    context.object.face_maps.active.name = item.region_name
+                    context.area.tag_redraw()
 
         return False
 
@@ -5321,6 +5337,7 @@ classeshalo = (
     NWO_FacePropAdd,
     NWO_FacePropRemove,
     NWO_FaceMapAdd,
+    NWO_EditMode,
     NWO_FaceDefaultsToggle,
     NWO_FaceProperties_ListItems,
     NWO_FaceMapProps,

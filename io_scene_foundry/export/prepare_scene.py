@@ -77,6 +77,8 @@ def prepare_scene(context, report, sidecar_type, export_hidden, use_armature_def
         find_shaders_on_export(bpy.data.materials, context, report)
         # Set up facemap properties
         apply_face_properties(context)
+        # remove meshes with zero faces
+        cull_zero_face_meshes(context)
     # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
     regions_dict = get_regions_dict(context.view_layer.objects)
     # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
@@ -161,6 +163,12 @@ class HaloObjects():
 #####################################################################################
 # VARIOUS FUNCTIONS
 
+def cull_zero_face_meshes(context):
+    for ob in context.view_layer.objects:
+        if ob.type == 'MESH' and len(ob.data.polygons) < 1:
+            ob.hide_set(True)
+
+
 # FACEMAP SPLIT
 
 def remove_unused_facemaps(ob, context):
@@ -192,7 +200,7 @@ def split_by_face_map(ob, context):
     if ob.type == 'MESH' and len(ob.face_maps) > 0:
         remove_unused_facemaps(ob, context)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        while len(ob.face_maps) > 1:
+        while len(ob.face_maps) > 0:
             # Deselect all faces except those in the current face map
             bpy.ops.mesh.select_all(action='DESELECT')
             bpy.ops.object.face_map_select()
@@ -211,11 +219,11 @@ def split_by_face_map(ob, context):
         # Remove unused face maps for objects
         ob.select_set(True)
         new_selection = context.selected_objects
-        print(new_selection)
         for obj in new_selection:
             remove_unused_facemaps(obj, context)
-            obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
-
+            if len(obj.face_maps) > 0:
+                obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
+                    
         return new_selection
 
 def face_prop_to_mesh_prop(ob):
@@ -275,7 +283,10 @@ def apply_face_properties(context):
             if ob.face_maps:
                 split_objects = split_by_face_map(ob, context)
                 for ob in split_objects:
-                    face_prop_to_mesh_prop(ob)
+                    # check the whole mesh hasn't been deleted
+                    if len(ob.face_maps) > 0:
+                        face_prop_to_mesh_prop(ob) 
+                    
                 # set mode again
                 set_object_mode(context)
 

@@ -1832,7 +1832,7 @@ class NWO_Shader_Build(Operator):
     bl_idname = 'nwo.build_shader'
     bl_label = 'Build Shader'
     bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Makes a shader"
+    bl_description = "Builds empty shader tags for blender materials. Requires ManagedBlam to be active"
 
     @classmethod
     def poll(cls, context):
