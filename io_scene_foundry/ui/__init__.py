@@ -4842,31 +4842,37 @@ class NWO_FacePropAddMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
+        ob = context.object
+        if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
+            layout.operator("nwo_face.add_face_property", text='Region').options = 'region'
+        if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+            layout.operator("nwo_face.add_face_property", text='Global Material').options = 'face_global_material'
+        if poll_ui(('MODEL', 'SKY', 'DECORATOR')) and (CheckType.default(ob) or CheckType.decorator(ob)):
+            layout.operator("nwo_face.add_face_property", text='Precise').options = 'precise_position'
 
-        layout.operator("nwo_face.add_face_property", text='Region').options = 'region'
-        layout.operator("nwo_face.add_face_property", text='Global Material').options = 'face_global_material'
-        layout.operator("nwo_face.add_face_property", text='Precise').options = 'precise_position'
-
-        layout.operator_menu_enum("nwo_face.add_face_property_face_type",
-                                  property="options",
-                                  text="Type",
-                                  )
-        layout.operator_menu_enum("nwo_face.add_face_property_face_mode",
-                                  property="options",
-                                  text="Mode",
-                                  )
-        layout.operator_menu_enum("nwo_face.add_face_property_face_sides",
-                                  property="options",
-                                  text="Sides",
-                                  )
-        layout.operator_menu_enum("nwo_face.add_face_property_flags",
-                                  property="options",
-                                  text="Flags",
-                                  )
-        layout.operator_menu_enum("nwo_face.add_face_property_misc",
-                                  property="options",
-                                  text="Other",
-                                  )
+        if poll_ui(('SCENARIO', 'PREFAB')) and (CheckType.default(ob) or CheckType.poop(ob)):
+            layout.operator_menu_enum("nwo_face.add_face_property_face_type",
+                                    property="options",
+                                    text="Type",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_face_mode",
+                                    property="options",
+                                    text="Mode",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_flags",
+                                    property="options",
+                                    text="Flags",
+                                    )
+            
+        if CheckType.default(ob) or CheckType.poop(ob) or CheckType.decorator(ob):
+            layout.operator_menu_enum("nwo_face.add_face_property_face_sides",
+                                    property="options",
+                                    text="Sides",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_misc",
+                                    property="options",
+                                    text="Other",
+                                    )
 
 class NWO_FaceDefaultsToggle(Operator):
     """Toggles the default Face Properties display"""
