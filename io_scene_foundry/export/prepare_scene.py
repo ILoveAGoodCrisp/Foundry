@@ -192,7 +192,7 @@ def split_by_face_map(ob, context):
     if ob.type == 'MESH' and len(ob.face_maps) > 0:
         remove_unused_facemaps(ob, context)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        while len(ob.face_maps) > 0:
+        while len(ob.face_maps) > 1:
             # Deselect all faces except those in the current face map
             bpy.ops.mesh.select_all(action='DESELECT')
             bpy.ops.object.face_map_select()
@@ -208,12 +208,13 @@ def split_by_face_map(ob, context):
             # new_ob.data.name = 'test'
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         # Remove unused face maps for objects
+        ob.select_set(True)
         new_selection = context.selected_objects
-        for ob in new_selection:
-            remove_unused_facemaps(ob, context)
-            ob.name = f'{dot_partition(ob.name)}({ob.face_maps[0].name})'
+        print(new_selection)
+        for obj in new_selection:
+            remove_unused_facemaps(obj, context)
+            obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
 
         return new_selection
 
@@ -265,17 +266,18 @@ def apply_face_properties(context):
     for ob in context.view_layer.objects:
         objects.append(ob)
     for ob in objects:
-        deselect_all_objects()
-        ob.select_set(True)
-        set_active_object(ob)
-        # must make single user for this process
-        bpy.ops.object.make_single_user(object=True, obdata=True)
-        if ob.face_maps:
-            split_objects = split_by_face_map(ob, context)
-            for ob in split_objects:
-                face_prop_to_mesh_prop(ob)
-            # set mode again
-            set_object_mode(context)
+        if len(ob.face_maps) > 0:
+            deselect_all_objects()
+            ob.select_set(True)
+            set_active_object(ob)
+            # must make single user for this process
+            bpy.ops.object.make_single_user(object=True, obdata=True)
+            if ob.face_maps:
+                split_objects = split_by_face_map(ob, context)
+                for ob in split_objects:
+                    face_prop_to_mesh_prop(ob)
+                # set mode again
+                set_object_mode(context)
 
 def z_rotate_and_apply(ob, angle):
     angle = radians(angle)

@@ -592,12 +592,12 @@ class NWO_ObjectMeshProps(Panel):
 
         if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
             if ob_nwo.Region_Name_Locked != '':
-                col.prop(ob_nwo, 'Region_Name_Locked', text='Region')
-            else:
-                col.prop(ob_nwo, "Region_Name", text='Region')
+                col.prop(ob_nwo, 'Region_Name_Locked', text='Region Override')
+            # else:
+            #     col.prop(ob_nwo, "Region_Name", text='Region')
 
-        if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
-            col.prop(ob_nwo, "Face_Global_Material", text='Global Material')
+        # if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+        #     col.prop(ob_nwo, "Face_Global_Material", text='Global Material')
 
         if poll_ui(('DECORATOR SET')) and context.scene.nwo.asset_type == 'DECORATOR SET' and not CheckType.decorator(ob):
             col.label(text="Only the Decorator mesh type is valid for Decorator Set exports", icon='ERROR')
@@ -1631,7 +1631,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
         ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
         ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
-        ('_connected_geometry_mesh_type_default', "Render / Structure", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
+        ('_connected_geometry_mesh_type_default', "Default", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
         ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
         ('_connected_geometry_mesh_type_poop_marker', "Instanced Marker", ""), # 6
         ('_connected_geometry_mesh_type_poop_rain_blocker', "Rain Occluder",'Rain is not rendered in the the volume this mesh occupies.'), # 7
@@ -1732,7 +1732,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
         ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
         ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
-        ('_connected_geometry_mesh_type_default', "Render / Structure", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
+        ('_connected_geometry_mesh_type_default', "Default", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
         ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
         ('_connected_geometry_mesh_type_object_instance', "Object Instance", "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'"), # 6
         ('_connected_geometry_mesh_type_physics', "Physics", "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'"), # 7
@@ -4912,7 +4912,7 @@ class NWO_FacePropAdd(Operator):
     options: EnumProperty(
         default="region",
         items=[
-        ('region', 'Region Override', ''),
+        ('region', 'Region', ''),
         ('face_global_material', 'Global Material', ''),
         ('precise_position', 'Precise Position', ''),
         ]
@@ -4949,7 +4949,7 @@ class NWO_FacePropRemove(Operator):
     options: EnumProperty(
         default="region",
         items=[
-        ('region', 'Region Override', ''),
+        ('region', 'Region', ''),
         ('face_type', 'Face Type', ''),
         ('face_mode', 'Face Mode', ''),
         ('face_sides', 'Face Sides', ''),
@@ -5131,7 +5131,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         )
 
     region_name: StringProperty(
-        name="Region Override",
+        name="Region",
         default='default',
         description="Define the name of the region these faces should be associated with",
     )
@@ -5276,7 +5276,8 @@ def draw_filepath(self, context):
     row.scale_y = 0.01
     # this is beyond hacky... and I'm not proud... but it works!
     row.prop(context.scene.nwo_global, 'temp_file_watcher')
-    row.prop(context.object.nwo_face, 'face_props_hack')
+    if len(context.view_layer.objects) > 0:
+        row.prop(context.object.nwo_face, 'face_props_hack')
 
 classeshalo = (
     NWO_ScenePropertiesGroup,
