@@ -5344,7 +5344,7 @@ def draw_filepath(self, context):
     row.scale_y = 0.01
     # this is beyond hacky... and I'm not proud... but it works!
     row.prop(context.scene.nwo_global, 'temp_file_watcher')
-    if len(context.view_layer.objects) > 0:
+    if context.object:
         row.prop(context.object.nwo_face, 'face_props_hack')
 
 classeshalo = (
