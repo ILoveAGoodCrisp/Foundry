@@ -969,6 +969,7 @@ class NWO_List_Add_Shared_Asset(Operator):
     bl_label = "Add"
     bl_description = "Add a new shared asset (sidecar) to the list."
     filename_ext = ''
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.xml",
@@ -1007,6 +1008,7 @@ class NWO_List_Remove_Shared_Asset(Operator):
     bl_idname = "nwo_shared_asset.list_remove"
     bl_label = "Remove"
     bl_description = "Remove a shared asset (sidecar) from the list."
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):

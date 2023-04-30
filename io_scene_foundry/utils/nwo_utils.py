@@ -91,6 +91,9 @@ package = 'io_scene_foundry'
 ##FUNCTIONS##
 #############
 
+def is_linked(ob):
+    return ob.data.users > 1
+
 def get_ek_path():
     scene = bpy.context.scene
     scene_nwo = scene.nwo_global

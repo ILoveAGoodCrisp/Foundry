@@ -175,6 +175,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 from ..utils.nwo_utils import (
     frame_prefixes,
     get_asset_info,
+    is_linked,
     managed_blam_active,
     marker_prefixes,
     run_ek_cmd,
@@ -207,6 +208,7 @@ class NWO_GameInstancePath(Operator):
     """Set the path to a game instance tag"""
     bl_idname = "nwo.game_instance_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.biped;*.crate;*.creature;*.device_*;*.effect_*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_l*;*.light",
@@ -235,6 +237,7 @@ class NWO_FogPath(Operator):
     """Set the path to a fog tag"""
     bl_idname = "nwo.fog_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.atmosphere_",
@@ -263,6 +266,7 @@ class NWO_EffectPath(Operator):
     """Set the path to an effect tag"""
     bl_idname = "nwo.effect_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.effect",
@@ -291,6 +295,7 @@ class NWO_LightConePath(Operator):
     """Set the path to a light cone tag"""
     bl_idname = "nwo.light_cone_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.light_",
@@ -319,6 +324,7 @@ class NWO_LightConeCurvePath(Operator):
     """Set the path to a light cone curve tag"""
     bl_idname = "nwo.light_cone_curve_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.curve_",
@@ -347,6 +353,7 @@ class NWO_LightTagPath(Operator):
     """Set the path to a light tag"""
     bl_idname = "nwo.light_tag_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.light",
@@ -375,6 +382,7 @@ class NWO_LightShaderPath(Operator):
     """Set the path to a light shader tag"""
     bl_idname = "nwo.light_shader_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.render_",
@@ -403,6 +411,7 @@ class NWO_LightGelPath(Operator):
     """Set the path to a gel bitmap"""
     bl_idname = "nwo.light_gel_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.bitmap",
@@ -431,6 +440,7 @@ class NWO_LensFlarePath(Operator):
     """Set the path to a lens flare bitmap"""
     bl_idname = "nwo.lens_flare_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.lens_",
@@ -459,6 +469,7 @@ class NWO_ShaderPath(Operator):
     """Set the path to a material / shader tag"""
     bl_idname = "nwo.shader_path"
     bl_label = "Find"
+    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.material;*.shader*",
@@ -4220,6 +4231,7 @@ class NWO_List_Add_Animation_Event(Operator):
     bl_label = "Add"
     bl_description = "Add a new animation event to the list."
     filename_ext = ''
+    bl_options = {"REGISTER", "UNDO"}
 
     name: StringProperty(name="Name")
 
@@ -4249,6 +4261,7 @@ class NWO_List_Remove_Animation_Event(Operator):
     bl_idname = "animation_event.list_remove"
     bl_label = "Remove"
     bl_description = "Remove an animation event from the list."
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):
@@ -4635,121 +4648,128 @@ class NWO_FaceMapProps(Panel):
         #         if CheckType.default(ob):
         #             sub.prop(ob_nwo, 'uvmirror_across_entire_model')
     
+        # Master Instance button since facemaps aren't stored in mesh data
+        if is_linked(ob):
+            row = layout.row()
+            if ob.data.nwo.master_instance == ob:
+                row.label(text=f"Object is the Master Instance for mesh: {ob.data.name}")
+            else:
+                row.operator("nwo.master_instance")
+                row = layout.row()
+                row.label(text=f"Object is Child Instance for mesh: {ob.data.name}")
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
             col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
         else:
-            try:
-                facemap = ob.face_maps.active
 
-                rows = 2
-                if facemap:
-                    rows = 5
+            facemap = ob.face_maps.active
 
-                row = layout.row()
-                row.template_list("MESH_UL_fmaps", "", ob, "face_maps", ob.face_maps, "active_index", rows=rows)
+            rows = 2
+            if facemap:
+                rows = 5
 
-                col = row.column(align=True)
-                col.operator("nwo_face.add_face_map", icon='ADD', text="")
-                col.operator("object.face_map_remove", icon='REMOVE', text="")
+            row = layout.row()
+            row.template_list("MESH_UL_fmaps", "", ob, "face_maps", ob.face_maps, "active_index", rows=rows)
 
+            col = row.column(align=True)
+            col.operator("nwo_face.add_face_map", icon='ADD', text="")
+            col.operator("object.face_map_remove", icon='REMOVE', text="")
+
+            col.separator()
+
+            col.operator("nwo_face.edit_face_map", text='', icon='EDITMODE_HLT')
+
+            if facemap:
                 col.separator()
+                col.operator("object.face_map_move", icon='TRIA_UP', text="").direction = 'UP'
+                col.operator("object.face_map_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
 
-                col.operator("nwo_face.edit_face_map", text='', icon='EDITMODE_HLT')
+            if ob.face_maps and (ob.mode == 'EDIT' and ob.type == 'MESH'):
+                row = layout.row()
 
-                if facemap:
-                    col.separator()
-                    col.operator("object.face_map_move", icon='TRIA_UP', text="").direction = 'UP'
-                    col.operator("object.face_map_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
+                sub = row.row(align=True)
+                sub.operator("object.face_map_assign", text="Assign")
+                sub.operator("object.face_map_remove_from", text="Remove")
 
-                if ob.face_maps and (ob.mode == 'EDIT' and ob.type == 'MESH'):
-                    row = layout.row()
-
-                    sub = row.row(align=True)
-                    sub.operator("object.face_map_assign", text="Assign")
-                    sub.operator("object.face_map_remove_from", text="Remove")
-
-                    sub = row.row(align=True)
-                    sub.operator("object.face_map_select", text="Select")
-                    sub.operator("object.face_map_deselect", text="Deselect")
+                sub = row.row(align=True)
+                sub.operator("object.face_map_select", text="Select")
+                sub.operator("object.face_map_deselect", text="Deselect")
+            
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+            col = flow.column()
+            row = col.row()
+            item = ob_nwo_face.face_props[ob.face_maps.active.name]
+            # row.prop(item, 'name')
+            # if not (item.region_name_override and item.face_type_override and item.face_mode_override and item.face_sides_override and item.face_draw_distance_override and item.texcoord_usage_override
+            #          and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
+            #            and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
+            #         ):
                 
-                flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-                col = flow.column()
+            col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
+            if item.region_name_override:
                 row = col.row()
-                item = ob_nwo_face.face_props[ob.face_maps.active.name]
-                # row.prop(item, 'name')
-                if not (item.region_name_override and item.face_type_override and item.face_mode_override and item.face_sides_override and item.face_draw_distance_override and item.texcoord_usage_override
-                         and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
-                           and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
-                        ):
-                    
-                    col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
-                if item.region_name_override:
+                row.prop(item, "region_name")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'region'
+            if item.face_type_override:
+                row = col.row()
+                row.prop(item, "face_type")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_type'
+                if item.face_type == '_connected_geometry_face_type_sky':
                     row = col.row()
-                    row.prop(item, "region_name")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'region'
-                if item.face_type_override:
-                    row = col.row()
-                    row.prop(item, "face_type")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_type'
-                    if item.face_type == '_connected_geometry_face_type_sky':
-                        row = col.row()
-                        row.prop(item, "sky_permutation_index")
-                if item.face_mode_override:
-                    row = col.row()
-                    row.prop(item, "face_mode")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_mode'
-                if item.face_sides_override:
-                    row = col.row()
-                    row.prop(item, "face_sides")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_sides'
-                if item.face_draw_distance_override:
-                    row = col.row()
-                    row.prop(item, "face_draw_distance")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_draw_distance'
-                if item.texcoord_usage_override:
-                    row = col.row()
-                    row.prop(item, 'texcoord_usage')
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'texcoord_usage'
-                if item.face_global_material_override:
-                    row = col.row()
-                    row.prop(item, "face_global_material")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_global_material'
-                if item.ladder_override:
-                    row = col.row()
-                    row.prop(item, "ladder")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'ladder'
-                if item.slip_surface_override:
-                    row = col.row()
-                    row.prop(item, "slip_surface")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'slip_surface'
-                if item.decal_offset_override:
-                    row = col.row()
-                    row.prop(item, "decal_offset")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'decal_offset'
-                if item.group_transparents_by_plane_override:
-                    row = col.row()
-                    row.prop(item, "group_transparents_by_plane")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'group_transparents_by_plane'
-                if item.no_shadow_override:
-                    row = col.row()
-                    row.prop(item, "no_shadow")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_shadow'
-                if item.precise_position_override:
-                    row = col.row()
-                    row.prop(item, "precise_position")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'precise_position'
-                if item.no_lightmap_override:
-                    row = col.row()
-                    row.prop(item, "no_lightmap")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_lightmap'
-                if item.no_pvs_override:
-                    row = col.row()
-                    row.prop(item, "no_pvs")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
-            except:
-                pass
+                    row.prop(item, "sky_permutation_index")
+            if item.face_mode_override:
+                row = col.row()
+                row.prop(item, "face_mode")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_mode'
+            if item.face_sides_override:
+                row = col.row()
+                row.prop(item, "face_sides")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_sides'
+            if item.face_draw_distance_override:
+                row = col.row()
+                row.prop(item, "face_draw_distance")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_draw_distance'
+            if item.texcoord_usage_override:
+                row = col.row()
+                row.prop(item, 'texcoord_usage')
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'texcoord_usage'
+            if item.face_global_material_override:
+                row = col.row()
+                row.prop(item, "face_global_material")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_global_material'
+            if item.ladder_override:
+                row = col.row()
+                row.prop(item, "ladder")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'ladder'
+            if item.slip_surface_override:
+                row = col.row()
+                row.prop(item, "slip_surface")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'slip_surface'
+            if item.decal_offset_override:
+                row = col.row()
+                row.prop(item, "decal_offset")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'decal_offset'
+            if item.group_transparents_by_plane_override:
+                row = col.row()
+                row.prop(item, "group_transparents_by_plane")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'group_transparents_by_plane'
+            if item.no_shadow_override:
+                row = col.row()
+                row.prop(item, "no_shadow")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_shadow'
+            if item.precise_position_override:
+                row = col.row()
+                row.prop(item, "precise_position")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'precise_position'
+            if item.no_lightmap_override:
+                row = col.row()
+                row.prop(item, "no_lightmap")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_lightmap'
+            if item.no_pvs_override:
+                row = col.row()
+                row.prop(item, "no_pvs")
+                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
 
 def toggle_override(context, option, bool_var):
     ob = context.object
@@ -4873,11 +4893,30 @@ class NWO_FacePropAddMenu(Menu):
                                     property="options",
                                     text="Other",
                                     )
+            
+class NWO_MasterInstance(Operator):
+    """Sets the current object as the master instance for all linked objects. Linked objects will use this objects face properties"""
+    bl_idname = "nwo.master_instance"
+    bl_label = "Set Master Instance"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT') and is_linked(context.object)
+    
+    def execute(self, context):
+        ob = context.object
+
+        # Set this object to the master instance
+        ob.data.nwo.master_instance = ob
+
+        return {'FINISHED'}
 
 class NWO_FaceDefaultsToggle(Operator):
     """Toggles the default Face Properties display"""
     bl_idname = "nwo_face.toggle_defaults"
     bl_label = "Toggle Defaults"
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):
@@ -4893,6 +4932,7 @@ class NWO_FaceMapAdd(Operator):
     """Adds a facemap and assigns all faces to it"""
     bl_idname = "nwo_face.add_face_map"
     bl_label = "Add Face Properties"
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):
@@ -4909,6 +4949,7 @@ class NWO_EditMode(Operator):
     """Toggles Edit Mode for face map editing"""
     bl_idname = "nwo_face.edit_face_map"
     bl_label = "Enter Edit Mode"
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):
@@ -4923,6 +4964,7 @@ class NWO_FacePropAdd(Operator):
     """Adds a face property that will override face properties set in the mesh"""
     bl_idname = "nwo_face.add_face_property"
     bl_label = "Add"
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):
@@ -4964,6 +5006,7 @@ class NWO_FacePropRemove(Operator):
     """Removes a face property"""
     bl_idname = "nwo_face.remove_face_property"
     bl_label = "Remove"
+    bl_options = {"REGISTER", "UNDO"}
 
     options: EnumProperty(
         default="region",
@@ -5289,6 +5332,9 @@ class NWO_FacePropertiesGroup(PropertyGroup):
         get=get_face_props_hack,
     )
 
+class NWO_MeshPropertiesGroup(PropertyGroup):
+    master_instance : PointerProperty(type=bpy.types.Object)
+
 ##################################################
     
 def draw_filepath(self, context):
@@ -5344,13 +5390,14 @@ classeshalo = (
     NWO_FacePropRemove,
     NWO_FaceMapAdd,
     NWO_EditMode,
+    NWO_MasterInstance,
     NWO_FaceDefaultsToggle,
     NWO_FaceProperties_ListItems,
     NWO_FaceMapProps,
     NWO_ObjectMeshMaterialLightingProps,
     NWO_ObjectMeshLightmapProps,
     NWO_FacePropAddMenu,
-
+    NWO_MeshPropertiesGroup,
     NWO_FacePropertiesGroup,
 )
 
@@ -5364,6 +5411,7 @@ def register():
     bpy.types.Material.nwo = PointerProperty(type=NWO_MaterialPropertiesGroup, name="Halo NWO Properties", description="Set Halo Material Properties") 
     bpy.types.Bone.nwo = PointerProperty(type=NWO_BonePropertiesGroup, name="Halo NWO Properties", description="Set Halo Bone Properties")
     bpy.types.Action.nwo = PointerProperty(type=NWO_ActionPropertiesGroup, name="Halo NWO Properties", description="Set Halo Animation Properties")
+    bpy.types.Mesh.nwo = PointerProperty(type=NWO_MeshPropertiesGroup, name="Halo Mesh Properties", description="Set Halo Properties")
     bpy.types.Object.nwo_face = PointerProperty(type=NWO_FacePropertiesGroup, name="Halo Face Properties", description="Set Halo Face Properties")
     bpy.types.TOPBAR_HT_upper_bar.prepend(draw_filepath)
 

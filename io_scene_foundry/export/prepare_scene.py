@@ -35,6 +35,7 @@ from io_scene_foundry.tools.shader_finder import FindShaders
 from ..utils.nwo_utils import(
     deselect_all_objects,
     dot_partition,
+    is_linked,
     is_mesh,
     set_active_object,
     CheckType,
@@ -74,8 +75,10 @@ def prepare_scene(context, report, sidecar_type, export_hidden, use_armature_def
         # add a uv map to meshes without one. This prevents an export assert
         fixup_missing_uvs(context)
         # run find shaders code if any empty paths
+        # print("Finding missing shaders...")
         find_shaders_on_export(bpy.data.materials, context, report)
         # Set up facemap properties
+        # print("Building face properties...")
         apply_face_properties(context)
         # remove meshes with zero faces
         cull_zero_face_meshes(context)
@@ -194,7 +197,14 @@ def remove_unused_facemaps(ob, context):
             ob.select_set(False)
 
 def any_face_props(ob):
-    True
+    for item in ob.nwo_face.face_props:
+        if (item.region_name_override or item.face_type_override or item.face_mode_override or item.face_sides_override or item.face_draw_distance_override or item.texcoord_usage_override
+                         or item.face_global_material_override or item.ladder_override or item.slip_surface_override or item.decal_offset_override or item.group_transparents_by_plane_override
+                           or item.no_shadow_override or item.precise_position_override or item.no_lightmap_override or item.no_pvs_override
+                        ):
+            return True
+    else:
+        return False
 
 def split_by_face_map(ob, context):
     # remove unused face maps
@@ -275,13 +285,14 @@ def face_prop_to_mesh_prop(ob):
 
                 break
 
-
 def apply_face_properties(context):
     objects = []
     for ob in context.view_layer.objects:
         objects.append(ob)
     for ob in objects:
-        if len(ob.face_maps) > 0:
+        if is_linked(ob) and ob.data.nwo.master_instance != ob:
+            continue
+        if len(ob.face_maps) > 0 and any_face_props(ob):
             deselect_all_objects()
             ob.select_set(True)
             set_active_object(ob)
@@ -307,7 +318,11 @@ def apply_face_properties(context):
                     override = context.copy()
                     override["selected_objects"] = split_objects
                     with context.temp_override(**override):
-                        bpy.ops.object.duplicate_move_linked(OBJECT_OT_duplicate={"linked":True, "mode":'TRANSLATION'}, TRANSFORM_OT_translate={"value":(obj.location.x, obj.location.y, obj.location.z), "orient_axis_ortho":'X', "orient_type":'GLOBAL', "orient_matrix":((1, 0, 0), (0, 1, 0), (0, 0, 1)), "orient_matrix_type":'GLOBAL', "constraint_axis":(False, False, False), "mirror":False, "use_proportional_edit":False, "proportional_edit_falloff":'SMOOTH', "proportional_size":1, "use_proportional_connected":False, "use_proportional_projected":False, "snap":False, "snap_elements":{'INCREMENT'}, "use_snap_project":False, "snap_target":'CLOSEST', "use_snap_self":True, "use_snap_edit":True, "use_snap_nonedit":True, "use_snap_selectable":False, "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "cursor_transform":False, "texture_space":False, "remove_on_cancel":False, "view2d_edge_pan":False, "release_confirm":False, "use_accurate":False, "use_automerge_and_split":False})
+                        bpy.ops.object.duplicate_move_linked()
+                    
+                    # apply correct location and rotation
+                    for split_ob in context.selected_objects:
+                        split_ob.matrix_world = obj.matrix_world
                     # update data transfer reference and object names
                     # obje.name = obj.name + '(' + obje.name.rpartition('(')[2].rpartition('.0')[0]
                     mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
@@ -318,7 +333,6 @@ def apply_face_properties(context):
 
     
                 
-
 def z_rotate_and_apply(ob, angle):
     angle = radians(angle)
     axis = (0, 0, 1)
