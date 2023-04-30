@@ -1150,7 +1150,7 @@ class NWO_HaloExportSettings(Panel):
         col = layout.column(heading="Run")
         col.prop(scene_nwo_export, "lightmap_structure", text='Lightmap')
         if scene_nwo_export.lightmap_structure:
-            if context.scene.halo.game_version in ('h4', 'h2a'):
+            if context.scene.nwo_global.game_version in ('h4', 'h2a'):
                 col.prop(scene_nwo_export, "lightmap_quality_h4")
                 col.prop(scene_nwo_export, "lightmap_quality_custom")
             else:

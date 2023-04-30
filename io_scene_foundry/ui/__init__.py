@@ -4855,6 +4855,10 @@ def toggle_override(context, option, bool_var):
             item.no_lightmap_override = bool_var
         case 'no_pvs':
             item.no_pvs_override = bool_var
+        case 'instanced_collision':
+            item.instanced_collision_override = bool_var
+        case 'instanced_physics':
+            item.instanced_physics_override = bool_var
 
 class NWO_FacePropAddMenu(Menu):
     bl_label = "Add Face Property"
@@ -5130,6 +5134,8 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     precise_position_override : BoolProperty()
     no_lightmap_override : BoolProperty()
     no_pvs_override : BoolProperty()
+    instanced_collision_override : BoolProperty()
+    instanced_physics_override : BoolProperty()
 
     face_type : EnumProperty(
         name="Face Type",
@@ -5273,6 +5279,23 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         description = "",
         default = True,
     )
+
+    # INSTANCED GEOMETRY ONLY
+
+    instanced_collision : BoolProperty(
+        name="Collision",
+    )
+    instanced_physics : BoolProperty(
+        name="Physics",
+    )
+
+    cookie_cutter : BoolProperty(
+        name="Cookie Cutter"
+    )
+
+    #########
+
+
 
 class NWO_FacePropertiesGroup(PropertyGroup):
 
