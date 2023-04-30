@@ -4603,10 +4603,10 @@ class NWO_FaceMapProps(Panel):
         layout = self.layout
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
         ob = context.object
         ob_nwo = ob.nwo
         ob_nwo_face = ob.nwo_face
+        is_poop = CheckType.poop(ob)
         # col = flow.column()
         # if not ob.nwo_face.toggle_face_defaults:
         #     col.operator('nwo_face.toggle_defaults', text='Show Defaults')
@@ -4657,6 +4657,32 @@ class NWO_FaceMapProps(Panel):
                 row.operator("nwo.master_instance")
                 row = layout.row()
                 row.label(text=f"Object is Child Instance for mesh: {ob.data.name}")
+
+        if is_poop:
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+            col = flow.column()
+            op_bullet_collision = True
+            op_player_collision = True
+            op_cookie_cutter = True
+            for item in ob_nwo_face.face_props:
+                if item.instanced_collision_override:
+                    op_bullet_collision = False
+                    break
+            for item in ob_nwo_face.face_props:
+                if item.instanced_physics_override:
+                    op_player_collision = False
+                    break
+            for item in ob_nwo_face.face_props:
+                if item.cookie_cutter_override:
+                    op_cookie_cutter = False
+                    break
+
+            if op_bullet_collision:
+                col.operator("nwo_face.add_face_property", text="Add Bullet Collision").options = "instanced_collision"
+            if op_player_collision:
+                col.operator("nwo_face.add_face_property", text="Add Player Collision").options = "instanced_physics"
+            if op_cookie_cutter:
+                col.operator("nwo_face.add_face_property", text="Add Cookie Cutter").options = "cookie_cutter"
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
@@ -4706,71 +4732,93 @@ class NWO_FaceMapProps(Panel):
                 #          and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
                 #            and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
                 #         ):
-                    
-                col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
-                if item.region_name_override:
-                    row = col.row()
-                    row.prop(item, "region_name")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'region'
-                if item.face_type_override:
-                    row = col.row()
-                    row.prop(item, "face_type")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_type'
-                    if item.face_type == '_connected_geometry_face_type_sky':
+
+                if (is_poop or (item.instanced_collision_override and item.instanced_physics_override and item.cookie_cutter_override)):
+                    if item.instanced_collision_override:
+                        col.label(text="Current FaceMap is used for this mesh's bullet collision")
+                    if item.instanced_physics_override:
+                        col.label(text="Current FaceMap is used for this mesh's player collision")
+                    if item.cookie_cutter_override:
+                        col.label(text="Current FaceMap is used for this mesh's cookie cutter")
+
+                else:
+                    col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
+
+                    if item.instanced_collision_override:
                         row = col.row()
-                        row.prop(item, "sky_permutation_index")
-                if item.face_mode_override:
-                    row = col.row()
-                    row.prop(item, "face_mode")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_mode'
-                if item.face_sides_override:
-                    row = col.row()
-                    row.prop(item, "face_sides")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_sides'
-                if item.face_draw_distance_override:
-                    row = col.row()
-                    row.prop(item, "face_draw_distance")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_draw_distance'
-                if item.texcoord_usage_override:
-                    row = col.row()
-                    row.prop(item, 'texcoord_usage')
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'texcoord_usage'
-                if item.face_global_material_override:
-                    row = col.row()
-                    row.prop(item, "face_global_material")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_global_material'
-                if item.ladder_override:
-                    row = col.row()
-                    row.prop(item, "ladder")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'ladder'
-                if item.slip_surface_override:
-                    row = col.row()
-                    row.prop(item, "slip_surface")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'slip_surface'
-                if item.decal_offset_override:
-                    row = col.row()
-                    row.prop(item, "decal_offset")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'decal_offset'
-                if item.group_transparents_by_plane_override:
-                    row = col.row()
-                    row.prop(item, "group_transparents_by_plane")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'group_transparents_by_plane'
-                if item.no_shadow_override:
-                    row = col.row()
-                    row.prop(item, "no_shadow")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_shadow'
-                if item.precise_position_override:
-                    row = col.row()
-                    row.prop(item, "precise_position")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'precise_position'
-                if item.no_lightmap_override:
-                    row = col.row()
-                    row.prop(item, "no_lightmap")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_lightmap'
-                if item.no_pvs_override:
-                    row = col.row()
-                    row.prop(item, "no_pvs")
-                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
+                        row.prop(item, "instanced_collision")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'instanced_collision'
+                    if item.instanced_physics_override:
+                        row = col.row()
+                        row.prop(item, "instanced_physics")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'instanced_physics'
+                    if item.cookie_cutter_override:
+                        row = col.row()
+                        row.prop(item, "cookie_cutter")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'cookie_cutter'
+                    if item.region_name_override:
+                        row = col.row()
+                        row.prop(item, "region_name")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'region'
+                    if item.face_type_override:
+                        row = col.row()
+                        row.prop(item, "face_type")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_type'
+                        if item.face_type == '_connected_geometry_face_type_sky':
+                            row = col.row()
+                            row.prop(item, "sky_permutation_index")
+                    if item.face_mode_override:
+                        row = col.row()
+                        row.prop(item, "face_mode")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_mode'
+                    if item.face_sides_override:
+                        row = col.row()
+                        row.prop(item, "face_sides")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_sides'
+                    if item.face_draw_distance_override:
+                        row = col.row()
+                        row.prop(item, "face_draw_distance")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_draw_distance'
+                    if item.texcoord_usage_override:
+                        row = col.row()
+                        row.prop(item, 'texcoord_usage')
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'texcoord_usage'
+                    if item.face_global_material_override:
+                        row = col.row()
+                        row.prop(item, "face_global_material")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_global_material'
+                    if item.ladder_override:
+                        row = col.row()
+                        row.prop(item, "ladder")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'ladder'
+                    if item.slip_surface_override:
+                        row = col.row()
+                        row.prop(item, "slip_surface")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'slip_surface'
+                    if item.decal_offset_override:
+                        row = col.row()
+                        row.prop(item, "decal_offset")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'decal_offset'
+                    if item.group_transparents_by_plane_override:
+                        row = col.row()
+                        row.prop(item, "group_transparents_by_plane")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'group_transparents_by_plane'
+                    if item.no_shadow_override:
+                        row = col.row()
+                        row.prop(item, "no_shadow")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_shadow'
+                    if item.precise_position_override:
+                        row = col.row()
+                        row.prop(item, "precise_position")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'precise_position'
+                    if item.no_lightmap_override:
+                        row = col.row()
+                        row.prop(item, "no_lightmap")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_lightmap'
+                    if item.no_pvs_override:
+                        row = col.row()
+                        row.prop(item, "no_pvs")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
 
 def toggle_override(context, option, bool_var):
     ob = context.object
@@ -4860,6 +4908,8 @@ def toggle_override(context, option, bool_var):
             item.instanced_collision_override = bool_var
         case 'instanced_physics':
             item.instanced_physics_override = bool_var
+        case 'cookie_cutter':
+            item.cookie_cutter_override = bool_var
 
 class NWO_FacePropAddMenu(Menu):
     bl_label = "Add Face Property"
@@ -4898,6 +4948,10 @@ class NWO_FacePropAddMenu(Menu):
                                     property="options",
                                     text="Other",
                                     )
+        if CheckType.poop(ob):
+            layout.operator("nwo_face.add_face_property", text='Bullet Collision').options = 'instanced_collision'
+            layout.operator("nwo_face.add_face_property", text='Player Collision').options = 'instanced_physics'
+            layout.operator("nwo_face.add_face_property", text='Cookie Cutter').options = 'cookie_cutter'
             
 class NWO_MasterInstance(Operator):
     """Sets the current object as the master instance for all linked objects. Linked objects will use this objects face properties"""
@@ -4981,23 +5035,41 @@ class NWO_FacePropAdd(Operator):
         ('region', 'Region', ''),
         ('face_global_material', 'Global Material', ''),
         ('precise_position', 'Precise Position', ''),
+        ('instanced_collision', 'Bullet Collision', ''),
+        ('instanced_physics', 'Player Collision', ''),
+        ('cookie_cutter', 'Cookie Cutter', ''),
         ]
         )
 
     def execute(self, context):
         ob = context.object
+        ob_nwo_face = ob.nwo_face
         # if no face maps, make one and assign all faces to it
-        if len(ob.face_maps) < 1:
+        if len(ob.face_maps) < 1 or self.options in ('instanced_collision', 'instanced_physics', 'cookie_cutter'):
             bpy.ops.object.mode_set(mode='EDIT', toggle=False)
             bpy.ops.object.face_map_add()
             bpy.ops.mesh.select_all(action='SELECT')
             bpy.ops.object.face_map_assign()
-            ob.face_maps[0].name = 'default'
+            fm_name = 'default'
+            match self.options:
+                case 'region':
+                    fm_name = 'default'
+                case 'face_global_material':
+                    fm_name = 'global_material'
+                case 'precise_position':
+                    fm_name = 'precise'
+                case 'instanced_collision':
+                    fm_name = 'bullet_collision'
+                case 'instanced_physics':
+                    fm_name = 'player_collision'
+                case 'cookie_cutter':
+                    fm_name = 'cookie_cutter'
+
+            ob.face_maps.active.name = fm_name
             bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         
         toggle_override(context, self.options, True)
-        ob_nwo_face = ob.nwo_face
         item = ob_nwo_face.face_props[ob.face_maps.active_index]
         item.name = ob.face_maps.active.name
         if self.options == 'region':
@@ -5031,13 +5103,26 @@ class NWO_FacePropRemove(Operator):
         ('precise_position', 'Precise Position', ''),
         ('no_lightmap', 'No Lightmap', ''),
         ('no_pvs', 'No PVS', ''),
+        ('instanced_collision', 'Bullet Collision', ''),
+        ('instanced_physics', 'Player Collision', ''),
+        ('cookie_cutter', 'Cookie Cutter', ''),
         ]
         )
 
 
     def execute(self, context):
+        ob = context.object
+        ob_nwo_face = ob.nwo_face
         toggle_override(context, self.options, False)
         context.area.tag_redraw()
+
+        match self.options:
+            case 'instanced_collision':
+                ob_nwo_face.instanced_collision = False
+            case 'instanced_physics':
+                ob_nwo_face.instanced_physics = False
+            case 'cookie_cutter':
+                ob_nwo_face.cookie_cutter = False
 
         return {'FINISHED'}
     
@@ -5137,6 +5222,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     no_pvs_override : BoolProperty()
     instanced_collision_override : BoolProperty()
     instanced_physics_override : BoolProperty()
+    cookie_cutter_override : BoolProperty()
 
     face_type : EnumProperty(
         name="Face Type",
@@ -5284,14 +5370,17 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     # INSTANCED GEOMETRY ONLY
 
     instanced_collision : BoolProperty(
-        name="Collision",
+        name="Bullet Collision",
+        default=True,
     )
     instanced_physics : BoolProperty(
-        name="Physics",
+        name="Player Collision",
+        default=True,
     )
 
     cookie_cutter : BoolProperty(
-        name="Cookie Cutter"
+        name="Cookie Cutter",
+        default=True,
     )
 
     #########
@@ -5299,6 +5388,21 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
 
 
 class NWO_FacePropertiesGroup(PropertyGroup):
+
+    # INSTANCED GEOMETRY ONLY
+
+    instanced_collision : BoolProperty(
+        name="Bullet Collision",
+    )
+    instanced_physics : BoolProperty(
+        name="Player Collision",
+    )
+
+    cookie_cutter : BoolProperty(
+        name="Cookie Cutter",
+    )
+
+    #########
 
 
     toggle_face_defaults : BoolProperty()
