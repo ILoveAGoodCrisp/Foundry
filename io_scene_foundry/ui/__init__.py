@@ -4699,77 +4699,78 @@ class NWO_FaceMapProps(Panel):
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
             row = col.row()
-            item = ob_nwo_face.face_props[ob.face_maps.active.name]
-            # row.prop(item, 'name')
-            # if not (item.region_name_override and item.face_type_override and item.face_mode_override and item.face_sides_override and item.face_draw_distance_override and item.texcoord_usage_override
-            #          and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
-            #            and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
-            #         ):
-                
-            col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
-            if item.region_name_override:
-                row = col.row()
-                row.prop(item, "region_name")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'region'
-            if item.face_type_override:
-                row = col.row()
-                row.prop(item, "face_type")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_type'
-                if item.face_type == '_connected_geometry_face_type_sky':
+            if facemap:
+                item = ob_nwo_face.face_props[ob.face_maps.active.name]
+                # row.prop(item, 'name')
+                # if not (item.region_name_override and item.face_type_override and item.face_mode_override and item.face_sides_override and item.face_draw_distance_override and item.texcoord_usage_override
+                #          and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
+                #            and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
+                #         ):
+                    
+                col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
+                if item.region_name_override:
                     row = col.row()
-                    row.prop(item, "sky_permutation_index")
-            if item.face_mode_override:
-                row = col.row()
-                row.prop(item, "face_mode")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_mode'
-            if item.face_sides_override:
-                row = col.row()
-                row.prop(item, "face_sides")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_sides'
-            if item.face_draw_distance_override:
-                row = col.row()
-                row.prop(item, "face_draw_distance")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_draw_distance'
-            if item.texcoord_usage_override:
-                row = col.row()
-                row.prop(item, 'texcoord_usage')
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'texcoord_usage'
-            if item.face_global_material_override:
-                row = col.row()
-                row.prop(item, "face_global_material")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_global_material'
-            if item.ladder_override:
-                row = col.row()
-                row.prop(item, "ladder")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'ladder'
-            if item.slip_surface_override:
-                row = col.row()
-                row.prop(item, "slip_surface")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'slip_surface'
-            if item.decal_offset_override:
-                row = col.row()
-                row.prop(item, "decal_offset")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'decal_offset'
-            if item.group_transparents_by_plane_override:
-                row = col.row()
-                row.prop(item, "group_transparents_by_plane")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'group_transparents_by_plane'
-            if item.no_shadow_override:
-                row = col.row()
-                row.prop(item, "no_shadow")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_shadow'
-            if item.precise_position_override:
-                row = col.row()
-                row.prop(item, "precise_position")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'precise_position'
-            if item.no_lightmap_override:
-                row = col.row()
-                row.prop(item, "no_lightmap")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_lightmap'
-            if item.no_pvs_override:
-                row = col.row()
-                row.prop(item, "no_pvs")
-                row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
+                    row.prop(item, "region_name")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'region'
+                if item.face_type_override:
+                    row = col.row()
+                    row.prop(item, "face_type")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_type'
+                    if item.face_type == '_connected_geometry_face_type_sky':
+                        row = col.row()
+                        row.prop(item, "sky_permutation_index")
+                if item.face_mode_override:
+                    row = col.row()
+                    row.prop(item, "face_mode")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_mode'
+                if item.face_sides_override:
+                    row = col.row()
+                    row.prop(item, "face_sides")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_sides'
+                if item.face_draw_distance_override:
+                    row = col.row()
+                    row.prop(item, "face_draw_distance")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_draw_distance'
+                if item.texcoord_usage_override:
+                    row = col.row()
+                    row.prop(item, 'texcoord_usage')
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'texcoord_usage'
+                if item.face_global_material_override:
+                    row = col.row()
+                    row.prop(item, "face_global_material")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'face_global_material'
+                if item.ladder_override:
+                    row = col.row()
+                    row.prop(item, "ladder")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'ladder'
+                if item.slip_surface_override:
+                    row = col.row()
+                    row.prop(item, "slip_surface")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'slip_surface'
+                if item.decal_offset_override:
+                    row = col.row()
+                    row.prop(item, "decal_offset")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'decal_offset'
+                if item.group_transparents_by_plane_override:
+                    row = col.row()
+                    row.prop(item, "group_transparents_by_plane")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'group_transparents_by_plane'
+                if item.no_shadow_override:
+                    row = col.row()
+                    row.prop(item, "no_shadow")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_shadow'
+                if item.precise_position_override:
+                    row = col.row()
+                    row.prop(item, "precise_position")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'precise_position'
+                if item.no_lightmap_override:
+                    row = col.row()
+                    row.prop(item, "no_lightmap")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_lightmap'
+                if item.no_pvs_override:
+                    row = col.row()
+                    row.prop(item, "no_pvs")
+                    row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
 
 def toggle_override(context, option, bool_var):
     ob = context.object
