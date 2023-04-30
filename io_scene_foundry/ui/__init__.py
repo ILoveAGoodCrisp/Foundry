@@ -4988,13 +4988,13 @@ class NWO_FacePropAdd(Operator):
         ob = context.object
         # if no face maps, make one and assign all faces to it
         if len(ob.face_maps) < 1:
-            bpy.ops.object.face_map_add()
             bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-            bpy.ops.mesh.select_all()
+            bpy.ops.object.face_map_add()
+            bpy.ops.mesh.select_all(action='SELECT')
             bpy.ops.object.face_map_assign()
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             ob.face_maps[0].name = 'default'
             bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         
         toggle_override(context, self.options, True)
         ob_nwo_face = ob.nwo_face
