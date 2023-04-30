@@ -211,6 +211,15 @@ def split_by_face_map(ob, context):
     ob.select_set(True)
     set_active_object(ob)
     if ob.type == 'MESH' and len(ob.face_maps) > 0:
+        # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
+        if CheckType.poop(ob):
+            collision_mesh = ob.copy()
+            collision_mesh.data = ob.data.copy()
+            context.scene.collection.objects.link(collision_mesh)
+            collision_mesh.parent = ob
+            collision_mesh.matrix_world = ob.matrix_world
+            collision_mesh.nwo.ObjectMesh_Type = '_connected_geometry_mesh_type_collision'
+            collision_mesh.select_set(False)
         normals_mesh = ob.copy()
         normals_mesh.data = ob.data.copy()
         remove_unused_facemaps(ob, context)
@@ -282,6 +291,9 @@ def face_prop_to_mesh_prop(ob):
                     mesh_props.no_lightmap = face_props.no_lightmap
                 if face_props.no_pvs_override:
                     mesh_props.no_pvs = face_props.no_pvs
+                
+                if CheckType.poop(ob):
+                    mesh_props.Face_Sides = '_connected_geometry_face_sides_two_sided'
 
                 break
 
