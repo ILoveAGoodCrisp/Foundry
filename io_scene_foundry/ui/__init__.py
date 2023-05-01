@@ -5162,9 +5162,12 @@ class NWO_FacePropAdd(Operator):
         toggle_override(context, self.options, True)
         item = ob_nwo_face.face_props[ob.face_maps.active_index]
         item.name = ob.face_maps.active.name
-        if self.options == 'region':
+        if self.options in ('region', 'face_global_material'):
             r_name = item.name.split(' ')
-            item.region_name = r_name[-1].lower()
+            if self.options == 'region':
+                item.region_name = r_name[-1].lower()
+            else:
+                item.face_global_material = r_name[-1].lower()
         context.area.tag_redraw()
 
         return {'FINISHED'}
