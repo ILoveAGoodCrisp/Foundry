@@ -4687,7 +4687,7 @@ class NWO_FaceMapProps(Panel):
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
-            col.menu(NWO_FacePropAddMenuNew.bl_idname, text='Add Face Property', icon='ADD')
+            col.menu(NWO_FacePropAddMenuNew.bl_idname, text='New Face Property', icon='ADD')
         else:
 
             facemap = ob.face_maps.active
@@ -4734,7 +4734,7 @@ class NWO_FaceMapProps(Panel):
                 #            and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
                 #         ):
 
-                if (is_poop or (item.instanced_collision_override and item.instanced_physics_override and item.cookie_cutter_override)):
+                if (is_poop and (item.instanced_collision_override or item.instanced_physics_override or item.cookie_cutter_override)):
                     if item.instanced_collision_override:
                         col.label(text="Current FaceMap is used for this mesh's bullet collision")
                     if item.instanced_physics_override:
@@ -4743,7 +4743,7 @@ class NWO_FaceMapProps(Panel):
                         col.label(text="Current FaceMap is used for this mesh's cookie cutter")
 
                 else:
-                    col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
+                    col.menu(NWO_FacePropAddMenu.bl_idname, text='', icon='PLUS')
 
                     if item.instanced_collision_override:
                         row = col.row()
