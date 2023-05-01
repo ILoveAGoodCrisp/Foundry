@@ -303,7 +303,8 @@ def face_prop_to_mesh_prop(ob):
 def apply_face_properties(context):
     objects = []
     for ob in context.view_layer.objects:
-        objects.append(ob)
+        if CheckType.mesh(ob):
+            objects.append(ob)
     for ob in objects:
         if is_linked(ob) and ob.data.nwo.master_instance != ob:
             continue

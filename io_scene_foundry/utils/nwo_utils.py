@@ -92,6 +92,7 @@ package = 'io_scene_foundry'
 #############
 
 def is_linked(ob):
+    print(ob)
     return ob.data.users > 1
 
 def get_ek_path():
