@@ -4678,15 +4678,16 @@ class NWO_FaceMapProps(Panel):
                     break
 
             if op_bullet_collision:
-                col.operator("nwo_face.add_face_property", text="Add Bullet Collision").options = "instanced_collision"
+                col.operator("nwo_face.add_face_property_new", text="Add Bullet Collision").options = "instanced_collision"
             if op_player_collision:
-                col.operator("nwo_face.add_face_property", text="Add Player Collision").options = "instanced_physics"
+                col.operator("nwo_face.add_face_property_new", text="Add Player Collision").options = "instanced_physics"
             if op_cookie_cutter:
-                col.operator("nwo_face.add_face_property", text="Add Cookie Cutter").options = "cookie_cutter"
+                col.operator("nwo_face.add_face_property_new", text="Add Cookie Cutter").options = "cookie_cutter"
+
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
-            col.menu(NWO_FacePropAddMenu.bl_idname, text='Add Face Property', icon='ADD')
+            col.menu(NWO_FacePropAddMenuNew.bl_idname, text='Add Face Property', icon='ADD')
         else:
 
             facemap = ob.face_maps.active
@@ -4699,7 +4700,7 @@ class NWO_FaceMapProps(Panel):
             row.template_list("MESH_UL_fmaps", "", ob, "face_maps", ob.face_maps, "active_index", rows=rows)
 
             col = row.column(align=True)
-            col.operator("nwo_face.add_face_map", icon='ADD', text="")
+            col.menu(NWO_FacePropAddMenuNew.bl_idname, text='', icon='ADD')
             col.operator("object.face_map_remove", icon='REMOVE', text="")
 
             col.separator()
@@ -4948,10 +4949,44 @@ class NWO_FacePropAddMenu(Menu):
                                     property="options",
                                     text="Other",
                                     )
-        if CheckType.poop(ob):
-            layout.operator("nwo_face.add_face_property", text='Bullet Collision').options = 'instanced_collision'
-            layout.operator("nwo_face.add_face_property", text='Player Collision').options = 'instanced_physics'
-            layout.operator("nwo_face.add_face_property", text='Cookie Cutter').options = 'cookie_cutter'
+
+class NWO_FacePropAddMenuNew(Menu):
+    bl_label = "Add Face Property"
+    bl_idname = "NWO_MT_FacePropAddNew"
+
+    def draw(self, context):
+        layout = self.layout
+        ob = context.object
+        if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
+            layout.operator("nwo_face.add_face_property_new", text='Region').options = 'region'
+        if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+            layout.operator("nwo_face.add_face_property_new", text='Global Material').options = 'face_global_material'
+        if poll_ui(('MODEL', 'SKY', 'DECORATOR')) and (CheckType.default(ob) or CheckType.decorator(ob)):
+            layout.operator("nwo_face.add_face_property_new", text='Precise').options = 'precise_position'
+
+        if poll_ui(('SCENARIO', 'PREFAB')) and (CheckType.default(ob) or CheckType.poop(ob)):
+            layout.operator_menu_enum("nwo_face.add_face_property_face_type_new",
+                                    property="options",
+                                    text="Type",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_face_mode_new",
+                                    property="options",
+                                    text="Mode",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_flags_new",
+                                    property="options",
+                                    text="Flags",
+                                    )
+            
+        if CheckType.default(ob) or CheckType.poop(ob) or CheckType.decorator(ob):
+            layout.operator_menu_enum("nwo_face.add_face_property_face_sides_new",
+                                    property="options",
+                                    text="Sides",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_misc_new",
+                                    property="options",
+                                    text="Other",
+                                    )
             
 class NWO_MasterInstance(Operator):
     """Sets the current object as the master instance for all linked objects. Linked objects will use this objects face properties"""
@@ -5028,6 +5063,8 @@ class NWO_FacePropAdd(Operator):
     @classmethod
     def poll(cls, context):
         return context.object and context.object.type == 'MESH' and context.object.mode in ('OBJECT', 'EDIT')
+    
+    new : BoolProperty()
 
     options: EnumProperty(
         default="region",
@@ -5045,10 +5082,13 @@ class NWO_FacePropAdd(Operator):
         ob = context.object
         ob_nwo_face = ob.nwo_face
         # if no face maps, make one and assign all faces to it
-        if len(ob.face_maps) < 1 or self.options in ('instanced_collision', 'instanced_physics', 'cookie_cutter'):
-            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        if self.new:
+            is_object_mode = ob.mode == 'OBJECT'
+            if is_object_mode:
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.ops.mesh.select_all(action='SELECT')
+
             bpy.ops.object.face_map_add()
-            bpy.ops.mesh.select_all(action='SELECT')
             bpy.ops.object.face_map_assign()
             fm_name = 'default'
             match self.options:
@@ -5065,9 +5105,59 @@ class NWO_FacePropAdd(Operator):
                 case 'cookie_cutter':
                     fm_name = 'cookie_cutter'
 
+                case '_connected_geometry_face_type_sky':
+                    fm_name = 'sky'
+                case '_connected_geometry_face_type_seam_sealer':
+                    fm_name = 'seam_sealer'
+                case '_connected_geometry_face_mode_render_only':
+                    fm_name = 'render_only'
+                case '_connected_geometry_face_mode_collision_only':
+                    fm_name = 'collision_only'
+                case '_connected_geometry_face_mode_sphere_collision_only':
+                    fm_name = 'sphere_collision_only'
+                case '_connected_geometry_face_mode_shadow_only':
+                    fm_name = 'shadow_only'
+                case '_connected_geometry_face_mode_lightmap_only':
+                    fm_name = 'lightmap_only'
+                case '_connected_geometry_face_mode_breakable':
+                    fm_name = 'breakable'
+                case '_connected_geometry_face_sides_one_sided_transparent':
+                    fm_name = 'one_side_transparent'
+                case '_connected_geometry_face_sides_two_sided':
+                    fm_name = 'two_side'
+                case '_connected_geometry_face_sides_two_sided_transparent':
+                    fm_name = 'two_side_transparent'
+                case '_connected_geometry_face_sides_mirror':
+                    fm_name = 'mirror'
+                case '_connected_geometry_face_sides_mirror_transparent':
+                    fm_name = 'mirror_transparent'
+                case '_connected_geometry_face_sides_keep':
+                    fm_name = 'keep'
+                case '_connected_geometry_face_sides_keep_transparent':
+                    fm_name = 'keep_transparent'
+                case 'ladder':
+                    fm_name = 'ladder'
+                case 'slip_surface':
+                    fm_name = 'slip_surface'
+                case 'decal_offset':
+                    fm_name = 'decal_offset'
+                case 'group_transparents_by_plane':
+                    fm_name = 'group_transparents_by_plane'
+                case 'no_shadow':
+                    fm_name = 'no_shadow'
+                case 'no_lightmap':
+                    fm_name = 'no_lightmap'
+                case 'no_pvs':
+                    fm_name = 'no_pvs'
+                case 'face_draw_distance':
+                    fm_name = 'draw_distance'
+                case 'texcoord_usage':
+                    fm_name = 'texcoord_usage'
+
             ob.face_maps.active.name = fm_name
             bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            if is_object_mode:
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         
         toggle_override(context, self.options, True)
         item = ob_nwo_face.face_props[ob.face_maps.active_index]
@@ -5125,6 +5215,17 @@ class NWO_FacePropRemove(Operator):
                 ob_nwo_face.cookie_cutter = False
 
         return {'FINISHED'}
+
+class NWO_FacePropAddNew(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
+    )
+
+    # options : EnumProperty()
     
 class NWO_FacePropAddFaceType(NWO_FacePropAdd):
     """Adds a face property that will override face properties set in the mesh"""
@@ -5137,6 +5238,14 @@ class NWO_FacePropAddFaceType(NWO_FacePropAdd):
         ('_connected_geometry_face_type_seam_sealer', 'Seam Sealer', ''),
         ]
         )
+class NWO_FacePropAddFaceTypeNew(NWO_FacePropAddFaceType):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_face_type_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
+    )
     
 class NWO_FacePropAddFaceMode(NWO_FacePropAdd):
     """Adds a face property that will override face properties set in the mesh"""
@@ -5153,6 +5262,16 @@ class NWO_FacePropAddFaceMode(NWO_FacePropAdd):
         ('_connected_geometry_face_mode_breakable', 'Breakable', ''),
         ]
         )
+    
+class NWO_FacePropAddFaceModeNew(NWO_FacePropAddFaceMode):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_face_mode_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
+    )
+
 class NWO_FacePropAddFaceSides(NWO_FacePropAdd):
     """Adds a face property that will override face properties set in the mesh"""
     bl_idname = "nwo_face.add_face_property_face_sides"
@@ -5169,6 +5288,15 @@ class NWO_FacePropAddFaceSides(NWO_FacePropAdd):
         ('_connected_geometry_face_sides_keep_transparent', 'Keep Transparent', ''),
         ]
         )
+    
+class NWO_FacePropAddFaceSidesNew(NWO_FacePropAddFaceSides):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_face_sides_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
+    )
 
 class NWO_FacePropAddFlags(NWO_FacePropAdd):
     """Adds a face property that will override face properties set in the mesh"""
@@ -5187,6 +5315,15 @@ class NWO_FacePropAddFlags(NWO_FacePropAdd):
         ]
     )
 
+class NWO_FacePropAddFlagsNew(NWO_FacePropAddFlags):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_flags_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
+    )
+
 class NWO_FacePropAddMisc(NWO_FacePropAdd):
     """Adds a face property that will override face properties set in the mesh"""
     bl_idname = "nwo_face.add_face_property_misc"
@@ -5197,6 +5334,15 @@ class NWO_FacePropAddMisc(NWO_FacePropAdd):
         ('face_draw_distance', 'Draw Distance', ''),
         ('texcoord_usage', 'Texcord Usage', ''),
         ]
+    )
+
+class NWO_FacePropAddMiscNew(NWO_FacePropAddMisc):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_misc_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
     )
 
 class NWO_FaceProperties_ListItems(PropertyGroup):
@@ -5514,7 +5660,13 @@ classeshalo = (
     NWO_FacePropAddFaceSides,
     NWO_FacePropAddFlags,
     NWO_FacePropAddMisc,
+    NWO_FacePropAddFaceTypeNew,
+    NWO_FacePropAddFaceModeNew,
+    NWO_FacePropAddFaceSidesNew,
+    NWO_FacePropAddFlagsNew,
+    NWO_FacePropAddMiscNew,
     NWO_FacePropAdd,
+    NWO_FacePropAddNew,
     NWO_FacePropRemove,
     NWO_FaceMapAdd,
     NWO_EditMode,
@@ -5525,6 +5677,7 @@ classeshalo = (
     NWO_ObjectMeshMaterialLightingProps,
     NWO_ObjectMeshLightmapProps,
     NWO_FacePropAddMenu,
+    NWO_FacePropAddMenuNew,
     NWO_MeshPropertiesGroup,
     NWO_FacePropertiesGroup,
 )
