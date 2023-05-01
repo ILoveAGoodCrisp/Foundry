@@ -158,7 +158,7 @@ def WriteHeader(metadata):
     header = ET.SubElement(metadata, "Header")
     ET.SubElement(header, "MainRev").text = "0"
     ET.SubElement(header, "PointRev").text = "6"
-    ET.SubElement(header, "Description").text = "Created using the Halo Blender Toolset"
+    ET.SubElement(header, "Description").text = "Forged in Foundry"
     ET.SubElement(header, "Created").text = str(datetime.today().strftime('%Y-%m-%d %H:%M:%S'))
     ET.SubElement(header, "By").text = getpass.getuser()
     ET.SubElement(header, 'SourceFile').text = bpy.data.filepath.replace(get_data_path(), '')
