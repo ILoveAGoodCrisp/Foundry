@@ -179,6 +179,7 @@ from ..utils.nwo_utils import (
     managed_blam_active,
     marker_prefixes,
     run_ek_cmd,
+    set_active_object,
     special_prefixes,
     boundary_surface_prefixes,
     poop_lighting_prefixes,
@@ -5086,7 +5087,32 @@ class NWO_FacePropAdd(Operator):
             is_object_mode = ob.mode == 'OBJECT'
             if is_object_mode:
                 bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                bpy.ops.mesh.select_all(action='SELECT')
+                if self.options in ('instanced_collision', 'instanced_physics', 'cookie_cutter'):
+                    bpy.ops.mesh.select_all(action='DESELECT')
+                    # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                    # new_mesh = ob.copy()
+                    # new_mesh.data = ob.data.copy()
+                    # context.scene.collection.objects.link(new_mesh)
+                    # set_active_object(new_mesh)
+                    # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                    # bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.object.face_map_add()
+                    bpy.ops.object.face_map_assign()
+                    fm_name = 'default'
+                    match self.options:
+                        case 'instanced_collision':
+                            fm_name = 'bullet_collision'
+                        case 'instanced_physics':
+                            fm_name = 'player_collision'
+                        case 'cookie_cutter':
+                            fm_name = 'cookie_cutter'
+                    #set_active_object(ob)
+                    #bpy.ops.object.join()
+                    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                    
+                else:
+                    if len(ob.face_maps) < 1:
+                        bpy.ops.mesh.select_all(action='SELECT')
 
             bpy.ops.object.face_map_add()
             bpy.ops.object.face_map_assign()
