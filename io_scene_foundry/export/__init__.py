@@ -581,7 +581,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
             from .prepare_scene import prepare_scene
             (model_armature, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action
-            ) = prepare_scene(context, self.report, **keywords) # prepares the scene for processing and returns information about the scene
+            ) = prepare_scene(context, self.report, asset, **keywords) # prepares the scene for processing and returns information about the scene
             # if self.build_shaders:
             #     shader_builder()
             # try:
@@ -824,7 +824,7 @@ class NWO_SceneProps(Panel):
         if scene_nwo.asset_type in ('MODEL', 'FP ANIMATION'):
             col.prop(scene_nwo, 'forward_direction')
         col.separator()
-        col.prop(scene_nwo, 'filter_ui', text = 'Filter UI')
+        # col.prop(scene_nwo, 'filter_ui', text = 'Filter UI')
         if scene_nwo.asset_type == 'MODEL':
             sub = layout.column(heading="Output Tags")
             sub.prop(scene_nwo, "output_biped")
@@ -1131,12 +1131,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         items=[ ('x', "X Forward", ""), ('x-', "X Backward", ""), ('y', 'Y Forward', ''), ('y-', 'Y Backward', '')]
     )
 
-    filter_ui: BoolProperty(
-        name="Filter UI",
-        options=set(),
-        description="When True, hides all UI elements that aren't needed for the selected asset type",
-        default = True,
-        )
+    # filter_ui: BoolProperty(
+    #     name="Filter UI",
+    #     options=set(),
+    #     description="When True, hides all UI elements that aren't needed for the selected asset type",
+    #     default = True,
+    #     )
 
     output_biped: BoolProperty(
         name='Biped',

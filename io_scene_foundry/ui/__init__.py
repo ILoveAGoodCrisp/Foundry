@@ -30,6 +30,7 @@ import random
 from bl_ui.generic_ui_list import draw_ui_list
 
 from bpy.types import (
+        Context,
         Operator,
         Panel,
         UIList,
@@ -224,7 +225,7 @@ class NWO_GameInstancePath(Operator):
 
     def execute(self, context):
         active_object = context.active_object
-        active_object.nwo.Marker_Game_Instance_Tag_Name = self.filepath
+        active_object.nwo.marker_game_instance_tag_name = self.filepath
 
         return {'FINISHED'}
 
@@ -253,7 +254,7 @@ class NWO_FogPath(Operator):
 
     def execute(self, context):
         active_object = context.active_object
-        active_object.nwo.Fog_Appearance_Tag = self.filepath
+        active_object.nwo.fog_appearance_tag = self.filepath
 
         return {'FINISHED'}
 
@@ -369,7 +370,7 @@ class NWO_LightTagPath(Operator):
 
     def execute(self, context):
         active_object = context.active_object
-        active_object.nwo.Light_Tag_Override = self.filepath
+        active_object.nwo.light_tag_override = self.filepath
 
         return {'FINISHED'}
 
@@ -398,7 +399,7 @@ class NWO_LightShaderPath(Operator):
 
     def execute(self, context):
         active_object = context.active_object
-        active_object.nwo.Light_Shader_Reference = self.filepath
+        active_object.nwo.light_shader_reference = self.filepath
 
         return {'FINISHED'}
 
@@ -427,7 +428,7 @@ class NWO_LightGelPath(Operator):
 
     def execute(self, context):
         active_object = context.active_object
-        active_object.nwo.Light_Gel_Reference = self.filepath
+        active_object.nwo.light_gel_reference = self.filepath
 
         return {'FINISHED'}
 
@@ -456,7 +457,7 @@ class NWO_LensFlarePath(Operator):
 
     def execute(self, context):
         active_object = context.active_object
-        active_object.nwo.Light_Lens_Flare_Reference = self.filepath
+        active_object.nwo.light_lens_flare_reference = self.filepath
 
         return {'FINISHED'}
 
@@ -501,10 +502,9 @@ class NWO_ShaderPath(Operator):
 
 def poll_ui(selected_types):
     scene_nwo = bpy.context.scene.nwo
-    filter = scene_nwo.filter_ui
     type = scene_nwo.asset_type
 
-    return not filter or type in selected_types
+    return type in selected_types
 
 class NWO_ObjectProps(Panel):
     bl_label = "Halo Object Properties"
@@ -532,17 +532,11 @@ class NWO_ObjectProps(Panel):
 
         if ob.type == 'LIGHT':
             col.prop(ob_nwo, "Object_Type_Light", text='Object Type')
-        elif object_prefix(ob, (marker_prefixes + frame_prefixes)) or (ob.type == 'EMPTY' and (ob.name.startswith('$') or len(ob.children) > 0)) or object_prefix(ob, special_prefixes):
-            if ob.type == 'EMPTY':
-                col.prop(ob_nwo, "Object_Type_No_Mesh_Locked", text='Object Type')
-            else:
-                col.prop(ob_nwo, "Object_Type_All_Locked", text='Object Type')
+        elif ob.type == 'EMPTY':
+                col.prop(ob_nwo, "object_type_no_mesh", text='Object Type')
         else:
             row = col.row()
-            if ob.type == 'EMPTY':
-                row.prop(ob_nwo, "Object_Type_No_Mesh", text='Object Type', expand=True)
-            else:
-                row.prop(ob_nwo, "Object_Type_All", text='Object Type', expand=True)
+            row.prop(ob_nwo, "object_type_all", text='Object Type', expand=True)
 
         if poll_ui(('SCENARIO')):
             sub = col.row()
@@ -558,10 +552,10 @@ class NWO_ObjectProps(Panel):
                     sub.prop(ob_nwo, 'bsp_name', text='BSP')
 
         if poll_ui(('MODEL', 'SCENARIO')):
-            if ob_nwo.Permutation_Name_Locked != '':
-                col.prop(ob_nwo, 'Permutation_Name_Locked', text='Permutation')
+            if ob_nwo.permutation_name_locked != '':
+                col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
             else:
-                col.prop(ob_nwo, 'Permutation_Name', text='Permutation')
+                col.prop(ob_nwo, 'permutation_name', text='Permutation')
 
         if CheckType.frame(ob) and not_bungie_game():
             col.prop(ob_nwo, 'is_pca')
@@ -588,148 +582,193 @@ class NWO_ObjectMeshProps(Panel):
 
         ob = context.active_object
         ob_nwo = ob.nwo
+        h4 = not_bungie_game()
 
         col = flow.column()
-
-        if not_bungie_game():
-            if object_prefix(context.active_object, special_prefixes):
-                col.prop(ob_nwo, "ObjectMesh_Type_Locked_H4", text='Mesh Type')
+        mesh_type_name = 'INVALID'
+        mesh_type_icon = 'ADD'
+        if poll_ui('DECORATOR'):
+            mesh_type_name = 'Decorator'
+        elif poll_ui('SCENARIO'):
+            if h4:
+                mesh_type_name = 'Structure Sky'
+                mesh_type_icon = 'PLUS'
             else:
-                col.prop(ob_nwo, "ObjectMesh_Type_H4", text='Mesh Type')
+                mesh_type_name = 'Structure'
         else:
-            if object_prefix(context.active_object, special_prefixes):
-                col.prop(ob_nwo, "ObjectMesh_Type_Locked", text='Mesh Type')
-            else:
-                col.prop(ob_nwo, "ObjectMesh_Type", text='Mesh Type')
+            mesh_type_name = 'Render'
+            
+        if poll_ui('MODEL'):
+            if CheckType.collision(ob):
+                mesh_type_name = 'Collision'
+            elif CheckType.physics(ob):
+                mesh_type_name = 'Physics'
+            elif CheckType.object_instance(ob) and not h4:
+                mesh_type_name = 'Flair'
+        elif poll_ui('SCENARIO'):
+            if CheckType.poop(ob):
+                mesh_type_name = 'Instance'
+            elif CheckType.boundary_surface(ob):
+                mesh_type_name = 'Boundary Surface'
+            elif CheckType.cookie_cutter(ob):
+                mesh_type_name = 'Cookie Cutter'
+            elif CheckType.poop_marker(ob) and not h4:
+                mesh_type_name = 'Instanced Marker'
+            elif CheckType.poop_rain_blocker(ob) and not h4:
+                mesh_type_name = 'Rain Blocker'
+            elif CheckType.poop_rain_sheet(ob) and not h4:
+                mesh_type_name = 'Rain Sheet'
+            elif CheckType.collision(ob) and h4:
+                mesh_type_name = 'Collider'
+            elif CheckType.portal(ob):
+                mesh_type_name = 'Portal'
+            elif CheckType.seam(ob):
+                mesh_type_name = 'Seam'
+            elif CheckType.fog(ob):
+                mesh_type_name = 'Planar Fog'
+            elif CheckType.water_surface(ob):
+                mesh_type_name = 'Water'
+            elif CheckType.water_physics(ob):
+                mesh_type_name = 'Water Physics'
+            elif CheckType.obb_volume(ob) and h4:
+                mesh_type_name = 'OBB Volume'
+        
+        elif poll_ui('PREFAB'):
+            if CheckType.poop(ob):
+                mesh_type_name = 'Instance'
+            elif CheckType.cookie_cutter(ob):
+                mesh_type_name = 'Cookie Cutter'
+            elif CheckType.collision(ob) and h4:
+                mesh_type_name = 'Collider'
+        col.emboss = 'NORMAL'
+        col.menu(NWO_MeshMenu.bl_idname, text=mesh_type_name, icon=mesh_type_icon)
+
+        # if not_bungie_game():
+        #     if object_prefix(context.active_object, special_prefixes):
+        #         col.prop(ob_nwo, "ObjectMesh_Type_Locked_H4", text='Mesh Type')
+        #     else:
+        #         col.prop(ob_nwo, "ObjectMesh_Type_H4", text='Mesh Type')
+        # else:
+        #     if object_prefix(context.active_object, special_prefixes):
+        #         col.prop(ob_nwo, "ObjectMesh_Type_Locked", text='Mesh Type')
+        #     else:
+        #         col.prop(ob_nwo, "ObjectMesh_Type", text='Mesh Type')
 
         if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
-            if ob_nwo.Region_Name_Locked != '':
-                col.prop(ob_nwo, 'Region_Name_Locked', text='Region Override')
+            if ob_nwo.region_name_locked != '':
+                col.prop(ob_nwo, 'region_name_locked', text='Region')
+            else:
+                col.prop(ob_nwo, "region_name", text='Region')
             # else:
             #     col.prop(ob_nwo, "Region_Name", text='Region')
 
-        # if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
-        #     col.prop(ob_nwo, "Face_Global_Material", text='Global Material')
+        if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+            col.prop(ob_nwo, "face_global_material", text='Global Material')
 
-        if poll_ui(('DECORATOR SET')) and context.scene.nwo.asset_type == 'DECORATOR SET' and not CheckType.decorator(ob):
-            col.label(text="Only the Decorator mesh type is valid for Decorator Set exports", icon='ERROR')
+        # if poll_ui(('DECORATOR SET')) and context.scene.nwo.asset_type == 'DECORATOR SET' and not CheckType.decorator(ob):
+        #     col.label(text="Only the Decorator mesh type is valid for Decorator Set exports", icon='ERROR')
 
-        elif poll_ui(('PARTICLE MODEL')) and context.scene.nwo.asset_type == 'PARTICLE MODEL' and not CheckType.default(ob):
-            col.label(text="Only the render mesh type is valid for particle model exports", icon='ERROR')
+        # elif poll_ui(('PARTICLE MODEL')) and context.scene.nwo.asset_type == 'PARTICLE MODEL' and not CheckType.default(ob):
+        #     col.label(text="Only the render mesh type is valid for particle model exports", icon='ERROR')
 
-        elif CheckType.boundary_surface(ob):
-            if poll_ui(('SCENARIO')):
-                row = col.row()
-                if ob.name.startswith(boundary_surface_prefixes):
-                    row.prop(ob_nwo, "Boundary_Surface_Type_Locked", text='Type', expand=True)
-                else:
-                    row.prop(ob_nwo, "Boundary_Surface_Type", text='Type', expand=True)
-            else:
-                col.label(text="Boundary Surface mesh type only valid for Scenario exports", icon='ERROR')
+        # elif CheckType.boundary_surface(ob):
+        #     if poll_ui(('SCENARIO')):
+        #         row = col.row()
+        #         if ob.name.startswith(boundary_surface_prefixes):
+        #             row.prop(ob_nwo, "Boundary_Surface_Type_Locked", text='Type', expand=True)
+        #         else:
+        #             row.prop(ob_nwo, "Boundary_Surface_Type", text='Type', expand=True)
+        #     else:
+        #         col.label(text="Boundary Surface mesh type only valid for Scenario exports", icon='ERROR')
 
-        elif poll_ui(('SCENARIO', 'PREFAB')) and CheckType.collision(ob) and not_bungie_game():
-            col.prop(ob_nwo, "Poop_Collision_Type")
+        # elif poll_ui(('SCENARIO', 'PREFAB')) and CheckType.collision(ob) and not_bungie_game():
+        #     col.prop(ob_nwo, "Poop_Collision_Type")
 
-        elif CheckType.decorator(ob):
-            if poll_ui(('DECORATOR SET')):
-                col.prop(ob_nwo, "Decorator_Name", text='Decorator Name')
-                col.prop(ob_nwo, "Decorator_LOD", text='Decorator Level of Detail')
-            else:
-                col.label(text="Decorator mesh type only valid for Decorator exports", icon='ERROR')
+        # elif CheckType.decorator(ob):
+        #     if poll_ui(('DECORATOR SET')):
+        #         col.prop(ob_nwo, "Decorator_Name", text='Decorator Name')
+        #         col.prop(ob_nwo, "Decorator_LOD", text='Decorator Level of Detail')
+        #     else:
+        #         col.label(text="Decorator mesh type only valid for Decorator exports", icon='ERROR')
 
-        elif CheckType.poop(ob):
-            if poll_ui(('SCENARIO', 'PREFAB')):
-                if not_bungie_game():
-                    col.prop(ob_nwo, "Poop_Collision_Type")
+        if CheckType.poop(ob):
+        
+            # if not_bungie_game():
+            #     col.prop(ob_nwo, "Poop_Collision_Type")
 
-                if ob.name.startswith(poop_lighting_prefixes):
-                    col.prop(ob_nwo, "Poop_Lighting_Override_Locked", text='Lighting Policy')
-                else:
-                    col.prop(ob_nwo, "Poop_Lighting_Override", text='Lighting Policy')
+            col.prop(ob_nwo, "poop_lighting_override", text='Lighting Policy')
+            
+            if not_bungie_game():
+                col.prop(ob_nwo, "poop_lightmap_resolution_scale")
                 
+            col.prop(ob_nwo, "poop_pathfinding_override", text='Pathfinding Policy')
+
+            col.prop(ob_nwo, "poop_imposter_policy", text='Imposter Policy')
+            if ob_nwo.poop_imposter_policy != '_connected_poop_instance_imposter_policy_never':
+                sub = col.row(heading="Imposter Transition")
+                sub.prop(ob_nwo, 'poop_imposter_transition_distance_auto', text='Automatic')
+                if not ob_nwo.poop_imposter_transition_distance_auto:
+                    sub.prop(ob_nwo, 'poop_imposter_transition_distance', text='Distance')
                 if not_bungie_game():
-                    col.prop(ob_nwo, "poop_lightmap_resolution_scale")
-                    
-                if ob.name.startswith(poop_pathfinding_prefixes):
-                    col.prop(ob_nwo, "Poop_Pathfinding_Override_Locked", text='Pathfinding Policy')
-                else:
-                    col.prop(ob_nwo, "Poop_Pathfinding_Override", text='Pathfinding Policy')
+                    col.prop(ob_nwo, 'poop_imposter_brightness')
+                # col.prop(ob_nwo, "Poop_Imposter_Fade_Range_Start", text='Fade In Start')
+                # col.prop(ob_nwo, "Poop_Imposter_Fade_Range_End", text='Fade In End')
+            #col.prop(ob_nwo, "Poop_Decomposition_Hulls", text='Decomposition Hulls') commented out so it can be set automatically. 
 
-                col.prop(ob_nwo, "Poop_Imposter_Policy", text='Imposter Policy')
-                if ob_nwo.Poop_Imposter_Policy != '_connected_poop_instance_imposter_policy_never':
-                    sub = col.row(heading="Imposter Transition")
-                    sub.prop(ob_nwo, 'Poop_Imposter_Transition_Distance_Auto', text='Automatic')
-                    if not ob_nwo.Poop_Imposter_Transition_Distance_Auto:
-                        sub.prop(ob_nwo, 'Poop_Imposter_Transition_Distance', text='Distance')
-                    if not_bungie_game():
-                        col.prop(ob_nwo, 'poop_imposter_brightness')
-                    # col.prop(ob_nwo, "Poop_Imposter_Fade_Range_Start", text='Fade In Start')
-                    # col.prop(ob_nwo, "Poop_Imposter_Fade_Range_End", text='Fade In End')
-                #col.prop(ob_nwo, "Poop_Decomposition_Hulls", text='Decomposition Hulls') commented out so it can be set automatically. 
+            # col.separator()
 
-                # col.separator()
+            # col.prop(ob_nwo, "Poop_Predominant_Shader_Name", text='Predominant Shader Name')
 
-                # col.prop(ob_nwo, "Poop_Predominant_Shader_Name", text='Predominant Shader Name')
+            if not_bungie_game():
+                col.prop(ob_nwo, 'poop_streaming_priority')
+                col.prop(ob_nwo, 'poop_cinematic_properties')
 
-                if not_bungie_game():
-                    col.prop(ob_nwo, 'poop_streaming_priority')
-                    col.prop(ob_nwo, 'poop_cinematic_properties')
+            col.separator()
 
-                col.separator()
+            col = layout.column(heading="Flags")
+            sub = col.column(align=True)
 
-                col = layout.column(heading="Flags")
-                sub = col.column(align=True)
+            sub.prop(ob_nwo, "poop_render_only", text='Render Only')
 
-                if ob.name.startswith(poop_render_only_prefixes):
-                    sub.prop(ob_nwo, "Poop_Render_Only_Locked", text='Render Only')
-                else:
-                    sub.prop(ob_nwo, "Poop_Render_Only", text='Render Only')
-
-                sub.prop(ob_nwo, "Poop_Chops_Portals", text='Chops Portals')
-                sub.prop(ob_nwo, "Poop_Does_Not_Block_AOE", text='Does Not Block AOE')
-                sub.prop(ob_nwo, "Poop_Excluded_From_Lightprobe", text='Excluded From Lightprobe')
-                sub.prop(ob_nwo, "Poop_Decal_Spacing", text='Decal Spacing')
-                if not_bungie_game():
-                    sub.prop(ob_nwo, "poop_remove_from_shadow_geometry")
-                    sub.prop(ob_nwo, "poop_disallow_lighting_samples",)
-                    sub.prop(ob_nwo, "poop_rain_occluder")
-
-            else:
-                col.label(text="Instanced Geometry mesh type only valid for Scenario / Prefab exports", icon='ERROR')
+            sub.prop(ob_nwo, "poop_chops_portals", text='Chops Portals')
+            sub.prop(ob_nwo, "poop_does_not_block_aoe", text='Does Not Block AOE')
+            sub.prop(ob_nwo, "poop_excluded_from_lightprobe", text='Excluded From Lightprobe')
+            sub.prop(ob_nwo, "poop_decal_spacing", text='Decal Spacing')
+            if not_bungie_game():
+                sub.prop(ob_nwo, "poop_remove_from_shadow_geometry")
+                sub.prop(ob_nwo, "poop_disallow_lighting_samples",)
+                sub.prop(ob_nwo, "poop_rain_occluder")
 
         elif CheckType.portal(ob):
-            if poll_ui(('SCENARIO')):
-                row = col.row()
-                row.prop(ob_nwo, "Portal_Type", text='Portal Type', expand=True)
+            row = col.row()
+            row.prop(ob_nwo, "portal_type", text='Portal Type', expand=True)
 
-                col.separator()
+            col.separator()
 
-                col = layout.column(heading="Flags")
-                sub = col.column(align=True)
+            col = layout.column(heading="Flags")
+            sub = col.column(align=True)
 
-                sub.prop(ob_nwo, "Portal_AI_Deafening", text='AI Deafening')
-                sub.prop(ob_nwo, "Portal_Blocks_Sounds", text='Blocks Sounds')
-                sub.prop(ob_nwo, "Portal_Is_Door", text='Is Door')
-            else:
-                col.label(text="Portal mesh type only valid for Scenario exports", icon='ERROR')
+            sub.prop(ob_nwo, "portal_ai_deafening", text='AI Deafening')
+            sub.prop(ob_nwo, "portal_blocks_sounds", text='Blocks Sounds')
+            sub.prop(ob_nwo, "portal_is_door", text='Is Door')
 
         elif CheckType.water_physics(ob):
             if poll_ui(('SCENARIO')):
-                col.prop(ob_nwo, "Water_Volume_Depth", text='Water Volume Depth')
-                col.prop(ob_nwo, "Water_Volume_Flow_Direction", text='Flow Direction')
-                col.prop(ob_nwo, "Water_Volume_Flow_Velocity", text='Flow Velocity')
-                col.prop(ob_nwo, "Water_Volume_Fog_Color", text='Underwater Fog Color')
-                col.prop(ob_nwo, "Water_Volume_Fog_Murkiness", text='Underwater Fog Murkiness')
+                col.prop(ob_nwo, "water_volume_depth", text='Water Volume Depth')
+                col.prop(ob_nwo, "water_volume_flow_direction", text='Flow Direction')
+                col.prop(ob_nwo, "water_volume_flow_velocity", text='Flow Velocity')
+                col.prop(ob_nwo, "water_volume_fog_color", text='Underwater Fog Color')
+                col.prop(ob_nwo, "water_volume_fog_murkiness", text='Underwater Fog Murkiness')
             else:
                 col.label(text="Water Physics mesh type only valid for Scenario exports", icon='ERROR')
 
         elif CheckType.fog(ob):
             if poll_ui(('SCENARIO')):
-                col.prop(ob_nwo, "Fog_Name", text='Fog Name')
+                col.prop(ob_nwo, "fog_name", text='Fog Name')
                 row = col.row()
-                row.prop(ob_nwo, "Fog_Appearance_Tag", text='Fog Appearance Tag')
+                row.prop(ob_nwo, "fog_appearance_tag", text='Fog Appearance Tag')
                 row.operator('nwo.fog_path')
-                col.prop(ob_nwo, "Fog_Volume_Depth", text='Fog Volume Depth')
+                col.prop(ob_nwo, "fog_volume_depth", text='Fog Volume Depth')
             else:
                 col.label(text="Fog mesh type only valid for Scenario exports", icon='ERROR')
 
@@ -740,11 +779,8 @@ class NWO_ObjectMeshProps(Panel):
             else:
                 col.label(text="OBB Volume mesh type only valid for Scenario exports", icon='ERROR')
 
-        elif CheckType.physics(ob) and poll_ui(('MODEL')):
-            if poll_ui(('MODEL')) or (poll_ui(('SCENARIO')) and not not_bungie_game()):
-                col.prop(ob_nwo, "Mesh_Primitive_Type", text='Primitive Type')
-            else:
-                col.label(text="Physics mesh type only valid for Model and Reach Scenario exports", icon='ERROR')
+        elif CheckType.physics(ob):
+            col.prop(ob_nwo, "mesh_primitive_type", text='Primitive Type')
 
 class NWO_ObjectMeshMaterialLightingProps(Panel):
     bl_label = "Lighting Properties"
@@ -762,15 +798,10 @@ class NWO_ObjectMeshMaterialLightingProps(Panel):
         if not poll_ui(('SCENARIO', 'PREFAB')):
             return False
 
-        if object_prefix(context.active_object, special_prefixes):
-            return ob_nwo.ObjectMesh_Type_Locked not in invalid_mesh_types
-        else:
-            return ob_nwo.ObjectMesh_Type not in invalid_mesh_types
-
     def draw_header(self, context):
         ob = context.object
         ob_nwo = ob.nwo
-        self.layout.prop(ob_nwo, "Material_Lighting_Enabled", text='')
+        self.layout.prop(ob_nwo, "material_lighting_enabled", text='')
 
     def draw(self, context):
         layout = self.layout
@@ -784,10 +815,10 @@ class NWO_ObjectMeshMaterialLightingProps(Panel):
 
         layout.enabled = ob_nwo.Material_Lighting_Enabled
         
-        col.prop(ob_nwo, "Material_Lighting_Emissive_Color", text='Emissive Color')
-        col.prop(ob_nwo, "Material_Lighting_Emissive_Power", text='Emissive Power')
-        col.prop(ob_nwo, "Material_Lighting_Emissive_Focus", text='Emissive Focus')
-        col.prop(ob_nwo, "Material_Lighting_Emissive_Quality", text='Emissive Quality')
+        col.prop(ob_nwo, "material_lighting_emissive_color", text='Emissive Color')
+        col.prop(ob_nwo, "material_lighting_emissive_power", text='Emissive Power')
+        col.prop(ob_nwo, "material_lighting_emissive_focus", text='Emissive Focus')
+        col.prop(ob_nwo, "material_lighting_emissive_quality", text='Emissive Quality')
 
         col.separator()
         
@@ -798,22 +829,22 @@ class NWO_ObjectMeshMaterialLightingProps(Panel):
 
         col.separator()
 
-        col.prop(ob_nwo, "Material_Lighting_Bounce_Ratio", text='Bounce Ratio')
+        col.prop(ob_nwo, "material_lighting_bounce_ratio", text='Bounce Ratio')
 
         col.separator()
 
         if not_bungie_game():
             col.prop(ob_nwo, "lighting_attenuation_enabled")
         if ob_nwo.lighting_attenuation_enabled or not not_bungie_game():
-            col.prop(ob_nwo, "Material_Lighting_Attenuation_Falloff", text='Attenuation Falloff')
-            col.prop(ob_nwo, "Material_Lighting_Attenuation_Cutoff", text='Attenuation Cutoff')
+            col.prop(ob_nwo, "material_lighting_attenuation_falloff", text='Attenuation Falloff')
+            col.prop(ob_nwo, "material_lighting_attenuation_cutoff", text='Attenuation Cutoff')
         
         col.separator()
 
         col = layout.column(heading="Flags")
         sub = col.column(align=True)
-        sub.prop(ob_nwo, "Material_Lighting_Emissive_Per_Unit", text='Emissive Per Unit')
-        sub.prop(ob_nwo, "Material_Lighting_Use_Shader_Gel", text='Use Shader Gel')
+        sub.prop(ob_nwo, "material_lighting_emissive_per_unit", text='Emissive Per Unit')
+        sub.prop(ob_nwo, "material_lighting_use_shader_gel", text='Use Shader Gel')
 
 class NWO_ObjectMeshLightmapProps(Panel):
     bl_label = "Lightmap Properties"
@@ -831,15 +862,10 @@ class NWO_ObjectMeshLightmapProps(Panel):
         if not poll_ui(('SCENARIO', 'PREFAB')):
             return False
 
-        if object_prefix(context.active_object, special_prefixes):
-            return ob_nwo.ObjectMesh_Type_Locked not in invalid_mesh_types
-        else:
-            return ob_nwo.ObjectMesh_Type not in invalid_mesh_types
-
     def draw_header(self, context):
         ob = context.object
         ob_nwo = ob.nwo
-        self.layout.prop(ob_nwo, "Lightmap_Settings_Enabled", text='')
+        self.layout.prop(ob_nwo, "lightmap_settings_enabled", text='')
 
     def draw(self, context):
         layout = self.layout
@@ -853,16 +879,16 @@ class NWO_ObjectMeshLightmapProps(Panel):
 
         layout.enabled = ob_nwo.Lightmap_Settings_Enabled
 
-        col.prop(ob_nwo, "Lightmap_Type", text='Lightmap Type')
+        col.prop(ob_nwo, "lightmap_type", text='Lightmap Type')
 
         col.separator()
 
-        col.prop(ob_nwo, "Lightmap_Translucency_Tint_Color", text='Translucency Tint Color')
-        col.prop(ob_nwo, "Lightmap_Additive_Transparency", text='Additive Transparency')
+        col.prop(ob_nwo, "lightmap_translucency_tint_color", text='Translucency Tint Color')
+        col.prop(ob_nwo, "lightmap_additive_transparency", text='Additive Transparency')
         
         col.separator()
 
-        col.prop(ob_nwo, "Lightmap_Resolution_Scale", text='Resolution Scale')
+        col.prop(ob_nwo, "lightmap_resolution_scale", text='Resolution Scale')
         col.prop(ob_nwo, "lightmap_photon_fidelity")
 
         # col.prop(ob_nwo, "Lightmap_Chart_Group", text='Chart Group')
@@ -876,8 +902,8 @@ class NWO_ObjectMeshLightmapProps(Panel):
 
         col = layout.column(heading="Flags")
         sub = col.column(align=True)
-        sub.prop(ob_nwo, "Lightmap_Lighting_From_Both_Sides", text='Lighting From Both Sides')
-        sub.prop(ob_nwo, "Lightmap_Transparency_Override", text='Transparency Override')
+        sub.prop(ob_nwo, "lightmap_lighting_from_both_sides", text='Lighting From Both Sides')
+        sub.prop(ob_nwo, "lightmap_transparency_override", text='Transparency Override')
         
 
 # MARKER PROPERTIES
@@ -903,77 +929,100 @@ class NWO_ObjectMarkerProps(Panel):
         ob_nwo = ob.nwo
 
         col = flow.column()
-        if not_bungie_game():
-            if object_prefix(ob, ('?', '$')):
-                col.prop(ob_nwo, "ObjectMarker_Type_Locked_H4", text='Marker Type')
-            else:
-                col.prop(ob_nwo, "ObjectMarker_Type_H4", text='Marker Type')
+        marker_type_name = 'INVALID'
+        marker_type_icon = 'ADD'
+        h4 = not_bungie_game()
+        if poll_ui('SCENARIO'):
+            marker_type_name = 'Structure'
+            marker_type_icon = 'PLUS'
         else:
-            if object_prefix(ob, ('?', '$')):
-                col.prop(ob_nwo, "ObjectMarker_Type_Locked", text='Marker Type')
-            else:
-                col.prop(ob_nwo, "ObjectMarker_Type", text='Marker Type')
+            marker_type_name = 'Model'
+            
+        if poll_ui('MODEL'):
+            if CheckType.hint(ob):
+                marker_type_name = 'Hint'
+            elif CheckType.pathfinding_sphere(ob):
+                marker_type_name = 'Pathfinding Sphere'
+            elif CheckType.physics_constraint(ob):
+                marker_type_name = 'Physics Constraint'
+            elif CheckType.target(ob):
+                marker_type_name = 'Target'
+        elif poll_ui('SCENARIO'):
+            if CheckType.game_instance(ob):
+                marker_type_name = 'Instance'
+            elif CheckType.water_volume_flow(ob):
+                marker_type_name = 'Boundary Surface'
+            elif CheckType.airprobe(ob) and h4:
+                marker_type_name = 'Airprobe'
+            elif CheckType.envfx(ob) and h4:
+                marker_type_name = 'Effect'
+            elif CheckType.lightCone(ob) and h4:
+                marker_type_name = 'Light Cone'
+
+        
+        col.emboss = 'NORMAL'
+        col.menu(NWO_MarkerMenu.bl_idname, text=marker_type_name, icon=marker_type_icon)
 
         if CheckType.model(ob):
-            col.prop(ob_nwo, "Marker_Group_Name", text='Marker Group')
-            col.prop(ob_nwo, "Marker_Velocity", text='Marker Velocity')
+            col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+            col.prop(ob_nwo, "marker_velocity", text='Marker Velocity')
             sub = col.row(align=True)
-            if not ob_nwo.Marker_All_Regions:
-                if ob_nwo.Region_Name_Locked != '':
-                    col.prop(ob_nwo, 'Region_Name_Locked', text='Region')
+            if not ob_nwo.marker_all_regions:
+                if ob_nwo.region_name_locked != '':
+                    col.prop(ob_nwo, 'region_name_locked', text='Region')
                 else:
-                    col.prop(ob_nwo, "Region_Name", text='Region')
-            sub.prop(ob_nwo, 'Marker_All_Regions', text='All Regions')
+                    col.prop(ob_nwo, "region_name", text='Region')
+            sub.prop(ob_nwo, 'marker_all_regions', text='All Regions')
 
         elif CheckType.game_instance(ob):
             row = col.row()
-            row.prop(ob_nwo, "Marker_Game_Instance_Tag_Name", text='Tag Path')
+            row.prop(ob_nwo, "marker_game_instance_tag_name", text='Tag Path')
             row.operator('nwo.game_instance_path')
-            col.prop(ob_nwo, "Marker_Game_Instance_Tag_Variant_Name", text='Tag Variant')
+            col.prop(ob_nwo, "marker_game_instance_tag_variant_name", text='Tag Variant')
             if not_bungie_game():
                 col.prop(ob_nwo, 'marker_game_instance_run_scripts') 
                 
         elif CheckType.hint(ob) and not_bungie_game():
-            col.prop(ob_nwo, "Marker_Group_Name", text='Marker Group')
+            col.prop(ob_nwo, "marker_group_name", text='Marker Group')
             col.prop(ob_nwo, 'marker_hint_length')
 
         elif CheckType.pathfinding_sphere(ob):
             col = layout.column(heading="Flags")
             sub = col.column(align=True)
-            sub.prop(ob_nwo, "Marker_Pathfinding_Sphere_Vehicle", text='Vehicle Only')
-            sub.prop(ob_nwo, "Pathfinding_Sphere_Remains_When_Open", text='Remains When Open')
-            sub.prop(ob_nwo, "Pathfinding_Sphere_With_Sectors", text='With Sectors')
+            sub.prop(ob_nwo, "marker_pathfinding_sphere_vehicle", text='Vehicle Only')
+            sub.prop(ob_nwo, "pathfinding_sphere_remains_when_open", text='Remains When Open')
+            sub.prop(ob_nwo, "pathfinding_sphere_with_sectors", text='With Sectors')
             if ob.type != 'MESH':
                 sub.prop(ob_nwo, "marker_sphere_radius")
 
         elif CheckType.physics_constraint(ob):
-            col.prop(ob_nwo, "Physics_Constraint_Parent", text='Constraint Parent')
-            col.prop(ob_nwo, "Physics_Constraint_Child", text='Constraint Child')
+            col.prop(ob_nwo, "physics_constraint_parent", text='Constraint Parent')
+            col.prop(ob_nwo, "physics_constraint_child", text='Constraint Child')
 
             sus = col.row(align=True)
 
-            sus.prop(ob_nwo, "Physics_Constraint_Type", text='Constraint Type', expand=True)
-            sus.prop(ob_nwo, 'Physics_Constraint_Uses_Limits', text='Uses Limits')
+            sus.prop(ob_nwo, "physics_constraint_type", text='Constraint Type', expand=True)
+            sus.prop(ob_nwo, 'physics_constraint_uses_limits', text='Uses Limits')
 
             if ob_nwo.Physics_Constraint_Uses_Limits:
-                if ob_nwo.Physics_Constraint_Type == '_connected_geometry_marker_type_physics_hinge_constraint':
-                    col.prop(ob_nwo, "Hinge_Constraint_Minimum", text='Minimum')
-                    col.prop(ob_nwo, "Hinge_Constraint_Maximum", text='Maximum')
+                if ob_nwo.physics_constraint_type == '_connected_geometry_marker_type_physics_hinge_constraint':
+                    col.prop(ob_nwo, "hinge_constraint_minimum", text='Minimum')
+                    col.prop(ob_nwo, "hinge_constraint_maximum", text='Maximum')
 
-                elif ob_nwo.Physics_Constraint_Type == '_connected_geometry_marker_type_physics_socket_constraint':
-                    col.prop(ob_nwo, "Cone_Angle", text='Cone Angle')
+                elif ob_nwo.physics_constraint_type == '_connected_geometry_marker_type_physics_socket_constraint':
+                    col.prop(ob_nwo, "cone_angle", text='Cone Angle')
 
-                    col.prop(ob_nwo, "Plane_Constraint_Minimum", text='Plane Minimum')
-                    col.prop(ob_nwo, "Plane_Constraint_Maximum", text='Plane Maximum')
+                    col.prop(ob_nwo, "plane_constraint_minimum", text='Plane Minimum')
+                    col.prop(ob_nwo, "plane_constraint_maximum", text='Plane Maximum')
                     
-                    col.prop(ob_nwo, "Twist_Constraint_Start", text='Twist Start')
-                    col.prop(ob_nwo, "Twist_Constraint_End", text='Twist End')
+                    col.prop(ob_nwo, "twist_constraint_start", text='Twist Start')
+                    col.prop(ob_nwo, "twist_constraint_end", text='Twist End')
 
         elif CheckType.target(ob):
-            col.prop(ob_nwo, "Marker_Group_Name", text='Marker Group')
+            col.prop(ob_nwo, "marker_group_name", text='Marker Group')
 
         elif CheckType.airprobe(ob) and not_bungie_game():
-            col.prop(ob_nwo, "Marker_Group_Name", text='Air Probe Group')
+            col.prop(ob_nwo, "marker_group_name", text='Air Probe Group')
 
         elif CheckType.envfx(ob) and not_bungie_game():
             row = col.row()
@@ -1030,7 +1079,7 @@ class NWO_MaterialProps(Panel):
                 row = col.row()
                 row.prop(material_nwo, "shader_path")
                 row.operator('nwo.shader_path')
-                col.prop(material_nwo, "Shader_Type")
+                col.prop(material_nwo, "shader_type")
 
             if material_nwo.shader_path != '':
                 col.separator()
@@ -1105,14 +1154,14 @@ class NWO_LightProps(Panel):
             col.separator()
             # col.prop(ob_nwo, 'Light_IntensityH4')
             if ob_nwo.light_lighting_mode == '_connected_geometry_lighting_mode_artistic':
-                col.prop(ob_nwo, 'Light_Near_Attenuation_StartH4')
-                col.prop(ob_nwo, 'Light_Near_Attenuation_EndH4')
+                col.prop(ob_nwo, 'light_near_attenuation_starth4')
+                col.prop(ob_nwo, 'light_near_attenuation_endh4')
             
             col.separator()
                 
             if ob_nwo.light_mode == '_connected_geometry_light_mode_dynamic':
-                col.prop(ob_nwo, 'Light_Far_Attenuation_StartH4')
-                col.prop(ob_nwo, 'Light_Far_Attenuation_EndH4')
+                col.prop(ob_nwo, 'light_far_attenuation_starth4')
+                col.prop(ob_nwo, 'light_far_attenuation_endh4')
 
                 col.separator()
 
@@ -1172,69 +1221,69 @@ class NWO_LightProps(Panel):
         else:
             col.prop(ob_nwo, "light_type_override", text='Type')
 
-            col.prop(ob_nwo, 'Light_Game_Type', text='Game Type')
-            col.prop(ob_nwo, 'Light_Shape', text='Shape')
+            col.prop(ob_nwo, 'light_game_type', text='Game Type')
+            col.prop(ob_nwo, 'light_shape', text='Shape')
             # col.prop(ob_nwo, 'Light_Color', text='Color') 
-            col.prop(ob_nwo, 'Light_Intensity', text='Intensity')
+            col.prop(ob_nwo, 'light_intensity', text='Intensity')
 
             col.separator()
 
-            col.prop(ob_nwo, 'Light_Fade_Start_Distance', text='Fade Out Start Distance')
-            col.prop(ob_nwo, 'Light_Fade_End_Distance', text='Fade Out End Distance')
+            col.prop(ob_nwo, 'light_fade_start_distance', text='Fade Out Start Distance')
+            col.prop(ob_nwo, 'light_fade_end_distance', text='Fade Out End Distance')
 
             col.separator()
 
-            col.prop(ob_nwo, 'Light_Hotspot_Size', text='Hotspot Size')
-            col.prop(ob_nwo, 'Light_Hotspot_Falloff', text='Hotspot Falloff')
-            col.prop(ob_nwo, 'Light_Falloff_Shape', text='Falloff Shape')
-            col.prop(ob_nwo, 'Light_Aspect', text='Light Aspect')
+            col.prop(ob_nwo, 'light_hotspot_size', text='Hotspot Size')
+            col.prop(ob_nwo, 'light_hotspot_falloff', text='Hotspot Falloff')
+            col.prop(ob_nwo, 'light_falloff_shape', text='Falloff Shape')
+            col.prop(ob_nwo, 'light_aspect', text='Light Aspect')
 
             col.separator()
 
-            col.prop(ob_nwo, 'Light_Frustum_Width', text='Frustum Width')
-            col.prop(ob_nwo, 'Light_Frustum_Height', text='Frustum Height')
+            col.prop(ob_nwo, 'light_frustum_width', text='Frustum Width')
+            col.prop(ob_nwo, 'light_frustum_height', text='Frustum Height')
 
             col.separator()
 
-            col.prop(ob_nwo, 'Light_Volume_Distance', text='Light Volume Distance')
-            col.prop(ob_nwo, 'Light_Volume_Intensity', text='Light Volume Intensity')
+            col.prop(ob_nwo, 'light_volume_distance', text='Light Volume Distance')
+            col.prop(ob_nwo, 'light_volume_intensity', text='Light Volume Intensity')
 
             col.separator()
 
-            col.prop(ob_nwo, 'Light_Bounce_Ratio', text='Light Bounce Ratio')
+            col.prop(ob_nwo, 'light_bounce_ratio', text='Light Bounce Ratio')
 
             col.separator()
 
             col = layout.column(heading="Flags")
             sub = col.column(align=True)
 
-            sub.prop(ob_nwo, 'Light_Ignore_BSP_Visibility', text='Ignore BSP Visibility') 
-            sub.prop(ob_nwo, 'Light_Dynamic_Has_Bounce', text='Light Has Dynamic Bounce')
+            sub.prop(ob_nwo, 'light_ignore_bsp_visibility', text='Ignore BSP Visibility') 
+            sub.prop(ob_nwo, 'light_dynamic_has_bounce', text='Light Has Dynamic Bounce')
             if ob_nwo.light_sub_type == '_connected_geometry_lighting_sub_type_screenspace':
-                sub.prop(ob_nwo, 'Light_Screenspace_Has_Specular', text='Screenspace Light Has Specular')
+                sub.prop(ob_nwo, 'light_screenspace_has_specular', text='Screenspace Light Has Specular')
 
             col = flow.column()
 
-            col.prop(ob_nwo, 'Light_Near_Attenuation_Start', text='Near Attenuation Start')
-            col.prop(ob_nwo, 'Light_Near_Attenuation_End', text='Near Attenuation End')
+            col.prop(ob_nwo, 'light_near_attenuation_start', text='Near Attenuation Start')
+            col.prop(ob_nwo, 'light_near_attenuation_end', text='Near Attenuation End')
 
             col.separator()
 
-            col.prop(ob_nwo, 'Light_Far_Attenuation_Start', text='Far Attenuation Start')
-            col.prop(ob_nwo, 'Light_Far_Attenuation_End', text='Far Attenuation End')
+            col.prop(ob_nwo, 'light_far_attenuation_start', text='Far Attenuation Start')
+            col.prop(ob_nwo, 'light_far_attenuation_end', text='Far Attenuation End')
 
             col.separator()
             row = col.row()
-            row.prop(ob_nwo, 'Light_Tag_Override', text='Light Tag Override')
+            row.prop(ob_nwo, 'light_tag_override', text='Light Tag Override')
             row.operator('nwo.light_tag_path')
             row = col.row()
-            row.prop(ob_nwo, 'Light_Shader_Reference', text='Shader Tag Reference')
+            row.prop(ob_nwo, 'light_shader_reference', text='Shader Tag Reference')
             row.operator('nwo.light_shader_path')
             row = col.row()
-            row.prop(ob_nwo, 'Light_Gel_Reference', text='Gel Tag Reference')
+            row.prop(ob_nwo, 'light_gel_reference', text='Gel Tag Reference')
             row.operator('nwo.light_gel_path')
             row = col.row()
-            row.prop(ob_nwo, 'Light_Lens_Flare_Reference', text='Lens Flare Tag Reference')
+            row.prop(ob_nwo, 'light_lens_flare_reference', text='Lens Flare Tag Reference')
             row.operator('nwo.lens_flare_path')
 
             # col.separator() # commenting out light clipping for now.
@@ -1246,194 +1295,9 @@ class NWO_LightProps(Panel):
             # col.prop(ob_nwo, 'Light_Clipping_Size_Y_Neg', text='Clipping Size Y Backward')
             # col.prop(ob_nwo, 'Light_Clipping_Size_Z_Neg', text='Clipping Size Z Backward')
 
-class NWO_LightPropsCycles(Panel):
-    bl_label = "Halo Light Properties"
+class NWO_LightPropsCycles(NWO_LightProps):
     bl_idname = "NWO_PT_LightPanel_Cycles"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "data"
     bl_parent_id = "CYCLES_LIGHT_PT_light"
-
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        scene_nwo = scene.nwo_global
-
-        if scene_nwo.game_version in ('reach','h4','h2a'):
-            return context.object.type == 'LIGHT'
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
-        data = context.object.data
-        ob_nwo = data.nwo
-
-        col = flow.column()
-
-        scene = context.scene
-        scene_nwo = scene.nwo_global
-
-        if scene_nwo.game_version in ('h4','h2a'):
-            # col.prop(ob_nwo, 'Light_Color', text='Color')
-            row = col.row()
-            row.prop(ob_nwo, 'light_mode', expand=True)
-            row = col.row()
-            row.prop(ob_nwo, 'light_lighting_mode', expand=True)
-            # col.prop(ob_nwo, 'light_type_h4')
-            if data.type == 'SPOT':
-
-                col.separator()
-                row = col.row()
-                row.prop(ob_nwo, 'light_cone_projection_shape', expand=True)
-                # col.prop(ob_nwo, 'light_inner_cone_angle')
-                # col.prop(ob_nwo, 'light_outer_cone_angle')
-
-            col.separator()
-            # col.prop(ob_nwo, 'Light_IntensityH4')
-            if ob_nwo.light_lighting_mode == '_connected_geometry_lighting_mode_artistic':
-                col.prop(ob_nwo, 'Light_Near_Attenuation_StartH4')
-                col.prop(ob_nwo, 'Light_Near_Attenuation_EndH4')
-            
-            col.separator()
-                
-            if ob_nwo.light_mode == '_connected_geometry_light_mode_dynamic':
-                col.prop(ob_nwo, 'Light_Far_Attenuation_StartH4')
-                col.prop(ob_nwo, 'Light_Far_Attenuation_EndH4')
-
-                col.separator()
-
-                row = col.row()
-                row.prop(ob_nwo, 'light_cinema', expand=True)
-                col.prop(ob_nwo, 'light_destroy_after')
-
-                col.separator()
-                
-                col.prop(ob_nwo, "light_shadows")
-                if ob_nwo.light_shadows:
-                    col.prop(ob_nwo, 'light_shadow_color')
-                    row = col.row()
-                    row.prop(ob_nwo, 'light_dynamic_shadow_quality', expand=True)
-                    col.prop(ob_nwo, 'light_shadow_near_clipplane')
-                    col.prop(ob_nwo, 'light_shadow_far_clipplane')
-                    col.prop(ob_nwo, 'light_shadow_bias_offset')
-                col.prop(ob_nwo, 'light_cinema_objects_only')
-                col.prop(ob_nwo, "light_specular_contribution")
-                col.prop(ob_nwo, "light_diffuse_contribution")
-                col.prop(ob_nwo, "light_ignore_dynamic_objects")
-                col.prop(ob_nwo, "light_screenspace")
-                if ob_nwo.light_screenspace:
-                    col.prop(ob_nwo, 'light_specular_power')
-                    col.prop(ob_nwo, 'light_specular_intensity')
-
-                # col = layout.column(heading="Flags")
-                # sub = col.column(align=True)
-            else:
-                row = col.row()
-                row.prop(ob_nwo, 'light_jitter_quality', expand=True)
-                col.prop(ob_nwo, 'light_jitter_angle')
-                col.prop(ob_nwo, 'light_jitter_sphere_radius')
-
-                col.separator()
-
-                col.prop(ob_nwo, 'light_amplification_factor')
-
-                col.separator()
-                # col.prop(ob_nwo, 'light_attenuation_near_radius')
-                # col.prop(ob_nwo, 'light_attenuation_far_radius')
-                # col.prop(ob_nwo, 'light_attenuation_power')
-                # col.prop(ob_nwo, 'light_tag_name')
-                col.prop(ob_nwo, "light_indirect_only")
-                col.prop(ob_nwo, "light_static_analytic")
-
-            # col.prop(ob_nwo, 'light_intensity_off', text='Light Intensity Set Via Tag')
-            # if ob_nwo.light_lighting_mode == '_connected_geometry_lighting_mode_artistic':
-            #     col.prop(ob_nwo, 'near_attenuation_end_off', text='Near Attenuation Set Via Tag')
-            # if ob_nwo.light_type_h4 == '_connected_geometry_light_type_spot':
-            #     col.prop(ob_nwo, 'outer_cone_angle_off', text='Outer Cone Angle Set Via Tag')
-
-                # col.prop(ob_nwo, 'Light_Fade_Start_Distance')
-                # col.prop(ob_nwo, 'Light_Fade_End_Distance')
-            
-
-        else:
-            col.prop(ob_nwo, "light_type_override", text='Type')
-
-            col.prop(ob_nwo, 'Light_Game_Type', text='Game Type')
-            col.prop(ob_nwo, 'Light_Shape', text='Shape')
-            # col.prop(ob_nwo, 'Light_Color', text='Color') 
-            col.prop(ob_nwo, 'Light_Intensity', text='Intensity')
-
-            col.separator()
-
-            col.prop(ob_nwo, 'Light_Fade_Start_Distance', text='Fade Out Start Distance')
-            col.prop(ob_nwo, 'Light_Fade_End_Distance', text='Fade Out End Distance')
-
-            col.separator()
-
-            col.prop(ob_nwo, 'Light_Hotspot_Size', text='Hotspot Size')
-            col.prop(ob_nwo, 'Light_Hotspot_Falloff', text='Hotspot Falloff')
-            col.prop(ob_nwo, 'Light_Falloff_Shape', text='Falloff Shape')
-            col.prop(ob_nwo, 'Light_Aspect', text='Light Aspect')
-
-            col.separator()
-
-            col.prop(ob_nwo, 'Light_Frustum_Width', text='Frustum Width')
-            col.prop(ob_nwo, 'Light_Frustum_Height', text='Frustum Height')
-
-            col.separator()
-
-            col.prop(ob_nwo, 'Light_Volume_Distance', text='Light Volume Distance')
-            col.prop(ob_nwo, 'Light_Volume_Intensity', text='Light Volume Intensity')
-
-            col.separator()
-
-            col.prop(ob_nwo, 'Light_Bounce_Ratio', text='Light Bounce Ratio')
-
-            col.separator()
-
-            col = layout.column(heading="Flags")
-            sub = col.column(align=True)
-
-            sub.prop(ob_nwo, 'Light_Ignore_BSP_Visibility', text='Ignore BSP Visibility') 
-            sub.prop(ob_nwo, 'Light_Dynamic_Has_Bounce', text='Light Has Dynamic Bounce')
-            if ob_nwo.light_sub_type == '_connected_geometry_lighting_sub_type_screenspace':
-                sub.prop(ob_nwo, 'Light_Screenspace_Has_Specular', text='Screenspace Light Has Specular')
-
-            col = flow.column()
-
-            col.prop(ob_nwo, 'Light_Near_Attenuation_Start', text='Near Attenuation Start')
-            col.prop(ob_nwo, 'Light_Near_Attenuation_End', text='Near Attenuation End')
-
-            col.separator()
-
-            col.prop(ob_nwo, 'Light_Far_Attenuation_Start', text='Far Attenuation Start')
-            col.prop(ob_nwo, 'Light_Far_Attenuation_End', text='Far Attenuation End')
-
-            col.separator()
-            row = col.row()
-            row.prop(ob_nwo, 'Light_Tag_Override', text='Light Tag Override')
-            row.operator('nwo.light_tag_path')
-            row = col.row()
-            row.prop(ob_nwo, 'Light_Shader_Reference', text='Shader Tag Reference')
-            row.operator('nwo.light_shader_path')
-            row = col.row()
-            row.prop(ob_nwo, 'Light_Gel_Reference', text='Gel Tag Reference')
-            row.operator('nwo.light_gel_path')
-            row = col.row()
-            row.prop(ob_nwo, 'Light_Lens_Flare_Reference', text='Lens Flare Tag Reference')
-            row.operator('nwo.lens_flare_path')
-
-            # col.separator() # commenting out light clipping for now.
-
-            # col.prop(ob_nwo, 'Light_Clipping_Size_X_Pos', text='Clipping Size X Forward')
-            # col.prop(ob_nwo, 'Light_Clipping_Size_Y_Pos', text='Clipping Size Y Forward')
-            # col.prop(ob_nwo, 'Light_Clipping_Size_Z_Pos', text='Clipping Size Z Forward')
-            # col.prop(ob_nwo, 'Light_Clipping_Size_X_Neg', text='Clipping Size X Backward')
-            # col.prop(ob_nwo, 'Light_Clipping_Size_Y_Neg', text='Clipping Size Y Backward')
-            # col.prop(ob_nwo, 'Light_Clipping_Size_Z_Neg', text='Clipping Size Z Backward')
 
 # BONE PROPERTIES
 class NWO_BoneProps(Panel):
@@ -1501,7 +1365,199 @@ class NWO_ActionProps(Panel):
         col = flow.column()
         # col.prop(action_nwo, "export_this") # this is now only used internally
         col.prop(action_nwo, 'name_override')
-        col.prop(action_nwo, 'animation_type') 
+        col.prop(action_nwo, 'animation_type')
+
+mesh_type_items = [
+    ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'"), # 0
+    ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
+    ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
+    ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
+    ('_connected_geometry_mesh_type_default', "Default", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
+    ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
+    ('_connected_geometry_mesh_type_poop_marker', "Instanced Marker", ""), # 6
+    ('_connected_geometry_mesh_type_poop_rain_blocker', "Rain Occluder",'Rain is not rendered in the the volume this mesh occupies.'), # 7
+    ('_connected_geometry_mesh_type_poop_vertical_rain_sheet', "Vertical Rain Sheet", ''), # 8
+    ('_connected_geometry_mesh_type_lightmap_region', "Lightmap Region", "Defines an area of a structure which should be lightmapped. Can be referenced when lightmapping"), # 9
+    ('_connected_geometry_mesh_type_object_instance', "Object Instance", "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'"), # 10
+    ('_connected_geometry_mesh_type_physics', "Physics", "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'"), # 11
+    ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"), # 12
+    ('_connected_geometry_mesh_type_portal', "Portal", "Cuts up a bsp and defines clusters. Can be forced on with the prefix '+portal'"), # 13
+    ('_connected_geometry_mesh_type_seam', "Seam", "Defines where two bsps meet. Its name should match the name of the bsp its in. Can be forced on with the prefix '+seam'"), # 14
+    ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"), # 15
+    ('_connected_geometry_mesh_type_water_surface', "Water Surface", "Defines a mesh as a water surface. Can be forced on with the prefix: '"), # 16
+    ('_connected_geometry_mesh_type_obb_volume', 'OBB Volume', ''), # 17
+    # These go unused in menus, and are instead set at export
+    ('_connected_geometry_mesh_type_poop_collision', 'Poop Collision', ''),
+    ('_connected_geometry_mesh_type_poop_physics', 'Poop Physics', ''),
+    ('_connected_geometry_mesh_type_render', 'Render', ''),
+    ('_connected_geometry_mesh_type_structure', 'Structure', ''),
+    ('_connected_geometry_mesh_type_default', 'Default', ''),
+
+]
+
+marker_type_items = [ 
+            ('_connected_geometry_marker_type_model', "Model", "Default marker type. Defines render_model markers for models, and structure markers for bsps"),
+            ('_connected_geometry_marker_type_effects', "Effects", "Marker for effects only."),
+            ('_connected_geometry_marker_type_game_instance', "Game Object", "Game Instance marker. Used to create an instance of a tag in the bsp. Can be set with the prefix: ?"),
+            ('_connected_geometry_marker_type_garbage', "Garbage", "marker to define position that garbage pieces should be created"),
+            ('_connected_geometry_marker_type_hint', "Hint", "Used for ai hints"),
+            ('_connected_geometry_marker_type_pathfinding_sphere', "Pathfinding Sphere", "Used to create ai pathfinding spheres"),
+            ('_connected_geometry_marker_type_physics_constraint', "Physics Constraint", "Used to define various types of physics constraints"),
+            ('_connected_geometry_marker_type_target', "Target", "Defines the markers used in a model's targets'"),
+            ('_connected_geometry_marker_type_water_volume_flow', "Water Volume Flow", "Used to define water flow for water physics volumes. For structure_design tags only"),
+            ('_connected_geometry_marker_type_airprobe', "Airprobe", "Airprobes tell the game how to handle static lighting on dynamic objects"),
+            ('_connected_geometry_marker_type_envfx', "Environment Effect", "Plays an effect on this point in the structure"),
+            ('_connected_geometry_marker_type_lightCone', "Light Cone", "Creates a light cone with the defined parameters"),
+            ]
+
+# OBJECT MESH MARKER OPERATORS & MENUS ##############------=======================
+class NWO_MeshMenu(Menu):
+    bl_label = "Set Mesh Type"
+    bl_idname = "NWO_MT_MeshMenu"
+
+    def draw(self, context):
+        layout = self.layout
+        h4 = not_bungie_game()
+
+        if poll_ui('DECORATOR'):
+            layout.operator("nwo.set_mesh_type", text="Decorator").option = '_connected_geometry_mesh_type_default'
+        elif poll_ui('SCENARIO'):
+            if h4:
+                layout.operator("nwo.set_mesh_type", text="Structure Sky", icon="ADD").option = '_connected_geometry_mesh_type_default'
+            else:
+                layout.operator("nwo.set_mesh_type", text="Structure", icon="ADD").option = '_connected_geometry_mesh_type_default'
+        else:
+            layout.operator("nwo.set_mesh_type", text="Render").option = '_connected_geometry_mesh_type_default'
+
+        if poll_ui('MODEL'):
+            layout.operator("nwo.set_mesh_type", text="Collision").option = '_connected_geometry_mesh_type_collision'
+            layout.operator("nwo.set_mesh_type", text="Physics").option = '_connected_geometry_mesh_type_physics'
+            if not h4:
+                layout.operator("nwo.set_mesh_type", text="Flair").option = '_connected_geometry_mesh_type_object_instance'
+
+        elif poll_ui(('SCENARIO', 'PREFAB')):
+            layout.operator("nwo.set_mesh_type", text="Instance", icon="ADD").option = '_connected_geometry_mesh_type_poop'
+            if h4:
+                layout.operator("nwo.set_mesh_type", text="Collider").option = '_connected_geometry_mesh_type_poop_collision'
+
+            layout.operator("nwo.set_mesh_type", text="Cookie Cutter").option = '_connected_geometry_mesh_type_cookie_cutter'
+
+            layout.operator("nwo.set_mesh_type", text="Portal").option = '_connected_geometry_mesh_type_portal'
+
+            if h4:
+                layout.operator_menu_enum("nwo.set_mesh_type_structure_design_h4",
+                                    property="option",
+                                    text="Volumes",
+                                    )
+            else:
+                layout.operator_menu_enum("nwo.set_mesh_type_structure_design_reach",
+                                    property="option",
+                                    text="Volumes",
+                                    )
+                
+        elif poll_ui('PREFAB'):
+            layout.operator("nwo.set_mesh_type", text="Instanced Geometry").option = '_connected_geometry_mesh_type_poop'
+            layout.operator("nwo.set_mesh_type", text="Collider").option = '_connected_geometry_mesh_type_poop_collision'
+            layout.operator("nwo.set_mesh_type", text="Cookie Cutter").option = '_connected_geometry_mesh_type_cookie_cutter'
+
+class NWO_MarkerMenu(Menu):
+    bl_label = "Set Marker Type"
+    bl_idname = "NWO_MT_MarkerMenu"
+
+    def draw(self, context):
+        layout = self.layout
+        h4 = not_bungie_game()
+
+        if poll_ui('SCENARIO'):
+            layout.operator("nwo.set_marker_type", text="Structure").option = '_connected_geometry_marker_type_model'
+        else:
+            layout.operator("nwo.set_marker_type", text="Model").option = '_connected_geometry_marker_type_model'
+
+        if poll_ui('MODEL'):
+            layout.operator("nwo.set_marker_type", text="Hint").option = '_connected_geometry_marker_type_hint'
+            layout.operator("nwo.set_marker_type", text="Pathfinding Sphere").option = '_connected_geometry_marker_type_pathfinding_sphere'
+            layout.operator("nwo.set_marker_type", text="Physics Constraint").option = '_connected_geometry_marker_type_physics_constraint'
+            layout.operator("nwo.set_marker_type", text="Target").option = '_connected_geometry_marker_type_target'
+
+        elif poll_ui('SCENARIO'):
+            layout.operator("nwo.set_marker_type", text="Game Object").option = '_connected_geometry_marker_type_game_instance'
+            layout.operator("nwo.set_marker_type", text="Water Volume Flow").option = '_connected_geometry_marker_type_water_volume_flow'
+            if h4:
+                layout.operator("nwo.set_marker_type", text="Airprobe").option = '_connected_geometry_marker_type_airprobe'
+                layout.operator("nwo.set_marker_type", text="Effect").option = '_connected_geometry_marker_type_envfx'
+                layout.operator("nwo.set_marker_type", text="Light Cone").option = '_connected_geometry_marker_type_lightCone'
+
+class NWO_MarkerType(Operator):
+    """Sets this object's marker type"""
+    bl_idname = "nwo.set_marker_type"
+    bl_label = "Set Marker Type"
+    bl_options = {"REGISTER", "UNDO"}
+
+    option : EnumProperty(
+        default='_connected_geometry_marker_type_model',
+        items=marker_type_items,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.object
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        nwo.marker_type = self.option
+
+        return {'FINISHED'}
+
+
+        
+class NWO_MeshType(Operator):
+    """Sets this object's mesh type"""
+    bl_idname = "nwo.set_mesh_type"
+    bl_label = "Set Mesh Type"
+    bl_options = {"REGISTER", "UNDO"}
+
+    option : EnumProperty(
+        default='_connected_geometry_mesh_type_default',
+        items=mesh_type_items,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.object
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        nwo.mesh_type = self.option
+
+        return {'FINISHED'}
+    
+class NWO_MeshTypeStructureDesignReach(NWO_MeshType):
+    bl_idname = "nwo.set_mesh_type_structure_design_reach"
+
+    option : EnumProperty(
+        items=[
+            ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'"),
+            ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"),
+            ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"),
+            ('_connected_geometry_mesh_type_poop_rain_blocker', "Rain Occluder",'Rain is not rendered in the the volume this mesh occupies.'),
+            ('_connected_geometry_mesh_type_poop_vertical_rain_sheet', "Vertical Rain Sheet", ''),
+        ],
+    )
+
+class NWO_MeshTypeStructureDesignH4(NWO_MeshType):
+    bl_idname = "nwo.set_mesh_type_structure_design_h4"
+
+    option : EnumProperty(
+        items=[
+            ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'"),
+            ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"),
+            ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"),
+        ],
+    )
+
+
+
+#==============================##############------=======================
 
 # NWO PROPERTY GROUPS
 class NWO_ObjectPropertiesGroup(PropertyGroup):
@@ -1536,7 +1592,18 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ('_connected_geometry_object_type_marker', "Marker", "Sets this object to be written to a json file as a marker. Can be forced on with the prefix: '#'"),
     ]
 
-    Object_Type_All: EnumProperty(
+    object_type_items = [
+        ('_connected_geometry_object_type_frame', 'Frame', "Treat this object as a frame. Can be forced on with the prefixes: 'b_', 'b ', 'frame ', 'frame_'"),
+        ('_connected_geometry_object_type_marker', 'Marker', "Sets this object to be written to a json file as a marker. Can be forced on with the prefix: '#'"),
+        ('_connected_geometry_object_type_mesh', 'Mesh', "Treats this object as a mesh when writing to a json file"),
+        ('_connected_geometry_object_type_light', 'Light', ''),
+        ('_connected_geometry_object_type_animation_control', 'Control', ''),
+        ('_connected_geometry_object_type_animation_camera', 'Camera', ''),
+        ('_connected_geometry_object_type_animation_event', 'Event', ''),
+        ('_connected_geometry_object_type_frame_pca', 'PCA', ''),
+    ]
+
+    object_type_all: EnumProperty(
         name="Object Type",
         options=set(),
         description="Sets the Halo object type of this object",
@@ -1544,7 +1611,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=object_type_items_all,
     )
 
-    Object_Type_No_Mesh: EnumProperty(
+    object_type_no_mesh: EnumProperty(
         name="Object Type",
         options=set(),
         description="Sets the object type",
@@ -1552,7 +1619,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=object_type_items_no_mesh,
     )
 
-    Object_Type_All_Locked: EnumProperty(
+    object_type_all_locked: EnumProperty(
         name="Object Type",
         options=set(),
         get=get_objecttype_enum,
@@ -1561,7 +1628,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=object_type_items_all,
     )
 
-    Object_Type_No_Mesh_Locked: EnumProperty(
+    object_type_no_mesh_locked: EnumProperty(
         name="Object Type",
         options=set(),
         get=get_objecttype_enum_no_mesh,
@@ -1573,7 +1640,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def LockLight(self):
         return 0
 
-    Object_Type_Light: EnumProperty(
+    object_type_light: EnumProperty(
         name="Object Type",
         options=set(),
         get=LockLight,
@@ -1611,204 +1678,199 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         get=get_bsp_from_collection,
     )
 
-    def get_meshtype_enum(self):
-        a_ob = bpy.context.active_object
-        if a_ob.name.startswith(('+soft_ceiling','+soft_kill','+slip_surface')):
-            return 0
-        elif a_ob.name.startswith('@'):
-            return 1
-        elif a_ob.name.startswith('+cookie'):
-            return 2
-        elif a_ob.name.startswith('%'):
-            return 5
-        elif a_ob.name.startswith('+flair'):
-            return 10
-        elif a_ob.name.startswith('$'):
-            return 11
-        elif a_ob.name.startswith('+fog'):
-            return 12
-        elif a_ob.name.startswith('+portal'):
-            return 13
-        elif a_ob.name.startswith('+seam'):
-            return 14
-        elif a_ob.name.startswith('+water'):
-            return 15
-        elif a_ob.name.startswith('\''):
-            return 16
-        else:
-            return 4
+    # def get_meshtype_enum(self):
+    #     a_ob = bpy.context.active_object
+    #     if a_ob.name.startswith(('+soft_ceiling','+soft_kill','+slip_surface')):
+    #         return 0
+    #     elif a_ob.name.startswith('@'):
+    #         return 1
+    #     elif a_ob.name.startswith('+cookie'):
+    #         return 2
+    #     elif a_ob.name.startswith('%'):
+    #         return 5
+    #     elif a_ob.name.startswith('+flair'):
+    #         return 10
+    #     elif a_ob.name.startswith('$'):
+    #         return 11
+    #     elif a_ob.name.startswith('+fog'):
+    #         return 12
+    #     elif a_ob.name.startswith('+portal'):
+    #         return 13
+    #     elif a_ob.name.startswith('+seam'):
+    #         return 14
+    #     elif a_ob.name.startswith('+water'):
+    #         return 15
+    #     elif a_ob.name.startswith('\''):
+    #         return 16
+    #     else:
+    #         return 4
 
-    mesh_type_items = [
-        ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'"), # 0
-        ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
-        ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
-        ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
-        ('_connected_geometry_mesh_type_default', "Default", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
-        ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
-        ('_connected_geometry_mesh_type_poop_marker', "Instanced Marker", ""), # 6
-        ('_connected_geometry_mesh_type_poop_rain_blocker', "Rain Occluder",'Rain is not rendered in the the volume this mesh occupies.'), # 7
-        ('_connected_geometry_mesh_type_poop_vertical_rain_sheet', "Vertical Rain Sheet", ''), # 8
-        ('_connected_geometry_mesh_type_lightmap_region', "Lightmap Region", "Defines an area of a structure which should be lightmapped. Can be referenced when lightmapping"), # 9
-        ('_connected_geometry_mesh_type_object_instance', "Object Instance", "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'"), # 10
-        ('_connected_geometry_mesh_type_physics', "Physics", "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'"), # 11
-        ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"), # 12
-        ('_connected_geometry_mesh_type_portal', "Portal", "Cuts up a bsp and defines clusters. Can be forced on with the prefix '+portal'"), # 13
-        ('_connected_geometry_mesh_type_seam', "Seam", "Defines where two bsps meet. Its name should match the name of the bsp its in. Can be forced on with the prefix '+seam'"), # 14
-        ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"), # 15
-        ('_connected_geometry_mesh_type_water_surface', "Water Surface", "Defines a mesh as a water surface. Can be forced on with the prefix: '"), # 16
-    ]
-
-    def get_default_mesh_type(self):
-        if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
-            return self.get("ObjectMesh_Type", 0)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_collision':
-            return self.get("ObjectMesh_Type", 1)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
-            return self.get("ObjectMesh_Type", 2)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_decorator':
-            return self.get("ObjectMesh_Type", 3)
-        if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_default':
-            return self.get("ObjectMesh_Type", 4)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_poop':
-            return self.get("ObjectMesh_Type", 5)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_object_instance':
-            return self.get("ObjectMesh_Type", 10)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_physics':
-            return self.get("ObjectMesh_Type", 11)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
-            return self.get("ObjectMesh_Type", 12)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_portal':
-            return self.get("ObjectMesh_Type", 13)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_seam':
-            return self.get("ObjectMesh_Type", 14)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_physics_volume':
-            return self.get("ObjectMesh_Type", 15)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_surface':
-            return self.get("ObjectMesh_Type", 16)
-        else:
-            return self.get("ObjectMesh_Type", 4)
+    # def get_default_mesh_type(self):
+    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
+    #         return self.get("ObjectMesh_Type", 0)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_collision':
+    #         return self.get("ObjectMesh_Type", 1)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
+    #         return self.get("ObjectMesh_Type", 2)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_decorator':
+    #         return self.get("ObjectMesh_Type", 3)
+    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_default':
+    #         return self.get("ObjectMesh_Type", 4)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_poop':
+    #         return self.get("ObjectMesh_Type", 5)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_object_instance':
+    #         return self.get("ObjectMesh_Type", 10)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_physics':
+    #         return self.get("ObjectMesh_Type", 11)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
+    #         return self.get("ObjectMesh_Type", 12)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_portal':
+    #         return self.get("ObjectMesh_Type", 13)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_seam':
+    #         return self.get("ObjectMesh_Type", 14)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_physics_volume':
+    #         return self.get("ObjectMesh_Type", 15)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_surface':
+    #         return self.get("ObjectMesh_Type", 16)
+    #     else:
+    #         return self.get("ObjectMesh_Type", 4)
     
-    def set_default_mesh_type(self, value):
-        self["ObjectMesh_Type"] = value
+    # def set_default_mesh_type(self, value):
+    #     self["ObjectMesh_Type"] = value
 
     #MESH PROPERTIES
-    ObjectMesh_Type : EnumProperty(
-        name="Mesh Type",
-        options=set(),
-        description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes",
-        default = '_connected_geometry_mesh_type_default',
-        get=get_default_mesh_type,
-        set=set_default_mesh_type,
-        items=mesh_type_items,
-        )
+    # ObjectMesh_Type : EnumProperty(
+    #     name="Mesh Type",
+    #     options=set(),
+    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes",
+    #     default = '_connected_geometry_mesh_type_default',
+    #     get=get_default_mesh_type,
+    #     set=set_default_mesh_type,
+    #     items=mesh_type_items,
+    #     )
+    
+    # EXPORT PROPS
+    object_type : EnumProperty(
+        items=object_type_items,
+    )
 
-    ObjectMesh_Type_Locked : EnumProperty(
-        name="Mesh Type",
-        options=set(),
-        get=get_meshtype_enum,
-        description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes e.g. $, @, %",
-        default = '_connected_geometry_mesh_type_default',
-        items=mesh_type_items,
-        )
+    mesh_type : EnumProperty(
+        default='_connected_geometry_mesh_type_default',
+        items=mesh_type_items
+    )
 
-    def get_meshtype_enum_h4(self):
-        a_ob = bpy.context.active_object
-        if a_ob.name.startswith(('+soft_ceiling','+soft_kill','+slip_surface')):
-            return 0
-        elif a_ob.name.startswith('@'):
-            return 1
-        elif a_ob.name.startswith('+cookie'):
-            return 2
-        elif a_ob.name.startswith('%'):
-            return 5
-        elif a_ob.name.startswith('+flair'):
-            return 6
-        elif a_ob.name.startswith('$'):
-            return 7
-        elif a_ob.name.startswith('+fog'):
-            return 8
-        elif a_ob.name.startswith('+portal'):
-            return 9
-        elif a_ob.name.startswith('+seam'):
-            return 10
-        elif a_ob.name.startswith('+water'):
-            return 11
-        elif a_ob.name.startswith('\''):
-            return 12
-        else:
-            return 4
+    marker_type : EnumProperty(
+        items=marker_type_items
+    )
+    ################
+
+    # ObjectMesh_Type_Locked : EnumProperty(
+    #     name="Mesh Type",
+    #     options=set(),
+    #     get=get_meshtype_enum,
+    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes e.g. $, @, %",
+    #     default = '_connected_geometry_mesh_type_default',
+    #     items=mesh_type_items,
+    #     )
+
+    # def get_meshtype_enum_h4(self):
+    #     a_ob = bpy.context.active_object
+    #     if a_ob.name.startswith(('+soft_ceiling','+soft_kill','+slip_surface')):
+    #         return 0
+    #     elif a_ob.name.startswith('@'):
+    #         return 1
+    #     elif a_ob.name.startswith('+cookie'):
+    #         return 2
+    #     elif a_ob.name.startswith('%'):
+    #         return 5
+    #     elif a_ob.name.startswith('+flair'):
+    #         return 6
+    #     elif a_ob.name.startswith('$'):
+    #         return 7
+    #     elif a_ob.name.startswith('+fog'):
+    #         return 8
+    #     elif a_ob.name.startswith('+portal'):
+    #         return 9
+    #     elif a_ob.name.startswith('+seam'):
+    #         return 10
+    #     elif a_ob.name.startswith('+water'):
+    #         return 11
+    #     elif a_ob.name.startswith('\''):
+    #         return 12
+    #     else:
+    #         return 4
 
     # dupes for h4
-    mesh_type_items_h4 = [
-        ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+'"), # 0
-        ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
-        ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
-        ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
-        ('_connected_geometry_mesh_type_default', "Default", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
-        ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
-        ('_connected_geometry_mesh_type_object_instance', "Object Instance", "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'"), # 6
-        ('_connected_geometry_mesh_type_physics', "Physics", "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'"), # 7
-        ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"), # 8
-        ('_connected_geometry_mesh_type_portal', "Portal", "Cuts up a bsp and defines clusters. Can be forced on with the prefix '+portal'"), # 9
-        ('_connected_geometry_mesh_type_seam', "Seam", "Defines where two bsps meet. Its name should match the name of the bsp its in. Can be forced on with the prefix '+seam'"), # 10
-        ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"), # 11
-        ('_connected_geometry_mesh_type_water_surface', "Water Surface", "Defines a mesh as a water surface. Can be forced on with the prefix: '"), # 12
-        ('_connected_geometry_mesh_type_obb_volume', 'OBB Volume', ''), # 13
-    ]
+    # mesh_type_items_h4 = [
+    #     ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+'"), # 0
+    #     ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
+    #     ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
+    #     ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
+    #     ('_connected_geometry_mesh_type_default', "Default", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
+    #     ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
+    #     ('_connected_geometry_mesh_type_object_instance', "Object Instance", "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'"), # 6
+    #     ('_connected_geometry_mesh_type_physics', "Physics", "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'"), # 7
+    #     ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"), # 8
+    #     ('_connected_geometry_mesh_type_portal', "Portal", "Cuts up a bsp and defines clusters. Can be forced on with the prefix '+portal'"), # 9
+    #     ('_connected_geometry_mesh_type_seam', "Seam", "Defines where two bsps meet. Its name should match the name of the bsp its in. Can be forced on with the prefix '+seam'"), # 10
+    #     ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"), # 11
+    #     ('_connected_geometry_mesh_type_water_surface', "Water Surface", "Defines a mesh as a water surface. Can be forced on with the prefix: '"), # 12
+    #     ('_connected_geometry_mesh_type_obb_volume', 'OBB Volume', ''), # 13
+    # ]
 
-    def get_default_mesh_type_h4(self):
-        if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
-            return self.get("ObjectMesh_Type_H4", 0)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_collision':
-            return self.get("ObjectMesh_Type_H4", 1)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
-            return self.get("ObjectMesh_Type_H4", 2)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_decorator':
-            return self.get("ObjectMesh_Type_H4", 3)
-        if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_default':
-            return self.get("ObjectMesh_Type_H4", 4)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_poop':
-            return self.get("ObjectMesh_Type_H4", 5)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_object_instance':
-            return self.get("ObjectMesh_Type_H4", 6)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_physics':
-            return self.get("ObjectMesh_Type_H4", 7)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
-            return self.get("ObjectMesh_Type_H4", 8)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_portal':
-            return self.get("ObjectMesh_Type_H4", 9)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_seam':
-            return self.get("ObjectMesh_Type_H4", 10)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_physics_volume':
-            return self.get("ObjectMesh_Type_H4", 11)
-        elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_surface':
-            return self.get("ObjectMesh_Type_H4", 12)
-        else:
-            return self.get("ObjectMesh_Type_H4", 4)
+    # def get_default_mesh_type_h4(self):
+    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
+    #         return self.get("ObjectMesh_Type_H4", 0)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_collision':
+    #         return self.get("ObjectMesh_Type_H4", 1)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
+    #         return self.get("ObjectMesh_Type_H4", 2)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_decorator':
+    #         return self.get("ObjectMesh_Type_H4", 3)
+    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_default':
+    #         return self.get("ObjectMesh_Type_H4", 4)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_poop':
+    #         return self.get("ObjectMesh_Type_H4", 5)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_object_instance':
+    #         return self.get("ObjectMesh_Type_H4", 6)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_physics':
+    #         return self.get("ObjectMesh_Type_H4", 7)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
+    #         return self.get("ObjectMesh_Type_H4", 8)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_portal':
+    #         return self.get("ObjectMesh_Type_H4", 9)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_seam':
+    #         return self.get("ObjectMesh_Type_H4", 10)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_physics_volume':
+    #         return self.get("ObjectMesh_Type_H4", 11)
+    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_surface':
+    #         return self.get("ObjectMesh_Type_H4", 12)
+    #     else:
+    #         return self.get("ObjectMesh_Type_H4", 4)
     
-    def set_default_mesh_type_h4(self, value):
-        self["ObjectMesh_Type_H4"] = value
+    # def set_default_mesh_type_h4(self, value):
+    #     self["ObjectMesh_Type_H4"] = value
 
-    ObjectMesh_Type_H4 : EnumProperty(
-        name="Mesh Type",
-        options=set(),
-        description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes",
-        default = '_connected_geometry_mesh_type_default',
-        get=get_default_mesh_type_h4,
-        set=set_default_mesh_type_h4,
-        items=mesh_type_items_h4,
-        )
+    # ObjectMesh_Type_H4 : EnumProperty(
+    #     name="Mesh Type",
+    #     options=set(),
+    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes",
+    #     default = '_connected_geometry_mesh_type_default',
+    #     get=get_default_mesh_type_h4,
+    #     set=set_default_mesh_type_h4,
+    #     items=mesh_type_items_h4,
+    #     )
 
-    ObjectMesh_Type_Locked_H4 : EnumProperty(
-        name="Mesh Type",
-        options=set(),
-        get=get_meshtype_enum_h4,
-        description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes e.g. $, @, %",
-        default = '_connected_geometry_mesh_type_default',
-        items=mesh_type_items_h4,
-        )
+    # ObjectMesh_Type_Locked_H4 : EnumProperty(
+    #     name="Mesh Type",
+    #     options=set(),
+    #     get=get_meshtype_enum_h4,
+    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes e.g. $, @, %",
+    #     default = '_connected_geometry_mesh_type_default',
+    #     items=mesh_type_items_h4,
+    #     )
 
-    Mesh_Primitive_Type : EnumProperty(
+    mesh_primitive_type : EnumProperty(
         name="Mesh Primitive Type",
         options=set(),
         description="Select the primtive type of this mesh",
@@ -1821,7 +1883,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Mesh_Tessellation_Density : EnumProperty(
+    mesh_tessellation_density : EnumProperty(
         name="Mesh Tessellation Density",
         options=set(),
         description="Select the tesselation density you want applied to this mesh",
@@ -1832,7 +1894,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 ('_connected_geometry_mesh_tessellation_density_36x', "36x", "36 times"),
                ]
         )
-    Mesh_Compression : EnumProperty(
+    mesh_compression : EnumProperty(
         name="Mesh Compression",
         options=set(),
         description="Select if you want additional compression forced on/off to this mesh",
@@ -1844,7 +1906,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         )
 
     #FACE PROPERTIES
-    Face_Type : EnumProperty(
+    face_type : EnumProperty(
         name="Face Type",
         options=set(),
         description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
@@ -1855,7 +1917,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Face_Mode : EnumProperty(
+    face_mode : EnumProperty(
         name="Face Mode",
         options=set(),
         description="Sets face mode for this mesh",
@@ -1870,7 +1932,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Face_Sides : EnumProperty(
+    face_sides : EnumProperty(
         name="Face Sides",
         options=set(),
         description="Sets the face sides for this mesh",
@@ -1886,7 +1948,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Face_Draw_Distance : EnumProperty(
+    face_draw_distance : EnumProperty(
         name="Face Draw Distance",
         options=set(),
         description="Select the draw distance for faces on this mesh",
@@ -1908,7 +1970,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Region_Name: StringProperty(
+    region_name: StringProperty(
         name="Face Region",
         default='default',
         description="Define the name of the region these faces should be associated with",
@@ -1918,13 +1980,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         region = get_prop_from_collection(self.id_data, ('+region:', '+reg:'))
         return region
 
-    Region_Name_Locked: StringProperty(
+    region_name_locked: StringProperty(
         name="Face Region",
         description="Define the region for this mesh",
         get=get_region_from_collection,
     )
 
-    Permutation_Name: StringProperty(
+    permutation_name: StringProperty(
         name="Permutation",
         default='default',
         description="Define the permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
@@ -1934,7 +1996,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         permutation = get_prop_from_collection(self.id_data, ('+perm:', '+permuation:'))
         return permutation
 
-    Permutation_Name_Locked: StringProperty(
+    permutation_name_locked: StringProperty(
         name="Permutation",
         description="Define the permutation of this object. Leave blank for default",
         get=get_permutation_from_collection,
@@ -1947,62 +2009,62 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=False,
     )
 
-    Face_Global_Material: StringProperty(
+    face_global_material: StringProperty(
         name="Global Material",
         default='',
         description="Set the global material of this mesh. If the global material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct global material response type, otherwise, the global material override can be manually defined in the .model tag",
     )
 
-    Sky_Permutation_Index: IntProperty(
+    sky_permutation_index: IntProperty(
         name="Sky Permutation Index",
         options=set(),
         description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
         min=0,
     )
 
-    Conveyor: BoolProperty(
+    conveyor: BoolProperty(
         name ="Conveyor",
         options=set(),
         description = "Enables the conveyor property",
         default = False,
         )
 
-    Ladder: BoolProperty(
+    ladder: BoolProperty(
         name ="Ladder",
         options=set(),
         description = "Makes faces climbable",
         default = False,
     )
 
-    Slip_Surface: BoolProperty(
+    slip_surface: BoolProperty(
         name ="Slip Surface",
         options=set(),
         description = "Makes faces slippery for units",
         default = False,
     )
 
-    Decal_Offset: BoolProperty(
+    decal_offset: BoolProperty(
         name ="Decal Offset",
         options=set(),
         description = "Enable to offset these faces so that they appear to be layered on top of another face",
         default = False,
     )
 
-    Group_Transparents_By_Plane: BoolProperty(
+    group_transparents_by_plane: BoolProperty(
         name ="Group Transparents By Plane",
         options=set(),
         description = "Enable to group transparent geometry by fitted planes",
         default = False,
     )
 
-    No_Shadow: BoolProperty(
+    no_shadow: BoolProperty(
         name ="No Shadow",
         options=set(),
         description = "Enable to prevent faces from casting shadows",
         default = False,
     )
 
-    Precise_Position: BoolProperty(
+    precise_position: BoolProperty(
         name ="Precise Position",
         options=set(),
         description = "Enable to prevent faces from being altered during the import process",
@@ -2070,7 +2132,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
         return shortest_string(name, name.rpartition('.')[0]).lower()
 
-    Boundary_Surface_Name: StringProperty(
+    boundary_surface_name: StringProperty(
         name="Boundary Surface Name",
         description="Define the name of the boundary surface. This will be referenced in the structure_design tag.",
         get=get_boundary_surface_name,
@@ -2082,7 +2144,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                                 ('_connected_geometry_boundary_surface_type_slip_surface', "Slip Surface", "Defines this mesh as a slip surface"),
                                 ]
 
-    Boundary_Surface_Type : EnumProperty(
+    boundary_surface_type : EnumProperty(
         name="Boundary Surface Type",
         options=set(),
         description="Set the type of boundary surface you want to create. You should only import files with this mesh type as struture_design tags",
@@ -2102,7 +2164,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         else:
             return 0
 
-    Boundary_Surface_Type_Locked : EnumProperty(
+    boundary_surface_type_locked : EnumProperty(
         name="Boundary Surface Type",
         options=set(),
         get=get_boundary_surface,
@@ -2121,7 +2183,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
 
     #POOP PROPERTIES
-    Poop_Lighting_Override : EnumProperty(
+    poop_lighting_override : EnumProperty(
         name="Lighting Policy",
         options=set(),
         description="Sets the lighting policy for this instanced geometry",
@@ -2139,7 +2201,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         else:
             return 0 # else won't ever be hit, but adding it stops errors
 
-    Poop_Lighting_Override_Locked : EnumProperty(
+    poop_lighting_override_locked : EnumProperty(
         name="Lighting Policy",
         options=set(),
         get=get_poop_lighting_policy,
@@ -2161,7 +2223,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                                 ('_connected_poop_instance_pathfinding_policy_static', "Static", "Sets the pathfinding policy to static. AI will be able to pathfind around and on this mesh. Can be forced on with the prefix: '%+'"),
                                 ]
 
-    Poop_Pathfinding_Override : EnumProperty(
+    poop_pathfinding_override : EnumProperty(
         name="Instanced Geometry Pathfinding Override",
         options=set(),
         description="Sets the pathfinding policy for this instanced geometry",
@@ -2177,7 +2239,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         else:
             return 0 # else won't ever be hit, but adding it stops errors
 
-    Poop_Pathfinding_Override_Locked : EnumProperty(
+    poop_pathfinding_override_locked : EnumProperty(
         name="Instanced Geometry Pathfinding Override",
         options=set(),
         get=get_poop_pathfinding_policy,
@@ -2186,7 +2248,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=poop_pathfinding_items,
         )
 
-    Poop_Imposter_Policy : EnumProperty(
+    poop_imposter_policy : EnumProperty(
         name="Instanced Geometry Imposter Policy",
         options=set(),
         description="Sets the imposter policy for this instanced geometry",
@@ -2208,14 +2270,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         min=0.0
     )
 
-    Poop_Imposter_Transition_Distance: FloatProperty(
+    poop_imposter_transition_distance: FloatProperty(
         name="Instanced Geometry Imposter Transition Distance",
         options=set(),
         description="The distance at which the instanced geometry transitions to its imposter variant",
         default=50,
     )
 
-    Poop_Imposter_Transition_Distance_Auto: BoolProperty(
+    poop_imposter_transition_distance_auto: BoolProperty(
         name="Instanced Geometry Imposter Transition Automatic",
         options=set(),
         description="Enable to let the engine set the imposter transition distance by object size",
@@ -2262,7 +2324,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #     maxlen=1024,
     # )
 
-    Poop_Render_Only: BoolProperty(
+    poop_render_only: BoolProperty(
         name ="Render Only",
         options=set(),
         description = "Instanced geometry set to render only",
@@ -2275,7 +2337,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         else:
             return False
 
-    Poop_Render_Only_Locked: BoolProperty(
+    poop_render_only_locked: BoolProperty(
         name ="Render Only",
         options=set(),
         get=get_poop_render_only,
@@ -2283,35 +2345,35 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default = False,
     )
 
-    Poop_Chops_Portals: BoolProperty(
+    poop_chops_portals: BoolProperty(
         name ="Chops Portals",
         options=set(),
         description = "Instanced geometry set to chop portals",
         default = False,
     )
 
-    Poop_Does_Not_Block_AOE: BoolProperty(
+    poop_does_not_block_aoe: BoolProperty(
         name ="Does Not Block AOE",
         options=set(),
         description = "Instanced geometry set to not block area of effect forces",
         default = False,
     )
 
-    Poop_Excluded_From_Lightprobe: BoolProperty(
+    poop_excluded_from_lightprobe: BoolProperty(
         name ="Excluded From Lightprobe",
         options=set(),
         description = "Sets this instanced geometry to be exlcuded from any lightprobes",
         default = False,
     )
 
-    Poop_Decal_Spacing: BoolProperty(
+    poop_decal_spacing: BoolProperty(
         name ="Decal Spacing",
         options=set(),
         description = "Instanced geometry set to have decal spacing (like decal_offset)",
         default = False,
     )
 
-    Poop_Precise_Geometry: BoolProperty(
+    poop_precise_geometry: BoolProperty(
         name ="Precise Geometry",
         options=set(),
         description = "Instanced geometry set to not have its geometry altered in the BSP pass",
@@ -2352,7 +2414,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     # poop light channel flags. Not included for now   
 
-    Poop_Collision_Type: EnumProperty(
+    poop_collision_type: EnumProperty(
         name ="Instanced Collision Type",
         options=set(),
         description = "Set the instanced collision type. Only used when exporting a scenario",
@@ -2364,8 +2426,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             ]
     )
 
-    #PORTAL PROPERTIES
-    Portal_Type : EnumProperty(
+    #portal PROPERTIES
+    portal_type : EnumProperty(
         name="Portal Type",
         options=set(),
         description="Sets the type of portal this mesh should be",
@@ -2376,21 +2438,21 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Portal_AI_Deafening: BoolProperty(
+    portal_ai_deafening: BoolProperty(
         name ="AI Deafening",
         options=set(),
         description = "Stops AI hearing through this portal",
         default = False,
     )
 
-    Portal_Blocks_Sounds: BoolProperty(
+    portal_blocks_sounds: BoolProperty(
         name ="Blocks Sounds",
         options=set(),
         description = "Stops sound from travelling past this portal",
         default = False,
     )
 
-    Portal_Is_Door: BoolProperty(
+    portal_is_door: BoolProperty(
         name ="Is Door",
         options=set(),
         description = "Portal visibility is attached to a device machine state",
@@ -2406,13 +2468,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
         return shortest_string(name, name.rpartition('.')[0]).lower()
 
-    Decorator_Name: StringProperty(
+    decorator_name: StringProperty(
         name="Decorator Name",
         description="Name of your decorator",
         get=get_decorator_name,
     )
 
-    Decorator_LOD: IntProperty(
+    decorator_lod: IntProperty(
         name="Decorator Level of Detail",
         options=set(),
         description="Level of detail objects to create expressed in an integer range of 1-4",
@@ -2442,13 +2504,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     # )
 
     #WATER VOLUME PROPERTIES
-    Water_Volume_Depth: FloatProperty( # this something which can probably be automated?
+    water_volume_depth: FloatProperty( # this something which can probably be automated?
         name="Water Volume Depth",
         options=set(),
         description="Set the depth of this water volume mesh",
         default=20,
     )
-    Water_Volume_Flow_Direction: FloatProperty( # this something which can probably be automated?
+    water_volume_flow_direction: FloatProperty( # this something which can probably be automated?
         name="Water Volume Flow Direction",
         options=set(),
         description="Set the flow direction of this water volume mesh",
@@ -2456,14 +2518,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=180,
     )
 
-    Water_Volume_Flow_Velocity: FloatProperty(
+    water_volume_flow_velocity: FloatProperty(
         name="Water Volume Flow Velocity",
         options=set(),
         description="Set the flow velocity of this water volume mesh",
         default=20,
     )
 
-    Water_Volume_Fog_Color: FloatVectorProperty(
+    water_volume_fog_color: FloatVectorProperty(
         name="Water Volume Fog Color",
         options=set(),
         description="Set the fog color of this water volume mesh",
@@ -2473,7 +2535,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=1.0
     )
 
-    Water_Volume_Fog_Murkiness: FloatProperty(
+    water_volume_fog_murkiness: FloatProperty(
         name="Water Volume Fog Murkiness",
         options=set(),
         description="Set the fog murkiness of this water volume mesh",
@@ -2491,7 +2553,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         return shortest_string(name, name.rpartition('.')[0]).lower()
 
     #FOG PROPERTIES
-    Fog_Name: StringProperty(
+    fog_name: StringProperty(
         name="Fog Name",
         description="Name of this fog volume",
         get=get_fog_name,
@@ -2500,13 +2562,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def fog_clean_tag_path(self, context):
         self['Fog_Appearance_Tag'] = clean_tag_path(self['Fog_Appearance_Tag']).strip('"')
 
-    Fog_Appearance_Tag: StringProperty(
+    fog_appearance_tag: StringProperty(
         name="Fog Appearance Tag",
         description="Name of the tag defining the fog volumes appearance",
         update=fog_clean_tag_path,
     )
 
-    Fog_Volume_Depth: FloatProperty(
+    fog_volume_depth: FloatProperty(
         name="Fog Volume Depth",
         options=set(),
         description="Set the depth of the fog volume",
@@ -2524,14 +2586,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
     #LIGHTMAP PROPERTIES
-    Lightmap_Settings_Enabled: BoolProperty(
+    lightmap_settings_enabled: BoolProperty(
         name ="Enable to use lightmap settings",
         options=set(),
         description = "",
         default = False,
     )
 
-    Lightmap_Additive_Transparency: FloatProperty(
+    lightmap_additive_transparency: FloatProperty(
         name="lightmap Additive Transparency",
         options=set(),
         description="",
@@ -2541,14 +2603,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=1.0
     )
 
-    Lightmap_Ignore_Default_Resolution_Scale: BoolProperty(
+    lightmap_ignore_default_resolution_scale: BoolProperty(
         name ="Lightmap Resolution Scale",
         options=set(),
         description = "",
         default = False,
     )
 
-    Lightmap_Resolution_Scale: IntProperty(
+    lightmap_resolution_scale: IntProperty(
         name="Lightmap Resolution Scale",
         options=set(),
         description="",
@@ -2576,7 +2638,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #     min=1,
     # )
 
-    Lightmap_Type : EnumProperty(
+    lightmap_type : EnumProperty(
         name="Lightmap Type",
         options=set(),
         description="Sets how this should be lit while lightmapping",
@@ -2586,28 +2648,28 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Lightmap_Transparency_Override: BoolProperty(
+    lightmap_transparency_override: BoolProperty(
         name ="Lightmap Transparency Override",
         options=set(),
         description = "",
         default = False,
     )
 
-    Lightmap_Analytical_Bounce_Modifier: FloatProperty(
+    lightmap_analytical_bounce_modifier: FloatProperty(
         name="Lightmap Analytical Bounce Modifier",
         options=set(),
         description="",
         default=9999,
     )
     
-    Lightmap_General_Bounce_Modifier: FloatProperty(
+    lightmap_general_bounce_modifier: FloatProperty(
         name="Lightmap General Bounce Modifier",
         options=set(),
         description="",
         default=9999,
     )
 
-    Lightmap_Translucency_Tint_Color: FloatVectorProperty(
+    lightmap_translucency_tint_color: FloatVectorProperty(
         name="Lightmap Translucency Tint Color",
         options=set(),
         description="",
@@ -2617,7 +2679,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=1.0
     )
 
-    Lightmap_Lighting_From_Both_Sides: BoolProperty(
+    lightmap_lighting_from_both_sides: BoolProperty(
         name ="Lightmap Lighting From Both Sides",
         options=set(),
         description = "",
@@ -2625,14 +2687,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     #MATERIAL LIGHTING PROPERTIES
-    Material_Lighting_Enabled: BoolProperty(
+    material_lighting_enabled: BoolProperty(
         name="Toggle whether to use material lighting settings",
         options=set(),
         description="",
         default=False,
     )
 
-    Material_Lighting_Attenuation_Cutoff: FloatProperty(
+    material_lighting_attenuation_cutoff: FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
         description="Determines how far light travels before it stops",
@@ -2671,7 +2733,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=0,
     )
 
-    Material_Lighting_Attenuation_Falloff: FloatProperty(
+    material_lighting_attenuation_falloff: FloatProperty(
         name="Material Lighting Attenuation Falloff",
         options=set(),
         description="Determines how far light travels before its power begins to falloff",
@@ -2679,13 +2741,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=100,
     )
 
-    Material_Lighting_Emissive_Focus: FloatProperty(
+    material_lighting_emissive_focus: FloatProperty(
         name="Material Lighting Emissive Focus",
         options=set(),
         description="",
     )
 
-    Material_Lighting_Emissive_Color: FloatVectorProperty(
+    material_lighting_emissive_color: FloatVectorProperty(
         name="Material Lighting Emissive Color",
         options=set(),
         description="",
@@ -2695,14 +2757,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=1.0,
     )
 
-    Material_Lighting_Emissive_Per_Unit: BoolProperty(
+    material_lighting_emissive_per_unit: BoolProperty(
         name ="Material Lighting Emissive Per Unit",
         options=set(),
         description = "",
         default = False,
     )
 
-    Material_Lighting_Emissive_Power: FloatProperty(
+    material_lighting_emissive_power: FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
         description="",
@@ -2710,7 +2772,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=100,
     )
 
-    Material_Lighting_Emissive_Quality: FloatProperty(
+    material_lighting_emissive_quality: FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
         description="",
@@ -2718,14 +2780,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Material_Lighting_Use_Shader_Gel: BoolProperty(
+    material_lighting_use_shader_gel: BoolProperty(
         name ="Material Lighting Use Shader Gel",
         options=set(),
         description = "",
         default = False,
     )
 
-    Material_Lighting_Bounce_Ratio: FloatProperty(
+    material_lighting_bounce_ratio: FloatProperty(
         name="Material Lighting Bounce Ratio",
         options=set(),
         description="",
@@ -2753,7 +2815,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
 
     #MARKER PROPERTIES
-    ObjectMarker_Type : EnumProperty(
+    objectmarker_type : EnumProperty(
         name="Marker Type",
         options=set(),
         description="Select the marker type",
@@ -2761,7 +2823,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=marker_types,
         )
 
-    ObjectMarker_Type_Locked : EnumProperty(
+    objectmarker_type_locked : EnumProperty(
         name="Marker Type",
         options=set(),
         description="Select the marker type",
@@ -2785,7 +2847,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 ('_connected_geometry_marker_type_lightCone', "Light Cone", "Creates a light cone with the defined parameters"),
                ]
 
-    ObjectMarker_Type_H4 : EnumProperty(
+    objectmarker_type_h4 : EnumProperty(
         name="Marker Type",
         options=set(),
         description="Select the marker type",
@@ -2793,7 +2855,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=marker_types_h4,
         )
 
-    ObjectMarker_Type_Locked_H4 : EnumProperty(
+    objectmarker_type_locked_h4 : EnumProperty(
         name="Marker Type",
         options=set(),
         description="Select the marker type",
@@ -2811,18 +2873,18 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
         return shortest_string(name, name.rpartition('.')[0]).lower()
 
-    Marker_Group_Name: StringProperty(
+    marker_group_name: StringProperty(
         name="Marker Group",
         description="Displays the name of the marker group. Marker groups equal the object name minus the '#' prefix and text after the last '.', allowing for multiple markers to share the same group",
         get=get_marker_group_name,
     )
 
-    Marker_Region: StringProperty(
+    marker_region: StringProperty(
         name="Marker Group",
         description="Define the name of marker region. This should match a face region name. Leave blank for the 'default' region",
     )
 
-    Marker_All_Regions: BoolProperty(
+    marker_all_regions: BoolProperty(
         name="Marker All Regions",
         options=set(),
         description="Associate this marker with all regions rather than a specific one",
@@ -2832,13 +2894,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def game_instance_clean_tag_path(self, context):
         self['Marker_Game_Instance_Tag_Name'] = clean_tag_path(self['Marker_Game_Instance_Tag_Name']).strip('"')
 
-    Marker_Game_Instance_Tag_Name: StringProperty(
+    marker_game_instance_tag_name: StringProperty(
         name="Marker Game Instance Tag",
         description="Define the name of the marker game instance tag",
         update=game_instance_clean_tag_path,
     )
 
-    Marker_Game_Instance_Tag_Variant_Name: StringProperty(
+    marker_game_instance_tag_variant_name: StringProperty(
         name="Marker Game Instance Tag Variant",
         description="Define the name of the marker game instance tag variant",
     )
@@ -2866,42 +2928,42 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         min=0.0,
     )
 
-    Marker_Velocity: FloatVectorProperty(
+    marker_velocity: FloatVectorProperty(
         name="Marker Velocity",
         options=set(),
         description="",
         subtype='VELOCITY',
     )
 
-    Marker_Pathfinding_Sphere_Vehicle: BoolProperty(
+    marker_pathfinding_sphere_vehicle: BoolProperty(
         name="Vehicle Only Pathfinding Sphere",
         options=set(),
         description="This pathfinding sphere only affects vehicles",
     )
 
-    Pathfinding_Sphere_Remains_When_Open: BoolProperty(
+    pathfinding_sphere_remains_when_open: BoolProperty(
         name="Pathfinding Sphere Remains When Open",
         options=set(),
         description="Pathfinding sphere remains even when a machine is open",
     )
 
-    Pathfinding_Sphere_With_Sectors: BoolProperty(
+    pathfinding_sphere_with_sectors: BoolProperty(
         name="Pathfinding Sphere With Sectors",
         options=set(),
         description="Not sure",
     )
 
-    Physics_Constraint_Parent: StringProperty( #need to make this into an object picker at some point
+    physics_constraint_parent: StringProperty( #need to make this into an object picker at some point
         name="Physics Constraint Parent",
         description="Enter the name of the object that is this marker's parent",
     )
 
-    Physics_Constraint_Child: StringProperty( #need to make this into an object picker at some point
+    physics_constraint_child: StringProperty( #need to make this into an object picker at some point
         name="Physics Constraint Child",
         description="Enter the name of the object that is this marker's child",
     )
 
-    Physics_Constraint_Type : EnumProperty(
+    physics_constraint_type : EnumProperty(
         name="Constraint Type",
         options=set(),
         description="Select the physics constraint type",
@@ -2911,13 +2973,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Physics_Constraint_Uses_Limits: BoolProperty(
+    physics_constraint_uses_limits: BoolProperty(
         name="Physics Constraint Uses Limits",
         options=set(),
         description="Set whether the limits of this physics constraint should be constrained or not",
     )
 
-    Hinge_Constraint_Minimum: FloatProperty(
+    hinge_constraint_minimum: FloatProperty(
         name="Hinge Constraint Minimum",
         options=set(),
         description="Set the minimum rotation of a physics hinge",
@@ -2926,7 +2988,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=180,
     )
 
-    Hinge_Constraint_Maximum: FloatProperty(
+    hinge_constraint_maximum: FloatProperty(
         name="Hinge Constraint Maximum",
         options=set(),
         description="Set the maximum rotation of a physics hinge",
@@ -2935,7 +2997,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=180,
     )
 
-    Cone_Angle: FloatProperty(
+    cone_angle: FloatProperty(
         name="Cone Angle",
         options=set(),
         description="Set the cone angle",
@@ -2944,7 +3006,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=180,
     )
 
-    Plane_Constraint_Minimum: FloatProperty(
+    plane_constraint_minimum: FloatProperty(
         name="Plane Constraint Minimum",
         options=set(),
         description="Set the minimum rotation of a physics plane",
@@ -2953,7 +3015,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=0,
     )
 
-    Plane_Constraint_Maximum: FloatProperty(
+    plane_constraint_maximum: FloatProperty(
         name="Plane Constraint Maximum",
         options=set(),
         description="Set the maximum rotation of a physics plane",
@@ -2963,7 +3025,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     )
 
-    Twist_Constraint_Start: FloatProperty(
+    twist_constraint_start: FloatProperty(
         name="Twist Constraint Minimum",
         options=set(),
         description="Set the starting angle of a twist constraint",
@@ -2972,7 +3034,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=180,
     )
 
-    Twist_Constraint_End: FloatProperty(
+    twist_constraint_end: FloatProperty(
         name="Twist Constraint Maximum",
         options=set(),
         description="Set the ending angle of a twist constraint",
@@ -3312,7 +3374,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Light_Game_Type: EnumProperty(
+    light_game_type: EnumProperty(
         name = "Light Game Type",
         options=set(),
         description = "",
@@ -3325,7 +3387,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Light_Shape: EnumProperty(
+    light_shape: EnumProperty(
         name = "Light Shape",
         options=set(),
         description = "",
@@ -3335,21 +3397,21 @@ class NWO_LightPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Light_Near_Attenuation: BoolProperty(
+    light_near_attenuation: BoolProperty(
         name="Light Uses Near Attenuation",
         options=set(),
         description="",
         default=True,
     )
 
-    Light_Far_Attenuation: BoolProperty(
+    light_far_attenuation: BoolProperty(
         name="Light Uses Far Attenuation",
         options=set(),
         description="",
         default=True,
     )
 
-    Light_Near_Attenuation_Start: FloatProperty(
+    light_near_attenuation_start: FloatProperty(
         name="Light Near Attenuation Start Distance",
         options=set(),
         description="The power of the light remains zero up until this point",
@@ -3357,7 +3419,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Light_Near_Attenuation_End: FloatProperty(
+    light_near_attenuation_end: FloatProperty(
         name="Light Near Attenuation End Distance",
         options=set(),
         description="From the starting near attenuation, light power gradually increases up until the end point",
@@ -3365,7 +3427,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Light_Far_Attenuation_Start: FloatProperty(
+    light_far_attenuation_start: FloatProperty(
         name="Light Near Attenuation Start Distance",
         options=set(),
         description="After this point, the light will begin to lose power",
@@ -3373,7 +3435,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Light_Far_Attenuation_End: FloatProperty(
+    light_far_attenuation_end: FloatProperty(
         name="Light Near Attenuation Start Distance",
         options=set(),
         description="From the far attenuation start, the light will gradually lose power until it reaches zero by the end point",
@@ -3381,13 +3443,13 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Light_Volume_Distance: FloatProperty(
+    light_volume_distance: FloatProperty(
         name="Light Volume Distance",
         options=set(),
         description="",
     )
 
-    Light_Volume_Intensity: FloatProperty(
+    light_volume_intensity: FloatProperty(
         name="Light Volume Intensity",
         options=set(),
         description="",
@@ -3397,21 +3459,21 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         subtype='FACTOR',
     )
 
-    Light_Fade_Start_Distance: FloatProperty(
+    light_fade_start_distance: FloatProperty(
         name="Light Fade Out Start",
         options=set(),
         description="The light starts to fade out when the camera is x world units away",
         default=100.0,
     )
 
-    Light_Fade_End_Distance: FloatProperty(
+    light_fade_end_distance: FloatProperty(
         name="Light Fade Out End",
         options=set(),
         description="The light completely fades out when the camera is x world units away",
         default=150.0,
     )
 
-    Light_Ignore_BSP_Visibility: BoolProperty(
+    light_ignore_bsp_visibility: BoolProperty(
         name="Light Ignore BSP Visibility",
         options=set(),
         description="",
@@ -3436,7 +3498,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     #     get=get_blend_light_color,
     # )
 
-    Light_Intensity: FloatProperty(
+    light_intensity: FloatProperty(
         name="Light Intensity",
         options=set(),
         description="",
@@ -3446,70 +3508,70 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         subtype='FACTOR',
     )
 
-    Light_Use_Clipping: BoolProperty(
+    light_use_clipping: BoolProperty(
         name="Light Uses Clipping",
         options=set(),
         description="",
         default=False,
     )
 
-    Light_Clipping_Size_X_Pos: FloatProperty(
+    light_clipping_size_x_pos: FloatProperty(
         name="Light Clipping Size X Forward",
         options=set(),
         description="",
         default=100,
     )
 
-    Light_Clipping_Size_Y_Pos: FloatProperty(
+    light_clipping_size_y_pos: FloatProperty(
         name="Light Clipping Size Y Forward",
         options=set(),
         description="",
         default=100,
     )
 
-    Light_Clipping_Size_Z_Pos: FloatProperty(
+    light_clipping_size_z_pos: FloatProperty(
         name="Light Clipping Size Z Forward",
         options=set(),
         description="",
         default=100,
     )
 
-    Light_Clipping_Size_X_Neg: FloatProperty(
+    light_clipping_size_x_neg: FloatProperty(
         name="Light Clipping Size X Backward",
         options=set(),
         description="",
         default=100,
     )
 
-    Light_Clipping_Size_Y_Neg: FloatProperty(
+    light_clipping_size_y_neg: FloatProperty(
         name="Light Clipping Size Y Backward",
         options=set(),
         description="",
         default=100,
     )
 
-    Light_Clipping_Size_Z_Neg: FloatProperty(
+    light_clipping_size_z_neg: FloatProperty(
         name="Light Clipping Size Z Backward",
         options=set(),
         description="",
         default=100,
     )
 
-    Light_Hotspot_Size: FloatProperty(
+    light_hotspot_size: FloatProperty(
         name="Light Hotspot Size",
         options=set(),
         description="",
         default=25,
     )
 
-    Light_Hotspot_Falloff: FloatProperty(
+    light_hotspot_falloff: FloatProperty(
         name="Light Hotspot Size",
         options=set(),
         description="",
         default=80,
     )
 
-    Light_Falloff_Shape: FloatProperty(
+    light_falloff_shape: FloatProperty(
         name="Light Falloff Shape",
         options=set(),
         description="",
@@ -3519,7 +3581,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         subtype='FACTOR',
     )
 
-    Light_Aspect: FloatProperty(
+    light_aspect: FloatProperty(
         name="Light Aspect",
         options=set(),
         description="",
@@ -3529,21 +3591,21 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         subtype='FACTOR',
     )
 
-    Light_Frustum_Width: FloatProperty(
+    light_frustum_width: FloatProperty(
         name="Light Hotspot Size",
         options=set(),
         description="",
         default=1.0,
     )
 
-    Light_Frustum_Height: FloatProperty(
+    light_frustum_height: FloatProperty(
         name="Light Hotspot Size",
         options=set(),
         description="",
         default=1.0,
     )
 
-    Light_Bounce_Ratio: FloatProperty(
+    light_bounce_ratio: FloatProperty(
         name="Light Falloff Shape",
         options=set(),
         description="",
@@ -3553,14 +3615,14 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         subtype='FACTOR',
     )
 
-    Light_Dynamic_Has_Bounce: BoolProperty(
+    light_dynamic_has_bounce: BoolProperty(
         name="Light Has Dynamic Bounce",
         options=set(),
         description="",
         default=False,
     )
 
-    Light_Screenspace_Has_Specular: BoolProperty(
+    light_screenspace_has_specular: BoolProperty(
         name="Screenspace Light Has Specular",
         options=set(),
         description="",
@@ -3570,7 +3632,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     def light_tag_clean_tag_path(self, context):
         self['Light_Tag_Override'] = clean_tag_path(self['Light_Tag_Override']).strip('"')
 
-    Light_Tag_Override: StringProperty(
+    light_tag_override: StringProperty(
         name="Light Tag Override",
         options=set(),
         description="",
@@ -3580,7 +3642,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     def light_shader_clean_tag_path(self, context):
         self['Light_Shader_Reference'] = clean_tag_path(self['Light_Shader_Reference']).strip('"')
 
-    Light_Shader_Reference: StringProperty(
+    light_shader_reference: StringProperty(
         name="Light Shader Reference",
         options=set(),
         description="",
@@ -3590,7 +3652,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     def light_gel_clean_tag_path(self, context):
         self['Light_Gel_Reference'] = clean_tag_path(self['Light_Gel_Reference']).strip('"')
 
-    Light_Gel_Reference: StringProperty(
+    light_gel_reference: StringProperty(
         name="Light Gel Reference",
         options=set(),
         description="",
@@ -3600,7 +3662,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     def light_lens_flare_clean_tag_path(self, context):
         self['Light_Lens_Flare_Reference'] = clean_tag_path(self['Light_Lens_Flare_Reference']).strip('"')
 
-    Light_Lens_Flare_Reference: StringProperty(
+    light_lens_flare_reference: StringProperty(
         name="Light Lens Flare Reference",
         options=set(),
         description="",
@@ -3935,7 +3997,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
                ]
         )
 
-    Light_Near_Attenuation_StartH4: FloatProperty(
+    light_near_attenuation_starth4: FloatProperty(
         name="Attenuation Start Distance",
         options=set(),
         description="",
@@ -3943,7 +4005,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Light_Near_Attenuation_EndH4: FloatProperty(
+    light_near_attenuation_endh4: FloatProperty(
         name="Attenuation End Distance",
         options=set(),
         description="",
@@ -3951,7 +4013,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Light_Far_Attenuation_StartH4: FloatProperty(
+    light_far_attenuation_starth4: FloatProperty(
         name="Camera Distance Fade Start",
         options=set(),
         description="",
@@ -3959,7 +4021,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         min=0,
     )
 
-    Light_Far_Attenuation_EndH4: FloatProperty(
+    light_far_attenuation_endh4: FloatProperty(
         name="Camera Distance Fade End",
         options=set(),
         description="",
@@ -4031,7 +4093,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
                 ('shader_water', "Shader Water", ""),
                ]
 
-    Shader_Type: EnumProperty(
+    shader_type: EnumProperty(
         name = "Shader Type",
         options=set(),
         description = "Set by the extension of the shader path. Alternatively this field can be updated manually",
@@ -4921,9 +4983,9 @@ class NWO_FacePropAddMenu(Menu):
         layout = self.layout
         ob = context.object
         if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
-            layout.operator("nwo_face.add_face_property", text='Region').options = 'region'
+            layout.operator("nwo_face.add_face_property", text='Region Override').options = 'region'
         if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
-            layout.operator("nwo_face.add_face_property", text='Global Material').options = 'face_global_material'
+            layout.operator("nwo_face.add_face_property", text='Global Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR')) and (CheckType.default(ob) or CheckType.decorator(ob)):
             layout.operator("nwo_face.add_face_property", text='Precise').options = 'precise_position'
 
@@ -4959,9 +5021,9 @@ class NWO_FacePropAddMenuNew(Menu):
         layout = self.layout
         ob = context.object
         if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
-            layout.operator("nwo_face.add_face_property_new", text='Region').options = 'region'
+            layout.operator("nwo_face.add_face_property_new", text='Region Override').options = 'region'
         if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
-            layout.operator("nwo_face.add_face_property_new", text='Global Material').options = 'face_global_material'
+            layout.operator("nwo_face.add_face_property_new", text='Global Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR')) and (CheckType.default(ob) or CheckType.decorator(ob)):
             layout.operator("nwo_face.add_face_property_new", text='Precise').options = 'precise_position'
 
@@ -5658,6 +5720,12 @@ classeshalo = (
     NWO_FacePropAddFaceSidesNew,
     NWO_FacePropAddFlagsNew,
     NWO_FacePropAddMiscNew,
+    NWO_MeshTypeStructureDesignReach,
+    NWO_MeshTypeStructureDesignH4,
+    NWO_MeshMenu,
+    NWO_MeshType,
+    NWO_MarkerMenu,
+    NWO_MarkerType,
     NWO_SceneProps,
     NWO_SetUnitScale,
     NWO_GameInstancePath,

@@ -130,10 +130,10 @@ def get_tool_type():
     return bpy.context.preferences.addons[package].preferences.tool_type
 
 def get_perm(ob): # get the permutation of an object, return default if the perm is empty
-    if ob.nwo.Permutation_Name_Locked != '':
-        return ob.nwo.Permutation_Name_Locked
+    if ob.nwo.permutation_name_locked != '':
+        return ob.nwo.permutation_name_locked
     else:
-        return ob.nwo.Permutation_Name
+        return ob.nwo.permutation_name
         
 
 def is_windows():
@@ -182,7 +182,7 @@ def select_model_objects(halo_objects, perm, arm, export_hidden, export_all_perm
         arm.select_set(True)
     for ob in halo_objects:
         halo = ob.nwo
-        if object_valid(ob, export_hidden, perm, halo.Permutation_Name, halo.Permutation_Name_Locked) and export_perm(perm, export_all_perms, selected_perms):
+        if object_valid(ob, export_hidden, perm, halo.permutation_name, halo.permutation_name_locked) and export_perm(perm, export_all_perms, selected_perms):
             ob.select_set(True)
             boolean = True
     
@@ -209,7 +209,7 @@ def select_bsp_objects(halo_objects, bsp, arm, perm, export_hidden, export_all_p
         halo = ob.nwo
         bsp_value = true_bsp(ob.nwo)
         if bsp_value == bsp:
-            if object_valid(ob, export_hidden, perm, halo.Permutation_Name, halo.Permutation_Name_Locked) and export_perm(perm, export_all_perms, selected_perms) and export_bsp(bsp, export_all_bsps, selected_bsps):
+            if object_valid(ob, export_hidden, perm, halo.permutation_name, halo.permutation_name_locked) and export_perm(perm, export_all_perms, selected_perms) and export_bsp(bsp, export_all_bsps, selected_bsps):
                 ob.select_set(True)
                 boolean = True
 
@@ -270,29 +270,23 @@ def get_asset_path_full(tags=False):
 
 # -------------------------------------------------------------------------------------------------------------------
 
-def mesh_type(ob, types, valid_prefixes=()):
-    if ob != None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
-        if not_bungie_game():
-            return is_mesh(ob) and ((ob.nwo.ObjectMesh_Type_H4 in types and not object_prefix(ob, special_prefixes)) or object_prefix(ob, valid_prefixes))
-        else:
-            return is_mesh(ob) and ((ob.nwo.ObjectMesh_Type in types and not object_prefix(ob, special_prefixes)) or object_prefix(ob, valid_prefixes))
+def mesh_type(ob, types):
+    if ob is not None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
+        return is_mesh(ob) and ob.nwo.mesh_type in types
 
-def marker_type(ob, types, valid_prefixes=()):
-    if ob != None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
-            if not_bungie_game():
-                return is_marker(ob) and ((ob.nwo.ObjectMarker_Type_H4 in types and not object_prefix(ob, ('?', '$'))) or object_prefix(ob, valid_prefixes))
-            else:
-                return is_marker(ob) and ((ob.nwo.ObjectMarker_Type in types and not object_prefix(ob, ('?', '$'))) or object_prefix(ob, valid_prefixes))
+def marker_type(ob, types):
+    if ob is not None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
+        return is_marker(ob) and ob.nwo.marker_type in types
 
-def object_type(ob, types=(), valid_prefixes=()):
+def object_type(ob, types=()):
     if ob != None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
         if ob.type == 'MESH':
-            return (ob.nwo.Object_Type_All in types and not object_prefix(ob, ((frame_prefixes + marker_prefixes))) or object_prefix(ob, (valid_prefixes)))
+            return ob.nwo.object_type_all in types
         elif ob.type == 'EMPTY':
-            return ob.nwo.Object_Type_No_Mesh in types or object_prefix(ob, (valid_prefixes)) or len(ob.children) > 0
-        elif ob.type == 'LIGHT' and (types != 'MARKER' and '#' not in valid_prefixes):
+            return ob.nwo.object_type_no_mesh in types or len(ob.children) > 0
+        elif ob.type == 'LIGHT' and types != 'MARKER':
             return True
-        elif ob.nwo.Object_Type_All in types or object_prefix(ob, (valid_prefixes)):
+        elif ob.nwo.object_type_all in types:
             return True
         else:
             return False
@@ -301,24 +295,24 @@ def object_prefix(ob, prefixes):
     return ob.name.startswith(prefixes)
 
 def not_parented_to_poop(ob):
-    return (not mesh_type(ob.parent, '_connected_geometry_mesh_type_poop') or (object_prefix(ob.parent, special_prefixes) and not object_prefix(ob.parent, '%')))
+    return not mesh_type(ob.parent, '_connected_geometry_mesh_type_poop')
 
 def is_design(ob):
     return CheckType.fog(ob) or CheckType.boundary_surface(ob) or CheckType.water_physics(ob) or CheckType.poop_rain_blocker(ob)
 
 def is_marker(ob):
     if ob.type == 'MESH':
-        return ((ob.nwo.Object_Type_All == '_connected_geometry_object_type_marker' and not ob.name.startswith(frame_prefixes)) or ob.name.startswith(marker_prefixes)) or ob.nwo.Object_Type_All_Locked == '_connected_geometry_object_type_marker'
+        return ob.nwo.object_type_all == '_connected_geometry_object_type_marker' or ob.nwo.object_type_all_locked == '_connected_geometry_object_type_marker'
     elif ob.type == 'EMPTY':
-        return ((ob.nwo.Object_Type_No_Mesh == '_connected_geometry_object_type_marker' and not ob.name.startswith(frame_prefixes)) or ob.name.startswith(marker_prefixes)) or ob.nwo.Object_Type_No_Mesh_Locked == '_connected_geometry_object_type_marker'
+        return ob.nwo.object_type_no_mesh == '_connected_geometry_object_type_marker'or ob.nwo.object_type_no_mesh_locked == '_connected_geometry_object_type_marker'
     else:
         return False
 
 def is_frame(ob):
     if ob.type == 'MESH':
-        return (ob.nwo.Object_Type_All == '_connected_geometry_object_type_frame' and not ob.name.startswith(marker_prefixes)) or ob.name.startswith(frame_prefixes) or ob.nwo.Object_Type_All_Locked == '_connected_geometry_object_type_frame'
+        return ob.nwo.object_type_all == '_connected_geometry_object_type_frame' or ob.nwo.object_type_all_locked == '_connected_geometry_object_type_frame'
     elif ob.type == 'EMPTY':
-        return (ob.nwo.Object_Type_No_Mesh == '_connected_geometry_object_type_frame' and not ob.name.startswith(('#', '?', '$'))) or ob.name.startswith(frame_prefixes) or ob.nwo.Object_Type_No_Mesh_Locked == '_connected_geometry_object_type_frame'
+        return ob.nwo.object_type_no_mesh == '_connected_geometry_object_type_frame' or ob.nwo.object_type_no_mesh_locked == '_connected_geometry_object_type_frame'
     else:
         return False
 
@@ -367,21 +361,21 @@ def jstr(number):
 
 def true_bsp(halo):
     if halo.bsp_name_locked !='':
-        return halo.bsp_name_locked
+        return halo.bsp_name_locked.lower()
     else:
-        return halo.bsp_name
+        return halo.bsp_name.lower()
 
 def true_region(halo):
-    if halo.Region_Name_Locked !='':
-        return halo.Region_Name_Locked
+    if halo.region_name_locked !='':
+        return halo.region_name_locked.lower()
     else:
-        return halo.Region_Name
+        return halo.region_name.lower()
     
 def true_permutation(halo):
-    if halo.Permutation_Name_Locked !='':
-        return halo.Permutation_Name_Locked
+    if halo.permutation_name_locked !='':
+        return halo.permutation_name_locked.lower()
     else:
-        return halo.Permutation_Name
+        return halo.permutation_name.lower()
 
 def clean_tag_path(path, file_ext = None):
     """Cleans a path and attempts to make it appropriate for reading by Tool. Can accept a file extension (without a period) to force the existing one if it exists to be replaced"""
@@ -452,118 +446,124 @@ class CheckType:
             return '_connected_geometry_object_type_mesh'
     @staticmethod
     def render(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_default'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_default',))
     @staticmethod
     def collision(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_collision'), ('@'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_collision',))
     @staticmethod
     def physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_physics'), ('$'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_physics',))
     @staticmethod
     def default(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_default'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_default',))
     @staticmethod
     def marker(ob):
-        return object_type(ob, ('_connected_geometry_object_type_marker'), ('#', '?'))
+        return object_type(ob, ('_connected_geometry_object_type_marker',))
     @staticmethod
     def structure(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_default'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_default',))
     @staticmethod
     def poop(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop'), ('%'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_poop',))
     @staticmethod
     def poop_marker(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_marker'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_marker',))
     @staticmethod
     def object_instance(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_object_instance'), ('+flair'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_object_instance',))
     @staticmethod
     def poop_collision_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'), ('@', '$'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'))
     @staticmethod
     def light(ob):
         return ob.type == 'LIGHT'
     @staticmethod
     def portal(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_portal'), ('+portal'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_portal',))
     @staticmethod
     def seam(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_seam'), ('+seam'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_seam',))
     @staticmethod
     def water_surface(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_water_surface'), ('\''))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_water_surface',))
     @staticmethod
     def misc(ob):
         return mesh_type(ob, ('_connected_geometry_mesh_type_lightmap_region', '_connected_geometry_mesh_type_obb_volume'))
     @staticmethod
+    def lightmap_region(ob):
+        return mesh_type(ob, ('_connected_geometry_mesh_type_lightmap_region',))
+    @staticmethod
     def fog(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_planar_fog_volume'), ('+fog'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_planar_fog_volume',))
     @staticmethod
     def boundary_surface(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_boundary_surface'), ('+soft_kill', '+soft_ceiling', '+slip_surface'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_boundary_surface',))
     @staticmethod
     def water_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_water_physics_volume'), ('+water'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_water_physics_volume',))
     @staticmethod
     def poop_rain_blocker(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_rain_blocker', '_connected_geometry_mesh_type_poop_vertical_rain_sheet'))
+        return mesh_type(ob, tuple('_connected_geometry_mesh_type_poop_rain_blocker',))
+    @staticmethod
+    def poop_rain_sheet(ob):
+        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_vertical_rain_sheet',))
     @staticmethod
     def frame(ob):
-        return object_type(ob, ('_connected_geometry_object_type_frame'), (frame_prefixes)) and not ob.type == 'LIGHT'and not ob.type == 'ARMATURE' # ignores objects we know must be frames (like bones / armatures) as these are handled seperately
+        return object_type(ob, ('_connected_geometry_object_type_frame',)) and not ob.type == 'LIGHT'and not ob.type == 'ARMATURE' # ignores objects we know must be frames (like bones / armatures) as these are handled seperately
     @staticmethod
     def decorator(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_decorator'), (decorator_prefixes))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_decorator',))
     @staticmethod
     def poop_collision(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_collision'), ('@'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_collision',))
     @staticmethod
     def poop_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_physics'), ('$'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_physics',))
     @staticmethod
     def cookie_cutter(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_cookie_cutter'), ('+cookie'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_cookie_cutter',))
     @staticmethod
     def obb_volume(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_obb_volume'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_obb_volume',))
     @staticmethod
     def mesh(ob):
-        return ob.type == 'MESH' and ob.nwo.Object_Type_All in '_connected_geometry_object_type_mesh' and not object_prefix(ob, ((frame_prefixes + marker_prefixes)))
+        return ob.type == 'MESH' and ob.nwo.object_type_all in '_connected_geometry_object_type_mesh'
     @staticmethod
     def model(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_model'))
+        return marker_type(ob, ('_connected_geometry_marker_type_model',))
     @staticmethod
     def effects(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_effects'))
+        return marker_type(ob, ('_connected_geometry_marker_type_effects',))
     @staticmethod
     def game_instance(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_game_instance'), ('?'))
+        return marker_type(ob, ('_connected_geometry_marker_type_game_instance',))
     @staticmethod
     def garbage(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_garbage'))
+        return marker_type(ob, ('_connected_geometry_marker_type_garbage',))
     @staticmethod
     def hint(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_hint'))
+        return marker_type(ob, ('_connected_geometry_marker_type_hint',))
     @staticmethod
     def pathfinding_sphere(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_pathfinding_sphere'))
+        return marker_type(ob, ('_connected_geometry_marker_type_pathfinding_sphere',))
     @staticmethod
     def physics_constraint(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_physics_constraint'), ('$'))
+        return marker_type(ob, ('_connected_geometry_marker_type_physics_constraint',))
     @staticmethod
     def target(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_target'))
+        return marker_type(ob, ('_connected_geometry_marker_type_target',))
     @staticmethod
     def water_volume_flow(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_water_volume_flow'))
+        return marker_type(ob, ('_connected_geometry_marker_type_water_volume_flow',))
     @staticmethod
     def airprobe(ob): # H4+ ONLY
-        return marker_type(ob, ('_connected_geometry_marker_type_airprobe'))
+        return marker_type(ob, ('_connected_geometry_marker_type_airprobe',))
     @staticmethod
     def envfx(ob): # H4+ ONLY
-        return marker_type(ob, ('_connected_geometry_marker_type_envfx'))
+        return marker_type(ob, ('_connected_geometry_marker_type_envfx',))
     @staticmethod
     def lightCone(ob): # H4+ ONLY
-        return marker_type(ob, ('_connected_geometry_marker_type_lightCone'))
+        return marker_type(ob, ('_connected_geometry_marker_type_lightCone',))
     @staticmethod
     def animation_event(ob):
         return ob.nwo.is_animation_event
@@ -771,41 +771,6 @@ def CheckPath(filePath):
     return filePath.startswith(os.path.join(get_ek_path(), 'data'))
 
 #################################
-
-# import example #
-# from ..gr2_utils import (
-#     frame_prefixes,
-#     marker_prefixes,
-#     mesh_prefixes,
-#     special_prefixes,
-#     boundary_surface_prefixes,
-#     cookie_cutter_prefixes,
-#     decorator_prefixes,
-#     fog_volume_prefixes,
-#     object_instance_prefixes,
-#     portal_prefixes,
-#     seam_prefixes,
-#     water_volume_prefixes,
-#     no_perm_prefixes,
-#     poop_lighting_prefixes,
-#     poop_pathfinding_prefixes,
-#     poop_render_only_prefixes,
-#     special_materials,
-#     special_mesh_types,
-#     invalid_mesh_types,
-#     GetEKPath,
-#     GetToolPath,
-#     GetTagsPath,
-#     GetDataPath,
-#     GetPerm,
-#     IsWindows,
-#     CheckPath,
-#     ObjectValid,
-#     ExportPerm,
-#     ExportBSP,
-#     ResetPerm,
-# )
-
 
 ################################################
 # EXTRA
