@@ -34,9 +34,9 @@ def amf_assign(context, report):
         true_name = dot_partition(ob.name)
         if not true_name.startswith(('+', ':')) and ':' in true_name:
             if true_name.rpartition(':')[0] != '':
-                ob.nwo.Region_Name = true_name.rpartition(':')[0]
+                ob.nwo.region_name = true_name.rpartition(':')[0]
             if true_name.rpartition(':')[2] != '':
-                ob.nwo.Permutation_Name = true_name.rpartition(':')[2]
+                ob.nwo.permutation_name = true_name.rpartition(':')[2]
             loop_count += 1
 
     report({'INFO'},f"Updated regions & permutations for {loop_count} AMF objects")

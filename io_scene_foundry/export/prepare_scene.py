@@ -575,7 +575,7 @@ def apply_properties(context, asset_type, asset):
         if ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
             apply_object_mesh_marker_properties(ob, asset_type)
 
-        # strip_prefix(ob)
+        strip_prefix(ob)
         apply_namespaces(ob, asset)
 
 

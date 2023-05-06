@@ -4882,6 +4882,70 @@ class NWO_FaceMapProps(Panel):
                         row = col.row()
                         row.prop(item, "no_pvs")
                         row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'no_pvs'
+                    # lightmap
+                    if item.lightmap_additive_transparency_override:
+                        row = col.row()
+                        row.prop(item, "lightmap_additive_transparency")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'lightmap_additive_transparency'
+                    if item.lightmap_resolution_scale_override:
+                        row = col.row()
+                        row.prop(item, "lightmap_resolution_scale")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'lightmap_resolution_scale'
+                    if item.lightmap_type_override:
+                        row = col.row()
+                        row.prop(item, "lightmap_type")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'lightmap_type'
+                    if item.lightmap_analytical_bounce_modifier_override:
+                        row = col.row()
+                        row.prop(item, "lightmap_analytical_bounce_modifier")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'lightmap_analytical_bounce_modifier'
+                    if item.lightmap_general_bounce_modifier_override:
+                        row = col.row()
+                        row.prop(item, "lightmap_general_bounce_modifier")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'lightmap_general_bounce_modifier'
+                    if item.lightmap_translucency_tint_color_override:
+                        row = col.row()
+                        row.prop(item, "lightmap_translucency_tint_color")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'lightmap_translucency_tint_color'
+                    if item.lightmap_lighting_from_both_sides_override:
+                        row = col.row()
+                        row.prop(item, "lightmap_lighting_from_both_sides")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'lightmap_lighting_from_both_sides'
+                    # material lighting
+                    if item.material_lighting_attenuation_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_attenuation_falloff")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_attenuation'
+                        row = col.row()
+                        row.prop(item, "material_lighting_attenuation_cutoff")
+                    if item.material_lighting_emissive_focus_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_emissive_focus")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_emissive_focus'
+                    if item.material_lighting_emissive_color_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_emissive_color")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_emissive_color'
+                    if item.material_lighting_emissive_per_unit_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_emissive_per_unit")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_emissive_per_unit'
+                    if item.material_lighting_emissive_power_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_emissive_power")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_emissive_power'
+                    if item.material_lighting_emissive_quality_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_emissive_quality")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_emissive_quality'
+                    if item.material_lighting_use_shader_gel_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_use_shader_gel")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_use_shader_gel'
+                    if item.material_lighting_bounce_ratio_override:
+                        row = col.row()
+                        row.prop(item, "material_lighting_bounce_ratio")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_bounce_ratio'
 
 def toggle_override(context, option, bool_var):
     ob = context.object
@@ -4967,12 +5031,45 @@ def toggle_override(context, option, bool_var):
             item.no_lightmap_override = bool_var
         case 'no_pvs':
             item.no_pvs_override = bool_var
+        # instances
         case 'instanced_collision':
             item.instanced_collision_override = bool_var
         case 'instanced_physics':
             item.instanced_physics_override = bool_var
         case 'cookie_cutter':
             item.cookie_cutter_override = bool_var
+        # lightmap
+        case 'lightmap_additive_transparency':
+            item.lightmap_additive_transparency_override = bool_var
+        case 'lightmap_resolution_scale':
+            item.lightmap_resolution_scale_override = bool_var
+        case 'lightmap_type':
+            item.lightmap_type_override = bool_var
+        case 'lightmap_analytical_bounce_modifier':
+            item.lightmap_analytical_bounce_modifier_override = bool_var
+        case 'lightmap_general_bounce_modifier':
+            item.lightmap_general_bounce_modifier_override = bool_var
+        case 'lightmap_translucency_tint_color':
+            item.lightmap_translucency_tint_color_override = bool_var
+        case 'lightmap_lighting_from_both_sides':
+            item.lightmap_lighting_from_both_sides_override = bool_var
+        # material lighting
+        case 'material_lighting_attenuation':
+            item.material_lighting_attenuation_override = bool_var
+        case 'material_lighting_emissive_focus':
+            item.material_lighting_emissive_focus_override = bool_var
+        case 'material_lighting_emissive_color':
+            item.material_lighting_emissive_color_override = bool_var
+        case 'material_lighting_emissive_per_unit':
+            item.material_lighting_emissive_per_unit_override = bool_var
+        case 'material_lighting_emissive_power':
+            item.material_lighting_emissive_power_override = bool_var
+        case 'material_lighting_emissive_quality':
+            item.material_lighting_emissive_quality_override = bool_var
+        case 'material_lighting_use_shader_gel':
+            item.material_lighting_use_shader_gel_override = bool_var
+        case 'material_lighting_bounce_ratio':
+            item.material_lighting_bounce_ratio_override = bool_var
 
 class NWO_FacePropAddMenu(Menu):
     bl_label = "Add Face Property"
@@ -5000,6 +5097,14 @@ class NWO_FacePropAddMenu(Menu):
             layout.operator_menu_enum("nwo_face.add_face_property_flags",
                                     property="options",
                                     text="Flags",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_lightmap",
+                                    property="options",
+                                    text="Lightmap",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_material_lighting",
+                                    property="options",
+                                    text="Emissive",
                                     )
             
         if CheckType.default(ob) or CheckType.poop(ob) or CheckType.decorator(ob):
@@ -5039,6 +5144,14 @@ class NWO_FacePropAddMenuNew(Menu):
                                     property="options",
                                     text="Flags",
                                     )
+            layout.operator_menu_enum("nwo_face.add_face_property_lightmap_new",
+                                    property="options",
+                                    text="Lightmap",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_material_lighting_new",
+                                    property="options",
+                                    text="Emissive",
+                                    )
             
         if CheckType.default(ob) or CheckType.poop(ob) or CheckType.decorator(ob):
             layout.operator_menu_enum("nwo_face.add_face_property_face_sides_new",
@@ -5049,6 +5162,7 @@ class NWO_FacePropAddMenuNew(Menu):
                                     property="options",
                                     text="Other",
                                     )
+
             
 class NWO_MasterInstance(Operator):
     """Sets the current object as the master instance for all linked objects. Linked objects will use this objects face properties"""
@@ -5185,12 +5299,6 @@ class NWO_FacePropAdd(Operator):
                     fm_name = 'global_material'
                 case 'precise_position':
                     fm_name = 'precise'
-                case 'instanced_collision':
-                    fm_name = 'bullet_collision'
-                case 'instanced_physics':
-                    fm_name = 'player_collision'
-                case 'cookie_cutter':
-                    fm_name = 'cookie_cutter'
 
                 case '_connected_geometry_face_type_sky':
                     fm_name = 'sky'
@@ -5240,6 +5348,45 @@ class NWO_FacePropAdd(Operator):
                     fm_name = 'draw_distance'
                 case 'texcoord_usage':
                     fm_name = 'texcoord_usage'
+                # instances
+                case 'instanced_collision':
+                    fm_name = 'bullet_collision'
+                case 'instanced_physics':
+                    fm_name = 'player_collision'
+                case 'cookie_cutter':
+                    fm_name = 'cookie_cutter'
+                # lightmap
+                case 'lightmap_additive_transparency':
+                    fm_name = 'lightmap_additive_transparency'
+                case 'lightmap_resolution_scale':
+                    fm_name = 'lightmap_resolution_scale'
+                case 'lightmap_type':
+                    fm_name = 'lightmap_type'
+                case 'lightmap_analytical_bounce_modifier':
+                    fm_name = 'lightmap_analytical_bounce_modifier'
+                case 'lightmap_general_bounce_modifier':
+                    fm_name = 'lightmap_general_bounce_modifier'
+                case 'lightmap_translucency_tint_color':
+                    fm_name = 'lightmap_translucency_tint_color'
+                case 'lightmap_lighting_from_both_sides':
+                    fm_name = 'lightmap_lighting_from_both_sides'
+                # material lighting
+                case 'material_lighting_attenuation':
+                    fm_name = 'emissive_attenuation'
+                case 'material_lighting_emissive_focus':
+                    fm_name = 'emissive_focus'
+                case 'material_lighting_emissive_color':
+                    fm_name = 'emissive_color'
+                case 'material_lighting_emissive_per_unit':
+                    fm_name = 'emissive_per_unit'
+                case 'material_lighting_emissive_power':
+                    fm_name = 'emissive_power'
+                case 'material_lighting_emissive_quality':
+                    fm_name = 'emissive_quality'
+                case 'material_lighting_use_shader_gel':
+                    fm_name = 'emissive_use_shader_gel'
+                case 'material_lighting_bounce_ratio':
+                    fm_name = 'emissive_bounce_ratio'
 
             ob.face_maps.active.name = fm_name
             bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
@@ -5286,6 +5433,21 @@ class NWO_FacePropRemove(Operator):
         ('instanced_collision', 'Bullet Collision', ''),
         ('instanced_physics', 'Player Collision', ''),
         ('cookie_cutter', 'Cookie Cutter', ''),
+        ('lightmap_additive_transparency', 'Transparency', ''),
+        ('lightmap_resolution_scale', 'Resolution Scale', ''),
+        ('lightmap_type', 'Lightmap Type', ''),
+        ('lightmap_analytical_bounce_modifier', 'Analytical Light Bounce Modifier', ''),
+        ('lightmap_general_bounce_modifier', 'General Light Bounce Modifier', ''),
+        ('lightmap_translucency_tint_color', 'Translucency Tint Colour', ''),
+        ('lightmap_lighting_from_both_sides', 'Lighting from Both Sides', ''),
+        ('material_lighting_attenuation', 'Attenuation', ''),
+        ('material_lighting_emissive_focus', 'Focus', ''),
+        ('material_lighting_emissive_color', 'Colour', ''),
+        ('material_lighting_emissive_per_unit', 'Emissive per Unit', ''),
+        ('material_lighting_emissive_power', 'Power', ''),
+        ('material_lighting_emissive_quality', 'Quality', ''),
+        ('material_lighting_use_shader_gel', 'Use Shader Gel', ''),
+        ('material_lighting_bounce_ratio', 'Lighting Bounce Ratio', ''),
         ]
         )
 
@@ -5405,6 +5567,41 @@ class NWO_FacePropAddFlags(NWO_FacePropAdd):
         ]
     )
 
+class NWO_FacePropAddLightmap(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_lightmap"
+    bl_label = "Add"
+
+    options : EnumProperty(
+        items=[
+        ('lightmap_additive_transparency', 'Transparency', ''),
+        ('lightmap_resolution_scale', 'Resolution Scale', ''),
+        ('lightmap_type', 'Lightmap Type', ''),
+        ('lightmap_analytical_bounce_modifier', 'Analytical Light Bounce Modifier', ''),
+        ('lightmap_general_bounce_modifier', 'General Light Bounce Modifier', ''),
+        ('lightmap_translucency_tint_color', 'Translucency Tint Colour', ''),
+        ('lightmap_lighting_from_both_sides', 'Lighting from Both Sides', ''),
+        ]
+    )
+
+class NWO_FacePropAddMaterialLighting(NWO_FacePropAdd):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_material_lighting"
+    bl_label = "Add"
+
+    options : EnumProperty(
+        items=[
+        ('material_lighting_attenuation', 'Attenuation', ''),
+        ('material_lighting_emissive_focus', 'Focus', ''),
+        ('material_lighting_emissive_color', 'Colour', ''),
+        ('material_lighting_emissive_per_unit', 'Emissive per Unit', ''),
+        ('material_lighting_emissive_power', 'Power', ''),
+        ('material_lighting_emissive_quality', 'Quality', ''),
+        ('material_lighting_use_shader_gel', 'Use Shader Gel', ''),
+        ('material_lighting_bounce_ratio', 'Lighting Bounce Ratio', ''),
+        ]
+    )
+
 class NWO_FacePropAddFlagsNew(NWO_FacePropAddFlags):
     """Adds a face property that will override face properties set in the mesh"""
     bl_idname = "nwo_face.add_face_property_flags_new"
@@ -5435,6 +5632,24 @@ class NWO_FacePropAddMiscNew(NWO_FacePropAddMisc):
         default=True
     )
 
+class NWO_FacePropAddLightmapNew(NWO_FacePropAddLightmap):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_lightmap_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
+    )
+
+class NWO_FacePropAddMaterialLightingNew(NWO_FacePropAddMaterialLighting):
+    """Adds a face property that will override face properties set in the mesh"""
+    bl_idname = "nwo_face.add_face_property_material_lighting_new"
+    bl_label = "Add"
+
+    new : BoolProperty(
+        default=True
+    )
+
 class NWO_FaceProperties_ListItems(PropertyGroup):
 
     name : StringProperty()
@@ -5456,17 +5671,35 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     precise_position_override : BoolProperty()
     no_lightmap_override : BoolProperty()
     no_pvs_override : BoolProperty()
+    # instances
     instanced_collision_override : BoolProperty()
     instanced_physics_override : BoolProperty()
     cookie_cutter_override : BoolProperty()
+    # lightmap
+    lightmap_additive_transparency_override : BoolProperty()
+    lightmap_resolution_scale_override : BoolProperty()
+    lightmap_type_override : BoolProperty()
+    lightmap_analytical_bounce_modifier_override : BoolProperty()
+    lightmap_general_bounce_modifier_override : BoolProperty()
+    lightmap_translucency_tint_color_override : BoolProperty()
+    lightmap_lighting_from_both_sides_override : BoolProperty()
+    # material lighting
+    material_lighting_attenuation_override : BoolProperty()
+    material_lighting_emissive_focus_override : BoolProperty()
+    material_lighting_emissive_color_override : BoolProperty()
+    material_lighting_emissive_per_unit_override : BoolProperty()
+    material_lighting_emissive_power_override : BoolProperty()
+    material_lighting_emissive_quality_override : BoolProperty()
+    material_lighting_use_shader_gel_override : BoolProperty()
+    material_lighting_bounce_ratio_override : BoolProperty()
 
     face_type : EnumProperty(
         name="Face Type",
         options=set(),
         description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
         items=[ 
-                ('_connected_geometry_face_type_seam_sealer', "Seam Sealer", "Set mesh faces to have the special seam sealer property. Collsion only geometry"),
-                ('_connected_geometry_face_type_sky', "Sky", "Set mesh faces to render the sky"),
+                ('_connected_geometry_face_type_seam_sealer', "Seam Sealer", "Used on faces that will not be seen by the player, however are required to make a mesh manifold or to properly block light.  Seam sealer faces use no lightmap space.  Can also be used on render only meshes"),
+                ('_connected_geometry_face_type_sky', "Sky", "Assigned faces will act as a window into the sky assigned to the level in the .scenario tag"),
                ]
         )
 
@@ -5475,9 +5708,9 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="Sets face mode for this mesh",
         items=[ 
-                ('_connected_geometry_face_mode_render_only', "Render Only", "Faces set to render only"),
+                ('_connected_geometry_face_mode_render_only', "Render Only", "Assigned faces will render in game and properly respect lighting, however they will have no collision or path finding interaction"),
                 ('_connected_geometry_face_mode_collision_only', "Collision Only", "Faces set to collision only"),
-                ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Faces set to sphere collision only. Only objects with physics models can collide with these faces"),
+                ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Assigned faces provide physics (player) collision only in game.  The faces will not visually render on screen or provide raycast (bullet) collision"),
                 ('_connected_geometry_face_mode_shadow_only', "Shadow Only", "Faces set to only cast shadows"),
                 ('_connected_geometry_face_mode_lightmap_only', "Lightmap Only", "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry"),
                 ('_connected_geometry_face_mode_breakable', "Breakable", "Faces set to be breakable"),
@@ -5502,7 +5735,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     face_draw_distance : EnumProperty(
         name="Face Draw Distance",
         options=set(),
-        description="Select the draw distance for faces on this mesh",
+        description="Controls the distance at which the assigned faces will stop rendering",
         default = "_connected_geometry_face_draw_distance_normal",
         items=[ ('_connected_geometry_face_draw_distance_normal', "Normal", ""),
                 ('_connected_geometry_face_draw_distance_detail_mid', "Mid", ""),
@@ -5536,11 +5769,11 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     sky_permutation_index: IntProperty(
         name="Sky Permutation Index",
         options=set(),
-        description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
+        description="The sky permutation index of the sky faces",
         min=0,
     )
 
-    conveyor: BoolProperty(
+    conveyor: BoolProperty( # UNSUPORTED
         name ="Conveyor",
         options=set(),
         description = "Enables the conveyor property",
@@ -5557,35 +5790,35 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     slip_surface: BoolProperty(
         name ="Slip Surface",
         options=set(),
-        description = "Makes faces slippery for units",
+        description = "Assigned faces will be non traversable by the player. Used to ensure the player can not climb a surface regardless of slope angle",
         default = True,
     )
 
     decal_offset: BoolProperty(
         name ="Decal Offset",
         options=set(),
-        description = "Enable to offset these faces so that they appear to be layered on top of another face",
+        description = "Provides a Z bias to the faces that will not be overridden by the plane build.  If placing a face coplanar against another surface, this flag will prevent Z fighting",
         default = True,
     )
 
     group_transparents_by_plane: BoolProperty(
         name ="Group Transparents By Plane",
         options=set(),
-        description = "Enable to group transparent geometry by fitted planes",
+        description = "Determines if objects will sort based on center point or by plane.  Provides more accurate sorting of large alpha'd objects, but is very expensive",
         default = True,
     )
 
     no_shadow: BoolProperty(
         name ="No Shadow",
         options=set(),
-        description = "Enable to prevent faces from casting shadows",
+        description = "Prevents faces from casting shadows",
         default = True,
     )
 
     precise_position: BoolProperty(
         name ="Precise Position",
         options=set(),
-        description = "Enable to prevent faces from being altered during the import process",
+        description = "Provides more accurate render and collision geometry",
         default = True,
     )
 
@@ -5621,7 +5854,211 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
 
     #########
 
+    # LIGHTMAP
 
+    lightmap_additive_transparency: FloatProperty(
+        name="lightmap Additive Transparency",
+        options=set(),
+        description="Overrides the amount and color of light that will pass through the surface. Tint colour will override the alpha blend settings in the shader.",
+        default=0.0,
+        subtype='FACTOR',
+        min=0.0,
+        max=1.0
+    )
+
+    lightmap_ignore_default_resolution_scale: BoolProperty( # SET THIS AUTOMATICALLY
+        name ="Lightmap Resolution Scale",
+        options=set(),
+        description = "",
+        default = False,
+    )
+
+    lightmap_resolution_scale: IntProperty(
+        name="Lightmap Resolution Scale",
+        options=set(),
+        description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces.  The relationships can be tweaked in the .scenario tag",
+        default=3,
+        min=1,
+    )
+
+    lightmap_photon_fidelity : EnumProperty( # DONT SET THIS
+        name="Photon Fidelity",
+        options=set(),
+        description="H4+ only",
+        default = "_connected_material_lightmap_photon_fidelity_normal",
+        items=[ ('_connected_material_lightmap_photon_fidelity_normal', "Normal", ""),
+                ('_connected_material_lightmap_photon_fidelity_medium', "Medium", ""),
+                ('_connected_material_lightmap_photon_fidelity_high', "High", ""),
+                ('_connected_material_lightmap_photon_fidelity_none', "None", ""),
+               ]
+        )
+
+    # Lightmap_Chart_Group: IntProperty(
+    #     name="Lightmap Chart Group",
+    #     options=set(),
+    #     description="",
+    #     default=3,
+    #     min=1,
+    # )
+
+    lightmap_type : EnumProperty(
+        name="Lightmap Type",
+        options=set(),
+        description="Sets how this should be lit while lightmapping",
+        default = "_connected_material_lightmap_type_per_pixel",
+        items=[ ('_connected_material_lightmap_type_per_pixel', "Per Pixel", ""),
+                ('_connected_material_lightmap_type_per_vertex', "Per Vetex", ""),
+               ]
+        )
+
+    lightmap_transparency_override: BoolProperty( # SET THIS AUTOMATICALLY
+        name ="Lightmap Transparency Override",
+        options=set(),
+        description = "",
+        default = False,
+    )
+
+    lightmap_analytical_bounce_modifier: FloatProperty(
+        name="Lightmap Analytical Bounce Modifier",
+        options=set(),
+        description="0 will bounce no energy.  1 will bounce full energy.  Any value greater than 1 will exaggerate the amount of bounced light.  Affects 1st bounce only",
+        default=1,
+        soft_max=1,
+        subtype='FACTOR',
+    )
+    
+    lightmap_general_bounce_modifier: FloatProperty(
+        name="Lightmap General Bounce Modifier",
+        options=set(),
+        description="0 will bounce no energy.  1 will bounce full energy.  Any value greater than 1 will exaggerate the amount of bounced light.  Affects 1st bounce only",
+        default=1,
+        soft_max=1,
+        subtype='FACTOR',
+    )
+
+    lightmap_translucency_tint_color: FloatVectorProperty(
+        name="Lightmap Translucency Tint Color",
+        options=set(),
+        description="",
+        default=(1.0, 1.0, 1.0),
+        subtype='COLOR',
+        min=0.0,
+        max=1.0
+    )
+
+    lightmap_lighting_from_both_sides: BoolProperty(
+        name ="Lightmap Lighting From Both Sides",
+        options=set(),
+        description = "",
+        default = False,
+    )
+
+    # MATERIAL LIGHTING
+
+    material_lighting_attenuation_cutoff: FloatProperty(
+        name="Material Lighting Attenuation Cutoff",
+        options=set(),
+        description="Determines how far light travels before it stops",
+        min=0,
+        default=200,
+    ) 
+
+    lighting_attenuation_enabled: BoolProperty( #SET AUTOMATICALLY
+        name="Use Attenuation",
+        options=set(),
+        description="Enable / Disable use of attenuation",
+        default=True,
+    )
+
+    lighting_frustum_blend: FloatProperty( # DON'T SET
+        name="Frustum blend",
+        options=set(),
+        description="",
+        min=0,
+        default=0,
+    )
+
+    lighting_frustum_cutoff: FloatProperty( # DON'T SET
+        name="Frustum cutoff",
+        options=set(),
+        description="",
+        min=0,
+        default=0,
+    )
+
+    lighting_frustum_falloff: FloatProperty( # DON'T SET
+        name="Frustum Falloff",
+        options=set(),
+        description="",
+        min=0,
+        default=0,
+    )
+
+    material_lighting_attenuation_falloff: FloatProperty(
+        name="Material Lighting Attenuation Falloff",
+        options=set(),
+        description="For use on emissive surfaces. The distance in game units at which the light intensity will begin to fall off until reaching zero at the attenuation cutoff value",
+        min=0,
+        default=100,
+    )
+
+    material_lighting_emissive_focus: FloatProperty(
+        name="Material Lighting Emissive Focus",
+        options=set(),
+        description="Controls the spread of the light emitting from this surface. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
+        min=0,
+        max=1,
+        subtype='FACTOR',
+
+    )
+
+    material_lighting_emissive_color: FloatVectorProperty(
+        name="Material Lighting Emissive Color",
+        options=set(),
+        description="The RGB value of the emitted light",
+        default=(1.0, 1.0, 1.0),
+        subtype='COLOR',
+        min=0.0,
+        max=1.0,
+    )
+
+    material_lighting_emissive_per_unit: BoolProperty(
+        name ="Material Lighting Emissive Per Unit",
+        options=set(),
+        description = "When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
+        default = False,
+    )
+
+    material_lighting_emissive_power: FloatProperty(
+        name="Material Lighting Emissive Power",
+        options=set(),
+        description="The intensity of the emissive surface",
+        min=0,
+        default=2,
+    )
+
+    material_lighting_emissive_quality: FloatProperty(
+        name="Material Lighting Emissive Quality",
+        options=set(),
+        description="Controls the quality of the shadows cast by a complex occluder. For instance, a light casting shadows of tree branches on a wall would require a higher quality to get smooth shadows",
+        default=1,
+        min=0,
+    )
+
+    material_lighting_use_shader_gel: BoolProperty(
+        name ="Material Lighting Use Shader Gel",
+        options=set(),
+        description = "",
+        default = False,
+    )
+
+    material_lighting_bounce_ratio: FloatProperty(
+        name="Material Lighting Bounce Ratio",
+        options=set(),
+        description="0 will bounce no energy. 1 will bounce full energy. Any value greater than 1 will exaggerate the amount of bounced light. Affects 1st bounce only",
+        default=1,
+        min=0,
+    )
 
 class NWO_FacePropertiesGroup(PropertyGroup):
 
@@ -5719,6 +6156,8 @@ classeshalo = (
     NWO_FacePropAddFaceSidesNew,
     NWO_FacePropAddFlagsNew,
     NWO_FacePropAddMiscNew,
+    NWO_FacePropAddLightmapNew,
+    NWO_FacePropAddMaterialLightingNew,
     NWO_MeshTypeStructureDesignReach,
     NWO_MeshTypeStructureDesignH4,
     NWO_MeshMenu,
@@ -5762,6 +6201,8 @@ classeshalo = (
     NWO_FacePropAddFaceSides,
     NWO_FacePropAddFlags,
     NWO_FacePropAddMisc,
+    NWO_FacePropAddLightmap,
+    NWO_FacePropAddMaterialLighting,
     NWO_FacePropAdd,
     NWO_FacePropRemove,
     NWO_FaceMapAdd,

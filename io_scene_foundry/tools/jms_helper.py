@@ -118,8 +118,8 @@ def jms_process(context, report, obj):
                 if not skip_rename:
                     ob.name = f'{prefix}{region}:{permutation}'
                 # Set the mesh regions / permutations up
-                ob.nwo.Region_Name = region
-                ob.nwo.Permutation_Name = permutation
+                ob.nwo.region_name = region
+                ob.nwo.permutation_name = permutation
             
         report({'INFO'},f"Split {mesh_name} by face maps and updated regions & permutations")
         return 1
