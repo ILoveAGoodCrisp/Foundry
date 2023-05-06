@@ -654,7 +654,7 @@ class NWO_ObjectMeshProps(Panel):
         #     else:
         #         col.prop(ob_nwo, "ObjectMesh_Type", text='Mesh Type')
 
-        if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
+        if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob) or CheckType.object_instance(ob)):
             if ob_nwo.region_name_locked != '':
                 col.prop(ob_nwo, 'region_name_locked', text='Region')
             else:
@@ -4654,13 +4654,12 @@ class NWO_FaceMapProps(Panel):
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_parent_id = "NWO_PT_MeshDetailsPanel"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH', 'BLENDER_WORKBENCH_NEXT'}
 
     @classmethod
     def poll(cls, context):
-        obj = context.object
-        engine = context.engine
-        return (obj and obj.type == 'MESH') and (engine in cls.COMPAT_ENGINES)
+        ob = context.object
+        valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
+        return ob and ob.type == 'MESH' and ob.nwo.mesh_type in valid_mesh_types
     
     def draw(self, context):
         layout = self.layout
@@ -5150,27 +5149,27 @@ class NWO_FacePropAdd(Operator):
             if is_object_mode:
                 bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                 if self.options in ('instanced_collision', 'instanced_physics', 'cookie_cutter'):
-                    bpy.ops.mesh.select_all(action='DESELECT')
-                    # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                    # bpy.ops.mesh.select_all(action='DESELECT')
+                    #bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                     # new_mesh = ob.copy()
                     # new_mesh.data = ob.data.copy()
                     # context.scene.collection.objects.link(new_mesh)
                     # set_active_object(new_mesh)
-                    # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                    # bpy.ops.mesh.select_all(action='SELECT')
-                    bpy.ops.object.face_map_add()
-                    bpy.ops.object.face_map_assign()
-                    fm_name = 'default'
-                    match self.options:
-                        case 'instanced_collision':
-                            fm_name = 'bullet_collision'
-                        case 'instanced_physics':
-                            fm_name = 'player_collision'
-                        case 'cookie_cutter':
-                            fm_name = 'cookie_cutter'
+                    #bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    # bpy.ops.object.face_map_add()
+                    # bpy.ops.object.face_map_assign()
+                    # fm_name = 'default'
+                    # match self.options:
+                    #     case 'instanced_collision':
+                    #         fm_name = 'bullet_collision'
+                    #     case 'instanced_physics':
+                    #         fm_name = 'player_collision'
+                    #     case 'cookie_cutter':
+                    #         fm_name = 'cookie_cutter'
                     #set_active_object(ob)
                     #bpy.ops.object.join()
-                    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                    # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                     
                 else:
                     if len(ob.face_maps) < 1:

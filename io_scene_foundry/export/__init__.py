@@ -218,7 +218,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         default=False,
     )
     import_to_game: BoolProperty(
-        name='Import to Game',
+        name='Create Tags',
         description='',
         default=True,
     )

@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2022 Generalkidd & Crisp
+# Copyright (c) 2023 Generalkidd & Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,8 +30,6 @@ import os
 from ..utils.nwo_utils import (
     get_ek_path,
     get_tags_path,
-    get_tool_type,
-    not_bungie_game,
     run_tool,
 )
 

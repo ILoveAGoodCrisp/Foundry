@@ -1142,8 +1142,8 @@ class NWO_HaloExportSettings(Panel):
         col = layout.column(heading="Build")
         col.prop(scene_nwo_export, "export_sidecar_xml", text='Sidecar')
         col.separator()
-        col = layout.column(heading="Import")
-        col.prop(scene_nwo_export, "import_to_game", text='To Game')
+        col = layout.column(heading="Create")
+        col.prop(scene_nwo_export, "import_to_game", text='Tags')
         if scene_nwo_export.import_to_game and not not_bungie_game():
             col.prop(scene_nwo_export, "import_draft", text='As draft')
         col.separator()

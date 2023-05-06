@@ -307,8 +307,9 @@ def face_prop_to_mesh_prop(ob):
 
 def apply_face_properties(context):
     objects = []
+    valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
     for ob in context.view_layer.objects:
-        if CheckType.mesh(ob):
+        if CheckType.mesh(ob) and ob.nwo.mesh_type in valid_mesh_types:
             objects.append(ob)
     for ob in objects:
         if is_linked(ob) and ob.data.nwo.master_instance != ob:
