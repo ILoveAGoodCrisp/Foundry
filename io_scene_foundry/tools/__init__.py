@@ -42,6 +42,7 @@ from bpy.props import (
         PointerProperty,
         FloatProperty,
         )
+from io_scene_foundry.icons import get_icon_id
 
 from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_data_path, get_tags_path, managed_blam_active, not_bungie_game, nwo_asset_type, valid_nwo_asset
 from bpy_extras.object_utils import AddObjectHelper
@@ -320,7 +321,7 @@ class NWO_HaloLauncher(Panel):
         row = col.row(align=False)
         row.scale_y = 1.25
         row.operator('nwo.launch_data')
-        row.operator('nwo.launch_tags')
+        row.operator('nwo.launch_tags', icon_value=get_icon_id("tags"))
         row = col.row(align=False)
         row.scale_y = 1.5
         row.operator('nwo.launch_foundation')

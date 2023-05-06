@@ -334,7 +334,7 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
             from .build_sidecar import export_sidecar
             export_sidecar(self, context, report, asset_path, halo_objects, model_armature, lod_count, regions_dict, global_materials_dict, **keywords)
             reports.append('Built ' + str.title(sidecar_type) + ' Sidecar')
-        from .import_sidecar import import_sidecar
+        from .export_tag import import_sidecar
         if import_to_game:
             import_sidecar(self, context, report, **keywords)
             reports.append('Tag Export Processed')

@@ -48,12 +48,14 @@ from . import tools
 from . import ui
 from . import export
 from . import managed_blam
+from . import icons
 
 modules = [
     tools,
     ui,
     export,
-    managed_blam
+    managed_blam,
+    icons,
 ]
 
 class HREKLocationPath(Operator):
