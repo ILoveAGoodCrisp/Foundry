@@ -4425,13 +4425,14 @@ class NWO_FaceMapProps(Panel):
                 if item.cookie_cutter_override:
                     op_cookie_cutter = False
                     break
-
+            
+            row = col.grid_flow()
             if op_bullet_collision:
-                col.operator("nwo_face.add_face_property_new", text="Add Bullet Collision").options = "instanced_collision"
+                row.operator("nwo_face.add_face_property_new", text="Projectile Collision", icon='ADD').options = "instanced_collision"
             if op_player_collision:
-                col.operator("nwo_face.add_face_property_new", text="Add Player Collision").options = "instanced_physics"
+                row.operator("nwo_face.add_face_property_new", text="Sphere Collision", icon='ADD').options = "instanced_physics"
             if op_cookie_cutter:
-                col.operator("nwo_face.add_face_property_new", text="Add Cookie Cutter").options = "cookie_cutter"
+                row.operator("nwo_face.add_face_property_new", text="Cookie Cutter", icon='ADD').options = "cookie_cutter"
 
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
@@ -4485,9 +4486,9 @@ class NWO_FaceMapProps(Panel):
 
                 if (is_poop and (item.instanced_collision_override or item.instanced_physics_override or item.cookie_cutter_override)):
                     if item.instanced_collision_override:
-                        col.label(text="Current FaceMap is used for this mesh's bullet collision")
+                        col.label(text="Current FaceMap is used for this mesh's projectile collision")
                     if item.instanced_physics_override:
-                        col.label(text="Current FaceMap is used for this mesh's player collision")
+                        col.label(text="Current FaceMap is used for this mesh's sphere collision")
                     if item.cookie_cutter_override:
                         col.label(text="Current FaceMap is used for this mesh's cookie cutter")
 
@@ -5037,9 +5038,9 @@ class NWO_FacePropAdd(Operator):
                     fm_name = 'texcoord_usage'
                 # instances
                 case 'instanced_collision':
-                    fm_name = 'bullet_collision'
+                    fm_name = 'projectile_collision'
                 case 'instanced_physics':
-                    fm_name = 'player_collision'
+                    fm_name = 'sphere_collision'
                 case 'cookie_cutter':
                     fm_name = 'cookie_cutter'
                 # lightmap
@@ -5117,8 +5118,8 @@ class NWO_FacePropRemove(Operator):
         ('precise_position', 'Precise Position', ''),
         ('no_lightmap', 'No Lightmap', ''),
         ('no_pvs', 'No PVS', ''),
-        ('instanced_collision', 'Bullet Collision', ''),
-        ('instanced_physics', 'Player Collision', ''),
+        ('instanced_collision', 'Projectile Collision', ''),
+        ('instanced_physics', 'Sphere Collision', ''),
         ('cookie_cutter', 'Cookie Cutter', ''),
         ('lightmap_additive_transparency', 'Transparency', ''),
         ('lightmap_resolution_scale', 'Resolution Scale', ''),
@@ -5526,11 +5527,11 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     # INSTANCED GEOMETRY ONLY
 
     instanced_collision : BoolProperty(
-        name="Bullet Collision",
+        name="Projectile Collision",
         default=True,
     )
     instanced_physics : BoolProperty(
-        name="Player Collision",
+        name="Sphere Collision",
         default=True,
     )
 
@@ -5752,10 +5753,10 @@ class NWO_FacePropertiesGroup(PropertyGroup):
     # INSTANCED GEOMETRY ONLY
 
     instanced_collision : BoolProperty(
-        name="Bullet Collision",
+        name="Projectile Collision",
     )
     instanced_physics : BoolProperty(
-        name="Player Collision",
+        name="Sphere Collision",
     )
 
     cookie_cutter : BoolProperty(
