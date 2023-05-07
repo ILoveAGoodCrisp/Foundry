@@ -524,533 +524,393 @@ class NWO_ObjectProps(Panel):
     
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        
+        5
         ob = context.object
         ob_nwo = ob.nwo
+        h4 = not_bungie_game()
 
         col = flow.column()
-
+        row = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True)
+        row.scale_x = 1.3
+        row.scale_y = 1.3
         if ob.type == 'LIGHT':
-            col.prop(ob_nwo, "Object_Type_Light", text='Object Type')
+            row.prop(ob_nwo, "object_type_light", text='', expand=True, )
+            row.label(text="See the Object Data Properties panel for Halo Light Properties")
         elif ob.type == 'EMPTY':
-                col.prop(ob_nwo, "object_type_no_mesh", text='Object Type')
+                row.prop(ob_nwo, "object_type_no_mesh", text='', expand=True)
+        elif ob.type == 'CAMERA':
+            row.prop(ob_nwo, "object_type_camera", text='', expand=True)
         else:
-            row = col.row()
-            row.prop(ob_nwo, "object_type_all", text='Object Type', expand=True)
+            row.prop(ob_nwo, "object_type_all", text='', expand=True)
 
-        if poll_ui(('SCENARIO')):
-            sub = col.row()
-            if is_design(ob):
-                if ob_nwo.bsp_name_locked != '':
-                    sub.prop(ob_nwo, 'bsp_name_locked', text='Design Group')
-                else:
-                    sub.prop(ob_nwo, 'bsp_name', text='Design Group')
-            else:
-                if ob_nwo.bsp_name_locked != '':
-                    sub.prop(ob_nwo, 'bsp_name_locked', text='BSP')
-                else:
-                    sub.prop(ob_nwo, 'bsp_name', text='BSP')
-
-        if poll_ui(('MODEL', 'SCENARIO')):
-            if ob_nwo.permutation_name_locked != '':
-                col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
-            else:
-                col.prop(ob_nwo, 'permutation_name', text='Permutation')
-
-        if CheckType.frame(ob) and not_bungie_game():
+        if CheckType.frame(ob) and h4:
             col.prop(ob_nwo, 'is_pca')
 
-#MESH PROPERTIES
-class NWO_ObjectMeshProps(Panel):
-    bl_label = "Mesh Properties"
-    bl_idname = "NWO_PT_MeshDetailsPanel"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_parent_id = "NWO_PT_ObjectDetailsPanel"
+        if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
+            # SPECIFIC MESH PROPS
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-
-        return is_mesh(ob)
-
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
-        ob = context.active_object
-        ob_nwo = ob.nwo
-        h4 = not_bungie_game()
-
-        col = flow.column()
-        row = col.row()
-        row.scale_y = 1.25
-        mesh_type_name = 'INVALID'
-        mesh_type_icon = 'instance'
-        if poll_ui('DECORATOR SET'):
-            mesh_type_name = 'DECORATOR SET'
-        elif poll_ui('SCENARIO'):
-            if h4:
-                mesh_type_name = 'Structure Sky'
-                mesh_type_icon = 'structure'
-            else:
-                mesh_type_name = 'Structure'
-                mesh_type_icon = 'structure'
-        else:
-            mesh_type_name = 'Render'
-            mesh_type_icon = 'render_geometry'
-            
-        if poll_ui('MODEL'):
-            if CheckType.collision(ob):
-                mesh_type_name = 'Collision'
-                mesh_type_icon = 'collider'
-            elif CheckType.physics(ob):
-                mesh_type_name = 'Physics'
-                mesh_type_icon = 'physics'
-            elif CheckType.object_instance(ob) and not h4:
-                mesh_type_name = 'Flair'
-                mesh_type_icon = 'instance'
-        elif poll_ui('SCENARIO'):
-            if CheckType.poop(ob):
-                mesh_type_name = 'Instance'
-                mesh_type_icon = 'instance'
-            elif CheckType.cookie_cutter(ob):
-                mesh_type_name = 'Cookie Cutter'
-                mesh_type_icon = 'cookie_cutter'
-            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' and h4:
-                mesh_type_name = 'Collider'
-            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_portal':
-                mesh_type_name = 'Portal'
-                mesh_type_icon = 'portal'
-            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_seam':
-                mesh_type_name = 'Seam'
-                mesh_type_icon = 'seam'
-            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
-                mesh_type_name = 'Volume'
-                mesh_type_icon = 'crate'
-
-        
-        elif poll_ui('PREFAB'):
-            if CheckType.poop(ob):
-                mesh_type_name = 'Instance'
-            elif CheckType.cookie_cutter(ob):
-                mesh_type_name = 'Cookie Cutter'
-            elif CheckType.collision(ob) and h4:
-                mesh_type_name = 'Collider'
-        row.emboss = 'NORMAL'
-        row.menu(NWO_MeshMenu.bl_idname, text=mesh_type_name, icon_value=get_icon_id(mesh_type_icon))
-
-        col.separator()
-
-        # if not_bungie_game():
-        #     if object_prefix(context.active_object, special_prefixes):
-        #         col.prop(ob_nwo, "ObjectMesh_Type_Locked_H4", text='Mesh Type')
-        #     else:
-        #         col.prop(ob_nwo, "ObjectMesh_Type_H4", text='Mesh Type')
-        # else:
-        #     if object_prefix(context.active_object, special_prefixes):
-        #         col.prop(ob_nwo, "ObjectMesh_Type_Locked", text='Mesh Type')
-        #     else:
-        #         col.prop(ob_nwo, "ObjectMesh_Type", text='Mesh Type')
-
-        if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob) or CheckType.object_instance(ob)):
-            if ob_nwo.region_name_locked != '':
-                col.prop(ob_nwo, 'region_name_locked', text='Region')
-            else:
-                col.prop(ob_nwo, "region_name", text='Region')
-            # else:
-            #     col.prop(ob_nwo, "Region_Name", text='Region')
-
-        if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
-            col.prop(ob_nwo, "face_global_material", text='Global Material')
-
-        if ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
+            col = flow.column()
             row = col.row()
             row.scale_y = 1.25
-            volume_type_name = 'Soft Ceiling'
-            volume_type_icon = 'Soft Ceiling'
-            if ob_nwo.volume_type == '_connected_geometry_volume_type_soft_ceiling':
-                volume_type_name = 'Soft Ceiling'
-                volume_type_icon = 'soft_ceiling'
-            elif ob_nwo.volume_type == '_connected_geometry_volume_type_soft_kill':
-                volume_type_name = 'Soft Kill'
-                volume_type_icon = 'soft_kill'
-            elif ob_nwo.volume_type == '_connected_geometry_volume_type_slip_surface':
-                volume_type_name = 'Slip Surface'
-                volume_type_icon = 'slip_surface'
-            elif ob_nwo.volume_type == '_connected_geometry_volume_type_water_physics':
-                volume_type_name = 'Water Physics'
-                volume_type_icon = 'water_physics'
-            elif ob_nwo.volume_type == '_connected_geometry_volume_type_lightmap_exclude':
-                volume_type_name = 'Lightmap Exclusion'
-                volume_type_icon = 'lightmap_exclude'
-            elif ob_nwo.volume_type == '_connected_geometry_volume_type_lightmap_region':
-                volume_type_name = 'Lightmap Region'
-                volume_type_icon = 'lightmap_region'
-            elif ob_nwo.volume_type == '_connected_geometry_volume_type_streaming':
-                volume_type_name = 'Streaming'
-                volume_type_icon = 'streaming'
-
-            row.menu(NWO_VolumeMenu.bl_idname, text=volume_type_name, icon_value=get_icon_id(volume_type_icon))
-
-            if ob_nwo.volume_type == '_connected_geometry_volume_type_water_physics':
-                if poll_ui(('SCENARIO')):
-                    col.prop(ob_nwo, "water_volume_depth", text='Water Volume Depth')
-                    col.prop(ob_nwo, "water_volume_flow_direction", text='Flow Direction')
-                    col.prop(ob_nwo, "water_volume_flow_velocity", text='Flow Velocity')
-                    col.prop(ob_nwo, "water_volume_fog_color", text='Underwater Fog Color')
-                    col.prop(ob_nwo, "water_volume_fog_murkiness", text='Underwater Fog Murkiness')
+            mesh_type_name = 'INVALID'
+            mesh_type_icon = 'instance'
+            if poll_ui('DECORATOR SET'):
+                mesh_type_name = 'DECORATOR SET'
+            elif poll_ui('SCENARIO'):
+                if h4:
+                    mesh_type_name = 'Structure Sky'
+                    mesh_type_icon = 'structure'
                 else:
-                    col.label(text="Water Physics mesh type only valid for Scenario exports", icon='ERROR')
-
-        elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
-        
-            # if not_bungie_game():
-            #     col.prop(ob_nwo, "Poop_Collision_Type")
-
-            col.prop(ob_nwo, "poop_lighting_override", text='Lighting Policy')
-            
-            if not_bungie_game():
-                col.prop(ob_nwo, "poop_lightmap_resolution_scale")
-                
-            col.prop(ob_nwo, "poop_pathfinding_override", text='Pathfinding Policy')
-
-            col.prop(ob_nwo, "poop_imposter_policy", text='Imposter Policy')
-            if ob_nwo.poop_imposter_policy != '_connected_poop_instance_imposter_policy_never':
-                sub = col.row(heading="Imposter Transition")
-                sub.prop(ob_nwo, 'poop_imposter_transition_distance_auto', text='Automatic')
-                if not ob_nwo.poop_imposter_transition_distance_auto:
-                    sub.prop(ob_nwo, 'poop_imposter_transition_distance', text='Distance')
-                if not_bungie_game():
-                    col.prop(ob_nwo, 'poop_imposter_brightness')
-                # col.prop(ob_nwo, "Poop_Imposter_Fade_Range_Start", text='Fade In Start')
-                # col.prop(ob_nwo, "Poop_Imposter_Fade_Range_End", text='Fade In End')
-            #col.prop(ob_nwo, "Poop_Decomposition_Hulls", text='Decomposition Hulls') commented out so it can be set automatically. 
-
-            # col.separator()
-
-            # col.prop(ob_nwo, "Poop_Predominant_Shader_Name", text='Predominant Shader Name')
-
-            if not_bungie_game():
-                col.prop(ob_nwo, 'poop_streaming_priority')
-                col.prop(ob_nwo, 'poop_cinematic_properties')
-
-            col.separator()
-
-            col = layout.column(heading="Flags")
-            sub = col.column(align=True)
-
-            sub.prop(ob_nwo, "poop_render_only", text='Render Only')
-
-            sub.prop(ob_nwo, "poop_chops_portals", text='Chops Portals')
-            sub.prop(ob_nwo, "poop_does_not_block_aoe", text='Does Not Block AOE')
-            sub.prop(ob_nwo, "poop_excluded_from_lightprobe", text='Excluded From Lightprobe')
-            sub.prop(ob_nwo, "poop_decal_spacing", text='Decal Spacing')
-            if not_bungie_game():
-                sub.prop(ob_nwo, "poop_remove_from_shadow_geometry")
-                sub.prop(ob_nwo, "poop_disallow_lighting_samples",)
-                sub.prop(ob_nwo, "poop_rain_occluder")
-
-        elif CheckType.portal(ob):
-            row = col.row()
-            row.prop(ob_nwo, "portal_type", text='Portal Type', expand=True)
-
-            col.separator()
-
-            col = layout.column(heading="Flags")
-            sub = col.column(align=True)
-
-            sub.prop(ob_nwo, "portal_ai_deafening", text='AI Deafening')
-            sub.prop(ob_nwo, "portal_blocks_sounds", text='Blocks Sounds')
-            sub.prop(ob_nwo, "portal_is_door", text='Is Door')
-
-        elif CheckType.fog(ob):
-            if poll_ui(('SCENARIO')):
-                col.prop(ob_nwo, "fog_name", text='Fog Name')
-                row = col.row()
-                row.prop(ob_nwo, "fog_appearance_tag", text='Fog Appearance Tag')
-                row.operator('nwo.fog_path')
-                col.prop(ob_nwo, "fog_volume_depth", text='Fog Volume Depth')
+                    mesh_type_name = 'Structure'
+                    mesh_type_icon = 'structure'
             else:
-                col.label(text="Fog mesh type only valid for Scenario exports", icon='ERROR')
-
-        elif CheckType.physics(ob):
-            col.prop(ob_nwo, "mesh_primitive_type", text='Primitive Type')
-
-class NWO_ObjectMeshMaterialLightingProps(Panel):
-    bl_label = "Lighting Properties"
-    bl_idname = "NWO_PT_MeshMaterialLightingDetailsPanel"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_MeshFaceDetailsPanel"
-
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-        ob_nwo = ob.nwo
-
-        if not poll_ui(('SCENARIO', 'PREFAB')):
-            return False
-
-    def draw_header(self, context):
-        ob = context.object
-        ob_nwo = ob.nwo
-        self.layout.prop(ob_nwo, "material_lighting_enabled", text='')
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
-        ob = context.object
-        ob_nwo = ob.nwo
-
-        col = flow.column()
-
-        layout.enabled = ob_nwo.Material_Lighting_Enabled
-        
-        col.prop(ob_nwo, "material_lighting_emissive_color", text='Emissive Color')
-        col.prop(ob_nwo, "material_lighting_emissive_power", text='Emissive Power')
-        col.prop(ob_nwo, "material_lighting_emissive_focus", text='Emissive Focus')
-        col.prop(ob_nwo, "material_lighting_emissive_quality", text='Emissive Quality')
-
-        col.separator()
-        
-        if not_bungie_game():
-            col.prop(ob_nwo, "lighting_frustum_blend")
-            col.prop(ob_nwo, "lighting_frustum_cutoff")
-            col.prop(ob_nwo, "lighting_frustum_falloff")
-
-        col.separator()
-
-        col.prop(ob_nwo, "material_lighting_bounce_ratio", text='Bounce Ratio')
-
-        col.separator()
-
-        if not_bungie_game():
-            col.prop(ob_nwo, "lighting_attenuation_enabled")
-        if ob_nwo.lighting_attenuation_enabled or not not_bungie_game():
-            col.prop(ob_nwo, "material_lighting_attenuation_falloff", text='Attenuation Falloff')
-            col.prop(ob_nwo, "material_lighting_attenuation_cutoff", text='Attenuation Cutoff')
-        
-        col.separator()
-
-        col = layout.column(heading="Flags")
-        sub = col.column(align=True)
-        sub.prop(ob_nwo, "material_lighting_emissive_per_unit", text='Emissive Per Unit')
-        sub.prop(ob_nwo, "material_lighting_use_shader_gel", text='Use Shader Gel')
-
-class NWO_ObjectMeshLightmapProps(Panel):
-    bl_label = "Lightmap Properties"
-    bl_idname = "NWO_PT_MeshLightmapDetailsPanel"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_MeshFaceDetailsPanel"
-
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-        ob_nwo = ob.nwo
-
-        if not poll_ui(('SCENARIO', 'PREFAB')):
-            return False
-
-    def draw_header(self, context):
-        ob = context.object
-        ob_nwo = ob.nwo
-        self.layout.prop(ob_nwo, "lightmap_settings_enabled", text='')
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
-        ob = context.object
-        ob_nwo = ob.nwo
-
-        col = flow.column()
-
-        layout.enabled = ob_nwo.Lightmap_Settings_Enabled
-
-        col.prop(ob_nwo, "lightmap_type", text='Lightmap Type')
-
-        col.separator()
-
-        col.prop(ob_nwo, "lightmap_translucency_tint_color", text='Translucency Tint Color')
-        col.prop(ob_nwo, "lightmap_additive_transparency", text='Additive Transparency')
-        
-        col.separator()
-
-        col.prop(ob_nwo, "lightmap_resolution_scale", text='Resolution Scale')
-        col.prop(ob_nwo, "lightmap_photon_fidelity")
-
-        # col.prop(ob_nwo, "Lightmap_Chart_Group", text='Chart Group')
-
-        # col.separator()
-
-        # col.prop(ob_nwo, "Lightmap_Analytical_Bounce_Modifier", text='Analytical Bounce Modifier')
-        # col.prop(ob_nwo, "Lightmap_General_Bounce_Modifier", text='General Bounce Modifier')
-        
-        col.separator()
-
-        col = layout.column(heading="Flags")
-        sub = col.column(align=True)
-        sub.prop(ob_nwo, "lightmap_lighting_from_both_sides", text='Lighting From Both Sides')
-        sub.prop(ob_nwo, "lightmap_transparency_override", text='Transparency Override')
-        
-
-# MARKER PROPERTIES
-class NWO_ObjectMarkerProps(Panel):
-    bl_label = "Marker Properties"
-    bl_idname = "NWO_PT_MarkerDetailsPanel"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_parent_id = "NWO_PT_ObjectDetailsPanel"
-
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-
-        return is_marker(ob)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-
-        ob = context.object
-        ob_nwo = ob.nwo
-
-        col = flow.column()
-        marker_type_name = 'INVALID'
-        marker_type_icon = 'airprobe'
-        h4 = not_bungie_game()
-        if poll_ui('SCENARIO'):
-            marker_type_name = 'Structure'
-            marker_type_icon = 'marker'
-        else:
-            marker_type_name = 'Model'
-            marker_type_icon = 'marker'
-            
-        if poll_ui('MODEL'):
-            if ob_nwo.marker_type == '_connected_geometry_marker_type_hint':
-                marker_type_name = 'Hint'
-                marker_type_icon = 'hint'
-            elif ob_nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
-                marker_type_name = 'Pathfinding Sphere'
-                marker_type_icon = 'pathfinding_sphere'
-            elif ob_nwo.marker_type == '_connected_geometry_marker_type_physics_constraint':
-                marker_type_name = 'Physics Constraint'
-                marker_type_icon = 'physics_constraint'
-            elif ob_nwo.marker_type == '_connected_geometry_marker_type_target':
-                marker_type_name = 'Target'
-                marker_type_icon = 'target'
-        elif poll_ui('SCENARIO'):
-            if ob_nwo.marker_type == '_connected_geometry_marker_type_game_instance':
-                marker_type_name = 'Game Object'
-                marker_type_icon = 'game_object'
-            elif ob_nwo.marker_type == '_connected_geometry_marker_type_water_volume_flow':
-                marker_type_name = 'Water Volume Flow'
-                marker_type_icon = 'water_volume_flow'
-            elif ob_nwo.marker_type == '_connected_geometry_marker_type_airprobe' and h4:
-                marker_type_name = 'Airprobe'
-                marker_type_icon = 'airprobe'
-            elif ob_nwo.marker_type == '_connected_geometry_marker_type_envfx' and h4:
-                marker_type_name = 'Effect'
-                marker_type_icon = 'environment_effect'
-            elif ob_nwo.marker_type == '_connected_geometry_marker_type_lightCone' and h4:
-                marker_type_name = 'Light Cone'
-                marker_type_icon = 'light_cone'
-
-        
-        col.emboss = 'NORMAL'
-        col.menu(NWO_MarkerMenu.bl_idname, text=marker_type_name, icon_value=get_icon_id(marker_type_icon))
-
-        if CheckType.model(ob):
-            col.prop(ob_nwo, "marker_group_name", text='Marker Group')
-            if poll_ui(('MODEL', 'SKY')):
-                col.prop(ob_nwo, "marker_velocity", text='Marker Velocity')
-                sub = col.row(align=True)
-                if not ob_nwo.marker_all_regions:
-                    if ob_nwo.region_name_locked != '':
-                        col.prop(ob_nwo, 'region_name_locked', text='Region')
-                    else:
-                        col.prop(ob_nwo, "region_name", text='Region')
-                sub.prop(ob_nwo, 'marker_all_regions', text='All Regions')
-
-        elif CheckType.game_instance(ob):
-            row = col.row()
-            row.prop(ob_nwo, "marker_game_instance_tag_name", text='Tag Path')
-            row.operator('nwo.game_instance_path')
-            col.prop(ob_nwo, "marker_game_instance_tag_variant_name", text='Tag Variant')
-            if not_bungie_game():
-                col.prop(ob_nwo, 'marker_game_instance_run_scripts') 
+                mesh_type_name = 'Render'
+                mesh_type_icon = 'render_geometry'
                 
-        elif CheckType.hint(ob) and not_bungie_game():
-            col.prop(ob_nwo, "marker_group_name", text='Marker Group')
-            col.prop(ob_nwo, 'marker_hint_length')
+            if poll_ui('MODEL'):
+                if CheckType.collision(ob):
+                    mesh_type_name = 'Collision'
+                    mesh_type_icon = 'collider'
+                elif CheckType.physics(ob):
+                    mesh_type_name = 'Physics'
+                    mesh_type_icon = 'physics'
+                elif CheckType.object_instance(ob) and not h4:
+                    mesh_type_name = 'Flair'
+                    mesh_type_icon = 'instance'
+            elif poll_ui('SCENARIO'):
+                if CheckType.poop(ob):
+                    mesh_type_name = 'Instance'
+                    mesh_type_icon = 'instance'
+                elif CheckType.cookie_cutter(ob):
+                    mesh_type_name = 'Cookie Cutter'
+                    mesh_type_icon = 'cookie_cutter'
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' and h4:
+                    mesh_type_name = 'Collider'
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_portal':
+                    mesh_type_name = 'Portal'
+                    mesh_type_icon = 'portal'
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_seam':
+                    mesh_type_name = 'Seam'
+                    mesh_type_icon = 'seam'
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
+                    mesh_type_name = 'Volume'
+                    mesh_type_icon = 'crate'
 
-        elif CheckType.pathfinding_sphere(ob):
-            col = layout.column(heading="Flags")
-            sub = col.column(align=True)
-            sub.prop(ob_nwo, "marker_pathfinding_sphere_vehicle", text='Vehicle Only')
-            sub.prop(ob_nwo, "pathfinding_sphere_remains_when_open", text='Remains When Open')
-            sub.prop(ob_nwo, "pathfinding_sphere_with_sectors", text='With Sectors')
-            if ob.type != 'MESH':
-                sub.prop(ob_nwo, "marker_sphere_radius")
+            elif poll_ui('PREFAB'):
+                if CheckType.poop(ob):
+                    mesh_type_name = 'Instance'
+                elif CheckType.cookie_cutter(ob):
+                    mesh_type_name = 'Cookie Cutter'
+                elif CheckType.collision(ob) and h4:
+                    mesh_type_name = 'Collider'
 
-        elif CheckType.physics_constraint(ob):
-            col.prop(ob_nwo, "physics_constraint_parent", text='Constraint Parent')
-            col.prop(ob_nwo, "physics_constraint_child", text='Constraint Child')
+            row.emboss = 'NORMAL'
+            row.menu(NWO_MeshMenu.bl_idname, text=mesh_type_name, icon_value=get_icon_id(mesh_type_icon))
 
-            sus = col.row(align=True)
+            col.separator()
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+            col = flow.column()
+            col.use_property_split = True
 
-            sus.prop(ob_nwo, "physics_constraint_type", text='Constraint Type', expand=True)
-            sus.prop(ob_nwo, 'physics_constraint_uses_limits', text='Uses Limits')
+            if poll_ui(('MODEL', 'SCENARIO')):
+                if poll_ui('MODEL') and ob_nwo.mesh_type == '_connected_geometry_mesh_type_object_instance':
+                    pass
+                elif ob_nwo.permutation_name_locked != '':
+                    col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
+                else:
+                    col.prop(ob_nwo, 'permutation_name', text='Permutation')
 
-            if ob_nwo.Physics_Constraint_Uses_Limits:
-                if ob_nwo.physics_constraint_type == '_connected_geometry_marker_type_physics_hinge_constraint':
-                    col.prop(ob_nwo, "hinge_constraint_minimum", text='Minimum')
-                    col.prop(ob_nwo, "hinge_constraint_maximum", text='Maximum')
+            if poll_ui('SCENARIO'):
+                if is_design(ob):
+                    if ob_nwo.bsp_name_locked != '':
+                        col.prop(ob_nwo, 'bsp_name_locked', text='Design Group')
+                    else:
+                        col.prop(ob_nwo, 'bsp_name', text='Design Group')
+                else:
+                    if ob_nwo.bsp_name_locked != '':
+                        col.prop(ob_nwo, 'bsp_name_locked', text='BSP')
+                    else:
+                        col.prop(ob_nwo, 'bsp_name', text='BSP')
 
-                elif ob_nwo.physics_constraint_type == '_connected_geometry_marker_type_physics_socket_constraint':
-                    col.prop(ob_nwo, "cone_angle", text='Cone Angle')
+            if poll_ui(('MODEL', 'SKY')) and (ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_object_instance'):
+                if ob_nwo.region_name_locked != '':
+                    col.prop(ob_nwo, 'region_name_locked', text='Region')
+                else:
+                    row = col.row(align=True)
+                    row.prop(ob_nwo, "region_name", text='Region')
+                    if ob.nwo_face.face_props and ob_nwo.mesh_type in ('_connected_geometry_mesh_type_object_default', '_connected_geometry_mesh_type_collision'):
+                        for prop in ob.nwo_face.face_props:
+                            if prop.region_name_override:
+                                row.label(text='*')
+                                break
 
-                    col.prop(ob_nwo, "plane_constraint_minimum", text='Plane Minimum')
-                    col.prop(ob_nwo, "plane_constraint_maximum", text='Plane Maximum')
+            if poll_ui(('MODEL', 'SCENARIO')):
+                if ob_nwo.mesh_type not in ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_default'):
+                    pass
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and (poll_ui('MODEL') or h4):
+                    pass
+                else:
+                    row.prop(ob_nwo, "face_global_material", text='Global Material')
+                    if ob.nwo_face.face_props and ob_nwo.mesh_type in ('_connected_geometry_mesh_type_object_default', '_connected_geometry_mesh_type_collision'):
+                        for prop in ob.nwo_face.face_props:
+                            if prop.face_global_material_override:
+                                row.label(text='*')
+                                break
+
+            if ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
+                row = col.row()
+                row.scale_y = 1.25
+                volume_type_name = 'Soft Ceiling'
+                volume_type_icon = 'Soft Ceiling'
+                if ob_nwo.volume_type == '_connected_geometry_volume_type_soft_ceiling':
+                    volume_type_name = 'Soft Ceiling'
+                    volume_type_icon = 'soft_ceiling'
+                elif ob_nwo.volume_type == '_connected_geometry_volume_type_soft_kill':
+                    volume_type_name = 'Soft Kill'
+                    volume_type_icon = 'soft_kill'
+                elif ob_nwo.volume_type == '_connected_geometry_volume_type_slip_surface':
+                    volume_type_name = 'Slip Surface'
+                    volume_type_icon = 'slip_surface'
+                elif ob_nwo.volume_type == '_connected_geometry_volume_type_water_physics':
+                    volume_type_name = 'Water Physics'
+                    volume_type_icon = 'water_physics'
+                elif ob_nwo.volume_type == '_connected_geometry_volume_type_lightmap_exclude':
+                    volume_type_name = 'Lightmap Exclusion'
+                    volume_type_icon = 'lightmap_exclude'
+                elif ob_nwo.volume_type == '_connected_geometry_volume_type_lightmap_region':
+                    volume_type_name = 'Lightmap Region'
+                    volume_type_icon = 'lightmap_region'
+                elif ob_nwo.volume_type == '_connected_geometry_volume_type_streaming':
+                    volume_type_name = 'Streaming'
+                    volume_type_icon = 'streaming'
+
+                row.menu(NWO_VolumeMenu.bl_idname, text=volume_type_name, icon_value=get_icon_id(volume_type_icon))
+
+                if ob_nwo.volume_type == '_connected_geometry_volume_type_water_physics':
+                    if poll_ui(('SCENARIO')):
+                        col.prop(ob_nwo, "water_volume_depth", text='Water Volume Depth')
+                        col.prop(ob_nwo, "water_volume_flow_direction", text='Flow Direction')
+                        col.prop(ob_nwo, "water_volume_flow_velocity", text='Flow Velocity')
+                        col.prop(ob_nwo, "water_volume_fog_color", text='Underwater Fog Color')
+                        col.prop(ob_nwo, "water_volume_fog_murkiness", text='Underwater Fog Murkiness')
+                    else:
+                        col.label(text="Water Physics mesh type only valid for Scenario exports", icon='ERROR')
+
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
+
+                col.prop(ob_nwo, "poop_lighting_override", text='Lighting Policy')
+                
+                if h4:
+                    col.prop(ob_nwo, "poop_lightmap_resolution_scale")
                     
-                    col.prop(ob_nwo, "twist_constraint_start", text='Twist Start')
-                    col.prop(ob_nwo, "twist_constraint_end", text='Twist End')
+                col.prop(ob_nwo, "poop_pathfinding_override", text='Pathfinding Policy')
 
-        elif CheckType.target(ob):
-            col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+                col.prop(ob_nwo, "poop_imposter_policy", text='Imposter Policy')
+                if ob_nwo.poop_imposter_policy != '_connected_poop_instance_imposter_policy_never':
+                    sub = col.row(heading="Imposter Transition")
+                    sub.prop(ob_nwo, 'poop_imposter_transition_distance_auto', text='Automatic')
+                    if not ob_nwo.poop_imposter_transition_distance_auto:
+                        sub.prop(ob_nwo, 'poop_imposter_transition_distance', text='Distance')
+                    if h4:
+                        col.prop(ob_nwo, 'poop_imposter_brightness')
 
-        elif CheckType.airprobe(ob) and not_bungie_game():
-            col.prop(ob_nwo, "marker_group_name", text='Air Probe Group')
+                if h4:
+                    col.prop(ob_nwo, 'poop_streaming_priority')
+                    col.prop(ob_nwo, 'poop_cinematic_properties')
 
-        elif CheckType.envfx(ob) and not_bungie_game():
+                col.separator()
+
+                col = layout.column(heading="Flags")
+                sub = col.column(align=True)
+
+                sub.prop(ob_nwo, "poop_render_only", text='Render Only')
+
+                sub.prop(ob_nwo, "poop_chops_portals", text='Chops Portals')
+                sub.prop(ob_nwo, "poop_does_not_block_aoe", text='Does Not Block AOE')
+                sub.prop(ob_nwo, "poop_excluded_from_lightprobe", text='Excluded From Lightprobe')
+                sub.prop(ob_nwo, "poop_decal_spacing", text='Decal Spacing')
+                if h4:
+                    sub.prop(ob_nwo, "poop_remove_from_shadow_geometry")
+                    sub.prop(ob_nwo, "poop_disallow_lighting_samples",)
+                    sub.prop(ob_nwo, "poop_rain_occluder")
+
+            elif CheckType.portal(ob):
+                row = col.row()
+                row.prop(ob_nwo, "portal_type", text='Portal Type', expand=True)
+
+                col.separator()
+
+                col = layout.column(heading="Flags")
+                sub = col.column(align=True)
+
+                sub.prop(ob_nwo, "portal_ai_deafening", text='AI Deafening')
+                sub.prop(ob_nwo, "portal_blocks_sounds", text='Blocks Sounds')
+                sub.prop(ob_nwo, "portal_is_door", text='Is Door')
+
+            elif CheckType.fog(ob):
+                if poll_ui(('SCENARIO')):
+                    col.prop(ob_nwo, "fog_name", text='Fog Name')
+                    row = col.row()
+                    row.prop(ob_nwo, "fog_appearance_tag", text='Fog Appearance Tag')
+                    row.operator('nwo.fog_path')
+                    col.prop(ob_nwo, "fog_volume_depth", text='Fog Volume Depth')
+                else:
+                    col.label(text="Fog mesh type only valid for Scenario exports", icon='ERROR')
+
+            elif CheckType.physics(ob):
+                col.prop(ob_nwo, "mesh_primitive_type", text='Primitive Type')
+
+        elif CheckType.get(ob) == '_connected_geometry_object_type_marker':
+            # MARKER PROPERTIES
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+            flow.use_property_split = True
+            col = flow.column()
             row = col.row()
-            row.prop(ob_nwo, "marker_looping_effect")
-            row.operator('nwo.effect_path') 
+            row.scale_y = 1.25
+            marker_type_name = 'INVALID'
+            marker_type_icon = 'airprobe'
+            if poll_ui('SCENARIO'):
+                marker_type_name = 'Structure'
+                marker_type_icon = 'marker'
+            else:
+                marker_type_name = 'Model'
+                marker_type_icon = 'marker'
+                
+            if poll_ui('MODEL'):
+                if ob_nwo.marker_type == '_connected_geometry_marker_type_hint':
+                    marker_type_name = 'Hint'
+                    marker_type_icon = 'hint'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
+                    marker_type_name = 'Pathfinding Sphere'
+                    marker_type_icon = 'pathfinding_sphere'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_physics_constraint':
+                    marker_type_name = 'Physics Constraint'
+                    marker_type_icon = 'physics_constraint'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_target':
+                    marker_type_name = 'Target'
+                    marker_type_icon = 'target'
+            elif poll_ui('SCENARIO'):
+                if ob_nwo.marker_type == '_connected_geometry_marker_type_game_instance':
+                    marker_type_name = 'Game Object'
+                    marker_type_icon = 'game_object'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_water_volume_flow':
+                    marker_type_name = 'Water Volume Flow'
+                    marker_type_icon = 'water_volume_flow'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_airprobe' and h4:
+                    marker_type_name = 'Airprobe'
+                    marker_type_icon = 'airprobe'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_envfx' and h4:
+                    marker_type_name = 'Effect'
+                    marker_type_icon = 'environment_effect'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_lightCone' and h4:
+                    marker_type_name = 'Light Cone'
+                    marker_type_icon = 'light_cone'
 
-        elif CheckType.lightCone(ob) and not_bungie_game():
-            row = col.row()
-            row.prop(ob_nwo, "marker_light_cone_tag")
-            row.operator('nwo.light_cone_path') 
-            col.prop(ob_nwo, "marker_light_cone_color")
-            col.prop(ob_nwo, "marker_light_cone_alpha") 
-            col.prop(ob_nwo, "marker_light_cone_intensity")
-            col.prop(ob_nwo, "marker_light_cone_width")
-            col.prop(ob_nwo, "marker_light_cone_length")
-            row = col.row()
-            row.prop(ob_nwo, "marker_light_cone_curve")
-            row.operator('nwo.light_cone_curve_path') 
+            
+            row.emboss = 'NORMAL'
+            row.menu(NWO_MarkerMenu.bl_idname, text=marker_type_name, icon_value=get_icon_id(marker_type_icon))
+
+            col.separator()
+
+            if poll_ui('SCENARIO'):
+                if ob_nwo.permutation_name_locked != '':
+                    col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
+                else:
+                    col.prop(ob_nwo, 'permutation_name', text='Permutation')
+
+                if is_design(ob):
+                    if ob_nwo.bsp_name_locked != '':
+                        col.prop(ob_nwo, 'bsp_name_locked', text='Design Group')
+                    else:
+                        col.prop(ob_nwo, 'bsp_name', text='Design Group')
+                else:
+                    if ob_nwo.bsp_name_locked != '':
+                        col.prop(ob_nwo, 'bsp_name_locked', text='BSP')
+                    else:
+                        col.prop(ob_nwo, 'bsp_name', text='BSP')
+
+            if CheckType.model(ob):
+                col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+                if poll_ui(('MODEL', 'SKY')):
+                    row = col.row()
+                    row.prop(ob_nwo, "marker_velocity", text='Marker Velocity')
+                    sub = col.row(align=True)
+                    if not ob_nwo.marker_all_regions:
+                        if ob_nwo.region_name_locked != '':
+                            col.prop(ob_nwo, 'region_name_locked', text='Region')
+                        else:
+                            col.prop(ob_nwo, "region_name", text='Region')
+                    sub.prop(ob_nwo, 'marker_all_regions', text='All Regions')
+
+            elif CheckType.game_instance(ob):
+                row = col.row()
+                row.prop(ob_nwo, "marker_game_instance_tag_name", text='Tag Path')
+                row.operator('nwo.game_instance_path')
+                col.prop(ob_nwo, "marker_game_instance_tag_variant_name", text='Tag Variant')
+                if h4:
+                    col.prop(ob_nwo, 'marker_game_instance_run_scripts') 
+                    
+            elif CheckType.hint(ob) and h4:
+                col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+                col.prop(ob_nwo, 'marker_hint_length')
+
+            elif CheckType.pathfinding_sphere(ob):
+                col = layout.column(heading="Flags")
+                sub = col.column(align=True)
+                sub.prop(ob_nwo, "marker_pathfinding_sphere_vehicle", text='Vehicle Only')
+                sub.prop(ob_nwo, "pathfinding_sphere_remains_when_open", text='Remains When Open')
+                sub.prop(ob_nwo, "pathfinding_sphere_with_sectors", text='With Sectors')
+                if ob.type != 'MESH':
+                    sub.prop(ob_nwo, "marker_sphere_radius")
+
+            elif CheckType.physics_constraint(ob):
+                col.prop(ob_nwo, "physics_constraint_parent", text='Constraint Parent')
+                col.prop(ob_nwo, "physics_constraint_child", text='Constraint Child')
+
+                sus = col.row(align=True)
+
+                sus.prop(ob_nwo, "physics_constraint_type", text='Constraint Type', expand=True)
+                sus.prop(ob_nwo, 'physics_constraint_uses_limits', text='Uses Limits')
+
+                if ob_nwo.physics_constraint_uses_limits:
+                    if ob_nwo.physics_constraint_type == '_connected_geometry_marker_type_physics_hinge_constraint':
+                        col.prop(ob_nwo, "hinge_constraint_minimum", text='Minimum')
+                        col.prop(ob_nwo, "hinge_constraint_maximum", text='Maximum')
+
+                    elif ob_nwo.physics_constraint_type == '_connected_geometry_marker_type_physics_socket_constraint':
+                        col.prop(ob_nwo, "cone_angle", text='Cone Angle')
+
+                        col.prop(ob_nwo, "plane_constraint_minimum", text='Plane Minimum')
+                        col.prop(ob_nwo, "plane_constraint_maximum", text='Plane Maximum')
+                        
+                        col.prop(ob_nwo, "twist_constraint_start", text='Twist Start')
+                        col.prop(ob_nwo, "twist_constraint_end", text='Twist End')
+
+            elif CheckType.target(ob):
+                col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+
+            elif CheckType.airprobe(ob) and h4:
+                col.prop(ob_nwo, "marker_group_name", text='Air Probe Group')
+
+            elif CheckType.envfx(ob) and h4:
+                row = col.row()
+                row.prop(ob_nwo, "marker_looping_effect")
+                row.operator('nwo.effect_path') 
+
+            elif CheckType.lightCone(ob) and h4:
+                row = col.row()
+                row.prop(ob_nwo, "marker_light_cone_tag")
+                row.operator('nwo.light_cone_path') 
+                col.prop(ob_nwo, "marker_light_cone_color")
+                col.prop(ob_nwo, "marker_light_cone_alpha") 
+                col.prop(ob_nwo, "marker_light_cone_intensity")
+                col.prop(ob_nwo, "marker_light_cone_width")
+                col.prop(ob_nwo, "marker_light_cone_length")
+                row = col.row()
+                row.prop(ob_nwo, "marker_light_cone_curve")
+                row.operator('nwo.light_cone_curve_path')
 
 # MATERIAL PROPERTIES
 class NWO_MaterialProps(Panel):
@@ -1123,14 +983,6 @@ class NWO_LightProps(Panel):
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_parent_id = "DATA_PT_EEVEE_light"
-
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        scene_nwo = scene.nwo_global
-
-        if scene_nwo.game_version in ('reach','h4','h2a'):
-            return context.object.type == 'LIGHT'
 
     def draw(self, context):
         layout = self.layout
@@ -1636,20 +1488,20 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
 
     object_type_items_all = [
-        ('_connected_geometry_object_type_frame', 'Frame', "Treat this object as a frame. Can be forced on with the prefixes: 'b_', 'b ', 'frame ', 'frame_'"),
-        ('_connected_geometry_object_type_marker', 'Marker', "Sets this object to be written to a json file as a marker. Can be forced on with the prefix: '#'"),
-        ('_connected_geometry_object_type_mesh', 'Mesh', "Treats this object as a mesh when writing to a json file"),
+        ('_connected_geometry_object_type_mesh', 'Mesh', "Mesh", get_icon_id("render_geometry"), 0),
+        ('_connected_geometry_object_type_marker', 'Marker', "Marker", get_icon_id("marker"), 1),
+        ('_connected_geometry_object_type_frame', 'Frame', "Frame", get_icon_id("physics_constraint"), 2),
     ]
 
     object_type_items_no_mesh = [
-        ('_connected_geometry_object_type_frame', "Frame", "Treat this object as a frame. Can be forced on with the prefixes: 'b_', 'b ', 'frame ', 'frame_'"),
-        ('_connected_geometry_object_type_marker', "Marker", "Sets this object to be written to a json file as a marker. Can be forced on with the prefix: '#'"),
+        ('_connected_geometry_object_type_marker', "Marker", "Marker", get_icon_id("marker"), 0),
+        ('_connected_geometry_object_type_frame', "Frame", "Frame", get_icon_id("physics_constraint"), 1),
     ]
 
     object_type_items = [
-        ('_connected_geometry_object_type_frame', 'Frame', "Treat this object as a frame. Can be forced on with the prefixes: 'b_', 'b ', 'frame ', 'frame_'"),
-        ('_connected_geometry_object_type_marker', 'Marker', "Sets this object to be written to a json file as a marker. Can be forced on with the prefix: '#'"),
-        ('_connected_geometry_object_type_mesh', 'Mesh', "Treats this object as a mesh when writing to a json file"),
+        ('_connected_geometry_object_type_frame', 'Frame', ""),
+        ('_connected_geometry_object_type_marker', 'Marker', ""),
+        ('_connected_geometry_object_type_mesh', 'Mesh', ""),
         ('_connected_geometry_object_type_light', 'Light', ''),
         ('_connected_geometry_object_type_animation_control', 'Control', ''),
         ('_connected_geometry_object_type_animation_camera', 'Camera', ''),
@@ -1660,7 +1512,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     object_type_all: EnumProperty(
         name="Object Type",
         options=set(),
-        description="Sets the Halo object type of this object",
         default = '_connected_geometry_object_type_mesh',
         items=object_type_items_all,
     )
@@ -1668,7 +1519,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     object_type_no_mesh: EnumProperty(
         name="Object Type",
         options=set(),
-        description="Sets the object type",
         default = '_connected_geometry_object_type_marker',
         items=object_type_items_no_mesh,
     )
@@ -1677,7 +1527,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Object Type",
         options=set(),
         get=get_objecttype_enum,
-        description="Sets the object type",
         default = '_connected_geometry_object_type_mesh',
         items=object_type_items_all,
     )
@@ -1686,21 +1535,22 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Object Type",
         options=set(),
         get=get_objecttype_enum_no_mesh,
-        description="Sets the object type",
         default = '_connected_geometry_object_type_marker',
         items=object_type_items_no_mesh,
     )
 
-    def LockLight(self):
-        return 0
-
     object_type_light: EnumProperty(
-        name="Object Type",
+        name="Light",
         options=set(),
-        get=LockLight,
-        description="Sets the object type",
         default = '_connected_geometry_object_type_light',
-        items=[('_connected_geometry_object_type_light', 'Light', '')],
+        items=[('_connected_geometry_object_type_light', 'Light', '', get_icon_id("light_cone"), 0)],
+    ) 
+
+    object_type_camera: EnumProperty(
+        name="Animation Camera",
+        options=set(),
+        default = '_connected_geometry_object_type_animation_camera',
+        items=[('_connected_geometry_object_type_animation_camera', 'Camera', '', 'OUTLINER_OB_CAMERA', 0)],
     ) 
 
     compress_verts: BoolProperty(
@@ -1854,7 +1704,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     region_name: StringProperty(
         name="Face Region",
-        default='default',
+        default='',
         description="Define the name of the region these faces should be associated with",
     )
 
@@ -1870,7 +1720,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     permutation_name: StringProperty(
         name="Permutation",
-        default='default',
+        default='',
         description="Define the permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
     )
 
@@ -4535,13 +4385,14 @@ class NWO_FaceMapProps(Panel):
     bl_idname = "NWO_PT_MeshFaceDetailsPanel"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
-    bl_parent_id = "NWO_PT_MeshDetailsPanel"
+    bl_parent_id = "NWO_PT_ObjectDetailsPanel"
 
     @classmethod
     def poll(cls, context):
         ob = context.object
         valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
-        return ob and ob.type == 'MESH' and ob.nwo.mesh_type in valid_mesh_types
+        h4_structure = not_bungie_game() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default' and context.scene.nwo_global.game_version != 'reach'
+        return ob and ob.type == 'MESH' and ob.nwo.object_type == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
     
     def draw(self, context):
         layout = self.layout
@@ -5838,7 +5689,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     # MATERIAL LIGHTING
 
     material_lighting_attenuation_cutoff: FloatProperty(
-        name="Material Lighting Attenuation Cutoff",
+        name="Attenuation Cutoff",
         options=set(),
         description="Determines how far light travels before it stops",
         min=0,
@@ -5877,7 +5728,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_attenuation_falloff: FloatProperty(
-        name="Material Lighting Attenuation Falloff",
+        name="Attenuation Falloff",
         options=set(),
         description="For use on emissive surfaces. The distance in game units at which the light intensity will begin to fall off until reaching zero at the attenuation cutoff value",
         min=0,
@@ -5885,7 +5736,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_emissive_focus: FloatProperty(
-        name="Material Lighting Emissive Focus",
+        name="Emissive Focus",
         options=set(),
         description="Controls the spread of the light emitting from this surface. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
         min=0,
@@ -5895,7 +5746,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_emissive_color: FloatVectorProperty(
-        name="Material Lighting Emissive Color",
+        name="Emissive Color",
         options=set(),
         description="The RGB value of the emitted light",
         default=(1.0, 1.0, 1.0),
@@ -5905,14 +5756,14 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_emissive_per_unit: BoolProperty(
-        name ="Material Lighting Emissive Per Unit",
+        name ="Emissive Per Unit",
         options=set(),
         description = "When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
         default = False,
     )
 
     material_lighting_emissive_power: FloatProperty(
-        name="Material Lighting Emissive Power",
+        name="Emissive Power",
         options=set(),
         description="The intensity of the emissive surface",
         min=0,
@@ -5920,7 +5771,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_emissive_quality: FloatProperty(
-        name="Material Lighting Emissive Quality",
+        name="Emissive Quality",
         options=set(),
         description="Controls the quality of the shadows cast by a complex occluder. For instance, a light casting shadows of tree branches on a wall would require a higher quality to get smooth shadows",
         default=1,
@@ -5928,14 +5779,14 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_use_shader_gel: BoolProperty(
-        name ="Material Lighting Use Shader Gel",
+        name ="Use Shader Gel",
         options=set(),
         description = "",
         default = False,
     )
 
     material_lighting_bounce_ratio: FloatProperty(
-        name="Material Lighting Bounce Ratio",
+        name="Lighting Bounce Ratio",
         options=set(),
         description="0 will bounce no energy. 1 will bounce full energy. Any value greater than 1 will exaggerate the amount of bounced light. Affects 1st bounce only",
         default=1,
@@ -6042,6 +5893,7 @@ classeshalo = (
     NWO_FacePropAddMaterialLightingNew,
     NWO_MeshTypeStructureDesignReach,
     NWO_MeshTypeStructureDesignH4,
+    NWO_LightPropsCycles,
     NWO_MeshMenu,
     NWO_MeshType,
     NWO_VolumeMenu,
@@ -6061,15 +5913,14 @@ classeshalo = (
     NWO_LensFlarePath,
     NWO_ShaderPath,
     NWO_ObjectProps,
-    NWO_ObjectMeshProps,
-    NWO_ObjectMarkerProps,
+    # NWO_ObjectMeshProps,
+    # NWO_ObjectMarkerProps,
     NWO_MaterialProps,
     NWO_MaterialOpenTag,
     NWO_ObjectPropertiesGroup,
     NWO_LightPropertiesGroup,
     NWO_MaterialPropertiesGroup,
     NWO_LightProps,
-    NWO_LightPropsCycles,
     NWO_BoneProps,
     NWO_BonePropertiesGroup,
     NWO_ActionProps,
@@ -6095,8 +5946,8 @@ classeshalo = (
     NWO_FaceDefaultsToggle,
     NWO_FaceProperties_ListItems,
     NWO_FaceMapProps,
-    NWO_ObjectMeshMaterialLightingProps,
-    NWO_ObjectMeshLightmapProps,
+    # NWO_ObjectMeshMaterialLightingProps,
+    # NWO_ObjectMeshLightmapProps,
     NWO_FacePropAddMenu,
     NWO_FacePropAddMenuNew,
     NWO_MeshPropertiesGroup,

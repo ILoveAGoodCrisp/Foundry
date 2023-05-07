@@ -1485,7 +1485,7 @@ class NWO_CollectionManager(Panel):
         col.prop(scene_nwo_collection_manager, 'collection_type', text='Type')
         col = col.row()
         col.scale_y = 1.5
-        col.operator('nwo.collection_create')
+        col.operator('nwo.collection_create', icon_value=get_icon_id("collection_creator"))
 
 class NWO_CollectionManager_Create(Operator):
     """Creates a special collection with the specified name and adds all currently selected objects to it"""

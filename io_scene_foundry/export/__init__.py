@@ -391,52 +391,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
         name='use tspace',
         default=False,
     )
-    # find_shaders: BoolProperty( 
-    #     name='Find Missing Materials',
-    #     default=True,
-    # )
-    # import_bitmaps: BoolProperty(
-    #     name='Import Bitmaps',
-    #     default=False,
-    # )
-    # bitmap_type: EnumProperty(
-    #     name='Bitmap Type',
-    #     items=(('2dtextures', "2D Textures", ""),
-    #             ('3dtextures', "3D Textures", ""),
-    #             ('cubemaps', "Cubemaps", ""),
-    #             ('sprites', "Sprites", ""),
-    #             ('interface', "Interface", ""),
-    #             ),
-    #     default='2dtextures',
-    # )
 
     def __init__(self):
         # SETUP #
         scene = bpy.context.scene
-        # temp_file_path = path.join(bpy.app.tempdir, 'gr2_scene_settings.txt')
-        # if file_exists(temp_file_path):
-        #     with open(temp_file_path, 'r') as temp_file:
-        #         settings = temp_file.readlines()
-
-        #     settings = [line.strip() for line in settings]
-        #     scene.nwo_halo_launcher.sidecar_path = settings[0]
-        #     scene.nwo.game_version = settings[1]
-        #     scene.nwo.asset_type = settings[2]
-        #     scene.nwo.output_biped = True if settings[3] == 'True' else False
-        #     scene.nwo.output_crate = True if settings[4] == 'True' else False
-        #     scene.nwo.output_creature = True if settings[5] == 'True' else False
-        #     scene.nwo.output_device_control = True if settings[6] == 'True' else False
-        #     scene.nwo.output_device_dispenser = True if settings[7] == 'True' else False
-        #     scene.nwo.output_device_machine = True if settings[8] == 'True' else False
-        #     scene.nwo.output_device_terminal = True if settings[9] == 'True' else False
-        #     scene.nwo.output_effect_scenery = True if settings[10] == 'True' else False
-        #     scene.nwo.output_equipment = True if settings[11] == 'True' else False
-        #     scene.nwo.output_giant = True if settings[12] == 'True' else False
-        #     scene.nwo.output_scenery = True if settings[13] == 'True' else False
-        #     scene.nwo.output_vehicle = True if settings[14] == 'True' else False
-        #     scene.nwo.output_weapon = True if settings[15] == 'True' else False
-
-        #     os_remove(temp_file_path)
 
         if scene.nwo_global.game_version in (('reach','h4','h2a')):
             self.game_version = scene.nwo_global.game_version
@@ -842,7 +800,7 @@ class NWO_SceneProps(Panel):
             row.prop(scene_nwo, "output_device_terminal", text='',icon_value=get_icon_id('device_terminal'))
             row.prop(scene_nwo, "output_effect_scenery",text='',icon_value=get_icon_id('effect_scenery'))
             row.prop(scene_nwo, "output_equipment",text='',icon_value=get_icon_id('equipment'))
-            row.prop(scene_nwo, "output_giant,",text='',icon_value=get_icon_id('giant'))
+            row.prop(scene_nwo, "output_giant", text='', icon_value=get_icon_id('giant'))
             row.prop(scene_nwo, "output_scenery",text='',icon_value=get_icon_id('scenery'))
             row.prop(scene_nwo, "output_vehicle", text='',icon_value=get_icon_id('vehicle'))
             row.prop(scene_nwo, "output_weapon", text='',icon_value=get_icon_id('weapon'))
