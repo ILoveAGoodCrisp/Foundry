@@ -691,6 +691,7 @@ class NWO_ObjectProps(Panel):
 
                 if ob_nwo.volume_type == '_connected_geometry_volume_type_water_physics':
                     if poll_ui(('SCENARIO')):
+                        col.separator()
                         col.prop(ob_nwo, "water_volume_depth", text='Water Volume Depth')
                         col.prop(ob_nwo, "water_volume_flow_direction", text='Flow Direction')
                         col.prop(ob_nwo, "water_volume_flow_velocity", text='Flow Velocity')
@@ -735,20 +736,19 @@ class NWO_ObjectProps(Panel):
                     col.prop(ob_nwo, "poop_disallow_lighting_samples",)
                     col.prop(ob_nwo, "poop_rain_occluder")
 
-            elif CheckType.portal(ob):
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_portal':
                 row = col.row()
                 row.prop(ob_nwo, "portal_type", text='Portal Type', expand=True)
 
                 col.separator()
 
-                col = layout.column(heading="Flags")
-                sub = col.column(align=True)
+                col = col.column(heading="Flags")
 
-                sub.prop(ob_nwo, "portal_ai_deafening", text='AI Deafening')
-                sub.prop(ob_nwo, "portal_blocks_sounds", text='Blocks Sounds')
-                sub.prop(ob_nwo, "portal_is_door", text='Is Door')
+                col.prop(ob_nwo, "portal_ai_deafening", text='AI Deafening')
+                col.prop(ob_nwo, "portal_blocks_sounds", text='Blocks Sounds')
+                col.prop(ob_nwo, "portal_is_door", text='Is Door')
 
-            elif CheckType.fog(ob):
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
                 if poll_ui(('SCENARIO')):
                     col.prop(ob_nwo, "fog_name", text='Fog Name')
                     row = col.row()
@@ -758,7 +758,7 @@ class NWO_ObjectProps(Panel):
                 else:
                     col.label(text="Fog mesh type only valid for Scenario exports", icon='ERROR')
 
-            elif CheckType.physics(ob):
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_planar_fog_physics':
                 col.prop(ob_nwo, "mesh_primitive_type", text='Primitive Type')
 
         elif CheckType.get(ob) == '_connected_geometry_object_type_marker':
@@ -829,8 +829,10 @@ class NWO_ObjectProps(Panel):
                         col.prop(ob_nwo, 'bsp_name_locked', text='BSP')
                     else:
                         col.prop(ob_nwo, 'bsp_name', text='BSP')
+                        
+                col.separator()
 
-            if CheckType.model(ob):
+            if ob_nwo.marker_type == '_connected_geometry_marker_type_model':
                 col.prop(ob_nwo, "marker_group_name", text='Marker Group')
                 if poll_ui(('MODEL', 'SKY')):
                     row = col.row()
@@ -843,7 +845,7 @@ class NWO_ObjectProps(Panel):
                             col.prop(ob_nwo, "region_name", text='Region')
                     sub.prop(ob_nwo, 'marker_all_regions', text='All Regions')
 
-            elif CheckType.game_instance(ob):
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_game_instance':
                 row = col.row()
                 row.prop(ob_nwo, "marker_game_instance_tag_name", text='Tag Path')
                 row.operator('nwo.game_instance_path')
@@ -851,11 +853,12 @@ class NWO_ObjectProps(Panel):
                 if h4:
                     col.prop(ob_nwo, 'marker_game_instance_run_scripts') 
                     
-            elif CheckType.hint(ob) and h4:
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_hint':
                 col.prop(ob_nwo, "marker_group_name", text='Marker Group')
-                col.prop(ob_nwo, 'marker_hint_length')
+                if h4:
+                    col.prop(ob_nwo, 'marker_hint_length')
 
-            elif CheckType.pathfinding_sphere(ob):
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
                 col = layout.column(heading="Flags")
                 sub = col.column(align=True)
                 sub.prop(ob_nwo, "marker_pathfinding_sphere_vehicle", text='Vehicle Only')
@@ -864,7 +867,7 @@ class NWO_ObjectProps(Panel):
                 if ob.type != 'MESH':
                     sub.prop(ob_nwo, "marker_sphere_radius")
 
-            elif CheckType.physics_constraint(ob):
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_physics_constraint':
                 col.prop(ob_nwo, "physics_constraint_parent", text='Constraint Parent')
                 col.prop(ob_nwo, "physics_constraint_child", text='Constraint Child')
 
@@ -887,18 +890,18 @@ class NWO_ObjectProps(Panel):
                         col.prop(ob_nwo, "twist_constraint_start", text='Twist Start')
                         col.prop(ob_nwo, "twist_constraint_end", text='Twist End')
 
-            elif CheckType.target(ob):
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_target':
                 col.prop(ob_nwo, "marker_group_name", text='Marker Group')
 
-            elif CheckType.airprobe(ob) and h4:
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_airprobe' and h4:
                 col.prop(ob_nwo, "marker_group_name", text='Air Probe Group')
 
-            elif CheckType.envfx(ob) and h4:
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_envfx' and h4:
                 row = col.row()
                 row.prop(ob_nwo, "marker_looping_effect")
                 row.operator('nwo.effect_path') 
 
-            elif CheckType.lightCone(ob) and h4:
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_lightCone' and h4:
                 row = col.row()
                 row.prop(ob_nwo, "marker_light_cone_tag")
                 row.operator('nwo.light_cone_path') 
@@ -4400,7 +4403,7 @@ class NWO_FaceMapProps(Panel):
         ob = context.object
         ob_nwo = ob.nwo
         ob_nwo_face = ob.nwo_face
-        is_poop = CheckType.poop(ob)
+        is_poop = ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop'
     
         # Master Instance button since facemaps aren't stored in mesh data
         if is_linked(ob):
