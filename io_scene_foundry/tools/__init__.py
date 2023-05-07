@@ -206,7 +206,7 @@ class NWO_ScaleModels_Add(Operator, AddObjectHelper):
                 col.prop(self, 'vehicle_model_h2a')
 
 def add_halo_scale_model_button(self, context):
-    self.layout.operator(NWO_ScaleModels_Add.bl_idname, text='Halo Scale Model', icon='RADIOBUT_OFF')
+    self.layout.operator(NWO_ScaleModels_Add.bl_idname, text='Halo Scale Model', icon_value=get_icon_id('biped'))
 
 #######################################
 # FRAME IDS TOOL

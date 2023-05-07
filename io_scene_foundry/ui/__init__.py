@@ -591,8 +591,8 @@ class NWO_ObjectMeshProps(Panel):
         row.scale_y = 1.25
         mesh_type_name = 'INVALID'
         mesh_type_icon = 'instance'
-        if poll_ui('DECORATOR'):
-            mesh_type_name = 'Decorator'
+        if poll_ui('DECORATOR SET'):
+            mesh_type_name = 'DECORATOR SET'
         elif poll_ui('SCENARIO'):
             if h4:
                 mesh_type_name = 'Structure Sky'
@@ -929,37 +929,42 @@ class NWO_ObjectMarkerProps(Panel):
 
         col = flow.column()
         marker_type_name = 'INVALID'
-        marker_type_icon = 'ADD'
+        marker_type_icon = 'airprobe'
         h4 = not_bungie_game()
         if poll_ui('SCENARIO'):
             marker_type_name = 'Structure'
-            marker_type_icon = 'airprobe'
+            marker_type_icon = 'marker'
         else:
             marker_type_name = 'Model'
-            marker_type_icon = 'target'
+            marker_type_icon = 'marker'
             
         if poll_ui('MODEL'):
-            if CheckType.hint(ob):
+            if ob_nwo.marker_type == '_connected_geometry_marker_type_hint':
                 marker_type_name = 'Hint'
-            elif CheckType.pathfinding_sphere(ob):
+                marker_type_icon = 'hint'
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
                 marker_type_name = 'Pathfinding Sphere'
-            elif CheckType.physics_constraint(ob):
+                marker_type_icon = 'pathfinding_sphere'
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_physics_constraint':
                 marker_type_name = 'Physics Constraint'
                 marker_type_icon = 'physics_constraint'
-            elif CheckType.target(ob):
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_target':
                 marker_type_name = 'Target'
                 marker_type_icon = 'target'
         elif poll_ui('SCENARIO'):
-            if CheckType.game_instance(ob):
-                marker_type_name = 'Instance'
-            elif CheckType.water_volume_flow(ob):
-                marker_type_name = 'Boundary Surface'
-            elif CheckType.airprobe(ob) and h4:
+            if ob_nwo.marker_type == '_connected_geometry_marker_type_game_instance':
+                marker_type_name = 'Game Object'
+                marker_type_icon = 'game_object'
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_water_volume_flow':
+                marker_type_name = 'Water Volume Flow'
+                marker_type_icon = 'water_volume_flow'
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_airprobe' and h4:
                 marker_type_name = 'Airprobe'
                 marker_type_icon = 'airprobe'
-            elif CheckType.envfx(ob) and h4:
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_envfx' and h4:
                 marker_type_name = 'Effect'
-            elif CheckType.lightCone(ob) and h4:
+                marker_type_icon = 'environment_effect'
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_lightCone' and h4:
                 marker_type_name = 'Light Cone'
                 marker_type_icon = 'light_cone'
 
@@ -969,14 +974,15 @@ class NWO_ObjectMarkerProps(Panel):
 
         if CheckType.model(ob):
             col.prop(ob_nwo, "marker_group_name", text='Marker Group')
-            col.prop(ob_nwo, "marker_velocity", text='Marker Velocity')
-            sub = col.row(align=True)
-            if not ob_nwo.marker_all_regions:
-                if ob_nwo.region_name_locked != '':
-                    col.prop(ob_nwo, 'region_name_locked', text='Region')
-                else:
-                    col.prop(ob_nwo, "region_name", text='Region')
-            sub.prop(ob_nwo, 'marker_all_regions', text='All Regions')
+            if poll_ui(('MODEL', 'SKY')):
+                col.prop(ob_nwo, "marker_velocity", text='Marker Velocity')
+                sub = col.row(align=True)
+                if not ob_nwo.marker_all_regions:
+                    if ob_nwo.region_name_locked != '':
+                        col.prop(ob_nwo, 'region_name_locked', text='Region')
+                    else:
+                        col.prop(ob_nwo, "region_name", text='Region')
+                sub.prop(ob_nwo, 'marker_all_regions', text='All Regions')
 
         elif CheckType.game_instance(ob):
             row = col.row()
@@ -1434,8 +1440,8 @@ class NWO_MeshMenu(Menu):
         layout = self.layout
         h4 = not_bungie_game()
 
-        if poll_ui('DECORATOR'):
-            layout.operator("nwo.set_mesh_type", text="Decorator", icon_value=get_icon_id('decorator')).option = '_connected_geometry_mesh_type_default'
+        if poll_ui('DECORATOR SET'):
+            layout.operator("nwo.set_mesh_type", text="Decorator", icon_value=get_icon_id('DECORATOR SET')).option = '_connected_geometry_mesh_type_default'
         elif poll_ui('SCENARIO'):
             if h4:
                 layout.operator("nwo.set_mesh_type", text="Structure Sky", icon_value=get_icon_id('structure')).option = '_connected_geometry_mesh_type_default'
@@ -1501,17 +1507,17 @@ class NWO_MarkerMenu(Menu):
             layout.operator("nwo.set_marker_type", text="Model", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_model'
 
         if poll_ui('MODEL'):
-            layout.operator("nwo.set_marker_type", text="Hint", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_hint'
-            layout.operator("nwo.set_marker_type", text="Pathfinding Sphere", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_pathfinding_sphere'
+            layout.operator("nwo.set_marker_type", text="Hint", icon_value=get_icon_id('hint')).option = '_connected_geometry_marker_type_hint'
+            layout.operator("nwo.set_marker_type", text="Pathfinding Sphere", icon_value=get_icon_id('pathfinding_sphere')).option = '_connected_geometry_marker_type_pathfinding_sphere'
             layout.operator("nwo.set_marker_type", text="Physics Constraint", icon_value=get_icon_id('physics_constraint')).option = '_connected_geometry_marker_type_physics_constraint'
             layout.operator("nwo.set_marker_type", text="Target", icon_value=get_icon_id('target')).option = '_connected_geometry_marker_type_target'
 
         elif poll_ui('SCENARIO'):
-            layout.operator("nwo.set_marker_type", text="Game Object", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_game_instance'
+            layout.operator("nwo.set_marker_type", text="Game Object", icon_value=get_icon_id('game_object')).option = '_connected_geometry_marker_type_game_instance'
             layout.operator("nwo.set_marker_type", text="Water Volume Flow", icon_value=get_icon_id('water_volume_flow')).option = '_connected_geometry_marker_type_water_volume_flow'
             if h4:
-                layout.operator("nwo.set_marker_type", text="Airprobe", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_airprobe'
-                layout.operator("nwo.set_marker_type", text="Effect", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_envfx'
+                layout.operator("nwo.set_marker_type", text="Airprobe", icon_value=get_icon_id('airprobe')).option = '_connected_geometry_marker_type_airprobe'
+                layout.operator("nwo.set_marker_type", text="Effect", icon_value=get_icon_id('environment_effect')).option = '_connected_geometry_marker_type_envfx'
                 layout.operator("nwo.set_marker_type", text="Light Cone", icon_value=get_icon_id('light_cone')).option = '_connected_geometry_marker_type_lightCone'
 
 class NWO_MarkerType(Operator):
@@ -4958,7 +4964,7 @@ class NWO_FacePropAddMenu(Menu):
             layout.operator("nwo_face.add_face_property", text='Region Override').options = 'region'
         if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
             layout.operator("nwo_face.add_face_property", text='Global Material Override').options = 'face_global_material'
-        if poll_ui(('MODEL', 'SKY', 'DECORATOR')) and (CheckType.default(ob) or CheckType.decorator(ob)):
+        if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')) and (CheckType.default(ob) or CheckType.decorator(ob)):
             layout.operator("nwo_face.add_face_property", text='Precise').options = 'precise_position'
 
         if poll_ui(('SCENARIO', 'PREFAB')) and (CheckType.default(ob) or CheckType.poop(ob)):
@@ -5004,7 +5010,7 @@ class NWO_FacePropAddMenuNew(Menu):
             layout.operator("nwo_face.add_face_property_new", text='Region Override').options = 'region'
         if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
             layout.operator("nwo_face.add_face_property_new", text='Global Material Override').options = 'face_global_material'
-        if poll_ui(('MODEL', 'SKY', 'DECORATOR')) and (CheckType.default(ob) or CheckType.decorator(ob)):
+        if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')) and (CheckType.default(ob) or CheckType.decorator(ob)):
             layout.operator("nwo_face.add_face_property_new", text='Precise').options = 'precise_position'
 
         if poll_ui(('SCENARIO', 'PREFAB')) and (CheckType.default(ob) or CheckType.poop(ob)):
