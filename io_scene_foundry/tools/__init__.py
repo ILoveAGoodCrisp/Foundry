@@ -320,16 +320,16 @@ class NWO_HaloLauncher(Panel):
         col = flow.column()
         row = col.row(align=False)
         row.scale_y = 1.25
-        row.operator('nwo.launch_data')
+        row.operator('nwo.launch_data', icon_value=get_icon_id("data"))
         row.operator('nwo.launch_tags', icon_value=get_icon_id("tags"))
         row = col.row(align=False)
         row.scale_y = 1.5
-        row.operator('nwo.launch_foundation')
+        row.operator('nwo.launch_foundation', icon_value=get_icon_id("foundation"))
         row = col.row(align=False)
         row.scale_y = 1.25
-        row.operator('nwo.launch_sapien')
+        row.operator('nwo.launch_sapien', icon_value=get_icon_id("sapien"))
         row.scale_y = 1.25
-        row.operator('nwo.launch_tagtest')
+        row.operator('nwo.launch_tagtest', icon_value=get_icon_id("tag_test"))
         # if scene_nwo_halo_launcher.sidecar_path != '' and file_exists(path_join(get_data_path(), scene_nwo_halo_launcher.sidecar_path)):
         #     flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         #     col = flow.column()
@@ -1117,7 +1117,7 @@ class NWO_HaloExport(Panel):
         col.operator('nwo.export', text='Export', icon='SETTINGS') 
         if scene_nwo_halo_launcher.sidecar_path != '' and file_exists(path_join(get_data_path(), scene_nwo_halo_launcher.sidecar_path)):
             col.separator()
-            col.operator('nwo.export_quick', text='Quick Export', icon='EXPORT')
+            col.operator('nwo.export_quick', text='Quick Export', icon_value=get_icon_id('quick_export'))
 
 class NWO_HaloExportSettings(Panel):
     bl_label = "Quick Export Settings"

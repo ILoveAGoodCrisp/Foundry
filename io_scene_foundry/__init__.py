@@ -44,18 +44,22 @@ bl_info = {
     "support": 'COMMUNITY',
     "category": "Export"}
 
+from . import icons
+
+icons.initialize_foundry_icons()
+
 from . import tools
 from . import ui
 from . import export
 from . import managed_blam
-from . import icons
+
 
 modules = [
+    icons,
     tools,
     ui,
     export,
     managed_blam,
-    icons,
 ]
 
 class HREKLocationPath(Operator):

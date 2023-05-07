@@ -49,6 +49,8 @@ from bpy.props import (
         CollectionProperty,
         )
 
+from io_scene_foundry.icons import get_icon_id
+
 class NWO_SceneProps(Panel):
     bl_label = "Halo Scene"
     bl_idname = "NWO_PT_ScenePropertiesPanel"
@@ -585,53 +587,52 @@ class NWO_ObjectMeshProps(Panel):
         h4 = not_bungie_game()
 
         col = flow.column()
+        row = col.row()
+        row.scale_y = 1.25
         mesh_type_name = 'INVALID'
-        mesh_type_icon = 'ADD'
+        mesh_type_icon = 'instance'
         if poll_ui('DECORATOR'):
             mesh_type_name = 'Decorator'
         elif poll_ui('SCENARIO'):
             if h4:
                 mesh_type_name = 'Structure Sky'
-                mesh_type_icon = 'PLUS'
+                mesh_type_icon = 'structure'
             else:
                 mesh_type_name = 'Structure'
+                mesh_type_icon = 'structure'
         else:
             mesh_type_name = 'Render'
+            mesh_type_icon = 'render_geometry'
             
         if poll_ui('MODEL'):
             if CheckType.collision(ob):
                 mesh_type_name = 'Collision'
+                mesh_type_icon = 'collider'
             elif CheckType.physics(ob):
                 mesh_type_name = 'Physics'
+                mesh_type_icon = 'physics'
             elif CheckType.object_instance(ob) and not h4:
                 mesh_type_name = 'Flair'
+                mesh_type_icon = 'instance'
         elif poll_ui('SCENARIO'):
             if CheckType.poop(ob):
                 mesh_type_name = 'Instance'
-            elif CheckType.boundary_surface(ob):
-                mesh_type_name = 'Boundary Surface'
+                mesh_type_icon = 'instance'
             elif CheckType.cookie_cutter(ob):
                 mesh_type_name = 'Cookie Cutter'
-            elif CheckType.poop_marker(ob) and not h4:
-                mesh_type_name = 'Instanced Marker'
-            elif CheckType.poop_rain_blocker(ob) and not h4:
-                mesh_type_name = 'Rain Blocker'
-            elif CheckType.poop_rain_sheet(ob) and not h4:
-                mesh_type_name = 'Rain Sheet'
-            elif CheckType.collision(ob) and h4:
+                mesh_type_icon = 'cookie_cutter'
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' and h4:
                 mesh_type_name = 'Collider'
-            elif CheckType.portal(ob):
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_portal':
                 mesh_type_name = 'Portal'
-            elif CheckType.seam(ob):
+                mesh_type_icon = 'portal'
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_seam':
                 mesh_type_name = 'Seam'
-            elif CheckType.fog(ob):
-                mesh_type_name = 'Planar Fog'
-            elif CheckType.water_surface(ob):
-                mesh_type_name = 'Water'
-            elif CheckType.water_physics(ob):
-                mesh_type_name = 'Water Physics'
-            elif CheckType.obb_volume(ob) and h4:
-                mesh_type_name = 'OBB Volume'
+                mesh_type_icon = 'seam'
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
+                mesh_type_name = 'Volume'
+                mesh_type_icon = 'crate'
+
         
         elif poll_ui('PREFAB'):
             if CheckType.poop(ob):
@@ -640,8 +641,8 @@ class NWO_ObjectMeshProps(Panel):
                 mesh_type_name = 'Cookie Cutter'
             elif CheckType.collision(ob) and h4:
                 mesh_type_name = 'Collider'
-        col.emboss = 'NORMAL'
-        col.menu(NWO_MeshMenu.bl_idname, text=mesh_type_name, icon=mesh_type_icon)
+        row.emboss = 'NORMAL'
+        row.menu(NWO_MeshMenu.bl_idname, text=mesh_type_name, icon_value=get_icon_id(mesh_type_icon))
 
         # if not_bungie_game():
         #     if object_prefix(context.active_object, special_prefixes):
@@ -665,33 +666,47 @@ class NWO_ObjectMeshProps(Panel):
         if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
             col.prop(ob_nwo, "face_global_material", text='Global Material')
 
-        # if poll_ui(('DECORATOR SET')) and context.scene.nwo.asset_type == 'DECORATOR SET' and not CheckType.decorator(ob):
-        #     col.label(text="Only the Decorator mesh type is valid for Decorator Set exports", icon='ERROR')
+        if ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
+            col.separator()
+            row = col.row()
+            row.scale_y = 1.25
+            volume_type_name = 'Soft Ceiling'
+            volume_type_icon = 'Soft Ceiling'
+            if ob_nwo.volume_type == '_connected_geometry_volume_type_soft_ceiling':
+                volume_type_name = 'Soft Ceiling'
+                volume_type_icon = 'soft_ceiling'
+            elif ob_nwo.volume_type == '_connected_geometry_volume_type_soft_kill':
+                volume_type_name = 'Soft Kill'
+                volume_type_icon = 'soft_kill'
+            elif ob_nwo.volume_type == '_connected_geometry_volume_type_slip_surface':
+                volume_type_name = 'Slip Surface'
+                volume_type_icon = 'slip_surface'
+            elif ob_nwo.volume_type == '_connected_geometry_volume_type_water_physics':
+                volume_type_name = 'Water Physics'
+                volume_type_icon = 'water_physics'
+            elif ob_nwo.volume_type == '_connected_geometry_volume_type_lightmap_exclude':
+                volume_type_name = 'Lightmap Exclusion'
+                volume_type_icon = 'lightmap_exclude'
+            elif ob_nwo.volume_type == '_connected_geometry_volume_type_lightmap_region':
+                volume_type_name = 'Lightmap Region'
+                volume_type_icon = 'lightmap_region'
+            elif ob_nwo.volume_type == '_connected_geometry_volume_type_streaming':
+                volume_type_name = 'Streaming'
+                volume_type_icon = 'streaming'
 
-        # elif poll_ui(('PARTICLE MODEL')) and context.scene.nwo.asset_type == 'PARTICLE MODEL' and not CheckType.default(ob):
-        #     col.label(text="Only the render mesh type is valid for particle model exports", icon='ERROR')
+            row.menu(NWO_VolumeMenu.bl_idname, text=volume_type_name, icon_value=get_icon_id(volume_type_icon))
 
-        # elif CheckType.boundary_surface(ob):
-        #     if poll_ui(('SCENARIO')):
-        #         row = col.row()
-        #         if ob.name.startswith(boundary_surface_prefixes):
-        #             row.prop(ob_nwo, "Boundary_Surface_Type_Locked", text='Type', expand=True)
-        #         else:
-        #             row.prop(ob_nwo, "Boundary_Surface_Type", text='Type', expand=True)
-        #     else:
-        #         col.label(text="Boundary Surface mesh type only valid for Scenario exports", icon='ERROR')
+            if ob_nwo.volume_type == '_connected_geometry_volume_type_water_physics':
+                if poll_ui(('SCENARIO')):
+                    col.prop(ob_nwo, "water_volume_depth", text='Water Volume Depth')
+                    col.prop(ob_nwo, "water_volume_flow_direction", text='Flow Direction')
+                    col.prop(ob_nwo, "water_volume_flow_velocity", text='Flow Velocity')
+                    col.prop(ob_nwo, "water_volume_fog_color", text='Underwater Fog Color')
+                    col.prop(ob_nwo, "water_volume_fog_murkiness", text='Underwater Fog Murkiness')
+                else:
+                    col.label(text="Water Physics mesh type only valid for Scenario exports", icon='ERROR')
 
-        # elif poll_ui(('SCENARIO', 'PREFAB')) and CheckType.collision(ob) and not_bungie_game():
-        #     col.prop(ob_nwo, "Poop_Collision_Type")
-
-        # elif CheckType.decorator(ob):
-        #     if poll_ui(('DECORATOR SET')):
-        #         col.prop(ob_nwo, "Decorator_Name", text='Decorator Name')
-        #         col.prop(ob_nwo, "Decorator_LOD", text='Decorator Level of Detail')
-        #     else:
-        #         col.label(text="Decorator mesh type only valid for Decorator exports", icon='ERROR')
-
-        if CheckType.poop(ob):
+        elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
         
             # if not_bungie_game():
             #     col.prop(ob_nwo, "Poop_Collision_Type")
@@ -752,16 +767,6 @@ class NWO_ObjectMeshProps(Panel):
             sub.prop(ob_nwo, "portal_blocks_sounds", text='Blocks Sounds')
             sub.prop(ob_nwo, "portal_is_door", text='Is Door')
 
-        elif CheckType.water_physics(ob):
-            if poll_ui(('SCENARIO')):
-                col.prop(ob_nwo, "water_volume_depth", text='Water Volume Depth')
-                col.prop(ob_nwo, "water_volume_flow_direction", text='Flow Direction')
-                col.prop(ob_nwo, "water_volume_flow_velocity", text='Flow Velocity')
-                col.prop(ob_nwo, "water_volume_fog_color", text='Underwater Fog Color')
-                col.prop(ob_nwo, "water_volume_fog_murkiness", text='Underwater Fog Murkiness')
-            else:
-                col.label(text="Water Physics mesh type only valid for Scenario exports", icon='ERROR')
-
         elif CheckType.fog(ob):
             if poll_ui(('SCENARIO')):
                 col.prop(ob_nwo, "fog_name", text='Fog Name')
@@ -771,13 +776,6 @@ class NWO_ObjectMeshProps(Panel):
                 col.prop(ob_nwo, "fog_volume_depth", text='Fog Volume Depth')
             else:
                 col.label(text="Fog mesh type only valid for Scenario exports", icon='ERROR')
-
-        elif CheckType.obb_volume(ob):
-            if poll_ui(('SCENARIO')):
-                row = col.row()
-                row.prop(ob_nwo, "obb_volume_type", expand=True)
-            else:
-                col.label(text="OBB Volume mesh type only valid for Scenario exports", icon='ERROR')
 
         elif CheckType.physics(ob):
             col.prop(ob_nwo, "mesh_primitive_type", text='Primitive Type')
@@ -934,9 +932,10 @@ class NWO_ObjectMarkerProps(Panel):
         h4 = not_bungie_game()
         if poll_ui('SCENARIO'):
             marker_type_name = 'Structure'
-            marker_type_icon = 'PLUS'
+            marker_type_icon = 'airprobe'
         else:
             marker_type_name = 'Model'
+            marker_type_icon = 'target'
             
         if poll_ui('MODEL'):
             if CheckType.hint(ob):
@@ -945,8 +944,10 @@ class NWO_ObjectMarkerProps(Panel):
                 marker_type_name = 'Pathfinding Sphere'
             elif CheckType.physics_constraint(ob):
                 marker_type_name = 'Physics Constraint'
+                marker_type_icon = 'physics_constraint'
             elif CheckType.target(ob):
                 marker_type_name = 'Target'
+                marker_type_icon = 'target'
         elif poll_ui('SCENARIO'):
             if CheckType.game_instance(ob):
                 marker_type_name = 'Instance'
@@ -954,14 +955,16 @@ class NWO_ObjectMarkerProps(Panel):
                 marker_type_name = 'Boundary Surface'
             elif CheckType.airprobe(ob) and h4:
                 marker_type_name = 'Airprobe'
+                marker_type_icon = 'airprobe'
             elif CheckType.envfx(ob) and h4:
                 marker_type_name = 'Effect'
             elif CheckType.lightCone(ob) and h4:
                 marker_type_name = 'Light Cone'
+                marker_type_icon = 'light_cone'
 
         
         col.emboss = 'NORMAL'
-        col.menu(NWO_MarkerMenu.bl_idname, text=marker_type_name, icon=marker_type_icon)
+        col.menu(NWO_MarkerMenu.bl_idname, text=marker_type_name, icon_value=get_icon_id(marker_type_icon))
 
         if CheckType.model(ob):
             col.prop(ob_nwo, "marker_group_name", text='Marker Group')
@@ -1386,6 +1389,7 @@ mesh_type_items = [
     ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"), # 15
     ('_connected_geometry_mesh_type_water_surface', "Water Surface", "Defines a mesh as a water surface. Can be forced on with the prefix: '"), # 16
     ('_connected_geometry_mesh_type_obb_volume', 'OBB Volume', ''), # 17
+    ('_connected_geometry_mesh_type_volume', 'Volume', ''),
     # These go unused in menus, and are instead set at export
     ('_connected_geometry_mesh_type_poop_collision', 'Poop Collision', ''),
     ('_connected_geometry_mesh_type_poop_physics', 'Poop Physics', ''),
@@ -1393,6 +1397,16 @@ mesh_type_items = [
     ('_connected_geometry_mesh_type_structure', 'Structure', ''),
     ('_connected_geometry_mesh_type_default', 'Default', ''),
 
+]
+
+volume_type_items = [
+    ('_connected_geometry_volume_type_soft_ceiling', 'Soft Celing', ''),
+    ('_connected_geometry_volume_type_soft_kill', 'Soft Kill', ''),
+    ('_connected_geometry_volume_type_slip_surface', 'Slip Surface', ''),
+    ('_connected_geometry_volume_type_water_physics', 'Water Physics', ''),
+    ('_connected_geometry_volume_type_lightmap_exclude', 'Lightmap Exclusion', ''),
+    ('_connected_geometry_volume_type_lightmap_region', 'Lightmap Region', ''),
+    ('_connected_geometry_volume_type_streaming', 'Streaming', ''),
 ]
 
 marker_type_items = [ 
@@ -1420,45 +1434,57 @@ class NWO_MeshMenu(Menu):
         h4 = not_bungie_game()
 
         if poll_ui('DECORATOR'):
-            layout.operator("nwo.set_mesh_type", text="Decorator").option = '_connected_geometry_mesh_type_default'
+            layout.operator("nwo.set_mesh_type", text="Decorator", icon_value=get_icon_id('decorator')).option = '_connected_geometry_mesh_type_default'
         elif poll_ui('SCENARIO'):
             if h4:
-                layout.operator("nwo.set_mesh_type", text="Structure Sky", icon="ADD").option = '_connected_geometry_mesh_type_default'
+                layout.operator("nwo.set_mesh_type", text="Structure Sky", icon_value=get_icon_id('structure')).option = '_connected_geometry_mesh_type_default'
             else:
-                layout.operator("nwo.set_mesh_type", text="Structure", icon="ADD").option = '_connected_geometry_mesh_type_default'
+                layout.operator("nwo.set_mesh_type", text="Structure", icon_value=get_icon_id('structure')).option = '_connected_geometry_mesh_type_default'
         else:
-            layout.operator("nwo.set_mesh_type", text="Render").option = '_connected_geometry_mesh_type_default'
+            layout.operator("nwo.set_mesh_type", text="Render", icon_value=get_icon_id('render_geometry')).option = '_connected_geometry_mesh_type_default'
 
         if poll_ui('MODEL'):
-            layout.operator("nwo.set_mesh_type", text="Collision").option = '_connected_geometry_mesh_type_collision'
-            layout.operator("nwo.set_mesh_type", text="Physics").option = '_connected_geometry_mesh_type_physics'
+            layout.operator("nwo.set_mesh_type", text="Collision", icon_value=get_icon_id('collider')).option = '_connected_geometry_mesh_type_collision'
+            layout.operator("nwo.set_mesh_type", text="Physics", icon_value=get_icon_id('physics')).option = '_connected_geometry_mesh_type_physics'
             if not h4:
-                layout.operator("nwo.set_mesh_type", text="Flair").option = '_connected_geometry_mesh_type_object_instance'
+                layout.operator("nwo.set_mesh_type", text="Flair", icon_value=get_icon_id('instance')).option = '_connected_geometry_mesh_type_object_instance'
 
         elif poll_ui(('SCENARIO', 'PREFAB')):
-            layout.operator("nwo.set_mesh_type", text="Instance", icon="ADD").option = '_connected_geometry_mesh_type_poop'
+            layout.operator("nwo.set_mesh_type", text="Instance", icon_value=get_icon_id('instance')).option = '_connected_geometry_mesh_type_poop'
             if h4:
-                layout.operator("nwo.set_mesh_type", text="Collider").option = '_connected_geometry_mesh_type_poop_collision'
+                layout.operator("nwo.set_mesh_type", text="Collider", icon_value=get_icon_id('collider')).option = '_connected_geometry_mesh_type_poop_collision'
 
-            layout.operator("nwo.set_mesh_type", text="Cookie Cutter").option = '_connected_geometry_mesh_type_cookie_cutter'
+            layout.operator("nwo.set_mesh_type", text="Cookie Cutter", icon_value=get_icon_id('cookie_cutter')).option = '_connected_geometry_mesh_type_cookie_cutter'
 
-            layout.operator("nwo.set_mesh_type", text="Portal").option = '_connected_geometry_mesh_type_portal'
-
-            if h4:
-                layout.operator_menu_enum("nwo.set_mesh_type_structure_design_h4",
-                                    property="option",
-                                    text="Volumes",
-                                    )
-            else:
-                layout.operator_menu_enum("nwo.set_mesh_type_structure_design_reach",
-                                    property="option",
-                                    text="Volumes",
-                                    )
+            layout.operator("nwo.set_mesh_type", text="Portal", icon_value=get_icon_id('portal')).option = '_connected_geometry_mesh_type_portal'
+            layout.operator("nwo.set_mesh_type", text="Seam", icon_value=get_icon_id('seam')).option = '_connected_geometry_mesh_type_seam'
+            layout.operator("nwo.set_mesh_type", text="Volume", icon_value=get_icon_id('crate')).option = '_connected_geometry_mesh_type_volume'
                 
         elif poll_ui('PREFAB'):
-            layout.operator("nwo.set_mesh_type", text="Instanced Geometry").option = '_connected_geometry_mesh_type_poop'
-            layout.operator("nwo.set_mesh_type", text="Collider").option = '_connected_geometry_mesh_type_poop_collision'
-            layout.operator("nwo.set_mesh_type", text="Cookie Cutter").option = '_connected_geometry_mesh_type_cookie_cutter'
+            layout.operator("nwo.set_mesh_type", text="Instanced Geometry", icon_value=get_icon_id('instance')).option = '_connected_geometry_mesh_type_poop'
+            layout.operator("nwo.set_mesh_type", text="Collider", icon_value=get_icon_id('collider')).option = '_connected_geometry_mesh_type_poop_collision'
+            layout.operator("nwo.set_mesh_type", text="Cookie Cutter", icon_value=get_icon_id('cookie_cutter')).option = '_connected_geometry_mesh_type_cookie_cutter'
+
+class NWO_VolumeMenu(Menu):
+    bl_label = "Set Volume Type"
+    bl_idname = "NWO_MT_VolumeMenu"
+
+    def draw(self, context):
+        layout = self.layout
+        h4 = not_bungie_game()
+
+        if poll_ui('SCENARIO'):
+
+            layout.operator("nwo.set_volume_type", text="Soft Ceiling", icon_value=get_icon_id('soft_ceiling')).option = '_connected_geometry_volume_type_soft_ceiling'
+            layout.operator("nwo.set_volume_type", text="Soft Kill", icon_value=get_icon_id('soft_kill')).option = '_connected_geometry_volume_type_soft_kill'
+            layout.operator("nwo.set_volume_type", text="Slip Surface", icon_value=get_icon_id('slip_surface')).option = '_connected_geometry_volume_type_slip_surface'
+            layout.operator("nwo.set_volume_type", text="Water Physics", icon_value=get_icon_id('crate')).option = '_connected_geometry_volume_type_water_physics'
+            if h4:
+                layout.operator("nwo.set_volume_type", text="Lightmap Exclusion", icon_value=get_icon_id('lightmap_exclude')).option = '_connected_geometry_volume_type_lightmap_exclude'
+                layout.operator("nwo.set_volume_type", text="Streaming", icon_value=get_icon_id('streaming')).option = '_connected_geometry_volume_type_streaming'
+            else:
+                layout.operator("nwo.set_volume_type", text="Lightmap Region", icon_value=get_icon_id('lightmap_region')).option = '_connected_geometry_volume_type_lightmap_region'
+                
 
 class NWO_MarkerMenu(Menu):
     bl_label = "Set Marker Type"
@@ -1469,23 +1495,23 @@ class NWO_MarkerMenu(Menu):
         h4 = not_bungie_game()
 
         if poll_ui('SCENARIO'):
-            layout.operator("nwo.set_marker_type", text="Structure").option = '_connected_geometry_marker_type_model'
+            layout.operator("nwo.set_marker_type", text="Structure", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_model'
         else:
-            layout.operator("nwo.set_marker_type", text="Model").option = '_connected_geometry_marker_type_model'
+            layout.operator("nwo.set_marker_type", text="Model", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_model'
 
         if poll_ui('MODEL'):
-            layout.operator("nwo.set_marker_type", text="Hint").option = '_connected_geometry_marker_type_hint'
-            layout.operator("nwo.set_marker_type", text="Pathfinding Sphere").option = '_connected_geometry_marker_type_pathfinding_sphere'
-            layout.operator("nwo.set_marker_type", text="Physics Constraint").option = '_connected_geometry_marker_type_physics_constraint'
-            layout.operator("nwo.set_marker_type", text="Target").option = '_connected_geometry_marker_type_target'
+            layout.operator("nwo.set_marker_type", text="Hint", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_hint'
+            layout.operator("nwo.set_marker_type", text="Pathfinding Sphere", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_pathfinding_sphere'
+            layout.operator("nwo.set_marker_type", text="Physics Constraint", icon_value=get_icon_id('physics_constraint')).option = '_connected_geometry_marker_type_physics_constraint'
+            layout.operator("nwo.set_marker_type", text="Target", icon_value=get_icon_id('target')).option = '_connected_geometry_marker_type_target'
 
         elif poll_ui('SCENARIO'):
-            layout.operator("nwo.set_marker_type", text="Game Object").option = '_connected_geometry_marker_type_game_instance'
-            layout.operator("nwo.set_marker_type", text="Water Volume Flow").option = '_connected_geometry_marker_type_water_volume_flow'
+            layout.operator("nwo.set_marker_type", text="Game Object", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_game_instance'
+            layout.operator("nwo.set_marker_type", text="Water Volume Flow", icon_value=get_icon_id('water_volume_flow')).option = '_connected_geometry_marker_type_water_volume_flow'
             if h4:
-                layout.operator("nwo.set_marker_type", text="Airprobe").option = '_connected_geometry_marker_type_airprobe'
-                layout.operator("nwo.set_marker_type", text="Effect").option = '_connected_geometry_marker_type_envfx'
-                layout.operator("nwo.set_marker_type", text="Light Cone").option = '_connected_geometry_marker_type_lightCone'
+                layout.operator("nwo.set_marker_type", text="Airprobe", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_airprobe'
+                layout.operator("nwo.set_marker_type", text="Effect", icon_value=get_icon_id('marker')).option = '_connected_geometry_marker_type_envfx'
+                layout.operator("nwo.set_marker_type", text="Light Cone", icon_value=get_icon_id('light_cone')).option = '_connected_geometry_marker_type_lightCone'
 
 class NWO_MarkerType(Operator):
     """Sets this object's marker type"""
@@ -1507,9 +1533,28 @@ class NWO_MarkerType(Operator):
         nwo.marker_type = self.option
 
         return {'FINISHED'}
+    
+class NWO_VolumeType(Operator):
+    """Sets this object's Volume type"""
+    bl_idname = "nwo.set_volume_type"
+    bl_label = "Set Volume Type"
+    bl_options = {"REGISTER", "UNDO"}
 
+    option : EnumProperty(
+        default='_connected_geometry_volume_type_soft_ceiling',
+        items=volume_type_items,
+    )
 
-        
+    @classmethod
+    def poll(cls, context):
+        return context.object
+    
+    def execute(self, context):
+        nwo = context.object.nwo
+        nwo.volume_type = self.option
+
+        return {'FINISHED'}
+
 class NWO_MeshType(Operator):
     """Sets this object's mesh type"""
     bl_idname = "nwo.set_mesh_type"
@@ -1549,9 +1594,11 @@ class NWO_MeshTypeStructureDesignH4(NWO_MeshType):
 
     option : EnumProperty(
         items=[
-            ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'"),
-            ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"),
-            ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"),
+            ('_connected_geometry_mesh_type_boundary_surface', "Soft Ceiling", "", get_icon_id('soft_ceiling'), 0),
+            ('_connected_geometry_mesh_type_boundary_surface', "Soft Kill", "", get_icon_id('soft_ceiling'), 1),
+            ('_connected_geometry_mesh_type_boundary_surface', "Slip Surface", "", get_icon_id('slip_surface'), 2),
+            ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'", get_icon_id('fog'), 3),
+            ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'", get_icon_id('water_physics'), 4),
         ],
     )
 
@@ -1677,77 +1724,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Set bsp name for this object. Only valid for scenario exports",
         get=get_bsp_from_collection,
     )
-
-    # def get_meshtype_enum(self):
-    #     a_ob = bpy.context.active_object
-    #     if a_ob.name.startswith(('+soft_ceiling','+soft_kill','+slip_surface')):
-    #         return 0
-    #     elif a_ob.name.startswith('@'):
-    #         return 1
-    #     elif a_ob.name.startswith('+cookie'):
-    #         return 2
-    #     elif a_ob.name.startswith('%'):
-    #         return 5
-    #     elif a_ob.name.startswith('+flair'):
-    #         return 10
-    #     elif a_ob.name.startswith('$'):
-    #         return 11
-    #     elif a_ob.name.startswith('+fog'):
-    #         return 12
-    #     elif a_ob.name.startswith('+portal'):
-    #         return 13
-    #     elif a_ob.name.startswith('+seam'):
-    #         return 14
-    #     elif a_ob.name.startswith('+water'):
-    #         return 15
-    #     elif a_ob.name.startswith('\''):
-    #         return 16
-    #     else:
-    #         return 4
-
-    # def get_default_mesh_type(self):
-    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
-    #         return self.get("ObjectMesh_Type", 0)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_collision':
-    #         return self.get("ObjectMesh_Type", 1)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
-    #         return self.get("ObjectMesh_Type", 2)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_decorator':
-    #         return self.get("ObjectMesh_Type", 3)
-    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_default':
-    #         return self.get("ObjectMesh_Type", 4)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_poop':
-    #         return self.get("ObjectMesh_Type", 5)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_object_instance':
-    #         return self.get("ObjectMesh_Type", 10)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_physics':
-    #         return self.get("ObjectMesh_Type", 11)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
-    #         return self.get("ObjectMesh_Type", 12)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_portal':
-    #         return self.get("ObjectMesh_Type", 13)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_seam':
-    #         return self.get("ObjectMesh_Type", 14)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_physics_volume':
-    #         return self.get("ObjectMesh_Type", 15)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_surface':
-    #         return self.get("ObjectMesh_Type", 16)
-    #     else:
-    #         return self.get("ObjectMesh_Type", 4)
-    
-    # def set_default_mesh_type(self, value):
-    #     self["ObjectMesh_Type"] = value
-
-    #MESH PROPERTIES
-    # ObjectMesh_Type : EnumProperty(
-    #     name="Mesh Type",
-    #     options=set(),
-    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes",
-    #     default = '_connected_geometry_mesh_type_default',
-    #     get=get_default_mesh_type,
-    #     set=set_default_mesh_type,
-    #     items=mesh_type_items,
-    #     )
     
     # EXPORT PROPS
     object_type : EnumProperty(
@@ -1759,116 +1735,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=mesh_type_items
     )
 
+    volume_type : EnumProperty(
+        default='_connected_geometry_volume_type_soft_ceiling',
+        items=volume_type_items
+    )
+
     marker_type : EnumProperty(
         items=marker_type_items
     )
     ################
-
-    # ObjectMesh_Type_Locked : EnumProperty(
-    #     name="Mesh Type",
-    #     options=set(),
-    #     get=get_meshtype_enum,
-    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes e.g. $, @, %",
-    #     default = '_connected_geometry_mesh_type_default',
-    #     items=mesh_type_items,
-    #     )
-
-    # def get_meshtype_enum_h4(self):
-    #     a_ob = bpy.context.active_object
-    #     if a_ob.name.startswith(('+soft_ceiling','+soft_kill','+slip_surface')):
-    #         return 0
-    #     elif a_ob.name.startswith('@'):
-    #         return 1
-    #     elif a_ob.name.startswith('+cookie'):
-    #         return 2
-    #     elif a_ob.name.startswith('%'):
-    #         return 5
-    #     elif a_ob.name.startswith('+flair'):
-    #         return 6
-    #     elif a_ob.name.startswith('$'):
-    #         return 7
-    #     elif a_ob.name.startswith('+fog'):
-    #         return 8
-    #     elif a_ob.name.startswith('+portal'):
-    #         return 9
-    #     elif a_ob.name.startswith('+seam'):
-    #         return 10
-    #     elif a_ob.name.startswith('+water'):
-    #         return 11
-    #     elif a_ob.name.startswith('\''):
-    #         return 12
-    #     else:
-    #         return 4
-
-    # dupes for h4
-    # mesh_type_items_h4 = [
-    #     ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+'"), # 0
-    #     ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
-    #     ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
-    #     ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
-    #     ('_connected_geometry_mesh_type_default', "Default", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
-    #     ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
-    #     ('_connected_geometry_mesh_type_object_instance', "Object Instance", "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'"), # 6
-    #     ('_connected_geometry_mesh_type_physics', "Physics", "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'"), # 7
-    #     ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"), # 8
-    #     ('_connected_geometry_mesh_type_portal', "Portal", "Cuts up a bsp and defines clusters. Can be forced on with the prefix '+portal'"), # 9
-    #     ('_connected_geometry_mesh_type_seam', "Seam", "Defines where two bsps meet. Its name should match the name of the bsp its in. Can be forced on with the prefix '+seam'"), # 10
-    #     ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"), # 11
-    #     ('_connected_geometry_mesh_type_water_surface', "Water Surface", "Defines a mesh as a water surface. Can be forced on with the prefix: '"), # 12
-    #     ('_connected_geometry_mesh_type_obb_volume', 'OBB Volume', ''), # 13
-    # ]
-
-    # def get_default_mesh_type_h4(self):
-    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
-    #         return self.get("ObjectMesh_Type_H4", 0)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_collision':
-    #         return self.get("ObjectMesh_Type_H4", 1)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
-    #         return self.get("ObjectMesh_Type_H4", 2)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_decorator':
-    #         return self.get("ObjectMesh_Type_H4", 3)
-    #     if bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_default':
-    #         return self.get("ObjectMesh_Type_H4", 4)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_poop':
-    #         return self.get("ObjectMesh_Type_H4", 5)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_object_instance':
-    #         return self.get("ObjectMesh_Type_H4", 6)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_physics':
-    #         return self.get("ObjectMesh_Type_H4", 7)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
-    #         return self.get("ObjectMesh_Type_H4", 8)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_portal':
-    #         return self.get("ObjectMesh_Type_H4", 9)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_seam':
-    #         return self.get("ObjectMesh_Type_H4", 10)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_physics_volume':
-    #         return self.get("ObjectMesh_Type_H4", 11)
-    #     elif bpy.context.scene.nwo.default_mesh_type == '_connected_geometry_mesh_type_water_surface':
-    #         return self.get("ObjectMesh_Type_H4", 12)
-    #     else:
-    #         return self.get("ObjectMesh_Type_H4", 4)
-    
-    # def set_default_mesh_type_h4(self, value):
-    #     self["ObjectMesh_Type_H4"] = value
-
-    # ObjectMesh_Type_H4 : EnumProperty(
-    #     name="Mesh Type",
-    #     options=set(),
-    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes",
-    #     default = '_connected_geometry_mesh_type_default',
-    #     get=get_default_mesh_type_h4,
-    #     set=set_default_mesh_type_h4,
-    #     items=mesh_type_items_h4,
-    #     )
-
-    # ObjectMesh_Type_Locked_H4 : EnumProperty(
-    #     name="Mesh Type",
-    #     options=set(),
-    #     get=get_meshtype_enum_h4,
-    #     description="Sets the type of Halo mesh you want to create. This value is overridden by certain object prefixes e.g. $, @, %",
-    #     default = '_connected_geometry_mesh_type_default',
-    #     items=mesh_type_items_h4,
-    #     )
 
     mesh_primitive_type : EnumProperty(
         name="Mesh Primitive Type",
@@ -6162,6 +6037,8 @@ classeshalo = (
     NWO_MeshTypeStructureDesignH4,
     NWO_MeshMenu,
     NWO_MeshType,
+    NWO_VolumeMenu,
+    NWO_VolumeType,
     NWO_MarkerMenu,
     NWO_MarkerType,
     NWO_SceneProps,

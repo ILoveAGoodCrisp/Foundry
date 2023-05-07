@@ -20,7 +20,7 @@ def unload_icons():
     previews.remove(foundry_icons)
 
 def register():
-    initialize_foundry_icons()
+    pass
 
 def unregister():
     unload_icons()

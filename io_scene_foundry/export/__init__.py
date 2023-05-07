@@ -52,6 +52,7 @@ from os.path import exists as file_exists
 from os import path
 from os import remove as os_remove
 import ctypes
+from io_scene_foundry.icons import get_icon_id
 
 
 from io_scene_foundry.utils.nwo_utils import CheckPath, get_data_path, get_asset_info, get_ek_path, get_tool_path, managed_blam_active
@@ -827,20 +828,20 @@ class NWO_SceneProps(Panel):
         # col.prop(scene_nwo, 'filter_ui', text = 'Filter UI')
         if scene_nwo.asset_type == 'MODEL':
             sub = layout.column(heading="Output Tags")
-            sub.prop(scene_nwo, "output_biped")
-            sub.prop(scene_nwo, "output_crate")
+            sub.prop(scene_nwo, "output_biped", icon_value=get_icon_id('biped'))
+            sub.prop(scene_nwo, "output_crate", icon_value=get_icon_id('crate'))
             sub.prop(scene_nwo, "output_creature")
             sub.prop(scene_nwo, "output_device_control")
             if context.scene.nwo_global.game_version in ('h4', 'h2a'):
                 sub.prop(scene_nwo, "output_device_dispenser")
-            sub.prop(scene_nwo, "output_device_machine")
-            sub.prop(scene_nwo, "output_device_terminal")
+            sub.prop(scene_nwo, "output_device_machine", icon_value=get_icon_id('device_machine'))
+            sub.prop(scene_nwo, "output_device_terminal", icon_value=get_icon_id('device_terminal'))
             sub.prop(scene_nwo, "output_effect_scenery")
             sub.prop(scene_nwo, "output_equipment")
             sub.prop(scene_nwo, "output_giant")
             sub.prop(scene_nwo, "output_scenery")
-            sub.prop(scene_nwo, "output_vehicle")
-            sub.prop(scene_nwo, "output_weapon")
+            sub.prop(scene_nwo, "output_vehicle", icon_value=get_icon_id('vehicle'))
+            sub.prop(scene_nwo, "output_weapon", icon_value=get_icon_id('weapon'))
 
 class NWO_UL_SceneProps_SharedAssets(UIList):
     use_name_reverse: bpy.props.BoolProperty(
