@@ -4391,8 +4391,8 @@ class NWO_FaceMapProps(Panel):
     def poll(cls, context):
         ob = context.object
         valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
-        h4_structure = not_bungie_game() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default' and context.scene.nwo_global.game_version != 'reach'
-        return ob and ob.type == 'MESH' and ob.nwo.object_type == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
+        h4_structure = not_bungie_game() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default'
+        return ob and ob.type == 'MESH' and CheckType.get(ob) == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
     
     def draw(self, context):
         layout = self.layout
@@ -4402,46 +4402,6 @@ class NWO_FaceMapProps(Panel):
         ob_nwo = ob.nwo
         ob_nwo_face = ob.nwo_face
         is_poop = CheckType.poop(ob)
-        # col = flow.column()
-        # if not ob.nwo_face.toggle_face_defaults:
-        #     col.operator('nwo_face.toggle_defaults', text='Show Defaults')
-        # else:
-        #     col.operator('nwo_face.toggle_defaults', text='Hide Defaults')
-        #     col = flow.column()
-        #     col.prop(ob_nwo, "Face_Type", text='Face Type')
-        #     if ob_nwo.Face_Type == '_connected_geometry_face_type_sky':
-        #         sub = col.column(align=True)
-        #         sub.prop(ob_nwo, "Sky_Permutation_Index", text='Sky Permutation Index')
-        #         col.separator()
-
-        #     col.prop(ob_nwo, "Face_Mode", text='Face Mode')
-        #     col.prop(ob_nwo, "Face_Sides", text='Face Sides')
-        #     col.prop(ob_nwo, "Face_Draw_Distance", text='Draw Distance')
-        #     col.prop(ob_nwo, 'texcoord_usage')
-        #     col.prop(ob_nwo, "Mesh_Tessellation_Density", text='Tessellation Density')
-        #     if not_bungie_game():
-        #         col.prop(ob_nwo, "Mesh_Compression", text='Compression')
-
-        #     col.separator()
-
-        #     col = layout.column(heading="Flags")
-        #     sub = col.column(align=True)
-        #     # sub.prop(ob_nwo, "Conveyor", text='Conveyor') removed as it seems non-functional. Leaving here in case conveyor functionality is ever fixed/added
-        #     if poll_ui(('SCENARIO', 'PREFAB')):
-        #         sub.prop(ob_nwo, "Ladder", text='Ladder')
-        #         sub.prop(ob_nwo, "Slip_Surface", text='Slip Surface')
-        #     sub.prop(ob_nwo, "Decal_Offset", text='Decal Offset')
-        #     sub.prop(ob_nwo, "Group_Transparents_By_Plane", text='Group Transparents By Plane')
-        #     sub.prop(ob_nwo, "No_Shadow", text='No Shadow')
-        #     sub.prop(ob_nwo, "Precise_Position", text='Precise Position')
-        #     if not_bungie_game():
-        #         if poll_ui(('SCENARIO', 'PREFAB')):
-        #             sub.prop(ob_nwo, "no_lightmap")
-        #             sub.prop(ob_nwo, "no_pvs")
-        #         if CheckType.poop(ob) or CheckType.default(ob):
-        #             sub.prop(ob_nwo, 'compress_verts')
-        #         if CheckType.default(ob):
-        #             sub.prop(ob_nwo, 'uvmirror_across_entire_model')
     
         # Master Instance button since facemaps aren't stored in mesh data
         if is_linked(ob):
@@ -4538,7 +4498,6 @@ class NWO_FaceMapProps(Panel):
                         col.label(text="Current FaceMap is used for this mesh's cookie cutter")
 
                 else:
-                    col.menu(NWO_FacePropAddMenu.bl_idname, text='', icon='PLUS')
 
                     if item.instanced_collision_override:
                         row = col.row()
@@ -4680,6 +4639,8 @@ class NWO_FaceMapProps(Panel):
                         row.prop(item, "material_lighting_bounce_ratio")
                         row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'material_lighting_bounce_ratio'
 
+                    col.menu(NWO_FacePropAddMenu.bl_idname, text='', icon='PLUS')
+
 def toggle_override(context, option, bool_var):
     ob = context.object
     ob_nwo_face = ob.nwo_face
@@ -4811,14 +4772,23 @@ class NWO_FacePropAddMenu(Menu):
     def draw(self, context):
         layout = self.layout
         ob = context.object
-        if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
+        ob_nwo = ob.nwo
+        if poll_ui(('MODEL', 'SKY')):
             layout.operator("nwo_face.add_face_property", text='Region Override').options = 'region'
-        if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+        if ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
             layout.operator("nwo_face.add_face_property", text='Global Material Override').options = 'face_global_material'
-        if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')) and (CheckType.default(ob) or CheckType.decorator(ob)):
+        if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
             layout.operator("nwo_face.add_face_property", text='Precise').options = 'precise_position'
+            layout.operator_menu_enum("nwo_face.add_face_property_face_sides",
+                                    property="options",
+                                    text="Sides",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_misc",
+                                    property="options",
+                                    text="Other",
+                                    )
 
-        if poll_ui(('SCENARIO', 'PREFAB')) and (CheckType.default(ob) or CheckType.poop(ob)):
+        if poll_ui(('SCENARIO', 'PREFAB')):
             layout.operator_menu_enum("nwo_face.add_face_property_face_type",
                                     property="options",
                                     text="Type",
@@ -4839,16 +4809,6 @@ class NWO_FacePropAddMenu(Menu):
                                     property="options",
                                     text="Emissive",
                                     )
-            
-        if CheckType.default(ob) or CheckType.poop(ob) or CheckType.decorator(ob):
-            layout.operator_menu_enum("nwo_face.add_face_property_face_sides",
-                                    property="options",
-                                    text="Sides",
-                                    )
-            layout.operator_menu_enum("nwo_face.add_face_property_misc",
-                                    property="options",
-                                    text="Other",
-                                    )
 
 class NWO_FacePropAddMenuNew(Menu):
     bl_label = "Add Face Property"
@@ -4857,14 +4817,23 @@ class NWO_FacePropAddMenuNew(Menu):
     def draw(self, context):
         layout = self.layout
         ob = context.object
-        if poll_ui(('MODEL', 'SKY')) and (CheckType.default(ob) or CheckType.collision(ob) or CheckType.physics(ob)):
+        ob_nwo = ob.nwo
+        if poll_ui(('MODEL', 'SKY')):
             layout.operator("nwo_face.add_face_property_new", text='Region Override').options = 'region'
-        if not (poll_ui('MODEL') and CheckType.default(ob)) and not (not_bungie_game() and CheckType.default(ob)) and (CheckType.default(ob) or CheckType.poop(ob) or CheckType.water_surface(ob) or CheckType.collision(ob) or CheckType.physics(ob)) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+        if ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
             layout.operator("nwo_face.add_face_property_new", text='Global Material Override').options = 'face_global_material'
-        if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')) and (CheckType.default(ob) or CheckType.decorator(ob)):
+        if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
             layout.operator("nwo_face.add_face_property_new", text='Precise').options = 'precise_position'
+            layout.operator_menu_enum("nwo_face.add_face_property_face_sides_new",
+                                    property="options",
+                                    text="Sides",
+                                    )
+            layout.operator_menu_enum("nwo_face.add_face_property_misc_new",
+                                    property="options",
+                                    text="Other",
+                                    )
 
-        if poll_ui(('SCENARIO', 'PREFAB')) and (CheckType.default(ob) or CheckType.poop(ob)):
+        if poll_ui(('SCENARIO', 'PREFAB')):
             layout.operator_menu_enum("nwo_face.add_face_property_face_type_new",
                                     property="options",
                                     text="Type",
@@ -4886,15 +4855,6 @@ class NWO_FacePropAddMenuNew(Menu):
                                     text="Emissive",
                                     )
             
-        if CheckType.default(ob) or CheckType.poop(ob) or CheckType.decorator(ob):
-            layout.operator_menu_enum("nwo_face.add_face_property_face_sides_new",
-                                    property="options",
-                                    text="Sides",
-                                    )
-            layout.operator_menu_enum("nwo_face.add_face_property_misc_new",
-                                    property="options",
-                                    text="Other",
-                                    )
 
             
 class NWO_MasterInstance(Operator):
