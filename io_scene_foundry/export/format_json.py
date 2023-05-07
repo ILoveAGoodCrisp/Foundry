@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from ..utils.nwo_utils import CheckType, true_region
+from ..utils.nwo_utils import CheckType, true_region, blender_object_types_mesh
 from .nwo_format import NWOFrame, NWOLight, NWOMarker, NWOMesh, NWOAnimationEvent, NWOAnimationControl, NWOAnimationCamera, NWOFramePCA, NWOMaterial
 
 class NWOJSON(dict):
@@ -81,7 +81,7 @@ class NWOJSON(dict):
         keep_list = ['default']
         for region in self.regions_dict.keys():
             for ob in self.objects:
-                if region not in keep_list and true_region(ob.nwo) == region:
+                if region not in keep_list and ob.nwo.region_name == region:
                     keep_list.append(region)
         
         regions_list = {}
@@ -126,7 +126,7 @@ class NWOJSON(dict):
         mesh_properties = {}
         # build mesh props
         for ob in self.objects:
-            if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
+            if CheckType.get(ob) == '_connected_geometry_object_type_mesh' and ob.type in blender_object_types_mesh:
                 props = NWOMesh(ob, self.sidecar_type, self.model_armature, self.world_frame, self.asset_name)
                 mesh_properties.update({ob.name: props.__dict__})
 

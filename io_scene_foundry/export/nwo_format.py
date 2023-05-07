@@ -637,16 +637,17 @@ class NWOMarker(NWOObject):
             self.bungie_marker_region = self.marker_region()
         if self.bungie_marker_type in ('_connected_geometry_marker_type_model', '_connected_geometry_marker_type_hint', '_connected_geometry_marker_type_target'):
             self.bungie_marker_model_group = self.marker_model_group()
-            if self.bungie_marker_type == '_connected_geometry_marker_type_model' and vector_str(self.halo.marker_velocity) != "0.0 0.0 0.0":
+            if self.halo.marker_type == '_connected_geometry_marker_type_garbage' and vector_str(self.halo.marker_velocity) != "0.0 0.0 0.0":
                 self.bungie_marker_velocity = self.marker_velocity()
         elif self.bungie_marker_type in ('_connected_geometry_marker_type_prefab', '_connected_geometry_marker_type_cheap_light', '_connected_geometry_marker_type_light', '_connected_geometry_marker_type_falling_leaf', '_connected_geometry_marker_type_game_instance'):
             self.bungie_marker_game_instance_tag_name = self.marker_game_instance_tag_name()
             self.bungie_marker_game_instance_variant_name = self.marker_game_instance_variant_name()
-        elif self.bungie_marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
-            self.bungie_marker_pathfinding_sphere_vehicle_only = self.marker_pathfinding_sphere_vehicle_only()
-            self.bungie_marker_pathfinding_sphere_remains_when_open = self.marker_pathfinding_sphere_remains_when_open()
-            self.bungie_marker_pathfinding_sphere_with_sectors = self.marker_pathfinding_sphere_with_sectors()
+        elif self.bungie_marker_type in ('_connected_geometry_marker_type_pathfinding_sphere', '_connected_geometry_marker_type_target'): 
             self.bungie_mesh_primitive_sphere_radius = self.marker_sphere_radius() # mesh properties in my node properties... Pathfinding spheres need this or they don't get written to the collision model
+            if self.bungie_marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
+                self.bungie_marker_pathfinding_sphere_vehicle_only = self.marker_pathfinding_sphere_vehicle_only()
+                self.bungie_marker_pathfinding_sphere_remains_when_open = self.marker_pathfinding_sphere_remains_when_open()
+                self.bungie_marker_pathfinding_sphere_with_sectors = self.marker_pathfinding_sphere_with_sectors()
         elif self.bungie_marker_type in ('_connected_geometry_marker_type_physics_hinge_constraint', '_connected_geometry_marker_type_physics_socket_constraint'):
             self.bungie_physics_constraint_parent = self.physics_constraint_parent()
             self.bungie_physics_constraint_child = self.physics_constraint_child()
@@ -689,6 +690,9 @@ class NWOMarker(NWOObject):
         self.cleanup()
 
     def marker_type(self):
+        # need to cast marker type to model if using Blender only marker types:
+        if self.halo.marker_type in ('_connected_geometry_marker_type_effects', '_connected_geometry_marker_type_garbage'):
+            return '_connected_geometry_marker_type_model'
         return self.halo.marker_type
 
     def marker_model_group(self):
@@ -719,7 +723,7 @@ class NWOMarker(NWOObject):
         return bool_str(self.halo.pathfinding_sphere_with_sectors)
     
     def marker_sphere_radius(self):
-        return radius_str(self.ob) if self.ob.type == 'mesh' else jstr(self.halo.marker_sphere_radius)
+        return radius_str(self.ob) if self.ob.type == 'MESH' else jstr(self.halo.marker_sphere_radius)
 
     def physics_constraint_parent(self):
         return self.halo.physics_constraint_parent

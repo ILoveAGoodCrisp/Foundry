@@ -781,6 +781,12 @@ class NWO_ObjectProps(Panel):
                 if ob_nwo.marker_type == '_connected_geometry_marker_type_hint':
                     marker_type_name = 'Hint'
                     marker_type_icon = 'hint'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_garbage':
+                    marker_type_name = 'Garbage'
+                    marker_type_icon = 'garbage'
+                elif ob_nwo.marker_type == '_connected_geometry_marker_type_effects':
+                    marker_type_name = 'Effects'
+                    marker_type_icon = 'effects'
                 elif ob_nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
                     marker_type_name = 'Pathfinding Sphere'
                     marker_type_icon = 'pathfinding_sphere'
@@ -801,7 +807,7 @@ class NWO_ObjectProps(Panel):
                     marker_type_name = 'Airprobe'
                     marker_type_icon = 'airprobe'
                 elif ob_nwo.marker_type == '_connected_geometry_marker_type_envfx' and h4:
-                    marker_type_name = 'Effect'
+                    marker_type_name = 'Environmental Effect'
                     marker_type_icon = 'environment_effect'
                 elif ob_nwo.marker_type == '_connected_geometry_marker_type_lightCone' and h4:
                     marker_type_name = 'Light Cone'
@@ -836,7 +842,6 @@ class NWO_ObjectProps(Panel):
                 col.prop(ob_nwo, "marker_group_name", text='Marker Group')
                 if poll_ui(('MODEL', 'SKY')):
                     row = col.row()
-                    row.prop(ob_nwo, "marker_velocity", text='Marker Velocity')
                     sub = col.row(align=True)
                     if not ob_nwo.marker_all_regions:
                         if ob_nwo.region_name_locked != '':
@@ -854,27 +859,38 @@ class NWO_ObjectProps(Panel):
                     col.prop(ob_nwo, 'marker_game_instance_run_scripts') 
                     
             elif ob_nwo.marker_type == '_connected_geometry_marker_type_hint':
-                col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+                row = col.row(align=True)
+                row.prop(ob_nwo, "marker_hint_type")
+                if ob_nwo.marker_hint_type == 'corner':
+                    row = col.row(align=True)
+                    row.prop(ob_nwo, "marker_hint_side", expand=True)
+                elif ob_nwo.marker_hint_type in ('vault', 'mount', 'hoist'):
+                    row = col.row(align=True)
+                    row.prop(ob_nwo, "marker_hint_height", expand=True)
                 if h4:
                     col.prop(ob_nwo, 'marker_hint_length')
 
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_effects':
+                col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+
+            elif ob_nwo.marker_type == '_connected_geometry_marker_type_garbage':
+                col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+                col.prop(ob_nwo, "marker_velocity", text='Marker Velocity')
+
             elif ob_nwo.marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
-                col = layout.column(heading="Flags")
-                sub = col.column(align=True)
-                sub.prop(ob_nwo, "marker_pathfinding_sphere_vehicle", text='Vehicle Only')
-                sub.prop(ob_nwo, "pathfinding_sphere_remains_when_open", text='Remains When Open')
-                sub.prop(ob_nwo, "pathfinding_sphere_with_sectors", text='With Sectors')
+                col = col.column(heading="Flags")
+                col.prop(ob_nwo, "marker_pathfinding_sphere_vehicle", text='Vehicle Only')
+                col.prop(ob_nwo, "pathfinding_sphere_remains_when_open", text='Remains When Open')
+                col.prop(ob_nwo, "pathfinding_sphere_with_sectors", text='With Sectors')
                 if ob.type != 'MESH':
-                    sub.prop(ob_nwo, "marker_sphere_radius")
+                    col.prop(ob_nwo, "marker_sphere_radius")
 
             elif ob_nwo.marker_type == '_connected_geometry_marker_type_physics_constraint':
                 col.prop(ob_nwo, "physics_constraint_parent", text='Constraint Parent')
                 col.prop(ob_nwo, "physics_constraint_child", text='Constraint Child')
 
-                sus = col.row(align=True)
-
-                sus.prop(ob_nwo, "physics_constraint_type", text='Constraint Type', expand=True)
-                sus.prop(ob_nwo, 'physics_constraint_uses_limits', text='Uses Limits')
+                col.prop(ob_nwo, "physics_constraint_type", text='Constraint Type', expand=True)
+                col.prop(ob_nwo, 'physics_constraint_uses_limits', text='Uses Limits')
 
                 if ob_nwo.physics_constraint_uses_limits:
                     if ob_nwo.physics_constraint_type == '_connected_geometry_marker_type_physics_hinge_constraint':
@@ -892,6 +908,8 @@ class NWO_ObjectProps(Panel):
 
             elif ob_nwo.marker_type == '_connected_geometry_marker_type_target':
                 col.prop(ob_nwo, "marker_group_name", text='Marker Group')
+                if ob.type != 'MESH':
+                    col.prop(ob_nwo, "marker_sphere_radius")
 
             elif ob_nwo.marker_type == '_connected_geometry_marker_type_airprobe' and h4:
                 col.prop(ob_nwo, "marker_group_name", text='Air Probe Group')
@@ -1362,6 +1380,8 @@ class NWO_MarkerMenu(Menu):
 
         if poll_ui('MODEL'):
             layout.operator("nwo.set_marker_type", text="Hint", icon_value=get_icon_id('hint')).option = '_connected_geometry_marker_type_hint'
+            layout.operator("nwo.set_marker_type", text="Effects", icon_value=get_icon_id('effects')).option = '_connected_geometry_marker_type_effects'
+            layout.operator("nwo.set_marker_type", text="Garbage", icon_value=get_icon_id('garbage')).option = '_connected_geometry_marker_type_garbage'
             layout.operator("nwo.set_marker_type", text="Pathfinding Sphere", icon_value=get_icon_id('pathfinding_sphere')).option = '_connected_geometry_marker_type_pathfinding_sphere'
             layout.operator("nwo.set_marker_type", text="Physics Constraint", icon_value=get_icon_id('physics_constraint')).option = '_connected_geometry_marker_type_physics_constraint'
             layout.operator("nwo.set_marker_type", text="Target", icon_value=get_icon_id('target')).option = '_connected_geometry_marker_type_target'
@@ -1371,7 +1391,7 @@ class NWO_MarkerMenu(Menu):
             layout.operator("nwo.set_marker_type", text="Water Volume Flow", icon_value=get_icon_id('water_volume_flow')).option = '_connected_geometry_marker_type_water_volume_flow'
             if h4:
                 layout.operator("nwo.set_marker_type", text="Airprobe", icon_value=get_icon_id('airprobe')).option = '_connected_geometry_marker_type_airprobe'
-                layout.operator("nwo.set_marker_type", text="Effect", icon_value=get_icon_id('environment_effect')).option = '_connected_geometry_marker_type_envfx'
+                layout.operator("nwo.set_marker_type", text="Environmental Effect", icon_value=get_icon_id('environment_effect')).option = '_connected_geometry_marker_type_envfx'
                 layout.operator("nwo.set_marker_type", text="Light Cone", icon_value=get_icon_id('light_cone')).option = '_connected_geometry_marker_type_lightCone'
 
 class NWO_MarkerType(Operator):
@@ -2644,6 +2664,43 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="",
         default=0.0,
         min=0.0,
+    )
+
+    marker_hint_type: EnumProperty(
+        name="Type",
+        options=set(),
+        description="",
+        default='bunker',
+        items=[
+            ('bunker', 'Bunker', ''),
+            ('corner', 'Corner', ''),
+            ('vault', 'Vault', ''),
+            ('mount', 'Mount', ''),
+            ('hoist', 'Hoist', ''),
+        ]
+    )
+
+    marker_hint_side: EnumProperty(
+        name="Side",
+        options=set(),
+        description="",
+        default='right',
+        items=[
+            ('right', 'Right', ''),
+            ('left', 'Left', ''),
+        ]
+    )
+
+    marker_hint_height: EnumProperty(
+        name="Height",
+        options=set(),
+        description="",
+        default='step',
+        items=[
+            ('step', 'Step', ''),
+            ('crouch', 'Crouch', ''),
+            ('stand', 'Stand', ''),
+        ]
     )
 
     marker_sphere_radius: FloatProperty(

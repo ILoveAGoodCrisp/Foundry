@@ -72,6 +72,10 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     # update bsp/perm/region names in case any are null.
     fix_blank_group_names(context)
     if export_gr2_files:
+        # ignore water flow markers, we never export these
+        hide_water_flow_markers(context)
+        # fixup hint marker names
+        apply_hint_marker_name(context)
         # add a uv map to meshes without one. This prevents an export assert
         fixup_missing_uvs(context)
         # run find shaders code if any empty paths
@@ -152,7 +156,6 @@ class HaloObjects():
         
         self.cookie_cutters = select_halo_objects('cookie_cutter', asset_type, ('SCENARIO', 'PREFAB'))
         self.poops = select_halo_objects('poop', asset_type, ('SCENARIO', 'PREFAB'))
-        print(self.poops)
         self.poop_markers = select_halo_objects('poop_marker', asset_type, ('SCENARIO'))
         self.misc = select_halo_objects('misc', asset_type, ('SCENARIO', 'PREFAB'))
         self.seams = select_halo_objects('seam', asset_type, ('SCENARIO'))
@@ -168,6 +171,41 @@ class HaloObjects():
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
+
+def apply_hint_marker_name(context):
+    for ob in context.view_layer.objects:
+        if CheckType.get(ob) == '_connected_geometry_object_type_marker' and ob.nwo.marker_type == '_connected_geometry_marker_type_hint':
+            ob.name = 'hint_'
+            if ob.nwo.marker_hint_type == 'bunker':
+                ob.name += 'bunker'
+            elif ob.nwo.marker_hint_type == 'corner':
+                ob.name += 'corner_'
+                if ob.nwo.marker_hint_side == 'right':
+                    ob.name += 'right'
+                else:
+                    ob.name += 'left'
+
+            else:
+                if ob.nwo.marker_hint_type == 'vault':
+                    ob.name += 'vault_'
+                elif ob.nwo.marker_hint_type == 'mount':
+                    ob.name += 'mount_'
+                else:
+                    ob.name += 'hoist_'
+
+                if ob.nwo.marker_hint_height == 'step':
+                    ob.name += 'step'
+                elif ob.nwo.marker_hint_height == 'crouch':
+                    ob.name += 'crouch'
+                else:
+                    ob.name += 'stand'
+                
+
+
+def hide_water_flow_markers(context):
+    for ob in context.view_layer.objects:
+        if CheckType.get(ob) == '_connected_geometry_object_type_marker' and ob.nwo.marker_type == '_connected_geometry_marker_type_water_volume_flow':
+            ob.hide_set(True)
 
 def cull_zero_face_meshes(context):
     for ob in context.view_layer.objects:
@@ -579,7 +617,8 @@ def apply_properties(context, asset_type, asset):
             apply_object_mesh_marker_properties(ob, asset_type)
 
         strip_prefix(ob)
-        apply_namespaces(ob, asset)
+        if not_bungie_game():
+            apply_namespaces(ob, asset)
 
 
 def apply_namespaces(ob, asset):
@@ -1214,49 +1253,13 @@ def MeshesToEmpties(context, meshes_to_empties):
                     node.parent_bone = ob.parent_bone
 
             node.matrix_local = ob.matrix_local
-            if CheckType.pathfinding_sphere(ob): # need to handle path finding spheres differently. Dimensions aren't retained for empties, so instead we can store the radius in the marker sphere radius
+            if ob.nwo.marker_type in ('_connected_geometry_marker_type_pathfinding_sphere', '_connected_geometry_marker_type_target'): # need to handle pathfinding spheres / targets differently. Dimensions aren't retained for empties, so instead we can store the radius in the marker sphere radius
                 node.nwo.marker_sphere_radius = max(ob.dimensions) / 2
             node.scale = ob.scale
             # copy the node props from the mesh to the empty
             SetNodeProps(node, ob)
             # hide the mesh so it doesn't get included in the export
             ob.hide_set(True)
-
-    # mesh to empties with deletion
-    # if meshes_to_empties:
-    #     # get a list of meshes which are nodes
-    #     mesh_nodes = []
-    #     for ob in context.view_layer.objects:
-    #         if CheckType.marker(ob) and ob.type == 'MESH':
-    #             mesh_nodes.append(ob)
-
-    #     # For each mesh node create an empty with the same Halo props and transforms
-    #     # Mesh objects need their names saved, so we make a dict. Names are stored so that the node can have the exact same name. We add a temp name to each mesh object
-    #     for ob in mesh_nodes:
-    #         deselect_all_objects()
-    #         bpy.ops.object.empty_add(type='ARROWS')
-    #         node = context.object
-    #         if ob.parent is not None:
-    #             node.parent = ob.parent
-    #             # Added 08-12-2022 to fix empty nodes not being bone parented
-    #             node.parent_type = ob.parent_type
-    #             if node.parent_type == 'BONE':
-    #                 node.parent_bone = ob.parent_bone
-
-    #         node.matrix_local = ob.matrix_local
-    #         if CheckType.pathfinding_sphere(ob): # need to handle path finding spheres differently. Dimensions aren't retained for empties, so instead we can store the radius in the marker sphere radius
-    #             node.nwo.marker_sphere_radius = max(ob.dimensions) / 2
-    #         node.scale = ob.scale
-    #         # copy the node props from the mesh to the empty
-    #         SetNodeProps(node, ob)
-    #         # get the meshes name
-    #         mesh_name = str(ob.name)
-    #         # cast the mesh into the abyss
-    #         deselect_all_objects()
-    #         ob.select_set(True)
-    #         bpy.ops.object.delete() 
-    #         # Apply the saved mesh name to the new node
-    #         node.name = mesh_name
 
 def TempName(name):
     return name + ''

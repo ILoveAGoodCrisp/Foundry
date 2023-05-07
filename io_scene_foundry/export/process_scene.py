@@ -127,6 +127,7 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                             if perm not in perm_list:
                                 perm_list.append(perm)
                                 if select_model_objects(get_render_from_halo_objects(halo_objects), perm, model_armature, export_hidden, export_all_perms, selected_perms):
+                                    print(context.selected_objects)
                                     print_box(f'**Exporting {perm} render model**')
                                     export_fbx(using_better_fbx, **keywords)
                                     export_gr2(report, asset_path, asset, 'render', context.selected_objects, '', perm, model_armature, skeleton_bones, '', regions_dict, global_materials_dict, **keywords)
