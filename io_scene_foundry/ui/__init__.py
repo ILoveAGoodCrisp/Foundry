@@ -652,7 +652,7 @@ class NWO_ObjectProps(Panel):
                 elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and (poll_ui('MODEL') or h4):
                     pass
                 else:
-                    row.prop(ob_nwo, "face_global_material", text='Global Material')
+                    col.prop(ob_nwo, "face_global_material", text='Global Material')
                     if ob.nwo_face.face_props and ob_nwo.mesh_type in ('_connected_geometry_mesh_type_object_default', '_connected_geometry_mesh_type_collision'):
                         for prop in ob.nwo_face.face_props:
                             if prop.face_global_material_override:
