@@ -152,6 +152,7 @@ class HaloObjects():
         
         self.cookie_cutters = select_halo_objects('cookie_cutter', asset_type, ('SCENARIO', 'PREFAB'))
         self.poops = select_halo_objects('poop', asset_type, ('SCENARIO', 'PREFAB'))
+        print(self.poops)
         self.poop_markers = select_halo_objects('poop_marker', asset_type, ('SCENARIO'))
         self.misc = select_halo_objects('misc', asset_type, ('SCENARIO', 'PREFAB'))
         self.seams = select_halo_objects('seam', asset_type, ('SCENARIO'))
@@ -320,6 +321,8 @@ def apply_face_properties(context):
             set_active_object(ob)
             # split for all linked objects
             me = ob.data
+            # must force on auto smooth to avoid Normals transfer errors
+            me.use_auto_smooth = True
             linked_objects = []
             for obj in context.view_layer.objects:
                 if obj.data == me and obj != ob:

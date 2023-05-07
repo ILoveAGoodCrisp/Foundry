@@ -1525,14 +1525,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=object_type_items_no_mesh,
     )
 
-    object_type_all_locked: EnumProperty(
-        name="Object Type",
-        options=set(),
-        get=get_objecttype_enum,
-        default = '_connected_geometry_object_type_mesh',
-        items=object_type_items_all,
-    )
-
     object_type_no_mesh_locked: EnumProperty(
         name="Object Type",
         options=set(),

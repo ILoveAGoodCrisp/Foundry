@@ -87,6 +87,8 @@ shader_exts = ('.shader', '.shader_cortana', '.shader_custom', '.shader_decal', 
 
 package = 'io_scene_foundry'
 
+blender_object_types_mesh = ('MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'CURVES', 'POINTCLOUD', 'VOLUME', 'GPENCIL')
+
 #############
 ##FUNCTIONS##
 #############
@@ -135,7 +137,6 @@ def get_perm(ob): # get the permutation of an object, return default if the perm
     else:
         return ob.nwo.permutation_name
         
-
 def is_windows():
     return platform.system() == 'Windows'
 
@@ -207,7 +208,7 @@ def select_bsp_objects(halo_objects, bsp, arm, perm, export_hidden, export_all_p
         arm.select_set(True)
     for ob in halo_objects:
         halo = ob.nwo
-        bsp_value = true_bsp(ob.nwo)
+        bsp_value = ob.nwo.bsp_name
         if bsp_value == bsp:
             if object_valid(ob, export_hidden, perm, halo.permutation_name, halo.permutation_name_locked) and export_perm(perm, export_all_perms, selected_perms) and export_bsp(bsp, export_all_bsps, selected_bsps):
                 ob.select_set(True)
@@ -302,7 +303,7 @@ def is_design(ob):
 
 def is_marker(ob):
     if ob.type == 'MESH':
-        return ob.nwo.object_type_all == '_connected_geometry_object_type_marker' or ob.nwo.object_type_all_locked == '_connected_geometry_object_type_marker'
+        return ob.nwo.object_type_all == '_connected_geometry_object_type_marker'
     elif ob.type == 'EMPTY':
         return ob.nwo.object_type_no_mesh == '_connected_geometry_object_type_marker'or ob.nwo.object_type_no_mesh_locked == '_connected_geometry_object_type_marker'
     else:
@@ -317,7 +318,7 @@ def is_frame(ob):
         return False
 
 def is_mesh(ob):
-    return not is_marker(ob) and not is_frame(ob) and ob.type == 'MESH'
+    return ob.type in blender_object_types_mesh and ob.nwo.object_type == '_connected_geometry_object_type_mesh'
 
 def vector_str(velocity):
     x = velocity.x

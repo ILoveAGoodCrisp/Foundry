@@ -126,7 +126,7 @@ class NWOJSON(dict):
         mesh_properties = {}
         # build mesh props
         for ob in self.objects:
-            if CheckType.mesh(ob):
+            if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
                 props = NWOMesh(ob, self.sidecar_type, self.model_armature, self.world_frame, self.asset_name)
                 mesh_properties.update({ob.name: props.__dict__})
 
