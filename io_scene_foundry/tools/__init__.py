@@ -165,16 +165,16 @@ class NWO_ScaleModels_Add(Operator, AddObjectHelper):
         name="",
         items=[ ('scale_model_banshee', "Banshee", ""),
                ]
-    )
+    ) 
 
     def execute(self, context):
         from .scale_models import add_scale_model
         add_scale_model(self, context)
         return {'FINISHED'}
     
-    def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
+    # def invoke(self, context, event):
+    #     wm = context.window_manager
+    #     return wm.invoke_props_dialog(self)
     
     def Check(self, context):
         return True

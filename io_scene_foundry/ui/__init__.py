@@ -644,6 +644,8 @@ class NWO_ObjectMeshProps(Panel):
         row.emboss = 'NORMAL'
         row.menu(NWO_MeshMenu.bl_idname, text=mesh_type_name, icon_value=get_icon_id(mesh_type_icon))
 
+        col.separator()
+
         # if not_bungie_game():
         #     if object_prefix(context.active_object, special_prefixes):
         #         col.prop(ob_nwo, "ObjectMesh_Type_Locked_H4", text='Mesh Type')
@@ -667,7 +669,6 @@ class NWO_ObjectMeshProps(Panel):
             col.prop(ob_nwo, "face_global_material", text='Global Material')
 
         if ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
-            col.separator()
             row = col.row()
             row.scale_y = 1.25
             volume_type_name = 'Soft Ceiling'
