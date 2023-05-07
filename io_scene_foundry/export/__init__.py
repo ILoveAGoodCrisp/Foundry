@@ -786,24 +786,30 @@ class NWO_SceneProps(Panel):
         # col.prop(scene_nwo, 'filter_ui', text = 'Filter UI')
         if scene_nwo.asset_type == 'MODEL':
             col.label(text="Output Tags")
-            row = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True)
+            row = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=True, align=True)
             # row = layout.row(align=True)
             row.scale_x = 1.3
             row.scale_y = 1.3
-            row.prop(scene_nwo, "output_biped", text='', icon_value=get_icon_id('biped'))
+
             row.prop(scene_nwo, "output_crate", text='',icon_value=get_icon_id('crate'))
-            row.prop(scene_nwo, "output_creature",text='',icon_value=get_icon_id('creature'))
+            row.prop(scene_nwo, "output_scenery",text='',icon_value=get_icon_id('scenery'))
+            row.prop(scene_nwo, "output_effect_scenery",text='',icon_value=get_icon_id('effect_scenery'))
+
             row.prop(scene_nwo, "output_device_control",text='',icon_value=get_icon_id('device_control'))
-            if context.scene.nwo_global.game_version in ('h4', 'h2a'):
-                row.prop(scene_nwo, "output_device_dispenser",text='',icon_value=get_icon_id('device_dispenser'))
             row.prop(scene_nwo, "output_device_machine", text='',icon_value=get_icon_id('device_machine'))
             row.prop(scene_nwo, "output_device_terminal", text='',icon_value=get_icon_id('device_terminal'))
-            row.prop(scene_nwo, "output_effect_scenery",text='',icon_value=get_icon_id('effect_scenery'))
-            row.prop(scene_nwo, "output_equipment",text='',icon_value=get_icon_id('equipment'))
+            if context.scene.nwo_global.game_version in ('h4', 'h2a'):
+                row.prop(scene_nwo, "output_device_dispenser",text='',icon_value=get_icon_id('device_dispenser'))
+
+            row.prop(scene_nwo, "output_biped", text='', icon_value=get_icon_id('biped'))
+            row.prop(scene_nwo, "output_creature",text='',icon_value=get_icon_id('creature'))
             row.prop(scene_nwo, "output_giant", text='', icon_value=get_icon_id('giant'))
-            row.prop(scene_nwo, "output_scenery",text='',icon_value=get_icon_id('scenery'))
+            
             row.prop(scene_nwo, "output_vehicle", text='',icon_value=get_icon_id('vehicle'))
             row.prop(scene_nwo, "output_weapon", text='',icon_value=get_icon_id('weapon'))
+            row.prop(scene_nwo, "output_equipment",text='',icon_value=get_icon_id('equipment'))
+
+
 
 class NWO_UL_SceneProps_SharedAssets(UIList):
     use_name_reverse: bpy.props.BoolProperty(

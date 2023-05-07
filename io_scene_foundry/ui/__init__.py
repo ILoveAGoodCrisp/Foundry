@@ -578,7 +578,7 @@ class NWO_ObjectProps(Panel):
                     mesh_type_icon = 'physics'
                 elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_object_instance' and not h4:
                     mesh_type_name = 'Flair'
-                    mesh_type_icon = 'instance'
+                    mesh_type_icon = 'flair'
             elif poll_ui('SCENARIO'):
                 if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
                     mesh_type_name = 'Instance'
@@ -1326,7 +1326,7 @@ class NWO_MeshMenu(Menu):
             layout.operator("nwo.set_mesh_type", text="Collision", icon_value=get_icon_id('collider')).option = '_connected_geometry_mesh_type_collision'
             layout.operator("nwo.set_mesh_type", text="Physics", icon_value=get_icon_id('physics')).option = '_connected_geometry_mesh_type_physics'
             if not h4:
-                layout.operator("nwo.set_mesh_type", text="Flair", icon_value=get_icon_id('instance')).option = '_connected_geometry_mesh_type_object_instance'
+                layout.operator("nwo.set_mesh_type", text="Flair", icon_value=get_icon_id('flair')).option = '_connected_geometry_mesh_type_object_instance'
 
         elif poll_ui(('SCENARIO', 'PREFAB')):
             layout.operator("nwo.set_mesh_type", text="Instance", icon_value=get_icon_id('instance')).option = '_connected_geometry_mesh_type_poop'
@@ -1512,12 +1512,12 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     object_type_items_all = [
         ('_connected_geometry_object_type_mesh', 'Mesh', "Mesh", get_icon_id("render_geometry"), 0),
         ('_connected_geometry_object_type_marker', 'Marker', "Marker", get_icon_id("marker"), 1),
-        ('_connected_geometry_object_type_frame', 'Frame', "Frame", get_icon_id("physics_constraint"), 2),
+        ('_connected_geometry_object_type_frame', 'Frame', "Frame", get_icon_id("frame"), 2),
     ]
 
     object_type_items_no_mesh = [
         ('_connected_geometry_object_type_marker', "Marker", "Marker", get_icon_id("marker"), 0),
-        ('_connected_geometry_object_type_frame', "Frame", "Frame", get_icon_id("physics_constraint"), 1),
+        ('_connected_geometry_object_type_frame', "Frame", "Frame", get_icon_id("frame"), 1),
     ]
 
     object_type_items = [

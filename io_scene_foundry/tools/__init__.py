@@ -231,7 +231,7 @@ class NWO_SetFrameIDs(Panel):
         row.operator('nwo.graph_path')
         row = layout.row()
         row.scale_y = 1.5
-        row.operator("nwo.set_frame_ids", text="Set Frame IDs")
+        row.operator("nwo.set_frame_ids", text="Set Frame IDs", icon_value=get_icon_id("frame_id"))
         row = layout.row()
         row.scale_y = 1.5
         row.operator("nwo.reset_frame_ids", text="Reset Frame IDs")
