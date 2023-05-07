@@ -570,20 +570,20 @@ class NWO_ObjectProps(Panel):
                 mesh_type_icon = 'render_geometry'
                 
             if poll_ui('MODEL'):
-                if CheckType.collision(ob):
+                if ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision':
                     mesh_type_name = 'Collision'
                     mesh_type_icon = 'collider'
-                elif CheckType.physics(ob):
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_physics':
                     mesh_type_name = 'Physics'
                     mesh_type_icon = 'physics'
-                elif CheckType.object_instance(ob) and not h4:
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_object_instance' and not h4:
                     mesh_type_name = 'Flair'
                     mesh_type_icon = 'instance'
             elif poll_ui('SCENARIO'):
-                if CheckType.poop(ob):
+                if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
                     mesh_type_name = 'Instance'
                     mesh_type_icon = 'instance'
-                elif CheckType.cookie_cutter(ob):
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
                     mesh_type_name = 'Cookie Cutter'
                     mesh_type_icon = 'cookie_cutter'
                 elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' and h4:
@@ -598,12 +598,12 @@ class NWO_ObjectProps(Panel):
                     mesh_type_name = 'Volume'
                     mesh_type_icon = 'crate'
 
-            elif poll_ui('PREFAB'):
-                if CheckType.poop(ob):
+            elif poll_ui('PREFAB') and h4:
+                if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
                     mesh_type_name = 'Instance'
-                elif CheckType.cookie_cutter(ob):
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
                     mesh_type_name = 'Cookie Cutter'
-                elif CheckType.collision(ob) and h4:
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision':
                     mesh_type_name = 'Collider'
 
             row.emboss = 'NORMAL'
@@ -658,6 +658,7 @@ class NWO_ObjectProps(Panel):
                             if prop.face_global_material_override:
                                 row.label(text='*')
                                 break
+            col.separator()
 
             if ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
                 row = col.row()
@@ -699,7 +700,6 @@ class NWO_ObjectProps(Panel):
                         col.label(text="Water Physics mesh type only valid for Scenario exports", icon='ERROR')
 
             elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
-
                 col.prop(ob_nwo, "poop_lighting_override", text='Lighting Policy')
                 
                 if h4:
@@ -722,19 +722,18 @@ class NWO_ObjectProps(Panel):
 
                 col.separator()
 
-                col = layout.column(heading="Flags")
-                sub = col.column(align=True)
+                col = col.column(heading="Flags")
 
-                sub.prop(ob_nwo, "poop_render_only", text='Render Only')
+                col.prop(ob_nwo, "poop_render_only", text='Render Only')
 
-                sub.prop(ob_nwo, "poop_chops_portals", text='Chops Portals')
-                sub.prop(ob_nwo, "poop_does_not_block_aoe", text='Does Not Block AOE')
-                sub.prop(ob_nwo, "poop_excluded_from_lightprobe", text='Excluded From Lightprobe')
-                sub.prop(ob_nwo, "poop_decal_spacing", text='Decal Spacing')
+                col.prop(ob_nwo, "poop_chops_portals", text='Chops Portals')
+                col.prop(ob_nwo, "poop_does_not_block_aoe", text='Does Not Block AOE')
+                col.prop(ob_nwo, "poop_excluded_from_lightprobe", text='Excluded From Lightprobe')
+                col.prop(ob_nwo, "poop_decal_spacing", text='Decal Spacing')
                 if h4:
-                    sub.prop(ob_nwo, "poop_remove_from_shadow_geometry")
-                    sub.prop(ob_nwo, "poop_disallow_lighting_samples",)
-                    sub.prop(ob_nwo, "poop_rain_occluder")
+                    col.prop(ob_nwo, "poop_remove_from_shadow_geometry")
+                    col.prop(ob_nwo, "poop_disallow_lighting_samples",)
+                    col.prop(ob_nwo, "poop_rain_occluder")
 
             elif CheckType.portal(ob):
                 row = col.row()
