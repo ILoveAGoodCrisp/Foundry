@@ -178,7 +178,8 @@ def ignore_non_export_objects(context):
     for ob in context.view_layer.objects:
         ob_nwo = ob.nwo
         if not ob_nwo.export_this:
-            context.scene.collection.objects.unlink(ob)
+            for collection in bpy.data.collections:
+                collection.objects.unlink(ob)
 
 def apply_hint_marker_name(context):
     for ob in context.view_layer.objects:
