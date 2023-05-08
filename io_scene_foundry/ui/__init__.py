@@ -4437,6 +4437,7 @@ class NWO_FaceMapProps(Panel):
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_parent_id = "NWO_PT_ObjectDetailsPanel"
+    
 
     @classmethod
     def poll(cls, context):
@@ -4444,6 +4445,9 @@ class NWO_FaceMapProps(Panel):
         valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
         h4_structure = not_bungie_game() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default'
         return ob and ob.type == 'MESH' and CheckType.get(ob) == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
+    
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("halo_mods"))
     
     def draw(self, context):
         layout = self.layout

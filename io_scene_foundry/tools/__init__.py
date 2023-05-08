@@ -29,6 +29,7 @@ from os.path import exists as file_exists
 from os.path import join as path_join
 
 from bpy.types import (
+        Context,
         Panel,
         Operator,
         PropertyGroup
@@ -218,6 +219,9 @@ class NWO_SetFrameIDs(Panel):
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_PropertiesManager"
 
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("frame_id"))
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -231,7 +235,7 @@ class NWO_SetFrameIDs(Panel):
         row.operator('nwo.graph_path')
         row = layout.row()
         row.scale_y = 1.5
-        row.operator("nwo.set_frame_ids", text="Set Frame IDs", icon_value=get_icon_id("frame_id"))
+        row.operator("nwo.set_frame_ids", text="Set Frame IDs")
         row = layout.row()
         row.scale_y = 1.5
         row.operator("nwo.reset_frame_ids", text="Reset Frame IDs")
@@ -1052,6 +1056,13 @@ class NWO_ShaderFinder(Panel):
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_MaterialTools"
 
+    @classmethod
+    def poll(cls, context):
+        return not not_bungie_game()
+
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("material_finder"))
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -1068,6 +1079,14 @@ class NWO_ShaderFinder(Panel):
         col = col.row()
         col.scale_y = 1.5
         col.operator('nwo.shader_finder')
+
+class NWO_MaterialFinder(NWO_ShaderFinder):
+    bl_label = "Material Finder"
+    bl_idname = "NWO_PT_MaterialFinder"
+
+    @classmethod
+    def poll(cls, context):
+        return not_bungie_game()
 
 class NWO_ShaderFinder_Find(Operator):
     """Searches the tags folder for shaders (or the specified directory) and applies all that match blender material names"""
@@ -1473,6 +1492,9 @@ class NWO_CollectionManager(Panel):
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_PropertiesManager"
 
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("collection_creator"))
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -1485,7 +1507,7 @@ class NWO_CollectionManager(Panel):
         col.prop(scene_nwo_collection_manager, 'collection_type', text='Type')
         col = col.row()
         col.scale_y = 1.5
-        col.operator('nwo.collection_create', icon_value=get_icon_id("collection_creator"))
+        col.operator('nwo.collection_create')
 
 class NWO_CollectionManager_Create(Operator):
     """Creates a special collection with the specified name and adds all currently selected objects to it"""
@@ -1530,12 +1552,15 @@ class NWO_HaloCollectionManagerPropertiesGroup(PropertyGroup):
     )
 
 class NWO_ArmatureCreator(Panel):
-    bl_label = "Armature Creator"
+    bl_label = "Rig Creator"
     bl_idname = "NWO_PT_ArmatureCreator"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_AnimationTools"
+
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("rig_creator"))
 
     def draw(self, context):
         layout = self.layout
@@ -1617,12 +1642,15 @@ class NWO_CopyHaloProps_Copy(Operator):
         return CopyProps(self.report, context.view_layer.objects.active, context.selected_objects)
 
 class NWO_AMFHelper(Panel):
-    bl_label = "AMF Helper"
+    bl_label = "Object Importer"
     bl_idname = "NWO_PT_AMFHelper"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_PropertiesManager"
+
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("import_helper"))
 
     def draw(self, context):
         layout = self.layout
@@ -1654,6 +1682,10 @@ class NWO_JMSHelper(Panel):
     bl_region_type = "UI"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_PropertiesManager"
+
+    @classmethod
+    def poll(cls, context):
+        return False
 
     def draw(self, context):
         layout = self.layout
@@ -1739,12 +1771,15 @@ class NWO_MaterialsManager(Panel):
         layout = self.layout
 
 class NWO_BitmapExport(Panel):
-    bl_label = "Export Bitmaps"
+    bl_label = "Bitmap Exporter"
     bl_idname = "NWO_PT_BitmapExport"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_MaterialTools"
+
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("texture_export"))
 
     def draw(self, context):
         layout = self.layout
@@ -1803,12 +1838,19 @@ class NWO_BitmapExportPropertiesGroup(PropertyGroup):
     )
 
 class NWO_Shader(Panel):
-    bl_label = "Shader Tools"
+    bl_label = 'Shader Exporter'
     bl_idname = "NWO_PT_Shader"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "NWO_PT_MaterialTools"
+
+    @classmethod
+    def poll(cls, context):
+        return not not_bungie_game()
+
+    def draw_header(self, context):
+        self.layout.label(text='', icon_value=get_icon_id("material_exporter"))
 
     def draw(self, context):
         layout = self.layout
@@ -1827,6 +1869,14 @@ class NWO_Shader(Panel):
         col.prop(nwo_shader_build, 'update', text='Existing')
         row = col.row()
         row.prop(nwo_shader_build, 'material_selection', expand=True)
+
+class NWO_Material(NWO_Shader):
+    bl_label = 'Material Exporter'
+    bl_idname = "NWO_PT_Material"
+
+    @classmethod
+    def poll(cls, context):
+        return not_bungie_game()
 
 class NWO_Shader_Build(Operator):
     """Makes a shader"""
@@ -1886,6 +1936,7 @@ classeshalo = (
     # NWO_CopyHaloProps,
     # NWO_CopyHaloProps_Copy, #unregistered until this operator is fixed
     NWO_MaterialsManager,
+    NWO_MaterialFinder,
     NWO_ShaderFinder,
     NWO_ShaderFinder_Find,
     NWO_HaloShaderFinderPropertiesGroup,
@@ -1905,6 +1956,7 @@ classeshalo = (
     NWO_BitmapExport,
     NWO_BitmapExport_Export,
     NWO_BitmapExportPropertiesGroup,
+    NWO_Material,
     NWO_Shader,
     NWO_Shader_Build,
     NWO_ShaderPropertiesGroup,
