@@ -517,7 +517,8 @@ class NWO_ObjectProps(Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.object.type != 'ARMATURE'  and poll_ui(('MODEL', 'SCENARIO', 'SKY', 'DECORATOR SET', 'PARTICLE MODEL', 'PREFAB'))
+        ob = context.object
+        return ob.type not in ('ARMATURE', 'LATTICE', 'LIGHT_PROBE', 'SPEAKER', 'CAMERA') and not (ob.type == 'EMPTY' and ob.empty_display_type == 'IMAGE') and poll_ui(('MODEL', 'SCENARIO', 'SKY', 'DECORATOR SET', 'PARTICLE MODEL', 'PREFAB'))
     
     def draw_header(self, context):
         self.layout.prop(context.object.nwo, "export_this", text='')
@@ -542,8 +543,6 @@ class NWO_ObjectProps(Panel):
                 row.label(text="See the Object Data Properties panel for Halo Light Properties")
             elif ob.type == 'EMPTY':
                     row.prop(ob_nwo, "object_type_no_mesh", text='', expand=True)
-            elif ob.type == 'CAMERA':
-                row.prop(ob_nwo, "object_type_camera", text='', expand=True)
             else:
                 row.prop(ob_nwo, "object_type_all", text='', expand=True)
 

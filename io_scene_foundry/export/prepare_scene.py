@@ -177,7 +177,7 @@ class HaloObjects():
 def ignore_non_export_objects(context):
     for ob in context.view_layer.objects:
         ob_nwo = ob.nwo
-        if not ob_nwo.export_this:
+        if not ob_nwo.export_this or ob.type in ('LATTICE', 'LIGHT_PROBE', 'SPEAKER', 'CAMERA') or (ob.type == 'EMPTY' and ob.empty_display_type == 'IMAGE'): # also remove non valid object types - camera, light probes, speaker, lattice, reference image
             for collection in bpy.data.collections:
                 collection.objects.unlink(ob)
 
