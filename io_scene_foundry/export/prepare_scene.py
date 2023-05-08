@@ -241,7 +241,12 @@ def any_face_props(ob):
     for item in ob.nwo_face.face_props:
         if (item.region_name_override or item.face_type_override or item.face_mode_override or item.face_sides_override or item.face_draw_distance_override or item.texcoord_usage_override
                          or item.face_global_material_override or item.ladder_override or item.slip_surface_override or item.decal_offset_override or item.group_transparents_by_plane_override
-                           or item.no_shadow_override or item.precise_position_override or item.no_lightmap_override or item.no_pvs_override
+                           or item.no_shadow_override or item.precise_position_override or item.no_lightmap_override or item.no_pvs_override or item.lightmap_additive_transparency_override
+                           or item.lightmap_resolution_scale_override or item.lightmap_type_override or item.lightmap_analytical_bounce_modifier_override or item.lightmap_general_bounce_modifier_override
+                             or item.lightmap_translucency_tint_color_override or item.lightmap_lighting_from_both_sides_override or item.material_lighting_attenuation_override
+                               or item.material_lighting_emissive_focus_override or item.material_lighting_emissive_color_override or item.material_lighting_emissive_per_unit_override
+                                 or item.material_lighting_emissive_power_override or item.material_lighting_emissive_quality_override or item.material_lighting_use_shader_gel_override
+                                   or item.material_lighting_bounce_ratio_override
                         ):
             return True
     else:
@@ -253,12 +258,13 @@ def split_by_face_map(ob, context):
     set_active_object(ob)
     if ob.type == 'MESH' and len(ob.face_maps) > 0:
         # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
-        if CheckType.poop(ob):
+        if CheckType.poop(ob) and not ob.nwo.poop_render_only:
             # check for custom collision / physics
             if len(ob.children) < 1:
                 collision_mesh = ob.copy()
                 collision_mesh.data = ob.data.copy()
                 context.scene.collection.objects.link(collision_mesh)
+                # TODO Need to ignore any faces with the render only property
                 collision_mesh.parent = ob
                 collision_mesh.matrix_world = ob.matrix_world
                 collision_mesh.nwo.ObjectMesh_Type = '_connected_geometry_mesh_type_collision'
@@ -338,8 +344,57 @@ def face_prop_to_mesh_prop(ob):
                     mesh_props.no_lightmap = face_props.no_lightmap
                 if face_props.no_pvs_override:
                     mesh_props.no_pvs = face_props.no_pvs
-                
-                if CheckType.poop(ob):
+                # lightmap props
+                if item.lightmap_additive_transparency_override:
+                    mesh_props.lightmap_additive_transparency = face_props.lightmap_additive_transparency
+                    mesh_props.lightmap_additive_transparency_active = True
+                if item.lightmap_resolution_scale_override:
+                    mesh_props.lightmap_resolution_scale = face_props.lightmap_resolution_scale
+                    mesh_props.lightmap_resolution_scale_active = True
+                if item.lightmap_type_override:
+                    mesh_props.lightmap_type = face_props.lightmap_type
+                    mesh_props.lightmap_type_active = True
+                if item.lightmap_analytical_bounce_modifier_override:
+                    mesh_props.lightmap_analytical_bounce_modifier = face_props.lightmap_analytical_bounce_modifier
+                    mesh_props.lightmap_analytical_bounce_modifier_active = True
+                if item.lightmap_general_bounce_modifier_override:
+                    mesh_props.lightmap_general_bounce_modifier = face_props.lightmap_general_bounce_modifier
+                    mesh_props.lightmap_general_bounce_modifier_active = True
+                if item.lightmap_translucency_tint_color_override:
+                    mesh_props.lightmap_translucency_tint_color = face_props.lightmap_translucency_tint_color
+                    mesh_props.lightmap_translucency_tint_color_active = True
+                if item.lightmap_lighting_from_both_sides_override:
+                    mesh_props.lightmap_lighting_from_both_sides = face_props.lightmap_lighting_from_both_sides
+                    mesh_props.lightmap_lighting_from_both_sides_active = True
+                # emissive props
+                if item.material_lighting_attenuation_override:
+                    mesh_props.material_lighting_attenuation_falloff = face_props.material_lighting_attenuation_falloff
+                    mesh_props.material_lighting_attenuation_cutoff = face_props.material_lighting_attenuation_cutoff
+                    mesh_props.material_lighting_attenuation_active = True
+                if item.material_lighting_emissive_focus_override:
+                    mesh_props.material_lighting_emissive_focus = face_props.material_lighting_emissive_focus
+                    mesh_props.material_lighting_emissive_focus_active = True
+                if item.material_lighting_emissive_color_override:
+                    mesh_props.material_lighting_emissive_color = face_props.material_lighting_emissive_color
+                    mesh_props.material_lighting_emissive_color_active = True
+                if item.material_lighting_emissive_per_unit_override:
+                    mesh_props.material_lighting_emissive_per_unit = face_props.material_lighting_emissive_per_unit
+                    mesh_props.material_lighting_emissive_per_unit_active = True
+                if item.material_lighting_emissive_power_override:
+                    mesh_props.material_lighting_emissive_power = face_props.material_lighting_emissive_power
+                    mesh_props.material_lighting_emissive_power_active = True
+                if item.material_lighting_emissive_quality_override:
+                    mesh_props.material_lighting_emissive_quality = face_props.material_lighting_emissive_quality
+                    mesh_props.material_lighting_emissive_quality_active = True
+                if item.material_lighting_use_shader_gel_override:
+                    mesh_props.material_lighting_use_shader_gel = face_props.material_lighting_use_shader_gel
+                    mesh_props.material_lighting_use_shader_gel_active = True
+                if item.material_lighting_bounce_ratio_override:
+                    mesh_props.material_lighting_bounce_ratio = face_props.material_lighting_bounce_ratio
+                    mesh_props.material_lighting_bounce_ratio_active = True
+
+                # added two sided property to avoid open edges if collision prop
+                if CheckType.poop(ob) and (mesh_props.ladder or mesh_props.slip_surface):
                     mesh_props.face_sides = '_connected_geometry_face_sides_two_sided'
 
                 break
@@ -459,8 +514,6 @@ def apply_object_mesh_marker_properties(ob, asset_type):
     reach = not not_bungie_game()
     name = ob.name
     nwo = ob.nwo
-    # get object type
-    nwo.object_type = CheckType.get(ob)
     nwo.permutation_name = true_permutation(ob.nwo)
     # get mesh type
     if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
@@ -610,9 +663,34 @@ def strip_prefix(ob):
 
     ob.name = ob.name.strip(' _')
 
+def set_object_type(ob):
+    if ob.type == 'LIGHT':
+        ob.nwo.object_type = '_connected_geometry_object_type_light'
+    elif ob.type == 'CAMERA':
+        # don't export cameras
+        ob.hide_set(True)
+        # ob.nwo.object_type = '_connected_geometry_object_type_animation_camera'
+    elif ob.type == 'ARMATURE':
+        ob.nwo.object_type = '_connected_geometry_object_type_frame'
+    elif ob.type == 'EMPTY':
+        if len(ob.children) > 0 or ob.nwo.object_type_no_mesh != '_connected_geometry_object_type_marker':
+            ob.nwo.object_type = '_connected_geometry_object_type_frame'
+        else:
+            ob.nwo.object_type = '_connected_geometry_object_type_marker'
+
+    elif ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
+        ob.nwo.object_type = ob.nwo.object_type_all
+    else:
+        # Mesh invalid, don't export
+        print(f'{ob.name} is invalid. Skipping export')
+        ob.hide_set(True)
+
+
+
 def apply_properties(context, asset_type, asset):
     """Applies properties"""
     for ob in context.view_layer.objects:
+        set_object_type(ob)
         if ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
             apply_object_mesh_marker_properties(ob, asset_type)
 

@@ -596,7 +596,7 @@ class NWO_ObjectProps(Panel):
                     mesh_type_icon = 'seam'
                 elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
                     mesh_type_name = 'Volume'
-                    mesh_type_icon = 'crate'
+                    mesh_type_icon = 'volume'
 
             elif poll_ui('PREFAB') and h4:
                 if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
@@ -1337,7 +1337,7 @@ class NWO_MeshMenu(Menu):
 
             layout.operator("nwo.set_mesh_type", text="Portal", icon_value=get_icon_id('portal')).option = '_connected_geometry_mesh_type_portal'
             layout.operator("nwo.set_mesh_type", text="Seam", icon_value=get_icon_id('seam')).option = '_connected_geometry_mesh_type_seam'
-            layout.operator("nwo.set_mesh_type", text="Volume", icon_value=get_icon_id('crate')).option = '_connected_geometry_mesh_type_volume'
+            layout.operator("nwo.set_mesh_type", text="Volume", icon_value=get_icon_id('volume')).option = '_connected_geometry_mesh_type_volume'
                 
         elif poll_ui('PREFAB'):
             layout.operator("nwo.set_mesh_type", text="Instanced Geometry", icon_value=get_icon_id('instance')).option = '_connected_geometry_mesh_type_poop'
@@ -1357,7 +1357,7 @@ class NWO_VolumeMenu(Menu):
             layout.operator("nwo.set_volume_type", text="Soft Ceiling", icon_value=get_icon_id('soft_ceiling')).option = '_connected_geometry_volume_type_soft_ceiling'
             layout.operator("nwo.set_volume_type", text="Soft Kill", icon_value=get_icon_id('soft_kill')).option = '_connected_geometry_volume_type_soft_kill'
             layout.operator("nwo.set_volume_type", text="Slip Surface", icon_value=get_icon_id('slip_surface')).option = '_connected_geometry_volume_type_slip_surface'
-            layout.operator("nwo.set_volume_type", text="Water Physics", icon_value=get_icon_id('crate')).option = '_connected_geometry_volume_type_water_physics'
+            layout.operator("nwo.set_volume_type", text="Water Physics", icon_value=get_icon_id('water_physics')).option = '_connected_geometry_volume_type_water_physics'
             if h4:
                 layout.operator("nwo.set_volume_type", text="Lightmap Exclusion", icon_value=get_icon_id('lightmap_exclude')).option = '_connected_geometry_volume_type_lightmap_exclude'
                 layout.operator("nwo.set_volume_type", text="Streaming", icon_value=get_icon_id('streaming')).option = '_connected_geometry_volume_type_streaming'
@@ -2166,8 +2166,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description = "Set the instanced collision type. Only used when exporting a scenario",
         default = '_connected_geometry_poop_collision_type_default',
         items=[ ('_connected_geometry_poop_collision_type_default', 'Default', 'Collision mesh that interacts with the physics objects and with projectiles'),
-                ('_connected_geometry_poop_collision_type_play_collision', 'Sphere Collision', 'The collision mesh affects physics objects, but not projectiles'),
-                ('_connected_geometry_poop_collision_type_bullet_collision', 'Projectile', 'The collision mesh only interacts with projectiles'),
+                ('_connected_geometry_poop_collision_type_play_collision', 'Player Collision', 'The collision mesh affects physics objects, but not projectiles'),
+                ('_connected_geometry_poop_collision_type_bullet_collision', 'Bullet Collision', 'The collision mesh only interacts with projectiles'),
                 ('_connected_geometry_poop_collision_type_invisible_wall', 'Invisible Wall', "Projectiles go through this but the physics objects can't. You cannot directly place objects on wall collision mesh in Sapien"),
             ]
     )
@@ -2332,19 +2332,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                ]
         )
     #LIGHTMAP PROPERTIES
-    lightmap_settings_enabled: BoolProperty(
-        name ="Enable to use lightmap settings",
-        options=set(),
-        description = "",
-        default = False,
-    )
 
-    lightmap_additive_transparency: FloatProperty(
+    lightmap_additive_transparency_active : BoolProperty()
+    lightmap_additive_transparency: FloatVectorProperty(
         name="lightmap Additive Transparency",
         options=set(),
-        description="",
-        default=0.0,
-        subtype='FACTOR',
+        description="Overrides the amount and color of light that will pass through the surface. Tint colour will override the alpha blend settings in the shader.",
+        default=(1.0, 1.0, 1.0),
+        subtype='COLOR',
         min=0.0,
         max=1.0
     )
@@ -2356,6 +2351,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default = False,
     )
 
+    lightmap_resolution_scale_active : BoolProperty()
     lightmap_resolution_scale: IntProperty(
         name="Lightmap Resolution Scale",
         options=set(),
@@ -2383,7 +2379,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #     default=3,
     #     min=1,
     # )
-
+    lightmap_type_active : BoolProperty()
     lightmap_type : EnumProperty(
         name="Lightmap Type",
         options=set(),
@@ -2401,6 +2397,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default = False,
     )
 
+    lightmap_analytical_bounce_modifier_active : BoolProperty()
     lightmap_analytical_bounce_modifier: FloatProperty(
         name="Lightmap Analytical Bounce Modifier",
         options=set(),
@@ -2408,13 +2405,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=9999,
     )
     
+    lightmap_general_bounce_modifier_active : BoolProperty()
     lightmap_general_bounce_modifier: FloatProperty(
         name="Lightmap General Bounce Modifier",
         options=set(),
         description="",
         default=9999,
     )
-
+    lightmap_translucency_tint_color_active : BoolProperty()
     lightmap_translucency_tint_color: FloatVectorProperty(
         name="Lightmap Translucency Tint Color",
         options=set(),
@@ -2425,6 +2423,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=1.0
     )
 
+    lightmap_lighting_from_both_sides_active : BoolProperty()
     lightmap_lighting_from_both_sides: BoolProperty(
         name ="Lightmap Lighting From Both Sides",
         options=set(),
@@ -2433,13 +2432,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     #MATERIAL LIGHTING PROPERTIES
-    material_lighting_enabled: BoolProperty(
-        name="Toggle whether to use material lighting settings",
-        options=set(),
-        description="",
-        default=False,
-    )
-
+    material_lighting_attenuation_active : BoolProperty()
     material_lighting_attenuation_cutoff: FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
@@ -2487,12 +2480,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=100,
     )
 
+    material_lighting_emissive_focus_active : BoolProperty()
     material_lighting_emissive_focus: FloatProperty(
         name="Material Lighting Emissive Focus",
         options=set(),
         description="",
     )
 
+    material_lighting_emissive_color_active : BoolProperty()
     material_lighting_emissive_color: FloatVectorProperty(
         name="Material Lighting Emissive Color",
         options=set(),
@@ -2503,6 +2498,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max=1.0,
     )
 
+    material_lighting_emissive_per_unit_active : BoolProperty()
     material_lighting_emissive_per_unit: BoolProperty(
         name ="Material Lighting Emissive Per Unit",
         options=set(),
@@ -2510,6 +2506,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default = False,
     )
 
+    material_lighting_emissive_power_active : BoolProperty()
     material_lighting_emissive_power: FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
@@ -2518,6 +2515,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=100,
     )
 
+    material_lighting_emissive_quality_active : BoolProperty()
     material_lighting_emissive_quality: FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
@@ -2526,6 +2524,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         min=0,
     )
 
+    material_lighting_use_shader_gel_active : BoolProperty()
     material_lighting_use_shader_gel: BoolProperty(
         name ="Material Lighting Use Shader Gel",
         options=set(),
@@ -2533,6 +2532,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default = False,
     )
 
+    material_lighting_bounce_ratio_active : BoolProperty()
     material_lighting_bounce_ratio: FloatProperty(
         name="Material Lighting Bounce Ratio",
         options=set(),
@@ -4485,9 +4485,9 @@ class NWO_FaceMapProps(Panel):
             
             row = col.grid_flow()
             if op_bullet_collision:
-                row.operator("nwo_face.add_face_property_new", text="Projectile Collision", icon='ADD').options = "instanced_collision"
+                row.operator("nwo_face.add_face_property_new", text="Collision", icon='ADD').options = "instanced_collision"
             if op_player_collision:
-                row.operator("nwo_face.add_face_property_new", text="Sphere Collision", icon='ADD').options = "instanced_physics"
+                row.operator("nwo_face.add_face_property_new", text="Physics", icon='ADD').options = "instanced_physics"
             if op_cookie_cutter:
                 row.operator("nwo_face.add_face_property_new", text="Cookie Cutter", icon='ADD').options = "cookie_cutter"
 
@@ -4543,9 +4543,9 @@ class NWO_FaceMapProps(Panel):
 
                 if (is_poop and (item.instanced_collision_override or item.instanced_physics_override or item.cookie_cutter_override)):
                     if item.instanced_collision_override:
-                        col.label(text="Current FaceMap is used for this mesh's projectile collision")
+                        col.label(text="Current FaceMap is used for this mesh's bullet collision")
                     if item.instanced_physics_override:
-                        col.label(text="Current FaceMap is used for this mesh's sphere collision")
+                        col.label(text="Current FaceMap is used for this mesh's player collision")
                     if item.cookie_cutter_override:
                         col.label(text="Current FaceMap is used for this mesh's cookie cutter")
 
@@ -5175,8 +5175,8 @@ class NWO_FacePropRemove(Operator):
         ('precise_position', 'Precise Position', ''),
         ('no_lightmap', 'No Lightmap', ''),
         ('no_pvs', 'No PVS', ''),
-        ('instanced_collision', 'Projectile Collision', ''),
-        ('instanced_physics', 'Sphere Collision', ''),
+        ('instanced_collision', 'Bullet Collision', ''),
+        ('instanced_physics', 'Player Collision', ''),
         ('cookie_cutter', 'Cookie Cutter', ''),
         ('lightmap_additive_transparency', 'Transparency', ''),
         ('lightmap_resolution_scale', 'Resolution Scale', ''),
@@ -5584,11 +5584,11 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     # INSTANCED GEOMETRY ONLY
 
     instanced_collision : BoolProperty(
-        name="Projectile Collision",
+        name="Bullet Collision",
         default=True,
     )
     instanced_physics : BoolProperty(
-        name="Sphere Collision",
+        name="Player Collision",
         default=True,
     )
 
@@ -5601,12 +5601,12 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
 
     # LIGHTMAP
 
-    lightmap_additive_transparency: FloatProperty(
+    lightmap_additive_transparency: FloatVectorProperty(
         name="lightmap Additive Transparency",
         options=set(),
         description="Overrides the amount and color of light that will pass through the surface. Tint colour will override the alpha blend settings in the shader.",
-        default=0.0,
-        subtype='FACTOR',
+        default=(1.0, 1.0, 1.0),
+        subtype='COLOR',
         min=0.0,
         max=1.0
     )
@@ -5810,10 +5810,10 @@ class NWO_FacePropertiesGroup(PropertyGroup):
     # INSTANCED GEOMETRY ONLY
 
     instanced_collision : BoolProperty(
-        name="Projectile Collision",
+        name="Bullet Collision",
     )
     instanced_physics : BoolProperty(
-        name="Sphere Collision",
+        name="Player Collision",
     )
 
     cookie_cutter : BoolProperty(

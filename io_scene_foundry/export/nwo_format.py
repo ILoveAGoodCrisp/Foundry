@@ -41,13 +41,8 @@ from ..utils.nwo_utils import(
     vector_str,
     radius_str,
     true_bsp,
-    true_region,
     clean_tag_path,
 
-    frame_prefixes,
-    marker_prefixes,
-    poop_render_only_prefixes,
-    object_prefix,
 )
 
 # OBJECT LEVEL
@@ -335,8 +330,8 @@ class NWOLight(NWOObject):
             self.bungie_light_fade_out_distance = self.light_fade_out_distance()
             self.bungie_light_far_attenuation_start = self.light_far_attenuation_start()
             self.bungie_light_far_attenuation_end = self.light_far_attenuation_end()
-            # self.bungie_light_use_near_attenuation = self.light_use_near_attenuation()
-            # self.bungie_light_use_far_attenuation = self.light_use_far_attenuation()
+            # self.bungie_light_use_near_attenuation = "1" # self.light_use_near_attenuation()
+            # self.bungie_light_use_far_attenuation = "1" #self.light_use_far_attenuation()
             self.bungie_light_ignore_bsp_visibility = self.light_ignore_bsp_visibility()
             # self.bungie_light_clipping_size_x_pos = None # not setting these currently
             # self.bungie_light_clipping_size_y_pos = None
@@ -531,10 +526,10 @@ class NWOLight(NWOObject):
         return clean_tag_path(self.data.nwo.light_tag_name)
 
     def light_game_type(self):
-        return self.data.nwo.Light_Game_Type
+        return self.data.nwo.light_game_type
 
     def light_shape(self):
-        return self.data.nwo.Light_Shape
+        return self.data.nwo.light_shape
 
     def light_ignore_bsp_visibility(self):
         return bool_str(self.data.nwo.light_ignore_bsp_visibility)
@@ -969,37 +964,49 @@ class NWOMesh(NWOObject):
             self.bungie_mesh_obb_type = self.mesh_obb_type()
 
         # LIGHTMAP PROPERTIES
-        if self.halo.lightmap_settings_enabled:
+        if self.halo.lightmap_additive_transparency_active:
+            self.bungie_lightmap_transparency_override = self.lightmap_transparency_override()
             self.bungie_lightmap_additive_transparency = self.lightmap_additive_transparency()
+        if self.halo.lightmap_resolution_scale_active:
             self.bungie_lightmap_ignore_default_resolution_scale = self.lightmap_ignore_default_resolution_scale()
             self.bungie_lightmap_resolution_scale = self.lightmap_resolution_scale()
-            # self.bungie_lightmap_chart_group = self.lightmap_chart_group()
-            self.bungie_lightmap_photon_fidelity = self.lightmap_photon_fidelity()
+        # self.bungie_lightmap_chart_group = self.lightmap_chart_group()
+        # self.bungie_lightmap_photon_fidelity = self.lightmap_photon_fidelity()
+        if self.halo.lightmap_type_active:
             self.bungie_lightmap_type = self.lightmap_type()
-            self.bungie_lightmap_transparency_override = self.lightmap_transparency_override()
-            # self.bungie_lightmap_analytical_bounce_modifier = self.lightmap_analytical_bounce_modifier()
-            # self.bungie_lightmap_general_bounce_modifier = self.lightmap_general_bounce_modifier()
-            # self.bungie_lightmap_analytical_absorb_ratio = self.lightmap_analytical_absorb_ratio()
+        if self.halo.lightmap_analytical_bounce_modifier_active:
+            self.bungie_lightmap_analytical_bounce_modifier = self.lightmap_analytical_bounce_modifier()
+        if self.halo.lightmap_general_bounce_modifier_active:
+            self.bungie_lightmap_general_bounce_modifier = self.lightmap_general_bounce_modifier()
+        # self.bungie_lightmap_analytical_absorb_ratio = self.lightmap_analytical_absorb_ratio()
+        if self.halo.lightmap_translucency_tint_color_active:
             self.bungie_lightmap_translucency_tint_color = self.lightmap_translucency_tint_color()
+        if self.halo.lightmap_lighting_from_both_sides_active:
             self.bungie_lightmap_lighting_from_both_sides = self.lightmap_lighting_from_both_sides()
-            if self.not_bungie_game:
-                self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
+            # if self.not_bungie_game:
+            #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
         # EMMISSIVE PROPERTIES
-        if self.halo.material_lighting_enabled:
-            if not_bungie_game():
-                self.bungie_lighting_attenuation_enabled = self.lighting_attenuation_enabled()
-                self.bungie_lighting_frustum_blend = self.lighting_frustum_blend()
-                self.bungie_lighting_frustum_cutoff = self.lighting_frustum_cutoff()
-                self.bungie_lighting_frustum_falloff = self.lighting_frustum_falloff()
-            if self.bungie_lighting_attenuation_enabled or not not_bungie_game():
-                self.bungie_lighting_attenuation_cutoff = self.lighting_attenuation_cutoff()
-                self.bungie_lighting_attenuation_falloff = self.lighting_attenuation_falloff()
+        if self.halo.material_lighting_attenuation_active:
+            # if not_bungie_game():
+            #     self.bungie_lighting_attenuation_enabled = self.lighting_attenuation_enabled()
+                # self.bungie_lighting_frustum_blend = self.lighting_frustum_blend()
+                # self.bungie_lighting_frustum_cutoff = self.lighting_frustum_cutoff()
+                # self.bungie_lighting_frustum_falloff = self.lighting_frustum_falloff()
+            self.bungie_lighting_attenuation_cutoff = self.lighting_attenuation_cutoff()
+            self.bungie_lighting_attenuation_falloff = self.lighting_attenuation_falloff()
+        if self.halo.material_lighting_emissive_focus_active:
             self.bungie_lighting_emissive_focus = self.lighting_emissive_focus()
+        if self.halo.material_lighting_emissive_color_active:
             self.bungie_lighting_emissive_color = self.lighting_emissive_color()
+        if self.halo.material_lighting_emissive_per_unit_active:
             self.bungie_lighting_emissive_per_unit = self.lighting_emissive_per_unit()
+        if self.halo.material_lighting_emissive_power_active:
             self.bungie_lighting_emissive_power = self.lighting_emissive_power()
+        if self.halo.material_lighting_emissive_quality_active:
             self.bungie_lighting_emissive_quality = self.lighting_emissive_quality()
+        if self.halo.material_lighting_use_shader_gel_active:
             self.bungie_lighting_use_shader_gel = self.lighting_use_shader_gel()
+        if self.halo.material_lighting_bounce_ratio_active:
             self.bungie_lighting_bounce_ratio = self.lighting_bounce_ratio()
 
         self.cleanup()
@@ -1147,7 +1154,7 @@ class NWOMesh(NWOObject):
         return self.halo.decorator_name
 
     def mesh_seam_associated_bsp(self):
-        return f'{self.asset_name}_{true_bsp(self.halo)}'
+        return f'{self.asset_name}_{self.halo.bsp_name}'
 
     def mesh_water_volume_depth(self):
         return jstr(self.halo.water_volume_depth)
@@ -1242,10 +1249,10 @@ class NWOMesh(NWOObject):
         return str(self.halo.sky_permutation_index)
 
     def lightmap_additive_transparency(self):
-        return jstr(self.halo.lightmap_additive_transparency)
+        return color_4p_str(self.halo.lightmap_additive_transparency)
 
     def lightmap_ignore_default_resolution_scale(self):
-        return bool_str(self.halo.lightmap_resolution_scale)
+        return bool_str(True)
 
     def lightmap_resolution_scale(self):
         return bool_str(self.halo.lightmap_resolution_scale)
@@ -1255,9 +1262,15 @@ class NWOMesh(NWOObject):
 
     def lightmap_type(self):
         return self.halo.lightmap_type
+    
+    def lightmap_analytical_bounce_modifier(self):
+        return jstr(self.halo.lightmap_analytical_bounce_modifier)
+    
+    def lightmap_general_bounce_modifier(self):
+        return jstr(self.halo.lightmap_general_bounce_modifier)
 
     def lightmap_transparency_override(self):
-        return bool_str(self.halo.lightmap_transparency_override)
+        return bool_str(True)
 
     def lightmap_translucency_tint_color(self):
         if self.not_bungie_game:
