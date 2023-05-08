@@ -80,4 +80,5 @@ def write_data(self, context, model, file):
     for face in mesh.polygons:
         face.use_smooth = True
     mesh.use_auto_smooth = True
-    object_data_add(context, mesh, operator=self)
+    ob = object_data_add(context, mesh, operator=self)
+    ob.nwo.export_this = False
