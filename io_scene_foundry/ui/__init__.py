@@ -6019,13 +6019,14 @@ def register():
     bpy.types.TOPBAR_HT_upper_bar.prepend(draw_filepath)
 
 def unregister():
-    del bpy.types.Scene.nwo
+    del bpy.types.Scene.nwo_global
     del bpy.types.Object.nwo
     del bpy.types.Light.nwo
     del bpy.types.Material.nwo
     del bpy.types.Bone.nwo
     del bpy.types.Action.nwo
     del bpy.types.Mesh.nwo
+    del bpy.types.Object.nwo_face
     bpy.types.TOPBAR_HT_upper_bar.remove(draw_filepath)
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
