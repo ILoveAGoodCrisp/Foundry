@@ -127,7 +127,6 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                             if perm not in perm_list:
                                 perm_list.append(perm)
                                 if select_model_objects(get_render_from_halo_objects(halo_objects), perm, model_armature, export_hidden, export_all_perms, selected_perms):
-                                    print(context.selected_objects)
                                     print_box(f'**Exporting {perm} render model**')
                                     export_fbx(using_better_fbx, **keywords)
                                     export_gr2(report, asset_path, asset, 'render', context.selected_objects, '', perm, model_armature, skeleton_bones, '', regions_dict, global_materials_dict, **keywords)
@@ -176,7 +175,7 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                         timeline = context.scene
                         for action in bpy.data.actions:
                             try:
-                                if export_animations == 'ALL' or current_action == action:
+                                if action.nwo.export_this and (export_animations == 'ALL' or current_action == action):
                                     animation_name = action.nwo.name_override
                                     print_box(f'**Exporting Animation: {animation_name}**')
                                     model_armature.animation_data.action = action

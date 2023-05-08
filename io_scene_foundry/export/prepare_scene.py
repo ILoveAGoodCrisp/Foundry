@@ -57,6 +57,8 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     ExitLocalView(context)
     # Disable collections with the +exclude prefix. This way they are treated as if they are not part of the asset at all
     HideExcludedCollections(context)
+    # remove objects this export_this False from view layer
+    ignore_non_export_objects(context)
     # Unhide collections. Hidden collections will stop objects in the collection being exported. We only want this functionality if the collection is disabled
     unhide_collections(export_hidden, context)
     # Get the current set of selected objects. We need this so selected perms/bsps only functionality can be used
@@ -171,6 +173,12 @@ class HaloObjects():
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
+
+def ignore_non_export_objects(context):
+    for ob in context.view_layer.objects:
+        ob_nwo = ob.nwo
+        if not ob_nwo.export_this:
+            context.scene.collection.objects.unlink(ob)
 
 def apply_hint_marker_name(context):
     for ob in context.view_layer.objects:
