@@ -546,8 +546,8 @@ class NWO_ObjectProps(Panel):
             else:
                 row.prop(ob_nwo, "object_type_all", text='', expand=True)
 
-            if CheckType.frame(ob) and h4:
-                col.prop(ob_nwo, 'is_pca')
+            # if CheckType.frame(ob) and h4:
+            #     col.prop(ob_nwo, 'is_pca')
 
             if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
                 # SPECIFIC MESH PROPS
@@ -1530,22 +1530,25 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         else:
             return 1
 
+    def object_type_items_all(self, context):
+        object_type_items_all = [
+            ('_connected_geometry_object_type_mesh', 'Mesh', "Mesh", get_icon_id("render_geometry"), 0),
+            ('_connected_geometry_object_type_marker', 'Marker', "Marker", get_icon_id("marker"), 1),
+            ('_connected_geometry_object_type_frame', 'Frame', "Frame", get_icon_id("frame"), 2),
+        ]
+        return object_type_items_all
 
-    object_type_items_all = [
-        ('_connected_geometry_object_type_mesh', 'Mesh', "Mesh", get_icon_id("render_geometry"), 0),
-        ('_connected_geometry_object_type_marker', 'Marker', "Marker", get_icon_id("marker"), 1),
-        ('_connected_geometry_object_type_frame', 'Frame', "Frame", get_icon_id("frame"), 2),
-    ]
-
-    object_type_items_no_mesh = [
-        ('_connected_geometry_object_type_marker', "Marker", "Marker", get_icon_id("marker"), 0),
-        ('_connected_geometry_object_type_frame', "Frame", "Frame", get_icon_id("frame"), 1),
-    ]
+    def object_type_items_no_mesh(self, context):
+        object_type_items_no_mesh = [
+            ('_connected_geometry_object_type_marker', "Marker", "Marker", get_icon_id("marker"), 0),
+            ('_connected_geometry_object_type_frame', "Frame", "Frame", get_icon_id("frame"), 1),
+        ]
+        return object_type_items_no_mesh
 
     object_type_items = [
-        ('_connected_geometry_object_type_frame', 'Frame', ""),
-        ('_connected_geometry_object_type_marker', 'Marker', ""),
-        ('_connected_geometry_object_type_mesh', 'Mesh', ""),
+        ('_connected_geometry_object_type_mesh', 'Mesh', "Mesh"),
+        ('_connected_geometry_object_type_marker', 'Marker', "Marker"),
+        ('_connected_geometry_object_type_frame', 'Frame', "Frame"),
         ('_connected_geometry_object_type_light', 'Light', ''),
         ('_connected_geometry_object_type_animation_control', 'Control', ''),
         ('_connected_geometry_object_type_animation_camera', 'Camera', ''),
@@ -1556,38 +1559,24 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     object_type_all: EnumProperty(
         name="Object Type",
         options=set(),
-        default = '_connected_geometry_object_type_mesh',
         items=object_type_items_all,
     )
 
     object_type_no_mesh: EnumProperty(
         name="Object Type",
         options=set(),
-        default = '_connected_geometry_object_type_marker',
         items=object_type_items_no_mesh,
     )
 
-    object_type_no_mesh_locked: EnumProperty(
-        name="Object Type",
-        options=set(),
-        get=get_objecttype_enum_no_mesh,
-        default = '_connected_geometry_object_type_marker',
-        items=object_type_items_no_mesh,
-    )
+    def object_type_light(self, context):
+        object_type_item_light = [('_connected_geometry_object_type_light', 'Light', '', get_icon_id("light_cone"), 0)]
+        return object_type_item_light
 
     object_type_light: EnumProperty(
         name="Light",
         options=set(),
-        default = '_connected_geometry_object_type_light',
-        items=[('_connected_geometry_object_type_light', 'Light', '', get_icon_id("light_cone"), 0)],
-    ) 
-
-    object_type_camera: EnumProperty(
-        name="Animation Camera",
-        options=set(),
-        default = '_connected_geometry_object_type_animation_camera',
-        items=[('_connected_geometry_object_type_animation_camera', 'Camera', '', 'OUTLINER_OB_CAMERA', 0)],
-    ) 
+        items=object_type_light,
+    )
 
     compress_verts: BoolProperty(
         name="Compress Vertices",

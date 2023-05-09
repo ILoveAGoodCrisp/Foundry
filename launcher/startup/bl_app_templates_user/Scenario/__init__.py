@@ -2,6 +2,12 @@ import bpy
 from bpy.types import Menu
 from bpy.app.handlers import persistent
 
+from bpy.app.translations import (
+    pgettext_iface as iface_,
+    pgettext_tip as tip_,
+    contexts as i18n_contexts,
+)
+
 @persistent
 def load_handler_for_preferences(_):
     print("Changing Preference Defaults!")
@@ -49,13 +55,13 @@ class WM_MT_splash(Menu):
         #col1.scale_y = 0.8
 
         # bpy.types.TOPBAR_MT_file_new.draw_ex(col1, context, use_splash=True)
-        col1.operator("wm.read_homefile", text="Model", icon_value=get_icon_id("model")).app_template = "Model"
-        col1.operator("wm.read_homefile", text="Scenario", icon_value=get_icon_id("scenario")).app_template = "Scenario"
-        col1.operator("wm.read_homefile", text="Sky", icon_value=get_icon_id("sky")).app_template = "Sky"
-        col1.operator("wm.read_homefile", text="Decorator Set", icon_value=get_icon_id("decorator")).app_template = "Decorator Set"
-        col1.operator("wm.read_homefile", text="Particle Model", icon_value=get_icon_id("particle_model")).app_template = "Particle Model"
-        col1.operator("wm.read_homefile", text="Prefab", icon_value=get_icon_id("prefab")).app_template = "Prefab"
-        col1.operator("wm.read_homefile", text="First Person Animation", icon_value=get_icon_id("animation")).app_template = "First Person Animation"
+        col1.operator("wm.read_homefile", text="Model", icon_value=get_icon_id("model")).app_template = "Foundry"
+        col1.operator("wm.read_homefile", text="Scenario", icon_value=get_icon_id("scenario")).app_template = "Foundry"
+        col1.operator("wm.read_homefile", text="Sky", icon_value=get_icon_id("sky")).app_template = "Foundry"
+        col1.operator("wm.read_homefile", text="Decorator Set", icon_value=get_icon_id("decorator")).app_template = "Foundry"
+        col1.operator("wm.read_homefile", text="Particle Model", icon_value=get_icon_id("particle_model")).app_template = "Foundry"
+        col1.operator("wm.read_homefile", text="Prefab", icon_value=get_icon_id("prefab")).app_template = "Foundry"
+        col1.operator("wm.read_homefile", text="First Person Animation", icon_value=get_icon_id("animation")).app_template = "Foundry"
         # Recent
         col2 = split.column()
         col2_title = col2.row()
@@ -99,6 +105,7 @@ classes = (
 
 def register():
     print("Registering to Change Defaults")
+    pass
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.app.handlers.load_factory_preferences_post.append(load_handler_for_preferences)
@@ -106,6 +113,7 @@ def register():
 
 def unregister():
     print("Unregistering to Change Defaults")
+    pass
     bpy.app.handlers.load_factory_preferences_post.remove(load_handler_for_preferences)
     #bpy.app.handlers.load_factory_startup_post.remove(load_handler_for_startup)
     for cls in classes:

@@ -45,7 +45,6 @@ bl_info = {
     "category": "Export"}
 
 from . import icons
-
 icons.initialize_foundry_icons()
 
 from . import tools
