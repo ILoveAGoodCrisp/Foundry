@@ -967,7 +967,7 @@ class NWO_MeshFaceProps(Panel):
                             row.label(text='*')
                             break
 
-            if ob_nwo.mesh_type in  ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_default'):
+            if ob_nwo.mesh_type in  ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_collision'):
                 col.prop(ob_nwo, "face_sides")
 
         if poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):

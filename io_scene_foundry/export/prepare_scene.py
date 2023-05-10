@@ -176,8 +176,11 @@ class HaloObjects():
 
 def unlink(ob):
     for collection in bpy.data.collections:
-        collection.objects.unlink(ob)
-    bpy.context.scene.collection.objects.unlink(ob)
+        if collection in ob.users_collection:
+            collection.objects.unlink(ob)
+    scene_coll = bpy.context.scene.collection
+    if scene_coll in ob.users_collection:
+        scene_coll.objects.unlink(ob)
 
 def ignore_non_export_objects(context):
     for ob in context.view_layer.objects:
