@@ -38,7 +38,7 @@ def import_now(report, sidecar_type, filePath='', import_check=False, import_for
     asset_path = CleanAssetPath(full_path)
     asset_name = asset_path.rpartition('\\')[2]
     try:
-        run_tool(['import', f'{os.path.join(asset_path, asset_name)}.sidecar.xml', GetImportFlags(import_check, import_force, import_verbose, import_draft, import_seam_debug, import_skip_instances, import_decompose_instances, import_surpress_errors)])
+        run_tool(['import', f'{os.path.join(asset_path, asset_name)}.sidecar.xml', *GetImportFlags(import_check, import_force, import_verbose, import_draft, import_seam_debug, import_skip_instances, import_decompose_instances, import_surpress_errors)])
     except:
         report({'WARNING'},"Import Failed!")
         print('Exception!')
@@ -94,7 +94,7 @@ def GetImportFlags(flag_import_check, flag_import_force, flag_import_verbose, fl
         if flag_import_surpress_errors:
             flags.append('surpress_errors_to_vrml')
     
-    return ' '.join(flags)
+    return flags
 
 
 def import_sidecar(operator, context, report,

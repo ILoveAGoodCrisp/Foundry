@@ -938,6 +938,11 @@ class NWO_ObjectProps(Panel):
                     row.prop(ob_nwo, "marker_light_cone_curve")
                     row.operator('nwo.light_cone_curve_path')
 
+# MESH FACE PROPS
+class NWO_MeshFaceProps(Panel):
+    bl_label = "Halo Material Properties"
+    bl_idname = "NWO_PT_MaterialPanel" 
+
 # MATERIAL PROPERTIES
 class NWO_MaterialProps(Panel):
     bl_label = "Halo Material Properties"
@@ -2649,7 +2654,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     def game_instance_clean_tag_path(self, context):
-        self['Marker_Game_Instance_Tag_Name'] = clean_tag_path(self['Marker_Game_Instance_Tag_Name']).strip('"')
+        self['marker_game_instance_tag_name'] = clean_tag_path(self['marker_game_instance_tag_name']).strip('"')
 
     marker_game_instance_tag_name: StringProperty(
         name="Marker Game Instance Tag",

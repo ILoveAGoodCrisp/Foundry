@@ -174,12 +174,18 @@ class HaloObjects():
 #####################################################################################
 # VARIOUS FUNCTIONS
 
+def unlink(ob):
+    for collection in bpy.data.collections:
+        collection.objects.unlink(ob)
+    bpy.context.scene.collection.objects.unlink(ob)
+
 def ignore_non_export_objects(context):
     for ob in context.view_layer.objects:
         ob_nwo = ob.nwo
-        if not ob_nwo.export_this or ob.type in ('LATTICE', 'LIGHT_PROBE', 'SPEAKER', 'CAMERA') or (ob.type == 'EMPTY' and ob.empty_display_type == 'IMAGE'): # also remove non valid object types - camera, light probes, speaker, lattice, reference image
-            for collection in bpy.data.collections:
-                collection.objects.unlink(ob)
+        if (not ob_nwo.export_this) or ob.type in ('LATTICE', 'LIGHT_PROBE', 'SPEAKER', 'CAMERA') or (ob.type == 'EMPTY' and ob.empty_display_type == 'IMAGE'): # also remove non valid object types - camera, light probes, speaker, lattice, reference image
+            unlink(ob)
+
+    
 
 def apply_hint_marker_name(context):
     for ob in context.view_layer.objects:
@@ -1346,7 +1352,7 @@ def MeshesToEmpties(context, meshes_to_empties):
             # copy the node props from the mesh to the empty
             SetNodeProps(node, ob)
             # hide the mesh so it doesn't get included in the export
-            ob.hide_set(True)
+            unlink(ob)
 
 def TempName(name):
     return name + ''
@@ -1365,11 +1371,11 @@ def SetNodeProps(node, ob):
 
     node_halo.permutation_name = ob_halo.permutation_name
 
-    node_halo.objectmarker_type_h4 = ob_halo.objectmarker_type_h4
-    node_halo.objectmarker_type = ob_halo.objectmarker_type
+    node_halo.object_type = ob_halo.object_type
+    node_halo.marker_type = ob_halo.marker_type
 
     node_halo.marker_region = ob_halo.marker_region
-    node_halo.region_name = true_region(ob_halo)
+    node_halo.region_name = ob_halo.region_name
     node_halo.marker_all_regions = ob_halo.marker_all_regions
     node_halo.marker_velocity = ob_halo.marker_velocity
 
