@@ -636,30 +636,6 @@ class NWO_ObjectProps(Panel):
                         else:
                             col.prop(ob_nwo, 'bsp_name', text='BSP')
 
-                if poll_ui(('MODEL', 'SKY')) and (ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_object_instance'):
-                    if ob_nwo.region_name_locked != '':
-                        col.prop(ob_nwo, 'region_name_locked', text='Region')
-                    else:
-                        row = col.row(align=True)
-                        row.prop(ob_nwo, "region_name", text='Region')
-                        if ob.nwo_face.face_props and ob_nwo.mesh_type in ('_connected_geometry_mesh_type_object_default', '_connected_geometry_mesh_type_collision'):
-                            for prop in ob.nwo_face.face_props:
-                                if prop.region_name_override:
-                                    row.label(text='*')
-                                    break
-
-                if poll_ui(('MODEL', 'SCENARIO')):
-                    if ob_nwo.mesh_type not in ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_default'):
-                        pass
-                    elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and (poll_ui('MODEL') or h4):
-                        pass
-                    else:
-                        col.prop(ob_nwo, "face_global_material", text='Global Material')
-                        if ob.nwo_face.face_props and ob_nwo.mesh_type in ('_connected_geometry_mesh_type_object_default', '_connected_geometry_mesh_type_collision'):
-                            for prop in ob.nwo_face.face_props:
-                                if prop.face_global_material_override:
-                                    row.label(text='*')
-                                    break
                 col.separator()
 
                 if ob_nwo.mesh_type == '_connected_geometry_mesh_type_volume':
@@ -940,8 +916,92 @@ class NWO_ObjectProps(Panel):
 
 # MESH FACE PROPS
 class NWO_MeshFaceProps(Panel):
-    bl_label = "Halo Material Properties"
-    bl_idname = "NWO_PT_MaterialPanel" 
+    bl_label = "Mesh Properties"
+    bl_idname = "NWO_PT_MeshPanel"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_parent_id = "NWO_PT_ObjectDetailsPanel"
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
+        h4_structure = not_bungie_game() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default'
+        return ob and ob.nwo.export_this and ob.type == 'MESH' and CheckType.get(ob) == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
+
+    def draw(self, context):
+        layout = self.layout
+        ob = context.object
+        ob_nwo = ob.nwo
+        h4 = not_bungie_game()
+        # First - string fields
+
+        # if poll_ui(('MODEL', 'SKY')):
+        #     layout.operator("nwo_face.add_face_property_new", text='Region Override').options = 'region'
+        # if ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
+        #     layout.operator("nwo_face.add_face_property_new", text='Global Material Override').options = 'face_global_material'
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+        col = flow.column()
+        col.use_property_split = True
+        if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
+            if ob_nwo.region_name_locked != '':
+                col.prop(ob_nwo, 'region_name_locked', text='Region')
+            else:
+                row = col.row(align=True)
+                row.prop(ob_nwo, "region_name", text='Region')
+                if ob.nwo_face.face_props and ob_nwo.mesh_type in ('_connected_geometry_mesh_type_object_default', '_connected_geometry_mesh_type_collision'):
+                    for prop in ob.nwo_face.face_props:
+                        if prop.region_name_override:
+                            row.label(text='*')
+                            break
+        if poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+            if ob_nwo.mesh_type not in ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_default'):
+                pass
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and (poll_ui('MODEL') or h4):
+                pass
+            else:
+                col.prop(ob_nwo, "face_global_material", text='Global Material')
+                if ob.nwo_face.face_props and ob_nwo.mesh_type in ('_connected_geometry_mesh_type_object_default', '_connected_geometry_mesh_type_collision'):
+                    for prop in ob.nwo_face.face_props:
+                        if prop.face_global_material_override:
+                            row.label(text='*')
+                            break
+
+            if ob_nwo.mesh_type in  ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_default'):
+                col.prop(ob_nwo, "face_sides")
+
+        if poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
+            if ob_nwo.mesh_type not in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop'):
+                pass
+            elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_default' and h4:
+                pass
+            else:
+                col2 = col.column(heading="Flags")
+                flow2 = col2.grid_flow()
+                flow2.prop(ob_nwo, "precise_position")
+
+
+        # if poll_ui(('SCENARIO', 'PREFAB')):
+        #     layout.operator_menu_enum("nwo_face.add_face_property_face_type_new",
+        #                             property="options",
+        #                             text="Type",
+        #                             )
+        #     layout.operator_menu_enum("nwo_face.add_face_property_face_mode_new",
+        #                             property="options",
+        #                             text="Mode",
+        #                             )
+        #     layout.operator_menu_enum("nwo_face.add_face_property_flags_new",
+        #                             property="options",
+        #                             text="Flags",
+        #                             )
+        #     layout.operator_menu_enum("nwo_face.add_face_property_lightmap_new",
+        #                             property="options",
+        #                             text="Lightmap",
+        #                             )
+        #     layout.operator_menu_enum("nwo_face.add_face_property_material_lighting_new",
+        #                             property="options",
+        #                             text="Emissive",
+        #                             )
 
 # MATERIAL PROPERTIES
 class NWO_MaterialProps(Panel):
@@ -5989,6 +6049,7 @@ classeshalo = (
     NWO_MasterInstance,
     NWO_FaceDefaultsToggle,
     NWO_FaceProperties_ListItems,
+    NWO_MeshFaceProps,
     NWO_FaceMapProps,
     # NWO_ObjectMeshMaterialLightingProps,
     # NWO_ObjectMeshLightmapProps,
