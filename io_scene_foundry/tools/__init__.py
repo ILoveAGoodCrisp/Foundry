@@ -1808,7 +1808,7 @@ class NWO_BitmapExport_Export(Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object.active_material is not None or context.scene.nwo_bitmap_export.bitmaps_selection == 'all'
+        return managed_blam_active() and (context.object.active_material or context.scene.nwo_bitmap_export.bitmaps_selection == 'all')
 
     def execute(self, context):
         scene = context.scene

@@ -187,11 +187,60 @@ class ManagedBlam_NewMaterial(Operator):
             tag.Dispose()
 
         return({'FINISHED'})
+    
+class ManagedBlam_NewBitmap(Operator):
+    """Runs a ManagedBlam Operation"""
+    bl_idname = "managed_blam.new_bitmap"
+    bl_label = "ManagedBlam"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_description="Runs a ManagedBlam Operation"
+
+    bitmap_name: StringProperty(
+        default="bitmap",
+        name="Bitmap",
+    )
+
+    bitmap_type: StringProperty(
+        default="bitmap",
+        name="Bitmap",
+    )
+
+    def get_path(self):
+        asset_path = get_asset_path()
+        bitmaps_dir = os.path.join(asset_path, 'bitmaps')
+        bitmap_path = os.path.join(bitmaps_dir, self.bitmap_name + '.bitmap')
+
+        return bitmap_path
+
+    path: StringProperty(
+        default="",
+        get=get_path,
+        name="Tag Path",
+    )
+
+    def execute(self, context):
+        Bungie = get_bungie(self.report)
+        tag, tag_path = get_tag_and_path(Bungie, self.path)
+        print(self.path)
+        try:
+            tag.New(tag_path)
+
+            # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
+            # bitmap_type = field
+            # # type.SetStringData(p.name)
+
+            tag.Save()
+
+        finally:
+            tag.Dispose()
+
+        return({'FINISHED'})
 
 classeshalo = (
     ManagedBlam_Init,
     ManagedBlam_NewShader,
     ManagedBlam_NewMaterial,
+    ManagedBlam_NewBitmap,
 )
 
 def register():

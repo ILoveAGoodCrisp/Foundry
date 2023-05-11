@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2022 Generalkidd & Crisp
+# Copyright (c) 2023 Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -223,13 +223,12 @@ def apply_hint_marker_name(context):
 def hide_water_flow_markers(context):
     for ob in context.view_layer.objects:
         if CheckType.get(ob) == '_connected_geometry_object_type_marker' and ob.nwo.marker_type == '_connected_geometry_marker_type_water_volume_flow':
-            ob.hide_set(True)
+            unlink(ob)
 
 def cull_zero_face_meshes(context):
     for ob in context.view_layer.objects:
         if ob.type == 'MESH' and len(ob.data.polygons) < 1:
-            ob.hide_set(True)
-
+            unlink(ob)
 
 # FACEMAP SPLIT
 
@@ -633,13 +632,13 @@ def apply_object_mesh_marker_properties(ob, asset_type):
 
         elif asset_type in ('SCENARIO', 'PREFAB'):
             if CheckType.game_instance(ob):
-                if not reach and nwo.Marker_Game_Instance_Tag_Name.lower().endswith('.prefab'):
+                if not reach and nwo.marker_game_instance_tag_name.lower().endswith('.prefab'):
                     nwo.marker_type = '_connected_geometry_marker_type_prefab'
-                elif not reach and nwo.Marker_Game_Instance_Tag_Name.lower().endswith('.cheap_light'):
+                elif not reach and nwo.marker_game_instance_tag_name.lower().endswith('.cheap_light'):
                     nwo.marker_type = '_connected_geometry_marker_type_cheap_light'
-                elif not reach and nwo.Marker_Game_Instance_Tag_Name.lower().endswith('.light'):
+                elif not reach and nwo.marker_game_instance_tag_name.lower().endswith('.light'):
                     nwo.marker_type = '_connected_geometry_marker_type_light'
-                elif not reach and nwo.Marker_Game_Instance_Tag_Name.lower().endswith('.leaf'):
+                elif not reach and nwo.marker_game_instance_tag_name.lower().endswith('.leaf'):
                     nwo.marker_type = '_connected_geometry_marker_type_falling_leaf'
                 else:
                     nwo.marker_type = '_connected_geometry_marker_type_game_instance'
@@ -647,8 +646,8 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                 nwo.marker_type = '_connected_geometry_marker_type_airprobe'
             elif not reach and CheckType.envfx(ob):
                 nwo.marker_type = '_connected_geometry_marker_type_envfx'
-            elif not reach and CheckType.lightCone(ob):
-                nwo.marker_type = '_connected_geometry_marker_type_lightCone'
+            elif not reach and CheckType.lightcone(ob):
+                nwo.marker_type = '_connected_geometry_marker_type_lightcone'
             else:
                 nwo.marker_type = '_connected_geometry_marker_type_model'
 

@@ -588,7 +588,7 @@ class NWO_ObjectProps(Panel):
                     elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
                         mesh_type_name = 'Cookie Cutter'
                         mesh_type_icon = 'cookie_cutter'
-                    elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision' and h4:
+                    elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision' and h4:
                         mesh_type_name = 'Collider'
                     elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_portal':
                         mesh_type_name = 'Portal'
@@ -605,7 +605,7 @@ class NWO_ObjectProps(Panel):
                         mesh_type_name = 'Instance'
                     elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_cookie_cutter':
                         mesh_type_name = 'Cookie Cutter'
-                    elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_collision':
+                    elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
                         mesh_type_name = 'Collider'
 
                 row.emboss = 'NORMAL'
@@ -677,6 +677,9 @@ class NWO_ObjectProps(Panel):
                             col.prop(ob_nwo, "water_volume_fog_murkiness", text='Underwater Fog Murkiness')
                         else:
                             col.label(text="Water Physics mesh type only valid for Scenario exports", icon='ERROR')
+
+                elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
+                    col.prop(ob_nwo, "poop_collision_type")
 
                 elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop':
                     col.prop(ob_nwo, "poop_lighting_override", text='Lighting Policy')
@@ -1004,49 +1007,63 @@ class NWO_MeshFaceProps(Panel):
         #                             )
 
 # MATERIAL PROPERTIES
-class NWO_MaterialProps(Panel):
-    bl_label = "Halo Material Properties"
-    bl_idname = "NWO_PT_MaterialPanel"
+class NWO_ShaderProps(Panel):
+    bl_label = "Halo Shader Path"
+    bl_idname = "NWO_PT_ShaderPanel"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "material"
 
     @classmethod
     def poll(cls, context):
-        scene = context.scene
-        scene_nwo = scene.nwo_global
+        return context.material and not not_bungie_game()
 
-        if scene_nwo.game_version in ('reach','h4','h2a'):
-            return context.material
+    def draw_header(self, context):
+        current_material = context.material
+        material_nwo = current_material.nwo
+        self.layout.prop(material_nwo, "rendered", text='')
 
     def draw(self, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
         layout = self.layout
-        ob = context.active_object
-        current_material = ob.active_material
-        if current_material is not None:
-            material_nwo = current_material.nwo
-            layout.use_property_split = True
+        current_material = context.material
+        material_nwo = current_material.nwo
+        if not material_nwo.rendered:
+            if self.bl_idname == 'NWO_PT_MaterialPanel':
+                layout.label(text="Not a Halo Material")
+            else:
+                layout.label(text="Not a Halo Shader")
+
+            layout.enabled = False
+
+        else:
+            # layout.use_property_split = True
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
             # fun setup to display the correct fields
-            if not_bungie_game():
+            if self.bl_idname == 'NWO_PT_MaterialPanel':
                 row = col.row()
-                row.prop(material_nwo, "shader_path", text='Material Path')
+                row.prop(material_nwo, "shader_path", text='')
                 row.operator('nwo.shader_path')
 
             else:
                 row = col.row()
-                row.prop(material_nwo, "shader_path")
+                row.prop(material_nwo, "shader_path", text='')
                 row.operator('nwo.shader_path')
-                col.prop(material_nwo, "shader_type")
+                # col.prop(material_nwo, "shader_type")
 
             if material_nwo.shader_path != '':
                 col.separator()
                 row = col.row()
                 row.scale_y = 1.5
                 row.operator('nwo.open_halo_material')
+
+class NWO_MaterialProps(NWO_ShaderProps):
+    bl_label = "Halo Material Path"
+    bl_idname = "NWO_PT_MaterialPanel"
+
+    @classmethod
+    def poll(cls, context):
+        return context.material and not_bungie_game()
 
 class NWO_MaterialOpenTag(Operator):
     """Opens the active material's Halo Shader/Material in Foundation"""
@@ -1399,7 +1416,7 @@ class NWO_MeshMenu(Menu):
                 layout.operator("nwo.set_mesh_type", text="Structure Sky", icon_value=get_icon_id('structure')).option = '_connected_geometry_mesh_type_default'
             else:
                 layout.operator("nwo.set_mesh_type", text="Structure", icon_value=get_icon_id('structure')).option = '_connected_geometry_mesh_type_default'
-        else:
+        elif not poll_ui('PREFAB'):
             layout.operator("nwo.set_mesh_type", text="Render", icon_value=get_icon_id('render_geometry')).option = '_connected_geometry_mesh_type_default'
 
         if poll_ui('MODEL'):
@@ -1408,7 +1425,7 @@ class NWO_MeshMenu(Menu):
             if not h4:
                 layout.operator("nwo.set_mesh_type", text="Flair", icon_value=get_icon_id('flair')).option = '_connected_geometry_mesh_type_object_instance'
 
-        elif poll_ui(('SCENARIO', 'PREFAB')):
+        elif poll_ui('SCENARIO'):
             layout.operator("nwo.set_mesh_type", text="Instance", icon_value=get_icon_id('instance')).option = '_connected_geometry_mesh_type_poop'
             if h4:
                 layout.operator("nwo.set_mesh_type", text="Collider", icon_value=get_icon_id('collider')).option = '_connected_geometry_mesh_type_poop_collision'
@@ -3919,21 +3936,23 @@ class NWO_LightPropertiesGroup(PropertyGroup):
 
 class NWO_MaterialPropertiesGroup(PropertyGroup):
     
-    def update_shader(self, context):
-        self['shader_path'] = clean_tag_path(self['shader_path']).strip('"')
-        material_path = self.shader_path.replace('"','')
-        if material_path != material_path.rpartition('.')[2]:
-            try:
-                self.Shader_Type = material_path.rpartition('.')[2]
-            except:
-                self.Shader_Type = 'shader'
+    # def update_shader(self, context):
+    #     self['shader_path'] = clean_tag_path(self['shader_path']).strip('"')
+    #     material_path = self.shader_path.replace('"','')
+    #     if material_path != material_path.rpartition('.')[2]:
+    #         try:
+    #             self.Shader_Type = material_path.rpartition('.')[2]
+    #         except:
+    #             self.Shader_Type = 'shader'
 
     shader_path: StringProperty(
         name = "Shader Path",
         description = "Define the path to a shader. This can either be a relative path, or if you have added your Editing Kit Path to add on preferences, the full path. Including the file extension will automatically update the shader type",
         default = "",
-        update=update_shader,
+       # update=update_shader,
         )
+
+    rendered : BoolProperty()
 
     shader_types = [ ('shader', "Shader", ""),
                 ('shader_cortana', "Shader Cortana", ""),
@@ -3952,13 +3971,13 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
                 ('shader_water', "Shader Water", ""),
                ]
 
-    shader_type: EnumProperty(
-        name = "Shader Type",
-        options=set(),
-        description = "Set by the extension of the shader path. Alternatively this field can be updated manually",
-        default = "shader",
-        items=shader_types,
-        )
+    # shader_type: EnumProperty(
+    #     name = "Shader Type",
+    #     options=set(),
+    #     description = "Set by the extension of the shader path. Alternatively this field can be updated manually",
+    #     default = "shader",
+    #     items=shader_types,
+    #     )
 
 class NWO_BonePropertiesGroup(PropertyGroup):
 
@@ -6020,6 +6039,7 @@ classeshalo = (
     # NWO_ObjectMeshProps,
     # NWO_ObjectMarkerProps,
     NWO_MaterialProps,
+    NWO_ShaderProps,
     NWO_MaterialOpenTag,
     NWO_ObjectPropertiesGroup,
     NWO_LightPropertiesGroup,

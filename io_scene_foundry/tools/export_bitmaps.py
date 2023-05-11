@@ -26,7 +26,7 @@
 
 import os
 import bpy
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_info, get_data_path, run_tool
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_info, get_data_path, not_bungie_game, run_tool
 
 def save_image_as(image, path, name):
     scene = bpy.data.scenes.new("temp") 
@@ -95,13 +95,24 @@ def export_bitmaps(report, context, material, sidecar_path, overwrite, export_ty
         report({'WARNING'}, 'No Bitmaps exported')
     else:
         report({'INFO'}, f'Exported {bitmap_count} bitmaps')
-
+    h4 = not_bungie_game()
     if export_type != 'export':
         for path in bitmap_paths:
-            run_tool(['bitmap_single', path])
+            bm_name = dot_partition(path.rpartition('\\')[2])
+            bm_type = get_bitmap_type()
+            bpy.ops.managed_blam.new_bitmap(bitmap_name=bm_name, bitmap_type=bm_type)
+            path = dot_partition(path)
+
+            if h4:
+                run_tool(['reimport-bitmaps-single', path, 'default'])
+            else:
+                run_tool(['reimport-bitmaps-single', path])
 
         report({'INFO'}, 'Bitmaps Import Complete')
 
 
     return {'FINISHED'}
+
+def get_bitmap_type():
+    return 'diffuse'
 
