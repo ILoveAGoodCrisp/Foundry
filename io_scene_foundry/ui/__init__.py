@@ -1398,6 +1398,10 @@ marker_type_items = [
             ('_connected_geometry_marker_type_airprobe', "Airprobe", "Airprobes tell the game how to handle static lighting on dynamic objects"),
             ('_connected_geometry_marker_type_envfx', "Environment Effect", "Plays an effect on this point in the structure"),
             ('_connected_geometry_marker_type_lightCone', "Light Cone", "Creates a light cone with the defined parameters"),
+            ('_connected_geometry_marker_type_prefab', "Prefab", ""),
+            ('_connected_geometry_marker_type_cheap_light', "Cheap Light", ""),
+            ('_connected_geometry_marker_type_light', "Light", ""),
+            ('_connected_geometry_marker_type_falling_leaf', "Falling Leaf", ""),
             ]
 
 # OBJECT MESH MARKER OPERATORS & MENUS ##############------=======================
