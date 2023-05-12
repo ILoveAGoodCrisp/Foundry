@@ -158,7 +158,7 @@ class HaloObjects():
         self.decorators = select_halo_objects('decorator', asset_type, ('DECORATOR SET'))
         
         self.cookie_cutters = select_halo_objects('cookie_cutter', asset_type, ('SCENARIO', 'PREFAB'))
-        self.poops = select_halo_objects('poop', asset_type, ('SCENARIO', 'PREFAB'))
+        self.poops = select_halo_objects('poop_all', asset_type, ('SCENARIO', 'PREFAB'))
         self.poop_markers = select_halo_objects('poop_marker', asset_type, ('SCENARIO'))
         self.misc = select_halo_objects('misc', asset_type, ('SCENARIO', 'PREFAB'))
         self.seams = select_halo_objects('seam', asset_type, ('SCENARIO'))
@@ -188,8 +188,6 @@ def ignore_non_export_objects(context):
         ob_nwo = ob.nwo
         if (not ob_nwo.export_this) or ob.type in ('LATTICE', 'LIGHT_PROBE', 'SPEAKER', 'CAMERA') or (ob.type == 'EMPTY' and ob.empty_display_type == 'IMAGE'): # also remove non valid object types - camera, light probes, speaker, lattice, reference image
             unlink(ob)
-
-    
 
 def apply_hint_marker_name(context):
     for ob in context.view_layer.objects:
@@ -311,7 +309,7 @@ def split_by_face_map(ob, context):
                     collision_mesh.parent = ob
     
                 collision_mesh.matrix_world = ob.matrix_world
-                collision_mesh.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+                collision_mesh.nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
                 collision_mesh.select_set(False)
 
         normals_mesh = ob.copy()

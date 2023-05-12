@@ -467,6 +467,9 @@ class CheckType:
     def poop(ob):
         return mesh_type(ob, ('_connected_geometry_mesh_type_poop',))
     @staticmethod
+    def poop_all(ob):
+        return mesh_type(ob, ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_poop_physics'))
+    @staticmethod
     def poop_marker(ob):
         return mesh_type(ob, ('_connected_geometry_mesh_type_poop_marker',))
     @staticmethod
@@ -474,7 +477,7 @@ class CheckType:
         return mesh_type(ob, ('_connected_geometry_mesh_type_object_instance',))
     @staticmethod
     def poop_collision_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_poop_physics'))
     @staticmethod
     def light(ob):
         return ob.type == 'LIGHT'
@@ -516,10 +519,10 @@ class CheckType:
         return mesh_type(ob, ('_connected_geometry_mesh_type_decorator',))
     @staticmethod
     def poop_collision(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_collision',))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_collision',))
     @staticmethod
     def poop_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_physics',))
+        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_physics',))
     @staticmethod
     def cookie_cutter(ob):
         return mesh_type(ob, ('_connected_geometry_mesh_type_cookie_cutter',))
