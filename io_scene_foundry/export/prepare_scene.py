@@ -78,6 +78,8 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         hide_water_flow_markers(context)
         # fixup hint marker names
         apply_hint_marker_name(context)
+        # Convert mesh markers to empty objects. Especially useful with complex marker shapes, such as prefabs
+        MeshesToEmpties(context, meshes_to_empties)
         # add a uv map to meshes without one. This prevents an export assert
         fixup_missing_uvs(context)
         # run find shaders code if any empty paths
@@ -94,8 +96,6 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
     global_materials_dict = get_global_materials_dict(context.view_layer.objects)
     if export_gr2_files:
-        # Convert mesh markers to empty objects. Especially useful with complex marker shapes, such as prefabs
-        MeshesToEmpties(context, meshes_to_empties)
         # poop proxy madness
         SetPoopProxies(context.view_layer.objects)
     # get all objects that we plan to export later
@@ -268,7 +268,7 @@ def any_face_props(ob):
     else:
         return False
     
-def justify_face_split(ob, context):
+def justify_face_split(ob):
     if ob.type != 'MESH':
         return False
     if len(ob.face_maps) < 1:
@@ -312,7 +312,7 @@ def split_by_face_map(ob, context):
     # remove unused face maps
     ob.select_set(True)
     set_active_object(ob)
-    if justify_face_split(ob, context):
+    if justify_face_split(ob):
         # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
         if CheckType.poop(ob) and not ob.nwo.poop_render_only:
             # check for custom collision / physics
@@ -747,22 +747,22 @@ def set_object_type(ob):
         ob.nwo.object_type = '_connected_geometry_object_type_light'
     elif ob.type == 'CAMERA':
         # don't export cameras
-        ob.hide_set(True)
+        unlink(ob)
         # ob.nwo.object_type = '_connected_geometry_object_type_animation_camera'
     elif ob.type == 'ARMATURE':
         ob.nwo.object_type = '_connected_geometry_object_type_frame'
     elif ob.type == 'EMPTY':
-        if len(ob.children) > 0 or ob.nwo.object_type_no_mesh != '_connected_geometry_object_type_marker':
+        if len(ob.children) > 0 or ob.nwo.object_type_ui != '_connected_geometry_object_type_marker':
             ob.nwo.object_type = '_connected_geometry_object_type_frame'
         else:
             ob.nwo.object_type = '_connected_geometry_object_type_marker'
 
     elif ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
-        ob.nwo.object_type = ob.nwo.object_type_all
+        ob.nwo.object_type = ob.nwo.object_type_ui
     else:
         # Mesh invalid, don't export
         print(f'{ob.name} is invalid. Skipping export')
-        ob.hide_set(True)
+        unlink(ob)
 
 
 

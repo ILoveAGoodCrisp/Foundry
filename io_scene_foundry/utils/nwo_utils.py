@@ -890,3 +890,7 @@ def cull_invalid_chars(string):
 def protected_material_name(material_name):
     """Returns True if the passed material name is equal to a protected material"""
     return material_name.startswith(protected_materials)
+
+############ FOUNDRY UI UTILS
+def mesh_object(ob):
+    return ob.type in blender_object_types_mesh

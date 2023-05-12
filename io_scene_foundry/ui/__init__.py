@@ -181,6 +181,7 @@ from ..utils.nwo_utils import (
     is_linked,
     managed_blam_active,
     marker_prefixes,
+    mesh_object,
     run_ek_cmd,
     set_active_object,
     special_prefixes,
@@ -538,18 +539,15 @@ class NWO_ObjectProps(Panel):
             row = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True)
             row.scale_x = 1.3
             row.scale_y = 1.3
+            row.prop(ob_nwo, "object_type_ui", text='', expand=True)
             if ob.type == 'LIGHT':
-                row.prop(ob_nwo, "object_type_light", text='', expand=True, )
                 row.label(text="See the Object Data Properties panel for Halo Light Properties")
-            elif ob.type == 'EMPTY':
-                    row.prop(ob_nwo, "object_type_no_mesh", text='', expand=True)
-            else:
-                row.prop(ob_nwo, "object_type_all", text='', expand=True)
+                
 
             # if CheckType.frame(ob) and h4:
             #     col.prop(ob_nwo, 'is_pca')
 
-            if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
+            if ob_nwo.object_type_ui == '_connected_geometry_object_type_mesh':
                 # SPECIFIC MESH PROPS
                 flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
@@ -742,7 +740,7 @@ class NWO_ObjectProps(Panel):
                 elif ob_nwo.mesh_type == '_connected_geometry_mesh_type_planar_fog_physics':
                     col.prop(ob_nwo, "mesh_primitive_type", text='Primitive Type')
 
-            elif CheckType.get(ob) == '_connected_geometry_object_type_marker':
+            elif ob_nwo.object_type_ui == '_connected_geometry_object_type_marker':
                 # MARKER PROPERTIES
                 flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
                 flow.use_property_split = False
@@ -930,7 +928,7 @@ class NWO_MeshFaceProps(Panel):
         ob = context.object
         valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
         h4_structure = not_bungie_game() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default'
-        return ob and ob.nwo.export_this and ob.type == 'MESH' and CheckType.get(ob) == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
+        return ob and ob.nwo.export_this and ob.type == 'MESH' and ob.nwo.object_type_ui == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
 
     def draw(self, context):
         layout = self.layout
@@ -1591,9 +1589,47 @@ class NWO_MeshTypeStructureDesignH4(NWO_MeshType):
 # NWO PROPERTY GROUPS
 class NWO_ObjectPropertiesGroup(PropertyGroup):
     #OBJECT PROPERTIES
-    # object_id: StringProperty(
-    #     name="Object ID",
-    # )
+    
+    #########################################################################################################################
+    # OBJECT PROPERTIES UI ####################################################################################################
+    #########################################################################################################################
+
+    def items_object_type_ui(self, context):
+        """Function to handle context for object enum lists"""
+        ob = context.object
+        items = []
+
+        # context: any light object
+        if ob.type == 'LIGHT':
+            items.append(('_connected_geometry_object_type_light', 'Light', 'Light', get_icon_id("light_cone"), 0))
+        
+        # context: any 3D object type i.e. a blender mesh or an object that can convert to mesh
+        elif mesh_object(ob):
+            items.append(('_connected_geometry_object_type_mesh', 'Mesh', "Mesh", get_icon_id("render_geometry"), 0))
+            items.append(('_connected_geometry_object_type_marker', 'Marker', "Marker", get_icon_id("marker"), 1))
+            items.append(('_connected_geometry_object_type_frame', 'Frame', "Frame", get_icon_id("frame"), 2))
+        
+        # context: any empty object
+        else:
+            items.append(('_connected_geometry_object_type_marker', 'Marker', "Marker", get_icon_id("marker"), 0))
+            items.append(('_connected_geometry_object_type_frame', 'Frame', "Frame", get_icon_id("frame"), 1))
+        
+        return items
+        
+        
+    def get_object_type_ui(self):
+        return self.get("object_type_ui", 0)
+
+    def set_object_type_ui(self, value):
+        self["object_type_ui"] = value
+
+    object_type_ui : EnumProperty(
+        name = 'Object Type',
+        items=items_object_type_ui,
+        get=get_object_type_ui,
+        set=set_object_type_ui,
+    )
+
 
     export_this : BoolProperty(
         name = 'Export',
@@ -4555,7 +4591,7 @@ class NWO_FaceMapProps(Panel):
         ob = context.object
         valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
         h4_structure = not_bungie_game() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default'
-        return ob and ob.nwo.export_this and ob.type == 'MESH' and CheckType.get(ob) == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
+        return ob and ob.nwo.export_this and ob.type == 'MESH' and ob.nwo.object_type_ui == '_connected_geometry_object_type_mesh' and not h4_structure and ob.nwo.mesh_type in valid_mesh_types
     
     def draw_header(self, context):
         self.layout.label(text='', icon_value=get_icon_id("halo_mods"))
@@ -4956,6 +4992,10 @@ class NWO_FacePropAddMenu(Menu):
                                     )
 
         if poll_ui(('SCENARIO', 'PREFAB')):
+            layout.operator_menu_enum("nwo_face.add_face_property_face_sides",
+                                    property="options",
+                                    text="Sides",
+                                    )
             layout.operator_menu_enum("nwo_face.add_face_property_face_type",
                                     property="options",
                                     text="Type",
@@ -5001,6 +5041,10 @@ class NWO_FacePropAddMenuNew(Menu):
                                     )
 
         if poll_ui(('SCENARIO', 'PREFAB')):
+            layout.operator_menu_enum("nwo_face.add_face_property_face_sides_new",
+                                    property="options",
+                                    text="Sides",
+                                    )
             layout.operator_menu_enum("nwo_face.add_face_property_face_type_new",
                                     property="options",
                                     text="Type",
