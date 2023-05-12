@@ -268,7 +268,7 @@ def any_face_props(ob):
     else:
         return False
     
-def justify_face_split(ob):
+def justify_face_split(ob, context):
     if ob.type != 'MESH':
         return False
     if len(ob.face_maps) < 1:
@@ -279,20 +279,40 @@ def justify_face_split(ob):
         bpy.ops.object.face_map_select()
         for face in ob.data.polygons:
             if not face.select:
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                 break
         else:
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             return False
-    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
     return True
 
 
+def strip_render_only_faces(ob, context):
+    """Removes faces from a mesh that have the render only property"""
+    # set the context
+    current_context = context
+    deselect_all_objects()
+    ob.select_set(True)
+    set_active_object(ob)
+    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+    bpy.ops.mesh.select_all(action='DESELECT')
+    # loop through each facemap and select non collision faces
+    for index, item in enumerate(ob.nwo_face.face_props):
+        ob.face_maps.active_index = index
+        if item.face_mode_override and item.face_mode == '_connected_geometry_face_mode_render_only':
+            bpy.ops.object.face_map_select()
+
+    # delete these faces
+    bpy.ops.mesh.delete(type='FACE')
+    
+    context = current_context
 
 def split_by_face_map(ob, context):
     # remove unused face maps
     ob.select_set(True)
     set_active_object(ob)
-    if justify_face_split(ob):
+    if justify_face_split(ob, context):
         # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
         if CheckType.poop(ob) and not ob.nwo.poop_render_only:
             # check for custom collision / physics
@@ -300,7 +320,8 @@ def split_by_face_map(ob, context):
                 collision_mesh = ob.copy()
                 collision_mesh.data = ob.data.copy()
                 context.scene.collection.objects.link(collision_mesh)
-                # TODO Need to ignore any faces with the render only property
+                # Remove render only property faces from coll mesh
+                strip_render_only_faces(collision_mesh, context)
                 collision_mesh.name = ob.name + "(collision)"
                 # Need to handle collision assingment differently between reach and h4
                 if not_bungie_game():
@@ -310,8 +331,7 @@ def split_by_face_map(ob, context):
     
                 collision_mesh.matrix_world = ob.matrix_world
                 collision_mesh.nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
-                collision_mesh.select_set(False)
-
+        
         normals_mesh = ob.copy()
         normals_mesh.data = ob.data.copy()
         # context.scene.collection.objects.link(normals_mesh)
