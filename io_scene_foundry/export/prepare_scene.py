@@ -361,7 +361,7 @@ def split_by_face_map(ob, context):
     else:
         return context.selected_objects
 
-def face_prop_to_mesh_prop(ob):
+def face_prop_to_mesh_prop(ob, main_mesh=None):
     # ignore unused face_prop items
     if ob.face_maps:
         for item in ob.nwo_face.face_props:
@@ -453,7 +453,7 @@ def face_prop_to_mesh_prop(ob):
                 is_poop = CheckType.poop(ob)
                 if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
                     mesh_props.face_sides = '_connected_geometry_face_sides_two_sided'
-                elif is_poop:
+                elif is_poop and ob != main_mesh:
                     mesh_props.poop_render_only = True
 
                 break
@@ -483,10 +483,10 @@ def apply_face_properties(context):
                 split_objects = split_by_face_map(ob, context)
                 if not split_objects:
                     continue
-                for ob in split_objects:
+                for s_ob in split_objects:
                     # check the whole mesh hasn't been deleted
-                    if len(ob.face_maps) > 0:
-                        face_prop_to_mesh_prop(ob)
+                    if len(s_ob.face_maps) > 0:
+                        face_prop_to_mesh_prop(s_ob, ob)
 
                 # set mode again
                 set_object_mode(context)
