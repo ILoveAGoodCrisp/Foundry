@@ -42,6 +42,7 @@ from ..utils.nwo_utils import(
     radius_str,
     true_bsp,
     clean_tag_path,
+    shader_exts,
 
 )
 
@@ -894,7 +895,8 @@ class NWOMesh(NWOObject):
                     self.bungie_mesh_global_material = self.mesh_global_material()
             if self.bungie_mesh_type == '_connected_geometry_mesh_type_poop':
                 self.bungie_mesh_poop_lighting = self.mesh_poop_lighting()
-                self.bungie_mesh_poop_lightmap_resolution_scale = self.mesh_poop_lightmap_resolution_scale()
+                if self.halo.lightmap_resolution_scale_active:
+                    self.bungie_mesh_poop_lightmap_resolution_scale = self.mesh_poop_lightmap_resolution_scale()
                 self.bungie_mesh_poop_pathfinding = self.mesh_poop_pathfinding()
                 self.bungie_mesh_poop_imposter_policy = self.mesh_poop_imposter_policy()
                 self.bungie_mesh_poop_imposter_transition_distance = self.mesh_poop_imposter_brightness()
@@ -974,10 +976,10 @@ class NWOMesh(NWOObject):
         # self.bungie_lightmap_photon_fidelity = self.lightmap_photon_fidelity()
         if self.halo.lightmap_type_active:
             self.bungie_lightmap_type = self.lightmap_type()
-        if self.halo.lightmap_analytical_bounce_modifier_active:
-            self.bungie_lightmap_analytical_bounce_modifier = self.lightmap_analytical_bounce_modifier()
-        if self.halo.lightmap_general_bounce_modifier_active:
-            self.bungie_lightmap_general_bounce_modifier = self.lightmap_general_bounce_modifier()
+        # if self.halo.lightmap_analytical_bounce_modifier_active:
+        #     self.bungie_lightmap_analytical_bounce_modifier = self.lightmap_analytical_bounce_modifier()
+        # if self.halo.lightmap_general_bounce_modifier_active:
+        #     self.bungie_lightmap_general_bounce_modifier = self.lightmap_general_bounce_modifier()
         # self.bungie_lightmap_analytical_absorb_ratio = self.lightmap_analytical_absorb_ratio()
         if self.halo.lightmap_translucency_tint_color_active:
             self.bungie_lightmap_translucency_tint_color = self.lightmap_translucency_tint_color()
@@ -1055,7 +1057,7 @@ class NWOMesh(NWOObject):
         return self.halo.poop_lighting_override
 
     def mesh_poop_lightmap_resolution_scale(self):
-        return jstr(self.halo.poop_lightmap_resolution_scale)
+        return jstr(self.halo.lightmap_resolution_scale) #jstr(self.halo.poop_lightmap_resolution_scale)
 
     def mesh_poop_pathfinding(self):
         return self.halo.poop_pathfinding_override
@@ -1255,7 +1257,7 @@ class NWOMesh(NWOObject):
         return bool_str(True)
 
     def lightmap_resolution_scale(self):
-        return bool_str(self.halo.lightmap_resolution_scale)
+        return jstr(self.halo.lightmap_resolution_scale)
 
     def lightmap_photon_fidelity(self):
         return self.halo.lightmap_photon_fidelity
@@ -1398,4 +1400,7 @@ class NWOMaterial:
         elif not_bungie_game():
             return 'material'
         else:
-            return self.halo.shader_type
+            shader_type = self.halo.shader_path.rpartition('.')[2]
+            if '.' + shader_type in shader_exts:
+                return shader_type
+            return 'shader'

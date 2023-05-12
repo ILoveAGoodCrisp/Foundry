@@ -2499,7 +2499,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Lightmap Analytical Bounce Modifier",
         options=set(),
         description="",
-        default=9999,
+        default=1,
     )
     
     lightmap_general_bounce_modifier_active : BoolProperty()
@@ -2507,7 +2507,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Lightmap General Bounce Modifier",
         options=set(),
         description="",
-        default=9999,
+        default=1,
     )
     lightmap_translucency_tint_color_active : BoolProperty()
     lightmap_translucency_tint_color: FloatVectorProperty(
@@ -5437,8 +5437,8 @@ class NWO_FacePropAddLightmap(NWO_FacePropAdd):
         ('lightmap_additive_transparency', 'Transparency', ''),
         ('lightmap_resolution_scale', 'Resolution Scale', ''),
         ('lightmap_type', 'Lightmap Type', ''),
-        ('lightmap_analytical_bounce_modifier', 'Analytical Light Bounce Modifier', ''),
-        ('lightmap_general_bounce_modifier', 'General Light Bounce Modifier', ''),
+        # ('lightmap_analytical_bounce_modifier', 'Analytical Light Bounce Modifier', ''),
+        # ('lightmap_general_bounce_modifier', 'General Light Bounce Modifier', ''),
         ('lightmap_translucency_tint_color', 'Translucency Tint Colour', ''),
         ('lightmap_lighting_from_both_sides', 'Lighting from Both Sides', ''),
         ]
@@ -5738,7 +5738,8 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces.  The relationships can be tweaked in the .scenario tag",
         default=3,
-        min=1,
+        min=0,
+        max=7,
     )
 
     lightmap_photon_fidelity : EnumProperty( # DONT SET THIS
@@ -5784,6 +5785,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         description="0 will bounce no energy.  1 will bounce full energy.  Any value greater than 1 will exaggerate the amount of bounced light.  Affects 1st bounce only",
         default=1,
         soft_max=1,
+        min=0,
         subtype='FACTOR',
     )
     
@@ -5793,6 +5795,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         description="0 will bounce no energy.  1 will bounce full energy.  Any value greater than 1 will exaggerate the amount of bounced light.  Affects 1st bounce only",
         default=1,
         soft_max=1,
+        min=0,
         subtype='FACTOR',
     )
 
@@ -5810,7 +5813,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name ="Lightmap Lighting From Both Sides",
         options=set(),
         description = "",
-        default = False,
+        default = True,
     )
 
     # MATERIAL LIGHTING

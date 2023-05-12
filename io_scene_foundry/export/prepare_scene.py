@@ -89,6 +89,7 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         # remove meshes with zero faces
         cull_zero_face_meshes(context)
     # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
+    #raise
     regions_dict = get_regions_dict(context.view_layer.objects)
     # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
     global_materials_dict = get_global_materials_dict(context.view_layer.objects)
@@ -268,12 +269,32 @@ def any_face_props(ob):
             return True
     else:
         return False
+    
+def justify_face_split(ob):
+    if ob.type != 'MESH':
+        return False
+    if len(ob.face_maps) < 1:
+        return False
+    if len(ob.face_maps) == 1:
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.face_map_select()
+        for face in ob.data.polygons:
+            if not face.select:
+                break
+        else:
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            return False
+    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    return True
+
+
 
 def split_by_face_map(ob, context):
     # remove unused face maps
     ob.select_set(True)
     set_active_object(ob)
-    if ob.type == 'MESH' and len(ob.face_maps) > 0:
+    if justify_face_split(ob):
         # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
         if CheckType.poop(ob) and not ob.nwo.poop_render_only:
             # check for custom collision / physics
@@ -282,9 +303,15 @@ def split_by_face_map(ob, context):
                 collision_mesh.data = ob.data.copy()
                 context.scene.collection.objects.link(collision_mesh)
                 # TODO Need to ignore any faces with the render only property
-                collision_mesh.parent = ob
+                collision_mesh.name = ob.name + "(collision)"
+                # Need to handle collision assingment differently between reach and h4
+                if not_bungie_game():
+                    ob.poop_render_only = True
+                else:
+                    collision_mesh.parent = ob
+    
                 collision_mesh.matrix_world = ob.matrix_world
-                collision_mesh.nwo.ObjectMesh_Type = '_connected_geometry_mesh_type_collision'
+                collision_mesh.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
                 collision_mesh.select_set(False)
 
         normals_mesh = ob.copy()
@@ -309,7 +336,7 @@ def split_by_face_map(ob, context):
         ob.select_set(True)
         selection_ob = context.selected_objects
         for obj in selection_ob:
-            if len(ob.data.polygons) > 0:
+            if len(obj.data.polygons) > 0:
                 remove_unused_facemaps(obj, context)
                 # set up data transfer modifier to retain normals
                 mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
@@ -319,8 +346,20 @@ def split_by_face_map(ob, context):
                 mod.data_types_loops = {'CUSTOM_NORMAL'}
                 if len(obj.face_maps) > 0:
                     obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
-        
+            # make sure we're not parenting the collision to a zero face mesh
+            elif collision_mesh is not None and collision_mesh.parent == ob:
+                collision_mesh.parent = None
+                # can't have a free floating coll mesh in Reach, so we make it a poop and make it invisible
+                collision_mesh.nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                print("Set mesh type")
+                collision_mesh.nwo.face_mode = '_connected_geometry_face_mode_collision_only'
+                # collision_mesh.nwo.face_type = '_connected_geometry_face_type_seam_sealer'
+                collision_mesh.matrix_world = ob.matrix_world
+                
         return new_selection
+    
+    else:
+        return context.selected_objects
 
 def face_prop_to_mesh_prop(ob):
     # ignore unused face_prop items
@@ -371,12 +410,12 @@ def face_prop_to_mesh_prop(ob):
                 if item.lightmap_type_override:
                     mesh_props.lightmap_type = face_props.lightmap_type
                     mesh_props.lightmap_type_active = True
-                if item.lightmap_analytical_bounce_modifier_override:
-                    mesh_props.lightmap_analytical_bounce_modifier = face_props.lightmap_analytical_bounce_modifier
-                    mesh_props.lightmap_analytical_bounce_modifier_active = True
-                if item.lightmap_general_bounce_modifier_override:
-                    mesh_props.lightmap_general_bounce_modifier = face_props.lightmap_general_bounce_modifier
-                    mesh_props.lightmap_general_bounce_modifier_active = True
+                # if item.lightmap_analytical_bounce_modifier_override:
+                #     mesh_props.lightmap_analytical_bounce_modifier = face_props.lightmap_analytical_bounce_modifier
+                #     mesh_props.lightmap_analytical_bounce_modifier_active = True
+                # if item.lightmap_general_bounce_modifier_override:
+                #     mesh_props.lightmap_general_bounce_modifier = face_props.lightmap_general_bounce_modifier
+                #     mesh_props.lightmap_general_bounce_modifier_active = True
                 if item.lightmap_translucency_tint_color_override:
                     mesh_props.lightmap_translucency_tint_color = face_props.lightmap_translucency_tint_color
                     mesh_props.lightmap_translucency_tint_color_active = True
@@ -411,8 +450,11 @@ def face_prop_to_mesh_prop(ob):
                     mesh_props.material_lighting_bounce_ratio_active = True
 
                 # added two sided property to avoid open edges if collision prop
-                if CheckType.poop(ob) and (mesh_props.ladder or mesh_props.slip_surface):
+                is_poop = CheckType.poop(ob)
+                if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
                     mesh_props.face_sides = '_connected_geometry_face_sides_two_sided'
+                elif is_poop:
+                    mesh_props.poop_render_only = True
 
                 break
 
@@ -438,7 +480,9 @@ def apply_face_properties(context):
                 if obj.data == me and obj != ob:
                     linked_objects.append(obj)
             if ob.face_maps:
-                split_objects= split_by_face_map(ob, context)
+                split_objects = split_by_face_map(ob, context)
+                if not split_objects:
+                    continue
                 for ob in split_objects:
                     # check the whole mesh hasn't been deleted
                     if len(ob.face_maps) > 0:
@@ -1151,25 +1195,26 @@ def SetPoopProxies(scene_objects):
             poop_offset = 0
             deselect_all_objects()
             for ob in poops:
-                if ob.data.name not in mesh_data:
-                    mesh_data.append(ob.data.name)
-                    for obj in poops:
-                        if obj.data.name == ob.data.name and len(obj.children) > 0 and CheckType.poop(obj):
-                            proxy_collision, collision_offset = GetPoopProxyCollision(obj)
-                            proxy_physics, physics_offset = GetPoopProxyPhysics(obj)
-                            proxy_cookie_cutter, cookie_cutter_offset = GetPoopProxyCookie(obj)
-                            obj.select_set(True)
-                            break
-                    else:
-                        continue
+                if is_linked(ob) and ob.data.nwo.master_instance != ob:
+                    continue
+                mesh_data.append(ob.data.name)
+                for obj in poops:
+                    if obj.data.name == ob.data.name and len(obj.children) > 0 and CheckType.poop(obj):
+                        proxy_collision, collision_offset = GetPoopProxyCollision(obj)
+                        proxy_physics, physics_offset = GetPoopProxyPhysics(obj)
+                        proxy_cookie_cutter, cookie_cutter_offset = GetPoopProxyCookie(obj)
+                        obj.select_set(True)
+                        break
+                else:
+                    continue
 
-                    for obj in poops:
-                        if CheckType.poop(obj) and obj.data.name == ob.data.name and len(obj.children) == 0:
-                            deselect_all_objects()
-                            obj.select_set(True)
-                            poop_offset = obj.matrix_world
-                            poop_proxies = AttachPoopProxies(obj, proxy_collision, proxy_physics, proxy_cookie_cutter, collision_offset, physics_offset, cookie_cutter_offset, poop_offset)
-                            for p in poop_proxies:
+                for obj in poops:
+                    if CheckType.poop(obj) and obj.data.name == ob.data.name and len(obj.children) == 0:
+                        deselect_all_objects()
+                        obj.select_set(True)
+                        poop_offset = obj.matrix_world
+                        poop_proxies = AttachPoopProxies(obj, proxy_collision, proxy_physics, proxy_cookie_cutter, collision_offset, physics_offset, cookie_cutter_offset, poop_offset)
+                        for p in poop_proxies:
                                 proxies.append(p)
 
     proxies = []

@@ -579,7 +579,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     temp_file.write(f'{final_report}\n')
                 else:
                     self.report({'INFO'}, final_report)
-
+                    
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
 
