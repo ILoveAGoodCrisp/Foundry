@@ -29,7 +29,7 @@ from math import radians
 from mathutils import Matrix
 import os
 from os.path import exists as file_exists
-from subprocess import Popen, run
+from subprocess import Popen, run, check_call
 import shutil
 
 ###########
@@ -250,20 +250,21 @@ def get_active_object():
     return bpy.context.view_layer.objects.active
 
 def get_asset_info(filepath):
-    asset_path = filepath.rpartition('\\')[0]
-    asset = asset_path.rpartition('\\')[2]
-    asset = asset.replace('.fbx', '')
+    asset_path = filepath.rpartition(os.sep)[0]
+    asset = asset_path.rpartition(os.sep)[2]
+    if asset.endswith('.fbx'):
+        asset = asset.replace('.fbx', '')
 
     return asset_path, asset
 
 def get_asset_path():
     """Returns the path to the asset folder. """
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition('\\')[0]
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
     return asset_path
 
 def get_asset_path_full(tags=False):
     """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition('\\')[0]
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
     if tags:
         return get_tags_path() + asset_path
     else:
@@ -588,15 +589,18 @@ class CheckType:
             return material.name.startswith('+') or material.nwo.material_override != 'none'
 
 
-def run_tool(tool_args: list, in_background=False):
+def run_tool(tool_args: list, in_background=False, output_file=None):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     os.chdir(get_ek_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    # print(command)
+    print(command)
     if in_background:
-        Popen(command)
+        if output_file is not None:
+            return Popen(command, stdout=output_file, stderr=output_file)
+        else:
+            return Popen(command)
     else:
-        run(command)
+        return check_call(command)
 
 def run_ek_cmd(args: list, in_background=False):
     """Executes a cmd line argument at the root editing kit directory"""
@@ -604,9 +608,9 @@ def run_ek_cmd(args: list, in_background=False):
     command = f"""{' '.join(f'"{arg}"' for arg in args)}"""
     # print(command)
     if in_background:
-        Popen(command)
+        return Popen(command)
     else:
-        run(command)
+        return check_call(command)
 
 
 def rename_file(file_path, new_file_path=''):
@@ -894,3 +898,10 @@ def protected_material_name(material_name):
 ############ FOUNDRY UI UTILS
 def mesh_object(ob):
     return ob.type in blender_object_types_mesh
+
+def formalise_string(string):
+    formal_string = string.replace('_',' ')
+    return formal_string.title()
+
+def bpy_enum(name, index):
+    return (name, formalise_string(name), '', index)

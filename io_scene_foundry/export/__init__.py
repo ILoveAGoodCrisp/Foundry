@@ -55,7 +55,7 @@ import ctypes
 from io_scene_foundry.icons import get_icon_id
 
 
-from io_scene_foundry.utils.nwo_utils import CheckPath, get_data_path, get_asset_info, get_ek_path, get_tool_path, managed_blam_active
+from io_scene_foundry.utils.nwo_utils import CheckPath, bpy_enum, dot_partition, get_data_path, get_asset_info, get_ek_path, get_tags_path, get_tool_path, managed_blam_active
 
 # lightmapper_run_once = False
 sidecar_read = False
@@ -331,26 +331,26 @@ class NWO_Export_Scene(Operator, ExportHelper):
         default='DIRECT',
         description="Define the lightmap quality you wish to use",
     )
+
+    def item_lightmap_quality_h4(self, context):
+        items = []
+        items.append(('asset', 'Asset', 'The user defined lightmap settings. Opens a settings dialog', 0))
+        lightmapper_globals_dir = path.join(get_tags_path(), 'globals', 'lightmapper_settings')
+        if path.exists(lightmapper_globals_dir):
+            from os import listdir
+            index = 1
+            for file in listdir(lightmapper_globals_dir):
+                if file.endswith(".lightmapper_globals"):
+                    file_no_ext = dot_partition(file)
+                    items.append(bpy_enum(file_no_ext, index))
+                    index += 1
+
+        return items
+
     lightmap_quality_h4: EnumProperty(
         name='Quality',
-        items=(('default_new', "Default New", ""),
-                ('farm_draft_quality', "Draft", ""),
-                ('neutral_lighting_enc', "Neutral", ""),
-                ('mp_medium', "Medium", ""),
-                ('farm_high_quality', "High", ""),
-                ('farm_high_quality_two_bounce', "High Two Bounce", ""),
-                ('high_direct_sun', "High Direct Sun", ""),
-                ('high_direct_sun_sky', "High Direct Sun Sky", ""),
-                ('high_indirect_ao', "High Indirect AO", ""),
-                ('farm_uber_quality', "Uber", ""),
-                ),
-        default='default_new',
+        items=item_lightmap_quality_h4,
         description="Define the lightmap quality you wish to use",
-    )
-    lightmap_quality_custom: StringProperty(
-        name='Custom Quality',
-        default='',
-        description="Define the custom lightmap quality you wish to use (must be defined in globals\lightmapper_settings). This will override the drop down list.",
     )
     lightmap_all_bsps: BoolProperty(
         name='All BSPs',
@@ -360,6 +360,12 @@ class NWO_Export_Scene(Operator, ExportHelper):
         name='Specific BSP',
         default='',
     )
+
+    lightmap_region: StringProperty(
+        name='Region',
+        description="Lightmap region to use for lightmapping",
+    )
+
     mesh_smooth_type_better: EnumProperty(
             name="Smoothing",
             items=(('None', "None", "Do not generate smoothing groups"),
@@ -411,7 +417,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         self.import_draft = scene_nwo_export.import_draft
         self.lightmap_structure = scene_nwo_export.lightmap_structure
         self.lightmap_quality_h4 = scene_nwo_export.lightmap_quality_h4 
-        self.lightmap_quality_custom = scene_nwo_export.lightmap_quality_custom
         self.lightmap_quality = scene_nwo_export.lightmap_quality
         self.lightmap_quality = scene_nwo_export.lightmap_quality
         self.lightmap_all_bsps = scene_nwo_export.lightmap_all_bsps
@@ -519,15 +524,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 ctypes.windll.user32.MessageBoxW(0, f"The selected export folder is outside of your {self.game_version.upper()} editing kit data directory, please ensure you are exporting to a directory within your {self.game_version.upper()} editing kit data folder.", f"INVALID {self.game_version.upper()} EXPORT PATH", 0)
             
         else:
-            #lightmap warning
-            # skip_lightmapper = False
-            # global lightmapper_run_once
-            # if self.lightmap_structure and not lightmapper_run_once:
-            #     response = ctypes.windll.user32.MessageBoxW(0, 'Lightmapping can take a long time & Blender will be unresponsive during the process. Do you want to continue?', 'WARNING', 4)
-            #     lightmapper_run_once = True
-            #     if response != 6:
-            #         skip_lightmapper = True                            
-
             print('Preparing Scene for Export...')
 
             keywords = self.as_keywords()
@@ -589,6 +585,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         layout = self.layout
         layout.use_property_split = True
         box = layout.box()
+        h4 = self.game_version in ('h4', 'h2a')
 
         # SETTINGS #
         box.label(text="Settings")
@@ -645,7 +642,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 sub.prop(self, "output_crate")
                 sub.prop(self, "output_creature")
                 sub.prop(self, "output_device_control")
-                if self.game_version in ('h4', 'h2a'):
+                if h4:
                     sub.prop(self, "output_device_dispenser")
                 sub.prop(self, "output_device_machine")
                 sub.prop(self, "output_device_terminal")
@@ -681,14 +678,15 @@ class NWO_Export_Scene(Operator, ExportHelper):
             col = box.column()
             col.prop(self, "lightmap_structure")
             if self.lightmap_structure:
-                if self.game_version in ('h4', 'h2a'):
+                if h4:
                     col.prop(self, "lightmap_quality_h4") 
-                    col.prop(self, "lightmap_quality_custom")
                 else:
                     col.prop(self, "lightmap_quality")
                 if not self.lightmap_all_bsps:
                     col.prop(self, 'lightmap_specific_bsp')
                 col.prop(self, 'lightmap_all_bsps')
+                if not h4:
+                    col.prop(self, "lightmap_region")
 
         # # BITMAP SETTINGS #
         # box = layout.box()

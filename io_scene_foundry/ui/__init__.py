@@ -546,14 +546,29 @@ class NWO_ObjectProps(Panel):
             row.scale_x = 1.3
             row.scale_y = 1.3
             row.prop(ob_nwo, "object_type_ui", text='', expand=True)
-            if ob.type == 'LIGHT':
-                row.label(text="See the Object Data Properties panel for Halo Light Properties")
-                
-
             # if CheckType.frame(ob) and h4:
             #     col.prop(ob_nwo, 'is_pca')
 
-            if ob_nwo.object_type_ui == '_connected_geometry_object_type_mesh':
+            if ob_nwo.object_type_ui == '_connected_geometry_object_type_light':
+                flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+                col = flow.column()
+                col.use_property_split = True
+                if poll_ui('SCENARIO'):
+                    if ob_nwo.permutation_name_locked != '':
+                        col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
+                    else:
+                        col.prop(ob_nwo, 'permutation_name', text='Permutation')
+
+                    if ob_nwo.bsp_name_locked != '':
+                        col.prop(ob_nwo, 'bsp_name_locked', text='BSP')
+                    else:
+                        col.prop(ob_nwo, 'bsp_name', text='BSP')
+
+                    col.separator()
+
+                col.label(text="See the Object Data Properties panel for Halo Light Properties")
+
+            elif ob_nwo.object_type_ui == '_connected_geometry_object_type_mesh':
                 # SPECIFIC MESH PROPS
                 flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
@@ -1323,17 +1338,29 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         
         
     def get_object_type_ui(self):
-        return self.get("object_type_ui", 0)
+        max_int = 2
+        ob = bpy.context.object
+        if ob.type == 'EMPTY':
+            max_int = 1
+        if self.object_type_ui_help > max_int:
+            return 0
+        return self.object_type_ui_help
 
     def set_object_type_ui(self, value):
         self["object_type_ui"] = value
 
+    def update_object_type_ui(self, context):
+        self.object_type_ui_help = self["object_type_ui"]
+
     object_type_ui : EnumProperty(
         name = 'Object Type',
         items=items_object_type_ui,
+        update=update_object_type_ui,
         get=get_object_type_ui,
         set=set_object_type_ui,
     )
+
+    object_type_ui_help : IntProperty()
 
     #########################################################################################################################
     # MESH TYPE UI ####################################################################################################
@@ -1474,7 +1501,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         self.volume_type_ui_help = self["volume_type_ui"]
 
     volume_type_ui : EnumProperty(
-        name = 'Plane Type',
+        name = 'Volume Type',
         options=set(),
         update=update_volume_type_ui,
         items=items_volume_type_ui,

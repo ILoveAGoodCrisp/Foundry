@@ -593,7 +593,6 @@ def apply_object_mesh_marker_properties(ob, asset_type):
     """Applies the properties set by an objects Halo prefix and then removes the prefix"""
     # Apply final properties so we can rename objects (and also avoid complex checking in later code)
     reach = not not_bungie_game()
-    name = ob.name
     nwo = ob.nwo
     nwo.permutation_name = true_permutation(ob.nwo)
     # get mesh type
@@ -606,17 +605,12 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                 nwo.mesh_type = '_connected_geometry_mesh_type_physics'
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_object_instance' and not not_bungie_game():
                 nwo.mesh_type = '_connected_geometry_mesh_type_object_instance'
-            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_render':
-                nwo.mesh_type = '_connected_geometry_mesh_type_default'
             else:
-                print(f'WARNING: {name} has invalid mesh type. Skipping')
-                ob.hide_set(True)
+                nwo.mesh_type = '_connected_geometry_mesh_type_default'
 
         if asset_type == 'SCENARIO':
             nwo.bsp_name = true_bsp(ob.nwo)
-            if nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
-                nwo.mesh_type = '_connected_geometry_mesh_type_default'
-            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop':
+            if nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop':
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop'
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop_collision':
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
@@ -628,33 +622,31 @@ def apply_object_mesh_marker_properties(ob, asset_type):
             elif nwo.plane_type_ui == '_connected_geometry_plane_type_planar_fog_volume':
                 nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_volume':
-                if nwo.mesh_type_ui == '_connected_geometry_volume_type_soft_ceiling':
+                if nwo.volume_type_ui == '_connected_geometry_volume_type_soft_ceiling':
                     nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                     nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_ceiling'
-                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_soft_kill':
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_soft_kill':
                     nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                     nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_kill'
-                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_slip_surface':
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_slip_surface':
                     nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                     nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_slip_surface'
-                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_water_physics':
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_water_physics':
                     nwo.mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
-                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_cookie_cutter':
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_cookie_cutter':
                     nwo.mesh_type = '_connected_geometry_mesh_type_cookie_cutter'
-                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_lightmap_exclude' and not reach:
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_lightmap_exclude' and not reach:
                     nwo.mesh_type = '_connected_geometry_mesh_type_obb_volume'
                     nwo.obb_volume_type = '_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume'
-                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_streaming' and not reach:
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_streaming' and not reach:
                     nwo.mesh_type = '_connected_geometry_mesh_type_obb_volume'
                     nwo.obb_volume_type = '_connected_geometry_mesh_obb_volume_type_streamingvolume'
-                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_lightmap_region' and reach:
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_lightmap_region' and reach:
                     nwo.mesh_type = '_connected_geometry_mesh_type_lightmap_region'
                 else:
-                    print(f'WARNING: {name} has invalid mesh type. Skipping')
-                    ob.hide_set(True)
+                    nwo.mesh_type = '_connected_geometry_mesh_type_default'
             else:
-                print(f'WARNING: {name} has invalid mesh type. Skipping')
-                ob.hide_set(True)
+                nwo.mesh_type = '_connected_geometry_mesh_type_default'
 
         if asset_type == 'SKY':
             nwo.region_name = true_region(ob)
@@ -671,11 +663,8 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_cookie_cutter':
                 nwo.mesh_type = '_connected_geometry_mesh_type_cookie_cutter'
-            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop':
-                nwo.mesh_type = '_connected_geometry_mesh_type_poop'
             else:
-                print(f'WARNING: {name} has invalid mesh type. Skipping')
-                ob.hide_set(True)
+                nwo.mesh_type = '_connected_geometry_mesh_type_poop'
 
     # get marker type
     elif CheckType.get(ob) == '_connected_geometry_object_type_marker':
@@ -773,6 +762,8 @@ def set_object_type(ob):
 def apply_properties(context, asset_type, asset):
     """Applies properties"""
     for ob in context.view_layer.objects:
+        # set active to update properties
+        set_active_object(ob)
         set_object_type(ob)
         if ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
             apply_object_mesh_marker_properties(ob, asset_type)

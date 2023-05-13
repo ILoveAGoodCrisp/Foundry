@@ -25,21 +25,12 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
-from addon_utils import module_bl_info
-from os.path import exists
-import os
-import ctypes
-from subprocess import Popen
-from addon_utils import modules
-import random
 from ..utils.nwo_utils import(
     get_perm,
     select_model_objects,
     select_model_objects_no_perm,
     select_bsp_objects,
     select_prefab_objects,
-    get_ek_path,
-    get_tool_path,
     deselect_all_objects,
     is_shared,
     get_structure_from_halo_objects,
@@ -48,7 +39,6 @@ from ..utils.nwo_utils import(
     get_prefab_from_halo_objects,
     print_box,
     CheckType,
-    get_data_path,
 )
 
 #####################################################################################
@@ -340,14 +330,8 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
             reports.append('Tag Export Processed')
         if lightmap_structure:
             from .run_lightmapper import run_lightmapper
-            run_lightmapper(self, context, report, game_version in ('h4','h2a'), **keywords)
-            if game_version not in ('h4','h2a'):
-                reports.append('Processed a Lightmap on ' + str.title(lightmap_quality) + ' Quality')
-            else:
-                reports.append('Lightmapping complete')
-        # if import_bitmaps:
-        #     print("Temporary implementation, remove this later!")
-        #     #import_bitmap.save(self, context, report, **keywords)
+            lightmap_message = run_lightmapper(game_version in ('h4','h2a'), halo_objects.misc, asset, **keywords)
+            reports.append(lightmap_message)
 
     else:
         report({'ERROR'},"No sidecar output tags selected")

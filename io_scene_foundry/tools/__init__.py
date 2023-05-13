@@ -45,7 +45,7 @@ from bpy.props import (
         )
 from io_scene_foundry.icons import get_icon_id
 
-from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_data_path, get_tags_path, managed_blam_active, not_bungie_game, nwo_asset_type, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import bpy_enum, clean_tag_path, dot_partition, get_data_path, get_tags_path, managed_blam_active, not_bungie_game, nwo_asset_type, valid_nwo_asset
 from bpy_extras.object_utils import AddObjectHelper
 
 is_blender_startup = True
@@ -1151,7 +1151,7 @@ class NWO_HaloExportSettings(Panel):
         layout = self.layout
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-
+        h4 = context.scene.nwo_global.game_version in ('h4', 'h2a')
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
@@ -1170,14 +1170,15 @@ class NWO_HaloExportSettings(Panel):
         col = layout.column(heading="Run")
         col.prop(scene_nwo_export, "lightmap_structure", text='Lightmap')
         if scene_nwo_export.lightmap_structure:
-            if context.scene.nwo_global.game_version in ('h4', 'h2a'):
+            if h4:
                 col.prop(scene_nwo_export, "lightmap_quality_h4")
-                col.prop(scene_nwo_export, "lightmap_quality_custom")
             else:
                 col.prop(scene_nwo_export, "lightmap_quality")
             if not scene_nwo_export.lightmap_all_bsps:
                 col.prop(scene_nwo_export, 'lightmap_specific_bsp')
             col.prop(scene_nwo_export, 'lightmap_all_bsps')
+            if not h4:
+                col.prop(scene_nwo_export, "lightmap_region")
 
 class NWO_HaloExportSettingsExtended(Panel):
     bl_label = "Extended"
@@ -1254,7 +1255,7 @@ class NWO_HaloExport_ExportQuick(Operator):
         from .halo_export import ExportQuick
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-        return ExportQuick(bpy.ops.export_scene.nwo, self.report, context, scene_nwo_export.export_gr2_files, scene_nwo_export.export_hidden, scene_nwo_export.export_all_bsps, scene_nwo_export.export_all_perms, scene_nwo_export.export_sidecar_xml, scene_nwo_export.import_to_game, scene_nwo_export.import_draft, scene_nwo_export.lightmap_structure, scene_nwo_export.lightmap_quality_h4, scene_nwo_export.lightmap_quality_custom, scene_nwo_export.lightmap_quality, scene_nwo_export.lightmap_specific_bsp, scene_nwo_export.lightmap_all_bsps, scene_nwo_export.export_animations, scene_nwo_export.export_skeleton, scene_nwo_export.export_render, scene_nwo_export.export_collision, scene_nwo_export.export_physics, scene_nwo_export.export_markers, scene_nwo_export.export_structure, scene_nwo_export.export_design, scene_nwo_export.use_mesh_modifiers, scene_nwo_export.use_triangles, scene_nwo_export.global_scale, scene_nwo_export.use_armature_deform_only, scene_nwo_export.meshes_to_empties, scene_nwo_export.show_output, scene_nwo_export.keep_fbx, scene_nwo_export.keep_json)
+        return ExportQuick(bpy.ops.export_scene.nwo, self.report, context, scene_nwo_export.export_gr2_files, scene_nwo_export.export_hidden, scene_nwo_export.export_all_bsps, scene_nwo_export.export_all_perms, scene_nwo_export.export_sidecar_xml, scene_nwo_export.import_to_game, scene_nwo_export.import_draft, scene_nwo_export.lightmap_structure, scene_nwo_export.lightmap_quality_h4, scene_nwo_export.lightmap_region, scene_nwo_export.lightmap_quality, scene_nwo_export.lightmap_specific_bsp, scene_nwo_export.lightmap_all_bsps, scene_nwo_export.export_animations, scene_nwo_export.export_skeleton, scene_nwo_export.export_render, scene_nwo_export.export_collision, scene_nwo_export.export_physics, scene_nwo_export.export_markers, scene_nwo_export.export_structure, scene_nwo_export.export_design, scene_nwo_export.use_mesh_modifiers, scene_nwo_export.use_triangles, scene_nwo_export.global_scale, scene_nwo_export.use_armature_deform_only, scene_nwo_export.meshes_to_empties, scene_nwo_export.show_output, scene_nwo_export.keep_fbx, scene_nwo_export.keep_json)
 
 class NWO_HaloExportPropertiesGroup(PropertyGroup):
     export_gr2_files: BoolProperty(
@@ -1305,28 +1306,32 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         default=False,
         options=set(),
     )
+
+    def item_lightmap_quality_h4(self, context):
+        items = []
+        items.append(('asset', 'Asset', 'The user defined lightmap settings. Opens a settings dialog', 0))
+        lightmapper_globals_dir = path_join(get_tags_path(), 'globals', 'lightmapper_settings')
+        if file_exists(lightmapper_globals_dir):
+            from os import listdir
+            index = 1
+            for file in listdir(lightmapper_globals_dir):
+                if file.endswith(".lightmapper_globals"):
+                    file_no_ext = dot_partition(file)
+                    items.append(bpy_enum(file_no_ext, index))
+                    index += 1
+        return items
+
     lightmap_quality_h4: EnumProperty(
         name='Quality',
-        items=(('default_new', "Default New", ""),
-                ('farm_draft_quality', "Draft", ""),
-                ('neutral_lighting_enc', "Neutral", ""),
-                ('mp_medium', "Medium", ""),
-                ('farm_high_quality', "High", ""),
-                ('farm_high_quality_two_bounce', "High Two Bounce", ""),
-                ('high_direct_sun', "High Direct Sun", ""),
-                ('high_direct_sun_sky', "High Direct Sun Sky", ""),
-                ('high_indirect_ao', "High Indirect AO", ""),
-                ('farm_uber_quality', "Uber", ""),
-                ),
-        default='default_new',
-        options=set(),
+        items=item_lightmap_quality_h4,
         description="Define the lightmap quality you wish to use",
     )
-    lightmap_quality_custom: StringProperty(
-        name='Custom Quality',
-        default='',
-        description="Define the custom lightmap quality you wish to use (must be defined in globals\lightmapper_settings). This will override the drop down list.",
+
+    lightmap_region: StringProperty(
+        name='Region',
+        description="Lightmap region to use for lightmapping",
     )
+
     lightmap_quality: EnumProperty(
         name='Quality',
         items=(('DIRECT', "Direct", ""),
