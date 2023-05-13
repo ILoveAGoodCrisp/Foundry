@@ -64,12 +64,12 @@ class NWO_SceneProps(Panel):
         scene_nwo = scene.nwo_global
         mb_active = managed_blam_active()
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        col = flow.column()
-        row = col.row()
         if mb_active:
-            row.enabled = False
-        row.prop(scene_nwo, "game_version", text='Game', expand=True)
-        row = col.row()
+            flow.enabled = False
+        flow.prop(scene_nwo, "game_version", text='Game', expand=True)
+        flow.scale_y = 1.5
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+        col = flow.column()
         if mb_active or scene_nwo.mb_startup:
             col.prop(scene_nwo, 'mb_startup')
         col.separator()
@@ -117,22 +117,19 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         if ek_path is None or ek_path == '':
             context.window_manager.popup_menu(GameVersionWarning, title="Warning", icon='ERROR')
 
-        # for ob in context.scene.objects:
-        #     ob_nwo = ob.nwo
-
-        #     if ob_nwo.mesh_type_ui == '':
-        #         ob_nwo.mesh_type_ui = 0
+    def game_version_items(self, context):
+        items = [ ('reach', "", "Halo Reach", get_icon_id("c20_reclaimers"), 0),
+                ('h4', "", "Halo 4", get_icon_id("effect_scenery"), 1),
+                ('h2a', "", "Halo 2 Anniversary Multiplayer", get_icon_id("rig_creator"), 2),
+               ]
+        return items
                 
     game_version: EnumProperty(
-        name="Game:",
-        description="What game will you be exporting for",
-        default='reach',
+        name="Game",
+        options=set(),
         update=check_paths_update_scene,
-        items=[ ('reach', "Halo Reach", "Show properties for Halo Reach MCC"),
-                ('h4', "Halo 4", "Show properties for Halo 4 MCC"),
-                ('h2a', "Halo 2AMP", "Show properties for Halo 2AMP MCC"),
-               ]
-        )
+        items=game_version_items,
+    )
     
     mb_startup: BoolProperty(
         name="Run ManagedBlam on Startup",

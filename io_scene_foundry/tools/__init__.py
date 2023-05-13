@@ -1323,6 +1323,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
 
     lightmap_quality_h4: EnumProperty(
         name='Quality',
+        options=set(),
         items=item_lightmap_quality_h4,
         description="Define the lightmap quality you wish to use",
     )

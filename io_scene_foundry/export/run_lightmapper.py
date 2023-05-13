@@ -153,7 +153,6 @@ class LightMapper:
     def lightmap_h4(self):
         self.force_reatlas = "false"
         self.suppress_dialog = "false" if self.quality == 'asset' or self.quality == '' else "true"
-        print(self.suppress_dialog)
         self.settings = os.path.join('globals', 'lightmapper_settings', self.quality)
         print_box("**Starting Faux Farm**")
         if self.suppress_dialog == 'false':
