@@ -30,7 +30,6 @@ class FoundrySplashScreen(Menu):
     bl_label = "Splash"
 
     def draw(self, context):
-        #TODO System for setting the default game in other startup apps
         from io_scene_foundry.icons import get_icon_id
         layout = self.layout
         layout.operator_context = 'EXEC_DEFAULT'

@@ -31,6 +31,9 @@ import bpy
 from bpy.types import AddonPreferences, Operator
 from bpy.props import StringProperty, EnumProperty, BoolProperty
 from bpy.app.handlers import persistent
+import os
+
+from io_scene_foundry.utils.nwo_utils import valid_nwo_asset
 
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
@@ -45,8 +48,6 @@ bl_info = {
     "category": "Export"}
 
 from . import icons
-icons.initialize_foundry_icons()
-
 from . import tools
 from . import ui
 from . import export
@@ -206,6 +207,14 @@ class ToolkitLocationPreferences(AddonPreferences):
 
 @persistent
 def load_handler(dummy):
+    # Set game version from file
+    context = bpy.context
+    game_version_txt_path = os.path.join(bpy.app.tempdir, 'game_version.txt')
+    # only do this if the scene is not an asset
+    if not valid_nwo_asset(context) and os.path.exists(game_version_txt_path):
+        with open(game_version_txt_path, 'r') as temp_file:
+            bpy.context.scene.nwo_global.game_version = temp_file.read()
+
     # run ManagedBlam on startup if enabled
     if bpy.context.scene.nwo_global.mb_startup:
         bpy.ops.managed_blam.init()

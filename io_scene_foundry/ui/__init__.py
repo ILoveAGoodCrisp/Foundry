@@ -117,12 +117,18 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         if ek_path is None or ek_path == '':
             context.window_manager.popup_menu(GameVersionWarning, title="Warning", icon='ERROR')
 
+        # store this value in a txt file so we can retrive it when changing scene
+        temp_file_path = os.path.join(bpy.app.tempdir, 'game_version.txt')
+        with open(temp_file_path, 'w') as temp_file:
+            temp_file.write(f'{self.game_version}')
+
     def game_version_items(self, context):
         items = [ ('reach', "", "Halo Reach", get_icon_id("c20_reclaimers"), 0),
                 ('h4', "", "Halo 4", get_icon_id("effect_scenery"), 1),
                 ('h2a', "", "Halo 2 Anniversary Multiplayer", get_icon_id("rig_creator"), 2),
                ]
         return items
+    
                 
     game_version: EnumProperty(
         name="Game",

@@ -3,6 +3,7 @@ from bpy.utils import previews
 
 foundry_icons = None
 icons_dir = path.dirname(__file__)
+preview_collections = {}
 
 def get_icon_id(id):
     return get_icon(id).icon_id
@@ -12,18 +13,15 @@ def get_icon(id):
         return foundry_icons[id]
     return foundry_icons.load(id, path.join(icons_dir, id + ".png"), "IMAGE")
 
-def initialize_foundry_icons():
+def register():
     global foundry_icons
     foundry_icons = previews.new()
-
-def unload_icons():
-    previews.remove(foundry_icons)
-
-def register():
-    pass
+    preview_collections["foundry"] = foundry_icons
 
 def unregister():
-    unload_icons()
+    for icon in preview_collections.values():
+        previews.remove(icon)
+    preview_collections.clear()
 
 if __name__ == '__main__':
     register()
