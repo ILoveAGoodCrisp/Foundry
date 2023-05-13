@@ -591,6 +591,9 @@ class NWO_ObjectProps(Panel):
 
                 col.separator()
 
+                if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_decorator':
+                    col.prop(ob_nwo, "decorator_lod")
+
                 if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_plane':
                     row = col.row()
                     row.scale_y = 1.25

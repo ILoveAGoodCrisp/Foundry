@@ -779,10 +779,10 @@ class NWO_SceneProps(Panel):
         col = flow.column()
         col.prop(scene_nwo, 'asset_type')
         col.separator()
-        col.prop(scene_nwo, 'default_mesh_type_ui')
+        #col.prop(scene_nwo, 'default_mesh_type_ui')
         if scene_nwo.asset_type in ('MODEL', 'FP ANIMATION'):
             col.prop(scene_nwo, 'forward_direction')
-        col.separator()
+            col.separator()
         # col.prop(scene_nwo, 'filter_ui', text = 'Filter UI')
         if scene_nwo.asset_type == 'MODEL':
             col.label(text="Output Tags")
