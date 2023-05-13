@@ -521,11 +521,14 @@ def apply_face_properties(context):
                         split_ob.matrix_world = obj.matrix_world
                     # update data transfer reference and object names
                     # obje.name = obj.name + '(' + obje.name.rpartition('(')[2].rpartition('.0')[0]
-                    mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
-                    mod.object = ob.modifiers["HaloDataTransfer"].object
-                    mod.use_object_transform = False
-                    mod.use_loop_data = True
-                    mod.data_types_loops = {'CUSTOM_NORMAL'}
+                    # if we didn't create a HaloDataTransfer modifier, don't try to reference it for split objects
+                    if ob.modifiers.get("HaloDataTransfer", 0):
+                        # otherwise do!
+                        mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
+                        mod.object = ob.modifiers["HaloDataTransfer"].object
+                        mod.use_object_transform = False
+                        mod.use_loop_data = True
+                        mod.data_types_loops = {'CUSTOM_NORMAL'}
 
     
                 

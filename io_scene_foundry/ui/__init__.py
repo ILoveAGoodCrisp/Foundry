@@ -5945,7 +5945,7 @@ class NWO_FacePropertiesGroup(PropertyGroup):
                         if item.name not in face_map_names:
                             item.name = context.object.face_maps.active.name
                             context.area.tag_redraw()
-                elif item.region_name_override and item.region_name not in context.object.face_maps.active.name:
+                elif context.object.face_maps.active and item.region_name_override and item.region_name not in context.object.face_maps.active.name:
                     context.object.face_maps.active.name = item.region_name
                     context.area.tag_redraw()
 
