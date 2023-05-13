@@ -1025,7 +1025,7 @@ def GetDecoratorLODCount(halo_objects, asset_is_decorator):
     lod_count = 0
     if asset_is_decorator:
         for ob in halo_objects.decorators:
-            ob_lod = ob.nwo.Decorator_LOD
+            ob_lod = ob.nwo.decorator_lod
             if ob_lod > lod_count:
                 lod_count =  ob_lod
     
