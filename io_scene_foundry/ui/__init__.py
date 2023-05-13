@@ -107,6 +107,52 @@ class NWO_SetUnitScale(Operator):
         # Set halo scale
         context.scene.unit_settings.scale_length = halo_scale
         return {'FINISHED'}
+    
+class NWO_AssetMaker(Operator):
+    """Creates an asset"""
+    bl_idname = "nwo.make_asset"
+    bl_label = "Make Asset"
+    bl_options = {"REGISTER", "UNDO"}
+
+    filter_glob: StringProperty(
+        default="",
+        options={'HIDDEN'},
+        )
+
+    use_filter_folder : BoolProperty(default = True)
+
+    filepath: StringProperty(
+        name="asset_path",
+        description="Set the location of your asset",
+        subtype="FILE_PATH"
+    )
+
+    asset_name : StringProperty(default = 'new_asset')
+
+    def execute(self, context):
+        scene = context.scene
+        nwo_scene = scene.nwo_global
+        nwo_asset = scene.nwo
+        asset_name = self.filepath.rpartition(os.sep)[2]
+        asset_name_clean = dot_partition(asset_name)
+        #os.mkdir()
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        nwo_scene = scene.nwo_global
+        nwo_asset = scene.nwo
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+        flow.use_property_split = True
+        flow.prop(nwo_scene, "game_version")
+        flow.prop(nwo_asset, "asset_type")
+
+    
+    def invoke(self, context, event):
+        self.filepath = get_data_path() + self.asset_name
+        context.window_manager.fileselect_add(self)
+
+        return {'RUNNING_MODAL'}
 
 def GameVersionWarning(self, context):
     self.layout.label(text=f"Please set your editing kit path for {context.scene.nwo_global.game_version.upper()} in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset]")
@@ -187,6 +233,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 from ..utils.nwo_utils import (
     frame_prefixes,
     get_asset_info,
+    get_data_path,
     is_linked,
     managed_blam_active,
     marker_prefixes,
@@ -3938,32 +3985,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
        # update=update_shader,
         )
 
-    rendered : BoolProperty()
-
-    shader_types = [ ('shader', "Shader", ""),
-                ('shader_cortana', "Shader Cortana", ""),
-                ('shader_custom', "Shader Custom", ""),
-                ('shader_decal', "Shader Decal", ""),
-                ('shader_foliage', "Shader Foliage", ""),
-                ('shader_fur', "Shader Fur", ""),
-                ('shader_fur_stencil', "Shader Fur Stencil", ""),
-                ('shader_glass', "Shader Glass", ""),
-                ('shader_halogram', "Shader Halogram", ""),
-                ('shader_mux', "Shader Mux", ""),
-                ('shader_mux_material', "Shader Mux Material", ""),
-                ('shader_screen', "Shader Screen", ""),
-                ('shader_skin', "Shader Skin", ""),
-                ('shader_terrain', "Shader Terrain", ""),
-                ('shader_water', "Shader Water", ""),
-               ]
-
-    # shader_type: EnumProperty(
-    #     name = "Shader Type",
-    #     options=set(),
-    #     description = "Set by the extension of the shader path. Alternatively this field can be updated manually",
-    #     default = "shader",
-    #     items=shader_types,
-    #     )
+    rendered : BoolProperty(default = True)
 
 class NWO_BonePropertiesGroup(PropertyGroup):
 
@@ -6013,6 +6035,7 @@ classeshalo = (
     NWO_LightPropsCycles,
     NWO_SceneProps,
     NWO_SetUnitScale,
+    NWO_AssetMaker,
     NWO_GameInstancePath,
     NWO_FogPath,
     NWO_EffectPath,

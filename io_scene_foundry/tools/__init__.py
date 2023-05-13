@@ -29,7 +29,6 @@ from os.path import exists as file_exists
 from os.path import join as path_join
 
 from bpy.types import (
-        Context,
         Panel,
         Operator,
         PropertyGroup

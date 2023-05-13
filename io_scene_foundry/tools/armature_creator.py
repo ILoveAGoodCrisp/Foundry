@@ -124,7 +124,8 @@ def ArmatureCreate(context, armature_type, control_bones):
 
 def append_blend(blend_name):
     successful = True
-    script_folder_path = path.dirname(path.dirname(path.dirname(__file__)))
+    script_folder_path = path.dirname(path.dirname(__file__))
+    print(script_folder_path)
     path_relative = f'rigs/{blend_name}.blend'
     filepath = path.join(script_folder_path, "resources", path_relative)
     path_resources_zip = path.join(script_folder_path, "resources.zip")
