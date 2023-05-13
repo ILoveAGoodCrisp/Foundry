@@ -85,8 +85,8 @@ class WM_MT_splash(Menu):
 
         col2 = split.column()
 
-        col2.operator("wm.url_open", text="Github").url = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
-        col2.operator("wm.url_open", text="Documentation").url = r"https://c20.reclaimers.net/"
+        col2.operator("wm.url_open", text="Github", icon_value=get_icon_id("github")).url = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
+        col2.operator("wm.url_open", text="Documentation", icon_value=get_icon_id("c20_reclaimers")).url = r"https://c20.reclaimers.net/"
         # col2.operator("wm.url_open_preset", text="Development Fund", icon='FUND').type = 'FUND'
 
         layout.separator()

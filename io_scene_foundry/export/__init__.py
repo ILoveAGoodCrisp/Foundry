@@ -1083,12 +1083,27 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default = '_connected_geometry_mesh_type_default',
         items=mesh_type_items
         )
+    
+    def apply_props(self, context):
+        for ob in context.scene.objects:
+            ob_nwo = ob.nwo
+
+            if ob_nwo.mesh_type_ui == '':
+                if self.asset_type == 'DECORATOR SET':
+                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_decorator'
+                elif self.asset_type == 'SCENARIO':
+                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
+                elif self.asset_type == 'PREFAB':
+                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_poop'
+                else:
+                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_render'
 
     asset_type: EnumProperty(
         name="Asset Type",
         options=set(),
         description="Define the type of asset you are creating",
         default = 'MODEL',
+        # update=apply_props,
         items=[ ('MODEL', "Model", ""), ('SCENARIO', "Scenario", ""), ('SKY', 'Sky', ''), ('DECORATOR SET', 'Decorator Set', ''), ('PARTICLE MODEL', 'Particle Model', ''), ('PREFAB', 'Prefab', ''), ('FP ANIMATION', 'First Person Animation', '')]
         )
     

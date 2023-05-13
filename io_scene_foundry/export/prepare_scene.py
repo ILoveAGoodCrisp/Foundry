@@ -91,7 +91,6 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         # remove meshes with zero faces
         cull_zero_face_meshes(context)
     # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
-    #raise
     regions_dict = get_regions_dict(context.view_layer.objects)
     # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
     global_materials_dict = get_global_materials_dict(context.view_layer.objects)
@@ -598,13 +597,13 @@ def apply_object_mesh_marker_properties(ob, asset_type):
     if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
         if asset_type == 'MODEL':
             nwo.region_name = true_region(ob.nwo)
-            if CheckType.collision(ob):
+            if nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision':
                 nwo.mesh_type = '_connected_geometry_mesh_type_collision'
-            elif CheckType.physics(ob):
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics':
                 nwo.mesh_type = '_connected_geometry_mesh_type_physics'
-            elif CheckType.object_instance(ob) and not not_bungie_game():
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_object_instance' and not not_bungie_game():
                 nwo.mesh_type = '_connected_geometry_mesh_type_object_instance'
-            elif CheckType.default(ob):
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_render':
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             else:
                 print(f'WARNING: {name} has invalid mesh type. Skipping')
@@ -612,88 +611,90 @@ def apply_object_mesh_marker_properties(ob, asset_type):
 
         if asset_type == 'SCENARIO':
             nwo.bsp_name = true_bsp(ob.nwo)
-            if CheckType.poop(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_poop'
-            elif CheckType.poop_marker(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_poop_marker'
-            elif CheckType.portal(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_portal'
-            elif CheckType.seam(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_seam'
-            elif CheckType.water_surface(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
-            elif CheckType.fog(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
-            elif CheckType.boundary_surface(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
-            elif CheckType.water_physics(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
-            elif CheckType.poop_collision(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
-            elif CheckType.poop_physics(ob) and reach:
-                nwo.mesh_type = '_connected_geometry_mesh_type_poop_physics'
-            elif CheckType.cookie_cutter(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_cookie_cutter'
-            elif CheckType.obb_volume(ob) and not reach:
-                nwo.mesh_type = '_connected_geometry_mesh_type_obb_volume'
-            elif CheckType.lightmap_region(ob) and reach:
-                nwo.mesh_type = '_connected_geometry_mesh_type_lightmap_region'
-            elif CheckType.default(ob):
+            if nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop':
+                nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop_collision':
+                nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_plane':
+                if nwo.plane_type_ui == '_connected_geometry_plane_type_portal':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_portal'
+                elif nwo.plane_type_ui == '_connected_geometry_plane_type_water_surface':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
+            elif nwo.plane_type_ui == '_connected_geometry_plane_type_planar_fog_volume':
+                nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_volume':
+                if nwo.mesh_type_ui == '_connected_geometry_volume_type_soft_ceiling':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
+                    nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_ceiling'
+                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_soft_kill':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
+                    nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_kill'
+                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_slip_surface':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
+                    nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_slip_surface'
+                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_water_physics':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
+                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_cookie_cutter':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_cookie_cutter'
+                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_lightmap_exclude' and not reach:
+                    nwo.mesh_type = '_connected_geometry_mesh_type_obb_volume'
+                    nwo.obb_volume_type = '_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume'
+                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_streaming' and not reach:
+                    nwo.mesh_type = '_connected_geometry_mesh_type_obb_volume'
+                    nwo.obb_volume_type = '_connected_geometry_mesh_obb_volume_type_streamingvolume'
+                elif nwo.mesh_type_ui == '_connected_geometry_volume_type_lightmap_region' and reach:
+                    nwo.mesh_type = '_connected_geometry_mesh_type_lightmap_region'
+                else:
+                    print(f'WARNING: {name} has invalid mesh type. Skipping')
+                    ob.hide_set(True)
             else:
-                print('WARNING: {name} has invalid mesh type. Skipping')
+                print(f'WARNING: {name} has invalid mesh type. Skipping')
                 ob.hide_set(True)
 
         if asset_type == 'SKY':
-            nwo.Region_Name = true_region(ob)
-            if CheckType.default(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_default'
-            else:
-                print('WARNING: {name} has invalid mesh type. Skipping')
-                ob.hide_set(True)
+            nwo.region_name = true_region(ob)
+            nwo.mesh_type = '_connected_geometry_mesh_type_default'
 
         if asset_type == 'DECORATOR SET':
-            if CheckType.default(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_decorator'
-            else:
-                print('WARNING: {name} has invalid mesh type. Skipping')
-                ob.hide_set(True)
+            nwo.mesh_type = '_connected_geometry_mesh_type_decorator'
 
         if asset_type == 'PARTICLE MODEL':
-            if CheckType.default(ob):
-                nwo.mesh_type = '_connected_geometry_mesh_type_default'
-            else:
-                print('WARNING: {name} has invalid mesh type. Skipping')
-                ob.hide_set(True)
+            nwo.mesh_type = '_connected_geometry_mesh_type_default'
 
         if asset_type == 'PREFAB':
-            if CheckType.poop_collision(ob):
+            if nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop_collision':
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
-            elif CheckType.cookie_cutter(ob):
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_cookie_cutter':
                 nwo.mesh_type = '_connected_geometry_mesh_type_cookie_cutter'
-            elif CheckType.poop(ob):
+            elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop':
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop'
             else:
-                print('WARNING: {name} has invalid mesh type. Skipping')
+                print(f'WARNING: {name} has invalid mesh type. Skipping')
                 ob.hide_set(True)
 
     # get marker type
     elif CheckType.get(ob) == '_connected_geometry_object_type_marker':
         if asset_type == 'MODEL':
-            if CheckType.hint(ob):
+            if nwo.marker_type_ui == '_connected_geometry_marker_type_hint':
                 nwo.marker_type = '_connected_geometry_marker_type_hint'
-            elif CheckType.pathfinding_sphere(ob):
+            elif nwo.marker_type_ui == '_connected_geometry_marker_type_pathfinding_sphere':
                 nwo.marker_type = '_connected_geometry_marker_type_pathfinding_sphere'
-            elif CheckType.physics_constraint(ob):
+            elif nwo.marker_type_ui == '_connected_geometry_marker_type_physics_constraint':
                 nwo.marker_type = '_connected_geometry_marker_type_physics_constraint'
-            elif CheckType.target(ob):
+            elif nwo.marker_type_ui == '_connected_geometry_marker_type_target':
                 nwo.marker_type = '_connected_geometry_marker_type_target'
+            elif nwo.marker_type_ui == '_connected_geometry_marker_type_effects':
+                if not ob.name.startswith('fx_'):
+                    ob.name = 'fx_' + ob.name
+                    nwo.marker_type = '_connected_geometry_marker_type_model'
             else:
                 nwo.marker_type = '_connected_geometry_marker_type_model'
 
 
         elif asset_type in ('SCENARIO', 'PREFAB'):
-            if CheckType.game_instance(ob):
+            if nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance':
                 if not reach and nwo.marker_game_instance_tag_name.lower().endswith('.prefab'):
                     nwo.marker_type = '_connected_geometry_marker_type_prefab'
                 elif not reach and nwo.marker_game_instance_tag_name.lower().endswith('.cheap_light'):
@@ -704,11 +705,11 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                     nwo.marker_type = '_connected_geometry_marker_type_falling_leaf'
                 else:
                     nwo.marker_type = '_connected_geometry_marker_type_game_instance'
-            elif not reach and CheckType.airprobe(ob):
+            elif not reach and nwo.marker_type_ui == '_connected_geometry_marker_type_airprobe':
                 nwo.marker_type = '_connected_geometry_marker_type_airprobe'
-            elif not reach and CheckType.envfx(ob):
+            elif not reach and nwo.marker_type_ui == '_connected_geometry_marker_type_envfx':
                 nwo.marker_type = '_connected_geometry_marker_type_envfx'
-            elif not reach and CheckType.lightcone(ob):
+            elif not reach and nwo.marker_type_ui == '_connected_geometry_marker_type_lightcone':
                 nwo.marker_type = '_connected_geometry_marker_type_lightcone'
             else:
                 nwo.marker_type = '_connected_geometry_marker_type_model'
