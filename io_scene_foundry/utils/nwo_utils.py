@@ -593,7 +593,7 @@ def run_tool(tool_args: list, in_background=False, output_file=None):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     os.chdir(get_ek_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    print(command)
+    # print(command)
     if in_background:
         if output_file is not None:
             return Popen(command, stdout=output_file, stderr=output_file)

@@ -368,7 +368,6 @@ def split_by_face_map(ob, context):
                 collision_mesh.parent = None
                 # can't have a free floating coll mesh in Reach, so we make it a poop and make it invisible
                 collision_mesh.nwo.mesh_type = '_connected_geometry_mesh_type_poop'
-                print("Set mesh type")
                 collision_mesh.nwo.face_mode = '_connected_geometry_face_mode_collision_only'
                 # collision_mesh.nwo.face_type = '_connected_geometry_face_type_seam_sealer'
                 collision_mesh.matrix_world = ob.matrix_world
