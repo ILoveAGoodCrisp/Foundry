@@ -166,6 +166,7 @@ def get_prefix(string, prefix_list): # gets a prefix from a list of prefixes
 
 def select_halo_objects(select_func, selected_asset_type, valid_asset_types):
     deselect_all_objects()
+
     select_func = getattr(CheckType, select_func)
     halo_objects = []
     if selected_asset_type in valid_asset_types:
@@ -283,12 +284,12 @@ def marker_type(ob, types):
 def object_type(ob, types=()):
     if ob != None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
         if ob.type == 'MESH':
-            return ob.nwo.object_type_all in types
+            return ob.nwo.object_type in types
         elif ob.type == 'EMPTY':
-            return ob.nwo.object_type_no_mesh in types or len(ob.children) > 0
+            return ob.nwo.object_type in types or len(ob.children) > 0
         elif ob.type == 'LIGHT' and types != 'MARKER':
             return True
-        elif ob.nwo.object_type_all in types:
+        elif ob.nwo.object_type in types:
             return True
         else:
             return False
@@ -304,17 +305,17 @@ def is_design(ob):
 
 def is_marker(ob):
     if ob.type == 'MESH':
-        return ob.nwo.object_type_all == '_connected_geometry_object_type_marker'
+        return ob.nwo.object_type == '_connected_geometry_object_type_marker'
     elif ob.type == 'EMPTY':
-        return ob.nwo.object_type_no_mesh == '_connected_geometry_object_type_marker'or ob.nwo.object_type_no_mesh_locked == '_connected_geometry_object_type_marker'
+        return ob.nwo.object_type == '_connected_geometry_object_type_marker'
     else:
         return False
 
 def is_frame(ob):
     if ob.type == 'MESH':
-        return ob.nwo.object_type_all == '_connected_geometry_object_type_frame' or ob.nwo.object_type_all_locked == '_connected_geometry_object_type_frame'
+        return ob.nwo.object_type == '_connected_geometry_object_type_frame'
     elif ob.type == 'EMPTY':
-        return ob.nwo.object_type_no_mesh == '_connected_geometry_object_type_frame' or ob.nwo.object_type_no_mesh_locked == '_connected_geometry_object_type_frame'
+        return ob.nwo.object_type == '_connected_geometry_object_type_frame'
     else:
         return False
 
@@ -532,7 +533,7 @@ class CheckType:
         return mesh_type(ob, ('_connected_geometry_mesh_type_obb_volume',))
     @staticmethod
     def mesh(ob):
-        return ob.type == 'MESH' and ob.nwo.object_type_all in '_connected_geometry_object_type_mesh'
+        return ob.type == 'MESH' and ob.nwo.object_type in '_connected_geometry_object_type_mesh'
     @staticmethod
     def model(ob):
         return marker_type(ob, ('_connected_geometry_marker_type_model',))
