@@ -884,8 +884,8 @@ class NWO_ObjectProps(Panel):
                 elif ob_nwo.marker_type_ui == '_connected_geometry_marker_type_physics_constraint':
                     col.prop(ob_nwo, "physics_constraint_parent", text='Constraint Parent')
                     col.prop(ob_nwo, "physics_constraint_child", text='Constraint Child')
-
-                    col.prop(ob_nwo, "physics_constraint_type", text='Constraint Type', expand=True)
+                    row = col.row()
+                    row.prop(ob_nwo, "physics_constraint_type", text='Constraint Type', expand=True)
                     col.prop(ob_nwo, 'physics_constraint_uses_limits', text='Uses Limits')
 
                     if ob_nwo.physics_constraint_uses_limits:
@@ -4015,20 +4015,14 @@ class NWO_LightPropertiesGroup(PropertyGroup):
 
 class NWO_MaterialPropertiesGroup(PropertyGroup):
     
-    # def update_shader(self, context):
-    #     self['shader_path'] = clean_tag_path(self['shader_path']).strip('"')
-    #     material_path = self.shader_path.replace('"','')
-    #     if material_path != material_path.rpartition('.')[2]:
-    #         try:
-    #             self.Shader_Type = material_path.rpartition('.')[2]
-    #         except:
-    #             self.Shader_Type = 'shader'
+    def update_shader(self, context):
+        self['shader_path'] = clean_tag_path(self['shader_path']).strip('"')
 
     shader_path: StringProperty(
         name = "Shader Path",
         description = "Define the path to a shader. This can either be a relative path, or if you have added your Editing Kit Path to add on preferences, the full path. Including the file extension will automatically update the shader type",
         default = "",
-       # update=update_shader,
+        update=update_shader,
         )
 
     rendered : BoolProperty(default = True)
