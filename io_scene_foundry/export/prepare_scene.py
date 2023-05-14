@@ -307,13 +307,13 @@ def strip_render_only_faces(ob, context):
     
     context = current_context
 
-def split_by_face_map(ob, context):
+def split_by_face_map(ob, context, h4):
     # remove unused face maps
     ob.select_set(True)
     set_active_object(ob)
     if justify_face_split(ob):
         # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
-        if CheckType.poop(ob) and not ob.nwo.poop_render_only:
+        if CheckType.poop(ob) and not ob.nwo.poop_render_only and not h4: # don't do this for h4 as collision can be open
             # check for custom collision / physics
             if len(ob.children) < 1:
                 collision_mesh = ob.copy()
@@ -323,10 +323,7 @@ def split_by_face_map(ob, context):
                 strip_render_only_faces(collision_mesh, context)
                 collision_mesh.name = ob.name + "(collision)"
                 # Need to handle collision assingment differently between reach and h4
-                if not_bungie_game():
-                    ob.poop_render_only = True
-                else:
-                    collision_mesh.parent = ob
+                collision_mesh.parent = ob
     
                 collision_mesh.matrix_world = ob.matrix_world
                 collision_mesh.nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
@@ -377,7 +374,7 @@ def split_by_face_map(ob, context):
     else:
         return context.selected_objects
 
-def face_prop_to_mesh_prop(ob, main_mesh=None):
+def face_prop_to_mesh_prop(ob, h4, main_mesh=None):
     # ignore unused face_prop items
     if ob.face_maps:
         for item in ob.nwo_face.face_props:
@@ -466,16 +463,18 @@ def face_prop_to_mesh_prop(ob, main_mesh=None):
                     mesh_props.material_lighting_bounce_ratio_active = True
 
                 # added two sided property to avoid open edges if collision prop
-                is_poop = CheckType.poop(ob)
-                if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
-                    mesh_props.face_sides = '_connected_geometry_face_sides_two_sided'
-                elif is_poop and ob != main_mesh:
-                    mesh_props.poop_render_only = True
+                if not h4:
+                    is_poop = CheckType.poop(ob)
+                    if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
+                        mesh_props.face_sides = '_connected_geometry_face_sides_two_sided'
+                    elif is_poop and ob != main_mesh:
+                        mesh_props.poop_render_only = True
 
                 break
 
 def apply_face_properties(context):
     objects = []
+    h4 = not_bungie_game()
     valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
     for ob in context.view_layer.objects:
         if CheckType.mesh(ob) and ob.nwo.mesh_type in valid_mesh_types:
@@ -496,13 +495,13 @@ def apply_face_properties(context):
                 if obj.data == me and obj != ob:
                     linked_objects.append(obj)
             if ob.face_maps:
-                split_objects = split_by_face_map(ob, context)
+                split_objects = split_by_face_map(ob, context, h4)
                 if not split_objects:
                     continue
                 for s_ob in split_objects:
                     # check the whole mesh hasn't been deleted
                     if len(s_ob.face_maps) > 0:
-                        face_prop_to_mesh_prop(s_ob, ob)
+                        face_prop_to_mesh_prop(s_ob, h4, ob)
 
                 # set mode again
                 set_object_mode(context)
