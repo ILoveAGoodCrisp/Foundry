@@ -88,8 +88,9 @@ class NWO_SceneProps(Panel):
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         if mb_active:
             flow.enabled = False
-        flow.prop(scene_nwo, "game_version", text='Game', expand=True)
-        flow.scale_y = 1.5
+        row = flow.row()
+        row.prop(scene_nwo, "game_version", text='Game', expand=True)
+        row.scale_y = 1.5
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
         if mb_active or scene_nwo.mb_startup:
@@ -203,7 +204,7 @@ class NWO_AssetMaker(Operator):
         nwo_asset = scene.nwo
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True)
         col = flow.column(heading="Asset Settings")
-        col.prop(nwo_scene, "game_version", text='Game', expand=True)
+        col.prop(nwo_scene, "game_version", text='', expand=True)
         col.separator()
         col.prop(nwo_asset, "asset_type", text='')
         col.separator()
@@ -255,9 +256,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             temp_file.write(f'{self.game_version}')
 
     def game_version_items(self, context):
-        items = [ ('reach', "", "Halo Reach", get_icon_id("halo_reach"), 0),
-                ('h4', "", "Halo 4", get_icon_id("halo_4"), 1),
-                ('h2a', "", "Halo 2 Anniversary Multiplayer", get_icon_id("halo_2amp"), 2),
+        items = [ ('reach', "Halo Reach", "Halo Reach", get_icon_id("halo_reach"), 0),
+                ('h4', "Halo 4", "Halo 4", get_icon_id("halo_4"), 1),
+                ('h2a', "Halo 2AMP", "Halo 2 Anniversary Multiplayer", get_icon_id("halo_2amp"), 2),
                ]
         return items
     
