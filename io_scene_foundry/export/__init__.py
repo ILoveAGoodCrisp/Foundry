@@ -1096,13 +1096,23 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 else:
                     ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_render'
 
+    def asset_type_items(self, context):
+        items = []
+        items.append(('MODEL', "Model", "", get_icon_id("model"), 0))
+        items.append(('SCENARIO', "Scenario", "", get_icon_id("scenario"), 1))
+        items.append(('SKY', 'Sky', '', get_icon_id("sky"), 2))
+        items.append(('DECORATOR SET', 'Decorator Set', '', get_icon_id("decorator"), 3))
+        items.append(('PARTICLE MODEL', 'Particle Model', '', get_icon_id("particle_model"), 4))
+        items.append(('PREFAB', 'Prefab', '', get_icon_id("prefab"), 5))
+        items.append(('FP ANIMATION', 'First Person Animation', '', get_icon_id("animation"), 6))
+
+        return items
+    
     asset_type: EnumProperty(
         name="Asset Type",
         options=set(),
         description="Define the type of asset you are creating",
-        default = 'MODEL',
-        # update=apply_props,
-        items=[ ('MODEL', "Model", ""), ('SCENARIO', "Scenario", ""), ('SKY', 'Sky', ''), ('DECORATOR SET', 'Decorator Set', ''), ('PARTICLE MODEL', 'Particle Model', ''), ('PREFAB', 'Prefab', ''), ('FP ANIMATION', 'First Person Animation', '')]
+        items=asset_type_items,
         )
     
     forward_direction: EnumProperty(
