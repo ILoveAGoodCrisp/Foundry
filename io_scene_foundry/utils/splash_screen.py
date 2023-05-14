@@ -34,16 +34,12 @@ class FoundrySplashScreen(Menu):
         layout = self.layout
         layout.operator_context = 'EXEC_DEFAULT'
         layout.emboss = 'PULLDOWN_MENU'
-        header = layout.row()
-        header.prop(context.scene.nwo_global, "game_version", text='')
-        header.scale_x = 2
-        header.scale_y = 1.5
         split = layout.split()
 
         # Templates
         col1 = split.column()
+        col1.prop(context.scene.nwo_global, "game_version", text='')
         col1.label(text="New Asset")
-        #col1.scale_y = 0.8
 
         # bpy.types.TOPBAR_MT_file_new.draw_ex(col1, context, use_splash=True)
         col1.operator("wm.read_homefile", text="Model", icon_value=get_icon_id("model")).app_template = "Model"
@@ -55,6 +51,7 @@ class FoundrySplashScreen(Menu):
         col1.operator("wm.read_homefile", text="First Person Animation", icon_value=get_icon_id("animation")).app_template = "First Person Animation"
         # Recent
         col2 = split.column()
+        col2.label(text="")
         col2_title = col2.row()
 
         found_recent = col2.template_recent_files()
