@@ -1196,7 +1196,7 @@ class NWOMesh(NWOObject):
         return self.halo.obb_volume_type
 
     def face_type(self):
-        if self.not_bungie_game and self.bungie_mesh_type == '_connected_geometry_mesh_type_default':
+        if self.not_bungie_game and self.bungie_mesh_type == '_connected_geometry_mesh_type_default' and self.sidecar_type in ('SCENARIO', 'PREFAB'):
             return '_connected_geometry_face_type_sky'
         else:
             return self.halo.face_type
