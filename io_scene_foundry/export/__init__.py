@@ -755,59 +755,6 @@ def ExportSettingsFromSidecar(sidecar_filepath):
 ##############################################
 # NWO Scene Settings
 ##############################################
-class NWO_SceneProps(Panel):
-    bl_label = "Asset Properties"
-    bl_idname = "NWO_PT_GameVersionPanel"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "scene"
-    bl_parent_id = "NWO_PT_ScenePropertiesPanel"
-
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        scene_nwo = scene.nwo_global
-        return scene_nwo.game_version in ('reach', 'h4', 'h2a')
-
-    def draw(self, context):
-        layout = self.layout
-        scene_nwo = context.scene.nwo
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        flow.use_property_split = True
-        col = flow.column()
-        col.prop(scene_nwo, 'asset_type')
-        col.separator()
-        #col.prop(scene_nwo, 'default_mesh_type_ui')
-        if scene_nwo.asset_type in ('MODEL', 'FP ANIMATION'):
-            col.prop(scene_nwo, 'forward_direction')
-            col.separator()
-        # col.prop(scene_nwo, 'filter_ui', text = 'Filter UI')
-        if scene_nwo.asset_type == 'MODEL':
-            col.label(text="Output Tags")
-            row = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=True, align=True)
-            # row = layout.row(align=True)
-            row.scale_x = 1.3
-            row.scale_y = 1.3
-
-            row.prop(scene_nwo, "output_crate", text='',icon_value=get_icon_id('crate'))
-            row.prop(scene_nwo, "output_scenery",text='',icon_value=get_icon_id('scenery'))
-            row.prop(scene_nwo, "output_effect_scenery",text='',icon_value=get_icon_id('effect_scenery'))
-
-            row.prop(scene_nwo, "output_device_control",text='',icon_value=get_icon_id('device_control'))
-            row.prop(scene_nwo, "output_device_machine", text='',icon_value=get_icon_id('device_machine'))
-            row.prop(scene_nwo, "output_device_terminal", text='',icon_value=get_icon_id('device_terminal'))
-            if context.scene.nwo_global.game_version in ('h4', 'h2a'):
-                row.prop(scene_nwo, "output_device_dispenser",text='',icon_value=get_icon_id('device_dispenser'))
-
-            row.prop(scene_nwo, "output_biped", text='', icon_value=get_icon_id('biped'))
-            row.prop(scene_nwo, "output_creature",text='',icon_value=get_icon_id('creature'))
-            row.prop(scene_nwo, "output_giant", text='', icon_value=get_icon_id('giant'))
-            
-            row.prop(scene_nwo, "output_vehicle", text='',icon_value=get_icon_id('vehicle'))
-            row.prop(scene_nwo, "output_weapon", text='',icon_value=get_icon_id('weapon'))
-            row.prop(scene_nwo, "output_equipment",text='',icon_value=get_icon_id('equipment'))
-
-
 
 class NWO_UL_SceneProps_SharedAssets(UIList):
     use_name_reverse: bpy.props.BoolProperty(
@@ -902,7 +849,7 @@ class NWO_SceneProps_SharedAssets(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"
-    bl_parent_id = "NWO_PT_GameVersionPanel"
+    bl_parent_id = "NWO_PT_ScenePropertiesPanel"
 
     @classmethod
     def poll(cls, context):
@@ -1121,15 +1068,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
         description="Define the forward direction you are using for this model. By default Halo uses X forward. If you model is not x positive select the correct forward directiom.",
         default = 'x',
-        items=[ ('x', "X Forward", ""), ('x-', "X Backward", ""), ('y', 'Y Forward', ''), ('y-', 'Y Backward', '')]
+        items=[ ('x', "X Postive", ""), ('x-', "X Negative", ""), ('y', 'Y Postive', ''), ('y-', 'Y Negative', '')]
     )
-
-    # filter_ui: BoolProperty(
-    #     name="Filter UI",
-    #     options=set(),
-    #     description="When True, hides all UI elements that aren't needed for the selected asset type",
-    #     default = True,
-    #     )
 
     output_biped: BoolProperty(
         name='Biped',
@@ -1216,7 +1156,6 @@ classeshalo = (
     NWO_List_Add_Shared_Asset,
     NWO_List_Remove_Shared_Asset,
     NWO_ScenePropertiesGroup,
-    NWO_SceneProps,
     NWO_UL_SceneProps_SharedAssets,
     NWO_SceneProps_SharedAssets,
 )

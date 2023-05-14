@@ -83,18 +83,19 @@ class NWO_SceneProps(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        scene_nwo = scene.nwo_global
+        scene_nwo_global = scene.nwo_global
+        scene_nwo = context.scene.nwo
         mb_active = managed_blam_active()
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         if mb_active:
             flow.enabled = False
         row = flow.row()
-        row.prop(scene_nwo, "game_version", text='')
+        row.prop(scene_nwo_global, "game_version", text='')
         row.scale_y = 1.5
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
-        if mb_active or scene_nwo.mb_startup:
-            col.prop(scene_nwo, 'mb_startup')
+        if mb_active or scene_nwo_global.mb_startup:
+            col.prop(scene_nwo_global, 'mb_startup')
         col.separator()
         col = col.row()
         col.scale_y = 1.5
@@ -106,6 +107,38 @@ class NWO_SceneProps(Panel):
             col.label(text="Blender Restart Required for ManagedBlam")
         else:
             col.operator("managed_blam.init", text="Initialise ManagedBlam")
+
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+        col = flow.column(heading="Asset Type")
+        col.scale_y = 1.5
+        col.prop(scene_nwo, 'asset_type', text='')
+        col = col.column(heading="Model Forward")
+        #col.prop(scene_nwo, 'default_mesh_type_ui')
+        if scene_nwo.asset_type in ('MODEL', 'FP ANIMATION'):
+            col.prop(scene_nwo, 'forward_direction', text='')
+        if scene_nwo.asset_type == 'MODEL':
+            col.label(text="Output Tags")
+            row = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=True, align=True)
+            row.scale_x = 1.3
+            row.scale_y = 1.3
+
+            row.prop(scene_nwo, "output_crate", text='',icon_value=get_icon_id('crate'))
+            row.prop(scene_nwo, "output_scenery",text='',icon_value=get_icon_id('scenery'))
+            row.prop(scene_nwo, "output_effect_scenery",text='',icon_value=get_icon_id('effect_scenery'))
+
+            row.prop(scene_nwo, "output_device_control",text='',icon_value=get_icon_id('device_control'))
+            row.prop(scene_nwo, "output_device_machine", text='',icon_value=get_icon_id('device_machine'))
+            row.prop(scene_nwo, "output_device_terminal", text='',icon_value=get_icon_id('device_terminal'))
+            if context.scene.nwo_global.game_version in ('h4', 'h2a'):
+                row.prop(scene_nwo, "output_device_dispenser",text='',icon_value=get_icon_id('device_dispenser'))
+
+            row.prop(scene_nwo, "output_biped", text='', icon_value=get_icon_id('biped'))
+            row.prop(scene_nwo, "output_creature",text='',icon_value=get_icon_id('creature'))
+            row.prop(scene_nwo, "output_giant", text='', icon_value=get_icon_id('giant'))
+            
+            row.prop(scene_nwo, "output_vehicle", text='',icon_value=get_icon_id('vehicle'))
+            row.prop(scene_nwo, "output_weapon", text='',icon_value=get_icon_id('weapon'))
+            row.prop(scene_nwo, "output_equipment",text='',icon_value=get_icon_id('equipment'))
 
 class NWO_SetUnitScale(Operator):
     """Sets up the scene for Halo: Sets the unit scale to match Halo's and sets the frame rate to 30fps"""
@@ -4659,6 +4692,7 @@ class NWO_FaceMapProps(Panel):
         if len(ob.face_maps) <= 0:
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
+            col.scale_y = 1.3
             col.menu(NWO_FacePropAddMenuNew.bl_idname, text='New Face Property', icon='ADD')
         else:
 

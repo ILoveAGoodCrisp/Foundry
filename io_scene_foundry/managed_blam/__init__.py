@@ -49,8 +49,8 @@ class ManagedBlam_Init(Operator):
     bl_options = {'UNDO', 'PRESET'}
     bl_description = "Initialises Managed Blam and locks the currently selected game"
 
-    def callback(self, Bungie):
-        Bungie.ManagedBlamSystem.Stop()
+    def callback(self):
+        pass
 
     def execute(self, context):
         # append the blender python module path to the sys PATH
@@ -96,7 +96,7 @@ class ManagedBlam_Init(Operator):
             try:
                 startup_parameters = Bungie.ManagedBlamStartupParameters()
                 startup_parameters.InistializationLevel = Bungie.InitializationType.TagsOnly
-                Bungie.ManagedBlamSystem.Start(get_ek_path(), self.callback(Bungie), startup_parameters)
+                Bungie.ManagedBlamSystem.Start(get_ek_path(), self.callback(), startup_parameters)
             except:
                 print("ManagedBlam already intialised. Skipping")
                 return({'CANCELLED'})
