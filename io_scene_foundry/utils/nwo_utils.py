@@ -32,6 +32,8 @@ from os.path import exists as file_exists
 from subprocess import Popen, run, check_call
 import shutil
 
+from io_scene_foundry.icons import get_icon_id
+
 ###########
 ##GLOBALS##
 ###########
@@ -906,6 +908,9 @@ def formalise_string(string):
 
 def bpy_enum(name, index):
     return (name, formalise_string(name), '', index)
+
+def bpy_enum_seam(name, index):
+    return (name, name, '', get_icon_id("seam"),index)
 
 def formalise_game_version(game):
     if game == 'reach':

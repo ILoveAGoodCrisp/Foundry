@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import bmesh
 import bpy
 from os import path
 import csv
@@ -261,7 +262,7 @@ def any_face_props(ob):
                              or item.lightmap_translucency_tint_color_override or item.lightmap_lighting_from_both_sides_override or item.material_lighting_attenuation_override
                                or item.material_lighting_emissive_focus_override or item.material_lighting_emissive_color_override or item.material_lighting_emissive_per_unit_override
                                  or item.material_lighting_emissive_power_override or item.material_lighting_emissive_quality_override or item.material_lighting_use_shader_gel_override
-                                   or item.material_lighting_bounce_ratio_override
+                                   or item.material_lighting_bounce_ratio_override or item.seam_override
                         ):
             return True
     else:
@@ -374,6 +375,32 @@ def split_by_face_map(ob, context, h4):
     
     else:
         return context.selected_objects
+    
+def create_adjacent_seam(ob, adjacent_bsp):
+    facing_bsp = ob.nwo.bsp_name
+    # triangulate first before copying
+    me = ob.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bm.to_mesh(me)
+    bm.free()
+    # now make the new seam to be flipped
+    flipped_seam = ob.copy()
+    flipped_seam.data = ob.data.copy()
+    bpy.context.scene.collection.objects.link(flipped_seam)
+    flipped_seam_name = ob.name.rpartition('(')[0]
+    flipped_seam.name = flipped_seam_name + f"({adjacent_bsp}:{facing_bsp})"
+    flipped_seam.nwo.bsp_name = adjacent_bsp
+    # use bmesh to flip normals
+    bm = bmesh.new()
+    me = flipped_seam.data
+    bm.from_mesh(me)
+    for f in bm.faces:
+        f.normal_flip()
+    bm.to_mesh(me)
+    me.update()
+    bm.free()
 
 def face_prop_to_mesh_prop(ob, h4, main_mesh=None):
     # ignore unused face_prop items
@@ -383,6 +410,9 @@ def face_prop_to_mesh_prop(ob, h4, main_mesh=None):
                 face_props = item
                 mesh_props = ob.nwo
                 # run through each face prop and apply it to the mesh if override set
+                if face_props.seam_override:
+                    mesh_props.mesh_type = '_connected_geometry_mesh_type_seam'
+                    create_adjacent_seam(ob, face_props.seam_adjacent_bsp)
                 if face_props.face_type_override:
                     mesh_props.face_type = face_props.face_type
                     mesh_props.sky_permutation_index = face_props.sky_permutation_index

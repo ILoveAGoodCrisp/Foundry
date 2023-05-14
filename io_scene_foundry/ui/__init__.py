@@ -50,6 +50,7 @@ from bpy.props import (
         )
 
 from ..utils.nwo_utils import (
+    bpy_enum_seam,
     formalise_game_version,
     frame_prefixes,
     get_data_path,
@@ -67,6 +68,7 @@ from ..utils.nwo_utils import (
     get_tags_path,
     shortest_string,
     dot_partition,
+    true_bsp,
     valid_nwo_asset,
     package,
 )
@@ -4749,7 +4751,12 @@ class NWO_FaceMapProps(Panel):
                         col.label(text="Current FaceMap is used for this mesh's cookie cutter")
 
                 else:
-
+                    if item.seam_override:
+                        row = col.row()
+                        row.prop(item, "seam")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'seam'
+                        row = col.row()
+                        row.prop(item, "seam_adjacent_bsp")
                     if item.instanced_collision_override:
                         row = col.row()
                         row.prop(item, "instanced_collision")
@@ -4901,6 +4908,8 @@ def toggle_override(context, option, bool_var):
         item = ob_nwo_face.face_props[ob.face_maps.active_index]
         
     match option:
+        case 'seam':
+            item.seam_override = bool_var
         case 'region':
             item.region_name_override = bool_var
         case 'face_type':
@@ -5026,6 +5035,8 @@ class NWO_FacePropAddMenu(Menu):
         ob_nwo = ob.nwo
         if poll_ui(('MODEL', 'SKY')):
             layout.operator("nwo_face.add_face_property", text='Region Override').options = 'region'
+        if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+            layout.operator("nwo_face.add_face_property", text='Seam').options = 'seam'
         if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
             layout.operator("nwo_face.add_face_property", text='Global Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
@@ -5075,6 +5086,8 @@ class NWO_FacePropAddMenuNew(Menu):
         ob_nwo = ob.nwo
         if poll_ui(('MODEL', 'SKY')):
             layout.operator("nwo_face.add_face_property_new", text='Region Override').options = 'region'
+        if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+            layout.operator("nwo_face.add_face_property_new", text='Seam').options = 'seam'
         if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
             layout.operator("nwo_face.add_face_property_new", text='Global Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
@@ -5203,6 +5216,7 @@ class NWO_FacePropAdd(Operator):
         ('instanced_collision', 'Bullet Collision', ''),
         ('instanced_physics', 'Player Collision', ''),
         ('cookie_cutter', 'Cookie Cutter', ''),
+        ('seam', 'Seam', ''),
         ]
         )
 
@@ -5245,6 +5259,8 @@ class NWO_FacePropAdd(Operator):
             bpy.ops.object.face_map_assign()
             fm_name = 'default'
             match self.options:
+                case 'seam':
+                    fm_name = f'seam {true_bsp(ob.nwo)}:'
                 case 'region':
                     fm_name = 'default'
                 case 'face_global_material':
@@ -5367,6 +5383,7 @@ class NWO_FacePropRemove(Operator):
     options: EnumProperty(
         default="region",
         items=[
+        ('seam', 'Seam', ''),
         ('region', 'Region', ''),
         ('face_type', 'Face Type', ''),
         ('face_mode', 'Face Mode', ''),
@@ -5644,6 +5661,32 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     material_lighting_emissive_quality_override : BoolProperty()
     material_lighting_use_shader_gel_override : BoolProperty()
     material_lighting_bounce_ratio_override : BoolProperty()
+    # seam
+    seam_override : BoolProperty()
+
+    def seam_item(self, context):
+        return [('seam', true_bsp(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam"), 0)]
+
+    seam : EnumProperty(
+        name="Seam Facing BSP", 
+        options=set(), 
+        items=seam_item,
+        )
+    
+    def scene_bsps(self, context):
+        bsp_list = []
+        for ob in context.scene.objects:
+            bsp = true_bsp(ob.nwo)
+            if bsp not in bsp_list and bsp != true_bsp(context.object.nwo):
+                bsp_list.append(bsp)
+        
+        items = []
+        for index, bsp in enumerate(bsp_list):
+            items.append(bpy_enum_seam(bsp, index))
+
+        return items
+
+    seam_adjacent_bsp : EnumProperty(name="Seam Backfacing BSP", description="The BSP that this seam has it's back to", options=set(), items=scene_bsps)
 
     face_type : EnumProperty(
         name="Face Type",
@@ -6047,39 +6090,44 @@ class NWO_FacePropertiesGroup(PropertyGroup):
 
     def get_face_props_hack(self):
         context = bpy.context
-        if context.object.data:
-            if not context.object.face_maps:
+        ob = context.object
+        fm = ob.face_maps
+        if ob.data:
+            if not fm:
                 index = 0
-                for item in context.object.nwo_face.face_props:
-                    context.object.nwo_face.face_props.remove(index)
+                for item in ob.nwo_face.face_props:
+                    ob.nwo_face.face_props.remove(index)
                     index +=1
-            elif len(context.object.face_maps) > len(context.object.nwo_face.face_props):
+            elif len(fm) > len(ob.nwo_face.face_props):
                 bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
                 context.area.tag_redraw()
-            elif len(context.object.face_maps) < len(context.object.nwo_face.face_props):
+            elif len(fm) < len(ob.nwo_face.face_props):
                 face_map_names = []
-                for face_map in context.object.face_maps:
+                for face_map in fm:
                     face_map_names.append(face_map.name)
                 index = 0
-                for item in context.object.nwo_face.face_props:
+                for item in ob.nwo_face.face_props:
                     if item.name not in face_map_names:
-                        context.object.nwo_face.face_props.remove(index)
+                        ob.nwo_face.face_props.remove(index)
 
                     index +=1
 
                 context.area.tag_redraw()
 
-            elif len(context.object.face_maps) == len(context.object.nwo_face.face_props):
-                item = context.object.nwo_face.face_props[context.object.face_maps.active_index]
-                if context.object.face_maps.active and item.name != context.object.face_maps.active.name:
+            elif len(fm) == len(ob.nwo_face.face_props):
+                item = ob.nwo_face.face_props[fm.active_index]
+                if fm.active and item.name != fm.active.name:
                         face_map_names = []
-                        for face_map in context.object.face_maps:
+                        for face_map in fm:
                             face_map_names.append(face_map.name)
                         if item.name not in face_map_names:
-                            item.name = context.object.face_maps.active.name
+                            item.name = fm.active.name
                             context.area.tag_redraw()
-                elif context.object.face_maps.active and item.region_name_override and item.region_name not in context.object.face_maps.active.name:
-                    context.object.face_maps.active.name = item.region_name
+                elif fm.active and item.region_name_override and item.region_name not in fm.active.name:
+                    fm.active.name = item.region_name
+                    context.area.tag_redraw()
+                elif fm.active and item.seam_override and item.seam_adjacent_bsp not in fm.active.name:
+                    fm.active.name = f'seam {true_bsp(ob.nwo)}:{item.seam_adjacent_bsp}'
                     context.area.tag_redraw()
 
         return False
