@@ -168,11 +168,11 @@ class NWO_AssetMaker(Operator):
             # try to fix it...
             prefs = context.preferences.addons[package].preferences
             if self.filepath.startswith(prefs.hrek_path):
-                self.filepath = self.filepath.replace(prefs.hrek_path + os.sep, get_data_path())
+                self.filepath = self.filepath.replace(os.path.join(prefs.hrek_path, 'data' + os.sep), get_data_path())
             elif self.filepath.startswith(prefs.h4ek_path):
-                self.filepath = self.filepath.replace(prefs.h4ek_path + os.sep, get_data_path())
+                self.filepath = self.filepath.replace(os.path.join(prefs.h4ek_path, 'data' + os.sep), get_data_path())
             elif self.filepath.startswith(prefs.h2aek_path):
-                self.filepath = self.filepath.replace(prefs.h2aek_path + os.sep, get_data_path())
+                self.filepath = self.filepath.replace(os.path.join(prefs.h2aek_path, 'data' + os.sep), get_data_path())
             else:
                 self.report({'INFO'}, f"Invalid asset location. Please ensure your file is saved to your data {formalise_game_version(nwo_scene.game_version)} directory")
                 return {'CANCELLED'}

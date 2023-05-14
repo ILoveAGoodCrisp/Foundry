@@ -29,6 +29,7 @@ import os
 from ..utils.nwo_utils import (
     get_ek_path,
     get_tags_path,
+    not_bungie_game,
     run_tool,
 )
 
@@ -76,8 +77,8 @@ def GetImportFlags(flag_import_check, flag_import_force, flag_import_verbose, fl
         flags.append('force')
     if flag_import_skip_instances:
         flags.append('skip_instances')
-    # if not_bungie_game():
-    #     flags.append('preserve_namespaces') # cheap workaround for namespace issue
+    if not_bungie_game():
+        flags.append('preserve_namespaces')
     else:
         if flag_import_check:
             flags.append('check')

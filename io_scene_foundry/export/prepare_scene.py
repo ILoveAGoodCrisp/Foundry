@@ -768,8 +768,8 @@ def apply_properties(context, asset_type, asset):
             apply_object_mesh_marker_properties(ob, asset_type)
 
         strip_prefix(ob)
-        if not_bungie_game():
-            apply_namespaces(ob, asset)
+        # if not_bungie_game():
+        #     apply_namespaces(ob, asset)
 
 
 def apply_namespaces(ob, asset):
