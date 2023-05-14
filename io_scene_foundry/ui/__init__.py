@@ -89,7 +89,7 @@ class NWO_SceneProps(Panel):
         if mb_active:
             flow.enabled = False
         row = flow.row()
-        row.prop(scene_nwo, "game_version", text='Game', expand=True)
+        row.prop(scene_nwo, "game_version", text='')
         row.scale_y = 1.5
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
