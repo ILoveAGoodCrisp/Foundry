@@ -711,14 +711,14 @@ class NWO_ObjectProps(Panel):
                         row.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
                     else:
                         row.prop(ob_nwo, "permutation_name", text='Permutation')
-                        row.operator_menu_enum("nwo.permutation_list", "permutation", text='', icon="DISCLOSURE_TRI_DOWN")
+                        row.operator_menu_enum("nwo.permutation_list", "permutation", text='', icon="DOWNARROW_HLT")
 
                     row = col.row()
                     if ob_nwo.bsp_name_locked != '':
                         row.prop(ob_nwo, 'bsp_name_locked', text='BSP')
                     else:
                         row.prop(ob_nwo, 'bsp_name', text='BSP')
-                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
+                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DOWNARROW_HLT")
 
 
                     col.separator()
@@ -749,7 +749,7 @@ class NWO_ObjectProps(Panel):
                         row.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
                     else:
                         row.prop(ob_nwo, "permutation_name", text='Permutation')
-                        row.operator_menu_enum("nwo.permutation_list", "permutation", text='', icon="DISCLOSURE_TRI_DOWN")
+                        row.operator_menu_enum("nwo.permutation_list", "permutation", text='', icon="DOWNARROW_HLT")
 
                 if poll_ui('SCENARIO'):
                     row = col.row()
@@ -757,7 +757,7 @@ class NWO_ObjectProps(Panel):
                         row.prop(ob_nwo, 'bsp_name_locked', text='BSP')
                     else:
                         row.prop(ob_nwo, 'bsp_name', text='BSP')
-                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
+                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DOWNARROW_HLT")
 
                 col.separator()
 
@@ -868,14 +868,14 @@ class NWO_ObjectProps(Panel):
                         row.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
                     else:
                         row.prop(ob_nwo, 'permutation_name', text='Permutation')
-                        row.operator_menu_enum("nwo.permutation_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
+                        row.operator_menu_enum("nwo.permutation_list", "bsp", text='', icon="DOWNARROW_HLT")
 
                     if ob_nwo.bsp_name_locked != '':
                         row = col.row()
                         row.prop(ob_nwo, 'bsp_name_locked', text='BSP')
                     else:
                         row.prop(ob_nwo, 'bsp_name', text='BSP')
-                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
+                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DOWNARROW_HLT")
                             
                     col.separator()
 
@@ -1001,7 +1001,7 @@ class NWO_MeshFaceProps(Panel):
             else:
                 row = col.row(align=True)
                 row.prop(ob_nwo, "region_name", text='Region')
-                row.operator_menu_enum("nwo.region_list", "region", text='', icon="DISCLOSURE_TRI_DOWN")
+                row.operator_menu_enum("nwo.region_list", "region", text='', icon="DOWNARROW_HLT")
                 if ob.nwo_face.face_props and ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_render', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'):
                     for prop in ob.nwo_face.face_props:
                         if prop.region_name_override:
@@ -1009,7 +1009,9 @@ class NWO_MeshFaceProps(Panel):
                             break
         if poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
             if ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_structure'):
-                col.prop(ob_nwo, "face_global_material", text='Global Material')
+                row = col.row()
+                row.prop(ob_nwo, "face_global_material", text='Collision Material')
+                row.menu(NWO_GlobalMaterialMenu.bl_idname, text='', icon='DOWNARROW_HLT')
                 if ob.nwo_face.face_props and ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_object_structure'):
                     for prop in ob.nwo_face.face_props:
                         if prop.face_global_material_override:
@@ -1997,9 +1999,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     face_global_material: StringProperty(
-        name="Global Material",
-        default='',
-        description="Set the global material of this mesh. If the global material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct global material response type, otherwise, the global material override can be manually defined in the .model tag",
+        name="Collision Material",
+        default='default',
+        description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
     )
 
     sky_permutation_index: IntProperty(
@@ -5067,7 +5069,7 @@ class NWO_FacePropAddMenu(Menu):
         if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
             layout.operator("nwo_face.add_face_property", text='Seam').options = 'seam'
         if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
-            layout.operator("nwo_face.add_face_property", text='Global Material Override').options = 'face_global_material'
+            layout.operator("nwo_face.add_face_property", text='Collision Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
             layout.operator("nwo_face.add_face_property", text='Precise').options = 'precise_position'
             layout.operator_menu_enum("nwo_face.add_face_property_face_sides",
@@ -5118,7 +5120,7 @@ class NWO_FacePropAddMenuNew(Menu):
         if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
             layout.operator("nwo_face.add_face_property_new", text='Seam').options = 'seam'
         if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
-            layout.operator("nwo_face.add_face_property_new", text='Global Material Override').options = 'face_global_material'
+            layout.operator("nwo_face.add_face_property_new", text='Collision Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
             layout.operator("nwo_face.add_face_property_new", text='Precise').options = 'precise_position'
             layout.operator_menu_enum("nwo_face.add_face_property_face_sides_new",
@@ -5240,7 +5242,7 @@ class NWO_FacePropAdd(Operator):
         default="region",
         items=[
         ('region', 'Region', ''),
-        ('face_global_material', 'Global Material', ''),
+        ('face_global_material', 'Collision Material', ''),
         ('precise_position', 'Precise Position', ''),
         ('instanced_collision', 'Bullet Collision', ''),
         ('instanced_physics', 'Player Collision', ''),
@@ -5419,7 +5421,7 @@ class NWO_FacePropRemove(Operator):
         ('face_sides', 'Face Sides', ''),
         ('face_draw_distance', 'Draw Distance', ''),
         ('texcoord_usage', 'Texcord Usage', ''),
-        ('face_global_material', 'Global Material', ''),
+        ('face_global_material', 'Collision Material', ''),
         ('ladder', 'Ladder', ''),
         ('slip_surface', 'Slip Surface', ''),
         ('decal_offset', 'Decal Offset', ''),
@@ -5785,9 +5787,9 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     face_global_material: StringProperty(
-        name="Global Material",
+        name="Collision Material",
         default='',
-        description="Set the global material of this mesh. If the global material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct global material response type, otherwise, the global material override can be manually defined in the .model tag",
+        description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
     )
 
     sky_permutation_index: IntProperty(
@@ -6173,6 +6175,32 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
 # LIST SYSTEMS
 # ------------------------------------------------
 
+class NWO_GlobalMaterialMenu(Menu):
+    bl_label = "Add Collision Material"
+    bl_idname = "NWO_MT_AddGlobalMaterial"
+
+    def draw(self, context):
+        layout = self.layout
+        ob = context.object
+        global_materials = ['default']
+        for ob in context.scene.objects:
+            global_material = ob.nwo.face_global_material
+            if global_material not in global_materials:
+                global_materials.append(global_material)
+            # also need to loop through face props
+            for face_prop in ob.nwo_face.face_props:
+                if face_prop.face_global_material_override and face_prop.face_global_material not in global_materials:
+                    global_materials.append(face_prop.face_global_material)
+
+        for g_mat in global_materials:
+            layout.operator("nwo.global_material_list", text=g_mat).global_material = g_mat
+
+        layout.operator_menu_enum("nwo.global_material_regions_list",
+                                property="region",
+                                text="From Region",
+                                )
+
+
 class NWO_RegionList(Operator):
     bl_idname = "nwo.region_list"
     bl_label = "Region List"
@@ -6204,6 +6232,48 @@ class NWO_RegionList(Operator):
 
     def execute(self, context):
         context.object.nwo.region_name = self.region
+        return {'FINISHED'}
+    
+class NWO_GlobalMaterialRegionList(NWO_RegionList):
+    bl_idname = "nwo.global_material_regions_list"
+    bl_label = "Collision Material List"
+    bl_description = "Applies a global material to the selected object"
+
+    def execute(self, context):
+        context.object.nwo.face_global_material = self.region
+        return {'FINISHED'}
+    
+class NWO_GlobalMaterialList(Operator):
+    bl_idname = "nwo.global_material_list"
+    bl_label = "Collision Material List"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Applies a Collision Material to the selected object"
+
+    def global_material_items(self, context):
+        # get scene regions
+        global_materials = ['default']
+        for ob in context.scene.objects:
+            global_material = ob.nwo.face_global_material
+            if global_material not in global_materials and global_material:
+                global_materials.append(global_material)
+            # also need to loop through face props
+            for face_prop in ob.nwo_face.face_props:
+                if face_prop.face_global_material_override and face_prop.face_global_material not in global_materials:
+                    global_materials.append(face_prop.face_global_material)
+
+        items = []
+        for index, global_material in enumerate(global_materials):
+            items.append(bpy_enum_list(global_material, index))
+
+        return items
+
+    global_material : EnumProperty(
+        name="Collision Material",
+        items=global_material_items,
+    )
+
+    def execute(self, context):
+        context.object.nwo.face_global_material = self.global_material
         return {'FINISHED'}
     
 class NWO_PermutationList(Operator):
@@ -6265,17 +6335,6 @@ class NWO_BSPList(Operator):
         return {'FINISHED'}
 
 
-
-
-
-
-
-
-
-
-
-
-
 ###################################################
     
 def draw_filepath(self, context):
@@ -6313,9 +6372,12 @@ classeshalo = (
     NWO_LensFlarePath,
     NWO_ShaderPath,
     NWO_ObjectProps,
+    NWO_GlobalMaterialRegionList,
     NWO_RegionList,
     NWO_PermutationList,
     NWO_BSPList,
+    NWO_GlobalMaterialList,
+    NWO_GlobalMaterialMenu,
     # NWO_ObjectMeshProps,
     # NWO_ObjectMarkerProps,
     NWO_MaterialProps,
