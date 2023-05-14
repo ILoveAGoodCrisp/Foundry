@@ -79,11 +79,18 @@ class ManagedBlam_Init(Operator):
                 return({'CANCELLED'})
         except:
             print("Couldn't find clr module, attempting pythonnet install")
+            install = ctypes.windll.user32.MessageBoxW(0, "ManagedBlam requires the pythonnet module to be installed for Blender.\n\nInstall pythonnet now?", f"Pythonnet Install Required", 4)
+            if install != 6:
+                return {'CANCELLED'}
             try:
                 subprocess.check_call([sys.executable, "-m", "pip", "install", 'pythonnet'])
                 print("Succesfully installed necessary modules")
                 open(os.path.join(bpy.app.tempdir, 'blam_new.txt'), 'x')
-                ctypes.windll.user32.MessageBoxW(0, "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.", f"Pythonnet Installed for Blender", 0)
+                shutdown = ctypes.windll.user32.MessageBoxW(0, "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.\n\nClose Blender now?", f"Pythonnet Installed for Blender", 4)
+                if shutdown != 6:
+                    return {'CANCELLED'}
+                bpy.ops.wm.quit_blender()
+
             except:
                 print('Failed to install pythonnet')
                 return({'CANCELLED'})

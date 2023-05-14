@@ -227,7 +227,7 @@ def load_handler(dummy):
         
         if not mb_path.startswith(get_ek_path()):
             game = formalise_game_version(bpy.context.scene.nwo_global.game_version)
-            result = ctypes.windll.user32.MessageBoxW(0, f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\n Close Blender?", f"ManagedBlam / Game Mismatch", 4)
+            result = ctypes.windll.user32.MessageBoxW(0, f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?", f"ManagedBlam / Game Mismatch", 4)
             if result == 6:
                 bpy.ops.wm.quit_blender()
 
