@@ -939,7 +939,7 @@ class NWO_MeshFaceProps(Panel):
     @classmethod
     def poll(cls, context):
         ob = context.object
-        valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_poop')
+        valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_physics')
         return ob and ob.nwo.export_this and ob.type == 'MESH' and ob.nwo.object_type_ui == '_connected_geometry_object_type_mesh' and ob.nwo.mesh_type_ui in valid_mesh_types
 
     def draw(self, context):
@@ -955,7 +955,7 @@ class NWO_MeshFaceProps(Panel):
             else:
                 row = col.row(align=True)
                 row.prop(ob_nwo, "region_name", text='Region')
-                if ob.nwo_face.face_props and ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_render', '_connected_geometry_mesh_type_collision'):
+                if ob.nwo_face.face_props and ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_render', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'):
                     for prop in ob.nwo_face.face_props:
                         if prop.region_name_override:
                             row.label(text='*')
