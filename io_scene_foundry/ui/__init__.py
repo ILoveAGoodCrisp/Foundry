@@ -2906,14 +2906,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Not sure",
     )
 
-    physics_constraint_parent: StringProperty( #need to make this into an object picker at some point
+    physics_constraint_parent: PointerProperty( #need to make this into an object picker at some point
         name="Physics Constraint Parent",
         description="Enter the name of the object that is this marker's parent",
+        type=bpy.types.Object
     )
 
-    physics_constraint_child: StringProperty( #need to make this into an object picker at some point
+    physics_constraint_child: PointerProperty( #need to make this into an object picker at some point
         name="Physics Constraint Child",
         description="Enter the name of the object that is this marker's child",
+        type=bpy.types.Object
     )
 
     physics_constraint_type : EnumProperty(
