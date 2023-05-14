@@ -673,7 +673,7 @@ def apply_object_mesh_marker_properties(ob, asset_type):
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_pathfinding_sphere':
                 nwo.marker_type = '_connected_geometry_marker_type_pathfinding_sphere'
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_physics_constraint':
-                nwo.marker_type = '_connected_geometry_marker_type_physics_constraint'
+                nwo.marker_type = nwo.physics_constraint_type
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_target':
                 nwo.marker_type = '_connected_geometry_marker_type_target'
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_effects':
@@ -767,7 +767,7 @@ def apply_properties(context, asset_type, asset):
         if ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
             apply_object_mesh_marker_properties(ob, asset_type)
 
-        strip_prefix(ob)
+        # strip_prefix(ob)
         # if not_bungie_game():
         #     apply_namespaces(ob, asset)
 

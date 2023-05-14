@@ -801,7 +801,7 @@ class NWOMarker(NWOObject):
         return marker_type(self.ob, ('_connected_geometry_marker_type_effects'))
 
     def game_instance(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_game_instance'), ('?'))
+        return marker_type(self.ob, ('_connected_geometry_marker_type_game_instance'))
 
     def garbage(self):
         return marker_type(self.ob, ('_connected_geometry_marker_type_garbage'))
@@ -813,7 +813,7 @@ class NWOMarker(NWOObject):
         return marker_type(self.ob, ('_connected_geometry_marker_type_pathfinding_sphere'))
 
     def physics_constraint(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_physics_constraint'), ('$'))
+        return marker_type(self.ob, ('_connected_geometry_marker_type_physics_constraint'))
 
     def target(self):
         return marker_type(self.ob, ('_connected_geometry_marker_type_target'))

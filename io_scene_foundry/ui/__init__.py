@@ -1385,6 +1385,8 @@ marker_type_items = [
             ('_connected_geometry_marker_type_hint', "Hint", "Used for ai hints"),
             ('_connected_geometry_marker_type_pathfinding_sphere', "Pathfinding Sphere", "Used to create ai pathfinding spheres"),
             ('_connected_geometry_marker_type_physics_constraint', "Physics Constraint", "Used to define various types of physics constraints"),
+            ('_connected_geometry_marker_type_physics_hinge_constraint', "Hinge Constraint", "Used to define various types of physics constraints"),
+            ('_connected_geometry_marker_type_physics_socket_constraint', "Socket Constraint", "Used to define various types of physics constraints"),
             ('_connected_geometry_marker_type_target', "Target", "Defines the markers used in a model's targets'"),
             ('_connected_geometry_marker_type_water_volume_flow', "Water Volume Flow", "Used to define water flow for water physics volumes. For structure_design tags only"),
             ('_connected_geometry_marker_type_airprobe', "Airprobe", "Airprobes tell the game how to handle static lighting on dynamic objects"),
