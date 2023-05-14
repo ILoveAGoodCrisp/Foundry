@@ -14,8 +14,8 @@ def load_handler_for_preferences(_):
     bpy.ops.preferences.addon_enable(module="io_scene_foundry")
 
 @persistent
-def load_handler_for_startup(_):
-    bpy.ops.managed_blam.init()
+def load_handler(dummy):
+    bpy.ops.nwo.make_asset('INVOKE_DEFAULT', asset_name="new_decorator_set")
 
 class WM_MT_splash(FoundrySplashScreen):
     bl_label = "Splash"
@@ -25,15 +25,13 @@ classes = (
 )
 
 def register():
-    print("Registering to Change Defaults")
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.app.handlers.load_factory_preferences_post.append(load_handler_for_preferences)
-    # bpy.app.handlers.load_factory_startup_post.append(load_handler_for_startup)
+    bpy.app.handlers.load_post.append(load_handler)
 
 def unregister():
-    print("Unregistering to Change Defaults")
+    bpy.app.handlers.load_post.remove(load_handler)
     bpy.app.handlers.load_factory_preferences_post.remove(load_handler_for_preferences)
-    # bpy.app.handlers.load_factory_startup_post.remove(load_handler_for_startup)
     for cls in classes:
         bpy.utils.unregister_class(cls)

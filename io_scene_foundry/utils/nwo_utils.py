@@ -905,3 +905,11 @@ def formalise_string(string):
 
 def bpy_enum(name, index):
     return (name, formalise_string(name), '', index)
+
+def formalise_game_version(game):
+    if game == 'reach':
+        return 'Halo Reach'
+    elif game == 'h4':
+        return 'Halo 4'
+    else:
+        return 'Halo 2 Anniversary Multiplayer'

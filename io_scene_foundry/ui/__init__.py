@@ -49,6 +49,28 @@ from bpy.props import (
         CollectionProperty,
         )
 
+from ..utils.nwo_utils import (
+    formalise_game_version,
+    frame_prefixes,
+    get_data_path,
+    is_linked,
+    managed_blam_active,
+    marker_prefixes,
+    mesh_object,
+    run_ek_cmd,
+    poop_render_only_prefixes,
+    get_prop_from_collection,
+    is_design,
+    get_ek_path,
+    not_bungie_game,
+    clean_tag_path,
+    get_tags_path,
+    shortest_string,
+    dot_partition,
+    valid_nwo_asset,
+    package,
+)
+
 from io_scene_foundry.icons import get_icon_id
 
 class NWO_SceneProps(Panel):
@@ -75,7 +97,8 @@ class NWO_SceneProps(Panel):
         col.separator()
         col = col.row()
         col.scale_y = 1.5
-        col.operator("nwo.set_unit_scale")
+        if not valid_nwo_asset(context):
+            col.operator("nwo.make_asset")
         if mb_active:
             col.label(text="ManagedBlam Active")
         elif os.path.exists(os.path.join(bpy.app.tempdir, 'blam_new.txt')):
@@ -111,7 +134,7 @@ class NWO_SetUnitScale(Operator):
 class NWO_AssetMaker(Operator):
     """Creates an asset"""
     bl_idname = "nwo.make_asset"
-    bl_label = "Make Asset"
+    bl_label = "Create New Asset"
     bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
@@ -129,23 +152,86 @@ class NWO_AssetMaker(Operator):
 
     asset_name : StringProperty(default = 'new_asset')
 
+    work_dir : BoolProperty(description="Set whether blend file should be saved to a work directory within the asset folder")
+
+    managed_blam : BoolProperty(description="When set asset will use ManagedBlam on startup", default=True)
+
     def execute(self, context):
         scene = context.scene
         nwo_scene = scene.nwo_global
         nwo_asset = scene.nwo
         asset_name = self.filepath.rpartition(os.sep)[2]
         asset_name_clean = dot_partition(asset_name)
-        #os.mkdir()
+        # check folder location valid
+        if not self.filepath.startswith(get_data_path()):
+            # try to fix it...
+            prefs = context.preferences.addons[package].preferences
+            if self.filepath.startswith(prefs.hrek_path):
+                self.filepath = self.filepath.replace(prefs.hrek_path + os.sep, get_data_path())
+            elif self.filepath.startswith(prefs.h4ek_path):
+                self.filepath = self.filepath.replace(prefs.h4ek_path + os.sep, get_data_path())
+            elif self.filepath.startswith(prefs.h2aek_path):
+                self.filepath = self.filepath.replace(prefs.h2aek_path + os.sep, get_data_path())
+            else:
+                self.report({'INFO'}, f"Invalid asset location. Please ensure your file is saved to your data {formalise_game_version(nwo_scene.game_version)} directory")
+                return {'CANCELLED'}
+        
+        os.makedirs(self.filepath, True)
+        sidecar_path_full = os.path.join(self.filepath, asset_name_clean + 'sidecar.xml')
+        open(sidecar_path_full, 'x')
+        scene.nwo_halo_launcher.sidecar_path = sidecar_path_full.replace(get_data_path(),'')
+
+        if self.work_dir:
+            blend_save_path = os.path.join(self.filepath, 'models', 'work', asset_name_clean + '.blend')
+            os.makedirs(os.path.dirname(blend_save_path), True)
+        else:
+            blend_save_path = os.path.join(self.filepath, asset_name_clean + '.blend')
+
+        bpy.ops.wm.save_as_mainfile(filepath=blend_save_path)
+
+        if self.managed_blam:
+            bpy.ops.managed_blam.init()
+            nwo_scene.mb_startup = True
+
+        self.report({'INFO'}, f"Created new {nwo_asset.asset_type.title()} asset for {formalise_game_version(nwo_scene.game_version)}")
+        return {'FINISHED'}
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         nwo_scene = scene.nwo_global
         nwo_asset = scene.nwo
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        flow.use_property_split = True
-        flow.prop(nwo_scene, "game_version")
-        flow.prop(nwo_asset, "asset_type")
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True)
+        col = flow.column(heading="Asset Settings")
+        col.prop(nwo_scene, "game_version", text='Game', expand=True)
+        col.separator()
+        col.prop(nwo_asset, "asset_type", text='')
+        col.separator()
+        col.prop(self, "work_dir", text="Save to work directory")
+        col.prop(self, "managed_blam", text="Enable ManagedBlam")
+        if nwo_asset.asset_type == 'MODEL':
+            col.separator()
+            col.label(text="Model Output Tags")
+            flow = col.grid_flow(row_major=True, columns=3, even_columns=True, even_rows=False, align=True)
+            flow.scale_x = 1.25
+            flow.scale_y = 1.25
+            flow.prop(nwo_asset, "output_crate", text='',icon_value=get_icon_id('crate'))
+            flow.prop(nwo_asset, "output_scenery",text='',icon_value=get_icon_id('scenery'))
+            flow.prop(nwo_asset, "output_effect_scenery",text='',icon_value=get_icon_id('effect_scenery'))
+
+            flow.prop(nwo_asset, "output_device_control",text='',icon_value=get_icon_id('device_control'))
+            flow.prop(nwo_asset, "output_device_machine", text='',icon_value=get_icon_id('device_machine'))
+            flow.prop(nwo_asset, "output_device_terminal", text='',icon_value=get_icon_id('device_terminal'))
+            if context.scene.nwo_global.game_version in ('h4', 'h2a'):
+                flow.prop(nwo_asset, "output_device_dispenser",text='',icon_value=get_icon_id('device_dispenser'))
+
+            flow.prop(nwo_asset, "output_biped", text='', icon_value=get_icon_id('biped'))
+            flow.prop(nwo_asset, "output_creature",text='',icon_value=get_icon_id('creature'))
+            flow.prop(nwo_asset, "output_giant", text='', icon_value=get_icon_id('giant'))
+            
+            flow.prop(nwo_asset, "output_vehicle", text='',icon_value=get_icon_id('vehicle'))
+            flow.prop(nwo_asset, "output_weapon", text='',icon_value=get_icon_id('weapon'))
+            flow.prop(nwo_asset, "output_equipment",text='',icon_value=get_icon_id('equipment'))
 
     
     def invoke(self, context, event):
@@ -169,9 +255,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             temp_file.write(f'{self.game_version}')
 
     def game_version_items(self, context):
-        items = [ ('reach', "", "Halo Reach", get_icon_id("c20_reclaimers"), 0),
-                ('h4', "", "Halo 4", get_icon_id("effect_scenery"), 1),
-                ('h2a', "", "Halo 2 Anniversary Multiplayer", get_icon_id("rig_creator"), 2),
+        items = [ ('reach', "", "Halo Reach", get_icon_id("halo_reach"), 0),
+                ('h4', "", "Halo 4", get_icon_id("halo_4"), 1),
+                ('h2a', "", "Halo 2 Anniversary Multiplayer", get_icon_id("halo_2amp"), 2),
                ]
         return items
     
@@ -230,36 +316,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
 # ----- OBJECT PROPERTIES -------
 # -------------------------------
-from ..utils.nwo_utils import (
-    frame_prefixes,
-    get_asset_info,
-    get_data_path,
-    is_linked,
-    managed_blam_active,
-    marker_prefixes,
-    mesh_object,
-    run_ek_cmd,
-    set_active_object,
-    special_prefixes,
-    boundary_surface_prefixes,
-    poop_lighting_prefixes,
-    poop_pathfinding_prefixes,
-    poop_render_only_prefixes,
-    object_prefix,
-    invalid_mesh_types,
-    get_prop_from_collection,
-    is_design,
-    get_ek_path,
-    not_bungie_game,
-    clean_tag_path,
-    get_tags_path,
-    shortest_string,
-    is_marker,
-    is_mesh,
-    valid_animation_types,
-    dot_partition,
-    CheckType
-)
 
 # ------------------------------------------------------------------------
 # TAG PATH BUTTONS
@@ -682,6 +738,9 @@ class NWO_ObjectProps(Panel):
                         row.prop(ob_nwo, "fog_appearance_tag", text='Fog Appearance Tag')
                         row.operator('nwo.fog_path')
                         col.prop(ob_nwo, "fog_volume_depth", text='Fog Volume Depth')
+
+                    elif ob_nwo.plane_type_ui == '_connected_geometry_plane_type_water_surface':
+                        col.prop(ob_nwo, "mesh_tessellation_density")
 
                 if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_volume':
                     row = col.row()
