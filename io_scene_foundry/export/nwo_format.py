@@ -722,10 +722,14 @@ class NWOMarker(NWOObject):
         return radius_str(self.ob) if self.ob.type == 'MESH' else jstr(self.halo.marker_sphere_radius)
 
     def physics_constraint_parent(self):
-        return self.halo.physics_constraint_parent
+        if self.halo.physics_constraint_parent:
+            return self.halo.physics_constraint_parent.name
+        return ''
 
     def physics_constraint_child(self):
-        return self.halo.physics_constraint_child
+        if self.halo.physics_constraint_child:
+            return self.halo.physics_constraint_child.name
+        return ''
 
     def physics_constraint_use_limits(self):
         return bool_str(self.halo.physics_constraint_uses_limits) 
