@@ -26,6 +26,8 @@
 
 from bpy.types import Menu
 
+from io_scene_foundry.icons import get_icon_id
+
 class FoundrySplashScreen(Menu):
     bl_label = "Splash"
 
@@ -84,3 +86,24 @@ class FoundrySplashScreen(Menu):
 
         layout.separator()
         layout.separator()
+
+class FoundryTOPBAREditor(Menu): # TOPBAR_MT_editor_menus
+    bl_idname = "TOPBAR_MT_editor_menus"
+    bl_label = ""
+
+    def draw(self, context):
+        layout = self.layout
+
+        # Allow calling this menu directly (this might not be a header area).
+        if getattr(context.area, "show_menus", False):
+            layout.menu("TOPBAR_MT_blender", text="", icon_value=get_icon_id('foundry'))
+        else:
+            layout.menu("TOPBAR_MT_blender", text="Blender")
+
+        layout.menu("TOPBAR_MT_file")
+        layout.menu("TOPBAR_MT_edit")
+
+        layout.menu("TOPBAR_MT_render")
+
+        layout.menu("TOPBAR_MT_window")
+        layout.menu("TOPBAR_MT_help")

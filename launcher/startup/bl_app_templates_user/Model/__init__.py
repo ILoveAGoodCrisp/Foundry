@@ -2,7 +2,7 @@ import bpy
 from bpy.types import Menu
 from bpy.app.handlers import persistent
 
-from io_scene_foundry.utils.splash_screen import FoundrySplashScreen
+from io_scene_foundry.utils.splash_screen import FoundrySplashScreen, FoundryTOPBAREditor
 
 @persistent
 def load_handler_for_preferences(_):
@@ -20,10 +20,13 @@ def load_handler(dummy):
 class WM_MT_splash(FoundrySplashScreen):
     bl_label = "Splash"
 
+class TOPBAR_MT_editor_menus(FoundryTOPBAREditor): 
+    bl_idname = "TOPBAR_MT_editor_menus"
+
 classes = (
     WM_MT_splash,
+    TOPBAR_MT_editor_menus,
 )
-
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
