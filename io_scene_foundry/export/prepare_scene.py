@@ -879,7 +879,7 @@ def find_shaders_on_export(materials, context, report):
 def fix_blank_group_names(context):
     for ob in context.view_layer.objects:
         if ob.nwo.bsp_name == '':
-            ob.nwo.bsp_name = '000'
+            ob.nwo.bsp_name = 'default'
         if ob.nwo.permutation_name == '':
             ob.nwo.permutation_name = 'default'
         if ob.nwo.region_name == '':

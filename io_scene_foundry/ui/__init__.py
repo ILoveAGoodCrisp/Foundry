@@ -50,6 +50,7 @@ from bpy.props import (
         )
 
 from ..utils.nwo_utils import (
+    bpy_enum_list,
     bpy_enum_seam,
     formalise_game_version,
     frame_prefixes,
@@ -69,6 +70,8 @@ from ..utils.nwo_utils import (
     shortest_string,
     dot_partition,
     true_bsp,
+    true_permutation,
+    true_region,
     valid_nwo_asset,
     package,
 )
@@ -703,15 +706,20 @@ class NWO_ObjectProps(Panel):
                 col = flow.column()
                 col.use_property_split = True
                 if poll_ui('SCENARIO'):
+                    row = col.row()
                     if ob_nwo.permutation_name_locked != '':
-                        col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
+                        row.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
                     else:
-                        col.prop(ob_nwo, 'permutation_name', text='Permutation')
+                        row.prop(ob_nwo, "permutation_name", text='Permutation')
+                        row.operator_menu_enum("nwo.permutation_list", "permutation", text='', icon="DISCLOSURE_TRI_DOWN")
 
+                    row = col.row()
                     if ob_nwo.bsp_name_locked != '':
-                        col.prop(ob_nwo, 'bsp_name_locked', text='BSP')
+                        row.prop(ob_nwo, 'bsp_name_locked', text='BSP')
                     else:
-                        col.prop(ob_nwo, 'bsp_name', text='BSP')
+                        row.prop(ob_nwo, 'bsp_name', text='BSP')
+                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
+
 
                     col.separator()
 
@@ -734,24 +742,22 @@ class NWO_ObjectProps(Panel):
                 col.use_property_split = True
 
                 if poll_ui(('MODEL', 'SCENARIO')):
+                    row = col.row()
                     if poll_ui('MODEL') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_object_instance':
                         pass
                     elif ob_nwo.permutation_name_locked != '':
-                        col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
+                        row.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
                     else:
-                        col.prop(ob_nwo, 'permutation_name', text='Permutation')
+                        row.prop(ob_nwo, "permutation_name", text='Permutation')
+                        row.operator_menu_enum("nwo.permutation_list", "permutation", text='', icon="DISCLOSURE_TRI_DOWN")
 
                 if poll_ui('SCENARIO'):
-                    if is_design(ob):
-                        if ob_nwo.bsp_name_locked != '':
-                            col.prop(ob_nwo, 'bsp_name_locked', text='Design Group')
-                        else:
-                            col.prop(ob_nwo, 'bsp_name', text='Design Group')
+                    row = col.row()
+                    if ob_nwo.bsp_name_locked != '':
+                        row.prop(ob_nwo, 'bsp_name_locked', text='BSP')
                     else:
-                        if ob_nwo.bsp_name_locked != '':
-                            col.prop(ob_nwo, 'bsp_name_locked', text='BSP')
-                        else:
-                            col.prop(ob_nwo, 'bsp_name', text='BSP')
+                        row.prop(ob_nwo, 'bsp_name', text='BSP')
+                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
 
                 col.separator()
 
@@ -858,20 +864,18 @@ class NWO_ObjectProps(Panel):
 
                 if poll_ui('SCENARIO'):
                     if ob_nwo.permutation_name_locked != '':
-                        col.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
+                        row = col.row()
+                        row.prop(ob_nwo, 'permutation_name_locked', text='Permutation')
                     else:
-                        col.prop(ob_nwo, 'permutation_name', text='Permutation')
+                        row.prop(ob_nwo, 'permutation_name', text='Permutation')
+                        row.operator_menu_enum("nwo.permutation_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
 
-                    if is_design(ob):
-                        if ob_nwo.bsp_name_locked != '':
-                            col.prop(ob_nwo, 'bsp_name_locked', text='Design Group')
-                        else:
-                            col.prop(ob_nwo, 'bsp_name', text='Design Group')
+                    if ob_nwo.bsp_name_locked != '':
+                        row = col.row()
+                        row.prop(ob_nwo, 'bsp_name_locked', text='BSP')
                     else:
-                        if ob_nwo.bsp_name_locked != '':
-                            col.prop(ob_nwo, 'bsp_name_locked', text='BSP')
-                        else:
-                            col.prop(ob_nwo, 'bsp_name', text='BSP')
+                        row.prop(ob_nwo, 'bsp_name', text='BSP')
+                        row.operator_menu_enum("nwo.bsp_list", "bsp", text='', icon="DISCLOSURE_TRI_DOWN")
                             
                     col.separator()
 
@@ -997,6 +1001,7 @@ class NWO_MeshFaceProps(Panel):
             else:
                 row = col.row(align=True)
                 row.prop(ob_nwo, "region_name", text='Region')
+                row.operator_menu_enum("nwo.region_list", "region", text='', icon="DISCLOSURE_TRI_DOWN")
                 if ob.nwo_face.face_props and ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_render', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'):
                     for prop in ob.nwo_face.face_props:
                         if prop.region_name_override:
@@ -1793,7 +1798,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     bsp_name: StringProperty(
         name="BSP Name",
-        default='000',
+        default='default',
         description="Set bsp name for this object. Only valid for scenario exports",
     )
 
@@ -1828,18 +1833,42 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
     ################
 
+    def mesh_primitive_type_items(self, context):
+        items = []
+        items.append(('_connected_geometry_primitive_type_none', "None", "None", 0))
+        items.append(('_connected_geometry_primitive_type_box', "Box", "Box", 1))
+        items.append(('_connected_geometry_primitive_type_pill', "Pill", "Pill", 2))
+        items.append(('_connected_geometry_primitive_type_sphere', "Sphere", "Sphere", 3))
+        if not_bungie_game():
+            items.append(('_connected_geometry_primitive_type_mopp', "MOPP", "", 4))
+
+        return items
+
+    def get_mesh_primitive_type(self):
+        max_int = 3
+        if not_bungie_game():
+            max_int = 4
+        if self.mesh_primitive_type_help > max_int:
+            return 0
+        return self.mesh_primitive_type_help
+
+    def set_mesh_primitive_type(self, value):
+        self["mesh_primitive_type"] = value
+
+    def update_mesh_primitive_type(self, context):
+        self.mesh_primitive_type_help = self["mesh_primitive_type"]
+
     mesh_primitive_type : EnumProperty(
         name="Mesh Primitive Type",
         options=set(),
         description="Select the primtive type of this mesh",
-        default = "_connected_geometry_primitive_type_none",
-        items=[ ('_connected_geometry_primitive_type_none', "None", "None"),
-                ('_connected_geometry_primitive_type_box', "Box", "Box"),
-                ('_connected_geometry_primitive_type_pill', "Pill", "Pill"),
-                ('_connected_geometry_primitive_type_sphere', "Sphere", "Sphere"),
-                ('_connected_geometry_primitive_type_mopp', "MOPP", ""),
-               ]
+        items=mesh_primitive_type_items,
+        get=get_mesh_primitive_type,
+        set=set_mesh_primitive_type,
+        update=update_mesh_primitive_type,
         )
+
+    mesh_primitive_type_help : IntProperty()
 
     mesh_tessellation_density : EnumProperty(
         name="Mesh Tessellation Density",
@@ -1930,7 +1959,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     region_name: StringProperty(
         name="Face Region",
-        default='',
+        default='default',
         description="Define the name of the region these faces should be associated with",
     )
 
@@ -1946,7 +1975,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     permutation_name: StringProperty(
         name="Permutation",
-        default='',
+        default='default',
         description="Define the permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
     )
 
@@ -6140,6 +6169,114 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     master_instance : PointerProperty(type=bpy.types.Object)
 
 ##################################################
+
+# LIST SYSTEMS
+# ------------------------------------------------
+
+class NWO_RegionList(Operator):
+    bl_idname = "nwo.region_list"
+    bl_label = "Region List"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Applies a region to the selected object"
+
+    def regions_items(self, context):
+        # get scene regions
+        regions = ['default']
+        for ob in context.scene.objects:
+            region = true_region(ob.nwo)
+            if region not in regions:
+                regions.append(region)
+            # also need to loop through face props
+            for face_prop in ob.nwo_face.face_props: 
+                if face_prop.region_name_override and face_prop.region_name not in regions:
+                    regions.append(face_prop.region_name)
+
+        items = []
+        for index, region in enumerate(regions):
+            items.append(bpy_enum_list(region, index))
+
+        return items
+
+    region : EnumProperty(
+        name="Region",
+        items=regions_items,
+    )
+
+    def execute(self, context):
+        context.object.nwo.region_name = self.region
+        return {'FINISHED'}
+    
+class NWO_PermutationList(Operator):
+    bl_idname = "nwo.permutation_list"
+    bl_label = "Permutation List"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Applies a permutation to the selected object"
+
+    def permutations_items(self, context):
+        # get scene perms
+        permutations = ['default']
+        for ob in context.scene.objects:
+            permutation = true_permutation(ob.nwo)
+            if permutation not in permutations:
+                permutations.append(permutation)
+
+        items = []
+        for index, permutation in enumerate(permutations):
+            items.append(bpy_enum_list(permutation, index))
+
+        return items
+
+    permutation : EnumProperty(
+        name="Permutation",
+        items=permutations_items,
+    )
+
+    def execute(self, context):
+        context.object.nwo.permutation_name = self.permutation
+        return {'FINISHED'}
+
+class NWO_BSPList(Operator):
+    bl_idname = "nwo.bsp_list"
+    bl_label = "BSP List"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Applies a BSP to the selected object"
+
+    def bsp_items(self, context):
+        # get scene perms
+        bsps = ['default']
+        for ob in context.scene.objects:
+            bsp = true_bsp(ob.nwo)
+            if bsp not in bsps:
+                bsps.append(bsp)
+
+        items = []
+        for index, bsp in enumerate(bsps):
+            items.append(bpy_enum_list(bsp, index))
+
+        return items
+
+    bsp : EnumProperty(
+        name="Permutation",
+        items=bsp_items,
+    )
+
+    def execute(self, context):
+        context.object.nwo.bsp_name = self.bsp
+        return {'FINISHED'}
+
+
+
+
+
+
+
+
+
+
+
+
+
+###################################################
     
 def draw_filepath(self, context):
     layout = self.layout
@@ -6176,6 +6313,9 @@ classeshalo = (
     NWO_LensFlarePath,
     NWO_ShaderPath,
     NWO_ObjectProps,
+    NWO_RegionList,
+    NWO_PermutationList,
+    NWO_BSPList,
     # NWO_ObjectMeshProps,
     # NWO_ObjectMarkerProps,
     NWO_MaterialProps,
