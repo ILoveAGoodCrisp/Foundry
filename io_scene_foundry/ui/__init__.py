@@ -4784,10 +4784,8 @@ class NWO_FaceMapProps(Panel):
                 else:
                     if item.seam_override:
                         row = col.row()
-                        row.prop(item, "seam")
-                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'seam'
-                        row = col.row()
                         row.prop(item, "seam_adjacent_bsp")
+                        row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'seam'
                     if item.instanced_collision_override:
                         row = col.row()
                         row.prop(item, "instanced_collision")
@@ -4802,6 +4800,7 @@ class NWO_FaceMapProps(Panel):
                         row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'cookie_cutter'
                     if item.region_name_override:
                         row = col.row()
+                        row.prop(item, "region_name")
                         row.prop(item, "region_name")
                         row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'region'
                     if item.face_type_override:
@@ -5695,14 +5694,14 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     # seam
     seam_override : BoolProperty()
 
-    def seam_item(self, context):
-        return [('seam', true_bsp(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam_facing"), 0)]
+    # def seam_item(self, context):
+    #     return [('seam', true_bsp(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam_facing"), 0)]
 
-    seam : EnumProperty(
-        name="Seam Facing BSP", 
-        options=set(), 
-        items=seam_item,
-        )
+    # seam : EnumProperty(
+    #     name="Seam Facing BSP", 
+    #     options=set(), 
+    #     items=seam_item,
+    #     )
     
     def scene_bsps(self, context):
         bsp_list = []
