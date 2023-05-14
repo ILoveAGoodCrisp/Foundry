@@ -5696,7 +5696,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     seam_override : BoolProperty()
 
     def seam_item(self, context):
-        return [('seam', true_bsp(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam"), 0)]
+        return [('seam', true_bsp(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam_facing"), 0)]
 
     seam : EnumProperty(
         name="Seam Facing BSP", 

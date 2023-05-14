@@ -913,7 +913,7 @@ def bpy_enum_list(name, index):
     return (name, name, '', '', index)
 
 def bpy_enum_seam(name, index):
-    return (name, name, '', get_icon_id("seam"), index)
+    return (name, name, '', get_icon_id("seam_backfacing"), index)
 
 def formalise_game_version(game):
     if game == 'reach':
