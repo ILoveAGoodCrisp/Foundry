@@ -49,8 +49,8 @@ class FoundrySplashScreen(Menu):
         col1.operator("wm.read_homefile", text="Sky", icon_value=get_icon_id("sky")).app_template = "Sky"
         col1.operator("wm.read_homefile", text="Decorator Set", icon_value=get_icon_id("decorator")).app_template = "Decorator Set"
         col1.operator("wm.read_homefile", text="Particle Model", icon_value=get_icon_id("particle_model")).app_template = "Particle Model"
-        col1.operator("wm.read_homefile", text="Prefab", icon_value=get_icon_id("prefab")).app_template = "Prefab"
         col1.operator("wm.read_homefile", text="First Person Animation", icon_value=get_icon_id("animation")).app_template = "First Person Animation"
+        col1.operator("wm.read_homefile", text="Prefab", icon_value=get_icon_id("prefab")).app_template = "Prefab"
         # Recent
         col2 = split.column()
         col2.label(text="")

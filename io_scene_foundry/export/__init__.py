@@ -1103,8 +1103,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         items.append(('SKY', 'Sky', '', get_icon_id("sky"), 2))
         items.append(('DECORATOR SET', 'Decorator Set', '', get_icon_id("decorator"), 3))
         items.append(('PARTICLE MODEL', 'Particle Model', '', get_icon_id("particle_model"), 4))
-        items.append(('PREFAB', 'Prefab', '', get_icon_id("prefab"), 5))
-        items.append(('FP ANIMATION', 'First Person Animation', '', get_icon_id("animation"), 6))
+        items.append(('FP ANIMATION', 'First Person Animation', '', get_icon_id("animation"), 5))
+        if context.scene.nwo_global.game_version != 'reach':
+            items.append(('PREFAB', 'Prefab', '', get_icon_id("prefab"), 6))
 
         return items
     

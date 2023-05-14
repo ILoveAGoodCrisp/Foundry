@@ -69,12 +69,11 @@ class ManagedBlam_Init(Operator):
             import clr
             try:
                 clr.AddReference(mb_path)
-                if bpy.context.scene.nwo_global.game_version == 'reach':
+                if context.scene.nwo_global.game_version == 'reach':
                     import Bungie
-                    print("Import Bungie")
                 else:
                     import Corinth as Bungie
-                    print("Imported Corinth as Bungie")
+
             except:
                 print('Failed to add reference to ManagedBlam')
                 return({'CANCELLED'})
@@ -103,7 +102,6 @@ class ManagedBlam_Init(Operator):
                 return({'CANCELLED'})
             else:
                 print("Success!")
-                print("game_version locked")
                 with open(os.path.join(bpy.app.tempdir, 'blam.txt'), 'x') as blam_txt:
                     blam_txt.write(mb_path)
                 return({'FINISHED'})

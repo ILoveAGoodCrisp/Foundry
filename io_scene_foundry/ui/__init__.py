@@ -241,19 +241,27 @@ class NWO_AssetMaker(Operator):
 
         return {'RUNNING_MODAL'}
 
-def GameVersionWarning(self, context):
+def game_version_warning(self, context):
     self.layout.label(text=f"Please set your editing kit path for {context.scene.nwo_global.game_version.upper()} in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset]")
+
+def prefab_warning(self, context):
+    self.layout.label(text=f"Halo Reach does not support prefab assets")
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
     def check_paths_update_scene(self, context):
         ek_path = get_ek_path()
         if ek_path is None or ek_path == '':
-            context.window_manager.popup_menu(GameVersionWarning, title="Warning", icon='ERROR')
+            context.window_manager.popup_menu(game_version_warning, title="Warning", icon='ERROR')
 
         # store this value in a txt file so we can retrive it when changing scene
         temp_file_path = os.path.join(bpy.app.tempdir, 'game_version.txt')
         with open(temp_file_path, 'w') as temp_file:
             temp_file.write(f'{self.game_version}')
+
+        scene = context.scene
+        nwo_asset = scene.nwo
+        if nwo_asset.asset_type == '' and self.game_version == 'reach':
+            nwo_asset.asset_type = 'SCENARIO'
 
     def game_version_items(self, context):
         items = [ ('reach', "Halo Reach", "Halo Reach", get_icon_id("halo_reach"), 0),
@@ -261,7 +269,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 ('h2a', "Halo 2AMP", "Halo 2 Anniversary Multiplayer", get_icon_id("halo_2amp"), 2),
                ]
         return items
-    
                 
     game_version: EnumProperty(
         name="Game",
