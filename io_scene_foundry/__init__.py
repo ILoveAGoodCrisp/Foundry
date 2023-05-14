@@ -27,13 +27,14 @@
 # Don't edit the version or build version here or it will break CI
 # Need to do this because of Blender parsing the plugin init code instead of actually executing it when getting bl_info
 
+import ctypes
 import bpy
 from bpy.types import AddonPreferences, Operator
 from bpy.props import StringProperty, EnumProperty, BoolProperty
 from bpy.app.handlers import persistent
 import os
 
-from io_scene_foundry.utils.nwo_utils import valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import formalise_game_version, get_ek_path, managed_blam_active, valid_nwo_asset
 
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
@@ -57,9 +58,9 @@ from . import managed_blam
 modules = [
     icons,
     tools,
+    managed_blam,
     ui,
     export,
-    managed_blam,
 ]
 
 class HREKLocationPath(Operator):
@@ -218,6 +219,17 @@ def load_handler(dummy):
     # run ManagedBlam on startup if enabled
     if bpy.context.scene.nwo_global.mb_startup:
         bpy.ops.managed_blam.init()
+
+    # create warning if current game_version is incompatible with loaded managedblam.dll
+    if os.path.exists(os.path.join(bpy.app.tempdir, 'blam.txt')):
+        with open(os.path.join(bpy.app.tempdir, 'blam.txt'), 'r') as blam_txt:
+            mb_path = blam_txt.read()
+        
+        if not mb_path.startswith(get_ek_path()):
+            game = formalise_game_version(bpy.context.scene.nwo_global.game_version)
+            result = ctypes.windll.user32.MessageBoxW(0, f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\n Close Blender?", f"ManagedBlam / Game Mismatch", 4)
+            if result == 6:
+                bpy.ops.wm.quit_blender()
 
 def register():
     bpy.utils.register_class(ToolkitLocationPreferences)

@@ -273,6 +273,7 @@ def justify_face_split(ob):
     if len(ob.face_maps) < 1:
         return False
     if len(ob.face_maps) == 1:
+        # determine if the facemap covers the entire mesh. If it does we don't need to split
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.face_map_select()

@@ -1,10 +1,39 @@
+# ##### BEGIN MIT LICENSE BLOCK #####
+#
+# MIT License
+#
+# Copyright (c) 2023 Crisp
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_tag_and_path
-from io_scene_foundry.utils.nwo_utils import get_asset_path, get_valid_shader_name, print_warning
+from io_scene_foundry.utils.nwo_utils import formalise_game_version, get_asset_path, get_valid_shader_name, managed_blam_active, print_warning
 import bpy
 import os
 from bpy.types import Operator
 from bpy.props import StringProperty
+from io_scene_foundry.utils.nwo_utils import get_ek_path
+import sys
+import subprocess
+import ctypes
 
 # def create_shader_tag(blender_material):
 #     # Check if bitmaps exist already, if not, create them
@@ -24,12 +53,6 @@ class ManagedBlam_Init(Operator):
         pass
 
     def execute(self, context):
-        from io_scene_foundry.utils.nwo_utils import get_ek_path
-        import sys
-        import os
-        import subprocess
-        import ctypes
-
         # append the blender python module path to the sys PATH
         packages_path = os.path.join(sys.exec_prefix, 'lib', 'site-packages')
         sys.path.append(packages_path)
@@ -46,7 +69,6 @@ class ManagedBlam_Init(Operator):
             import clr
             try:
                 clr.AddReference(mb_path)
-                print(mb_path)
                 if bpy.context.scene.nwo_global.game_version == 'reach':
                     import Bungie
                     print("Import Bungie")
@@ -58,21 +80,16 @@ class ManagedBlam_Init(Operator):
                 return({'CANCELLED'})
         except:
             print("Couldn't find clr module, attempting pythonnet install")
-            print("Blender Version: " + bpy.app.version_string)
-            if bpy.app.version < (3, 4, 0):
-                ctypes.windll.user32.MessageBoxW(0, "Your blender version (" + bpy.app.version_string + ") is too old. Minimum required version is 3.4.0 to install Pythonnet for ManagedBlam.", f"Blender Version Too Old", 0)
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", 'pythonnet'])
+                print("Succesfully installed necessary modules")
+                open(os.path.join(bpy.app.tempdir, 'blam_new.txt'), 'x')
+                ctypes.windll.user32.MessageBoxW(0, "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.", f"Pythonnet Installed for Blender", 0)
+            except:
+                print('Failed to install pythonnet')
                 return({'CANCELLED'})
             else:
-                try:
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", 'pythonnet'])
-                    print("Succesfully installed necessary modules")
-                    open(os.path.join(bpy.app.tempdir, 'blam_new.txt'), 'x')
-                    ctypes.windll.user32.MessageBoxW(0, "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.", f"Pythonnet Installed for Blender", 0)
-                except:
-                    print('Failed to install pythonnet')
-                    return({'CANCELLED'})
-                else:
-                    return({'FINISHED'})
+                return({'FINISHED'})
 
         else:
             # Initialise ManagedBlam     
@@ -87,7 +104,8 @@ class ManagedBlam_Init(Operator):
             else:
                 print("Success!")
                 print("game_version locked")
-                open(os.path.join(bpy.app.tempdir, 'blam.txt'), 'x')
+                with open(os.path.join(bpy.app.tempdir, 'blam.txt'), 'x') as blam_txt:
+                    blam_txt.write(mb_path)
                 return({'FINISHED'})
             
 class ManagedBlam_NewShader(Operator):
@@ -250,5 +268,3 @@ def register():
 def unregister():
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
-
-

@@ -55,7 +55,7 @@ import ctypes
 from io_scene_foundry.icons import get_icon_id
 
 
-from io_scene_foundry.utils.nwo_utils import CheckPath, bpy_enum, dot_partition, get_data_path, get_asset_info, get_ek_path, get_tags_path, get_tool_path, managed_blam_active
+from io_scene_foundry.utils.nwo_utils import CheckPath, bpy_enum, dot_partition, formalise_game_version, get_data_path, get_asset_info, get_ek_path, get_tags_path, get_tool_path, managed_blam_active
 
 # lightmapper_run_once = False
 sidecar_read = False
@@ -513,15 +513,15 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         # Check that we can export
         if not CheckPath(self.filepath) or not file_exists(f'{get_tool_path()}.exe') or asset_path + path.sep == get_data_path(): # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
-
+            game = formalise_game_version(self.game_version)
             if get_ek_path() is None or get_ek_path() == '':
-                ctypes.windll.user32.MessageBoxW(0, f"No {self.game_version.upper()} Editing Kit path found. Please check your {self.game_version.upper()} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {self.game_version.upper()} editing kit directory.", f"INVALID {self.game_version.upper()} EK PATH", 0)
+                ctypes.windll.user32.MessageBoxW(0, f"No {game} Editing Kit path found. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.", f"INVALID {game} EK PATH", 0)
             elif not file_exists(f'{get_tool_path()}.exe'):
-                ctypes.windll.user32.MessageBoxW(0, f"{self.game_version.upper()} Tool not found. Could not find {self.game_version.upper()} tool or tool_fast. Please check your {self.game_version.upper()} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {self.game_version.upper()} editing kit directory.", f"INVALID {self.game_version.upper()} TOOL PATH", 0)
+                ctypes.windll.user32.MessageBoxW(0, f"{game} Tool not found. Could not find {game} tool or tool_fast. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.", f"INVALID {game} TOOL PATH", 0)
             elif asset_path + path.sep == get_data_path():
-                ctypes.windll.user32.MessageBoxW(0, f'You cannot export directly to your root {self.game_version.upper()} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder', f"ROOT DATA FOLDER EXPORT", 0)
+                ctypes.windll.user32.MessageBoxW(0, f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder', f"ROOT DATA FOLDER EXPORT", 0)
             else:
-                ctypes.windll.user32.MessageBoxW(0, f"The selected export folder is outside of your {self.game_version.upper()} editing kit data directory, please ensure you are exporting to a directory within your {self.game_version.upper()} editing kit data folder.", f"INVALID {self.game_version.upper()} EXPORT PATH", 0)
+                ctypes.windll.user32.MessageBoxW(0, f"The selected export folder is outside of your {game} editing kit data directory, please ensure you are exporting to a directory within your {game} editing kit data folder.", f"INVALID {game} EXPORT PATH", 0)
             
         else:
             print('Preparing Scene for Export...')
