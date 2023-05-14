@@ -1,5 +1,4 @@
 import bpy
-from bpy.types import Menu
 from bpy.app.handlers import persistent
 
 from io_scene_foundry.utils.splash_screen import FoundrySplashScreen

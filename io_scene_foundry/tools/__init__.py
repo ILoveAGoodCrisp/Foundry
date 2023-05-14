@@ -1974,6 +1974,8 @@ def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
 
+
+    bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
     bpy.types.Scene.nwo_frame_ids = PointerProperty(type=NWO_SetFrameIDsPropertiesGroup, name="Halo Frame ID Getter", description="Gets Frame IDs")
     bpy.types.Scene.nwo_halo_launcher = PointerProperty(type=NWO_HaloLauncherPropertiesGroup, name="Halo Launcher", description="Launches stuff")
     bpy.types.Scene.nwo_shader_finder = PointerProperty(type=NWO_HaloShaderFinderPropertiesGroup, name="Shader Finder", description="Find Shaders")
@@ -1982,13 +1984,17 @@ def register():
     bpy.types.Scene.nwo_armature_creator = PointerProperty(type=NWO_ArmatureCreatorPropertiesGroup, name="Halo Armature", description="")
     bpy.types.Scene.nwo_bitmap_export = PointerProperty(type=NWO_BitmapExportPropertiesGroup, name="Halo Bitmap Export", description="")
     bpy.types.Scene.nwo_shader_build = PointerProperty(type=NWO_ShaderPropertiesGroup, name="Halo Shader Export", description="")
-    bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
     
 def unregister():
+    bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
+    del bpy.types.Scene.nwo_frame_ids
+    del bpy.types.Scene.nwo_halo_launcher
+    del bpy.types.Scene.nwo_shader_finder
+    del bpy.types.Scene.nwo_export
+    del bpy.types.Scene.nwo_collection_manager
+    del bpy.types.Scene.nwo_armature_creator
+    del bpy.types.Scene.nwo_bitmap_export
+    del bpy.types.Scene.nwo_shader_build
     for clshalo in classeshalo:
-        bpy.types.VIEW3D_MT_add.remove(add_halo_scale_model_button)
         bpy.utils.unregister_class(clshalo)
-
-if __name__ == '__main__':
-    register()
     

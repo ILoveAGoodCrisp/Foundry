@@ -1117,8 +1117,11 @@ class NWOMesh(NWOObject):
         return self.halo.mesh_compression
 
     def mesh_use_uncompressed_verts(self):
-        if self.bungie_mesh_type in ('_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_object_instance'):
-            return bool_str(not self.halo.compress_verts)
+        if self.bungie_mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_object_instance'):
+            if '_connected_geometry_mesh_type_default' and self.sidecar_type == 'SCENARIO':
+                return bool_str(False)
+            else:
+                return bool_str(not self.halo.compress_verts)
         else:
             return bool_str(False)
 

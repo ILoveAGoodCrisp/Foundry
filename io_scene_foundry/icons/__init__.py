@@ -22,6 +22,3 @@ def unregister():
     for icon in preview_collections.values():
         previews.remove(icon)
     preview_collections.clear()
-
-if __name__ == '__main__':
-    register()

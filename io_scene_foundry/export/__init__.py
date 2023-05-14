@@ -1221,6 +1221,3 @@ def unregister():
     del bpy.types.Scene.nwo
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
-
-if __name__ == "__main__":
-    register()
