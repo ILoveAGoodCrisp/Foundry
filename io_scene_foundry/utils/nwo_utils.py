@@ -934,3 +934,25 @@ def export_objects():
 
 def sort_alphanum(var_list):
     return sorted(var_list, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
+
+def closest_bsp_object(ob):
+    closest_bsp = None
+    distance = -1
+
+    def get_distance(p1, p2) :
+        [x1, y1, z1] = p1
+        [x2, y2, z2] = p2
+        return (((x2-x1)**2) + ((y2-y1)**2) + ((z2-z1)**2)) ** (1/2)
+
+    for o in export_objects():
+        if ob == o or not o.type == 'MESH' and true_bsp(o) != true_bsp(ob):
+            continue
+        d = get_distance(ob.location, o.location)
+        if distance < 0 or d < distance:
+            distance = d
+            closest_bsp = o
+
+    if closest_bsp is not None:
+        return closest_bsp
+    
+    return None

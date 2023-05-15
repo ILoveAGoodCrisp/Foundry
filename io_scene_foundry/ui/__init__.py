@@ -52,6 +52,7 @@ from bpy.props import (
 from ..utils.nwo_utils import (
     bpy_enum_list,
     bpy_enum_seam,
+    closest_bsp_object,
     export_objects,
     formalise_game_version,
     frame_prefixes,
@@ -5404,6 +5405,10 @@ class NWO_FacePropAdd(Operator):
                 item.region_name = r_name[-1].lower()
             else:
                 item.face_global_material = r_name[-1].lower()
+        elif self.options == 'seam':
+            closest_bsp = closest_bsp_object(ob)
+            if closest_bsp is not None:
+                item.seam_adjacent_bsp = true_bsp(closest_bsp.nwo)
         context.area.tag_redraw()
 
         return {'FINISHED'}
