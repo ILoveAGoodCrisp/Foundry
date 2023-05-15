@@ -5409,6 +5409,8 @@ class NWO_FacePropAdd(Operator):
             closest_bsp = closest_bsp_object(ob)
             if closest_bsp is not None:
                 item.seam_adjacent_bsp = true_bsp(closest_bsp.nwo)
+            else:
+                self.report({'WARNING'}, "No other BSPs in scene. Please create another BSP to use seams")
         context.area.tag_redraw()
 
         return {'FINISHED'}
