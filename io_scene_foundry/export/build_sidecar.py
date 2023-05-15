@@ -42,6 +42,7 @@ from ..utils.nwo_utils import (
     get_design_from_halo_objects,
     get_render_from_halo_objects,
     not_bungie_game,
+    sort_alphanum,
 
 )
 
@@ -450,7 +451,7 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
                     bsp_list.append(ob.nwo.bsp_name)
 
         # # sort bsp list alphanumerically
-        bsp_list.sort()
+        bsp_list = sort_alphanum(bsp_list)
 
         for ob in bpy.context.view_layer.objects:
             if ob.nwo.bsp_name_locked != '':
@@ -509,7 +510,7 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
                     bsp_list.append(ob.nwo.bsp_name)
 
         # sort bsp list alphanumerically
-        bsp_list.sort()
+        bsp_list = sort_alphanum(bsp_list)
         
         for bsp in bsp_list:
             content = ET.SubElement(contents, "Content", Name=f'{asset_name}_{bsp}_structure_design', Type='design')

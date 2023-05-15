@@ -39,6 +39,7 @@ from ..utils.nwo_utils import(
     get_prefab_from_halo_objects,
     print_box,
     CheckType,
+    sort_alphanum,
 )
 
 #####################################################################################
@@ -218,6 +219,9 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                         if ob.nwo.bsp_name == 'shared':
                             shared_bsp_exists = True
                             break
+
+                bsp_list = sort_alphanum(bsp_list)
+
                 for bsp in bsp_list:
                     if export_structure:
                         perm_list = []
@@ -236,6 +240,8 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                                         gr2_count += 1
                     # Design time!
                     bsp_list = []
+
+                    bsp_list = sort_alphanum(bsp_list)
 
                     for ob in bpy.context.scene.objects:
                         if ob.nwo.bsp_name_locked != '':

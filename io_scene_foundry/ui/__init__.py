@@ -52,6 +52,7 @@ from bpy.props import (
 from ..utils.nwo_utils import (
     bpy_enum_list,
     bpy_enum_seam,
+    export_objects,
     formalise_game_version,
     frame_prefixes,
     get_data_path,
@@ -69,6 +70,7 @@ from ..utils.nwo_utils import (
     get_tags_path,
     shortest_string,
     dot_partition,
+    sort_alphanum,
     true_bsp,
     true_permutation,
     true_region,
@@ -4786,6 +4788,7 @@ class NWO_FaceMapProps(Panel):
                     if item.seam_override:
                         row = col.row()
                         row.prop(item, "seam_adjacent_bsp")
+                        row.operator_menu_enum("nwo.bsp_list_seam", property="bsp", text='', icon="DOWNARROW_HLT")
                         row.operator("nwo_face.remove_face_property", text='', icon='X').options = 'seam'
                     if item.instanced_collision_override:
                         row = col.row()
@@ -5717,7 +5720,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
 
         return items
 
-    seam_adjacent_bsp : EnumProperty(name="Seam Backfacing BSP", description="The BSP that this seam has it's back to", options=set(), items=scene_bsps)
+    seam_adjacent_bsp : StringProperty(name="Seam Backfacing BSP", description="The BSP that this seam has it's back to", options=set())
 
     face_type : EnumProperty(
         name="Face Type",
@@ -6183,7 +6186,7 @@ class NWO_GlobalMaterialMenu(Menu):
         layout = self.layout
         ob = context.object
         global_materials = ['default']
-        for ob in context.scene.objects:
+        for ob in export_objects():
             global_material = ob.nwo.face_global_material
             if global_material not in global_materials:
                 global_materials.append(global_material)
@@ -6195,10 +6198,11 @@ class NWO_GlobalMaterialMenu(Menu):
         for g_mat in global_materials:
             layout.operator("nwo.global_material_list", text=g_mat).global_material = g_mat
 
-        layout.operator_menu_enum("nwo.global_material_regions_list",
-                                property="region",
-                                text="From Region",
-                                )
+        if poll_ui(('MODEL', 'SKY')):
+            layout.operator_menu_enum("nwo.global_material_regions_list",
+                                    property="region",
+                                    text="From Region",
+                                    )
 
 
 class NWO_RegionList(Operator):
@@ -6210,7 +6214,7 @@ class NWO_RegionList(Operator):
     def regions_items(self, context):
         # get scene regions
         regions = []
-        for ob in context.scene.objects:
+        for ob in export_objects():
             region = true_region(ob.nwo)
             if region not in regions:
                 regions.append(region)
@@ -6219,7 +6223,7 @@ class NWO_RegionList(Operator):
                 if face_prop.region_name_override and face_prop.region_name not in regions:
                     regions.append(face_prop.region_name)
 
-        regions = sorted(regions, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
+        regions = sort_alphanum(regions)
         items = []
         for index, region in enumerate(regions):
             items.append(bpy_enum_list(region, index))
@@ -6253,7 +6257,7 @@ class NWO_GlobalMaterialList(Operator):
     def global_material_items(self, context):
         # get scene regions
         global_materials = []
-        for ob in context.scene.objects:
+        for ob in export_objects():
             global_material = ob.nwo.face_global_material
             if global_material not in global_materials and global_material:
                 global_materials.append(global_material)
@@ -6262,7 +6266,7 @@ class NWO_GlobalMaterialList(Operator):
                 if face_prop.face_global_material_override and face_prop.face_global_material not in global_materials:
                     global_materials.append(face_prop.face_global_material)
 
-        global_materials = sorted(global_materials, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
+        global_materials = sort_alphanum(global_materials)
         items = []
         for index, global_material in enumerate(global_materials):
             items.append(bpy_enum_list(global_material, index))
@@ -6287,12 +6291,12 @@ class NWO_PermutationList(Operator):
     def permutations_items(self, context):
         # get scene perms
         permutations = []
-        for ob in context.scene.objects:
+        for ob in export_objects():
             permutation = true_permutation(ob.nwo)
             if permutation not in permutations:
                 permutations.append(permutation)
 
-        permutations = sorted(permutations, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
+        permutations = sort_alphanum(permutations)
         items = []
         for index, permutation in enumerate(permutations):
             items.append(bpy_enum_list(permutation, index))
@@ -6317,12 +6321,12 @@ class NWO_BSPList(Operator):
     def bsp_items(self, context):
         # get scene perms
         bsps = []
-        for ob in context.scene.objects:
+        for ob in export_objects():
             bsp = true_bsp(ob.nwo)
             if bsp not in bsps:
                 bsps.append(bsp)
 
-        bsps = sorted(bsps, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
+        bsps = sort_alphanum(bsps)
         items = []
         for index, bsp in enumerate(bsps):
             items.append(bpy_enum_list(bsp, index))
@@ -6330,12 +6334,42 @@ class NWO_BSPList(Operator):
         return items
 
     bsp : EnumProperty(
-        name="Permutation",
+        name="bsp",
         items=bsp_items,
     )
 
     def execute(self, context):
         context.object.nwo.bsp_name = self.bsp
+        return {'FINISHED'}
+    
+class NWO_BSPListSeam(NWO_BSPList):
+    bl_idname = "nwo.bsp_list_seam"
+
+    def bsp_items(self, context):
+        # get scene perms
+        self_bsp = true_bsp(context.object.nwo)
+        bsps = []
+        for ob in export_objects():
+            bsp = true_bsp(ob.nwo)
+            if bsp != self_bsp and bsp not in bsps:
+                bsps.append(bsp)
+
+        bsps = sort_alphanum(bsps)
+        items = []
+        for index, bsp in enumerate(bsps):
+            items.append(bpy_enum_list(bsp, index))
+
+        return items
+    
+    bsp : EnumProperty(
+        name="bsp",
+        items=bsp_items,
+    )
+    
+    def execute(self, context):
+        ob = context.object
+        item = ob.nwo_face.face_props[ob.face_maps.active.name]
+        item.seam_adjacent_bsp = self.bsp
         return {'FINISHED'}
 
 
@@ -6377,6 +6411,7 @@ classeshalo = (
     NWO_ShaderPath,
     NWO_ObjectProps,
     NWO_GlobalMaterialRegionList,
+    NWO_BSPListSeam,
     NWO_RegionList,
     NWO_PermutationList,
     NWO_BSPList,

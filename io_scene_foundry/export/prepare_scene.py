@@ -353,6 +353,7 @@ def split_by_face_map(ob, context, h4):
         selection_ob = context.selected_objects
         for obj in selection_ob:
             if len(obj.data.polygons) > 0:
+                # TODO only do data transfer for rendered geo
                 remove_unused_facemaps(obj, context)
                 # set up data transfer modifier to retain normals
                 mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
@@ -375,6 +376,9 @@ def split_by_face_map(ob, context, h4):
     
     else:
         return context.selected_objects
+    
+def structure_to_poop(ob):
+    """Duplicates structure geo and set it to poops for H4"""
     
 def create_adjacent_seam(ob, adjacent_bsp):
     facing_bsp = ob.nwo.bsp_name

@@ -922,3 +922,15 @@ def formalise_game_version(game):
         return 'Halo 4'
     else:
         return 'Halo 2 Anniversary Multiplayer'
+    
+def export_objects():
+    context = bpy.context
+    export_obs = []
+    for ob in context.view_layer.objects:
+        if ob.nwo.export_this and not any(coll.name.startswith("+exclude") for coll in ob.users_collection):
+            export_obs.append(ob)
+
+    return export_obs
+
+def sort_alphanum(var_list):
+    return sorted(var_list, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
