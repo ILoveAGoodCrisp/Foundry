@@ -242,9 +242,10 @@ class NWO_AssetMaker(Operator):
         nwo_asset = scene.nwo
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True)
         col = flow.column(heading="Asset Settings")
-        col.prop(nwo_scene, "game_version", text='', expand=True)
+        col.prop(nwo_scene, "game_version", expand=True)
         col.separator()
         col.prop(nwo_asset, "asset_type", text='')
+        col.scale_y = 1.25
         col.separator()
         col.prop(self, "work_dir", text="Save to work directory")
         col.prop(self, "managed_blam", text="Enable ManagedBlam")
