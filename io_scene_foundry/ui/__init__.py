@@ -6209,7 +6209,7 @@ class NWO_RegionList(Operator):
 
     def regions_items(self, context):
         # get scene regions
-        regions = ['default']
+        regions = []
         for ob in context.scene.objects:
             region = true_region(ob.nwo)
             if region not in regions:
@@ -6219,6 +6219,7 @@ class NWO_RegionList(Operator):
                 if face_prop.region_name_override and face_prop.region_name not in regions:
                     regions.append(face_prop.region_name)
 
+        regions = sorted(regions, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
         items = []
         for index, region in enumerate(regions):
             items.append(bpy_enum_list(region, index))
@@ -6251,7 +6252,7 @@ class NWO_GlobalMaterialList(Operator):
 
     def global_material_items(self, context):
         # get scene regions
-        global_materials = ['default']
+        global_materials = []
         for ob in context.scene.objects:
             global_material = ob.nwo.face_global_material
             if global_material not in global_materials and global_material:
@@ -6261,6 +6262,7 @@ class NWO_GlobalMaterialList(Operator):
                 if face_prop.face_global_material_override and face_prop.face_global_material not in global_materials:
                     global_materials.append(face_prop.face_global_material)
 
+        global_materials = sorted(global_materials, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
         items = []
         for index, global_material in enumerate(global_materials):
             items.append(bpy_enum_list(global_material, index))
@@ -6284,12 +6286,13 @@ class NWO_PermutationList(Operator):
 
     def permutations_items(self, context):
         # get scene perms
-        permutations = ['default']
+        permutations = []
         for ob in context.scene.objects:
             permutation = true_permutation(ob.nwo)
             if permutation not in permutations:
                 permutations.append(permutation)
 
+        permutations = sorted(permutations, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
         items = []
         for index, permutation in enumerate(permutations):
             items.append(bpy_enum_list(permutation, index))
@@ -6313,12 +6316,13 @@ class NWO_BSPList(Operator):
 
     def bsp_items(self, context):
         # get scene perms
-        bsps = ['default']
+        bsps = []
         for ob in context.scene.objects:
             bsp = true_bsp(ob.nwo)
             if bsp not in bsps:
                 bsps.append(bsp)
 
+        bsps = sorted(bsps, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
         items = []
         for index, bsp in enumerate(bsps):
             items.append(bpy_enum_list(bsp, index))

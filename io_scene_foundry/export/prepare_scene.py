@@ -410,7 +410,7 @@ def face_prop_to_mesh_prop(ob, h4, main_mesh=None):
                 face_props = item
                 mesh_props = ob.nwo
                 # run through each face prop and apply it to the mesh if override set
-                if face_props.seam_override:
+                if face_props.seam_override and ob.mwo.mesh_type == '_connected_geometry_mesh_type_default':
                     mesh_props.mesh_type = '_connected_geometry_mesh_type_seam'
                     create_adjacent_seam(ob, face_props.seam_adjacent_bsp)
                 if face_props.face_type_override:
