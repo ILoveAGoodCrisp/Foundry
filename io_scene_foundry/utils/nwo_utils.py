@@ -23,10 +23,11 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
+import bmesh
 import bpy
 import platform
 from math import radians
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 import os
 from os.path import exists as file_exists
 from subprocess import Popen, run, check_call
@@ -939,20 +940,31 @@ def closest_bsp_object(ob):
     closest_bsp = None
     distance = -1
 
-    def get_distance(p1, p2) :
-        [x1, y1, z1] = p1
-        [x2, y2, z2] = p2
-        return (((x2-x1)**2) + ((y2-y1)**2) + ((z2-z1)**2)) ** (1/2)
+    def get_distance(source_object, target_object):
+        source_object.update_from_editmode()
+        me = source_object.data
+        verts_sel = [v.co for v in me.vertices if v.select]
+        if len(verts_sel):
+            seam_median = source_object.matrix_world @ sum(verts_sel, Vector()) / len(verts_sel)
 
-    for o in export_objects():
-        if ob == o or not o.type == 'MESH' and true_bsp(o) != true_bsp(ob):
+            me = target_object.data
+            verts = [v.co for v in me.vertices]
+            target_median = target_object.matrix_world @ sum(verts, Vector()) / len(verts)
+
+            [x1, y1, z1] = seam_median
+            [x2, y2, z2] = target_median
+
+            return (((x2-x1)**2) + ((y2-y1)**2) + ((z2-z1)**2)) ** (1/2)
+        
+        return None
+
+    for target_ob in export_objects():
+        if ob == target_ob or not target_ob.type == 'MESH' and target_ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and true_bsp(target_ob) != true_bsp(ob):
             continue
-        d = get_distance(ob.location, o.location)
-        if distance < 0 or d < distance:
-            distance = d
-            closest_bsp = o
-
-    if closest_bsp is not None:
-        return closest_bsp
+        d = get_distance(ob, target_ob)
+        if d is not None:
+            if distance < 0 or d < distance:
+                distance = d
+                closest_bsp = target_ob
     
-    return None
+    return closest_bsp
