@@ -250,8 +250,8 @@ def remove_unused_facemaps(ob, context):
                 else:
                     bpy.ops.object.face_map_remove()
                 
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-            ob.select_set(False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        ob.select_set(False)
 
 def any_face_props(ob):
     for item in ob.nwo_face.face_props:
