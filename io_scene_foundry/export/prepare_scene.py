@@ -86,6 +86,8 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         # run find shaders code if any empty paths
         # print("Finding missing shaders...")
         find_shaders_on_export(bpy.data.materials, context, report)
+        # build structure seams
+        auto_seam(context)
         # Set up facemap properties
         # print("Building face properties...")
         apply_face_properties(context)
@@ -174,6 +176,97 @@ class HaloObjects():
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
+
+def auto_seam(context):
+    structure_obs = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default']
+    ignore_verts = []
+    for ob in structure_obs:
+        ob_mat = ob.matrix_world
+        # don't need to test a single mesh twice, so remove it from export_objects
+        structure_obs.remove(ob)
+        # get the true locations of ob verts
+        me = ob.data
+        verts = [ob_mat @ v.co for v in me.vertices]
+        # test against all other structure meshes
+        for test_ob in structure_obs:
+            # don't test structure meshes in own bsp
+            if test_ob.nwo.bsp_name == ob.nwo.bsp_name:
+                continue
+            test_ob_mat =  test_ob.matrix_world
+            # get test ob verts
+            test_me = test_ob.data
+            test_verts = [test_ob_mat @ v.co for v in test_me.vertices]
+
+            # check for matching vert coords
+            matching_verts = []
+            for v in verts:
+                for test_v in test_verts:
+                    if v == test_v:
+                        matching_verts.append(v)
+                        break
+
+            # check if at least 3 verts match (i.e. we can make a face out of them)
+            if len(matching_verts) > 2 and matching_verts not in ignore_verts:
+                # remove these verts from the pool obs are allowed to check from
+                ignore_verts.append(matching_verts)
+                # set 3D cursor to bsp median point
+                set_active_object(ob)
+                ob.select_set(True)
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.view3d.snap_cursor_to_selected()
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                ob.select_set(False)
+                # make new seam object
+                ob_nwo = ob.nwo
+                test_ob_nwo = test_ob.nwo
+                facing_bsp = ob_nwo.bsp_name
+                backfacing_bsp = test_ob_nwo.bsp_name
+                facing_perm = ob_nwo.permutation_name
+                backfacing_perm = test_ob_nwo.permutation_name
+                # create the new mesh
+                seam_data = bpy.data.meshes.new("seam")
+                seam_data.from_pydata(matching_verts, [], [])
+                seam_data.update()
+                # create face and triangulate with bmesh
+                bm = bmesh.new()
+                bm.from_mesh(seam_data)
+                bmesh.ops.contextual_create(bm, geom=bm.verts)
+                bmesh.ops.triangulate(bm, faces=bm.faces)
+                bm.to_mesh(seam_data)
+                bm.free()
+                # make a new object, apply halo props and link to the scene
+                seam = bpy.data.objects.new(f"seam({facing_bsp}:{backfacing_bsp})", seam_data)
+                seam_nwo = seam.nwo
+                seam_nwo.bsp_name = facing_bsp
+                seam_nwo.permutation_name = facing_perm
+                seam_nwo.mesh_type = '_connected_geometry_mesh_type_seam'
+                context.scene.collection.objects.link(seam)
+                set_active_object(seam)
+                seam.select_set(True)
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='MEDIAN')
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.normals_make_consistent(inside=True)
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                seam.select_set(False)
+                # now make the new seam to be flipped
+                flipped_seam_data = seam_data.copy()
+                flipped_seam = seam.copy()
+                flipped_seam.data = flipped_seam_data
+                flipped_seam.name = f"seam({backfacing_bsp}:{facing_bsp})"
+                flipped_seam_nwo = flipped_seam.nwo
+                flipped_seam_nwo.bsp_name = backfacing_bsp
+                flipped_seam_nwo.permutation_name = backfacing_perm
+                flipped_seam_nwo.mesh_type = '_connected_geometry_mesh_type_seam'
+                context.scene.collection.objects.link(flipped_seam)
+                # use bmesh to flip normals of backfacing seam
+                bm = bmesh.new()
+                bm.from_mesh(flipped_seam_data)
+                bmesh.ops.reverse_faces(bm, faces=bm.faces)
+                bm.to_mesh(flipped_seam_data)
+                flipped_seam_data.update()
+                bm.free()
 
 def unlink(ob):
     for collection in bpy.data.collections:
@@ -414,9 +507,9 @@ def face_prop_to_mesh_prop(ob, h4, main_mesh=None):
                 face_props = item
                 mesh_props = ob.nwo
                 # run through each face prop and apply it to the mesh if override set
-                if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':
-                    mesh_props.mesh_type = '_connected_geometry_mesh_type_seam'
-                    create_adjacent_seam(ob, face_props.seam_adjacent_bsp)
+                # if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':
+                #     mesh_props.mesh_type = '_connected_geometry_mesh_type_seam'
+                #     create_adjacent_seam(ob, face_props.seam_adjacent_bsp)
                 if face_props.face_type_override:
                     mesh_props.face_type = face_props.face_type
                     mesh_props.sky_permutation_index = face_props.sky_permutation_index

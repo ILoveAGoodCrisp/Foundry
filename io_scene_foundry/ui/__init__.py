@@ -5070,8 +5070,8 @@ class NWO_FacePropAddMenu(Menu):
         ob_nwo = ob.nwo
         if poll_ui(('MODEL', 'SKY')):
             layout.operator("nwo_face.add_face_property", text='Region Override').options = 'region'
-        if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
-            layout.operator("nwo_face.add_face_property", text='Seam').options = 'seam'
+        # if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+        #     layout.operator("nwo_face.add_face_property", text='Seam').options = 'seam'
         if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
             layout.operator("nwo_face.add_face_property", text='Collision Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
@@ -5121,8 +5121,8 @@ class NWO_FacePropAddMenuNew(Menu):
         ob_nwo = ob.nwo
         if poll_ui(('MODEL', 'SKY')):
             layout.operator("nwo_face.add_face_property_new", text='Region Override').options = 'region'
-        if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
-            layout.operator("nwo_face.add_face_property_new", text='Seam').options = 'seam'
+        # if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+        #     layout.operator("nwo_face.add_face_property_new", text='Seam').options = 'seam'
         if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
             layout.operator("nwo_face.add_face_property_new", text='Collision Material Override').options = 'face_global_material'
         if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):

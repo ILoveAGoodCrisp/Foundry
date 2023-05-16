@@ -968,3 +968,16 @@ def closest_bsp_object(ob):
                 closest_bsp = target_ob
     
     return closest_bsp
+
+
+def object_median_point(ob):
+    me = ob.data
+    verts = [v.co for v in me.vertices]
+    return ob.matrix_world @ sum(verts, Vector()) / len(verts)
+
+            
+
+
+
+
+
