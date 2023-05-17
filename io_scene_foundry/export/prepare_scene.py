@@ -38,6 +38,7 @@ from ..utils.nwo_utils import(
     dot_partition,
     is_linked,
     is_mesh,
+    select_all_objects,
     set_active_object,
     CheckType,
     select_halo_objects,
@@ -181,12 +182,22 @@ class HaloObjects():
 # VARIOUS FUNCTIONS
 
 def make_instance_collections_real(context):
+    deselect_all_objects()
+    # get current objects so we can exclude these from a search later
+    original_objects = []
+    original_objects.append(context.view_layer.objects)
+    # select all collections and apply library override
     for ob in context.view_layer.objects:
-        deselect_all_objects()
         if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.instance_collection is not None:
-            set_active_object(ob)
             ob.select_set(True)
-            bpy.ops.object.make_override_library()
+    if context.selected_objects:
+        bpy.ops.object.make_override_library()
+
+    # make library overrides local to scene
+    select_all_objects()
+    bpy.ops.object.make_local(type='ALL')
+
+    deselect_all_objects()
 
 def auto_seam(context):
     structure_obs = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default']
