@@ -192,12 +192,10 @@ def make_instance_collections_real(context):
             ob.select_set(True)
     if context.selected_objects:
         bpy.ops.object.make_override_library()
-
-    # make library overrides local to scene
-    select_all_objects()
-    bpy.ops.object.make_local(type='ALL')
-
-    deselect_all_objects()
+        # make library overrides local to scene
+        select_all_objects()
+        bpy.ops.object.make_local(type='ALL')
+        deselect_all_objects()
 
 def auto_seam(context):
     structure_obs = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default']
