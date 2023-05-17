@@ -56,24 +56,34 @@ from ..utils.nwo_utils import(
 def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armature_deform_only, game_version, meshes_to_empties, export_animations, export_gr2_files, **kwargs):
     # Exit local view. Must do this otherwise fbx export will fail.
     ExitLocalView(context)
+    # Get the current set of selected objects. We need this so selected perms/bsps only functionality can be used
+    set_object_mode(context)
+    # Make all currently unselectable objects selectable again. Exporter needs to loop through and select scene objects so we need this.
+    objects_selection = GetCurrentActiveObjectSelection(context)
     # Disable collections with the +exclude prefix. This way they are treated as if they are not part of the asset at all
     HideExcludedCollections(context)
-    # remove objects this export_this False from view layer
-    ignore_non_export_objects(context)
     # Unhide collections. Hidden collections will stop objects in the collection being exported. We only want this functionality if the collection is disabled
     unhide_collections(export_hidden, context)
-    # Get the current set of selected objects. We need this so selected perms/bsps only functionality can be used
-    objects_selection = GetCurrentActiveObjectSelection(context)
     # unhide objects if the user has export_hidden ticked
     UnhideObjects(export_hidden, context)
     # set the scene to object mode. Object mode is required for export.
-    set_object_mode(context)
-    # Make all currently unselectable objects selectable again. Exporter needs to loop through and select scene objects so we need this.
     MakeSelectable(context)
-    # Apply maya namespaces for H4/H2A exports.
-    apply_properties(context, sidecar_type, asset)
+    selected_perms = []
+    selected_bsps = []
+    if export_gr2_files:
+        # get selected perms for use later
+        selected_perms = GetSelectedPermutations(objects_selection)
+        # get selected bsps for use later
+        selected_bsps = GetSelectedBSPs(objects_selection)
+    # convert linked objects to real
+    make_instance_collections_real(context)
+    # TODO fix missing master instance
+    # remove objects this export_this False from view layer
+    ignore_non_export_objects(context)
     # update bsp/perm/region names in case any are null.
     fix_blank_group_names(context)
+    # Apply maya namespaces for H4/H2A exports.
+    apply_properties(context, sidecar_type, asset)
     if export_gr2_files:
         # ignore water flow markers, we never export these
         hide_water_flow_markers(context)
@@ -131,13 +141,6 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     set_animation_overrides(model_armature, current_action)
      # get the max LOD count in the scene if we're exporting a decorator
     lod_count = GetDecoratorLODCount(halo_objects, sidecar_type == 'DECORATOR SET')
-    selected_perms = []
-    selected_bsps = []
-    if export_gr2_files:
-        # get selected perms for use later
-        selected_perms = GetSelectedPermutations(objects_selection)
-        # get selected bsps for use later
-        selected_bsps = GetSelectedBSPs(objects_selection)
 
     # raise
 
@@ -176,6 +179,14 @@ class HaloObjects():
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
+
+def make_instance_collections_real(context):
+    for ob in context.view_layer.objects:
+        deselect_all_objects()
+        if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.instance_collection is not None:
+            set_active_object(ob)
+            ob.select_set(True)
+            bpy.ops.object.make_override_library()
 
 def auto_seam(context):
     structure_obs = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default']

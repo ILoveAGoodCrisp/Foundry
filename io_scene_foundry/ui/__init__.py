@@ -1486,7 +1486,10 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         
     def get_object_type_ui(self):
         max_int = 2
-        ob = bpy.context.object
+        try:
+            ob = bpy.context.object
+        except:
+            return self.object_type_ui_help
         if ob.type == 'EMPTY':
             max_int = 1
         if self.object_type_ui_help > max_int:
@@ -2145,22 +2148,10 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=boundary_surface_items,
         )
 
-    def get_boundary_surface(self):
-        a_ob = bpy.context.active_object
-
-        if a_ob.name.startswith('+soft_ceiling'):
-            return 0
-        elif a_ob.name.startswith('+soft_kill'):
-            return 1
-        elif a_ob.name.startswith('+slip_surface'):
-            return 2
-        else:
-            return 0
 
     boundary_surface_type_locked : EnumProperty(
         name="Boundary Surface Type",
         options=set(),
-        get=get_boundary_surface,
         description="Set the type of boundary surface you want to create. You should only import files with this mesh type as struture_design tags",
         default = '_connected_geometry_boundary_surface_type_soft_ceiling',
         items=boundary_surface_items,
@@ -2184,20 +2175,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=poop_lighting_items,
         )
 
-    def get_poop_lighting_policy(self):
-        if bpy.context.active_object.name.startswith(('%!',     '%-!','%+!','%*!',     '%-*!','%+*!',     '%*-!','%*+!')):
-            return 1
-        elif bpy.context.active_object.name.startswith(('%?',     '%-?','%+?','%*?',     '%-*?','%+*?',     '%*-?','%*+?')):
-            return 2
-        elif bpy.context.active_object.name.startswith(('%>',     '%->','%+>','%*>',     '%-*>','%+*>',     '%*->','%*+>')):
-            return 3
-        else:
-            return 0 # else won't ever be hit, but adding it stops errors
-
     poop_lighting_override_locked : EnumProperty(
         name="Lighting Policy",
         options=set(),
-        get=get_poop_lighting_policy,
         description="Sets the lighting policy for this instanced geometry",
         default = '_connected_geometry_poop_lighting_default',
         items=poop_lighting_items,
@@ -2224,18 +2204,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         items=poop_pathfinding_items,
         )
 
-    def get_poop_pathfinding_policy(self):
-        if bpy.context.active_object.name.startswith(('%-',     '%!-','%?-','%>-','%*-',     '%!*-','%?*-','%>*-',     '%*!-','%*?-','%*>-')):
-            return 1
-        elif bpy.context.active_object.name.startswith(('%+',     '%!+','%?+','%>+','%*+',     '%!*+','%?*+','%>*+',     '%*!+','%*?+','%*>+')):
-            return 2
-        else:
-            return 0 # else won't ever be hit, but adding it stops errors
-
     poop_pathfinding_override_locked : EnumProperty(
         name="Instanced Geometry Pathfinding Override",
         options=set(),
-        get=get_poop_pathfinding_policy,
         description="Sets the pathfinding policy for this instanced geometry",
         default = '_connected_poop_instance_pathfinding_policy_cutout',
         items=poop_pathfinding_items,
@@ -2324,16 +2295,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default = False,
     )
 
-    def get_poop_render_only(self):
-        if bpy.context.active_object.name.startswith(poop_render_only_prefixes):
-            return True
-        else:
-            return False
-
     poop_render_only_locked: BoolProperty(
         name ="Render Only",
         options=set(),
-        get=get_poop_render_only,
         description = "Instanced geometry set to render only",
         default = False,
     )
@@ -6131,45 +6095,49 @@ class NWO_FacePropertiesGroup(PropertyGroup):
 
     def get_face_props_hack(self):
         context = bpy.context
-        ob = context.object
-        fm = ob.face_maps
-        if ob.data:
-            if not fm:
-                index = 0
-                for item in ob.nwo_face.face_props:
-                    ob.nwo_face.face_props.remove(index)
-                    index +=1
-            elif len(fm) > len(ob.nwo_face.face_props):
-                bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
-                context.area.tag_redraw()
-            elif len(fm) < len(ob.nwo_face.face_props):
-                face_map_names = []
-                for face_map in fm:
-                    face_map_names.append(face_map.name)
-                index = 0
-                for item in ob.nwo_face.face_props:
-                    if item.name not in face_map_names:
-                        ob.nwo_face.face_props.remove(index)
-
-                    index +=1
-
-                context.area.tag_redraw()
-
-            elif len(fm) == len(ob.nwo_face.face_props):
-                item = ob.nwo_face.face_props[fm.active_index]
-                if fm.active and item.name != fm.active.name:
+        try:
+            if context.object:
+                ob = context.object
+                fm = ob.face_maps
+                if ob.data:
+                    if not fm:
+                        index = 0
+                        for item in ob.nwo_face.face_props:
+                            ob.nwo_face.face_props.remove(index)
+                            index +=1
+                    elif len(fm) > len(ob.nwo_face.face_props):
+                        bpy.ops.uilist.entry_add(list_path="object.nwo_face.face_props", active_index_path="object.face_maps.active_index")
+                        context.area.tag_redraw()
+                    elif len(fm) < len(ob.nwo_face.face_props):
                         face_map_names = []
                         for face_map in fm:
                             face_map_names.append(face_map.name)
-                        if item.name not in face_map_names:
-                            item.name = fm.active.name
+                        index = 0
+                        for item in ob.nwo_face.face_props:
+                            if item.name not in face_map_names:
+                                ob.nwo_face.face_props.remove(index)
+
+                            index +=1
+
+                        context.area.tag_redraw()
+
+                    elif len(fm) == len(ob.nwo_face.face_props):
+                        item = ob.nwo_face.face_props[fm.active_index]
+                        if fm.active and item.name != fm.active.name:
+                                face_map_names = []
+                                for face_map in fm:
+                                    face_map_names.append(face_map.name)
+                                if item.name not in face_map_names:
+                                    item.name = fm.active.name
+                                    context.area.tag_redraw()
+                        elif fm.active and item.region_name_override and item.region_name not in fm.active.name:
+                            fm.active.name = item.region_name
                             context.area.tag_redraw()
-                elif fm.active and item.region_name_override and item.region_name not in fm.active.name:
-                    fm.active.name = item.region_name
-                    context.area.tag_redraw()
-                elif fm.active and item.seam_override and item.seam_adjacent_bsp not in fm.active.name:
-                    fm.active.name = f'seam {true_bsp(ob.nwo)}:{item.seam_adjacent_bsp}'
-                    context.area.tag_redraw()
+                        elif fm.active and item.seam_override and item.seam_adjacent_bsp not in fm.active.name:
+                            fm.active.name = f'seam {true_bsp(ob.nwo)}:{item.seam_adjacent_bsp}'
+                            context.area.tag_redraw()
+        except:
+            pass
 
         return False
 
