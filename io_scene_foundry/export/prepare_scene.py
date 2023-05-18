@@ -182,20 +182,9 @@ class HaloObjects():
 # VARIOUS FUNCTIONS
 
 def make_instance_collections_real(context):
+    select_all_objects()
+    bpy.ops.object.duplicates_make_real(use_base_parent=True)
     deselect_all_objects()
-    # get current objects so we can exclude these from a search later
-    original_objects = []
-    original_objects.append(context.view_layer.objects)
-    # select all collections and apply library override
-    for ob in context.view_layer.objects:
-        if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION' and ob.instance_collection is not None:
-            ob.select_set(True)
-    if context.selected_objects:
-        bpy.ops.object.make_override_library()
-        # make library overrides local to scene
-        select_all_objects()
-        bpy.ops.object.make_local(type='ALL')
-        deselect_all_objects()
 
 def auto_seam(context):
     structure_obs = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default']
