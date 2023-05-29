@@ -203,7 +203,7 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                 bsp_list = []
                 shared_bsp_exists = False
 
-                for ob in bpy.context.view_layer.objects:
+                for ob in halo_objects.default:
                     ob_bsp = ob.nwo.bsp_name
                     if ob_bsp not in bsp_list:
                         if ob_bsp != 'shared':
@@ -211,7 +211,8 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                         else:
                             shared_bsp_exists = True
 
-                bsp_list = sort_alphanum(bsp_list)
+                if len(bsp_list) > 1:
+                    bsp_list = sort_alphanum(bsp_list)
 
                 for bsp in bsp_list:
                     if export_structure:
@@ -231,10 +232,10 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                                         gr2_count += 1
                     # Design time!
                     bsp_list = []
+                    if len(bsp_list) > 1:
+                        bsp_list = sort_alphanum(bsp_list)
 
-                    bsp_list = sort_alphanum(bsp_list)
-
-                    for ob in bpy.context.scene.objects:
+                    for ob in halo_objects.default:
                         ob_bsp = ob.nwo.bsp_name
                         if ob_bsp != 'shared' and (ob_bsp not in bsp_list) and is_design(ob):
                             bsp_list.append(ob_bsp)

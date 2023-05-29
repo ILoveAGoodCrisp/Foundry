@@ -436,7 +436,7 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
         bsp_list = []
         shared_bsp_exists = False
 
-        for ob in bpy.context.view_layer.objects:
+        for ob in halo_objects.default:
             ob_bsp = ob.nwo.bsp_name
             if (ob_bsp not in bsp_list) and not is_design(ob):
                 if ob_bsp != 'shared':
@@ -445,7 +445,8 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
                     shared_bsp_exists = True
 
         # # sort bsp list alphanumerically
-        bsp_list = sort_alphanum(bsp_list)
+        if len(bsp_list) > 1:
+            bsp_list = sort_alphanum(bsp_list)
 
         shared_permutations = []
 
@@ -485,13 +486,14 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
     if SceneHasDesign(halo_objects):
         bsp_list = []
 
-        for ob in bpy.context.view_layer.objects:
+        for ob in halo_objects.default:
             ob_bsp = ob.nwo.bsp_name
             if (ob_bsp not in bsp_list) and is_design(ob):
                 bsp_list.append(ob_bsp)
 
         # sort bsp list alphanumerically
-        bsp_list = sort_alphanum(bsp_list)
+        if len(bsp_list) > 1:
+            bsp_list = sort_alphanum(bsp_list)
         
         for bsp in bsp_list:
             content = ET.SubElement(contents, "Content", Name=f'{asset_name}_{bsp}_structure_design', Type='design')

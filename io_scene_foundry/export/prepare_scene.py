@@ -82,8 +82,14 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         selected_perms = GetSelectedPermutations(objects_selection)
         # get selected bsps for use later
         selected_bsps = GetSelectedBSPs(objects_selection)
+    # current_empties = [e.type == 'EMPTY' for e in context.view_layer.objects]
     # convert linked objects to real
     make_instance_collections_real(context)
+    # for ob in context.view_layer.objects:
+    #     if ob.type == 'EMPTY':
+    #         if ob not in current_empties:
+    #             unlink(ob)
+
     # TODO fix missing master instance
     # remove objects with export_this False from view layer
     ignore_non_export_objects(context)
@@ -152,7 +158,6 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     set_animation_overrides(model_armature, current_action)
      # get the max LOD count in the scene if we're exporting a decorator
     lod_count = GetDecoratorLODCount(halo_objects, sidecar_type == 'DECORATOR SET')
-
     # raise
 
     return model_armature, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action
@@ -752,7 +757,6 @@ def apply_object_mesh_marker_properties(ob, asset_type):
     # Apply final properties so we can rename objects (and also avoid complex checking in later code)
     reach = not not_bungie_game()
     nwo = ob.nwo
-    nwo.permutation_name = true_permutation(ob.nwo)
     # get mesh type
     if CheckType.get(ob) == '_connected_geometry_object_type_mesh':
         if asset_type == 'MODEL':
@@ -768,7 +772,6 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
 
         if asset_type == 'SCENARIO':
-            nwo.bsp_name = true_bsp(ob.nwo)
             if nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop':
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop'
                 nwo.poop_lighting = nwo.poop_lighting_ui
@@ -979,7 +982,7 @@ def apply_object_mesh_marker_properties(ob, asset_type):
             if nwo.texcoord_usage_active:
                 nwo.texcoord_usage = nwo.texcoord_usage_ui
         if asset_type in ('SCENARIO', 'PREFAB'):
-            h4_structure = (not reach and nwo.mesh_type == '_connected_geometry_face_type_sky')
+            h4_structure = (not reach and nwo.mesh_type == '_connected_geometry_mesh_type_default')
             if nwo.face_type_active or h4_structure:
                 if h4_structure:
                     nwo.face_type = '_connected_geometry_face_type_sky'
@@ -1088,6 +1091,10 @@ def apply_properties(context, asset_type, asset):
         # set active to update properties
         set_active_object(ob)
         set_object_type(ob)
+        nwo = ob.nwo
+        nwo.permutation_name = true_permutation(ob.nwo)
+        if asset_type == 'SCENARIO':
+            nwo.bsp_name = true_bsp(ob.nwo)
         if ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
             apply_object_mesh_marker_properties(ob, asset_type)
             
@@ -1717,10 +1724,9 @@ def MeshesToEmpties(context, meshes_to_empties):
         for ob in mesh_nodes:
             deselect_all_objects()
             bpy.ops.object.empty_add(type='ARROWS')
-            node = context.object
-            node_name = TempName(ob.name)
+            node_name = temp_name(ob.name)
             ob.name = str(uuid4())
-            node.name = node_name
+            node = bpy.data.objects.new(node_name, None)
             if ob.parent is not None:
                 node.parent = ob.parent
                 # Added 08-12-2022 to fix empty nodes not being bone parented
@@ -1733,23 +1739,17 @@ def MeshesToEmpties(context, meshes_to_empties):
                 node.nwo.marker_sphere_radius = max(ob.dimensions) / 2
             node.scale = ob.scale
             # copy the node props from the mesh to the empty
-            SetNodeProps(node, ob)
+            set_node_props(node, ob)
             # hide the mesh so it doesn't get included in the export
             unlink(ob)
 
-def TempName(name):
+def temp_name(name):
     return name + ''
 
-def SetNodeProps(node, ob):
+def set_node_props(node, ob):
     node_halo = node.nwo
     ob_halo = ob.nwo
 
-    if ob.users_collection[0].name != 'Scene Collection':
-        try:
-            bpy.data.collections[ob.users_collection[0].name].objects.link(node)
-        except:
-            pass # lazy try except as this can cause an assert.
-    
     node_halo.bsp_name = ob_halo.bsp_name
 
     node_halo.permutation_name = ob_halo.permutation_name
@@ -1785,10 +1785,5 @@ def SetNodeProps(node, ob):
     node_halo.marker_light_cone_width = ob_halo.marker_light_cone_width
     node_halo.marker_light_cone_length = ob_halo.marker_light_cone_length
     node_halo.marker_light_cone_curve = ob_halo.marker_light_cone_curve
-
-    # node_halo.object_id = ob_halo.object_id
-
-
-
 
 
