@@ -37,6 +37,16 @@ from ..utils.nwo_utils import bpy_enum_seam, clean_tag_path, get_prop_from_colle
 class NWO_MeshPropertiesGroup(PropertyGroup):
     master_instance : PointerProperty(type=Object)
 
+    face_props : CollectionProperty(
+        type=NWO_FaceProperties_ListItems,
+    )
+
+    face_props_index : IntProperty(
+        name='Index for Face Property',
+        default=0,
+        min=0,
+    )
+
 # FACE PROPERTIES
 # ----------------------------------------------------------
 
@@ -1563,68 +1573,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #########
 
     toggle_face_defaults : BoolProperty()
-
-    face_props : CollectionProperty(
-        type=NWO_FaceProperties_ListItems,
-    )
-
-    face_props_index : IntProperty(
-        name='Index for Face Property',
-        default=0,
-        min=0,
-    )
-
-    # def get_face_props_hack(self):
-    #     context = bpy.context
-    #     try:
-    #         if context.object:
-    #             ob = context.object
-    #             fm = ob.face_maps
-    #             if ob.data:
-    #                 if not fm:
-    #                     index = 0
-    #                     for item in ob.nwo.face_props:
-    #                         ob.nwo.face_props.remove(index)
-    #                         index +=1
-    #                 elif len(fm) > len(ob.nwo.face_props):
-    #                     bpy.ops.uilist.entry_add(list_path="object.nwo.face_props", active_index_path="object.face_maps.active_index")
-    #                     context.area.tag_redraw()
-    #                 elif len(fm) < len(ob.nwo.face_props):
-    #                     face_map_names = []
-    #                     for face_map in fm:
-    #                         face_map_names.append(face_map.name)
-    #                     index = 0
-    #                     for item in ob.nwo.face_props:
-    #                         if item.name not in face_map_names:
-    #                             ob.nwo.face_props.remove(index)
-
-    #                         index +=1
-
-    #                     context.area.tag_redraw()
-
-    #                 elif len(fm) == len(ob.nwo.face_props):
-    #                     item = ob.nwo.face_props[fm.active_index]
-    #                     if fm.active and item.name != fm.active.name:
-    #                             face_map_names = []
-    #                             for face_map in fm:
-    #                                 face_map_names.append(face_map.name)
-    #                             if item.name not in face_map_names:
-    #                                 item.name = fm.active.name
-    #                                 context.area.tag_redraw()
-    #                     elif fm.active and item.region_name_override and item.region_name not in fm.active.name:
-    #                         fm.active.name = item.region_name
-    #                         context.area.tag_redraw()
-    #                     elif fm.active and item.seam_override and item.seam_adjacent_bsp not in fm.active.name:
-    #                         fm.active.name = f'seam {true_bsp(ob.nwo)}:{item.seam_adjacent_bsp}'
-    #                         context.area.tag_redraw()
-    #     except:
-    #         pass
-
-    #     return False
-
-    # face_props_hack : BoolProperty(
-    #     get=get_face_props_hack,
-    # )
 
 
 # LIGHT PROPERTIES

@@ -63,7 +63,7 @@ class NWO_MeshFaceProps(NWO_PropPanel):
     def poll(cls, context):
         ob = context.object
         valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_poop')
-        return ob and ob.mode != 'EDIT' and ob.nwo.export_this and ob.nwo.object_type_ui == '_connected_geometry_object_type_mesh' and ob.nwo.mesh_type_ui in valid_mesh_types
+        return ob and ob.nwo.export_this and ob.nwo.object_type_ui == '_connected_geometry_object_type_mesh' and ob.nwo.mesh_type_ui in valid_mesh_types
     
     def draw_header(self, context):
         self.layout.label(text='')
@@ -282,7 +282,8 @@ class NWO_MeshFaceProps(NWO_PropPanel):
 
 def toggle_override(context, option, bool_var):
     ob = context.object
-    ob_nwo = ob.nwo
+    me = ob.data
+    ob_nwo = me.nwo
     try:
         item = ob_nwo.face_props[ob.face_maps.active.name]
     except:
@@ -1065,7 +1066,7 @@ class NWO_GlobalMaterialMenu(Menu):
             if global_material not in global_materials:
                 global_materials.append(global_material)
             # also need to loop through face props
-            for face_prop in ob.nwo.face_props:
+            for face_prop in ob.data.nwo.face_props:
                 if face_prop.face_global_material_override and face_prop.face_global_material not in global_materials:
                     global_materials.append(face_prop.face_global_material)
 
@@ -1092,7 +1093,7 @@ class NWO_RegionList(NWO_Op):
             if region not in regions:
                 regions.append(region)
             # also need to loop through face props
-            for face_prop in ob.nwo.face_props: 
+            for face_prop in ob.data.nwo.face_props: 
                 if face_prop.region_name_override and face_prop.region_name_ui not in regions:
                     regions.append(face_prop.region_name_ui)
 
@@ -1134,7 +1135,7 @@ class NWO_GlobalMaterialList(NWO_Op):
             if global_material not in global_materials and global_material:
                 global_materials.append(global_material)
             # also need to loop through face props
-            for face_prop in ob.nwo.face_props:
+            for face_prop in ob.data.nwo.face_props:
                 if face_prop.face_global_material_override and face_prop.face_global_material_ui not in global_materials:
                     global_materials.append(face_prop.face_global_materia_ui)
 
@@ -1238,7 +1239,8 @@ class NWO_BSPListSeam(NWO_BSPList):
     
     def execute(self, context):
         ob = context.object
-        item = ob.nwo.face_props[ob.face_maps.active.name]
+        me = ob.data
+        item = me.nwo.face_props[me.face_maps.active.name]
         item.seam_adjacent_bsp_ui = self.bsp
         return {'FINISHED'}
     

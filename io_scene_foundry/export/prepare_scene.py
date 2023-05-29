@@ -365,7 +365,7 @@ def cull_zero_face_meshes(context):
 # FACEMAP SPLIT
 
 def any_face_props(ob):
-    for item in ob.nwo_face.face_props:
+    for item in ob.data.nwo.face_props:
         if (item.region_name_override or item.face_type_override or item.face_mode_override or item.face_sides_override or item.face_draw_distance_override or item.texcoord_usage_override
                          or item.face_global_material_override or item.ladder_override or item.slip_surface_override or item.decal_offset_override or item.group_transparents_by_plane_override
                            or item.no_shadow_override or item.precise_position_override or item.no_lightmap_override or item.no_pvs_override or item.lightmap_additive_transparency_override
@@ -381,7 +381,7 @@ def any_face_props(ob):
     
 def justify_face_split(ob):
     """Checked whether we actually need to split this mesh up"""
-    face_layers = ob.nwo.face_props
+    face_layers = ob.data.nwo.face_props
     # check that face layers don't cover the full mesh
     me = ob.data
     polygons = len(me.polygons)
@@ -408,7 +408,7 @@ def strip_render_only_faces(ob, context):
     bpy.ops.object.mode_set(mode='EDIT', toggle=False)
     bpy.ops.mesh.select_all(action='DESELECT')
     # loop through each facemap and select non collision faces
-    for index, item in enumerate(ob.nwo_face.face_props):
+    for index, item in enumerate(ob.data.nwo.face_props):
         ob.face_maps.active_index = index
         if item.face_mode_override and item.face_mode == '_connected_geometry_face_mode_render_only':
             bpy.ops.object.face_map_select()
@@ -419,7 +419,7 @@ def strip_render_only_faces(ob, context):
     context = current_context
 
 def recursive_layer_split(ob, context, h4, split_objects=[]):
-    face_layers = ob.nwo.face_props
+    face_layers = ob.data.nwo.face_props
     me = ob.data
     polygon_count = len(ob.data.polygons)
     layer_remove_list = []
@@ -437,12 +437,12 @@ def recursive_layer_split(ob, context, h4, split_objects=[]):
         bm.free()
 
     for name in layer_remove_list:
-        for index, layer in enumerate(ob.nwo.face_props):
+        for index, layer in enumerate(ob.data.nwo.face_props):
             if layer.layer_name == name:
-                ob.nwo.face_props.remove(index)
+                ob.data.nwo.face_props.remove(index)
                 break
 
-    for layer in ob.nwo.face_props:
+    for layer in ob.data.nwo.face_props:
         if polygon_count != layer.face_count:
             bm = bmesh.new()
             bm.from_mesh(me)
@@ -654,7 +654,7 @@ def apply_face_properties(context):
     for ob in objects:
         if is_linked(ob) and ob.data.nwo.master_instance != ob:
             continue
-        face_layers = ob.nwo.face_props
+        face_layers = ob.data.nwo.face_props
         if len(face_layers):
             # split for all linked objects
             me = ob.data
