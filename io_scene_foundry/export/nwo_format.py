@@ -30,6 +30,7 @@ from math import degrees
 
 from ..utils.nwo_utils import(
     CheckType,
+    dot_partition,
     not_bungie_game,
     mesh_type,
     marker_type,
@@ -627,224 +628,97 @@ class NWOMarker(NWOObject):
     def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
         super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         # SHARED
-        self.bungie_marker_type = self.marker_type()
-        if self.sidecar_type in ('MODEL', 'SKY') and not self.bungie_marker_type in (('_connected_geometry_marker_type_pathfinding_sphere', '_connected_geometry_marker_type_physics_hinge_constraint', '_connected_geometry_marker_type_physics_socket_constraint')):
-            self.bungie_marker_all_regions = self.marker_all_regions()
-            self.bungie_marker_region = self.marker_region()
-        if self.bungie_marker_type in ('_connected_geometry_marker_type_model', '_connected_geometry_marker_type_hint', '_connected_geometry_marker_type_target'):
+        self.bungie_marker_type = self.halo.marker_type
+        # properties for model/sky assets only
+        if self.sidecar_type in ('MODEL', 'SKY'):
+            if self.halo.marker_all_regions:
+                self.bungie_marker_all_regions = self.halo.marker_all_regions
+                if self.bungie_marker_all_regions == "0":
+                    self.bungie_marker_region = self.halo.region_name
             self.bungie_marker_model_group = self.marker_model_group()
-            if self.halo.marker_type == '_connected_geometry_marker_type_garbage' and vector_str(self.halo.marker_velocity) != "0.0 0.0 0.0":
-                self.bungie_marker_velocity = self.marker_velocity()
-        elif self.bungie_marker_type in ('_connected_geometry_marker_type_prefab', '_connected_geometry_marker_type_cheap_light', '_connected_geometry_marker_type_light', '_connected_geometry_marker_type_falling_leaf', '_connected_geometry_marker_type_game_instance'):
-            self.bungie_marker_game_instance_tag_name = self.marker_game_instance_tag_name()
-            self.bungie_marker_game_instance_variant_name = self.marker_game_instance_variant_name()
-        elif self.bungie_marker_type in ('_connected_geometry_marker_type_pathfinding_sphere', '_connected_geometry_marker_type_target'): 
-            self.bungie_mesh_primitive_sphere_radius = self.marker_sphere_radius() # mesh properties in my node properties... Pathfinding spheres need this or they don't get written to the collision model
-            if self.bungie_marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
-                self.bungie_marker_pathfinding_sphere_vehicle_only = self.marker_pathfinding_sphere_vehicle_only()
-                self.bungie_marker_pathfinding_sphere_remains_when_open = self.marker_pathfinding_sphere_remains_when_open()
-                self.bungie_marker_pathfinding_sphere_with_sectors = self.marker_pathfinding_sphere_with_sectors()
-        elif self.bungie_marker_type in ('_connected_geometry_marker_type_physics_hinge_constraint', '_connected_geometry_marker_type_physics_socket_constraint'):
-            self.bungie_physics_constraint_parent = self.physics_constraint_parent()
-            self.bungie_physics_constraint_child = self.physics_constraint_child()
-            self.bungie_physics_constraint_use_limits = self.physics_constraint_use_limits()
+
+        # garbage has velocity
+        if self.halo.marker_type == '_connected_geometry_marker_type_garbage':
+            self.bungie_marker_velocity = self.halo.marker_velocity
+
+        # game tag stuff
+        if self.halo.marker_game_instance_tag_name:
+            self.bungie_marker_game_instance_tag_name = self.halo.marker_game_instance_tag_name
+            if self.halo.marker_game_instance_variant_name:
+                self.bungie_marker_game_instance_variant_name = self.halo.marker_game_instance_variant_name
+            if self.not_bungie_game and self.halo.marker_game_instance_run_scripts:
+                self.bungie_marker_game_instance_run_scripts = self.halo.marker_game_instance_run_scripts
+
+        # sphere radius is pulled from a mesh marker. In the case of an empty marker, this value is user defined
+        self.bungie_mesh_primitive_sphere_radius = self.marker_sphere_radius() # mesh properties in my node properties... Pathfinding spheres need this or they don't get written to the collision model
+
+        # rest of the pathfinding sphere props
+        if self.bungie_marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
+            self.bungie_marker_pathfinding_sphere_vehicle_only = self.halo.marker_pathfinding_sphere_vehicle_only
+            self.bungie_marker_pathfinding_sphere_remains_when_open = self.halo.marker_pathfinding_sphere_remains_when_open
+            self.bungie_marker_pathfinding_sphere_with_sectors = self.halo.marker_pathfinding_sphere_with_sectors
+        
+        # contraints props
+        if self.bungie_marker_type in ('_connected_geometry_marker_type_physics_hinge_constraint', '_connected_geometry_marker_type_physics_socket_constraint'):
+            if self.halo.physics_constraint_parent:
+                self.bungie_physics_constraint_parent = self.halo.physics_constraint_parent
+            if self.halo.physics_constraint_child:
+                self.bungie_physics_constraint_child = self.halo.physics_constraint_child
+            self.bungie_physics_constraint_use_limits = self.halo.physics_constraint_use_limits
             if self.bungie_physics_constraint_use_limits == '1':
                 if self.bungie_marker_type == '_connected_geometry_marker_type_physics_hinge_constraint':
-                    self.bungie_physics_constraint_hinge_min = self.physics_constraint_hinge_min()
-                    self.bungie_physics_constraint_hinge_max = self.physics_constraint_hinge_max()
+                    self.bungie_physics_constraint_hinge_min = self.halo.physics_constraint_hinge_min
+                    self.bungie_physics_constraint_hinge_max = self.halo.physics_constraint_hinge_max
                 elif self.bungie_marker_type == '_connected_geometry_marker_type_physics_socket_constraint':
-                    self.bungie_physics_constraint_cone_angle = self.physics_constraint_cone_angle()
-                    self.bungie_physics_constraint_plane_min = self.physics_constraint_plane_min()
-                    self.bungie_physics_constraint_plane_max = self.physics_constraint_plane_max()
-                    self.bungie_physics_constraint_twist_start = self.physics_constraint_twist_start()
-                    self.bungie_physics_constraint_twist_end = self.physics_constraint_twist_end()
-        # H4
+                    self.bungie_physics_constraint_cone_angle = self.halo.physics_constraint_cone_angle
+                    self.bungie_physics_constraint_plane_min = self.halo.physics_constraint_plane_min
+                    self.bungie_physics_constraint_plane_max = self.halo.physics_constraint_plane_max
+                    self.bungie_physics_constraint_twist_start = self.halo.physics_constraint_twist_start
+                    self.bungie_physics_constraint_twist_end = self.halo.physics_constraint_twist_end
+
+        # H4 only props
         if self.not_bungie_game:
-            if self.bungie_marker_type in ('_connected_geometry_marker_type_cheap_light', '_connected_geometry_marker_type_light', '_connected_geometry_marker_type_falling_leaf', '_connected_geometry_marker_type_game_instance'):
-                self.bungie_marker_always_run_scripts = self.marker_always_run_scripts()
-                if self.bungie_marker_type == '_connected_geometry_marker_type_cheap_light':
-                    self.bungie_marker_cheap_light_tag_name = self.marker_cheap_light_tag_name()
-                elif self.bungie_marker_type == '_connected_geometry_marker_type_light':
-                    self.bungie_marker_light_tag_name = self.marker_light_tag_name()
-                elif self.bungie_marker_type == '_connected_geometry_marker_type_falling_leaf':
-                    self.bungie_marker_falling_leaf_tag_name = self.marker_falling_leaf_tag_name()
+            # special game instance types
+            if self.bungie_marker_type == '_connected_geometry_marker_type_cheap_light':
+                self.bungie_marker_cheap_light_tag_name = self.halo.marker_game_instance_tag_name
+            elif self.bungie_marker_type == '_connected_geometry_marker_type_light':
+                self.bungie_marker_light_tag_name = self.halo.marker_game_instance_tag_name
+            elif self.bungie_marker_type == '_connected_geometry_marker_type_falling_leaf':
+                self.bungie_marker_falling_leaf_tag_name = self.halo.marker_game_instance_tag_name
+
+            # h4 has hint length
             elif self.bungie_marker_type == '_connected_geometry_marker_type_hint':
                 self.bungie_marker_hint_length = self.marker_hint_length()
+
+            # scenario place fx
             elif self.bungie_marker_type == '_connected_geometry_marker_type_envfx':
                 self.bungie_marker_looping_effect = self.marker_looping_effect()
+            
+            # airprobes
             elif self.bungie_marker_type == '_connected_geometry_marker_type_airprobe':
-                self.bungie_marker_airprobe = self.marker_airprobe()
+                self.bungie_marker_airprobe = self.marker_model_group()
+            
+            # light cone props
             elif self.bungie_marker_type == '_connected_geometry_marker_type_lightCone':
-                self.bungie_marker_light_tag = self.marker_light_tag()
-                self.bungie_marker_light_color = self.marker_light_color()
-                self.bungie_marker_light_cone_width = self.marker_light_cone_width()
-                self.bungie_marker_light_cone_length = self.marker_light_cone_length()
-                self.bungie_marker_light_color_alpha = self.marker_light_color_alpha()
-                self.bungie_marker_light_cone_intensity = self.marker_light_cone_intensity()
-                self.bungie_marker_light_cone_curve = self.marker_light_cone_curve()
+                self.bungie_marker_light_tag = self.halo.marker_light_tag
+                self.bungie_marker_light_color = self.halo.marker_light_color
+                self.bungie_marker_light_cone_width = self.halo.marker_light_cone_width
+                self.bungie_marker_light_cone_length = self.halo.marker_light_cone_length
+                self.bungie_marker_light_color_alpha = self.halo.marker_light_color_alpha
+                self.bungie_marker_light_cone_intensity = self.halo.marker_light_cone_intensity
+                self.bungie_marker_light_cone_curve = self.halo.marker_light_cone_curve
 
         self.cleanup()
 
-    def marker_type(self):
-        # need to cast marker type to model if using Blender only marker types:
-        if self.halo.marker_type in ('_connected_geometry_marker_type_effects', '_connected_geometry_marker_type_garbage'):
-            return '_connected_geometry_marker_type_model'
-        return self.halo.marker_type
-
     def marker_model_group(self):
-        return self.halo.marker_group_name
-
-    def marker_all_regions(self):
-        return bool_str(self.halo.marker_all_regions)
-
-    def marker_region(self): 
-        return self.halo.region_name
-
-    def marker_game_instance_tag_name(self):
-        return clean_tag_path(self.halo.marker_game_instance_tag_name)
-
-    def marker_game_instance_variant_name(self):
-        return clean_tag_path(self.halo.marker_game_instance_tag_variant_name)
-
-    def marker_velocity(self):
-        return vector_str(self.halo.marker_velocity)
-
-    def marker_pathfinding_sphere_vehicle_only(self):
-        return bool_str(self.halo.marker_pathfinding_sphere_vehicle)
-
-    def marker_pathfinding_sphere_remains_when_open(self):
-        return bool_str(self.halo.pathfinding_sphere_remains_when_open)
-
-    def marker_pathfinding_sphere_with_sectors(self):
-        return bool_str(self.halo.pathfinding_sphere_with_sectors)
+        return dot_partition(self.name).strip('#_?$-')
     
     def marker_sphere_radius(self):
-        return radius_str(self.ob) if self.ob.type == 'MESH' else jstr(self.halo.marker_sphere_radius)
-
-    def physics_constraint_parent(self):
-        if self.halo.physics_constraint_parent:
-            return self.halo.physics_constraint_parent.name
-        return ''
-
-    def physics_constraint_child(self):
-        if self.halo.physics_constraint_child:
-            return self.halo.physics_constraint_child.name
-        return ''
-
-    def physics_constraint_use_limits(self):
-        return bool_str(self.halo.physics_constraint_uses_limits) 
-
-    def physics_constraint_hinge_min(self):
-        return jstr(self.halo.hinge_constraint_minimum)
-
-    def physics_constraint_hinge_max(self):
-        return jstr(self.halo.hinge_constraint_maximum)
-
-    def physics_constraint_cone_angle(self):
-        return jstr(self.halo.cone_angle)
-
-    def physics_constraint_plane_min(self):
-        return jstr(self.halo.plane_constraint_minimum)
-
-    def physics_constraint_plane_max(self):
-        return jstr(self.halo.plane_constraint_maximum)
-
-    def physics_constraint_twist_start(self):
-        return jstr(self.halo.twist_constraint_start)
-
-    def physics_constraint_twist_end(self):
-        return jstr(self.halo.twist_constraint_end)
-
-    def marker_always_run_scripts(self):
-        return bool_str(self.halo.marker_game_instance_run_scripts)
-
-    def marker_cheap_light_tag_name(self):
-        return clean_tag_path(self.halo.marker_game_instance_tag_name, 'cheap_light')
-
-    def marker_light_tag_name(self):
-        return clean_tag_path(self.halo.marker_game_instance_tag_name, 'light')
-
-    def marker_falling_leaf_tag_name(self):
-        return clean_tag_path(self.halo.marker_game_instance_tag_name)
+        return radius_str(self.ob) if self.ob.type == 'MESH' else self.halo.marker_sphere_radius
 
     def marker_hint_length(self):
         # return jstr(self.halo.marker_hint_length)
         return jstr(max(self.ob.scale.x, self.ob.scale.y, self.ob.scale.z))
-
-    def marker_looping_effect(self):
-        return clean_tag_path(self.halo.marker_looping_effect, 'effect')
-
-    def marker_airprobe(self):
-        return self.halo.marker_group_name
-
-    def marker_light_tag(self):
-        return clean_tag_path(self.halo.marker_light_cone_tag, 'light')
-
-    def marker_light_color(self):
-        return color_3p_str(self.halo.marker_light_cone_color)
-
-    def marker_light_cone_width(self):
-        return jstr(self.halo.marker_light_cone_width)
-
-    def marker_light_cone_length(self):
-        return jstr(self.halo.marker_light_cone_length)
-
-    def marker_light_color_alpha(self):
-        return jstr(self.halo.marker_light_cone_alpha)
-
-    def marker_light_cone_intensity(self):
-        return jstr(self.halo.marker_light_cone_intensity)     
-
-    def marker_light_cone_curve(self):
-        return clean_tag_path(self.halo.marker_light_cone_curve, 'curve_scalar')
-
-    def model(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_model'))
-
-    def effects(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_effects'))
-
-    def game_instance(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_game_instance'))
-
-    def garbage(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_garbage'))
-
-    def hint(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_hint'))
-
-    def pathfinding_sphere(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_pathfinding_sphere'))
-
-    def physics_constraint(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_physics_constraint'))
-
-    def target(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_target'))
-
-    def water_volume_flow(self):
-        return marker_type(self.ob, ('_connected_geometry_marker_type_water_volume_flow'))
-
-    def airprobe(self): # h4+ only
-        return marker_type(self.ob, ('_connected_geometry_marker_type_airprobe'))
-
-    def envfx(self): # h4+ only
-        return marker_type(self.ob, ('_connected_geometry_marker_type_envfx'))
-
-    def lightcone(self): # h4+ only
-        return marker_type(self.ob, ('_connected_geometry_marker_type_lightcone'))
-
-    def prefab(self): # h4+ only
-        return self.game_instance() and self.not_bungie_game and self.halo.marker_game_instance_tag_name.lower().endswith('.prefab')
-
-    def cheap_light(self): # h4+ only
-        return self.game_instance() and self.not_bungie_game and self.halo.marker_game_instance_tag_name.lower().endswith('.cheap_light')
-
-    def marker_light(self): # h4+ only
-        return self.game_instance() and self.not_bungie_game and self.halo.marker_game_instance_tag_name.lower().endswith('.light')
-
-    def falling_leaf(self):  # h4+ only
-        return self.game_instance() and self.not_bungie_game and self.halo.marker_game_instance_tag_name.lower().endswith('.leaf')
         
 # MESH
 #####################
@@ -852,122 +726,158 @@ class NWOMesh(NWOObject):
     def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
         super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         # SHARED
-        self.bungie_mesh_type = self.mesh_type()
-        if self.sidecar_type in ('MODEL', 'SKY') and self.bungie_mesh_type in ('_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
-            self.bungie_face_region = self.face_region()
-        # PROPS FOR MESH TYPES WHICH HAVE RENDERED FACES
-        if self.bungie_mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_decorator', '_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_water_surface'):
-            self.bungie_face_type = self.face_type()
-            self.bungie_face_mode = self.face_mode()
-            self.bungie_face_sides = self.face_sides()
-            self.bungie_face_draw_distance = self.face_draw_distance()
-            self.bungie_texcoord_usage = self.texcoord_usage()
-            self.bungie_conveyor = self.conveyor()
-            self.bungie_ladder = self.ladder()
-            self.bungie_slip_surface = self.slip_surface()
-            self.bungie_decal_offset = self.decal_offset()
-            self.bungie_group_transparents_by_plane = self.group_transparents_by_plane()
-            self.bungie_no_shadow = self.no_shadow()
-            self.bungie_precise_position = self.precise_position()
-            self.bungie_mesh_tessellation_density = self.mesh_tessellation_density()
-            self.bungie_mesh_additional_compression = self.mesh_additional_compression()
-            if self.not_bungie_game:
-                self.bungie_invisible_to_pvs = self.invisible_to_pvs()
-                self.bungie_no_lightmap = self.no_lightmap()
-                self.bungie_uvmirror_across_entire_model = self.uvmirror_across_entire_model()
-                
+        self.bungie_mesh_type = self.halo.mesh_type
+        if self.sidecar_type in ('MODEL', 'SKY'):
+            self.bungie_face_region = self.halo.region_name
+
+        # PROPS FOR MESH TYPES WHICH HAVE RENDERED FACES:
+        if self.halo.face_type:
+            self.bungie_face_type = self.halo.face_type
             if self.bungie_face_type == '_connected_geometry_face_type_sky':
-                self.bungie_sky_permutation_index = self.sky_permutation_index()
+                self.bungie_sky_permutation_index = self.halo.sky_permutation_index
 
+        if self.halo.face_mode:
+            self.bungie_face_mode = self.halo.face_mode
+        if self.halo.face_sides:
+            self.bungie_face_sides = self.halo.face_sides
+        if self.halo.face_draw_distance:
+            self.bungie_face_draw_distance = self.halo.face_draw_distance
+        if self.halo.texcoord_usage:
+            self.bungie_texcoord_usage = self.halo.texcoord_usage
+
+        if self.halo.ladder:
+            self.bungie_ladder = self.halo.ladder
+        if self.halo.slip_surface:
+            self.bungie_slip_surface = self.halo.slip_surface
+        if self.halo.decal_offset:
+            self.bungie_decal_offset = self.halo.decal_offset
+        if self.halo.group_transparents_by_plane:
+            self.bungie_group_transparents_by_plane = self.halo.group_transparents_by_plane
+        if self.halo.no_shadow:
+            self.bungie_no_shadow = self.halo.no_shadow
         if self.halo.precise_position:
-            self.bungie_mesh_use_uncompressed_verts = self.mesh_use_uncompressed_verts()
+            self.bungie_precise_position = self.halo.precise_position
+            if self.bungie_mesh_type == '_connected_geometry_mesh_type_poop':
+                self.bungie_mesh_poop_precise_geometry = "1"
+        if self.halo.mesh_tessellation_density:
+            self.bungie_mesh_tessellation_density = self.halo.mesh_tessellation_density
+        if self.halo.mesh_compression:
+            self.bungie_mesh_additional_compression = self.halo.mesh_compression
+        if self.not_bungie_game:
+            if self.halo.no_pvs:
+                self.bungie_invisible_to_pvs = self.halo.no_pvs
+            if self.halo.no_lightmap:
+                self.bungie_no_lightmap = self.halo.no_lightmap
+            if self.halo.uvmirror_across_entire_model:
+                self.bungie_uvmirror_across_entire_model = self.halo.uvmirror_across_entire_model
+                
+            if self.halo.precise_position:
+                self.bungie_mesh_use_uncompressed_verts = self.mesh_use_uncompressed_verts()
 
-        if self.bungie_mesh_type in ('_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_water_surface'):
-            if self.halo.face_global_material != '':
-                self.bungie_face_global_material = self.face_global_material()
+        if self.halo.face_global_material and self.halo.face_global_material != 'default':
+            self.bungie_face_global_material = self.halo.face_global_material
         
         # SPECIFIC MESH TYPE PROPS
         if self.bungie_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
-            self.bungie_mesh_boundary_surface_type = self.mesh_boundary_surface_type()
-            self.bungie_mesh_boundary_surface_name = self.mesh_boundary_surface_name()
+            self.bungie_mesh_boundary_surface_type = self.halo.mesh_boundary_surface_type
+            self.bungie_mesh_boundary_surface_name = dot_partition(self.name)
 
         elif self.bungie_mesh_type in ('_connected_geometry_mesh_type_poop_collision',  '_connected_geometry_mesh_type_poop'):
-            if self.not_bungie_game:
-                self.bungie_mesh_poop_collision_type = self.mesh_poop_collision_type()
-                self.bungie_mesh_poop_collision_override_global_material = self.mesh_poop_collision_override_global_material()
-                if self.bungie_mesh_poop_collision_override_global_material == '1':
-                    self.bungie_mesh_global_material = self.mesh_global_material()
-            if self.bungie_mesh_type == '_connected_geometry_mesh_type_poop':
-                self.bungie_mesh_poop_lighting = self.mesh_poop_lighting()
-                if self.halo.lightmap_resolution_scale_active:
-                    self.bungie_mesh_poop_lightmap_resolution_scale = self.mesh_poop_lightmap_resolution_scale()
-                self.bungie_mesh_poop_pathfinding = self.mesh_poop_pathfinding()
-                self.bungie_mesh_poop_imposter_policy = self.mesh_poop_imposter_policy()
-                self.bungie_mesh_poop_imposter_transition_distance = self.mesh_poop_imposter_brightness()
-                # self.bungie_mesh_poop_fade_range_start = self.mesh_poop_fade_range_start()
-                # self.bungie_mesh_poop_fade_range_end = self.mesh_poop_fade_range_end()
-                # This needs to be Reach only otherwise tool complains. However, the flag is still in use in the UI as it is instead used to set instanced collision type to none
-                if not self.not_bungie_game:
-                    self.bungie_mesh_poop_is_render_only = self.mesh_poop_is_render_only()
-
-                self.bungie_mesh_poop_chops_portals = self.mesh_poop_chops_portals()
-                self.bungie_mesh_poop_does_not_block_aoe = self.mesh_poop_does_not_block_aoe()
-                self.bungie_mesh_poop_excluded_from_lightprobe = self.mesh_poop_excluded_from_lightprobe()
-                self.bungie_mesh_poop_decal_spacing = self.mesh_poop_decal_spacing()
-                self.bungie_mesh_poop_precise_geometry = self.mesh_poop_precise_geometry()
-                # self.bungie_mesh_poop_predominant_shader_name = self.mesh_poop_predominant_shader_name()
-                # self.bungie_mesh_poop_light_channel_flags = self.mesh_poop_light_channel_flags()
-                # H4 only
+            if self.not_bungie_game and self.bungie_mesh_type == '_connected_geometry_mesh_type_poop' and self.halo.poop_rain_occluder == "1":
+                self.bungie_mesh_poop_is_rain_occluder = "1"
+            else:
                 if self.not_bungie_game:
-                    self.bungie_mesh_poop_imposter_brightness = self.mesh_poop_imposter_brightness()
-                    self.bungie_mesh_poop_streamingpriority = self.mesh_poop_streamingpriority()
-                    self.bungie_mesh_poop_remove_from_shadow_geometry = self.mesh_poop_remove_from_shadow_geometry()
-                    self.bungie_mesh_poop_cinema_only = self.mesh_poop_cinema_only()
-                    self.bungie_mesh_poop_exclude_from_cinema = self.mesh_poop_exclude_from_cinema()
-                    self.bungie_mesh_poop_disallow_object_lighting_samples = self.mesh_poop_disallow_object_lighting_samples()
-                    self.bungie_mesh_poop_is_rain_occluder = self.mesh_poop_is_rain_occluder()
+                    self.bungie_mesh_poop_collision_type = self.mesh_poop_collision_type()
+                    if self.bungie_mesh_poop_collision_type != '_connected_geometry_poop_collision_type_none':
+                        self.bungie_mesh_poop_collision_override_global_material = bool_str(self.halo.face_global_material != 'default' and self.halo.face_global_material != '')
+                        if self.bungie_mesh_poop_collision_override_global_material == '1':
+                            self.bungie_mesh_global_material = self.halo.face_global_material
+
+                if self.bungie_mesh_type == '_connected_geometry_mesh_type_poop':
+                    self.bungie_mesh_poop_lighting = self.halo.poop_lighting
+                    if self.halo.lightmap_resolution_scale:
+                        self.bungie_mesh_poop_lightmap_resolution_scale = self.halo.lightmap_resolution_scale
+                    self.bungie_mesh_poop_pathfinding = self.halo.poop_pathfinding
+                    self.bungie_mesh_poop_imposter_policy = self.halo.poop_imposter_policy
+                    if self.bungie_mesh_poop_imposter_policy != '_connected_poop_instance_imposter_policy_never' and not self.halo.poop_imposter_transition_distance_auto:
+                        self.bungie_mesh_poop_imposter_transition_distance = self.halo.poop_imposter_transition_distance
+                    # self.bungie_mesh_poop_fade_range_start = self.mesh_poop_fade_range_start()
+                    # self.bungie_mesh_poop_fade_range_end = self.mesh_poop_fade_range_end()
+
+                    # This needs to be Reach only otherwise tool complains. However, the flag is still in use in the UI as it is instead used to set instanced collision type to none
+                    if not self.not_bungie_game and self.halo.face_mode == '_connected_geometry_face_mode_render_only':
+                        self.bungie_mesh_poop_is_render_only = "1"
+
+                    if self.halo.poop_chops_portals:
+                        self.bungie_mesh_poop_chops_portals = self.halo.poop_chops_portals
+                    if self.halo.poop_does_not_block_aoe:
+                        self.bungie_mesh_poop_does_not_block_aoe = self.halo.poop_does_not_block_aoe
+                    if self.halo.poop_excluded_from_lightprobe:
+                        self.bungie_mesh_poop_excluded_from_lightprobe = self.halo.poop_excluded_from_lightprobe
+                    if self.halo.poop_decal_spacing:
+                        self.bungie_mesh_poop_decal_spacing = self.halo.poop_decal_spacing
+
+                    # self.bungie_mesh_poop_predominant_shader_name = self.mesh_poop_predominant_shader_name()
+                    # self.bungie_mesh_poop_light_channel_flags = self.mesh_poop_light_channel_flags()
+                    # H4 only
+                    if self.not_bungie_game:
+                        if self.bungie_mesh_poop_imposter_policy != '_connected_poop_instance_imposter_policy_never':
+                            self.bungie_mesh_poop_imposter_brightness = self.halo.poop_imposter_brightness
+                            self.bungie_mesh_poop_streamingpriority = self.halo.poop_streaming_priority
+
+                            self.bungie_mesh_poop_cinema_only = self.mesh_poop_cinema_only()
+                            self.bungie_mesh_poop_exclude_from_cinema = self.mesh_poop_exclude_from_cinema()
+
+                            if self.halo.poop_remove_from_shadow_geometry:
+                                self.bungie_mesh_poop_remove_from_shadow_geometry = self.halo.poop_remove_from_shadow_geometry
+
+                            if self.halo.poop_disallow_lighting_samples:
+                                self.bungie_mesh_poop_disallow_object_lighting_samples = self.halo.poop_disallow_lighting_samples
+
 
         elif self.bungie_mesh_type == '_connected_geometry_mesh_type_physics':
-            self.bungie_mesh_primitive_type = self.mesh_primitive_type()
-            if self.bungie_mesh_primitive_type == '_connected_geometry_primitive_type_box':
-                self.bungie_mesh_primitive_box_length = self.mesh_primitive_box_length()
-                self.bungie_mesh_primitive_box_width = self.mesh_primitive_box_width()
-                self.bungie_mesh_primitive_box_height = self.mesh_primitive_box_height()
-            elif self.bungie_mesh_primitive_type == '_connected_geometry_primitive_type_pill':
-                self.bungie_mesh_primitive_pill_radius = self.mesh_primitive_pill_radius()
-                self.bungie_mesh_primitive_pill_height = self.mesh_primitive_pill_height()
-            elif self.bungie_mesh_primitive_type == '_connected_geometry_primitive_type_sphere':
-                self.bungie_mesh_primitive_sphere_radius = self.mesh_primitive_sphere_radius()
+            if self.halo.mesh_primitive_type != '_connected_geometry_primitive_type_none':
+                self.bungie_mesh_primitive_type = self.halo.mesh_primitive_type
+                if self.bungie_mesh_primitive_type == '_connected_geometry_primitive_type_box':
+                    self.bungie_mesh_primitive_box_length = self.mesh_primitive_box_length()
+                    self.bungie_mesh_primitive_box_width = self.mesh_primitive_box_width()
+                    self.bungie_mesh_primitive_box_height = self.mesh_primitive_box_height()
+                elif self.bungie_mesh_primitive_type == '_connected_geometry_primitive_type_pill':
+                    self.bungie_mesh_primitive_pill_radius = self.mesh_primitive_pill_radius()
+                    self.bungie_mesh_primitive_pill_height = self.mesh_primitive_pill_height()
+                elif self.bungie_mesh_primitive_type == '_connected_geometry_primitive_type_sphere':
+                    self.bungie_mesh_primitive_sphere_radius = self.mesh_primitive_sphere_radius()
 
         elif self.bungie_mesh_type == '_connected_geometry_mesh_type_portal':
-            self.bungie_mesh_portal_type = self.mesh_portal_type()
-            self.bungie_mesh_portal_ai_deafening = self.mesh_portal_ai_deafening()
-            self.bungie_mesh_portal_blocks_sound = self.mesh_portal_blocks_sound()
-            self.bungie_mesh_portal_is_door = self.mesh_portal_is_door()
+            self.bungie_mesh_portal_type = self.halo.portal_type
+            if self.halo.portal_ai_deafening:
+                self.bungie_mesh_portal_ai_deafening = self.halo.portal_ai_deafening
+            if self.halo.portal_blocks_sounds:
+                self.bungie_mesh_portal_blocks_sound = self.halo.portal_blocks_sounds
+            if self.halo.portal_is_door:
+                self.bungie_mesh_portal_is_door = self.halo.portal_is_door
 
         elif self.bungie_mesh_type == '_connected_geometry_mesh_type_decorator':
-            self.bungie_mesh_decorator_lod = self.mesh_decorator_lod()
-            self.bungie_mesh_decorator_name = self.mesh_decorator_name()
+            self.bungie_mesh_decorator_lod = self.halo.decorator_lod
+            self.bungie_mesh_decorator_name = dot_partition(self.name)
 
         elif self.bungie_mesh_type == '_connected_geometry_mesh_type_seam':
-            self.bungie_mesh_seam_associated_bsp = self.mesh_seam_associated_bsp()
-            # self.bungie_mesh_seam_front_bsp = self.mesh_seam_front_bsp()
-            # self.bungie_mesh_seam_back_bsp = self.mesh_seam_back_bsp()
+            self.bungie_mesh_seam_associated_bsp = f'{self.asset_name}_{self.halo.bsp_name}'
 
         elif self.bungie_mesh_type == '_connected_geometry_mesh_type_water_physics_volume':
-            self.bungie_mesh_water_volume_depth = self.mesh_water_volume_depth()
-            self.bungie_mesh_water_volume_flow_direction = self.mesh_water_volume_flow_direction()
-            self.bungie_mesh_water_volume_flow_velocity = self.mesh_water_volume_flow_velocity()
+            self.bungie_mesh_water_volume_depth = self.halo.water_volume_depth
+            self.bungie_mesh_water_volume_flow_direction = self.halo.water_volume_flow_direction
+            self.bungie_mesh_water_volume_flow_velocity = self.halo.water_volume_flow_velocity
             self.bungie_mesh_water_volume_fog_color = self.mesh_water_volume_fog_color()
-            self.bungie_mesh_water_volume_fog_murkiness = self.mesh_water_volume_fog_murkiness()
+            self.bungie_mesh_water_volume_fog_murkiness = self.halo.water_volume_fog_murkiness
 
         elif self.bungie_mesh_type == '_connected_geometry_mesh_type_planar_fog_volume':
-            self.bungie_mesh_fog_name = self.mesh_fog_name()
-            self.bungie_mesh_fog_appearance_tag = self.mesh_fog_appearance_tag()
-            self.bungie_mesh_fog_volume_depth = self.mesh_fog_volume_depth()
+            self.bungie_mesh_fog_name = dot_partition(self.name)
+            self.bungie_mesh_fog_appearance_tag = self.halo.fog_appearance_tag
+            self.bungie_mesh_fog_volume_depth = self.halo.fog_volume_depth
 
         elif self.bungie_mesh_type == '_connected_geometry_mesh_type_obb_volume':
-            self.bungie_mesh_obb_type = self.mesh_obb_type()
+            self.bungie_mesh_obb_type = self.halo.obb_volume_type
 
         # LIGHTMAP PROPERTIES
         if self.halo.lightmap_additive_transparency_active:
@@ -992,39 +902,29 @@ class NWOMesh(NWOObject):
             # if self.not_bungie_game:
             #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
         # EMMISSIVE PROPERTIES
-        if self.halo.material_lighting_attenuation_active:
-            # if not_bungie_game():
-            #     self.bungie_lighting_attenuation_enabled = self.lighting_attenuation_enabled()
-                # self.bungie_lighting_frustum_blend = self.lighting_frustum_blend()
-                # self.bungie_lighting_frustum_cutoff = self.lighting_frustum_cutoff()
-                # self.bungie_lighting_frustum_falloff = self.lighting_frustum_falloff()
-            self.bungie_lighting_attenuation_cutoff = self.lighting_attenuation_cutoff()
-            self.bungie_lighting_attenuation_falloff = self.lighting_attenuation_falloff()
-        if self.halo.material_lighting_emissive_focus_active:
-            self.bungie_lighting_emissive_focus = self.lighting_emissive_focus()
-        if self.halo.material_lighting_emissive_color_active:
-            self.bungie_lighting_emissive_color = self.lighting_emissive_color()
-        if self.halo.material_lighting_emissive_per_unit_active:
-            self.bungie_lighting_emissive_per_unit = self.lighting_emissive_per_unit()
-        if self.halo.material_lighting_emissive_power_active:
-            self.bungie_lighting_emissive_power = self.lighting_emissive_power()
-        if self.halo.material_lighting_emissive_quality_active:
-            self.bungie_lighting_emissive_quality = self.lighting_emissive_quality()
-        if self.halo.material_lighting_use_shader_gel_active:
-            self.bungie_lighting_use_shader_gel = self.lighting_use_shader_gel()
-        if self.halo.material_lighting_bounce_ratio_active:
-            self.bungie_lighting_bounce_ratio = self.lighting_bounce_ratio()
+        if self.halo.material_lighting_emissive_power:
+            self.bungie_lighting_emissive_power = self.halo.material_lighting_emissive_power
+            if self.halo.material_lighting_attenuation_cutoff:
+                self.bungie_lighting_attenuation_cutoff = self.halo.material_lighting_attenuation_cutoff
+                self.bungie_lighting_attenuation_enabled = "1"
+            if self.halo.material_lighting_attenuation_falloff:
+                self.bungie_lighting_attenuation_falloff = self.halo.material_lighting_attenuation_falloff
+                self.bungie_lighting_attenuation_enabled = "1"
+            if self.halo.material_lighting_emissive_focus:
+                self.bungie_lighting_emissive_focus = self.halo.material_lighting_emissive_focus
+            if self.halo.material_lighting_emissive_color:
+                self.bungie_lighting_emissive_color = self.halo.material_lighting_emissive_color
+            if self.halo.material_lighting_emissive_per_unit:
+                self.bungie_lighting_emissive_per_unit = self.halo.material_lighting_emissive_per_unit
+            if self.halo.material_lighting_emissive_quality:
+                self.bungie_lighting_emissive_quality = self.halo.material_lighting_emissive_quality
+            if self.halo.material_lighting_use_shader_gel:
+                self.bungie_lighting_use_shader_gel = self.halo.material_lighting_use_shader_gel
+            if self.halo.material_lighting_bounce_ratio:
+                self.bungie_lighting_bounce_ratio = self.halo.material_lighting_bounce_ratio
 
         self.cleanup()
 
-    def mesh_type(self):
-        return self.halo.mesh_type
-
-    def mesh_global_material(self):
-        return self.halo.face_global_material
-
-    def mesh_primitive_type(self):
-        return self.halo.mesh_primitive_type
 
     def mesh_primitive_box_length(self):
         return jstr(self.ob.dimensions.y)
@@ -1044,218 +944,39 @@ class NWOMesh(NWOObject):
     def mesh_primitive_sphere_radius(self):
         return radius_str(self.ob)
 
-    def mesh_boundary_surface_type(self):
-        if self.ob.name.startswith('+soft_ceiling'):
-            return '_connected_geometry_boundary_surface_type_soft_ceiling'
-        elif self.ob.name.startswith('+soft_kill'):
-            return '_connected_geometry_boundary_surface_type_soft_kill'
-        elif self.ob.name.startswith('+slip_surface'):
-            return '_connected_geometry_boundary_surface_type_slip_surface'
-        else:
-            return self.halo.boundary_surface_type
-
-    def mesh_boundary_surface_name(self):
-        return self.halo.boundary_surface_name
-
-    def mesh_poop_lighting(self):
-        return self.halo.poop_lighting_override
-
-    def mesh_poop_lightmap_resolution_scale(self):
-        return jstr(self.halo.lightmap_resolution_scale) #jstr(self.halo.poop_lightmap_resolution_scale)
-
-    def mesh_poop_pathfinding(self):
-        return self.halo.poop_pathfinding_override
-
-    def mesh_poop_imposter_policy(self):
-        return self.halo.poop_imposter_policy
-
-    def mesh_poop_imposter_brightness(self):
-        return jstr(self.halo.poop_imposter_brightness)
-
-    # def mesh_poop_fade_range_start(self):
-    #     return jstr(self.halo.Poop_Imposter_Fade_Range_Start)
-
-    # def mesh_poop_fade_range_end(self):
-    #     return jstr(self.halo.Poop_Imposter_Fade_Range_End)
-
-    def mesh_poop_is_render_only(self):
-        return bool_str(self.halo.poop_render_only)
-
-    def mesh_poop_chops_portals(self):
-        return bool_str(self.halo.poop_chops_portals)
-
-    def mesh_poop_does_not_block_aoe(self):
-        return bool_str(self.halo.poop_does_not_block_aoe)
-
-    def mesh_poop_excluded_from_lightprobe(self):
-        return bool_str(self.halo.poop_excluded_from_lightprobe)
-
-    def mesh_poop_streamingpriority(self):
-        return self.halo.poop_streaming_priority
-
-    def mesh_poop_decal_spacing(self):
-        return bool_str(self.halo.poop_decal_spacing)
-
-    def mesh_poop_precise_geometry(self):
-        return bool_str(self.halo.poop_precise_geometry)
-
-    def mesh_poop_remove_from_shadow_geometry(self):
-        return bool_str(self.halo.poop_remove_from_shadow_geometry)
-
     def mesh_poop_cinema_only(self):
         return bool_str(self.halo.poop_cinematic_properties == 'bungie_mesh_poop_cinema_only')
 
     def mesh_poop_exclude_from_cinema(self):
         return bool_str(self.halo.poop_cinematic_properties == 'bungie_mesh_poop_exclude_from_cinema')
 
-    def mesh_poop_disallow_object_lighting_samples(self):
-        return bool_str(self.halo.poop_disallow_lighting_samples)
-
-    def mesh_poop_is_rain_occluder(self):
-        return bool_str(self.halo.poop_rain_occluder)
-
-    def mesh_tessellation_density(self):
-        return self.halo.mesh_tessellation_density
-
-    def mesh_additional_compression(self):
-        return self.halo.mesh_compression
-
     def mesh_use_uncompressed_verts(self):
         if self.bungie_mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_object_instance'):
             if '_connected_geometry_mesh_type_default' and self.sidecar_type == 'SCENARIO':
-                return bool_str(False)
+                return "0"
             else:
-                return bool_str(not self.halo.compress_verts)
+                return "1"
         else:
-            return bool_str(False)
-
-    def uvmirror_across_entire_model(self):
-        return bool_str(self.halo.uvmirror_across_entire_model)
+            return "0"
 
     def mesh_per_vertex_lighting(self):
         return bool_str(self.halo.lightmap_type == '_connected_material_lightmap_type_per_vertex')
 
     def mesh_poop_collision_type(self):
-        if self.halo.poop_render_only:
+        if self.halo.face_type == '_connected_geometry_face_type_render_only':
             return '_connected_geometry_poop_collision_type_none'
-        else:
+        if self.halo.face_type == '_connected_geometry_face_type_sphere_collision_only':
+            return '_connected_geometry_poop_collision_type_play_collision'
+        elif self.halo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
             return self.halo.poop_collision_type
-
-    def mesh_poop_collision_override_global_material(self):
-        return bool_str(self.halo.face_global_material != '')
-
-    def mesh_portal_type(self):
-        return self.halo.portal_type
-
-    def mesh_portal_ai_deafening(self):
-        return bool_str(self.halo.portal_ai_deafening)
-
-    def mesh_portal_blocks_sound(self):
-        return bool_str(self.halo.portal_blocks_sounds)
-
-    def mesh_portal_is_door(self):
-        return bool_str(self.halo.portal_is_door)
-
-    def mesh_decorator_lod(self):
-        return str(self.halo.decorator_lod)
-
-    def mesh_decorator_name(self):
-        return self.halo.decorator_name
-
-    def mesh_seam_associated_bsp(self):
-        return f'{self.asset_name}_{self.halo.bsp_name}'
-
-    def mesh_water_volume_depth(self):
-        return jstr(self.halo.water_volume_depth)
-
-    def mesh_water_volume_flow_direction(self):
-        return jstr(self.halo.water_volume_flow_direction)
-
-    def mesh_water_volume_flow_velocity(self):
-        return jstr(self.halo.water_volume_flow_velocity)
+        else:
+            return '_connected_geometry_poop_collision_type_default'
 
     def mesh_water_volume_fog_color(self):
         if self.not_bungie_game:
             return color_3p_str(self.halo.water_volume_fog_color)
         else:
             return color_4p_str(self.halo.water_volume_fog_color)
-
-    def mesh_water_volume_fog_murkiness(self):
-        return jstr(self.halo.water_volume_fog_murkiness)
-
-    def mesh_fog_name(self):
-        return self.halo.Fog_Name
-
-    def mesh_fog_appearance_tag(self):
-        return clean_tag_path(self.halo.fog_appearance_tag)
-
-    def mesh_fog_volume_depth(self):
-        return jstr(self.halo.fog_volume_depth)
-
-    def mesh_obb_type(self):
-        return self.halo.obb_volume_type
-
-    def face_type(self):
-        if self.not_bungie_game and self.bungie_mesh_type == '_connected_geometry_mesh_type_default' and self.sidecar_type in ('SCENARIO', 'PREFAB'):
-            return '_connected_geometry_face_type_sky'
-        else:
-            return self.halo.face_type
-
-    def face_mode(self):
-        if not self.not_bungie_game and len(self.ob.children) > 0 and self.bungie_mesh_type == '_connected_geometry_mesh_type_poop':
-            for child in self.ob.children:
-                if CheckType.poop_collision(child):
-                    return '_connected_geometry_face_mode_render_only'
-            else:
-                return self.halo.face_mode
-        else:
-            return self.halo.face_mode
-
-
-    def face_sides(self):
-        return self.halo.face_sides
-
-    def face_draw_distance(self):
-        return self.halo.face_draw_distance
-
-    def face_global_material(self):
-        return self.halo.face_global_material
-
-    def face_region(self):
-        return self.halo.region_name
-
-    def texcoord_usage(self): # NEEDS ENTRY IN UI
-        return self.halo.texcoord_usage
-
-    def conveyor(self):
-        return bool_str(self.halo.conveyor)
-
-    def ladder(self):
-        return bool_str(self.halo.ladder)
-
-    def slip_surface(self):
-        return bool_str(self.halo.slip_surface)
-
-    def decal_offset(self):
-        return bool_str(self.halo.decal_offset)
-
-    def group_transparents_by_plane(self):
-        return bool_str(self.halo.group_transparents_by_plane)
-
-    def no_shadow(self):
-        return bool_str(self.halo.no_shadow)
-
-    def invisible_to_pvs(self):
-        return bool_str(self.halo.no_pvs)
-
-    def no_lightmap(self):
-        return bool_str(self.halo.no_lightmap)
-
-    def precise_position(self):
-        return bool_str(self.halo.precise_position)
-
-    def sky_permutation_index(self):
-        return str(self.halo.sky_permutation_index)
 
     def lightmap_additive_transparency(self):
         return color_4p_str(self.halo.lightmap_additive_transparency)
@@ -1290,98 +1011,6 @@ class NWOMesh(NWOObject):
     def lightmap_lighting_from_both_sides(self):
         return bool_str(self.halo.lightmap_lighting_from_both_sides)
 
-    def lighting_attenuation_enabled(self): # NEEDS ENTRY IN UI
-        return bool_str(self.halo.lighting_attenuation_enabled)
-
-    def lighting_attenuation_cutoff(self):
-        return jstr(self.halo.material_lighting_attenuation_cutoff)
-
-    def lighting_attenuation_falloff(self):
-        return jstr(self.halo.material_lighting_attenuation_falloff)
-
-    def lighting_emissive_focus(self):
-        return jstr(self.halo.material_lighting_emissive_focus)
-
-    def lighting_emissive_color(self):
-        return color_4p_str(self.halo.material_lighting_emissive_color)
-
-    def lighting_emissive_per_unit(self):
-        return bool_str(self.halo.material_lighting_emissive_per_unit)
-
-    def lighting_emissive_power(self):
-        return jstr(self.halo.material_lighting_emissive_power)
-
-    def lighting_emissive_quality(self):
-        return jstr(self.halo.material_lighting_emissive_quality)
-
-    def lighting_frustum_blend(self): # NEEDS ENTRY IN UI
-        return jstr(self.halo.lighting_frustum_blend)
-
-    def lighting_frustum_cutoff(self): # NEEDS ENTRY IN UI
-        return jstr(self.halo.lighting_frustum_cutoff)
-
-    def lighting_frustum_falloff(self): # NEEDS ENTRY IN UI
-        return jstr(self.halo.lighting_frustum_falloff)
-
-    def lighting_use_shader_gel(self):
-        return bool_str(self.halo.material_lighting_use_shader_gel)
-
-    def lighting_bounce_ratio(self):
-        return jstr(self.halo.material_lighting_bounce_ratio)
-
-    def boundary_surface(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_boundary_surface'))
-
-    def collision(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_collision'))
-
-    def cookie_cutter(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_cookie_cutter'))
-
-    def decorator(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_decorator'))
-    
-    def default(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_default'))
-
-    def poop(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_poop'))
-
-    def poop_marker(self): # REACH ONLY
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_poop_marker'))
-
-    def poop_rain_blocker(self): # REACH ONLY
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_poop_rain_blocker'))
-
-    def poop_vertical_rain_sheet(self): # REACH ONLY
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_poop_vertical_rain_sheet'))
-
-    def lightmap_region(self): # REACH ONLY
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_lightmap_region'))
-
-    def object_instance(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_object_instance'))
-
-    def physics(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_physics'))
-
-    def planar_fog_volume(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_planar_fog_volume'))
-
-    def portal(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_portal'))
-
-    def seam(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_seam'))
-
-    def water_physics_volume(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_water_physics_volume'))
-
-    def water_surface(self):
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_water_surface'))
-
-    def obb_volume(self): # H4+ ONLY
-        return mesh_type(self.ob, ('_connected_geometry_mesh_type_obb_volume')) 
 
 class NWOMaterial:
     def __init__(self, material):

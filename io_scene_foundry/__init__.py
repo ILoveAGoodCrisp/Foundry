@@ -58,8 +58,8 @@ from . import managed_blam
 modules = [
     icons,
     tools,
-    managed_blam,
     ui,
+    managed_blam,
     export,
 ]
 
@@ -214,10 +214,10 @@ def load_handler(dummy):
     # only do this if the scene is not an asset
     if not valid_nwo_asset(context) and os.path.exists(game_version_txt_path):
         with open(game_version_txt_path, 'r') as temp_file:
-            bpy.context.scene.nwo_global.game_version = temp_file.read()
+            bpy.context.scene.nwo.game_version = temp_file.read()
 
     # run ManagedBlam on startup if enabled
-    if bpy.context.scene.nwo_global.mb_startup:
+    if bpy.context.scene.nwo.mb_startup:
         bpy.ops.managed_blam.init()
 
     # create warning if current game_version is incompatible with loaded managedblam.dll
@@ -226,10 +226,42 @@ def load_handler(dummy):
             mb_path = blam_txt.read()
         
         if not mb_path.startswith(get_ek_path()):
-            game = formalise_game_version(bpy.context.scene.nwo_global.game_version)
+            game = formalise_game_version(bpy.context.scene.nwo.game_version)
             result = ctypes.windll.user32.MessageBoxW(0, f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?", f"ManagedBlam / Game Mismatch", 4)
             if result == 6:
                 bpy.ops.wm.quit_blender()
+
+@persistent
+def get_temp_settings(dummy):
+        """Restores settings that the user created on export. Necesssary due to the way the exporter undos changes made during scene export"""
+        scene = bpy.context.scene
+        temp_file_path = os.path.join(bpy.app.tempdir, 'nwo_scene_settings.txt')
+        if os.path.exists(temp_file_path):
+            with open(temp_file_path, 'r') as temp_file:
+                settings = temp_file.readlines()
+
+            settings = [line.strip() for line in settings]
+            scene.nwo_halo_launcher.sidecar_path = settings[0]
+            scene.nwo.game_version = settings[1]
+            scene.nwo.asset_type = settings[2]
+            scene.nwo.output_biped = True if settings[3] == 'True' else False
+            scene.nwo.output_crate = True if settings[4] == 'True' else False
+            scene.nwo.output_creature = True if settings[5] == 'True' else False
+            scene.nwo.output_device_control = True if settings[6] == 'True' else False
+            scene.nwo.output_device_dispenser = True if settings[7] == 'True' else False
+            scene.nwo.output_device_machine = True if settings[8] == 'True' else False
+            scene.nwo.output_device_terminal = True if settings[9] == 'True' else False
+            scene.nwo.output_effect_scenery = True if settings[10] == 'True' else False
+            scene.nwo.output_equipment = True if settings[11] == 'True' else False
+            scene.nwo.output_giant = True if settings[12] == 'True' else False
+            scene.nwo.output_scenery = True if settings[13] == 'True' else False
+            scene.nwo.output_vehicle = True if settings[14] == 'True' else False
+            scene.nwo.output_weapon = True if settings[15] == 'True' else False
+            scene.nwo_export.show_output = True if settings[16] == 'True' else False
+
+            os.remove(temp_file_path)
+
+        return False
 
 def register():
     bpy.utils.register_class(ToolkitLocationPreferences)
@@ -237,11 +269,13 @@ def register():
     bpy.utils.register_class(H4EKLocationPath)
     bpy.utils.register_class(H2AMPEKLocationPath)
     bpy.app.handlers.load_post.append(load_handler)
+    bpy.app.handlers.undo_post.append(get_temp_settings)
     for module in modules:
         module.register()
 
 def unregister():
     bpy.app.handlers.load_post.remove(load_handler)
+    bpy.app.handlers.undo_post.remove(get_temp_settings)
     bpy.utils.unregister_class(ToolkitLocationPreferences)
     bpy.utils.unregister_class(HREKLocationPath)
     bpy.utils.unregister_class(H4EKLocationPath)

@@ -34,10 +34,15 @@ from uuid import uuid4
 
 from io_scene_foundry.tools.shader_finder import FindShaders
 from ..utils.nwo_utils import(
+    bool_str,
+    color_3p_str,
+    color_4p_str,
     deselect_all_objects,
     dot_partition,
     is_linked,
     is_mesh,
+    jstr,
+    layer_face_count,
     select_all_objects,
     set_active_object,
     CheckType,
@@ -49,6 +54,7 @@ from ..utils.nwo_utils import(
     true_bsp,
     true_permutation,
     valid_animation_types,
+    vector_str,
 )
 
 #####################################################################################
@@ -79,10 +85,13 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     # convert linked objects to real
     make_instance_collections_real(context)
     # TODO fix missing master instance
-    # remove objects this export_this False from view layer
+    # remove objects with export_this False from view layer
     ignore_non_export_objects(context)
     # update bsp/perm/region names in case any are null.
     fix_blank_group_names(context)
+    # make h4 proxy instances from structure
+    if sidecar_type == 'SCENARIO' and not_bungie_game():
+        structure_to_poops(context)
     # Apply maya namespaces for H4/H2A exports.
     apply_properties(context, sidecar_type, asset)
     if export_gr2_files:
@@ -98,7 +107,8 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         # print("Finding missing shaders...")
         find_shaders_on_export(bpy.data.materials, context, report)
         # build structure seams
-        auto_seam(context)
+        # auto_seam(context)
+        assume_missing_master_instances(context)
         # Set up facemap properties
         # print("Building face properties...")
         apply_face_properties(context)
@@ -180,6 +190,20 @@ class HaloObjects():
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
+
+def assume_missing_master_instances(context):
+    checked_meshes = []
+    for ob in context.view_layer.objects:
+        for me in bpy.data.meshes:
+            if me not in checked_meshes:
+                checked_meshes.append(me)
+                users = me.users
+                if users > 1:
+                    master = me.nwo.master_instance
+                    if master is not None:
+                        continue
+                    else:
+                        master = ob
 
 def make_instance_collections_real(context):
     select_all_objects()
@@ -291,6 +315,8 @@ def ignore_non_export_objects(context):
         if (not ob_nwo.export_this) or ob.type in ('LATTICE', 'LIGHT_PROBE', 'SPEAKER', 'CAMERA') or (ob.type == 'EMPTY' and ob.empty_display_type == 'IMAGE'): # also remove non valid object types - camera, light probes, speaker, lattice, reference image
             unlink(ob)
 
+    context.view_layer.update()
+
 def apply_hint_marker_name(context):
     for ob in context.view_layer.objects:
         if CheckType.get(ob) == '_connected_geometry_object_type_marker' and ob.nwo.marker_type == '_connected_geometry_marker_type_hint':
@@ -333,28 +359,6 @@ def cull_zero_face_meshes(context):
 
 # FACEMAP SPLIT
 
-def remove_unused_facemaps(ob, context):
-    if ob.type == 'MESH':
-        ob.select_set(True)
-        context.view_layer.objects.active = ob
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        if len(ob.face_maps) > 0:
-            faces = ob.data.polygons
-            for f in faces:                   
-                f.select = False
-            index = 0 
-            for _ in range(len(ob.face_maps)):
-                ob.face_maps.active_index = index
-                bpy.ops.object.face_map_select()
-                if ob.data.count_selected_items()[2] > 0:
-                    bpy.ops.object.face_map_deselect()
-                    index +=1
-                else:
-                    bpy.ops.object.face_map_remove()
-                
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        ob.select_set(False)
-
 def any_face_props(ob):
     for item in ob.nwo_face.face_props:
         if (item.region_name_override or item.face_type_override or item.face_mode_override or item.face_sides_override or item.face_draw_distance_override or item.texcoord_usage_override
@@ -371,22 +375,20 @@ def any_face_props(ob):
         return False
     
 def justify_face_split(ob):
-    if ob.type != 'MESH':
+    """Checked whether we actually need to split this mesh up"""
+    face_layers = ob.nwo.face_props
+    # check that face layers don't cover the full mesh
+    me = ob.data
+    polygons = len(me.polygons)
+    for layer in face_layers:
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        f_layer = bm.faces.layers.int.get(layer.layer_name)
+        bm_face_count = layer_face_count(bm, f_layer)
+        if polygons != bm_face_count:
+            break
+    else:
         return False
-    if len(ob.face_maps) < 1:
-        return False
-    if len(ob.face_maps) == 1:
-        # determine if the facemap covers the entire mesh. If it does we don't need to split
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.face_map_select()
-        for face in ob.data.polygons:
-            if not face.select:
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                break
-        else:
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-            return False
 
     return True
 
@@ -411,10 +413,65 @@ def strip_render_only_faces(ob, context):
     
     context = current_context
 
-def split_by_face_map(ob, context, h4):
-    # remove unused face maps
-    ob.select_set(True)
-    set_active_object(ob)
+def recursive_layer_split(ob, context, h4, split_objects=[]):
+    face_layers = ob.nwo.face_props
+    me = ob.data
+    polygon_count = len(ob.data.polygons)
+    layer_remove_list = []
+    for layer in face_layers:
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        # remove layers that have no face count
+        f_layer = bm.faces.layers.int.get(layer.layer_name)
+        bm_face_count = layer_face_count(bm, f_layer)
+        if bm_face_count < 1:
+            layer_remove_list.append(layer.layer_name)
+        else:
+            layer.face_count = bm_face_count
+        
+        bm.free()
+
+    for name in layer_remove_list:
+        for index, layer in enumerate(ob.nwo.face_props):
+            if layer.layer_name == name:
+                ob.nwo.face_props.remove(index)
+                break
+
+    for layer in ob.nwo.face_props:
+        if polygon_count != layer.face_count:
+            bm = bmesh.new()
+            bm.from_mesh(me)
+            # select the faces associated with this layer and split them off to a new mesh
+            f_layer = bm.faces.layers.int.get(layer.layer_name)
+            for face in bm.faces:
+                face.select = bool(face[f_layer])
+
+            split_bm = bm.copy()
+            # delete faces from new mesh
+            faces_unselected = [f for f in split_bm.faces if not f.select] 
+            bmesh.ops.delete(split_bm, geom=faces_unselected, context='FACES')
+            # delete faces from old mesh
+            faces_selected = [f for f in bm.faces if f.select]
+            bmesh.ops.delete(bm, geom=faces_selected, context='FACES')
+            bm.to_mesh(me)
+            bm.free()
+            split_ob = ob.copy()
+            split_ob.name = f"{ob.name}({layer.name})"
+            split_ob.data = me.copy()
+            split_bm.to_mesh(split_ob.data)
+            split_bm.free()
+            context.scene.collection.objects.link(split_ob)
+            recursive_layer_split(split_ob, context, h4, split_objects)
+
+        else:
+            if ob not in split_objects:
+                split_objects.append(ob)
+            face_prop_to_mesh_prop(ob, h4, layer)
+
+    return split_objects
+
+
+def split_to_layers(ob, context, h4):
     if justify_face_split(ob):
         # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
         if CheckType.poop(ob) and not ob.nwo.poop_render_only and not h4: # don't do this for h4 as collision can be open
@@ -436,27 +493,12 @@ def split_by_face_map(ob, context, h4):
         normals_mesh.data = ob.data.copy()
         # context.scene.collection.objects.link(normals_mesh)
         # normals_mesh.hide_set(True)
-        remove_unused_facemaps(ob, context)
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        while len(ob.face_maps) > 0:
-            # Deselect all faces except those in the current face map
-            bpy.ops.mesh.select_all(action='DESELECT')
-            bpy.ops.object.face_map_select()
-                    
-            # Split the mesh by the selected faces
-            bpy.ops.mesh.separate(type='SELECTED')
 
-            bpy.ops.object.face_map_remove()
+        selection = recursive_layer_split(ob, context, h4, [ob])
 
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        # Remove unused face maps for objects
-        new_selection = context.selected_objects
-        ob.select_set(True)
-        selection_ob = context.selected_objects
-        for obj in selection_ob:
+        for obj in selection:
             if len(obj.data.polygons) > 0:
                 # TODO only do data transfer for rendered geo
-                remove_unused_facemaps(obj, context)
                 # set up data transfer modifier to retain normals
                 mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
                 mod.object = normals_mesh
@@ -474,13 +516,19 @@ def split_by_face_map(ob, context, h4):
                 # collision_mesh.nwo.face_type = '_connected_geometry_face_type_seam_sealer'
                 collision_mesh.matrix_world = ob.matrix_world
                 
-        return new_selection
+        return selection
     
     else:
         return context.selected_objects
     
-def structure_to_poop(ob):
+def structure_to_poops(context):
     """Duplicates structure geo and set it to poops for H4"""
+    for ob in context.view_layer.objects:
+        if  ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance:
+            poop_ob = ob.copy()
+            poop_ob.name = f'{ob.name}(instance)'
+            poop_ob.nwo.mesh_type_ui = "_connected_geometry_mesh_type_poop"
+            context.scene.collection.objects.link(poop_ob)
     
 def create_adjacent_seam(ob, adjacent_bsp):
     facing_bsp = ob.nwo.bsp_name
@@ -508,162 +556,138 @@ def create_adjacent_seam(ob, adjacent_bsp):
     me.update()
     bm.free()
 
-def face_prop_to_mesh_prop(ob, h4, main_mesh=None):
+def face_prop_to_mesh_prop(ob, h4, layer):
     # ignore unused face_prop items
-    if ob.face_maps:
-        for item in ob.nwo_face.face_props:
-            if item.name == ob.face_maps[0].name:
-                face_props = item
-                mesh_props = ob.nwo
-                # run through each face prop and apply it to the mesh if override set
-                # if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':
-                #     mesh_props.mesh_type = '_connected_geometry_mesh_type_seam'
-                #     create_adjacent_seam(ob, face_props.seam_adjacent_bsp)
-                if face_props.face_type_override:
-                    mesh_props.face_type = face_props.face_type
-                    mesh_props.sky_permutation_index = face_props.sky_permutation_index
-                if face_props.face_mode_override:
-                    mesh_props.face_mode = face_props.face_mode
-                if face_props.face_sides_override:
-                    mesh_props.face_sides = face_props.face_sides
-                if face_props.face_draw_distance_override:
-                    mesh_props.face_draw_distance = face_props.face_draw_distance
-                if face_props.texcoord_usage_override:
-                    mesh_props.texcoord_usage = face_props.texcoord_usage
-                if face_props.region_name_override:
-                    mesh_props.region_name = face_props.region_name
-                if face_props.face_global_material_override:
-                    mesh_props.face_global_material = face_props.face_global_material
-                if face_props.ladder_override:
-                    mesh_props.ladder = face_props.ladder
-                if face_props.slip_surface_override:
-                    mesh_props.slip_surface = face_props.slip_surface
-                if face_props.decal_offset_override:
-                    mesh_props.decal_offset = face_props.decal_offset
-                if face_props.group_transparents_by_plane_override:
-                    mesh_props.group_transparents_by_plane = face_props.group_transparents_by_plane
-                if face_props.no_shadow_override:
-                    mesh_props.no_shadow = face_props.no_shadow
-                if face_props.precise_position_override:
-                    mesh_props.precise_position = face_props.precise_position
-                if face_props.no_lightmap_override:
-                    mesh_props.no_lightmap = face_props.no_lightmap
-                if face_props.no_pvs_override:
-                    mesh_props.no_pvs = face_props.no_pvs
-                # lightmap props
-                if item.lightmap_additive_transparency_override:
-                    mesh_props.lightmap_additive_transparency = face_props.lightmap_additive_transparency
-                    mesh_props.lightmap_additive_transparency_active = True
-                if item.lightmap_resolution_scale_override:
-                    mesh_props.lightmap_resolution_scale = face_props.lightmap_resolution_scale
-                    mesh_props.lightmap_resolution_scale_active = True
-                if item.lightmap_type_override:
-                    mesh_props.lightmap_type = face_props.lightmap_type
-                    mesh_props.lightmap_type_active = True
-                # if item.lightmap_analytical_bounce_modifier_override:
-                #     mesh_props.lightmap_analytical_bounce_modifier = face_props.lightmap_analytical_bounce_modifier
-                #     mesh_props.lightmap_analytical_bounce_modifier_active = True
-                # if item.lightmap_general_bounce_modifier_override:
-                #     mesh_props.lightmap_general_bounce_modifier = face_props.lightmap_general_bounce_modifier
-                #     mesh_props.lightmap_general_bounce_modifier_active = True
-                if item.lightmap_translucency_tint_color_override:
-                    mesh_props.lightmap_translucency_tint_color = face_props.lightmap_translucency_tint_color
-                    mesh_props.lightmap_translucency_tint_color_active = True
-                if item.lightmap_lighting_from_both_sides_override:
-                    mesh_props.lightmap_lighting_from_both_sides = face_props.lightmap_lighting_from_both_sides
-                    mesh_props.lightmap_lighting_from_both_sides_active = True
-                # emissive props
-                if item.material_lighting_attenuation_override:
-                    mesh_props.material_lighting_attenuation_falloff = face_props.material_lighting_attenuation_falloff
-                    mesh_props.material_lighting_attenuation_cutoff = face_props.material_lighting_attenuation_cutoff
-                    mesh_props.material_lighting_attenuation_active = True
-                if item.material_lighting_emissive_focus_override:
-                    mesh_props.material_lighting_emissive_focus = face_props.material_lighting_emissive_focus
-                    mesh_props.material_lighting_emissive_focus_active = True
-                if item.material_lighting_emissive_color_override:
-                    mesh_props.material_lighting_emissive_color = face_props.material_lighting_emissive_color
-                    mesh_props.material_lighting_emissive_color_active = True
-                if item.material_lighting_emissive_per_unit_override:
-                    mesh_props.material_lighting_emissive_per_unit = face_props.material_lighting_emissive_per_unit
-                    mesh_props.material_lighting_emissive_per_unit_active = True
-                if item.material_lighting_emissive_power_override:
-                    mesh_props.material_lighting_emissive_power = face_props.material_lighting_emissive_power
-                    mesh_props.material_lighting_emissive_power_active = True
-                if item.material_lighting_emissive_quality_override:
-                    mesh_props.material_lighting_emissive_quality = face_props.material_lighting_emissive_quality
-                    mesh_props.material_lighting_emissive_quality_active = True
-                if item.material_lighting_use_shader_gel_override:
-                    mesh_props.material_lighting_use_shader_gel = face_props.material_lighting_use_shader_gel
-                    mesh_props.material_lighting_use_shader_gel_active = True
-                if item.material_lighting_bounce_ratio_override:
-                    mesh_props.material_lighting_bounce_ratio = face_props.material_lighting_bounce_ratio
-                    mesh_props.material_lighting_bounce_ratio_active = True
+    mesh_props = ob.nwo
+    face_props = layer
+    # run through each face prop and apply it to the mesh if override set
+    # if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':
+    #     mesh_props.mesh_type = '_connected_geometry_mesh_type_seam'
+    #     create_adjacent_seam(ob, face_props.seam_adjacent_bsp)
+    if face_props.face_type_override:
+        mesh_props.face_type = face_props.face_type_ui
+        mesh_props.sky_permutation_index = str(face_props.sky_permutation_index_ui)
+    if face_props.face_mode_override:
+        mesh_props.face_mode = face_props.face_mode_ui
+    if face_props.face_two_sided_override and face_props.face_two_sided_ui:
+        mesh_props.face_sides = "_connected_geometry_face_sides_two_sided"
+    if face_props.face_draw_distance_override:
+        mesh_props.face_draw_distance = face_props.face_draw_distance_ui
+    if face_props.texcoord_usage_override:
+        mesh_props.texcoord_usage = face_props.texcoord_usage_ui
+    if face_props.region_name_override:
+        mesh_props.region_name = face_props.region_name_ui
+    if face_props.face_global_material_override:
+        mesh_props.face_global_material = face_props.face_global_material_ui
+    if face_props.ladder_override:
+        mesh_props.ladder = bool_str(face_props.ladder_ui)
+    if face_props.slip_surface_override:
+        mesh_props.slip_surface = bool_str(face_props.slip_surface_ui)
+    if face_props.decal_offset_override:
+        mesh_props.decal_offset = bool_str(face_props.decal_offset_ui)
+    if face_props.group_transparents_by_plane_override:
+        mesh_props.group_transparents_by_plane = bool_str(face_props.group_transparents_by_plane_ui)
+    if face_props.no_shadow_override:
+        mesh_props.no_shadow = bool_str(face_props.no_shadow_ui)
+    if face_props.precise_position_override:
+        mesh_props.precise_position = bool_str(face_props.precise_position_ui)
+    if face_props.no_lightmap_override:
+        mesh_props.no_lightmap = bool_str(face_props.no_lightmap_ui)
+    if face_props.no_pvs_override:
+        mesh_props.no_pvs = bool_str(face_props.no_pvs_ui)
+    # lightmap props
+    if face_props.lightmap_additive_transparency_override:
+        mesh_props.lightmap_additive_transparency = jstr(face_props.lightmap_additive_transparency_ui)
+        mesh_props.lightmap_additive_transparency_active = True
+    if face_props.lightmap_resolution_scale_override:
+        mesh_props.lightmap_resolution_scale = int(face_props.lightmap_resolution_scale_ui)
+        mesh_props.lightmap_resolution_scale_active = True
+    if face_props.lightmap_type_override:
+        mesh_props.lightmap_type = face_props.lightmap_type_ui
+        mesh_props.lightmap_type_active = True
+    # if item.lightmap_analytical_bounce_modifier_override:
+    #     mesh_props.lightmap_analytical_bounce_modifier = face_props.lightmap_analytical_bounce_modifier
+    #     mesh_props.lightmap_analytical_bounce_modifier_active = True
+    # if item.lightmap_general_bounce_modifier_override:
+    #     mesh_props.lightmap_general_bounce_modifier = face_props.lightmap_general_bounce_modifier
+    #     mesh_props.lightmap_general_bounce_modifier_active = True
+    if face_props.lightmap_translucency_tint_color_override:
+        mesh_props.lightmap_translucency_tint_color = color_3p_str(face_props.lightmap_translucency_tint_color_ui)
+        mesh_props.lightmap_translucency_tint_color_active = True
+    if face_props.lightmap_lighting_from_both_sides_override:
+        mesh_props.lightmap_lighting_from_both_sides = bool_str(face_props.lightmap_lighting_from_both_sides_ui)
+        mesh_props.lightmap_lighting_from_both_sides_active = True
+    # emissive props
+    if face_props.emissive_override:
+        mesh_props.material_lighting_attenuation_falloff = jstr(face_props.material_lighting_attenuation_falloff_ui)
+        mesh_props.material_lighting_attenuation_cutoff = jstr(face_props.material_lighting_attenuation_cutoff_ui)
+        mesh_props.material_lighting_emissive_focus = jstr(face_props.material_lighting_emissive_focus_ui)
+        mesh_props.material_lighting_emissive_color = color_4p_str(face_props.material_lighting_emissive_color_ui)
+        mesh_props.material_lighting_emissive_per_unit = bool_str(face_props.material_lighting_emissive_per_unit_ui)
+        mesh_props.material_lighting_emissive_power = jstr(face_props.material_lighting_emissive_power_ui)
+        mesh_props.material_lighting_emissive_quality = jstr(face_props.material_lighting_emissive_quality_ui)
+        mesh_props.material_lighting_use_shader_gel = bool_str(face_props.material_lighting_use_shader_gel_ui)
+        mesh_props.material_lighting_bounce_ratio = jstr(face_props.material_lighting_bounce_ratio_ui)
 
-                # added two sided property to avoid open edges if collision prop
-                if not h4:
-                    is_poop = CheckType.poop(ob)
-                    if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
-                        mesh_props.face_sides = '_connected_geometry_face_sides_two_sided'
-                    elif is_poop and ob != main_mesh:
-                        mesh_props.poop_render_only = True
-
-                break
+    # added two sided property to avoid open edges if collision prop
+    if not h4:
+        is_poop = CheckType.poop(ob)
+        if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
+            mesh_props.face_sides = '_connected_geometry_face_sides_two_sided'
+        # elif is_poop and ob != main_mesh:
+        #     mesh_props.poop_render_only = True
 
 def apply_face_properties(context):
     objects = []
     h4 = not_bungie_game()
     valid_mesh_types = ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop')
+
     for ob in context.view_layer.objects:
         if CheckType.mesh(ob) and ob.nwo.mesh_type in valid_mesh_types:
             objects.append(ob)
+
     for ob in objects:
         if is_linked(ob) and ob.data.nwo.master_instance != ob:
             continue
-        if len(ob.face_maps) > 0 and any_face_props(ob):
-            deselect_all_objects()
-            ob.select_set(True)
-            set_active_object(ob)
+        face_layers = ob.nwo.face_props
+        if len(face_layers):
             # split for all linked objects
             me = ob.data
             # must force on auto smooth to avoid Normals transfer errors
             me.use_auto_smooth = True
             linked_objects = []
+
             for obj in context.view_layer.objects:
                 if obj.data == me and obj != ob:
                     linked_objects.append(obj)
-            if ob.face_maps:
-                split_objects = split_by_face_map(ob, context, h4)
-                if not split_objects:
-                    continue
-                for s_ob in split_objects:
-                    # check the whole mesh hasn't been deleted
-                    if len(s_ob.face_maps) > 0:
-                        face_prop_to_mesh_prop(s_ob, h4, ob)
 
-                # set mode again
-                set_object_mode(context)
+            split_objects = split_to_layers(ob, context, h4)
+            
+            del split_objects[0]
 
-                # copy all new face split objects to all linked objects
-                for obj in linked_objects:
-                    deselect_all_objects()
-                    override = context.copy()
-                    override["selected_objects"] = split_objects
-                    with context.temp_override(**override):
-                        bpy.ops.object.duplicate_move_linked()
-                    
-                    # apply correct location and rotation
-                    for split_ob in context.selected_objects:
-                        split_ob.matrix_world = obj.matrix_world
-                    # update data transfer reference and object names
-                    # obje.name = obj.name + '(' + obje.name.rpartition('(')[2].rpartition('.0')[0]
-                    # if we didn't create a HaloDataTransfer modifier, don't try to reference it for split objects
-                    if ob.modifiers.get("HaloDataTransfer", 0):
-                        # otherwise do!
-                        mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
-                        mod.object = ob.modifiers["HaloDataTransfer"].object
-                        mod.use_object_transform = False
-                        mod.use_loop_data = True
-                        mod.data_types_loops = {'CUSTOM_NORMAL'}
+            if not split_objects:
+                continue
+            
+            # copy all new face split objects to all linked objects
+            for obj in linked_objects:
+                override = context.copy()
+                override["selected_objects"] = split_objects
+                with context.temp_override(**override):
+                    bpy.ops.object.duplicate_move_linked()
+                
+                # apply correct location and rotation
+                for split_ob in context.selected_objects:
+                    split_ob.matrix_world = obj.matrix_world
+                # update data transfer reference and object names
+                # obje.name = obj.name + '(' + obje.name.rpartition('(')[2].rpartition('.0')[0]
+                # if we didn't create a HaloDataTransfer modifier, don't try to reference it for split objects
+                if ob.modifiers.get("HaloDataTransfer", 0):
+                    # otherwise do!
+                    mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
+                    mod.object = ob.modifiers["HaloDataTransfer"].object
+                    mod.use_object_transform = False
+                    mod.use_loop_data = True
+                    mod.data_types_loops = {'CUSTOM_NORMAL'}
 
     
                 
@@ -725,7 +749,6 @@ def set_bone_names(armature):
             bone.name = override
 
 def apply_object_mesh_marker_properties(ob, asset_type):
-    """Applies the properties set by an objects Halo prefix and then removes the prefix"""
     # Apply final properties so we can rename objects (and also avoid complex checking in later code)
     reach = not not_bungie_game()
     nwo = ob.nwo
@@ -738,6 +761,7 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                 nwo.mesh_type = '_connected_geometry_mesh_type_collision'
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics':
                 nwo.mesh_type = '_connected_geometry_mesh_type_physics'
+                nwo.mesh_primitive_type = nwo.mesh_primitive_type_ui
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_object_instance' and not not_bungie_game():
                 nwo.mesh_type = '_connected_geometry_mesh_type_object_instance'
             else:
@@ -747,37 +771,97 @@ def apply_object_mesh_marker_properties(ob, asset_type):
             nwo.bsp_name = true_bsp(ob.nwo)
             if nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop':
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                nwo.poop_lighting = nwo.poop_lighting_ui
+                nwo.poop_pathfinding = nwo.poop_pathfinding_ui
+                nwo.poop_imposter_policy = nwo.poop_imposter_policy_ui
+                if nwo.poop_imposter_policy != '_connected_poop_instance_imposter_policy_never':
+                    if not nwo.poop_imposter_transition_distance_auto:
+                        nwo.poop_imposter_transition_distance = nwo.poop_imposter_transition_distance_ui
+                        if not reach:
+                            nwo.poop_imposter_brightness = nwo.poop_imposter_brightness_ui
+
+                if nwo.poop_chops_portals_ui:
+                    nwo.poop_chops_portals = "1"
+                if nwo.poop_does_not_block_aoe_ui:
+                    nwo.poop_does_not_block_aoe = "1"
+                if nwo.poop_excluded_from_lightprobe_ui:
+                    nwo.poop_excluded_from_lightprobe = "1"
+                if nwo.poop_decal_spacing_ui:
+                    nwo.poop_decal_spacing = "1"
+
+                if not reach:
+                    nwo.poop_streaming_priority = nwo.poop_streaming_priority_ui
+                    nwo.poop_cinematic_properties = nwo.poop_cinematic_properties_ui
+                    if nwo.poop_remove_from_shadow_geometry_ui:
+                        nwo.poop_remove_from_shadow_geometry = "1"
+                    if nwo.poop_disallow_lighting_samples_ui:
+                        nwo.poop_disallow_lighting_samples = "1"
+
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop_collision':
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+                nwo.poop_collision_type = nwo.poop_collision_type_ui
+
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_plane':
                 if nwo.plane_type_ui == '_connected_geometry_plane_type_portal':
                     nwo.mesh_type = '_connected_geometry_mesh_type_portal'
+                    nwo.portal_type = nwo.portal_type_ui
+                    if nwo.portal_ai_deafening_ui:
+                        nwo.portal_ai_deafening = "1"
+                    if nwo.portal_blocks_sounds_ui:
+                        nwo.portal_blocks_sounds = "1"
+                    if nwo.portal_is_door_ui:
+                        nwo.portal_is_door = "1"
+
                 elif nwo.plane_type_ui == '_connected_geometry_plane_type_water_surface':
                     nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
+                    nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
+
             elif nwo.plane_type_ui == '_connected_geometry_plane_type_planar_fog_volume':
                 nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
+                nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
+                nwo.fog_volume_depth = nwo.fog_volume_depth_ui
+
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_volume':
                 if nwo.volume_type_ui == '_connected_geometry_volume_type_soft_ceiling':
                     nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                     nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_ceiling'
+                    
                 elif nwo.volume_type_ui == '_connected_geometry_volume_type_soft_kill':
                     nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                     nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_kill'
+
                 elif nwo.volume_type_ui == '_connected_geometry_volume_type_slip_surface':
                     nwo.mesh_type = '_connected_geometry_mesh_type_boundary_surface'
                     nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_slip_surface'
+
                 elif nwo.volume_type_ui == '_connected_geometry_volume_type_water_physics':
                     nwo.mesh_type = '_connected_geometry_mesh_type_water_physics_volume'
+                    nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
+                    nwo.water_volume_flow_direction = jstr(nwo.water_volume_flow_direction_ui)
+                    nwo.water_volume_flow_velocity = jstr(nwo.water_volume_flow_velocity_ui)
+                    nwo.water_volume_fog_color = color_3p_str(nwo.water_volume_fog_color_ui)
+                    nwo.water_volume_fog_murkiness = jstr(nwo.water_volume_fog_murkiness_ui)
+
                 elif nwo.volume_type_ui == '_connected_geometry_volume_type_cookie_cutter':
                     nwo.mesh_type = '_connected_geometry_mesh_type_cookie_cutter'
+                    
                 elif nwo.volume_type_ui == '_connected_geometry_volume_type_lightmap_exclude' and not reach:
                     nwo.mesh_type = '_connected_geometry_mesh_type_obb_volume'
                     nwo.obb_volume_type = '_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume'
+
                 elif nwo.volume_type_ui == '_connected_geometry_volume_type_streaming' and not reach:
                     nwo.mesh_type = '_connected_geometry_mesh_type_obb_volume'
                     nwo.obb_volume_type = '_connected_geometry_mesh_obb_volume_type_streamingvolume'
+
                 elif nwo.volume_type_ui == '_connected_geometry_volume_type_lightmap_region' and reach:
                     nwo.mesh_type = '_connected_geometry_mesh_type_lightmap_region'
+
+                elif nwo.volume_type_ui == '_connected_geometry_volume_type_poop_rain_blocker':
+                    if reach:
+                        nwo.mesh_type = '_connected_geometry_mesh_type_poop_rain_blocker'
+                    else:
+                        nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                        nwo.poop_rain_occluder = "1"
                 else:
                     nwo.mesh_type = '_connected_geometry_mesh_type_default'
             else:
@@ -789,6 +873,7 @@ def apply_object_mesh_marker_properties(ob, asset_type):
 
         if asset_type == 'DECORATOR SET':
             nwo.mesh_type = '_connected_geometry_mesh_type_decorator'
+            nwo.decorator_lod = str(nwo.decorator_lod_ui)
 
         if asset_type == 'PARTICLE MODEL':
             nwo.mesh_type = '_connected_geometry_mesh_type_default'
@@ -804,12 +889,30 @@ def apply_object_mesh_marker_properties(ob, asset_type):
     # get marker type
     elif CheckType.get(ob) == '_connected_geometry_object_type_marker':
         if asset_type == 'MODEL':
+            nwo.marker_all_regions = bool_str(nwo.marker_all_regions_ui)
             if nwo.marker_type_ui == '_connected_geometry_marker_type_hint':
                 nwo.marker_type = '_connected_geometry_marker_type_hint'
+                nwo.marker_hint_length = jstr(nwo.marker_hint_length_ui)
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_pathfinding_sphere':
                 nwo.marker_type = '_connected_geometry_marker_type_pathfinding_sphere'
+                nwo.marker_sphere_radius = nwo.marker_sphere_radius_ui
+                nwo.marker_pathfinding_sphere_vehicle = bool_str(nwo.marker_pathfinding_sphere_vehicle_ui)
+                nwo.pathfinding_sphere_remains_when_open = bool_str(nwo.pathfinding_sphere_remains_when_open_ui)
+                nwo.pathfinding_sphere_with_sectors = bool_str(nwo.pathfinding_sphere_with_sectors_ui)
+
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_physics_constraint':
                 nwo.marker_type = nwo.physics_constraint_type
+                nwo.physics_constraint_parent = str(nwo.physics_constraint_parent_ui)
+                nwo.physics_constraint_child = str(nwo.physics_constraint_child_ui)
+                nwo.physics_constraint_uses_limits = bool_str(nwo.physics_constraint_uses_limits_ui)
+                nwo.hinge_constraint_minimum = jstr(nwo.hinge_constraint_minimum_ui)
+                nwo.hinge_constraint_maximum = jstr(nwo.hinge_constraint_maximum_ui)
+                nwo.cone_angle = jstr(nwo.cone_angle_ui)
+                nwo.plane_constraint_minimum = jstr(nwo.plane_constraint_minimum_ui)
+                nwo.plane_constraint_maximum = jstr(nwo.plane_constraint_maximum_ui)
+                nwo.twist_constraint_start = jstr(nwo.twist_constraint_start_ui)
+                nwo.twist_constraint_end = jstr(nwo.twist_constraint_end_ui)
+
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_target':
                 nwo.marker_type = '_connected_geometry_marker_type_target'
             elif nwo.marker_type_ui == '_connected_geometry_marker_type_effects':
@@ -818,10 +921,13 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                     nwo.marker_type = '_connected_geometry_marker_type_model'
             else:
                 nwo.marker_type = '_connected_geometry_marker_type_model'
+                if nwo.marker_type == '_connected_geometry_marker_type_garbage':
+                    nwo.marker_velocity = vector_str(nwo.marker_velocity_ui)
 
 
         elif asset_type in ('SCENARIO', 'PREFAB'):
             if nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance':
+                nwo.marker_game_instance_tag_name = nwo.marker_game_instance_tag_name_ui
                 if not reach and nwo.marker_game_instance_tag_name.lower().endswith('.prefab'):
                     nwo.marker_type = '_connected_geometry_marker_type_prefab'
                 elif not reach and nwo.marker_game_instance_tag_name.lower().endswith('.cheap_light'):
@@ -832,18 +938,100 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                     nwo.marker_type = '_connected_geometry_marker_type_falling_leaf'
                 else:
                     nwo.marker_type = '_connected_geometry_marker_type_game_instance'
+                    nwo.marker_game_instance_tag_variant_name = nwo.marker_game_instance_tag_variant_name_ui
+                    if not reach:
+                        nwo.marker_game_instance_run_scripts = bool_str(nwo.marker_game_instance_run_scripts_ui)
             elif not reach and nwo.marker_type_ui == '_connected_geometry_marker_type_airprobe':
                 nwo.marker_type = '_connected_geometry_marker_type_airprobe'
             elif not reach and nwo.marker_type_ui == '_connected_geometry_marker_type_envfx':
                 nwo.marker_type = '_connected_geometry_marker_type_envfx'
+                nwo.marker_looping_effect = nwo.marker_looping_effect_ui
             elif not reach and nwo.marker_type_ui == '_connected_geometry_marker_type_lightcone':
                 nwo.marker_type = '_connected_geometry_marker_type_lightcone'
+                nwo.marker_light_cone_tag = nwo.marker_light_cone_tag_ui
+                nwo.marker_light_cone_color = color_3p_str(nwo.marker_light_cone_color_ui)
+                nwo.marker_light_cone_alpha = jstr(nwo.marker_light_cone_alpha_ui)
+                nwo.marker_light_cone_width = jstr(nwo.marker_light_cone_width_ui)
+                nwo.marker_light_cone_length = jstr(nwo.marker_light_cone_length_ui)
+                nwo.marker_light_cone_intensity = jstr(nwo.marker_light_cone_intensity_ui)
+                nwo.marker_light_cone_curve = nwo.marker_light_cone_curve_ui
             else:
                 nwo.marker_type = '_connected_geometry_marker_type_model'
 
         else:
             nwo.marker_type = '_connected_geometry_marker_type_model'
 
+    #  Handling mesh level properties
+    # --------------------------------------
+    # NOTE not sure if mesh_compression needs to be exposed. Need to test what it does exactly
+    # if nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_decorator', '_connected_geometry_mesh_type_water_surface'):
+    #     nwo.mesh_compression = nwo.mesh_compression_ui
+    if nwo.mesh_type in ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics', '_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop'):
+        if asset_type in ('SCENARIO', 'PREFAB') or nwo.mesh_type in ('_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'):
+            nwo.face_global_material = nwo.face_global_material_ui
+        if nwo.mesh_type != '_connected_geometry_mesh_type_physics' and nwo.face_two_sided_ui:
+            nwo.face_sides = "_connected_geometry_face_sides_two_sided"
+        if nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop'):
+            if nwo.precise_position_ui:
+                nwo.precise_position = bool_str(nwo.precise_position_ui)
+            if nwo.face_draw_distance_active:
+                nwo.face_draw_distance = nwo.face_draw_distance_ui
+            if nwo.texcoord_usage_active:
+                nwo.texcoord_usage = nwo.texcoord_usage_ui
+        if asset_type in ('SCENARIO', 'PREFAB'):
+            h4_structure = (not reach and nwo.mesh_type == '_connected_geometry_face_type_sky')
+            if nwo.face_type_active or h4_structure:
+                if h4_structure:
+                    nwo.face_type = '_connected_geometry_face_type_sky'
+                else:
+                    nwo.face_type = nwo.face_type_ui
+                if nwo.face_type == '_connected_geometry_face_type_sky':
+                    nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
+            if nwo.face_mode_active:
+                nwo.face_mode = nwo.face_mode_ui
+            if nwo.ladder_active:
+                nwo.ladder = bool_str(nwo.ladder_ui)
+            if nwo.slip_surface_active:
+                nwo.slip_surface = bool_str(nwo.slip_surface_ui)
+            if nwo.decal_offset_active:
+                nwo.decal_offset = bool_str(nwo.decal_offset_ui)
+            if nwo.group_transparents_by_plane_active:
+                nwo.group_transparents_by_plane = bool_str(nwo.group_transparents_by_plane_ui)
+            if nwo.no_shadow_active:
+                nwo.no_shadow = bool_str(nwo.no_shadow_ui)
+            if nwo.no_lightmap_active:
+                nwo.no_lightmap = bool_str(nwo.no_lightmap_ui)
+            if nwo.no_pvs_active:
+                nwo.no_pvs = bool_str(nwo.no_pvs_ui)
+            if nwo.uvmirror_across_entire_model_active:
+                nwo.uvmirror_across_entire_model = bool_str(nwo.uvmirror_across_entire_model_ui)
+            if nwo.lightmap_additive_transparency_active:
+                nwo.lightmap_additive_transparency = nwo.lightmap_additive_transparency_ui
+            if nwo.lightmap_resolution_scale_active:
+                nwo.lightmap_resolution_scale = jstr(nwo.lightmap_resolution_scale_ui)
+            if nwo.lightmap_photon_fidelity_active:
+                nwo.lightmap_photon_fidelity = nwo.lightmap_photon_fidelity_ui
+            if nwo.lightmap_type_active:
+                nwo.lightmap_type = nwo.lightmap_type_ui
+            if nwo.lightmap_analytical_bounce_modifier_active:
+                nwo.lightmap_analytical_bounce_modifier = jstr(nwo.lightmap_analytical_bounce_modifier_ui)
+            if nwo.lightmap_general_bounce_modifier_active:
+                nwo.lightmap_general_bounce_modifier = jstr(nwo.lightmap_general_bounce_modifier_ui)
+            if nwo.lightmap_translucency_tint_color_active:
+                nwo.lightmap_translucency_tint_color = color_3p_str(nwo.lightmap_translucency_tint_color_ui)
+            if nwo.lightmap_lighting_from_both_sides_active:
+                nwo.lightmap_lighting_from_both_sides = bool_str(nwo.lightmap_lighting_from_both_sides_ui)
+            if nwo.emissive_active:
+                nwo.material_lighting_attenuation_falloff = jstr(nwo.material_lighting_attenuation_falloff_ui)
+                nwo.material_lighting_attenuation_cutoff = jstr(nwo.material_lighting_attenuation_cutoff_ui)
+                nwo.material_lighting_emissive_focus = jstr(nwo.material_lighting_emissive_focus_ui)
+                nwo.material_lighting_emissive_color = color_3p_str(nwo.material_lighting_emissive_color_ui)
+                nwo.material_lighting_emissive_per_unit = bool_str(nwo.material_lighting_emissive_per_unit_ui)
+                nwo.material_lighting_emissive_power = jstr(nwo.material_lighting_emissive_power_ui)
+                nwo.material_lighting_emissive_quality = jstr(nwo.material_lighting_emissive_quality_ui)
+                nwo.material_lighting_use_shader_gel = bool_str(nwo.material_lighting_use_shader_gel_ui)
+                nwo.material_lighting_bounce_ratio = jstr(nwo.material_lighting_bounce_ratio_ui)
+            
 def strip_prefix(ob):
     if ob.name.lower().startswith(('+soft_ceiling','+slip_surface')):
         ob.name = ob.name[14:]
@@ -902,7 +1090,7 @@ def apply_properties(context, asset_type, asset):
         set_object_type(ob)
         if ob.type in ('MESH', 'EMPTY', 'CURVE', 'META', 'SURFACE', 'FONT'):
             apply_object_mesh_marker_properties(ob, asset_type)
-
+            
         # strip_prefix(ob)
         # if not_bungie_game():
         #     apply_namespaces(ob, asset)
@@ -984,12 +1172,12 @@ def find_shaders_on_export(materials, context, report):
 
 def fix_blank_group_names(context):
     for ob in context.view_layer.objects:
-        if ob.nwo.bsp_name == '':
-            ob.nwo.bsp_name = 'default'
-        if ob.nwo.permutation_name == '':
-            ob.nwo.permutation_name = 'default'
-        if ob.nwo.region_name == '':
-            ob.nwo.region_name = 'default'
+        if ob.nwo.bsp_name_ui == '':
+            ob.nwo.bsp_name_ui = 'default'
+        if ob.nwo.permutation_name_ui == '':
+            ob.nwo.permutation_name_ui = 'default'
+        if ob.nwo.region_name_ui == '':
+            ob.nwo.region_name_ui = 'default'
 
 def fixup_missing_uvs(context):
     for ob in context.view_layer.objects:
@@ -1044,10 +1232,10 @@ def GetSelectedPermutations(selection):
     # cycle through selected objects and get their permutation
     for ob in selection:
         perm = ''
-        if ob.nwo.permutation_name_locked != '':
-            perm = ob.nwo.permutation_name_locked
+        if ob.nwo.permutation_name_locked_ui != '':
+            perm = ob.nwo.permutation_name_locked_ui
         else:
-            perm = ob.nwo.permutation_name
+            perm = ob.nwo.permutation_name_ui
         if perm not in selected_perms:
             selected_perms.append(perm)
     
@@ -1058,10 +1246,10 @@ def GetSelectedBSPs(selection):
     # cycle through selected objects and get their permutation
     for ob in selection:
         bsp = ''
-        if ob.nwo.bsp_name_locked != '':
-            bsp = ob.nwo.bsp_name_locked
+        if ob.nwo.bsp_name_locked_ui != '':
+            bsp = ob.nwo.bsp_name_locked_ui
         else:
-            bsp = ob.nwo.bsp_name
+            bsp = ob.nwo.bsp_name_ui
         if bsp not in selected_bsps:
             selected_bsps.append(bsp)
     
@@ -1154,7 +1342,7 @@ def GetDecoratorLODCount(halo_objects, asset_is_decorator):
     lod_count = 0
     if asset_is_decorator:
         for ob in halo_objects.decorators:
-            ob_lod = ob.nwo.decorator_lod
+            ob_lod = ob.nwo.decorator_lod_ui
             if ob_lod > lod_count:
                 lod_count =  ob_lod
     

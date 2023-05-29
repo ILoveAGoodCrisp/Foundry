@@ -27,6 +27,7 @@
 import bpy
 from ..utils.nwo_utils import(
     get_perm,
+    is_design,
     select_model_objects,
     select_model_objects_no_perm,
     select_bsp_objects,
@@ -203,22 +204,12 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                 shared_bsp_exists = False
 
                 for ob in bpy.context.view_layer.objects:
-                    if ob.nwo.bsp_name_locked != '':
-                        if ob.nwo.bsp_name_locked != 'shared' and (ob.nwo.bsp_name_locked not in bsp_list):
-                            bsp_list.append(ob.nwo.bsp_name_locked)
-                    else:
-                        if ob.nwo.bsp_name != 'shared' and (ob.nwo.bsp_name not in bsp_list):
-                            bsp_list.append(ob.nwo.bsp_name)
-
-                for ob in context.view_layer.objects:
-                    if ob.nwo.bsp_name_locked != '':
-                        if ob.nwo.bsp_name_locked == 'shared':
+                    ob_bsp = ob.nwo.bsp_name
+                    if ob_bsp not in bsp_list:
+                        if ob_bsp != 'shared':
+                            bsp_list.append(ob_bsp)
+                        else:
                             shared_bsp_exists = True
-                            break
-                    else:
-                        if ob.nwo.bsp_name == 'shared':
-                            shared_bsp_exists = True
-                            break
 
                 bsp_list = sort_alphanum(bsp_list)
 
@@ -244,12 +235,9 @@ def process_scene(self, context, keywords, report, model_armature, asset_path, a
                     bsp_list = sort_alphanum(bsp_list)
 
                     for ob in bpy.context.scene.objects:
-                        if ob.nwo.bsp_name_locked != '':
-                            if ob.nwo.bsp_name_locked != 'shared' and (ob.nwo.bsp_name_locked not in bsp_list) and (CheckType.boundary_surface(ob) or CheckType.water_physics(ob) or CheckType.poop_rain_blocker(ob) or CheckType.fog(ob)):
-                                bsp_list.append(ob.nwo.bsp_name_locked)
-                        else:
-                            if ob.nwo.bsp_name != 'shared' and (ob.nwo.bsp_name not in bsp_list) and (CheckType.boundary_surface(ob) or CheckType.water_physics(ob) or CheckType.poop_rain_blocker(ob) or CheckType.fog(ob)):
-                                bsp_list.append(ob.nwo.bsp_name)
+                        ob_bsp = ob.nwo.bsp_name
+                        if ob_bsp != 'shared' and (ob_bsp not in bsp_list) and is_design(ob):
+                            bsp_list.append(ob_bsp)
 
                     if export_design:
                         perm_list = []

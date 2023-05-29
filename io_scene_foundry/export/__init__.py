@@ -37,7 +37,7 @@ bl_info = {
     'name': 'Halo NWO Export',
     'author': 'Crisp',
     'version': (1, 0, 0),
-    'blender': (3, 5, 0),
+    'blender': (3, 5, 1),
     'location': 'File > Export',
     'category': 'Export',
     'description': 'Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer'
@@ -45,14 +45,12 @@ bl_info = {
 
 import bpy
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty, IntProperty, PointerProperty, CollectionProperty
-from bpy.types import Operator, Panel, PropertyGroup, UIList
+from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty
+from bpy.types import Operator
 from addon_utils import check, module_bl_info
 from os.path import exists as file_exists
 from os import path
-from os import remove as os_remove
 import ctypes
-from io_scene_foundry.icons import get_icon_id
 
 
 from io_scene_foundry.utils.nwo_utils import CheckPath, bpy_enum, dot_partition, formalise_game_version, get_data_path, get_asset_info, get_ek_path, get_tags_path, get_tool_path, managed_blam_active
@@ -402,8 +400,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # SETUP #
         scene = bpy.context.scene
 
-        if scene.nwo_global.game_version in (('reach','h4','h2a')):
-            self.game_version = scene.nwo_global.game_version
+        if scene.nwo.game_version in (('reach','h4','h2a')):
+            self.game_version = scene.nwo.game_version
 
         # QUICK EXPORT SETTINGS #
 
@@ -491,7 +489,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         scene_nwo = context.scene.nwo
 
         # set Halo scene version to match game_version (we do this do ensure the code is checking the right toolset)
-        context.scene.nwo_global.game_version = self.game_version
+        context.scene.nwo.game_version = self.game_version
 
         # Set the UI asset type to the export type
         scene_nwo.asset_type = self.sidecar_type
@@ -752,422 +750,11 @@ def ExportSettingsFromSidecar(sidecar_filepath):
 
 
     return settings
-##############################################
-# NWO Scene Settings
-##############################################
-
-class NWO_UL_SceneProps_SharedAssets(UIList):
-    use_name_reverse: bpy.props.BoolProperty(
-        name="Reverse Name",
-        default=False,
-        options=set(),
-        description="Reverse name sort order",
-    )
-
-    use_order_name: bpy.props.BoolProperty(
-        name="Name",
-        default=False,
-        options=set(),
-        description="Sort groups by their name (case-insensitive)",
-    )
-
-    filter_string: bpy.props.StringProperty(
-        name="filter_string",
-        default = "",
-        description="Filter string for name"
-    )
-
-    filter_invert: bpy.props.BoolProperty(
-        name="Invert",
-        default = False,
-        options=set(),
-        description="Invert Filter"
-    )
-
-
-    def filter_items(self, context,
-                    data, 
-                    property 
-        ):
-
-
-        items = getattr(data, property)
-        if not len(items):
-            return [], []
-
-        if self.filter_string:
-            flt_flags = bpy.types.UI_UL_list.filter_items_by_name(
-                    self.filter_string,
-                    self.bitflag_filter_item,
-                    items, 
-                    propname="name",
-                    reverse=self.filter_invert)
-        else:
-            flt_flags = [self.bitflag_filter_item] * len(items)
-
-        if self.use_order_name:
-            flt_neworder = bpy.types.UI_UL_list.sort_items_by_name(items, "name")
-            if self.use_name_reverse:
-                flt_neworder.reverse()
-        else:
-            flt_neworder = []    
-
-
-        return flt_flags, flt_neworder        
-
-    def draw_filter(self, context,
-                    layout
-        ):
-
-        row = layout.row(align=True)
-        row.prop(self, "filter_string", text="Filter", icon="VIEWZOOM")
-        row.prop(self, "filter_invert", text="", icon="ARROW_LEFTRIGHT")
-
-
-        row = layout.row(align=True)
-        row.label(text="Order by:")
-        row.prop(self, "use_order_name", toggle=True)
-
-        icon = 'TRIA_UP' if self.use_name_reverse else 'TRIA_DOWN'
-        row.prop(self, "use_name_reverse", text="", icon=icon)
-
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            if scene:
-                layout.label(text=item.shared_asset_name, icon='BOOKMARKS')
-            else:
-                layout.label(text='')
-        elif self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-            layout.label(text="", icon_value=icon)    
-            
-class NWO_SceneProps_SharedAssets(Panel):
-    bl_label = "Shared Assets"
-    bl_idname = "NWO_PT_GameVersionPanel_SharedAssets"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "scene"
-    bl_parent_id = "NWO_PT_ScenePropertiesPanel"
-
-    @classmethod
-    def poll(cls, context):
-        return False # hiding this menu until it actually does something
-
-    def draw(self, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        layout = self.layout
-
-        layout.template_list("NWO_UL_SceneProps_SharedAssets", "", scene_nwo, "shared_assets", scene_nwo, 'shared_assets_index')
-        # layout.template_list("NWO_UL_SceneProps_SharedAssets", "compact", scene_nwo, "shared_assets", scene_nwo, "shared_assets_index", type='COMPACT') # not needed
-
-        row = layout.row()
-        col = row.column(align=True)
-        col.operator("nwo_shared_asset.list_add", text="Add")
-        col = row.column(align=True)
-        col.operator("nwo_shared_asset.list_remove", text="Remove")
-        
-        if len(scene_nwo.shared_assets) > 0:
-            item = scene_nwo.shared_assets[scene_nwo.shared_assets_index]
-            row = layout.row()
-            # row.prop(item, "shared_asset_name", text='Asset Name') # debug only
-            row.prop(item, "shared_asset_path", text='Path')
-            row = layout.row()
-            row.prop(item, "shared_asset_type", text='Type')
-
-class NWO_List_Add_Shared_Asset(Operator):
-    """ Add an Item to the UIList"""
-    bl_idname = "nwo_shared_asset.list_add"
-    bl_label = "Add"
-    bl_description = "Add a new shared asset (sidecar) to the list."
-    filename_ext = ''
-    bl_options = {"REGISTER", "UNDO"}
-
-    filter_glob: StringProperty(
-        default="*.xml",
-        options={'HIDDEN'},
-        )
-
-    filepath: StringProperty(
-        name="Sidecar",
-        description="Set path for the Sidecar file",
-        subtype="FILE_PATH"
-    )
-
-    @classmethod
-    def poll(cls, context):
-        return context.scene
-    
-    def execute(self, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        scene_nwo.shared_assets.add()
-        
-        path = self.filepath
-        path = path.replace(get_data_path(), '')
-        scene_nwo.shared_assets[-1].shared_asset_path = path
-        scene_nwo.shared_assets_index = len(scene_nwo.shared_assets) - 1
-        context.area.tag_redraw()
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {'RUNNING_MODAL'}
-
-class NWO_List_Remove_Shared_Asset(Operator):
-    """ Remove an Item from the UIList"""
-    bl_idname = "nwo_shared_asset.list_remove"
-    bl_label = "Remove"
-    bl_description = "Remove a shared asset (sidecar) from the list."
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        return context.scene and len(scene_nwo.shared_assets) > 0
-    
-    def execute(self, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        index = scene_nwo.shared_assets_index
-        scene_nwo.shared_assets.remove(index)
-        return {'FINISHED'}
-
-class NWO_Asset_ListItems(PropertyGroup):
-
-    def GetSharedAssetName(self):
-        name = self.shared_asset_path
-        name = name.rpartition('\\')[2]
-        name = name.rpartition('.sidecar.xml')[0]
-
-        return name
-
-    shared_asset_name: StringProperty(
-        get=GetSharedAssetName,
-    )
-
-    shared_asset_path: StringProperty()
-
-    shared_asset_types = [
-            ('BipedAsset', 'Biped', ''),
-            ('CrateAsset', 'Crate', ''),
-            ('CreatureAsset', 'Creature', ''),
-            ('Device_ControlAsset', 'Device Control', ''),
-            ('Device_MachineAsset', 'Device Machine', ''),
-            ('Device_TerminalAsset', 'Device Terminal', ''),
-            ('Effect_SceneryAsset', 'Effect Scenery', ''),
-            ('EquipmentAsset', 'Equipment', ''),
-            ('GiantAsset', 'Giant', ''),
-            ('SceneryAsset', 'Scenery', ''),
-            ('VehicleAsset', 'Vehicle', ''),
-            ('WeaponAsset', 'Weapon', ''),
-            ('ScenarioAsset', 'Scenario', ''),
-            ('Decorator_SetAsset', 'Decorator Set', ''),
-            ('Particle_ModelAsset', 'Particle Model', ''),
-        ]
-
-    shared_asset_type: EnumProperty(
-        name='Type',
-        default='BipedAsset',
-        options=set(),
-        items=shared_asset_types
-    )
-
-class NWO_ScenePropertiesGroup(PropertyGroup):
-    shared_assets: CollectionProperty(
-        type=NWO_Asset_ListItems,
-    )
-
-    shared_assets_index: IntProperty(
-        name='Index for Shared Asset',
-        default=0,
-        min=0,
-    )
-
-    def force_set_mesh_types(self, context):
-        """Sets an objects mesh type to it's current mesh type. Gets around the default mesh type get/setter updating existing objects"""
-        for ob in context.scene.objects:
-            ob.nwo.ObjectMesh_Type_H4 = ob.nwo.ObjectMesh_Type_H4
-            ob.nwo.ObjectMesh_Type = ob.nwo.ObjectMesh_Type
-
-        self.default_mesh_type = self.default_mesh_type_ui
-
-    mesh_type_items = [
-        ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'"), # 0
-        ('_connected_geometry_mesh_type_collision', "Collision", "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'"), #1
-        ('_connected_geometry_mesh_type_cookie_cutter', "Cookie Cutter", "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'"), # 2
-        ('_connected_geometry_mesh_type_decorator', "Decorator", "Use this when making a decorator. Allows for different LOD levels to be set"), # 3
-        ('_connected_geometry_mesh_type_default', "Render / Structure", "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures"), #4
-        ('_connected_geometry_mesh_type_poop', "Instanced Geometry", "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'"), # 5
-        ('_connected_geometry_mesh_type_object_instance', "Object Instance", "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'"), # 10
-        ('_connected_geometry_mesh_type_physics', "Physics", "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'"), # 11
-        ('_connected_geometry_mesh_type_planar_fog_volume', "Planar Fog Volume", "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'"), # 12
-        ('_connected_geometry_mesh_type_portal', "Portal", "Cuts up a bsp and defines clusters. Can be forced on with the prefix '+portal'"), # 13
-        ('_connected_geometry_mesh_type_seam', "Seam", "Defines where two bsps meet. Its name should match the name of the bsp its in. Can be forced on with the prefix '+seam'"), # 14
-        ('_connected_geometry_mesh_type_water_physics_volume', "Water Physics Volume", "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'"), # 15
-        ('_connected_geometry_mesh_type_water_surface', "Water Surface", "Defines a mesh as a water surface. Can be forced on with the prefix: '"), # 16
-    ]
-
-    default_mesh_type_ui: EnumProperty(
-        name="Default Mesh Type",
-        options=set(),
-        description="Set the default Halo mesh type for new objects",
-        default = '_connected_geometry_mesh_type_default',
-        update=force_set_mesh_types,
-        items=mesh_type_items
-        )
-
-    default_mesh_type: EnumProperty(
-        name="Default Mesh Type",
-        options=set(),
-        description="Set the default Halo mesh type for new objects",
-        default = '_connected_geometry_mesh_type_default',
-        items=mesh_type_items
-        )
-    
-    def apply_props(self, context):
-        for ob in context.scene.objects:
-            ob_nwo = ob.nwo
-
-            if ob_nwo.mesh_type_ui == '':
-                if self.asset_type == 'DECORATOR SET':
-                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_decorator'
-                elif self.asset_type == 'SCENARIO':
-                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
-                elif self.asset_type == 'PREFAB':
-                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_poop'
-                else:
-                    ob_nwo.mesh_type_ui = '_connected_geometry_mesh_type_render'
-
-    def asset_type_items(self, context):
-        items = []
-        items.append(('MODEL', "Model", "", get_icon_id("model"), 0))
-        items.append(('SCENARIO', "Scenario", "", get_icon_id("scenario"), 1))
-        items.append(('SKY', 'Sky', '', get_icon_id("sky"), 2))
-        items.append(('DECORATOR SET', 'Decorator Set', '', get_icon_id("decorator"), 3))
-        items.append(('PARTICLE MODEL', 'Particle Model', '', get_icon_id("particle_model"), 4))
-        items.append(('FP ANIMATION', 'First Person Animation', '', get_icon_id("animation"), 5))
-        if context.scene.nwo_global.game_version != 'reach':
-            items.append(('PREFAB', 'Prefab', '', get_icon_id("prefab"), 6))
-
-        return items
-    
-    asset_type: EnumProperty(
-        name="Asset Type",
-        options=set(),
-        description="Define the type of asset you are creating",
-        items=asset_type_items,
-        )
-    
-    forward_direction: EnumProperty(
-        name="Model Forward",
-        options=set(),
-        description="Define the forward direction you are using for this model. By default Halo uses X forward. If you model is not x positive select the correct forward directiom.",
-        default = 'x',
-        items=[ ('x', "X Postive", ""), ('x-', "X Negative", ""), ('y', 'Y Postive', ''), ('y-', 'Y Negative', '')]
-    )
-
-    output_biped: BoolProperty(
-        name='Biped',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_crate: BoolProperty(
-        name='Crate',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_creature: BoolProperty(
-        name='Creature',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_device_control: BoolProperty(
-        name='Device Control',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_device_dispenser: BoolProperty(
-        name='Device Dispenser',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_device_machine: BoolProperty(
-        name='Device Machine',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_device_terminal: BoolProperty(
-        name='Device Terminal',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_effect_scenery: BoolProperty(
-        name='Effect Scenery',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_equipment: BoolProperty(
-        name='Equipment',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_giant: BoolProperty(
-        name='Giant',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_scenery: BoolProperty(
-        name='Scenery',
-        description='',
-        default=True,
-        options=set(),
-    )
-    output_vehicle: BoolProperty(
-        name='Vehicle',
-        description='',
-        default=False,
-        options=set(),
-    )
-    output_weapon: BoolProperty(
-        name='Weapon',
-        description='',
-        default=False,
-        options=set(),
-    )
-
-classeshalo = (
-    NWO_Export_Scene,
-    NWO_Asset_ListItems,
-    NWO_List_Add_Shared_Asset,
-    NWO_List_Remove_Shared_Asset,
-    NWO_ScenePropertiesGroup,
-    NWO_UL_SceneProps_SharedAssets,
-    NWO_SceneProps_SharedAssets,
-)
 
 def register():
-    for clshalo in classeshalo:
-        bpy.utils.register_class(clshalo)
+    bpy.utils.register_class(NWO_Export_Scene)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
-    bpy.types.Scene.nwo = PointerProperty(type=NWO_ScenePropertiesGroup, name="NWO Scene Properties", description="Set properties for your scene")
 
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
-    del bpy.types.Scene.nwo
-    for clshalo in classeshalo:
-        bpy.utils.unregister_class(clshalo)
+    bpy.utils.unregister_class(NWO_Export_Scene)

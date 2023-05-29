@@ -32,8 +32,8 @@ import os
 from os.path import exists as file_exists
 from subprocess import Popen, run, check_call
 import shutil
-
-from io_scene_foundry.icons import get_icon_id
+import random
+from ..icons import get_icon_id
 
 ###########
 ##GLOBALS##
@@ -101,7 +101,7 @@ def is_linked(ob):
 
 def get_ek_path():
     scene = bpy.context.scene
-    scene_nwo = scene.nwo_global
+    scene_nwo = scene.nwo
     if scene_nwo.game_version == 'h4':
         EKPath = bpy.context.preferences.addons[package].preferences.h4ek_path
     elif scene_nwo.game_version == 'h2a':
@@ -120,14 +120,12 @@ def get_tool_path():
     return toolPath
 
 def get_tags_path():
-    EKPath = get_ek_path()
-    tagsPath = os.path.join(EKPath, 'tags', '')
+    tagsPath = os.path.join(get_ek_path(), 'tags' + os.sep)
 
     return tagsPath
 
 def get_data_path():
-    EKPath = get_ek_path()
-    dataPath = os.path.join(EKPath, 'data', '')
+    dataPath = os.path.join(get_ek_path(), 'data' + os.sep)
 
     return dataPath
 
@@ -135,22 +133,16 @@ def get_tool_type():
     return bpy.context.preferences.addons[package].preferences.tool_type
 
 def get_perm(ob): # get the permutation of an object, return default if the perm is empty
-    if ob.nwo.permutation_name_locked != '':
-        return ob.nwo.permutation_name_locked
-    else:
-        return ob.nwo.permutation_name
+    return true_permutation(ob.nwo)
         
 def is_windows():
     return platform.system() == 'Windows'
 
 def not_bungie_game():
-    return bpy.context.scene.nwo_global.game_version in ('h4', 'h2a')
+    return bpy.context.scene.nwo.game_version in ('h4', 'h2a')
 
-def object_valid(ob, export_hidden, valid_perm='', evaluated_perm='', evalued_perm_locked = ''):
-    if evalued_perm_locked != '':
-        return ob in tuple(bpy.context.scene.view_layers[0].objects) and (ob.visible_get() or export_hidden) and valid_perm == evalued_perm_locked
-    else:
-        return ob in tuple(bpy.context.scene.view_layers[0].objects) and (ob.visible_get() or export_hidden) and valid_perm == evaluated_perm
+def object_valid(ob, export_hidden, valid_perm='', evaluated_perm=''):
+    return ob in tuple(bpy.context.scene.view_layers[0].objects) and (ob.visible_get() or export_hidden) and valid_perm == evaluated_perm
 
 def export_perm(perm, export_all_perms, selected_perms):
     return export_all_perms == 'all' or perm in selected_perms
@@ -187,7 +179,7 @@ def select_model_objects(halo_objects, perm, arm, export_hidden, export_all_perm
         arm.select_set(True)
     for ob in halo_objects:
         halo = ob.nwo
-        if object_valid(ob, export_hidden, perm, halo.permutation_name, halo.permutation_name_locked) and export_perm(perm, export_all_perms, selected_perms):
+        if object_valid(ob, export_hidden, perm, halo.permutation_name) and export_perm(perm, export_all_perms, selected_perms):
             ob.select_set(True)
             boolean = True
     
@@ -214,7 +206,7 @@ def select_bsp_objects(halo_objects, bsp, arm, perm, export_hidden, export_all_p
         halo = ob.nwo
         bsp_value = ob.nwo.bsp_name
         if bsp_value == bsp:
-            if object_valid(ob, export_hidden, perm, halo.permutation_name, halo.permutation_name_locked) and export_perm(perm, export_all_perms, selected_perms) and export_bsp(bsp, export_all_bsps, selected_bsps):
+            if object_valid(ob, export_hidden, perm, halo.permutation_name) and export_perm(perm, export_all_perms, selected_perms) and export_bsp(bsp, export_all_bsps, selected_bsps):
                 ob.select_set(True)
                 boolean = True
 
@@ -366,22 +358,22 @@ def jstr(number):
     return str(round(number, 6))
 
 def true_bsp(halo):
-    if halo.bsp_name_locked !='':
-        return halo.bsp_name_locked.lower()
+    if halo.bsp_name_locked_ui !='':
+        return halo.bsp_name_locked_ui.lower()
     else:
-        return halo.bsp_name.lower()
+        return halo.bsp_name_ui.lower()
 
 def true_region(halo):
-    if halo.region_name_locked !='':
-        return halo.region_name_locked.lower()
+    if halo.region_name_locked_ui !='':
+        return halo.region_name_locked_ui.lower()
     else:
-        return halo.region_name.lower()
+        return halo.region_name_ui.lower()
     
 def true_permutation(halo):
-    if halo.permutation_name_locked !='':
-        return halo.permutation_name_locked.lower()
+    if halo.permutation_name_locked_ui !='':
+        return halo.permutation_name_locked_ui.lower()
     else:
-        return halo.permutation_name.lower()
+        return halo.permutation_name_ui.lower()
 
 def clean_tag_path(path, file_ext = None):
     """Cleans a path and attempts to make it appropriate for reading by Tool. Can accept a file extension (without a period) to force the existing one if it exists to be replaced"""
@@ -604,7 +596,10 @@ def run_tool(tool_args: list, in_background=False, output_file=None):
         else:
             return Popen(command)
     else:
-        return check_call(command)
+        try:
+            return check_call(command)
+        except Exception as e:
+            return e
 
 def run_ek_cmd(args: list, in_background=False):
     """Executes a cmd line argument at the root editing kit directory"""
@@ -614,7 +609,10 @@ def run_ek_cmd(args: list, in_background=False):
     if in_background:
         return Popen(command)
     else:
-        return check_call(command)
+        try:
+            return check_call(command)
+        except Exception as e:
+            return e
 
 
 def rename_file(file_path, new_file_path=''):
@@ -975,9 +973,29 @@ def object_median_point(ob):
     verts = [v.co for v in me.vertices]
     return ob.matrix_world @ sum(verts, Vector()) / len(verts)
 
-            
+def layer_face_count(bm, face_layer):
+    """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
+    face_count = 0
+    for face in bm.faces:
+        if face[face_layer] == 1:
+            face_count += 1
 
+    return face_count
 
+def random_colour(max_hue=True):
+    rgb = [random.random() for i in range(3)]
+    if max_hue:
+        rand_idx = random.randint(0,2)
+        rgb[rand_idx] = 1
+    return rgb
 
-
+def nwo_enum(enum_name, display_name, description, icon="", index=-1, custom_icon=True):
+    full_enum = icon != "" or index != -1
+    if full_enum:
+        if custom_icon:
+            return (enum_name, display_name, description, get_icon_id(icon), index)
+        
+        return (enum_name, display_name, description, icon, index)
+    
+    return (enum_name, display_name, description)
 

@@ -293,10 +293,7 @@ def WriteFaceCollections(metadata, sidecar_type, not_bungie_game, regions_dict, 
             FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
             using_default_bsp = False
             for ob in bpy.context.view_layer.objects:
-                if ob.nwo.bsp_name_locked == '':
-                    bsp = ob.nwo.bsp_name
-                else:
-                    bsp = ob.nwo.bsp_name_locked
+                bsp = ob.nwo.bsp_name
                 if bsp == 'default':
                     using_default_bsp = True
                     break
@@ -305,10 +302,7 @@ def WriteFaceCollections(metadata, sidecar_type, not_bungie_game, regions_dict, 
 
             count = 1
             for ob in bpy.context.view_layer.objects:
-                if ob.nwo.bsp_name_locked == '':
-                    bsp = ob.nwo.bsp_name
-                else:
-                    bsp = ob.nwo.bsp_name_locked
+                bsp = ob.nwo.bsp_name
                 if bsp not in bsp_list:
                     ET.SubElement(FaceCollectionsEntries, "FaceCollectionEntry", Index=str(count), Name=bsp, Active="true")
                     bsp_list.append(bsp)
@@ -443,25 +437,15 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
         shared_bsp_exists = False
 
         for ob in bpy.context.view_layer.objects:
-            if ob.nwo.bsp_name_locked != '':
-                if ob.nwo.bsp_name_locked != 'shared' and (ob.nwo.bsp_name_locked not in bsp_list) and not is_design(ob):
-                    bsp_list.append(ob.nwo.bsp_name_locked)
-            else:
-                if ob.nwo.bsp_name != 'shared' and (ob.nwo.bsp_name not in bsp_list) and not is_design(ob):
-                    bsp_list.append(ob.nwo.bsp_name)
+            ob_bsp = ob.nwo.bsp_name
+            if (ob_bsp not in bsp_list) and not is_design(ob):
+                if ob_bsp != 'shared':
+                    bsp_list.append(ob_bsp)
+                else:
+                    shared_bsp_exists = True
 
         # # sort bsp list alphanumerically
         bsp_list = sort_alphanum(bsp_list)
-
-        for ob in bpy.context.view_layer.objects:
-            if ob.nwo.bsp_name_locked != '':
-                if ob.nwo.bsp_name_locked == 'shared':
-                    shared_bsp_exists = True
-                    break
-            else:
-                if ob.nwo.bsp_name == 'shared':
-                    shared_bsp_exists = True
-                    break
 
         shared_permutations = []
 
@@ -478,7 +462,7 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
             permutations = []
 
             for ob in get_structure_from_halo_objects(halo_objects):
-                if ob.nwo.bsp_name_locked == bsp or ob.nwo.bsp_name == bsp and not is_shared(ob):
+                if ob.nwo.bsp_name == bsp and not is_shared(ob):
                     perm = get_perm(ob)
                     if (perm not in permutations):
                         permutations.append(perm)
@@ -502,12 +486,9 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
         bsp_list = []
 
         for ob in bpy.context.view_layer.objects:
-            if ob.nwo.bsp_name_locked != '':
-                if (ob.nwo.bsp_name_locked not in bsp_list) and is_design(ob):
-                    bsp_list.append(ob.nwo.bsp_name_locked)
-            else:
-                if (ob.nwo.bsp_name not in bsp_list) and is_design(ob):
-                    bsp_list.append(ob.nwo.bsp_name)
+            ob_bsp = ob.nwo.bsp_name
+            if (ob_bsp not in bsp_list) and is_design(ob):
+                bsp_list.append(ob_bsp)
 
         # sort bsp list alphanumerically
         bsp_list = sort_alphanum(bsp_list)
@@ -519,7 +500,7 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
             permutations = []
 
             for ob in get_design_from_halo_objects(halo_objects):
-                if ob.nwo.bsp_name_locked == bsp or ob.nwo.bsp_name == bsp:
+                if ob.nwo.bsp_name == bsp:
                     perm = get_perm(ob)
                     if (perm not in permutations):
                         permutations.append(perm)

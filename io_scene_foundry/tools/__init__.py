@@ -1150,7 +1150,7 @@ class NWO_HaloExportSettings(Panel):
         layout = self.layout
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-        h4 = context.scene.nwo_global.game_version in ('h4', 'h2a')
+        h4 = context.scene.nwo.game_version in ('h4', 'h2a')
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
@@ -1698,7 +1698,7 @@ class NWO_JMSHelper(Panel):
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
         col = flow.column()
-        game_version = context.scene.nwo_global.game_version
+        game_version = context.scene.nwo.game_version
         if game_version == 'reach':
             col.operator('nwo.jms_assign', text="JMS -> Reach Asset")
         elif game_version == 'h4':
