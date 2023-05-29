@@ -1757,7 +1757,6 @@ def SetNodeProps(node, ob):
     node_halo.object_type = ob_halo.object_type
     node_halo.marker_type = ob_halo.marker_type
 
-    node_halo.marker_region = ob_halo.marker_region
     node_halo.region_name = ob_halo.region_name
     node_halo.marker_all_regions = ob_halo.marker_all_regions
     node_halo.marker_velocity = ob_halo.marker_velocity
