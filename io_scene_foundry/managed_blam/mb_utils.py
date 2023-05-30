@@ -12,7 +12,7 @@ def get_bungie(report):
         try:
             clr.AddReference(mb_path)
             print(mb_path)
-            if bpy.context.scene.nwo_global.game_version == 'reach':
+            if bpy.context.scene.nwo.game_version == 'reach':
                 import Bungie
             else:
                 import Corinth as Bungie

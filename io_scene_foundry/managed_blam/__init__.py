@@ -69,7 +69,7 @@ class ManagedBlam_Init(Operator):
             import clr
             try:
                 clr.AddReference(mb_path)
-                if context.scene.nwo_global.game_version == 'reach':
+                if context.scene.nwo.game_version == 'reach':
                     import Bungie
                 else:
                     import Corinth as Bungie
