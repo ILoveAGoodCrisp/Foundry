@@ -189,8 +189,8 @@ class NWO_FacePropPanel(NWO_PropPanel):
                         row.prop(item, "sky_permutation_index_ui")
                     else:
                         row = col.row()
-                        row.prop(ob_nwo, "face_type_ui")
-                        
+                        row.prop(item, "face_type_ui")
+
                 if item.face_mode_override:
                     row = col.row()
                     row.prop(item, "face_mode_ui")
