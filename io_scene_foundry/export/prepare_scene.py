@@ -820,10 +820,10 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                     nwo.mesh_type = '_connected_geometry_mesh_type_water_surface'
                     nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
 
-            elif nwo.plane_type_ui == '_connected_geometry_plane_type_planar_fog_volume':
-                nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
-                nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
-                nwo.fog_volume_depth = nwo.fog_volume_depth_ui
+                elif nwo.plane_type_ui == '_connected_geometry_plane_type_planar_fog_volume':
+                    nwo.mesh_type = '_connected_geometry_mesh_type_planar_fog_volume'
+                    nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
+                    nwo.fog_volume_depth = jstr(nwo.fog_volume_depth_ui)
 
             elif nwo.mesh_type_ui == '_connected_geometry_mesh_type_volume':
                 if nwo.volume_type_ui == '_connected_geometry_volume_type_soft_ceiling':
@@ -872,7 +872,7 @@ def apply_object_mesh_marker_properties(ob, asset_type):
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
 
         if asset_type == 'SKY':
-            nwo.region_name = true_region(ob)
+            nwo.region_name = true_region(ob.nwo)
             nwo.mesh_type = '_connected_geometry_mesh_type_default'
 
         if asset_type == 'DECORATOR SET':

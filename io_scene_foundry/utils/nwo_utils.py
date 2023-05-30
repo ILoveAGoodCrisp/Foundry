@@ -161,7 +161,6 @@ def get_prefix(string, prefix_list): # gets a prefix from a list of prefixes
 
 def select_halo_objects(select_func, selected_asset_type, valid_asset_types):
     deselect_all_objects()
-
     select_func = getattr(CheckType, select_func)
     halo_objects = []
     if selected_asset_type in valid_asset_types:
@@ -296,6 +295,8 @@ def not_parented_to_poop(ob):
     return not mesh_type(ob.parent, '_connected_geometry_mesh_type_poop')
 
 def is_design(ob):
+    nwo = ob.nwo
+    mesh_type = nwo.mesh_type
     return CheckType.fog(ob) or CheckType.boundary_surface(ob) or CheckType.water_physics(ob) or CheckType.poop_rain_blocker(ob)
 
 def is_marker(ob):

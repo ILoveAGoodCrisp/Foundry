@@ -484,9 +484,10 @@ def WriteScenarioContents(halo_objects, metadata, asset_path, asset_name):
         
     ##### STRUCTURE DESIGN #####
     if SceneHasDesign(halo_objects):
+        print("Has design!!!")
         bsp_list = []
 
-        for ob in halo_objects.default:
+        for ob in get_design_from_halo_objects(halo_objects, False):
             ob_bsp = ob.nwo.bsp_name
             if (ob_bsp not in bsp_list) and is_design(ob):
                 bsp_list.append(ob_bsp)

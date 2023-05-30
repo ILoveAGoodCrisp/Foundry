@@ -778,7 +778,7 @@ class NWOMesh(NWOObject):
         
         # SPECIFIC MESH TYPE PROPS
         if self.bungie_mesh_type == '_connected_geometry_mesh_type_boundary_surface':
-            self.bungie_mesh_boundary_surface_type = self.halo.mesh_boundary_surface_type
+            self.bungie_mesh_boundary_surface_type = self.halo.boundary_surface_type
             self.bungie_mesh_boundary_surface_name = dot_partition(self.name)
 
         elif self.bungie_mesh_type in ('_connected_geometry_mesh_type_poop_collision',  '_connected_geometry_mesh_type_poop'):
