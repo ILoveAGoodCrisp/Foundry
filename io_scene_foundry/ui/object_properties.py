@@ -30,7 +30,7 @@ from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatProperty, St
 from bpy.types import PropertyGroup, Object
 import bpy
 from ..icons import get_icon_id
-from ..utils.nwo_utils import bpy_enum_seam, clean_tag_path, get_prop_from_collection, mesh_object, not_bungie_game, nwo_enum, true_bsp
+from ..utils.nwo_utils import bpy_enum_seam, clean_tag_path, dot_partition, get_prop_from_collection, mesh_object, not_bungie_game, nwo_enum, true_bsp
 
 # MESH PROPS
 # ----------------------------------------------------------
@@ -282,16 +282,64 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 items.append(('_connected_geometry_marker_type_target', 'Target', 'Soft barrier that blocks the player and player camera', get_icon_id("target"), 6))
         elif poll_ui('SCENARIO'):
             items.append(('_connected_geometry_marker_type_model', 'Structure Marker', 'Soft barrier that blocks the player and player camera', get_icon_id("marker"), 0))
-            if self.marker_game_instance_tag_name.endswith('.prefab'):
-                items.append(('_connected_geometry_marker_type_game_instance', 'Prefab', 'Defines an area in a cluster which renders fog defined in the scenario tag', get_icon_id("prefab"), 1))
-            elif self.marker_game_instance_tag_name.endswith('.light'):
-                items.append(('_connected_geometry_marker_type_game_instance', 'Light', 'Defines an area in a cluster which renders fog defined in the scenario tag', get_icon_id("light_cone"), 1))
-            elif self.marker_game_instance_tag_name.endswith('.cheap_light'):
-                items.append(('_connected_geometry_marker_type_game_instance', 'Cheap Light', 'Defines an area in a cluster which renders fog defined in the scenario tag', get_icon_id("light_cone"), 1))
-            elif self.marker_game_instance_tag_name.endswith('.leaf'):
-                items.append(('_connected_geometry_marker_type_game_instance', 'Falling Leaf', 'Defines an area in a cluster which renders fog defined in the scenario tag', get_icon_id("soft_kill"), 1))
-            else:
-                items.append(('_connected_geometry_marker_type_game_instance', 'Game Tag', 'Defines an area in a cluster which renders fog defined in the scenario tag', get_icon_id("game_object"), 1))
+            tag_ext = dot_partition(self.marker_game_instance_tag_name_ui, True)
+            match tag_ext:
+                case "crate":
+                    name = "Crate Tag"
+                    icon = "crate"
+                case "scenery":
+                    name = "Scenery Tag"
+                    icon = "scenery"
+                case "effect_scenery":
+                    name = "Effect Scenery Tag"
+                    icon = "effect_scenery"
+                case "device_control":
+                    name = "Device Control Tag"
+                    icon = "device_control"
+                case "device_machine":
+                    name = "Device Machine Tag"
+                    icon = "device_machine"
+                case "device_terminal":
+                    name = "Device Terminal Tag"
+                    icon = "device_terminal"
+                case "device_dispenser":
+                    name = "Device Dispenser Tag"
+                    icon = "device_dispenser"
+                case "biped":
+                    name = "Biped Tag"
+                    icon = "biped"
+                case "creature":
+                    name = "Creature Tag"
+                    icon = "creature"
+                case "giant":
+                    name = "Giant Tag"
+                    icon = "giant"
+                case "vehicle":
+                    name = "Vehicle Tag"
+                    icon = "vehicle"
+                case "weapon":
+                    name = "Weapon Tag"
+                    icon = "weapon"
+                case "equipment":
+                    name = "Equipment Tag"
+                    icon = "equipment"
+                case "prefab":
+                    name = "Prefab Tag"
+                    icon = "prefab"
+                case "light":
+                    name = "Light Tag"
+                    icon = "light_cone"
+                case "cheap_light":
+                    name = "Cheap Light Tag"
+                    icon = "light_cone"
+                case "leaf":
+                    name = "Leaf Tag"
+                    icon = "decorator"
+                case _:
+                    name = "Game Tag"
+                    icon = "game_object"
+
+            items.append(('_connected_geometry_marker_type_game_instance', name, "Creates the specified tag at this marker position in the scenario", get_icon_id(icon), 1))
 
             if h4:
                 items.append(('_connected_geometry_marker_type_airprobe', 'Airprobe', 'Plane which can cut through structure geometry to define a water surface. Supports tesselation', get_icon_id("airprobe"), 2))

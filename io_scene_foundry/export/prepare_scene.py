@@ -1728,9 +1728,9 @@ def MeshesToEmpties(context, meshes_to_empties):
             node_name = temp_name(ob.name)
             ob.name = str(uuid4())
             node = bpy.data.objects.new(node_name, None)
+            context.scene.collection.objects.link(node)
             if ob.parent is not None:
                 node.parent = ob.parent
-                # Added 08-12-2022 to fix empty nodes not being bone parented
                 node.parent_type = ob.parent_type
                 if node.parent_type == 'BONE':
                     node.parent_bone = ob.parent_bone

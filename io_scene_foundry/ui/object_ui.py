@@ -29,7 +29,7 @@ from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel
 from ..utils.nwo_utils import bpy_enum_list, export_objects, is_linked, not_bungie_game, sort_alphanum, true_bsp, true_permutation, true_region
 import bpy
 from bpy.types import Menu, UIList
-from bpy.props import EnumProperty
+from bpy.props import EnumProperty, StringProperty
 
 
 # FACE LEVEL FACE PROPS
@@ -65,7 +65,6 @@ class NWO_MeshFaceProps(NWO_PropPanel):
         ob_nwo = ob.nwo
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        is_poop = ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop'
     
         # Master Instance button since facemaps aren't stored in mesh data
         if is_linked(ob):
@@ -894,7 +893,7 @@ class NWO_ObjectProps(NWO_PropPanel):
                     row = col.row()
                     row.prop(ob_nwo, "marker_game_instance_tag_name_ui", text='Tag Path')
                     row.operator('nwo.game_instance_path', icon="FILE_FOLDER", text="")
-                    if not ob_nwo.marker_game_instance_tag_name.endswith(('.prefab', '.cheap_light', '.light','.leaf')):
+                    if not ob_nwo.marker_game_instance_tag_name_ui.endswith(('.prefab', '.cheap_light', '.light','.leaf')):
                         col.prop(ob_nwo, "marker_game_instance_tag_variant_name_ui", text='Tag Variant')
                         if h4:
                             col.prop(ob_nwo, 'marker_game_instance_run_scripts_ui') 
@@ -968,77 +967,121 @@ class NWO_ObjectProps(NWO_PropPanel):
 # Tag Path Operators
 # ------------------------------------------
 class NWO_GameInstancePath(NWO_Op_Path):
-    """Set the path to a game instance tag"""
     bl_idname = "nwo.game_instance_path"
     bl_description = "Return the path to a game tag"
-    
-    def __init__(self):
-        self.filter_glob = "*.biped;*.crate;*.creature;*.device_*;*.effect_*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_l*;*.light"
-        self.tag_path_field = bpy.context.object.nwo.marker_game_instance_tag_name_ui
+
+    filter_glob: StringProperty(
+        default="*.biped;*.crate;*.creature;*.device_*;*.effect_*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_l*;*.light",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.marker_game_instance_tag_name_ui = self.filepath
+        return {'FINISHED'}
     
 class NWO_FogPath(NWO_Op_Path):
     bl_idname = "nwo.fog_path"
     bl_description = "Return the path to a fog tag"
-    
-    def __init__(self):
-        self.filter_glob = "*.atmosphere_"
-        self.tag_path_field = bpy.context.object.nwo.fog_appearance_tag_ui
+
+    filter_glob: StringProperty(
+        default="*.atmosphere_",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.fog_appearance_tag_ui = self.filepath
+        return {'FINISHED'}
 
 class NWO_EffectPath(NWO_Op_Path):
     bl_idname = "nwo.effect_path"
     bl_description = "Set the path to an effect tag"
-    
-    def __init__(self):
-        self.filter_glob = "*.effect"
-        self.tag_path_field = bpy.context.object.nwo.marker_looping_effect_ui
+
+    filter_glob: StringProperty(
+        default="*.effect",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.marker_looping_effect_ui = self.filepath
+        return {'FINISHED'}
 
 class NWO_LightConePath(NWO_Op_Path):
     bl_idname = "nwo.light_cone_path"
     bl_description = "Set the path to a light cone tag"
-    
-    def __init__(self):
-        self.filter_glob = "*.light_"
-        self.tag_path_field = bpy.context.object.nwo.marker_light_cone_tag_ui
+
+    filter_glob: StringProperty(
+        default="*.light_",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.marker_light_cone_tag_ui = self.filepath
+        return {'FINISHED'}
 
 class NWO_LightConeCurvePath(NWO_Op_Path):
     bl_idname = "nwo.light_cone_curve_path"
     bl_description = "Set the path to a light cone curve tag"
 
-    def __init__(self):
-        self.filter_glob = "curve_"
-        self.tag_path_field = bpy.context.object.nwo.marker_light_cone_curve_ui
+    filter_glob: StringProperty(
+        default="*.curve_",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.marker_light_cone_curve_ui = self.filepath
+        return {'FINISHED'}
 
 class NWO_LightTagPath(NWO_Op_Path):
     bl_idname = "nwo.light_tag_path"
     bl_description = "Set the path to a light tag"
 
-    def __init__(self):
-        self.filter_glob = "*.light"
-        self.tag_path_field = bpy.context.object.nwo.light_tag_override_ui
+    filter_glob: StringProperty(
+        default="*.light",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.light_tag_override_ui = self.filepath
+        return {'FINISHED'}
 
 class NWO_LightShaderPath(NWO_Op_Path):
     bl_idname = "nwo.light_shader_path"
     bl_description = "Set the path to a light shader tag"
 
-    def __init__(self):
-        self.filter_glob = "*.render_"
-        self.tag_path_field = bpy.context.object.nwo.light_shader_reference
+    filter_glob: StringProperty(
+        default="*.render_",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.light_shader_reference = self.filepath
+        return {'FINISHED'}
 
 class NWO_LightGelPath(NWO_Op_Path):
     bl_idname = "nwo.light_gel_path"
     bl_description = "Set the path to a gel bitmap"
 
-    def __init__(self):
-        self.filter_glob = "*.bitmap"
-        self.tag_path_field = bpy.context.object.nwo.light_gel_reference
+    filter_glob: StringProperty(
+        default="*.bitmap",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.light_gel_reference = self.filepath
+        return {'FINISHED'}
 
 class NWO_LensFlarePath(NWO_Op_Path):
     bl_idname = "nwo.lens_flare_path"
     bl_description = "Set the path to a lens flare bitmap"
 
-    def __init__(self):
-        self.filter_glob = "*.lens_"
-        self.tag_path_field = bpy.context.object.nwo.light_lens_flare_reference
+    filter_glob: StringProperty(
+        default="*.lens_",
+        options={'HIDDEN'},
+        )
+
+    def execute(self, context):
+        context.object.nwo.light_lens_flare_reference = self.filepath
+        return {'FINISHED'}
 
 
 # LIST SYSTEMS

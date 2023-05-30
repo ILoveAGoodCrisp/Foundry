@@ -644,8 +644,8 @@ class NWOMarker(NWOObject):
         # game tag stuff
         if self.halo.marker_game_instance_tag_name:
             self.bungie_marker_game_instance_tag_name = self.halo.marker_game_instance_tag_name
-            if self.halo.marker_game_instance_variant_name:
-                self.bungie_marker_game_instance_variant_name = self.halo.marker_game_instance_variant_name
+            if self.halo.marker_game_instance_tag_variant_name:
+                self.bungie_marker_game_instance_variant_name = self.halo.marker_game_instance_tag_variant_name
             if self.not_bungie_game and self.halo.marker_game_instance_run_scripts:
                 self.bungie_marker_game_instance_run_scripts = self.halo.marker_game_instance_run_scripts
 

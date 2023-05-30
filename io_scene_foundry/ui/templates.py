@@ -60,7 +60,7 @@ class NWO_Op_Path(NWO_Op):
     )
 
     def execute(self, context):
-        self.tag_path_field = self.filepath
+        print(self.filepath)
         return {'FINISHED'}
 
     def invoke(self, context, event):
