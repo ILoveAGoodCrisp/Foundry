@@ -103,11 +103,11 @@ class NWO_FacePropPanel(NWO_PropPanel):
         #row.prop(ob_nwo, "mesh_face", expand=True)
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
-        if len(ob_nwo.face_props) <= 0:
+        if len(ob_nwo.face_props) <= 0 and context.mode != 'EDIT_MESH':
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
             col.scale_y = 1.3
-            col.menu(NWO_FacePropAddMenu.bl_idname, text='New Face Property', icon='ADD')
+            col.operator("nwo.edit_face_map", text="Use Edit Mode to add face properties")
         else:
 
 
@@ -131,141 +131,143 @@ class NWO_FacePropPanel(NWO_PropPanel):
 
                 row = layout.row()
 
-                sub = row.row(align=True)
-                sub.operator("nwo.face_layer_assign", text="Assign").assign = True
-                sub.operator("nwo.face_layer_assign", text="Remove").assign = False
+                if ob_nwo.face_props:
+                    sub = row.row(align=True)
+                    sub.operator("nwo.face_layer_assign", text="Assign").assign = True
+                    sub.operator("nwo.face_layer_assign", text="Remove").assign = False
 
-                sub = row.row(align=True)
-                sub.operator("nwo.face_layer_select", text="Select").select = True
-                sub.operator("nwo.face_layer_select", text="Deselect").select = False
+                    sub = row.row(align=True)
+                    sub.operator("nwo.face_layer_select", text="Select").select = True
+                    sub.operator("nwo.face_layer_select", text="Deselect").select = False
             
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
             row = col.row()
-            item = ob_nwo.face_props[ob_nwo.face_props_index]
-            # row.prop(item, 'name')
-            # if not (item.region_name_override and item.face_type_override and item.face_mode_override and item.face_sides_override and item.face_draw_distance_override and item.texcoord_usage_override
-            #          and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
-            #            and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
-            #         ):
+            if ob_nwo.face_props:
+                item = ob_nwo.face_props[ob_nwo.face_props_index]
+                # row.prop(item, 'name')
+                # if not (item.region_name_override and item.face_type_override and item.face_mode_override and item.face_sides_override and item.face_draw_distance_override and item.texcoord_usage_override
+                #          and item.face_global_material_override and item.ladder_override and item.slip_surface_override and item.decal_offset_override and item.group_transparents_by_plane_override
+                #            and item.no_shadow_override and item.precise_position_override and item.no_lightmap_override and item.no_pvs_override
+                #         ):
 
-            # if (is_poop and (item.instanced_collision_override or item.instanced_physics_override or item.cookie_cutter_override)):
-            #     if item.instanced_collision_override:
-            #         col.label(text="Current FaceMap is used for this mesh's bullet collision")
-            #     if item.instanced_physics_override:
-            #         col.label(text="Current FaceMap is used for this mesh's player collision")
-            #     if item.cookie_cutter_override:
-            #         col.label(text="Current FaceMap is used for this mesh's cookie cutter")
+                # if (is_poop and (item.instanced_collision_override or item.instanced_physics_override or item.cookie_cutter_override)):
+                #     if item.instanced_collision_override:
+                #         col.label(text="Current FaceMap is used for this mesh's bullet collision")
+                #     if item.instanced_physics_override:
+                #         col.label(text="Current FaceMap is used for this mesh's player collision")
+                #     if item.cookie_cutter_override:
+                #         col.label(text="Current FaceMap is used for this mesh's cookie cutter")
 
-            # if item.instanced_collision_override:
-            #     row = col.row()
-            #     row.prop(item, "instanced_collision")
-            #     row.operator("nwo.remove_face_property", text='', icon='X').options = 'instanced_collision'
-            # if item.instanced_physics_override:
-            #     row = col.row()
-            #     row.prop(item, "instanced_physics")
-            #     row.operator("nwo.remove_face_property", text='', icon='X').options = 'instanced_physics'
-            # if item.cookie_cutter_override:
-            #     row = col.row()
-            #     row.prop(item, "cookie_cutter")
-            #     row.operator("nwo.remove_face_property", text='', icon='X').options = 'cookie_cutter'
-            if item.region_name_override:
-                row = col.row()
-                row.prop(item, "region_name_ui")
-                row.operator_menu_enum("nwo.face_region_list", "region", text='', icon="DOWNARROW_HLT")
-            if item.face_type_override:
-                row = col.row()
-                row.prop(item, "face_type_ui")
-                if item.face_type == '_connected_geometry_face_type_sky':
+                # if item.instanced_collision_override:
+                #     row = col.row()
+                #     row.prop(item, "instanced_collision")
+                #     row.operator("nwo.remove_face_property", text='', icon='X').options = 'instanced_collision'
+                # if item.instanced_physics_override:
+                #     row = col.row()
+                #     row.prop(item, "instanced_physics")
+                #     row.operator("nwo.remove_face_property", text='', icon='X').options = 'instanced_physics'
+                # if item.cookie_cutter_override:
+                #     row = col.row()
+                #     row.prop(item, "cookie_cutter")
+                #     row.operator("nwo.remove_face_property", text='', icon='X').options = 'cookie_cutter'
+                if item.region_name_override:
                     row = col.row()
-                    row.prop(item, "sky_permutation_index_ui")
-            if item.face_mode_override:
-                row = col.row()
-                row.prop(item, "face_mode_ui")
-            if item.face_two_sided_override:
-                row = col.row()
-                row.prop(item, "face_two_sided_ui")
-            if item.face_draw_distance_override:
-                row = col.row()
-                row.prop(item, "face_draw_distance_ui")
-            if item.texcoord_usage_override:
-                row = col.row()
-                row.prop(item, 'texcoord_usage_ui')
-            if item.face_global_material_override:
-                row = col.row()
-                row.prop(item, "face_global_material_ui")
-                row.operator_menu_enum("nwo.face_global_material_list", "global_material", text='', icon="DOWNARROW_HLT")
-            if item.ladder_override:
-                row = col.row()
-                row.prop(item, "ladder_ui")
-            if item.slip_surface_override:
-                row = col.row()
-                row.prop(item, "slip_surface_ui")
-            if item.decal_offset_override:
-                row = col.row()
-                row.prop(item, "decal_offset_ui")
-            if item.group_transparents_by_plane_override:
-                row = col.row()
-                row.prop(item, "group_transparents_by_plane_ui")
-            if item.no_shadow_override:
-                row = col.row()
-                row.prop(item, "no_shadow_ui")
-            if item.precise_position_override:
-                row = col.row()
-                row.prop(item, "precise_position_ui")
-            if item.no_lightmap_override:
-                row = col.row()
-                row.prop(item, "no_lightmap_ui")
-            if item.no_pvs_override:
-                row = col.row()
-                row.prop(item, "no_pvs_ui")
-            # lightmap
-            if item.lightmap_additive_transparency_override:
-                row = col.row()
-                row.prop(item, "lightmap_additive_transparency_ui")
-            if item.lightmap_resolution_scale_override:
-                row = col.row()
-                row.prop(item, "lightmap_resolution_scale_ui")
-            if item.lightmap_type_override:
-                row = col.row()
-                row.prop(item, "lightmap_type_ui")
-            if item.lightmap_analytical_bounce_modifier_override:
-                row = col.row()
-                row.prop(item, "lightmap_analytical_bounce_modifier_ui")
-            if item.lightmap_general_bounce_modifier_override:
-                row = col.row()
-                row.prop(item, "lightmap_general_bounce_modifier_ui")
-            if item.lightmap_translucency_tint_color_override:
-                row = col.row()
-                row.prop(item, "lightmap_translucency_tint_color_ui")
-            if item.lightmap_lighting_from_both_sides_override:
-                row = col.row()
-                row.prop(item, "lightmap_lighting_from_both_sides_ui")
-            # material lighting
-            if item.emissive_override:
-                col.separator()
-                box = col.box()
-                row = box.row()
-                row.label(text="Emissive Settings")
-                # row.operator("nwo.remove_mesh_property", text='', icon='X').options = 'emissive'
-                row = box.row()
-                row.prop(item, "material_lighting_emissive_color_ui", text="Color")
-                row = box.row()
-                row.prop(item, "material_lighting_emissive_power_ui", text="Power")
-                row = box.row()
-                row.prop(item, "material_lighting_emissive_quality_ui", text="Quality")
-                row = box.row()
-                row.prop(item, "material_lighting_emissive_focus_ui", text="Focus")
-                row = box.row()
-                row.prop(item, "material_lighting_attenuation_falloff_ui", text="Attenutation Falloff")
-                row = box.row()
-                row.prop(item, "material_lighting_attenuation_cutoff_ui", text="Attenutation Cutoff")
-                row = box.row()
-                row.prop(item, "material_lighting_bounce_ratio_ui", text="Bounce Ratio")
-                row = box.row()
-                row.prop(item, "material_lighting_use_shader_gel_ui", text="Shader Gel")
-                row = box.row()
-                row.prop(item, "material_lighting_emissive_per_unit_ui", text="Emissive Per Unit")
+                    row.prop(item, "region_name_ui")
+                    row.operator_menu_enum("nwo.face_region_list", "region", text='', icon="DOWNARROW_HLT")
+                if item.face_type_override:
+                    row = col.row()
+                    row.prop(item, "face_type_ui")
+                    if item.face_type == '_connected_geometry_face_type_sky':
+                        row = col.row()
+                        row.prop(item, "sky_permutation_index_ui")
+                if item.face_mode_override:
+                    row = col.row()
+                    row.prop(item, "face_mode_ui")
+                if item.face_two_sided_override:
+                    row = col.row()
+                    row.prop(item, "face_two_sided_ui")
+                if item.face_draw_distance_override:
+                    row = col.row()
+                    row.prop(item, "face_draw_distance_ui")
+                if item.texcoord_usage_override:
+                    row = col.row()
+                    row.prop(item, 'texcoord_usage_ui')
+                if item.face_global_material_override:
+                    row = col.row()
+                    row.prop(item, "face_global_material_ui")
+                    row.operator_menu_enum("nwo.face_global_material_list", "global_material", text='', icon="DOWNARROW_HLT")
+                if item.ladder_override:
+                    row = col.row()
+                    row.prop(item, "ladder_ui")
+                if item.slip_surface_override:
+                    row = col.row()
+                    row.prop(item, "slip_surface_ui")
+                if item.decal_offset_override:
+                    row = col.row()
+                    row.prop(item, "decal_offset_ui")
+                if item.group_transparents_by_plane_override:
+                    row = col.row()
+                    row.prop(item, "group_transparents_by_plane_ui")
+                if item.no_shadow_override:
+                    row = col.row()
+                    row.prop(item, "no_shadow_ui")
+                if item.precise_position_override:
+                    row = col.row()
+                    row.prop(item, "precise_position_ui")
+                if item.no_lightmap_override:
+                    row = col.row()
+                    row.prop(item, "no_lightmap_ui")
+                if item.no_pvs_override:
+                    row = col.row()
+                    row.prop(item, "no_pvs_ui")
+                # lightmap
+                if item.lightmap_additive_transparency_override:
+                    row = col.row()
+                    row.prop(item, "lightmap_additive_transparency_ui")
+                if item.lightmap_resolution_scale_override:
+                    row = col.row()
+                    row.prop(item, "lightmap_resolution_scale_ui")
+                if item.lightmap_type_override:
+                    row = col.row()
+                    row.prop(item, "lightmap_type_ui")
+                if item.lightmap_analytical_bounce_modifier_override:
+                    row = col.row()
+                    row.prop(item, "lightmap_analytical_bounce_modifier_ui")
+                if item.lightmap_general_bounce_modifier_override:
+                    row = col.row()
+                    row.prop(item, "lightmap_general_bounce_modifier_ui")
+                if item.lightmap_translucency_tint_color_override:
+                    row = col.row()
+                    row.prop(item, "lightmap_translucency_tint_color_ui")
+                if item.lightmap_lighting_from_both_sides_override:
+                    row = col.row()
+                    row.prop(item, "lightmap_lighting_from_both_sides_ui")
+                # material lighting
+                if item.emissive_override:
+                    col.separator()
+                    box = col.box()
+                    row = box.row()
+                    row.label(text="Emissive Settings")
+                    # row.operator("nwo.remove_mesh_property", text='', icon='X').options = 'emissive'
+                    row = box.row()
+                    row.prop(item, "material_lighting_emissive_color_ui", text="Color")
+                    row = box.row()
+                    row.prop(item, "material_lighting_emissive_power_ui", text="Power")
+                    row = box.row()
+                    row.prop(item, "material_lighting_emissive_quality_ui", text="Quality")
+                    row = box.row()
+                    row.prop(item, "material_lighting_emissive_focus_ui", text="Focus")
+                    row = box.row()
+                    row.prop(item, "material_lighting_attenuation_falloff_ui", text="Attenutation Falloff")
+                    row = box.row()
+                    row.prop(item, "material_lighting_attenuation_cutoff_ui", text="Attenutation Cutoff")
+                    row = box.row()
+                    row.prop(item, "material_lighting_bounce_ratio_ui", text="Bounce Ratio")
+                    row = box.row()
+                    row.prop(item, "material_lighting_use_shader_gel_ui", text="Shader Gel")
+                    row = box.row()
+                    row.prop(item, "material_lighting_emissive_per_unit_ui", text="Emissive Per Unit")
 
 # ----------------------------------------------------------------
 
@@ -569,6 +571,12 @@ class NWO_FaceLayerRemove(NWO_Op):
     bl_idname = "nwo.face_layer_remove"
     bl_label = "Remove"
 
+    @classmethod
+    def poll(self, context):
+        ob = context.object
+        ob_nwo = ob.data.nwo
+        return ob_nwo.face_props
+
     def remove_face_layer(self, me, layer_name):
         bm = bmesh.from_edit_mesh(me)   
         # get list of selected faces
@@ -581,6 +589,8 @@ class NWO_FaceLayerRemove(NWO_Op):
         item = ob_nwo.face_props[ob_nwo.face_props_index]
         self.remove_face_layer(ob.data, item.layer_name)
         ob_nwo.face_props.remove(ob_nwo.face_props_index)
+        if ob_nwo.face_props_index > len(ob_nwo.face_props) - 1:
+            ob_nwo.face_props_index += -1
         context.area.tag_redraw()
 
         return {'FINISHED'}
@@ -644,6 +654,12 @@ class NWO_FaceLayerMove(NWO_Op):
                ('DOWN', 'DOWN', 'DOWN')),
         default='UP'
     )
+
+    @classmethod
+    def poll(self, context):
+        ob = context.object
+        ob_nwo = ob.data.nwo
+        return ob_nwo.face_props
 
     def execute(self, context):
         ob = context.object
