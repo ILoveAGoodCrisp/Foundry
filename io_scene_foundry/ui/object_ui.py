@@ -26,17 +26,11 @@
 
 from . import poll_ui
 from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel
-from ..utils.nwo_utils import bpy_enum_list, closest_bsp_object, export_objects, is_linked, not_bungie_game, sort_alphanum, true_bsp, true_permutation, true_region
+from ..utils.nwo_utils import bpy_enum_list, export_objects, is_linked, not_bungie_game, sort_alphanum, true_bsp, true_permutation, true_region
 import bpy
 from bpy.types import Menu, UIList
-from bpy.props import EnumProperty, BoolProperty
+from bpy.props import EnumProperty
 
-
-
-
-
-
-# LETS GET TO WORK
 
 # FACE LEVEL FACE PROPS
 
@@ -50,9 +44,6 @@ class NWO_UL_FaceMapProps(UIList):
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
             layout.label(text="", icon_value=icon)
-
-
-
 
 class NWO_MeshFaceProps(NWO_PropPanel):
     bl_label = "Mesh Properties"

@@ -106,6 +106,7 @@ marker_type_items = [
 
 # import classes from other files
 
+from .face_ui import *
 from .object_properties import *
 from .object_ui import *
 from .materials_ui import *
@@ -114,7 +115,6 @@ from .animation_properties import *
 from .animation_ui import *
 from .scene_properties import *
 from .scene_ui import *
-from .face_ui import *
 
 classes_nwo = (
     NWO_Asset_ListItems,
@@ -149,8 +149,6 @@ classes_nwo = (
     NWO_BSPList,
     NWO_GlobalMaterialList,
     NWO_GlobalMaterialMenu,
-    # NWO_ObjectMeshProps,
-    # NWO_ObjectMarkerProps,
     NWO_ShaderProps,
     NWO_MaterialOpenTag,
     NWO_UL_FaceMapProps,
@@ -158,6 +156,7 @@ classes_nwo = (
     NWO_ObjectPropertiesGroup,
     NWO_LightPropertiesGroup,
     NWO_MaterialPropertiesGroup,
+    NWO_MeshPropertiesGroup,
     NWO_LightProps,
     NWO_BoneProps,
     NWO_BonePropertiesGroup,
@@ -176,11 +175,11 @@ classes_nwo = (
     NWO_MeshPropAddMaterialLighting,
     NWO_MeshPropAdd,
     NWO_MeshPropRemove,
-    NWO_FaceLayerAddFaceMode,
-    NWO_FaceLayerAddFlags,
-    NWO_FaceLayerAddMisc,
-    NWO_FaceLayerAddLightmap,
-    NWO_FaceLayerAdd,
+    NWO_FacePropAddFaceMode,
+    NWO_FacePropAddFlags,
+    NWO_FacePropAddLightmap,
+    NWO_FacePropAdd,
+    NWO_FacePropRemove,
     NWO_FaceLayerRemove,
     NWO_FaceLayerAssign,
     NWO_FaceLayerSelect,
@@ -192,11 +191,13 @@ classes_nwo = (
     NWO_MeshFaceProps,
     NWO_FacePropPanel,
     NWO_UL_FacePropList,
-    # NWO_ObjectMeshMaterialLightingProps,
-    # NWO_ObjectMeshLightmapProps,
+    NWO_FaceLayerAddFaceMode,
+    NWO_FaceLayerAddFlags,
+    NWO_FaceLayerAddLightmap,
+    NWO_FaceLayerAdd,
     NWO_MeshPropAddMenu,
     NWO_FacePropAddMenu,
-    NWO_MeshPropertiesGroup,
+    NWO_FaceLayerAddMenu,
 )
 
 def register():

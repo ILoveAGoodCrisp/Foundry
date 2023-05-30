@@ -962,9 +962,9 @@ class NWOMesh(NWOObject):
         return bool_str(self.halo.lightmap_type == '_connected_material_lightmap_type_per_vertex')
 
     def mesh_poop_collision_type(self):
-        if self.halo.face_type == '_connected_geometry_face_type_render_only':
+        if self.halo.face_mode == '_connected_geometry_face_mode_render_only':
             return '_connected_geometry_poop_collision_type_none'
-        if self.halo.face_type == '_connected_geometry_face_type_sphere_collision_only':
+        elif self.halo.face_mode == '_connected_geometry_face_mode_sphere_collision_only':
             return '_connected_geometry_poop_collision_type_play_collision'
         elif self.halo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
             return self.halo.poop_collision_type
