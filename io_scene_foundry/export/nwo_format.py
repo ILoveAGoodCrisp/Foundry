@@ -649,11 +649,10 @@ class NWOMarker(NWOObject):
             if self.not_bungie_game and self.halo.marker_game_instance_run_scripts:
                 self.bungie_marker_game_instance_run_scripts = self.halo.marker_game_instance_run_scripts
 
-        # sphere radius is pulled from a mesh marker. In the case of an empty marker, this value is user defined
-        self.bungie_mesh_primitive_sphere_radius = self.marker_sphere_radius() # mesh properties in my node properties... Pathfinding spheres need this or they don't get written to the collision model
-
         # rest of the pathfinding sphere props
         if self.bungie_marker_type == '_connected_geometry_marker_type_pathfinding_sphere':
+            # sphere radius is pulled from a mesh marker. In the case of an empty marker, this value is user defined
+            self.bungie_mesh_primitive_sphere_radius = self.marker_sphere_radius() # mesh properties in my node properties... Pathfinding spheres need this or they don't get written to the collision model
             self.bungie_marker_pathfinding_sphere_vehicle_only = self.halo.marker_pathfinding_sphere_vehicle_only
             self.bungie_marker_pathfinding_sphere_remains_when_open = self.halo.marker_pathfinding_sphere_remains_when_open
             self.bungie_marker_pathfinding_sphere_with_sectors = self.halo.marker_pathfinding_sphere_with_sectors

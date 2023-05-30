@@ -114,7 +114,7 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         find_shaders_on_export(bpy.data.materials, context, report)
         # build structure seams
         # auto_seam(context)
-        assume_missing_master_instances(context)
+        # assume_missing_master_instances(context)
         # Set up facemap properties
         # print("Building face properties...")
         apply_face_properties(context)
@@ -208,12 +208,15 @@ def assume_missing_master_instances(context):
                     if master is not None:
                         continue
                     else:
-                        master = ob
+                        me.nwo.master_instance = ob
+                        print(f'MASTER::::::::::::::::{ob.name}')
 
 def make_instance_collections_real(context):
     select_all_objects()
-    bpy.ops.object.duplicates_make_real(use_base_parent=True)
+    bpy.ops.object.duplicates_make_real()
+    bpy.ops.object.make_local(type='ALL')
     deselect_all_objects()
+    bpy.context.view_layer.update()
 
 def auto_seam(context):
     structure_obs = [ob for ob in context.view_layer.objects if ob.type == 'MESH' and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default']
@@ -510,8 +513,8 @@ def split_to_layers(ob, context, h4):
                 mod.use_object_transform = False
                 mod.use_loop_data = True
                 mod.data_types_loops = {'CUSTOM_NORMAL'}
-                if len(obj.face_maps) > 0:
-                    obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
+                # if obj.data.face_props:
+                #     obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
             # make sure we're not parenting the collision to a zero face mesh
             elif collision_mesh is not None and collision_mesh.parent == ob:
                 collision_mesh.parent = None
@@ -651,9 +654,13 @@ def apply_face_properties(context):
         if CheckType.mesh(ob) and ob.nwo.mesh_type in valid_mesh_types:
             objects.append(ob)
 
+    meshes = []
     for ob in objects:
-        if is_linked(ob) and ob.data.nwo.master_instance != ob:
+        if ob.data in meshes:
             continue
+
+        meshes.append(ob.data)
+
         face_layers = ob.data.nwo.face_props
         if len(face_layers):
             # split for all linked objects
@@ -675,17 +682,11 @@ def apply_face_properties(context):
             
             # copy all new face split objects to all linked objects
             for obj in linked_objects:
-                override = context.copy()
-                override["selected_objects"] = split_objects
-                with context.temp_override(**override):
-                    bpy.ops.object.duplicate_move_linked()
-                
-                # apply correct location and rotation
-                for split_ob in context.selected_objects:
-                    split_ob.matrix_world = obj.matrix_world
-                # update data transfer reference and object names
-                # obje.name = obj.name + '(' + obje.name.rpartition('(')[2].rpartition('.0')[0]
-                # if we didn't create a HaloDataTransfer modifier, don't try to reference it for split objects
+                for s_ob in split_objects:
+                    new_ob = s_ob.copy()
+                    new_ob.matrix_world = obj.matrix_world
+                    context.scene.collection.objects.link(new_ob)
+
                 if ob.modifiers.get("HaloDataTransfer", 0):
                     # otherwise do!
                     mod = obj.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")

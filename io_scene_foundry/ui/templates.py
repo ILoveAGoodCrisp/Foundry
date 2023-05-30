@@ -46,7 +46,7 @@ class NWO_Op(Operator):
         return context.object
     
 class NWO_Op_Path(NWO_Op):
-    bl_label = ""
+    bl_label = "Select Tag"
 
     filter_glob: StringProperty(
         default="",

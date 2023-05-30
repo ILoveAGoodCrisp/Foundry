@@ -792,7 +792,7 @@ class NWO_ObjectProps(NWO_PropPanel):
                     elif ob_nwo.plane_type_ui == '_connected_geometry_plane_type_planar_fog_volume':
                         row = col.row()
                         row.prop(ob_nwo, "fog_appearance_tag_ui", text='Fog Appearance Tag')
-                        row.operator('nwo.fog_path', icon="FILE_FOLDER")
+                        row.operator('nwo.fog_path', icon="FILE_FOLDER", text="")
                         col.prop(ob_nwo, "fog_volume_depth_ui", text='Fog Volume Depth')
 
                     elif ob_nwo.plane_type_ui == '_connected_geometry_plane_type_water_surface':
@@ -902,7 +902,7 @@ class NWO_ObjectProps(NWO_PropPanel):
                 elif ob_nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance':
                     row = col.row()
                     row.prop(ob_nwo, "marker_game_instance_tag_name_ui", text='Tag Path')
-                    row.operator('nwo.game_instance_path', icon="FILE_FOLDER")
+                    row.operator('nwo.game_instance_path', icon="FILE_FOLDER", text="")
                     if not ob_nwo.marker_game_instance_tag_name.endswith(('.prefab', '.cheap_light', '.light','.leaf')):
                         col.prop(ob_nwo, "marker_game_instance_tag_variant_name_ui", text='Tag Variant')
                         if h4:
@@ -964,7 +964,7 @@ class NWO_ObjectProps(NWO_PropPanel):
                 elif ob_nwo.marker_type_ui == '_connected_geometry_marker_type_lightCone' and h4:
                     row = col.row()
                     row.prop(ob_nwo, "marker_light_cone_tag_ui")
-                    row.operator('nwo.light_cone_path', icon="FILE_FOLDER") 
+                    row.operator('nwo.light_cone_path', icon="FILE_FOLDER", text="") 
                     col.prop(ob_nwo, "marker_light_cone_color_ui")
                     col.prop(ob_nwo, "marker_light_cone_alpha_ui") 
                     col.prop(ob_nwo, "marker_light_cone_intensity_ui")
@@ -972,7 +972,7 @@ class NWO_ObjectProps(NWO_PropPanel):
                     col.prop(ob_nwo, "marker_light_cone_length_ui")
                     row = col.row()
                     row.prop(ob_nwo, "marker_light_cone_curve_ui")
-                    row.operator('nwo.light_cone_curve_path', icon="FILE_FOLDER")
+                    row.operator('nwo.light_cone_curve_path', icon="FILE_FOLDER", text="")
 
 # Tag Path Operators
 # ------------------------------------------
@@ -983,7 +983,7 @@ class NWO_GameInstancePath(NWO_Op_Path):
     
     def __init__(self):
         self.filter_glob = "*.biped;*.crate;*.creature;*.device_*;*.effect_*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_l*;*.light"
-        self.tag_path_field = bpy.context.object.nwo.marker_game_instance_tag_name
+        self.tag_path_field = bpy.context.object.nwo.marker_game_instance_tag_name_ui
     
 class NWO_FogPath(NWO_Op_Path):
     bl_idname = "nwo.fog_path"
