@@ -892,7 +892,7 @@ class NWO_RegionListFace(NWO_Op):
             if region not in regions:
                 regions.append(region)
             # also need to loop through face props
-            for face_prop in ob.nwo.data.face_props: 
+            for face_prop in ob.data.nwo.face_props:
                 if face_prop.region_name_override and face_prop.region_name_ui not in regions:
                     regions.append(face_prop.region_name_ui)
 
