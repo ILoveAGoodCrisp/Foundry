@@ -176,7 +176,6 @@ classes_nwo = (
     NWO_MeshPropAddMaterialLighting,
     NWO_MeshPropAdd,
     NWO_MeshPropRemove,
-    NWO_FaceLayerAddFaceType,
     NWO_FaceLayerAddFaceMode,
     NWO_FaceLayerAddFlags,
     NWO_FaceLayerAddMisc,

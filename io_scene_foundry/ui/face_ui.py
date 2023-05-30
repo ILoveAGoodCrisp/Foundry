@@ -62,6 +62,8 @@ class NWO_FacePropAddMenu(bpy.types.Menu):
             #                         )
 
         if poll_ui(('SCENARIO', 'PREFAB')):
+            layout.operator("nwo.face_layer_add", text="Sky").options = "_connected_geometry_face_type_sky"
+            layout.operator("nwo.face_layer_add", text="Seam Sealer").options = "_connected_geometry_face_type_seam_sealer"
             layout.operator("nwo.face_layer_add", text="Emissive").options = "emissive"
             layout.operator_menu_enum("nwo.face_layer_add_face_type",
                                     property="options",
@@ -176,11 +178,19 @@ class NWO_FacePropPanel(NWO_PropPanel):
                     row.prop(item, "region_name_ui")
                     row.operator_menu_enum("nwo.face_region_list", "region", text='', icon="DOWNARROW_HLT")
                 if item.face_type_override:
-                    row = col.row()
-                    row.prop(item, "face_type_ui")
-                    if item.face_type == '_connected_geometry_face_type_sky':
-                        row = col.row()
+                    if item.face_type_ui == '_connected_geometry_face_type_sky':
+                        col.separator()
+                        box = col.box()
+                        row = box.row()
+                        row.label(text="Face Type Settings")
+                        row = box.row()
+                        row.prop(item, "face_type_ui")
+                        row = box.row()
                         row.prop(item, "sky_permutation_index_ui")
+                    else:
+                        row = col.row()
+                        row.prop(ob_nwo, "face_type_ui")
+                        
                 if item.face_mode_override:
                     row = col.row()
                     row.prop(item, "face_mode_ui")
@@ -311,10 +321,10 @@ def toggle_override(context, option, bool_var):
             item.face_two_sided_ui = True
         case '_connected_geometry_face_type_sky':
             item.face_type_override = bool_var
-            item.face_type = '_connected_geometry_face_type_sky'
+            item.face_type_ui = '_connected_geometry_face_type_sky'
         case '_connected_geometry_face_type_seam_sealer':
             item.face_type_override = bool_var
-            item.face_type = '_connected_geometry_face_type_seam_sealer'
+            item.face_type_ui = '_connected_geometry_face_type_seam_sealer'
         case '_connected_geometry_face_mode_render_only':
             ob_nwo.face_mode_override = bool_var
             ob_nwo.face_mode_ui = '_connected_geometry_face_mode_render_only'
@@ -433,7 +443,9 @@ class NWO_FaceLayerAdd(NWO_Op):
         ('instanced_physics', 'Player Collision', ''),
         ('cookie_cutter', 'Cookie Cutter', ''),
         ('seam', 'Seam', ''),
-        ('two_sided', "Two Sided", "")
+        ('two_sided', "Two Sided", ""),
+        ('_connected_geometry_face_type_sky', 'Sky', ''),
+        ('_connected_geometry_face_type_seam_sealer', 'Seam Sealer', ''),
         ]
         )
     
@@ -677,19 +689,6 @@ class NWO_FaceLayerMove(NWO_Op):
         ob_nwo.face_props_index = to_index
 
         return {'FINISHED'}
-
-    
-class NWO_FaceLayerAddFaceType(NWO_FaceLayerAdd):
-    """Adds a face property that will override face properties set in the mesh"""
-    bl_idname = "nwo.face_layer_add_face_type"
-    bl_label = "Add"
-
-    options: EnumProperty(
-        items=[
-        ('_connected_geometry_face_type_sky', 'Sky', ''),
-        ('_connected_geometry_face_type_seam_sealer', 'Seam Sealer', ''),
-        ]
-        )
     
 class NWO_FaceLayerAddFaceMode(NWO_FaceLayerAdd):
     """Adds a face property that will override face properties set in the mesh"""
