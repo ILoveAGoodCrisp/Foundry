@@ -51,17 +51,13 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     def start_highlight(self, context):
         if self.highlight and context.mode == 'EDIT_MESH':
             bpy.ops.nwo.face_layer_colour_all()
-        else:
-            self.highlight_kill = True
 
     highlight : BoolProperty(
         options=set(),
         name="Highlight",
         description="Enables or disables face layer highlighting",
-        update=start_highlight
+        update=start_highlight,
     )
-
-    highlight_kill : BoolProperty()
 
 # FACE PROPERTIES
 # ----------------------------------------------------------

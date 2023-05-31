@@ -212,8 +212,8 @@ def msgbus_callback(*args):
     if me_nwo.highlight:
         me_nwo.highlight = True
    
-def subscribe_object_mode(owner):
-    subscribe_to = bpy.context.object.path_resolve('mode', False)
+def subscribe(owner):
+    subscribe_to = bpy.types.Object, "mode"
     bpy.msgbus.subscribe_rna(
         key=subscribe_to,
         owner=owner,
@@ -230,10 +230,10 @@ def load_handler(dummy):
     # only do this if the scene is not an asset
     if not valid_nwo_asset(context) and os.path.exists(game_version_txt_path):
         with open(game_version_txt_path, 'r') as temp_file:
-            bpy.context.scene.nwo.game_version = temp_file.read()
+            context.scene.nwo.game_version = temp_file.read()
 
     # run ManagedBlam on startup if enabled
-    if bpy.context.scene.nwo.mb_startup:
+    if context.scene.nwo.mb_startup:
         bpy.ops.managed_blam.init()
 
     # create warning if current game_version is incompatible with loaded managedblam.dll
@@ -242,14 +242,14 @@ def load_handler(dummy):
             mb_path = blam_txt.read()
         
         if not mb_path.startswith(get_ek_path()):
-            game = formalise_game_version(bpy.context.scene.nwo.game_version)
+            game = formalise_game_version(context.scene.nwo.game_version)
             result = ctypes.windll.user32.MessageBoxW(0, f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?", f"ManagedBlam / Game Mismatch", 4)
             if result == 6:
                 bpy.ops.wm.quit_blender()
 
     # like and subscribe
     subscription_owner = object()
-    subscribe_object_mode(subscription_owner)
+    subscribe(subscription_owner)
 
 @persistent
 def get_temp_settings(dummy):

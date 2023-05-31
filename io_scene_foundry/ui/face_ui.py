@@ -44,17 +44,17 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
     def draw(self, context):
         layout = self.layout
         ob = context.object
-        ob_nwo = ob.nwo
+        nwo = ob.nwo
         if poll_ui(('MODEL', 'SKY')):
             layout.operator(self.op_prefix, text='Region').options = 'region'
-        if poll_ui('SCENARIO') and ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+        if poll_ui('SCENARIO') and nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
             layout.operator(self.op_prefix, text='Seam').options = 'seam'
-        if ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (ob_nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
+        if nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' or nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics' or nwo.mesh_type_ui == '_connected_geometry_mesh_type_poop' or (nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO')):
             layout.operator(self.op_prefix, text='Collision Material').options = 'face_global_material'
-        if ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_collision'):
+        if nwo.mesh_type_ui in ('_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_collision'):
             layout.operator(self.op_prefix, text="Two Sided").options = "two_sided"
         if poll_ui(('MODEL', 'SCENARIO', 'PREFAB')):
-            if ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_structure'):
+            if nwo.mesh_type_ui in ('_connected_geometry_mesh_type_render', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_structure'):
                 layout.operator(self.op_prefix, text='Uncompressed').options = 'precise_position'
 
         if poll_ui(('SCENARIO', 'PREFAB')):
@@ -96,14 +96,14 @@ class NWO_FacePropPanel(NWO_PropPanel):
     def draw(self, context):
         layout = self.layout
         ob = context.object
-        ob_nwo = ob.data.nwo
+        nwo = ob.data.nwo
         layout.use_property_split = False
         row = layout.row()
         row.use_property_split = False
-        #row.prop(ob_nwo, "mesh_face", expand=True)
+        #row.prop(nwo, "mesh_face", expand=True)
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
-        if len(ob_nwo.face_props) <= 0 and context.mode != 'EDIT_MESH':
+        if len(nwo.face_props) <= 0 and context.mode != 'EDIT_MESH':
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
             col.scale_y = 1.3
@@ -111,21 +111,21 @@ class NWO_FacePropPanel(NWO_PropPanel):
         else:
             rows = 5
             row = layout.row()
-            row.template_list("NWO_UL_FacePropList", "", ob_nwo, "face_props", ob_nwo, "face_props_index", rows=rows)
+            row.template_list("NWO_UL_FacePropList", "", nwo, "face_props", nwo, "face_props_index", rows=rows)
             
             if context.mode == 'EDIT_MESH':
                 col = row.column(align=True)
                 col.menu(NWO_FaceLayerAddMenu.bl_idname, text='', icon='ADD')
                 col.operator("nwo.face_layer_remove", icon='REMOVE', text="")
                 col.separator()
-                col.prop(ob_nwo, "highlight", text="", icon='SHADING_RENDERED')
+                col.prop(nwo, "highlight", text="", icon='SHADING_RENDERED')
                 col.separator()
                 col.operator("nwo.face_layer_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("nwo.face_layer_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
 
                 row = layout.row()
 
-                if ob_nwo.face_props:
+                if nwo.face_props:
                     sub = row.row(align=True)
                     sub.operator("nwo.face_layer_assign", text="Assign").assign = True
                     sub.operator("nwo.face_layer_assign", text="Remove").assign = False
@@ -140,8 +140,8 @@ class NWO_FacePropPanel(NWO_PropPanel):
             col = flow.column()
             row = col.row()
             col.use_property_split = True
-            if ob_nwo.face_props:
-                item = ob_nwo.face_props[ob_nwo.face_props_index]
+            if nwo.face_props:
+                item = nwo.face_props[nwo.face_props_index]
 
                 if item.region_name_override:
                     row = col.row()
@@ -289,8 +289,8 @@ class NWO_UL_FacePropList(bpy.types.UIList):
     
 def toggle_override(context, option, bool_var):
     ob = context.object
-    ob_nwo = ob.data.nwo
-    item = ob_nwo.face_props[ob_nwo.face_props_index]
+    nwo = ob.data.nwo
+    item = nwo.face_props[nwo.face_props_index]
         
     match option:
         case 'seam':
@@ -433,7 +433,7 @@ class NWO_FaceLayerAdd(NWO_Op):
 
     def execute(self, context):
         ob = context.object
-        ob_nwo = ob.data.nwo
+        nwo = ob.data.nwo
         match self.options:
             case 'seam':
                 self.fm_name = f'seam {true_bsp(ob.nwo)}:'
@@ -509,14 +509,14 @@ class NWO_FaceLayerAdd(NWO_Op):
             bpy.ops.uilist.entry_add(list_path="object.data.nwo.face_props", active_index_path="object.data.nwo.face_props_index")
 
         toggle_override(context, self.options, True)
-        item = ob_nwo.face_props[ob_nwo.face_props_index]
+        item = nwo.face_props[nwo.face_props_index]
 
         if self.new:
             item.name = self.fm_name
             item.layer_name = layer_name
             item.face_count = face_count
             item.layer_colour = random_colour()
-            if ob_nwo.highlight:
+            if nwo.highlight:
                 bpy.ops.nwo.face_layer_colour_all()
 
         if self.options == 'region':
@@ -558,8 +558,8 @@ class NWO_FaceLayerRemove(NWO_Op):
     @classmethod
     def poll(self, context):
         ob = context.object
-        ob_nwo = ob.data.nwo
-        return ob_nwo.face_props
+        nwo = ob.data.nwo
+        return nwo.face_props
 
     def remove_face_layer(self, me, layer_name):
         bm = bmesh.from_edit_mesh(me)   
@@ -569,13 +569,13 @@ class NWO_FaceLayerRemove(NWO_Op):
 
     def execute(self, context):
         ob = context.object
-        ob_nwo = ob.data.nwo
-        item = ob_nwo.face_props[ob_nwo.face_props_index]
+        nwo = ob.data.nwo
+        item = nwo.face_props[nwo.face_props_index]
         self.remove_face_layer(ob.data, item.layer_name)
-        ob_nwo.face_props.remove(ob_nwo.face_props_index)
-        if ob_nwo.face_props_index > len(ob_nwo.face_props) - 1:
-            ob_nwo.face_props_index += -1
-        if ob_nwo.highlight:
+        nwo.face_props.remove(nwo.face_props_index)
+        if nwo.face_props_index > len(nwo.face_props) - 1:
+            nwo.face_props_index += -1
+        if nwo.highlight:
             bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
@@ -600,10 +600,10 @@ class NWO_FaceLayerAssign(NWO_Op):
 
     def execute(self, context):
         ob = context.object
-        ob_nwo = ob.data.nwo
-        item = ob_nwo.face_props[ob_nwo.face_props_index]
+        nwo = ob.data.nwo
+        item = nwo.face_props[nwo.face_props_index]
         item.face_count = self.edit_layer(ob.data, item.layer_name)
-        if ob_nwo.highlight:
+        if nwo.highlight:
             bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
@@ -627,8 +627,8 @@ class NWO_FaceLayerSelect(NWO_Op):
 
     def execute(self, context):
         ob = context.object
-        ob_nwo = ob.data.nwo
-        item = ob_nwo.face_props[ob_nwo.face_props_index]
+        nwo = ob.data.nwo
+        item = nwo.face_props[nwo.face_props_index]
         self.select_by_layer(ob.data, item.layer_name)
         return {'FINISHED'}
     
@@ -646,14 +646,14 @@ class NWO_FaceLayerMove(NWO_Op):
     @classmethod
     def poll(self, context):
         ob = context.object
-        ob_nwo = ob.data.nwo
-        return ob_nwo.face_props
+        nwo = ob.data.nwo
+        return nwo.face_props
 
     def execute(self, context):
         ob = context.object
-        ob_nwo = ob.data.nwo
-        face_layers = ob_nwo.face_props
-        active_index = ob_nwo.face_props_index
+        nwo = ob.data.nwo
+        face_layers = nwo.face_props
+        active_index = nwo.face_props_index
         delta = {
             "DOWN": 1,
             "UP": -1,
@@ -662,7 +662,7 @@ class NWO_FaceLayerMove(NWO_Op):
         to_index = (active_index + delta) % len(face_layers)
 
         face_layers.move(active_index, to_index)
-        ob_nwo.face_props_index = to_index
+        nwo.face_props_index = to_index
 
         return {'FINISHED'}
     
@@ -832,7 +832,7 @@ def draw(self):
     gpu.state.blend_set("NONE")
 
 handles_list = []
-
+    
 class NWO_FaceLayerColourAll(NWO_Op):
     bl_idname = 'nwo.face_layer_colour_all'
     bl_options = {'REGISTER'}
@@ -896,20 +896,35 @@ class NWO_FaceLayerColour(NWO_Op):
             for area in window.screen.areas:
                 if(area.type == 'VIEW_3D'):
                     area.tag_redraw()
-    
-    def modal(self, context, event):
-        me = context.object.data
-        me_nwo = me.nwo
-        if context.mode != 'EDIT_MESH' or me_nwo.highlight_kill:
-            global handles_list
-            me_nwo.highlight_kill = False
-            for handle in handles_list:
-                bpy.types.SpaceView3D.draw_handler_remove(handle, 'WINDOW')
 
-            handles_list = []
+    def execute(self, context):
+        wm = context.window_manager
+        time = 5.0
+        self._timer = wm.event_timer_add(time, window=context.window)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        me_nwo = self.me.nwo
+        if context.mode == 'EDIT_MESH':
+            bm = bmesh.from_edit_mesh(self.me)
+            bm_v = bm.calc_volume()
+            bm.free()
+        else:
+            bm_v = self.volume
+
+        if context.mode != 'EDIT_MESH' or not me_nwo.highlight or bm_v != self.volume:
+            try:
+                bpy.types.SpaceView3D.draw_handler_remove(self.handle_3d, 'WINDOW')
+            except:
+                pass
 
             self.tag_redraw()
-            return {'CANCELLED'}
+            if context.mode != 'EDIT_MESH' or not me_nwo.highlight:
+                return {'CANCELLED'}
+            else:
+                layer = self.me.nwo.face_props[self.layer_index]
+                self.prepare(context, layer.layer_name)
+                self.handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
 
         return {'PASS_THROUGH'}
 
@@ -919,7 +934,11 @@ class NWO_FaceLayerColour(NWO_Op):
         layer = self.me.nwo.face_props[self.layer_index]
         self.prepare(context, layer.layer_name)
         self.colour = layer.layer_colour
-            
+        bm = bmesh.new()
+        bm.from_mesh(self.me)
+        bm_v = bm.calc_volume()
+        bm.free()
+        self.volume = bm_v
         self.handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
         global handles_list
         handles_list.append(self.handle_3d)
@@ -957,8 +976,8 @@ class NWO_RegionListFace(NWO_Op):
     )
 
     def execute(self, context):
-        ob_nwo = context.object.data.nwo
-        ob_nwo.face_props[ob_nwo.face_props_index].region_name_ui = self.region
+        nwo = context.object.data.nwo
+        nwo.face_props[nwo.face_props_index].region_name_ui = self.region
         return {'FINISHED'}
     
 class NWO_GlobalMaterialRegionListFace(NWO_RegionListFace):
@@ -967,8 +986,8 @@ class NWO_GlobalMaterialRegionListFace(NWO_RegionListFace):
     bl_description = "Applies a global material to the selected face layer"
 
     def execute(self, context):
-        ob_nwo = context.object.data.nwo
-        ob_nwo.face_props[ob_nwo.face_props_index].face_global_material_ui = self.region
+        nwo = context.object.data.nwo
+        nwo.face_props[nwo.face_props_index].face_global_material_ui = self.region
         return {'FINISHED'}
     
 class NWO_GlobalMaterialListFace(NWO_Op):
@@ -1003,8 +1022,8 @@ class NWO_GlobalMaterialListFace(NWO_Op):
     dialog : BoolProperty()
 
     def execute(self, context):
-        ob_nwo = context.object.data.nwo
-        ob_nwo.face_props[ob_nwo.face_props_index].face_global_material_ui = self.global_material
+        nwo = context.object.data.nwo
+        nwo.face_props[nwo.face_props_index].face_global_material_ui = self.global_material
         return {'FINISHED'}
 
 class NWO_GlobalMaterialMenuFace(bpy.types.Menu):
