@@ -64,7 +64,7 @@ class NWO_ShaderProps(NWO_PropPanel):
             col = flow.column()
             row = col.row(align=True)
             row.prop(material_nwo, "shader_path", text='')
-            row.operator('nwo.shader_path', icon="FILE_FOLDER")
+            row.operator('nwo.shader_path', icon="FILE_FOLDER", text="")
             ext = material_nwo.shader_path.rpartition('.')[2]
             if ext != material_nwo.shader_path and (ext == 'material' or 'shader' in ext):
                 col.separator()
