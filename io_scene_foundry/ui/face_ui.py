@@ -516,7 +516,8 @@ class NWO_FaceLayerAdd(NWO_Op):
             item.layer_name = layer_name
             item.face_count = face_count
             item.layer_colour = random_colour()
-            bpy.ops.nwo.face_layer_colour_all()
+            if ob_nwo.highlight:
+                bpy.ops.nwo.face_layer_colour_all()
 
         if self.options == 'region':
             item.region_name_ui = self.fm_name
@@ -574,7 +575,8 @@ class NWO_FaceLayerRemove(NWO_Op):
         ob_nwo.face_props.remove(ob_nwo.face_props_index)
         if ob_nwo.face_props_index > len(ob_nwo.face_props) - 1:
             ob_nwo.face_props_index += -1
-        bpy.ops.nwo.face_layer_colour_all()
+        if ob_nwo.highlight:
+            bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
         return {'FINISHED'}
@@ -601,7 +603,8 @@ class NWO_FaceLayerAssign(NWO_Op):
         ob_nwo = ob.data.nwo
         item = ob_nwo.face_props[ob_nwo.face_props_index]
         item.face_count = self.edit_layer(ob.data, item.layer_name)
-        bpy.ops.nwo.face_layer_colour_all()
+        if ob_nwo.highlight:
+            bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
         return {'FINISHED'}

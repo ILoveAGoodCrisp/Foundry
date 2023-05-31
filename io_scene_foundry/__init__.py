@@ -206,9 +206,6 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.label(text='Tool Type')
         row.prop(self, 'tool_type', expand=True)
 
-
-subscription_owner = object()
-
 def msgbus_callback(*args):
     context = bpy.context
     me_nwo = context.object.data.nwo
@@ -251,6 +248,7 @@ def load_handler(dummy):
                 bpy.ops.wm.quit_blender()
 
     # like and subscribe
+    subscription_owner = object()
     subscribe_object_mode(subscription_owner)
 
 @persistent
