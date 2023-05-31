@@ -206,6 +206,25 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.label(text='Tool Type')
         row.prop(self, 'tool_type', expand=True)
 
+
+subscription_owner = object()
+
+def msgbus_callback(*args):
+    context = bpy.context
+    me_nwo = context.object.data.nwo
+    if me_nwo.highlight:
+        me_nwo.highlight = True
+   
+def subscribe_object_mode(owner):
+    subscribe_to = bpy.context.object.path_resolve('mode', False)
+    bpy.msgbus.subscribe_rna(
+        key=subscribe_to,
+        owner=owner,
+        args=tuple(),
+        notify=msgbus_callback,
+        options={"PERSISTENT",}
+    )
+
 @persistent
 def load_handler(dummy):
     # Set game version from file
@@ -230,6 +249,9 @@ def load_handler(dummy):
             result = ctypes.windll.user32.MessageBoxW(0, f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?", f"ManagedBlam / Game Mismatch", 4)
             if result == 6:
                 bpy.ops.wm.quit_blender()
+
+    # like and subscribe
+    subscribe_object_mode(subscription_owner)
 
 @persistent
 def get_temp_settings(dummy):

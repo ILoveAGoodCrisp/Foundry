@@ -34,6 +34,7 @@ from ..utils.nwo_utils import bpy_enum_seam, clean_tag_path, dot_partition, get_
 
 # MESH PROPS
 # ----------------------------------------------------------
+
 class NWO_MeshPropertiesGroup(PropertyGroup):
     master_instance : PointerProperty(type=Object)
 
@@ -46,6 +47,21 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         default=0,
         min=0,
     )
+
+    def start_highlight(self, context):
+        if self.highlight and context.mode == 'EDIT_MESH':
+            bpy.ops.nwo.face_layer_colour_all()
+        else:
+            self.highlight_kill = True
+
+    highlight : BoolProperty(
+        options=set(),
+        name="Highlight",
+        description="Enables or disables face layer highlighting",
+        update=start_highlight
+    )
+
+    highlight_kill : BoolProperty()
 
 # FACE PROPERTIES
 # ----------------------------------------------------------
@@ -83,13 +99,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max_int = 2
         try:
             ob = bpy.context.object
+            if ob.type == 'EMPTY':
+                max_int = 1
+            if self.object_type_ui_help > max_int:
+                return 0
+            return self.object_type_ui_help
         except:
             return self.object_type_ui_help
-        if ob.type == 'EMPTY':
-            max_int = 1
-        if self.object_type_ui_help > max_int:
-            return 0
-        return self.object_type_ui_help
 
     def set_object_type_ui(self, value):
         self["object_type_ui"] = value

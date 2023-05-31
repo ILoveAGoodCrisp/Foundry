@@ -97,7 +97,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
         layout = self.layout
         ob = context.object
         ob_nwo = ob.data.nwo
-        layout.use_property_split = True
+        layout.use_property_split = False
         row = layout.row()
         row.use_property_split = False
         #row.prop(ob_nwo, "mesh_face", expand=True)
@@ -109,10 +109,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
             col.scale_y = 1.3
             col.operator("nwo.edit_face_layers", text="Use Edit Mode to Add Face Properties", icon='EDITMODE_HLT')
         else:
-
-
-            rows = 4
-
+            rows = 5
             row = layout.row()
             row.template_list("NWO_UL_FacePropList", "", ob_nwo, "face_props", ob_nwo, "face_props_index", rows=rows)
             
@@ -120,7 +117,8 @@ class NWO_FacePropPanel(NWO_PropPanel):
                 col = row.column(align=True)
                 col.menu(NWO_FaceLayerAddMenu.bl_idname, text='', icon='ADD')
                 col.operator("nwo.face_layer_remove", icon='REMOVE', text="")
-
+                col.separator()
+                col.prop(ob_nwo, "highlight", text="", icon='SHADING_RENDERED')
                 col.separator()
                 col.operator("nwo.face_layer_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("nwo.face_layer_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
@@ -131,7 +129,6 @@ class NWO_FacePropPanel(NWO_PropPanel):
                     sub = row.row(align=True)
                     sub.operator("nwo.face_layer_assign", text="Assign").assign = True
                     sub.operator("nwo.face_layer_assign", text="Remove").assign = False
-
                     sub = row.row(align=True)
                     sub.operator("nwo.face_layer_select", text="Select").select = True
                     sub.operator("nwo.face_layer_select", text="Deselect").select = False
@@ -142,6 +139,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
             flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
             col = flow.column()
             row = col.row()
+            col.use_property_split = True
             if ob_nwo.face_props:
                 item = ob_nwo.face_props[ob_nwo.face_props_index]
 
@@ -518,6 +516,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             item.layer_name = layer_name
             item.face_count = face_count
             item.layer_colour = random_colour()
+            bpy.ops.nwo.face_layer_colour_all()
 
         if self.options == 'region':
             item.region_name_ui = self.fm_name
@@ -575,6 +574,7 @@ class NWO_FaceLayerRemove(NWO_Op):
         ob_nwo.face_props.remove(ob_nwo.face_props_index)
         if ob_nwo.face_props_index > len(ob_nwo.face_props) - 1:
             ob_nwo.face_props_index += -1
+        bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
         return {'FINISHED'}
@@ -601,6 +601,7 @@ class NWO_FaceLayerAssign(NWO_Op):
         ob_nwo = ob.data.nwo
         item = ob_nwo.face_props[ob_nwo.face_props_index]
         item.face_count = self.edit_layer(ob.data, item.layer_name)
+        bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
         return {'FINISHED'}
@@ -819,15 +820,41 @@ void main()
 '''
 
 def draw(self):
+    gpu.state.blend_set("ALPHA")
     self.shader.bind()
     matrix = bpy.context.region_data.perspective_matrix
     self.shader.uniform_float("ModelViewProjectionMatrix", matrix @ self.o.matrix_world)
     self.shader.uniform_float("color", (self.colour.r, self.colour.g, self.colour.b, 0.25))
     self.batch.draw(self.shader)
+    gpu.state.blend_set("NONE")
+
+handles_list = []
+
+class NWO_FaceLayerColourAll(NWO_Op):
+    bl_idname = 'nwo.face_layer_colour_all'
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(self, context):
+        return context.mode == 'EDIT_MESH'
+
+    def execute(self, context):
+        ob = context.object
+        me = ob.data
+        global handles_list
+        for handle in handles_list:
+            bpy.types.SpaceView3D.draw_handler_remove(handle, 'WINDOW')
+        handles_list = []
+        for index, layer in enumerate(me.nwo.face_props):
+            bpy.ops.nwo.face_layer_colour('INVOKE_DEFAULT', layer_index=index)
+
+        return {'FINISHED'}
 
 class NWO_FaceLayerColour(NWO_Op):
     bl_idname = 'nwo.face_layer_colour'
     bl_options = {'REGISTER'}
+
+    layer_index : bpy.props.IntProperty()
 
     def build_batch(self):
         if len(self.verts):
@@ -867,29 +894,32 @@ class NWO_FaceLayerColour(NWO_Op):
                 if(area.type == 'VIEW_3D'):
                     area.tag_redraw()
     
-    def __init__(self):
-        print("start")
-    
-    def __del__(self):
-        print("end")
-    
     def modal(self, context, event):
-        if context.object.mode != 'EDIT':
-            bpy.types.SpaceView3D.draw_handler_remove(self._handle_3d, 'WINDOW')
+        me = context.object.data
+        me_nwo = me.nwo
+        if context.mode != 'EDIT_MESH' or me_nwo.highlight_kill:
+            global handles_list
+            me_nwo.highlight_kill = False
+            for handle in handles_list:
+                bpy.types.SpaceView3D.draw_handler_remove(handle, 'WINDOW')
+
+            handles_list = []
+
             self.tag_redraw()
             return {'CANCELLED'}
-        else:
-            pass
-        
+
         return {'PASS_THROUGH'}
-    
+
     def invoke(self, context, event):
         self.o = context.object
         self.me = self.o.data
-        item = self.me.nwo.face_props[self.me.nwo.face_props_index]
-        self.prepare(context, item.layer_name)
-        self.colour = item.layer_colour
-        self._handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
+        layer = self.me.nwo.face_props[self.layer_index]
+        self.prepare(context, layer.layer_name)
+        self.colour = layer.layer_colour
+            
+        self.handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
+        global handles_list
+        handles_list.append(self.handle_3d)
         context.window_manager.modal_handler_add(self)
         self.tag_redraw()
         return {'RUNNING_MODAL'}

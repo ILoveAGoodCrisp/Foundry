@@ -184,6 +184,7 @@ classes_nwo = (
     NWO_FaceLayerAssign,
     NWO_FaceLayerSelect,
     NWO_FaceLayerColour,
+    NWO_FaceLayerColourAll,
     NWO_FaceLayerMove,
     NWO_EditMode,
     NWO_MasterInstance,

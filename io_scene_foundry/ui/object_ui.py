@@ -702,14 +702,14 @@ class NWO_ObjectProps(NWO_PropPanel):
                 col.use_property_split = True
                 if poll_ui('SCENARIO'):
                     row = col.row()
-                    if ob_nwo.permutation_name_locked != '':
+                    if ob_nwo.permutation_name_locked_ui != '':
                         row.prop(ob_nwo, 'permutation_name_locked_ui', text='Permutation')
                     else:
                         row.prop(ob_nwo, "permutation_name_ui", text='Permutation')
                         row.operator_menu_enum("nwo.permutation_list", "permutation", text='', icon="DOWNARROW_HLT")
 
                     row = col.row()
-                    if ob_nwo.bsp_name_locked != '':
+                    if ob_nwo.bsp_name_locked_ui != '':
                         row.prop(ob_nwo, 'bsp_name_locked_ui', text='BSP')
                     else:
                         row.prop(ob_nwo, 'bsp_name_ui', text='BSP')

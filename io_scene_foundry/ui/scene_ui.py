@@ -163,6 +163,8 @@ class NWO_AssetMaker(NWO_Op):
         nwo_asset = scene.nwo
         asset_name = self.filepath.rpartition(os.sep)[2]
         asset_name_clean = dot_partition(asset_name)
+        if asset_name_clean == "":
+            asset_name_clean = "new_asset"
         # check folder location valid
         if not self.filepath.startswith(get_data_path()):
             # try to fix it...
@@ -176,8 +178,10 @@ class NWO_AssetMaker(NWO_Op):
             else:
                 self.report({'INFO'}, f"Invalid asset location. Please ensure your file is saved to your data {formalise_game_version(nwo_scene.game_version)} directory")
                 return {'CANCELLED'}
-        
-        os.makedirs(self.filepath, True)
+            
+        if not os.path.exists(self.filepath):
+            os.makedirs(self.filepath, True)
+            
         sidecar_path_full = os.path.join(self.filepath, asset_name_clean + '.sidecar.xml')
         open(sidecar_path_full, 'x')
         scene.nwo_halo_launcher.sidecar_path = sidecar_path_full.replace(get_data_path(),'')
