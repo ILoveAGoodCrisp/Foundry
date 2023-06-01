@@ -208,6 +208,11 @@ class NWO_ScaleModels_Add(Operator, AddObjectHelper):
 def add_halo_scale_model_button(self, context):
     self.layout.operator(NWO_ScaleModels_Add.bl_idname, text='Halo Scale Model', icon_value=get_icon_id('biped'))
 
+from .halo_join import NWO_JoinHalo
+
+def add_halo_join(self, context):
+    self.layout.operator(NWO_JoinHalo.bl_idname, text='Halo Join')
+
 #######################################
 # FRAME IDS TOOL
 class NWO_SetFrameIDs(Panel):
@@ -1966,6 +1971,7 @@ classeshalo = (
     NWO_Shader_Build,
     NWO_ShaderPropertiesGroup,
     NWO_ScaleModels_Add,
+    NWO_JoinHalo,
     #NWO_GunRigMaker,
     #NWO_GunRigMaker_Start,
 )
@@ -1974,8 +1980,8 @@ def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
 
-
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_object.append(add_halo_join)
     bpy.types.Scene.nwo_frame_ids = PointerProperty(type=NWO_SetFrameIDsPropertiesGroup, name="Halo Frame ID Getter", description="Gets Frame IDs")
     bpy.types.Scene.nwo_halo_launcher = PointerProperty(type=NWO_HaloLauncherPropertiesGroup, name="Halo Launcher", description="Launches stuff")
     bpy.types.Scene.nwo_shader_finder = PointerProperty(type=NWO_HaloShaderFinderPropertiesGroup, name="Shader Finder", description="Find Shaders")
@@ -1987,6 +1993,7 @@ def register():
     
 def unregister():
     bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_object.remove(add_halo_join)
     del bpy.types.Scene.nwo_frame_ids
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_finder

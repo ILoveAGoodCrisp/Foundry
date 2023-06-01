@@ -40,6 +40,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
 
     face_props : CollectionProperty(
         type=NWO_FaceProperties_ListItems,
+        override={'USE_INSERTION'}
     )
 
     face_props_index : IntProperty(
