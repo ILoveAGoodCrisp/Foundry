@@ -131,7 +131,7 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     halo_objects = HaloObjects(sidecar_type)
     if export_gr2_files:
         # Add materials to all objects without one. No materials = unhappy Tool.exe
-        FixMissingMaterials(context, sidecar_type)
+        fix_materials(context, sidecar_type)
         # Get and set the model armature, or create one if none exists.
     model_armature, temp_armature, no_parent_objects = GetSceneArmature(context, sidecar_type, game_version)
     # set bone names equal to their name overrides (if not blank)
@@ -1648,23 +1648,39 @@ def MakeSelectable(context):
     return unselectable_objects
 
 
-def FixMissingMaterials(context, sidecar_type):
+def fix_materials(context, sidecar_type):
     # set some locals
     ops = bpy.ops
     materials_list = bpy.data.materials
     mat = ''
+    objects = context.view_layer.objects
     # loop through each object in the scene
-    for ob in context.scene.objects:
+    for ob in objects:
         if is_mesh(ob): # check if we're processing a mesh
             # remove empty material slots
-            for index, slot in enumerate(ob.material_slots.items()):
-                if slot == '':
-                    override = context.copy()
-                    override["object.active_material_index"] = index
-                    with context.temp_override(override):
-                        ops.object.material_slot_remove()
-                    
-            if len(ob.material_slots) <= 0: # if no material slots...
+            set_active_object(ob)
+            ob.select_set(True)
+            # fix multi user materials
+            mats = {}
+            slots = ob.material_slots
+            for slot in slots:
+                s_name = slot.material.name
+                if s_name not in mats.keys():
+                    print(s_name)
+                    mats.update({s_name : slot.slot_index})
+                else:
+                    print("ELSE!!!!!!!!!!!!")
+                    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                    ob.active_material_index = slot.slot_index
+                    bpy.ops.object.material_slot_select()
+                    ob.active_material_index = mats[slot.material.name]
+                    bpy.ops.object.material_slot_assign()
+                    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+            bpy.ops.object.material_slot_remove_unused()
+            ob.select_set(False)
+            
+            if not ob.material_slots: # if no material slots...
                 # determine what kind of mesh this is
                 if CheckType.collision(ob):
                     if not_bungie_game():
