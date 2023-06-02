@@ -30,5 +30,5 @@ def register():
 
 def unregister():
     bpy.app.handlers.load_factory_preferences_post.remove(load_handler_for_preferences)
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+    # for cls in classes:
+    #     bpy.utils.unregister_class(cls)

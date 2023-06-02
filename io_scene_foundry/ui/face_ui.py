@@ -24,8 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from mathutils import Vector
-from ..utils.nwo_utils import bpy_enum_list, closest_bsp_object, export_objects, layer_face_count, random_colour, sort_alphanum, true_bsp, true_region
+from mathutils import Matrix, Vector
+
+from ..utils.nwo_utils import area_redraw, bpy_enum_list, closest_bsp_object, export_objects, layer_face_count, random_colour, sort_alphanum, true_bsp, true_region
 from . import poll_ui
 from .templates import NWO_Op, NWO_PropPanel
 from bpy.props import EnumProperty, BoolProperty, StringProperty
@@ -34,6 +35,8 @@ import bmesh
 from uuid import uuid4
 import gpu
 from gpu_extras.batch import batch_for_shader
+
+int_highlight = 0
 
 class NWO_FaceLayerAddMenu(bpy.types.Menu):
     bl_label = "Add Face Property"
@@ -119,7 +122,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
                 col.menu(NWO_FaceLayerAddMenu.bl_idname, text='', icon='ADD')
                 col.operator("nwo.face_layer_remove", icon='REMOVE', text="")
                 col.separator()
-                col.operator("nwo.face_layer_colour_all", text="", icon='SHADING_RENDERED', depress=nwo.highlight)
+                col.operator("nwo.face_layer_colour_all", text="", icon='SHADING_RENDERED', depress=nwo.highlight).enable_highlight = not nwo.highlight
                 col.separator()
                 col.operator("nwo.face_layer_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("nwo.face_layer_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
@@ -518,8 +521,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             item.face_count = face_count
             item.layer_colour = random_colour()
             if nwo.highlight:
-                nwo.highlight = False
-                bpy.ops.nwo.face_layer_colour_all()
+                bpy.ops.nwo.face_layer_colour_all(enable_highlight=nwo.highlight)
 
         if self.options == 'region':
             item.region_name_ui = self.fm_name
@@ -578,8 +580,8 @@ class NWO_FaceLayerRemove(NWO_Op):
         if nwo.face_props_index > len(nwo.face_props) - 1:
             nwo.face_props_index += -1
         if nwo.highlight:
-            nwo.highlight = False
-            bpy.ops.nwo.face_layer_colour_all()
+            bpy.ops.nwo.face_layer_colour_all(enable_highlight=nwo.highlight)
+
         context.area.tag_redraw()
 
         return {'FINISHED'}
@@ -607,8 +609,8 @@ class NWO_FaceLayerAssign(NWO_Op):
         item = nwo.face_props[nwo.face_props_index]
         item.face_count = self.edit_layer(ob.data, item.layer_name)
         if nwo.highlight:
-            nwo.highlight = False
-            bpy.ops.nwo.face_layer_colour_all()
+            bpy.ops.nwo.face_layer_colour_all(enable_highlight=nwo.highlight)
+
         context.area.tag_redraw()
 
         return {'FINISHED'}
@@ -781,32 +783,33 @@ def draw(self):
     gpu.state.face_culling_set("BACK")
     matrix = bpy.context.region_data.perspective_matrix
     self.shader.uniform_float("ModelViewProjectionMatrix", matrix @ self.ob.matrix_world)
-    self.shader.uniform_float("color", self.colour)
+    self.shader.uniform_float("color", (self.colour.r, self.colour.g, self.colour.b, self.alpha))
     self.shader.bind()
     self.batch.draw(self.shader)
     gpu.state.blend_set("NONE")
     gpu.state.depth_test_set("NONE")
     gpu.state.face_culling_set("NONE")
-
-handles_list = []
     
 class NWO_FaceLayerColourAll(NWO_Op):
     bl_idname = 'nwo.face_layer_colour_all'
     bl_options = {'REGISTER'}
 
-    @classmethod
-    def poll(self, context):
-        return context.mode == 'EDIT_MESH'
+    enable_highlight : BoolProperty()
 
     def execute(self, context):
         ob = context.object
         me = ob.data
-        if me.nwo.highlight:
-            me.nwo.highlight = False
-        else:
-            me.nwo.highlight = True
+        me.nwo.highlight = self.enable_highlight
+            
+        if self.enable_highlight:
+            global int_highlight
+            if int_highlight < 1000:
+                int_highlight += 1
+            else:
+                int_highlight = 0
+
             for index, layer in enumerate(me.nwo.face_props):
-                bpy.ops.nwo.face_layer_colour('INVOKE_DEFAULT', layer_index=index)
+                bpy.ops.nwo.face_layer_colour('INVOKE_DEFAULT', layer_index=index, highlight=int_highlight)
 
         return {'FINISHED'}
 
@@ -815,14 +818,7 @@ class NWO_FaceLayerColour(NWO_Op):
     bl_options = {'REGISTER'}
 
     layer_index : bpy.props.IntProperty()
-
-    def build_batch(self):
-        # add ofset
-        #self.verts = [v * 1.1 for v in self.verts]
-        if len(self.verts):
-            self.batch = batch_for_shader(self.shader, 'TRIS', {"pos": self.verts})
-        else:
-            self.batch = None
+    highlight : bpy.props.IntProperty()
 
     def ensure_loops(self, bm):
         try:
@@ -839,62 +835,80 @@ class NWO_FaceLayerColour(NWO_Op):
 
         return self.loops
 
-    def prepare(self, context, layer_name):
+    def shader_prep(self):
         self.shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+
         bm = bmesh.from_edit_mesh(self.me)
+        self.volume = bm.calc_volume()
         cm = bm.copy()
-        bmesh.ops.scale(cm, vec=Vector((1.001, 1.001,1.001)), verts=cm.verts)
-        self.layer = cm.faces.layers.int.get(layer_name)
+        vert_coords = [v.co for v in cm.verts]
+        offset = 0.05
+        for f in cm.faces:
+            displacement = f.normal * offset
+            face_verts = f.verts
+
+            for vert in face_verts:
+                vert.co = vert_coords[vert.index] + displacement
+
+        self.layer = cm.faces.layers.int.get(self.layer_name)
         self.verts = [loop.vert.co.to_tuple() for loop_tris in self.ensure_loops(cm)
                        for loop in loop_tris if loop_tris[0].face.hide is False and loop_tris[0].face[self.layer]] if self.layer else []
-        self.build_batch()
-
-    def tag_redraw(self):
-        for window in bpy.context.window_manager.windows:
-            for area in window.screen.areas:
-                if(area.type == 'VIEW_3D'):
-                    area.tag_redraw()
+        
+        if self.verts:
+            self.batch = batch_for_shader(self.shader, 'TRIS', {"pos": self.verts})
 
     def modal(self, context, event):
-        me_nwo = self.me.nwo
-        if context.mode == 'EDIT_MESH':
+        edit_mode = context.mode == 'EDIT_MESH'
+
+        if edit_mode:
             bm = bmesh.from_edit_mesh(self.me)
             bm_v = bm.calc_volume()
             bm.free()
         else:
             bm_v = self.volume
 
-        if context.mode != 'EDIT_MESH' or not me_nwo.highlight or bm_v != self.volume:
+        if event.type in ("G", "S", "R", "E"):
+            self.alpha = 0
+        else:
+            self.alpha = 0.25
+
+        global int_highlight
+        kill_highlight = not edit_mode or self.highlight != int_highlight or self.layer is None or not self.me.nwo.face_props
+
+        if kill_highlight or bm_v != self.volume:
             try:
-                bpy.types.SpaceView3D.draw_handler_remove(self.handle_3d, 'WINDOW')
+                self.handler = bpy.types.SpaceView3D.draw_handler_remove(self.handler, 'WINDOW')
             except:
                 pass
-
-            self.tag_redraw()
-            if context.mode != 'EDIT_MESH' or not me_nwo.highlight:
+            
+            if kill_highlight:
                 return {'CANCELLED'}
             else:
-                layer = self.me.nwo.face_props[self.layer_index]
-                self.prepare(context, layer.layer_name)
+                self.shader_prep()
                 self.handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
+                area_redraw(context)
 
         return {'PASS_THROUGH'}
 
     def invoke(self, context, event):
         self.ob = context.object
         self.me = self.ob.data
+
         layer = self.me.nwo.face_props[self.layer_index]
-        self.colour = layer.layer_colour.r, layer.layer_colour.g, layer.layer_colour.b, 0.25
-        self.prepare(context, layer.layer_name)
-        bm = bmesh.new()
-        bm.from_mesh(self.me)
-        bm_v = bm.calc_volume()
-        bm.free()
-        self.volume = bm_v
-        self.handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
-        context.window_manager.modal_handler_add(self)
-        self.tag_redraw()
-        return {'RUNNING_MODAL'}
+        self.layer_name = layer.layer_name
+        self.colour = layer.layer_colour
+        self.alpha = 0.25
+        self.batch = None
+        
+        self.shader_prep()
+
+        if self.verts:
+            self.handler = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
+            area_redraw(context)
+            context.window_manager.modal_handler_add(self)
+            return {'RUNNING_MODAL'}
+
+        return {'CANCELLED'}
 
 class NWO_RegionListFace(NWO_Op):
     bl_idname = "nwo.face_region_list"

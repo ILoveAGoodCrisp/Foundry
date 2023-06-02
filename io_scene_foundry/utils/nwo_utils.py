@@ -1000,3 +1000,12 @@ def nwo_enum(enum_name, display_name, description, icon="", index=-1, custom_ico
     
     return (enum_name, display_name, description)
 
+
+def area_redraw(context):
+    windows = context.window_manager.windows
+    for window in windows:
+        areas = window.screen.areas
+        for area in areas:
+            if(area.type == 'VIEW_3D'):
+                area.tag_redraw()
+
