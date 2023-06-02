@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from mathutils import Vector
 from ..utils.nwo_utils import bpy_enum_list, closest_bsp_object, export_objects, layer_face_count, random_colour, sort_alphanum, true_bsp, true_region
 from . import poll_ui
 from .templates import NWO_Op, NWO_PropPanel
@@ -118,7 +119,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
                 col.menu(NWO_FaceLayerAddMenu.bl_idname, text='', icon='ADD')
                 col.operator("nwo.face_layer_remove", icon='REMOVE', text="")
                 col.separator()
-                col.prop(nwo, "highlight", text="", icon='SHADING_RENDERED')
+                col.operator("nwo.face_layer_colour_all", text="", icon='SHADING_RENDERED', depress=nwo.highlight)
                 col.separator()
                 col.operator("nwo.face_layer_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("nwo.face_layer_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
@@ -517,6 +518,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             item.face_count = face_count
             item.layer_colour = random_colour()
             if nwo.highlight:
+                nwo.highlight = False
                 bpy.ops.nwo.face_layer_colour_all()
 
         if self.options == 'region':
@@ -576,6 +578,7 @@ class NWO_FaceLayerRemove(NWO_Op):
         if nwo.face_props_index > len(nwo.face_props) - 1:
             nwo.face_props_index += -1
         if nwo.highlight:
+            nwo.highlight = False
             bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
@@ -604,6 +607,7 @@ class NWO_FaceLayerAssign(NWO_Op):
         item = nwo.face_props[nwo.face_props_index]
         item.face_count = self.edit_layer(ob.data, item.layer_name)
         if nwo.highlight:
+            nwo.highlight = False
             bpy.ops.nwo.face_layer_colour_all()
         context.area.tag_redraw()
 
@@ -771,65 +775,18 @@ class NWO_FacePropAddLightmap(NWO_FaceLayerAddLightmap):
 
     new : BoolProperty(default=False)
 
-
-
-vertex_shader = '''
-in vec3 position;
-in vec3 normal;
-in vec4 color;
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-
-uniform vec3 camera_location;
-uniform float factor1;
-uniform float factor2;
-
-out vec4 fcolor;
-void main()
-{
-    
-    vec3 pos = vec3(model * vec4(position, 1.0));
-    vec3 nor = mat3(transpose(inverse(model))) * normal;
-    
-    float d = distance(pos, camera_location) * factor1;
-    vec3 offset = nor * vec3(d);
-    vec3 p = pos + offset;
-    //p = pos;
-    
-    // hmmm?
-    //vec3 n = nor * vec3(0.0);
-    //nor = nor * vec3(0.0);
-    
-    vec3 dir = p - camera_location;
-    dir = normalize(dir) * vec3(factor2);
-    p = p + dir;
-    
-    //gl_Position = projection * view * model * vec4(position, 1.0);
-    //gl_Position = projection * view * model * vec4(p, 1.0);
-    gl_Position = projection * view * vec4(p, 1.0);
-    //fcolor = color * vec4(offset, 1.0);
-    fcolor = color;
-    //fcolor = color * vec4(dir / vec3(factor2), 1.0);
-}
-'''
-fragment_shader = '''
-in vec4 fcolor;
-out vec4 fragColor;
-void main()
-{
-    fragColor = blender_srgb_to_framebuffer_space(fcolor);
-}
-'''
-
 def draw(self):
     gpu.state.blend_set("ALPHA")
-    self.shader.bind()
+    gpu.state.depth_test_set("LESS_EQUAL")
+    gpu.state.face_culling_set("BACK")
     matrix = bpy.context.region_data.perspective_matrix
-    self.shader.uniform_float("ModelViewProjectionMatrix", matrix @ self.o.matrix_world)
-    self.shader.uniform_float("color", (self.colour.r, self.colour.g, self.colour.b, 0.25))
+    self.shader.uniform_float("ModelViewProjectionMatrix", matrix @ self.ob.matrix_world)
+    self.shader.uniform_float("color", self.colour)
+    self.shader.bind()
     self.batch.draw(self.shader)
     gpu.state.blend_set("NONE")
+    gpu.state.depth_test_set("NONE")
+    gpu.state.face_culling_set("NONE")
 
 handles_list = []
     
@@ -844,12 +801,12 @@ class NWO_FaceLayerColourAll(NWO_Op):
     def execute(self, context):
         ob = context.object
         me = ob.data
-        global handles_list
-        for handle in handles_list:
-            bpy.types.SpaceView3D.draw_handler_remove(handle, 'WINDOW')
-        handles_list = []
-        for index, layer in enumerate(me.nwo.face_props):
-            bpy.ops.nwo.face_layer_colour('INVOKE_DEFAULT', layer_index=index)
+        if me.nwo.highlight:
+            me.nwo.highlight = False
+        else:
+            me.nwo.highlight = True
+            for index, layer in enumerate(me.nwo.face_props):
+                bpy.ops.nwo.face_layer_colour('INVOKE_DEFAULT', layer_index=index)
 
         return {'FINISHED'}
 
@@ -860,10 +817,10 @@ class NWO_FaceLayerColour(NWO_Op):
     layer_index : bpy.props.IntProperty()
 
     def build_batch(self):
+        # add ofset
+        #self.verts = [v * 1.1 for v in self.verts]
         if len(self.verts):
-            self.batch = batch_for_shader(
-                self.shader, 'TRIS',
-                {"pos": self.verts})
+            self.batch = batch_for_shader(self.shader, 'TRIS', {"pos": self.verts})
         else:
             self.batch = None
 
@@ -873,22 +830,23 @@ class NWO_FaceLayerColour(NWO_Op):
                 self.loops = bm.calc_loop_triangles()
             else:
                 if len(self.loops):
-                    looptris = self.loops[0]
-                    if len(looptris):
-                        loop = looptris[0]
+                    loop_tris = self.loops[0]
+                    if len(loop_tris):
+                        loop = loop_tris[0]
                         loop.face
-        except Exception as e:
+        except:
             self.loops = bm.calc_loop_triangles()
+
         return self.loops
 
     def prepare(self, context, layer_name):
         self.shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
         bm = bmesh.from_edit_mesh(self.me)
-        self.layer = bm.faces.layers.int.get(layer_name)
-        self.verts = [loop.vert.co.to_tuple()
-                        for looptris in self.ensure_loops(bm) for loop in looptris
-                        if looptris[0].face.hide is False and looptris[0].face[self.layer]] if self.layer else []
-        
+        cm = bm.copy()
+        bmesh.ops.scale(cm, vec=Vector((1.001, 1.001,1.001)), verts=cm.verts)
+        self.layer = cm.faces.layers.int.get(layer_name)
+        self.verts = [loop.vert.co.to_tuple() for loop_tris in self.ensure_loops(cm)
+                       for loop in loop_tris if loop_tris[0].face.hide is False and loop_tris[0].face[self.layer]] if self.layer else []
         self.build_batch()
 
     def tag_redraw(self):
@@ -896,12 +854,6 @@ class NWO_FaceLayerColour(NWO_Op):
             for area in window.screen.areas:
                 if(area.type == 'VIEW_3D'):
                     area.tag_redraw()
-
-    def execute(self, context):
-        wm = context.window_manager
-        time = 5.0
-        self._timer = wm.event_timer_add(time, window=context.window)
-        return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
         me_nwo = self.me.nwo
@@ -929,19 +881,17 @@ class NWO_FaceLayerColour(NWO_Op):
         return {'PASS_THROUGH'}
 
     def invoke(self, context, event):
-        self.o = context.object
-        self.me = self.o.data
+        self.ob = context.object
+        self.me = self.ob.data
         layer = self.me.nwo.face_props[self.layer_index]
+        self.colour = layer.layer_colour.r, layer.layer_colour.g, layer.layer_colour.b, 0.25
         self.prepare(context, layer.layer_name)
-        self.colour = layer.layer_colour
         bm = bmesh.new()
         bm.from_mesh(self.me)
         bm_v = bm.calc_volume()
         bm.free()
         self.volume = bm_v
         self.handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
-        global handles_list
-        handles_list.append(self.handle_3d)
         context.window_manager.modal_handler_add(self)
         self.tag_redraw()
         return {'RUNNING_MODAL'}
