@@ -206,8 +206,7 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.label(text='Tool Type')
         row.prop(self, 'tool_type', expand=True)
 
-def msgbus_callback(*args):
-    context = bpy.context
+def msgbus_callback(context):
     highlight = context.object.data.nwo.highlight
     if highlight and context.mode == 'EDIT_MESH':
         bpy.ops.nwo.face_layer_colour_all(enable_highlight=highlight)
@@ -217,7 +216,7 @@ def subscribe(owner):
     bpy.msgbus.subscribe_rna(
         key=subscribe_to,
         owner=owner,
-        args=tuple(),
+        args=(bpy.context,),
         notify=msgbus_callback,
         options={"PERSISTENT",}
     )

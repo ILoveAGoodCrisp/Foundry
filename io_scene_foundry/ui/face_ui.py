@@ -781,11 +781,13 @@ def draw(self):
     gpu.state.blend_set("ALPHA")
     gpu.state.depth_test_set("LESS_EQUAL")
     gpu.state.face_culling_set("BACK")
+
     matrix = bpy.context.region_data.perspective_matrix
     self.shader.uniform_float("ModelViewProjectionMatrix", matrix @ self.ob.matrix_world)
     self.shader.uniform_float("color", (self.colour.r, self.colour.g, self.colour.b, self.alpha))
     self.shader.bind()
     self.batch.draw(self.shader)
+
     gpu.state.blend_set("NONE")
     gpu.state.depth_test_set("NONE")
     gpu.state.face_culling_set("NONE")
@@ -808,7 +810,8 @@ class NWO_FaceLayerColourAll(NWO_Op):
             else:
                 int_highlight = 0
 
-            for index, layer in enumerate(me.nwo.face_props):
+            face_layers = me.nwo.face_props
+            for index in range(len(face_layers)):
                 bpy.ops.nwo.face_layer_colour('INVOKE_DEFAULT', layer_index=index, highlight=int_highlight)
 
         return {'FINISHED'}
@@ -867,15 +870,16 @@ class NWO_FaceLayerColour(NWO_Op):
         else:
             bm_v = self.volume
 
-        if event.type in ("G", "S", "R", "E"):
+        if event.type in ("G", "S", "R", "E", "K", "B", "I", "V") or event.value == 'CLICK_DRAG':
             self.alpha = 0
         else:
             self.alpha = 0.25
 
         global int_highlight
-        kill_highlight = not edit_mode or self.highlight != int_highlight or self.layer is None or not self.me.nwo.face_props
+        kill_highlight = not edit_mode or self.highlight != int_highlight or self.layer is None or not self.me.nwo.highlight or not self.me.nwo.face_props
 
         if kill_highlight or bm_v != self.volume:
+            print("kill hit") if kill_highlight else print("vol hit")
             try:
                 self.handler = bpy.types.SpaceView3D.draw_handler_remove(self.handler, 'WINDOW')
             except:
@@ -884,9 +888,9 @@ class NWO_FaceLayerColour(NWO_Op):
             if kill_highlight:
                 return {'CANCELLED'}
             else:
-                self.shader_prep()
-                self.handle_3d = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
-                area_redraw(context)
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                return {'CANCELLED'}
 
         return {'PASS_THROUGH'}
 
@@ -897,14 +901,13 @@ class NWO_FaceLayerColour(NWO_Op):
         layer = self.me.nwo.face_props[self.layer_index]
         self.layer_name = layer.layer_name
         self.colour = layer.layer_colour
-        self.alpha = 0.25
+        self.alpha = 0
         self.batch = None
         
         self.shader_prep()
 
         if self.verts:
             self.handler = bpy.types.SpaceView3D.draw_handler_add(draw, (self, ), 'WINDOW', 'POST_VIEW')
-            area_redraw(context)
             context.window_manager.modal_handler_add(self)
             return {'RUNNING_MODAL'}
 
