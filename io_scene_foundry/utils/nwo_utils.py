@@ -1009,3 +1009,9 @@ def area_redraw(context):
             if(area.type == 'VIEW_3D'):
                 area.tag_redraw()
 
+def delete_object_list(context, object_list):
+    override = context.copy()
+    override["selected_objects"] = object_list
+    with context.temp_override(**override):
+        bpy.ops.object.delete()
+

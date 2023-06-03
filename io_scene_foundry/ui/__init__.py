@@ -25,7 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
-from bpy.app.handlers import persistent
+# from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
+from .templates import NWO_Op
 from bpy.props import (
         PointerProperty,
         )
@@ -96,12 +97,79 @@ marker_type_items = [
             ('_connected_geometry_marker_type_falling_leaf', "Falling Leaf", ""),
             ]
 
-# FACE LEVEL PROPERTIES
 
-##################################################
+def add_asset_open_in_foundry(self, context):
+    self.layout.operator(NWO_OpenAssetFoundry.bl_idname, text='Open in Foundry')
 
+class NWO_OpenAssetFoundry(NWO_Op):
+    bl_idname = "nwo.open_asset_foundry"
+    bl_label = "Open in Foundry"
+    bl_options = {'REGISTER'}
 
-###################################################
+    _process = None  # Optional[subprocess.Popen]
+
+    @classmethod
+    def poll(cls, context):
+        asset_file_handle = getattr(context, "asset_file_handle", None)
+        asset_library_ref = getattr(context, "asset_library_ref", None)
+
+        if not asset_library_ref:
+            cls.poll_message_set("No asset library selected")
+            return False
+        if not asset_file_handle:
+            cls.poll_message_set("No asset selected")
+            return False
+        if asset_file_handle.local_id:
+            cls.poll_message_set("Selected asset is contained in the current file")
+            return False
+        return True
+
+    def execute(self, context):
+        asset_file_handle = context.asset_file_handle
+
+        if asset_file_handle.local_id:
+            self.report({'WARNING'}, "This asset is stored in the current blend file")
+            return {'CANCELLED'}
+
+        asset_lib_path = bpy.types.AssetHandle.get_full_library_path(asset_file_handle)
+        self.open_in_new_blender(asset_lib_path)
+
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.1, window=context.window)
+        wm.modal_handler_add(self)
+
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+
+        if self._process is None:
+            self.report({'ERROR'}, "Unable to find any running process")
+            self.cancel(context)
+            return {'CANCELLED'}
+
+        returncode = self._process.poll()
+        if returncode is None:
+            # Process is still running.
+            return {'RUNNING_MODAL'}
+
+        if bpy.ops.asset.library_refresh.poll():
+            bpy.ops.asset.library_refresh()
+
+        self.cancel(context)
+        return {'FINISHED'}
+
+    def cancel(self, context):
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
+
+    def open_in_new_blender(self, filepath):
+        import subprocess
+        filepath = filepath.replace("\\", "\\\\")
+        cli_args = f"""{bpy.app.binary_path} --python-expr "import bpy; bpy.ops.wm.read_homefile(app_template='Foundry'); bpy.ops.wm.open_mainfile(filepath='{filepath}')\""""
+        self._process = subprocess.Popen(cli_args)
+
 
 
 # import classes from other files
@@ -117,6 +185,7 @@ from .scene_properties import *
 from .scene_ui import *
 
 classes_nwo = (
+    NWO_OpenAssetFoundry,
     NWO_Asset_ListItems,
     NWO_ScenePropertiesGroup,
     # NWO_List_Add_Shared_Asset,
@@ -205,6 +274,8 @@ def register():
     for cls_nwo in classes_nwo:
         bpy.utils.register_class(cls_nwo)
 
+
+    bpy.types.ASSETBROWSER_MT_context_menu.append(add_asset_open_in_foundry)
     bpy.types.Scene.nwo = PointerProperty(type=NWO_ScenePropertiesGroup, name="NWO Scene Properties", description="Set properties for your scene")
     bpy.types.Object.nwo = PointerProperty(type=NWO_ObjectPropertiesGroup, name="Halo NWO Properties", description="Set Halo Object Properties")
     bpy.types.Light.nwo = PointerProperty(type=NWO_LightPropertiesGroup, name="Halo NWO Properties", description="Set Halo Object Properties")
@@ -214,6 +285,7 @@ def register():
     bpy.types.Mesh.nwo = PointerProperty(type=NWO_MeshPropertiesGroup, name="Halo Mesh Properties", description="Set Halo Properties")
 
 def unregister():
+    bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)
     del bpy.types.Scene.nwo
     del bpy.types.Object.nwo
     del bpy.types.Light.nwo

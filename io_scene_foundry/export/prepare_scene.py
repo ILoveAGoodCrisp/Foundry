@@ -31,12 +31,14 @@ import csv
 from math import radians
 from mathutils import Matrix, Vector
 from uuid import uuid4
+import time
 
 from io_scene_foundry.tools.shader_finder import FindShaders
 from ..utils.nwo_utils import(
     bool_str,
     color_3p_str,
     color_4p_str,
+    delete_object_list,
     deselect_all_objects,
     dot_partition,
     is_linked,
@@ -61,6 +63,8 @@ from ..utils.nwo_utils import(
 #####################################################################################
 # MAIN FUNCTION
 def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armature_deform_only, game_version, meshes_to_empties, export_animations, export_gr2_files, **kwargs):
+    # time it!
+    start = time.time()
     # Exit local view. Must do this otherwise fbx export will fail.
     ExitLocalView(context)
     # Get the current set of selected objects. We need this so selected perms/bsps only functionality can be used
@@ -106,7 +110,8 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
         # fixup hint marker names
         apply_hint_marker_name(context)
         # Convert mesh markers to empty objects. Especially useful with complex marker shapes, such as prefabs
-        MeshesToEmpties(context, meshes_to_empties)
+        if meshes_to_empties:
+            markerify(context)
         # add a uv map to meshes without one. This prevents an export assert
         fixup_missing_uvs(context)
         # run find shaders code if any empty paths
@@ -158,6 +163,9 @@ def prepare_scene(context, report, asset, sidecar_type, export_hidden, use_armat
     set_animation_overrides(model_armature, current_action)
      # get the max LOD count in the scene if we're exporting a decorator
     lod_count = GetDecoratorLODCount(halo_objects, sidecar_type == 'DECORATOR SET')
+    end = time.time()
+    print(f"Scene Prepared in {end - start}")
+    # time.sleep(3)
     # raise
 
     return model_armature, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action
@@ -1666,10 +1674,8 @@ def fix_materials(context, sidecar_type):
             for slot in slots:
                 s_name = slot.material.name
                 if s_name not in mats.keys():
-                    print(s_name)
                     mats.update({s_name : slot.slot_index})
                 else:
-                    print("ELSE!!!!!!!!!!!!")
                     bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                     ob.active_material_index = slot.slot_index
                     bpy.ops.object.material_slot_select()
@@ -1728,40 +1734,30 @@ def fix_materials(context, sidecar_type):
                 # finally, append the new material to the object
                 ob.data.materials.append(mat)
 
-def MeshesToEmpties(context, meshes_to_empties):
-    if meshes_to_empties:
-        # get a list of meshes which are nodes
-        mesh_nodes = []
-        for ob in context.view_layer.objects:
-            if CheckType.marker(ob) and ob.type == 'MESH':
-                mesh_nodes.append(ob)
+def markerify(context):
+    # get a list of meshes which are nodes
+    objects = context.view_layer.objects
+    mesh_markers = [ob for ob in objects if ob.nwo.object_type == "_connected_geometry_object_type_marker" and ob.type == 'MESH']
 
-        # For each mesh node create an empty with the same Halo props and transforms
-        # Mesh objects need their names saved, so we make a dict. Names are stored so that the node can have the exact same name. We add a temp name to each mesh object
-        for ob in mesh_nodes:
-            deselect_all_objects()
-            bpy.ops.object.empty_add(type='ARROWS')
-            node_name = temp_name(ob.name)
-            ob.name = str(uuid4())
-            node = bpy.data.objects.new(node_name, None)
-            context.scene.collection.objects.link(node)
-            if ob.parent is not None:
-                node.parent = ob.parent
-                node.parent_type = ob.parent_type
-                if node.parent_type == 'BONE':
-                    node.parent_bone = ob.parent_bone
+    # For each mesh node create an empty with the same Halo props and transforms
+    # Mesh objects need their names saved, so we make a dict. Names are stored so that the node can have the exact same name. We add a temp name to each mesh object
+    for ob in mesh_markers:
+        node = bpy.data.objects.new(ob.name, None)
+        context.scene.collection.objects.link(node)
+        if ob.parent is not None:
+            node.parent = ob.parent
+            node.parent_type = ob.parent_type
+            if node.parent_type == 'BONE':
+                node.parent_bone = ob.parent_bone
 
-            node.matrix_local = ob.matrix_local
-            if ob.nwo.marker_type in ('_connected_geometry_marker_type_pathfinding_sphere', '_connected_geometry_marker_type_target'): # need to handle pathfinding spheres / targets differently. Dimensions aren't retained for empties, so instead we can store the radius in the marker sphere radius
-                node.nwo.marker_sphere_radius = max(ob.dimensions) / 2
-            node.scale = ob.scale
-            # copy the node props from the mesh to the empty
-            set_node_props(node, ob)
-            # hide the mesh so it doesn't get included in the export
-            unlink(ob)
-
-def temp_name(name):
-    return name + ''
+        node.matrix_local = ob.matrix_local
+        node.scale = ob.scale
+        if ob.nwo.marker_type in ('_connected_geometry_marker_type_pathfinding_sphere', '_connected_geometry_marker_type_target'): # need to handle pathfinding spheres / targets differently. Dimensions aren't retained for empties, so instead we can store the radius in the marker sphere radius
+            node.nwo.marker_sphere_radius = max(ob.dimensions) / 2
+        # copy the node props from the mesh to the empty
+        set_node_props(node, ob)
+        
+    delete_object_list(context, mesh_markers)
 
 def set_node_props(node, ob):
     node_halo = node.nwo
