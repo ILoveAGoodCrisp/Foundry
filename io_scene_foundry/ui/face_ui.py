@@ -879,7 +879,6 @@ class NWO_FaceLayerColour(NWO_Op):
         kill_highlight = not edit_mode or self.highlight != int_highlight or self.layer is None or not self.me.nwo.highlight or not self.me.nwo.face_props
 
         if kill_highlight or bm_v != self.volume:
-            print("kill hit") if kill_highlight else print("vol hit")
             try:
                 self.handler = bpy.types.SpaceView3D.draw_handler_remove(self.handler, 'WINDOW')
             except:

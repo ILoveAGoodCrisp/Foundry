@@ -207,9 +207,14 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.prop(self, 'tool_type', expand=True)
 
 def msgbus_callback(context):
-    highlight = context.object.data.nwo.highlight
-    if highlight and context.mode == 'EDIT_MESH':
-        bpy.ops.nwo.face_layer_colour_all(enable_highlight=highlight)
+    try:
+        ob = context.object
+        if context.object:
+            highlight = ob.data.nwo.highlight
+            if highlight and context.mode == 'EDIT_MESH':
+                bpy.ops.nwo.face_layer_colour_all(enable_highlight=highlight)
+    except:
+        pass
    
 def subscribe(owner):
     subscribe_to = bpy.types.Object, "mode"
