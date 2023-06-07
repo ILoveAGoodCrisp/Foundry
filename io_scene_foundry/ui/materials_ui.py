@@ -44,14 +44,14 @@ class NWO_ShaderProps(NWO_PropPanel):
     def draw_header(self, context):
         current_material = context.material
         material_nwo = current_material.nwo
-        self.layout.prop(material_nwo, "rendered", text='')
+        self.layout.prop(material_nwo, "rendered", text="")
 
     def draw(self, context):
         layout = self.layout
         current_material = context.material
         material_nwo = current_material.nwo
         if not material_nwo.rendered:
-            if self.bl_idname == 'NWO_PT_MaterialPanel':
+            if self.bl_idname == "NWO_PT_MaterialPanel":
                 layout.label(text="Not a Halo Material")
             else:
                 layout.label(text="Not a Halo Shader")
@@ -60,31 +60,53 @@ class NWO_ShaderProps(NWO_PropPanel):
 
         else:
             # layout.use_property_split = True
-            flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
+            flow = layout.grid_flow(
+                row_major=True,
+                columns=0,
+                even_columns=True,
+                even_rows=False,
+                align=False,
+            )
             col = flow.column()
             row = col.row(align=True)
-            row.prop(material_nwo, "shader_path", text='')
-            row.operator('nwo.shader_path', icon="FILE_FOLDER", text="")
-            ext = material_nwo.shader_path.rpartition('.')[2]
-            if ext != material_nwo.shader_path and (ext == 'material' or 'shader' in ext):
+            row.prop(material_nwo, "shader_path", text="")
+            row.operator("nwo.shader_path", icon="FILE_FOLDER", text="")
+            ext = material_nwo.shader_path.rpartition(".")[2]
+            if ext != material_nwo.shader_path and (
+                ext == "material" or "shader" in ext
+            ):
                 col.separator()
                 row = col.row()
                 row.scale_y = 1.5
-                row.operator('nwo.open_halo_material', icon_value=get_icon_id("foundation"))
+                row.operator(
+                    "nwo.open_halo_material",
+                    icon_value=get_icon_id("foundation"),
+                )
+
 
 class NWO_MaterialOpenTag(NWO_Op):
-    bl_idname = 'nwo.open_halo_material'
-    bl_label = 'Open in Foundation'
-    bl_description = "Opens the active material's Halo Shader/Material in Foundation"
+    bl_idname = "nwo.open_halo_material"
+    bl_label = "Open in Foundation"
+    bl_description = (
+        "Opens the active material's Halo Shader/Material in Foundation"
+    )
 
     def execute(self, context):
-        tag_path = get_tags_path() + context.object.active_material.nwo.shader_path
+        tag_path = (
+            get_tags_path() + context.object.active_material.nwo.shader_path
+        )
         if os.path.exists(tag_path):
-            run_ek_cmd(['foundation', '/dontloadlastopenedwindows', tag_path], True)
+            run_ek_cmd(
+                ["foundation", "/dontloadlastopenedwindows", tag_path], True
+            )
         else:
             if not_bungie_game():
-                self.report({'ERROR_INVALID_INPUT'}, 'Material tag does not exist')
+                self.report(
+                    {"ERROR_INVALID_INPUT"}, "Material tag does not exist"
+                )
             else:
-                self.report({'ERROR_INVALID_INPUT'}, 'Shader tag does not exist')
+                self.report(
+                    {"ERROR_INVALID_INPUT"}, "Shader tag does not exist"
+                )
 
-        return {'FINISHED'}
+        return {"FINISHED"}

@@ -25,26 +25,36 @@
 # ##### END MIT LICENSE BLOCK #####
 import bpy
 import os
-from io_scene_foundry.utils.nwo_utils import get_asset_path, get_asset_path_full, get_valid_shader_name, not_bungie_game, protected_material_name
+from io_scene_foundry.utils.nwo_utils import (
+    get_asset_path,
+    get_asset_path_full,
+    get_valid_shader_name,
+    not_bungie_game,
+    protected_material_name,
+)
+
 
 def is_tag_candidate(shader_path, update_existing, mat):
-    if shader_path == '' or shader_path.startswith(get_asset_path()):
+    if shader_path == "" or shader_path.startswith(get_asset_path()):
         if not protected_material_name(mat.name):
             shader_name = get_valid_shader_name(mat.name)
-            if shader_name != '':
-                full_path = os.path.join(get_asset_path_full(True), 'shaders', shader_name)
+            if shader_name != "":
+                full_path = os.path.join(
+                    get_asset_path_full(True), "shaders", shader_name
+                )
                 return update_existing or not os.path.exists(full_path)
-    
+
     return False
+
 
 def build_shaders(context, material_selection, update_existing=False):
     # get blender materials to be added
     shader_materials = []
     material_names = []
-    if material_selection == 'all':
+    if material_selection == "all":
         # get a list of all scene materials to be made into tags
         for mat in bpy.data.materials:
-            if mat.name != '':
+            if mat.name != "":
                 material_names.append(mat.name)
                 shader_path = mat.nwo.shader_path
                 if is_tag_candidate(shader_path, update_existing, mat):
@@ -52,7 +62,7 @@ def build_shaders(context, material_selection, update_existing=False):
 
     else:
         active_material = context.active_object.active_material
-        if active_material.name != '':
+        if active_material.name != "":
             shader_path = active_material.nwo.shader_path
             if is_tag_candidate(shader_path, update_existing, active_material):
                 shader_materials.append(active_material)
@@ -64,10 +74,10 @@ def build_shaders(context, material_selection, update_existing=False):
         mat_name = get_valid_shader_name(mat.name)
         if mat_name not in material_names:
             material_names.append(mat_name)
-            print(f'Bulding shader for {mat.name}')
+            print(f"Bulding shader for {mat.name}")
             if not_bungie_game():
                 bpy.ops.managed_blam.new_material(blender_material=mat.name)
             else:
                 bpy.ops.managed_blam.new_shader(blender_material=mat.name)
 
-    return {'FINISHED'}
+    return {"FINISHED"}

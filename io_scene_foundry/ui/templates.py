@@ -29,21 +29,24 @@ from bpy.props import StringProperty
 from ..utils.nwo_utils import get_tags_path
 import bpy
 
+
 def poll_ui(selected_types):
     scene_nwo = bpy.context.scene.nwo
     asset_type = scene_nwo.asset_type
 
     return asset_type in selected_types
 
+
 class NWO_PropPanel(Panel):
     bl_label = ""
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
 
     @classmethod
     def poll(cls, context):
         return context.object
-    
+
+
 class NWO_Op(Operator):
     bl_label = ""
     bl_options = {"REGISTER", "UNDO"}
@@ -51,27 +54,26 @@ class NWO_Op(Operator):
     @classmethod
     def poll(cls, context):
         return context.object
-    
+
+
 class NWO_Op_Path(NWO_Op):
     bl_label = "Select Tag"
 
     filter_glob: StringProperty(
         default="",
-        options={'HIDDEN'},
-        )
+        options={"HIDDEN"},
+    )
 
     filepath: StringProperty(
-        name="path",
-        description="Set the path to the tag",
-        subtype="FILE_PATH"
+        name="path", description="Set the path to the tag", subtype="FILE_PATH"
     )
 
     def execute(self, context):
         print(self.filepath)
-        return {'FINISHED'}
+        return {"FINISHED"}
 
     def invoke(self, context, event):
         self.filepath = get_tags_path()
         context.window_manager.fileselect_add(self)
 
-        return {'RUNNING_MODAL'}
+        return {"RUNNING_MODAL"}

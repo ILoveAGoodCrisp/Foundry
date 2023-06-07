@@ -41,124 +41,521 @@ from ..icons import get_icon_id
 ###########
 
 # Main Prefixes #
-frame_prefixes = ('b ', 'b_', 'frame ', 'frame_','bip ','bip_','bone ','bone_')
-marker_prefixes = ('#', '?')
-mesh_prefixes = ('+soft_ceiling','+soft_kill','+slip_surface', '@','+cookie','+decorator','+flair', '%', '$','+fog','+portal', '+seam','+water', '\'')
-special_prefixes = ('b ', 'b_', 'frame ', 'frame_','bip ','bip_','bone ','bone_','#', '?','+soft_ceiling','+soft_kill','+slip_surface', '@','+cookie','+decorator','+flair', '%', '$','+fog','+portal', '+seam','+water', '\'')
+frame_prefixes = (
+    "b ",
+    "b_",
+    "frame ",
+    "frame_",
+    "bip ",
+    "bip_",
+    "bone ",
+    "bone_",
+)
+marker_prefixes = ("#", "?")
+mesh_prefixes = (
+    "+soft_ceiling",
+    "+soft_kill",
+    "+slip_surface",
+    "@",
+    "+cookie",
+    "+decorator",
+    "+flair",
+    "%",
+    "$",
+    "+fog",
+    "+portal",
+    "+seam",
+    "+water",
+    "'",
+)
+special_prefixes = (
+    "b ",
+    "b_",
+    "frame ",
+    "frame_",
+    "bip ",
+    "bip_",
+    "bone ",
+    "bone_",
+    "#",
+    "?",
+    "+soft_ceiling",
+    "+soft_kill",
+    "+slip_surface",
+    "@",
+    "+cookie",
+    "+decorator",
+    "+flair",
+    "%",
+    "$",
+    "+fog",
+    "+portal",
+    "+seam",
+    "+water",
+    "'",
+)
 
 
 # Specific Mesh Prefixes #
-boundary_surface_prefixes = ('+soft_ceiling','+soft_kill','+slip_surface') # boundary surface prefixes can take a name with +prefix:name e.g. +soft_ceiling:camera_ceiling_01
-cookie_cutter_prefixes = ('+cookie')
-decorator_prefixes = ('+decorator') # decorators can take a name with +decorator:name (not implemented)
-fog_volume_prefixes = ('+fog') # fog volumes can take a name with +fog:name (not implemented)
-object_instance_prefixes = ('+flair') # self-reminder: Flairs need to have marker_regions written to them in the json, this should match the face region
-portal_prefixes = ('+portal') # portals can have properties automatically through the object name (once I get around to adding it)
-seam_prefixes = ('+seam') # seams can take a name with +seam:name
-water_volume_prefixes = ('+water')
+boundary_surface_prefixes = (
+    "+soft_ceiling",
+    "+soft_kill",
+    "+slip_surface",
+)  # boundary surface prefixes can take a name with +prefix:name e.g. +soft_ceiling:camera_ceiling_01
+cookie_cutter_prefixes = "+cookie"
+decorator_prefixes = "+decorator"  # decorators can take a name with +decorator:name (not implemented)
+fog_volume_prefixes = (
+    "+fog"  # fog volumes can take a name with +fog:name (not implemented)
+)
+object_instance_prefixes = "+flair"  # self-reminder: Flairs need to have marker_regions written to them in the json, this should match the face region
+portal_prefixes = "+portal"  # portals can have properties automatically through the object name (once I get around to adding it)
+seam_prefixes = "+seam"  # seams can take a name with +seam:name
+water_volume_prefixes = "+water"
 
-no_perm_prefixes = ((frame_prefixes, marker_prefixes, boundary_surface_prefixes, decorator_prefixes, fog_volume_prefixes, portal_prefixes, seam_prefixes, water_volume_prefixes, cookie_cutter_prefixes, '+water', '\''))
+no_perm_prefixes = (
+    frame_prefixes,
+    marker_prefixes,
+    boundary_surface_prefixes,
+    decorator_prefixes,
+    fog_volume_prefixes,
+    portal_prefixes,
+    seam_prefixes,
+    water_volume_prefixes,
+    cookie_cutter_prefixes,
+    "+water",
+    "'",
+)
 # Instanced Geo Prefixes #
-poop_lighting_prefixes = ('%!',     '%-!','%+!','%*!',     '%-*!','%+*!',     '%*-!','%*+!',          '%?',     '%-?','%+?','%*?',     '%-*?','%+*?',     '%*-?','%*+?'          '%>',     '%->','%+>','%*>',     '%-*>','%+*>',     '%*->','%*+>')
-poop_pathfinding_prefixes = ('%+',     '%!+','%?+','%>+','%*+',     '%!*+','%?*+','%>*+',     '%*!+','%*?+','%*>+',          '%-',     '%!-','%?-','%>-','%*-',     '%!*-','%?*-','%>*-',     '%*!-','%*?-','%*>-')
-poop_render_only_prefixes = ('%*',     '%!*','%?*','%>*','%-*','%+*',     '%!-*','%!+*','%?-*','%?+*','%>-*','%>+*')
+poop_lighting_prefixes = (
+    "%!",
+    "%-!",
+    "%+!",
+    "%*!",
+    "%-*!",
+    "%+*!",
+    "%*-!",
+    "%*+!",
+    "%?",
+    "%-?",
+    "%+?",
+    "%*?",
+    "%-*?",
+    "%+*?",
+    "%*-?",
+    "%*+?" "%>",
+    "%->",
+    "%+>",
+    "%*>",
+    "%-*>",
+    "%+*>",
+    "%*->",
+    "%*+>",
+)
+poop_pathfinding_prefixes = (
+    "%+",
+    "%!+",
+    "%?+",
+    "%>+",
+    "%*+",
+    "%!*+",
+    "%?*+",
+    "%>*+",
+    "%*!+",
+    "%*?+",
+    "%*>+",
+    "%-",
+    "%!-",
+    "%?-",
+    "%>-",
+    "%*-",
+    "%!*-",
+    "%?*-",
+    "%>*-",
+    "%*!-",
+    "%*?-",
+    "%*>-",
+)
+poop_render_only_prefixes = (
+    "%*",
+    "%!*",
+    "%?*",
+    "%>*",
+    "%-*",
+    "%+*",
+    "%!-*",
+    "%!+*",
+    "%?-*",
+    "%?+*",
+    "%>-*",
+    "%>+*",
+)
 
-all_prefixes = ('+slip_surface', '+soft_ceiling', '+soft_kill', '+decorator', '+portal', '+cookie', 'frame ', '%*+?%>', '+water', 'frame_', '+flair', '+seam', 'bone_', 'bone ', '%>+*', '%>-*', '%?+*', '%?-*', '%!+*', '%!-*', 'bip_', '+fog', '%*+>', '%*->', '%+*>', '%-*>', '%*>-', '%*?-', '%*!-', '%>*-', '%?*-', '%!*-', '%*+!', '%*-!', '%+*!', '%*-?', '%+*?', '%*>+', '%*?+', '%*!+', '%>*+', '%?*+', '%!*+', '%-*?', '%-*!', 'bip ', '%+*', '%-*', '%>*', '%?*', '%!*', '%-!', '%*-', '%>-', '%?-', '%!-', '%*!', '%*+', '%>+', '%?+', '%!+', '%+!', '%*>', '%+>', '%->', '%*?', '%+?', '%-?', '%*', '%-', '%+', '%?', '%!', 'b_', 'b ', "'", '$', '%', '@', '?', '#')
+all_prefixes = (
+    "+slip_surface",
+    "+soft_ceiling",
+    "+soft_kill",
+    "+decorator",
+    "+portal",
+    "+cookie",
+    "frame ",
+    "%*+?%>",
+    "+water",
+    "frame_",
+    "+flair",
+    "+seam",
+    "bone_",
+    "bone ",
+    "%>+*",
+    "%>-*",
+    "%?+*",
+    "%?-*",
+    "%!+*",
+    "%!-*",
+    "bip_",
+    "+fog",
+    "%*+>",
+    "%*->",
+    "%+*>",
+    "%-*>",
+    "%*>-",
+    "%*?-",
+    "%*!-",
+    "%>*-",
+    "%?*-",
+    "%!*-",
+    "%*+!",
+    "%*-!",
+    "%+*!",
+    "%*-?",
+    "%+*?",
+    "%*>+",
+    "%*?+",
+    "%*!+",
+    "%>*+",
+    "%?*+",
+    "%!*+",
+    "%-*?",
+    "%-*!",
+    "bip ",
+    "%+*",
+    "%-*",
+    "%>*",
+    "%?*",
+    "%!*",
+    "%-!",
+    "%*-",
+    "%>-",
+    "%?-",
+    "%!-",
+    "%*!",
+    "%*+",
+    "%>+",
+    "%?+",
+    "%!+",
+    "%+!",
+    "%*>",
+    "%+>",
+    "%->",
+    "%*?",
+    "%+?",
+    "%-?",
+    "%*",
+    "%-",
+    "%+",
+    "%?",
+    "%!",
+    "b_",
+    "b ",
+    "'",
+    "$",
+    "%",
+    "@",
+    "?",
+    "#",
+)
 
 # Material Prefixes #
-special_materials = ('+collision', '+physics', '+portal', '+seamsealer','+sky', '+slip_surface', '+soft_ceiling', '+soft_kill', '+weatherpoly', '+override')
-special_materials_h4 = ('+sky', '+physics', '+seam', '+portal', '+collision', '+player_collision', '+wall_collision', '+bullet_collision', '+cookie_cutter', '+rain_blocker', '+water_volume', '+structure')
-protected_materials = ('+sky', '+physics', '+seam', '+portal', '+collision', '+player_collision', '+wall_collision', '+bullet_collision', '+cookie_cutter', '+rain_blocker', '+water_volume', '+structure', '+weatherpoly', '+override', '+slip_surface', '+soft_ceiling', '+soft_kill',
-                       'invisibleSky', 'physicsVolume', 'Seam', 'Portal', 'collisionVolume', 'playerCollision', 'wallCollision', 'bulletCollision', 'cookieCutter', 'rainBlocker', 'waterVolume', 'Structure', 'weatherPoly', 'Override', 'seamSealer', 'slipSurface', 'softCeiling', 'softKill')
+special_materials = (
+    "+collision",
+    "+physics",
+    "+portal",
+    "+seamsealer",
+    "+sky",
+    "+slip_surface",
+    "+soft_ceiling",
+    "+soft_kill",
+    "+weatherpoly",
+    "+override",
+)
+special_materials_h4 = (
+    "+sky",
+    "+physics",
+    "+seam",
+    "+portal",
+    "+collision",
+    "+player_collision",
+    "+wall_collision",
+    "+bullet_collision",
+    "+cookie_cutter",
+    "+rain_blocker",
+    "+water_volume",
+    "+structure",
+)
+protected_materials = (
+    "+sky",
+    "+physics",
+    "+seam",
+    "+portal",
+    "+collision",
+    "+player_collision",
+    "+wall_collision",
+    "+bullet_collision",
+    "+cookie_cutter",
+    "+rain_blocker",
+    "+water_volume",
+    "+structure",
+    "+weatherpoly",
+    "+override",
+    "+slip_surface",
+    "+soft_ceiling",
+    "+soft_kill",
+    "invisibleSky",
+    "physicsVolume",
+    "Seam",
+    "Portal",
+    "collisionVolume",
+    "playerCollision",
+    "wallCollision",
+    "bulletCollision",
+    "cookieCutter",
+    "rainBlocker",
+    "waterVolume",
+    "Structure",
+    "weatherPoly",
+    "Override",
+    "seamSealer",
+    "slipSurface",
+    "softCeiling",
+    "softKill",
+)
 # Enums #
-special_mesh_types = ('_connected_geometry_mesh_type_boundary_surface', '_connected_geometry_mesh_type_collision','_connected_geometry_mesh_type_decorator','_connected_geometry_mesh_type_poop','_connected_geometry_mesh_type_planar_fog_volume','_connected_geometry_mesh_type_portal','_connected_geometry_mesh_type_seam','_connected_geometry_mesh_type_water_physics_volume', '_connected_geometry_mesh_type_obb_volume')
-invalid_mesh_types = ('_connected_geometry_mesh_type_boundary_surface', '_connected_geometry_mesh_type_cookie_cutter', '_connected_geometry_mesh_type_poop_marker', '_connected_geometry_mesh_type_poop_rain_blocker', '_connected_geometry_mesh_type_poop_vertical_rain_sheet', '_connected_geometry_mesh_type_lightmap_region', '_connected_geometry_mesh_type_planar_fog_volume', '_connected_geometry_mesh_type_portal', '_connected_geometry_mesh_type_seam', '_connected_geometry_mesh_type_water_physics_volume', '_connected_geometry_mesh_type_obb_volume')
+special_mesh_types = (
+    "_connected_geometry_mesh_type_boundary_surface",
+    "_connected_geometry_mesh_type_collision",
+    "_connected_geometry_mesh_type_decorator",
+    "_connected_geometry_mesh_type_poop",
+    "_connected_geometry_mesh_type_planar_fog_volume",
+    "_connected_geometry_mesh_type_portal",
+    "_connected_geometry_mesh_type_seam",
+    "_connected_geometry_mesh_type_water_physics_volume",
+    "_connected_geometry_mesh_type_obb_volume",
+)
+invalid_mesh_types = (
+    "_connected_geometry_mesh_type_boundary_surface",
+    "_connected_geometry_mesh_type_cookie_cutter",
+    "_connected_geometry_mesh_type_poop_marker",
+    "_connected_geometry_mesh_type_poop_rain_blocker",
+    "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
+    "_connected_geometry_mesh_type_lightmap_region",
+    "_connected_geometry_mesh_type_planar_fog_volume",
+    "_connected_geometry_mesh_type_portal",
+    "_connected_geometry_mesh_type_seam",
+    "_connected_geometry_mesh_type_water_physics_volume",
+    "_connected_geometry_mesh_type_obb_volume",
+)
 # animations #
-valid_animation_types = ('JMM', 'JMA', 'JMT', 'JMZ', 'JMV', 'JMO', 'JMOX', 'JMR', 'JMRX')
+valid_animation_types = (
+    "JMM",
+    "JMA",
+    "JMT",
+    "JMZ",
+    "JMV",
+    "JMO",
+    "JMOX",
+    "JMR",
+    "JMRX",
+)
 
 # animation events #
-non_sound_frame_types = ['primary keyframe', 'secondary keyframe', 'tertiary keyframe', 'allow interruption', 'blend range marker', 'stride expansion', 'stride contraction', 'ragdoll keyframe', 'drop weapon keyframe', 'match a', 'match b', 'match c', 'match d', 'right foot lock', 'right foot unlock', 'left foot lock', 'left foot unlock']
-sound_frame_types = ['left foot', 'right foot', 'both-feet shuffle', 'body impact']
-import_event_types = ['Wrapped Left', 'Wrapped Right']
-frame_event_types = {'Trigger Events':['primary keyframe', 'secondary keyframe', 'tertiary keyframe'],
-                      'Navigation Events':['match a', 'match b', 'match c', 'match d', 'stride expansion', 'stride contraction', 'right foot lock', 'right foot unlock', 'left foot lock',  'left foot unlock'],
-                      'Sync Action Events':['ragdoll keyframe', 'drop weapon keyframe', 'allow interruption', 'blend range marker'],
-                      'Sound Events':['left foot', 'right foot', 'body impact', 'both-feet shuffle'],
-                      'Import Events':['Wrapped Left', 'Wrapped Right']}
+non_sound_frame_types = [
+    "primary keyframe",
+    "secondary keyframe",
+    "tertiary keyframe",
+    "allow interruption",
+    "blend range marker",
+    "stride expansion",
+    "stride contraction",
+    "ragdoll keyframe",
+    "drop weapon keyframe",
+    "match a",
+    "match b",
+    "match c",
+    "match d",
+    "right foot lock",
+    "right foot unlock",
+    "left foot lock",
+    "left foot unlock",
+]
+sound_frame_types = [
+    "left foot",
+    "right foot",
+    "both-feet shuffle",
+    "body impact",
+]
+import_event_types = ["Wrapped Left", "Wrapped Right"]
+frame_event_types = {
+    "Trigger Events": [
+        "primary keyframe",
+        "secondary keyframe",
+        "tertiary keyframe",
+    ],
+    "Navigation Events": [
+        "match a",
+        "match b",
+        "match c",
+        "match d",
+        "stride expansion",
+        "stride contraction",
+        "right foot lock",
+        "right foot unlock",
+        "left foot lock",
+        "left foot unlock",
+    ],
+    "Sync Action Events": [
+        "ragdoll keyframe",
+        "drop weapon keyframe",
+        "allow interruption",
+        "blend range marker",
+    ],
+    "Sound Events": [
+        "left foot",
+        "right foot",
+        "body impact",
+        "both-feet shuffle",
+    ],
+    "Import Events": ["Wrapped Left", "Wrapped Right"],
+}
 
 # shader exts #
-shader_exts = ('.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', '.shader_water', '.material')
+shader_exts = (
+    ".shader",
+    ".shader_cortana",
+    ".shader_custom",
+    ".shader_decal",
+    ".shader_foliage",
+    ".shader_fur",
+    ".shader_fur_stencil",
+    ".shader_glass",
+    ".shader_halogram",
+    ".shader_mux",
+    ".shader_mux_material",
+    ".shader_screen",
+    ".shader_skin",
+    ".shader_terrain",
+    ".shader_water",
+    ".material",
+)
 
-package = 'io_scene_foundry'
+package = "io_scene_foundry"
 
-blender_object_types_mesh = ('MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'CURVES', 'POINTCLOUD', 'VOLUME', 'GPENCIL')
+blender_object_types_mesh = (
+    "MESH",
+    "CURVE",
+    "SURFACE",
+    "META",
+    "FONT",
+    "CURVES",
+    "POINTCLOUD",
+    "VOLUME",
+    "GPENCIL",
+)
 
 #############
 ##FUNCTIONS##
 #############
 
+
 def is_linked(ob):
     return ob.data.users > 1
+
 
 def get_ek_path():
     scene = bpy.context.scene
     scene_nwo = scene.nwo
-    if scene_nwo.game_version == 'h4':
+    if scene_nwo.game_version == "h4":
         EKPath = bpy.context.preferences.addons[package].preferences.h4ek_path
-    elif scene_nwo.game_version == 'h2a':
+    elif scene_nwo.game_version == "h2a":
         EKPath = bpy.context.preferences.addons[package].preferences.h2aek_path
     else:
         EKPath = bpy.context.preferences.addons[package].preferences.hrek_path
 
-    EKPath = EKPath.replace('"','')
-    EKPath = EKPath.strip('\\')
+    EKPath = EKPath.replace('"', "")
+    EKPath = EKPath.strip("\\")
 
     return EKPath
+
 
 def get_tool_path():
     toolPath = os.path.join(get_ek_path(), get_tool_type())
 
     return toolPath
 
+
 def get_tags_path():
-    tagsPath = os.path.join(get_ek_path(), 'tags' + os.sep)
+    tagsPath = os.path.join(get_ek_path(), "tags" + os.sep)
 
     return tagsPath
 
+
 def get_data_path():
-    dataPath = os.path.join(get_ek_path(), 'data' + os.sep)
+    dataPath = os.path.join(get_ek_path(), "data" + os.sep)
 
     return dataPath
+
 
 def get_tool_type():
     return bpy.context.preferences.addons[package].preferences.tool_type
 
-def get_perm(ob): # get the permutation of an object, return default if the perm is empty
+
+def get_perm(
+    ob,
+):  # get the permutation of an object, return default if the perm is empty
     return true_permutation(ob.nwo)
-        
+
+
 def is_windows():
-    return platform.system() == 'Windows'
+    return platform.system() == "Windows"
+
 
 def not_bungie_game():
-    return bpy.context.scene.nwo.game_version in ('h4', 'h2a')
+    return bpy.context.scene.nwo.game_version in ("h4", "h2a")
 
-def object_valid(ob, export_hidden, valid_perm='', evaluated_perm=''):
-    return ob in tuple(bpy.context.scene.view_layers[0].objects) and (ob.visible_get() or export_hidden) and valid_perm == evaluated_perm
+
+def object_valid(ob, export_hidden, valid_perm="", evaluated_perm=""):
+    return (
+        ob in tuple(bpy.context.scene.view_layers[0].objects)
+        and (ob.visible_get() or export_hidden)
+        and valid_perm == evaluated_perm
+    )
+
 
 def export_perm(perm, export_all_perms, selected_perms):
-    return export_all_perms == 'all' or perm in selected_perms
+    return export_all_perms == "all" or perm in selected_perms
+
 
 def export_bsp(bsp, export_all_bsps, selected_bsps):
-    return export_all_bsps == 'all' or bsp in selected_bsps
+    return export_all_bsps == "all" or bsp in selected_bsps
 
-def get_prefix(string, prefix_list): # gets a prefix from a list of prefixes
-    prefix = ''
+
+def get_prefix(string, prefix_list):  # gets a prefix from a list of prefixes
+    prefix = ""
     for p in prefix_list:
         if string.startswith(p):
             prefix = p
             break
-    
+
     return prefix
+
 
 def select_halo_objects(select_func, selected_asset_type, valid_asset_types):
     deselect_all_objects()
@@ -167,23 +564,28 @@ def select_halo_objects(select_func, selected_asset_type, valid_asset_types):
     if selected_asset_type in valid_asset_types:
         for ob in bpy.context.view_layer.objects:
             if select_func(ob):
-                halo_objects.append(ob) 
-    
+                halo_objects.append(ob)
+
     return halo_objects
 
 
-def select_model_objects(halo_objects, perm, arm, export_hidden, export_all_perms, selected_perms):
+def select_model_objects(
+    halo_objects, perm, arm, export_hidden, export_all_perms, selected_perms
+):
     deselect_all_objects()
     boolean = False
     if arm is not None:
         arm.select_set(True)
     for ob in halo_objects:
         halo = ob.nwo
-        if object_valid(ob, export_hidden, perm, halo.permutation_name) and export_perm(perm, export_all_perms, selected_perms):
+        if object_valid(
+            ob, export_hidden, perm, halo.permutation_name
+        ) and export_perm(perm, export_all_perms, selected_perms):
             ob.select_set(True)
             boolean = True
-    
+
     return boolean
+
 
 def select_model_objects_no_perm(halo_objects, arm, export_hidden):
     deselect_all_objects()
@@ -197,7 +599,18 @@ def select_model_objects_no_perm(halo_objects, arm, export_hidden):
 
     return boolean
 
-def select_bsp_objects(halo_objects, bsp, arm, perm, export_hidden, export_all_perms, selected_perms, export_all_bsps, selected_bsps):
+
+def select_bsp_objects(
+    halo_objects,
+    bsp,
+    arm,
+    perm,
+    export_hidden,
+    export_all_perms,
+    selected_perms,
+    export_all_bsps,
+    selected_bsps,
+):
     deselect_all_objects()
     boolean = False
     if arm is not None:
@@ -206,19 +619,25 @@ def select_bsp_objects(halo_objects, bsp, arm, perm, export_hidden, export_all_p
         halo = ob.nwo
         bsp_value = ob.nwo.bsp_name
         if bsp_value == bsp:
-            if object_valid(ob, export_hidden, perm, halo.permutation_name) and export_perm(perm, export_all_perms, selected_perms) and export_bsp(bsp, export_all_bsps, selected_bsps):
+            if (
+                object_valid(ob, export_hidden, perm, halo.permutation_name)
+                and export_perm(perm, export_all_perms, selected_perms)
+                and export_bsp(bsp, export_all_bsps, selected_bsps)
+            ):
                 ob.select_set(True)
                 boolean = True
 
     return boolean
 
+
 def get_shared_objects(halo_objects):
     new_objects = []
     for ob in halo_objects:
-        if true_bsp(ob.nwo) == 'shared':
+        if true_bsp(ob.nwo) == "shared":
             new_objects.append(ob)
 
     return new_objects
+
 
 def select_prefab_objects(halo_objects, arm, export_hidden):
     deselect_all_objects()
@@ -226,7 +645,9 @@ def select_prefab_objects(halo_objects, arm, export_hidden):
     if arm is not None:
         arm.select_set(True)
     for ob in halo_objects:
-        if ob in tuple(bpy.context.scene.view_layers[0].objects) and (ob.visible_get() or export_hidden):
+        if ob in tuple(bpy.context.scene.view_layers[0].objects) and (
+            ob.visible_get() or export_hidden
+        ):
             ob.select_set(True)
             boolean = True
 
@@ -234,16 +655,20 @@ def select_prefab_objects(halo_objects, arm, export_hidden):
 
 
 def deselect_all_objects():
-    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.object.select_all(action="DESELECT")
+
 
 def select_all_objects():
-    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.select_all(action="SELECT")
+
 
 def set_active_object(ob):
     bpy.context.view_layer.objects.active = ob
 
+
 def get_active_object():
     return bpy.context.view_layer.objects.active
+
 
 def get_asset_info(filepath):
     asset_path = filepath.rpartition(os.sep)[0]
@@ -252,98 +677,133 @@ def get_asset_info(filepath):
 
     return asset_path, asset
 
+
 def get_asset_path():
-    """Returns the path to the asset folder. """
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
+    """Returns the path to the asset folder."""
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(
+        os.sep
+    )[0]
     return asset_path
+
 
 def get_asset_path_full(tags=False):
     """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(
+        os.sep
+    )[0]
     if tags:
         return get_tags_path() + asset_path
     else:
         return get_data_path() + asset_path
 
+
 # -------------------------------------------------------------------------------------------------------------------
 
+
 def mesh_type(ob, types):
-    if ob is not None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
+    if (
+        ob is not None
+    ):  # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
         return is_mesh(ob) and ob.nwo.mesh_type in types
 
+
 def marker_type(ob, types):
-    if ob is not None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
+    if (
+        ob is not None
+    ):  # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
         return is_marker(ob) and ob.nwo.marker_type in types
 
+
 def object_type(ob, types=()):
-    if ob != None: # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
-        if ob.type == 'MESH':
+    if (
+        ob != None
+    ):  # temp work around for 'ob' not being passed between functions correctly, and resolving to a NoneType
+        if ob.type == "MESH":
             return ob.nwo.object_type in types
-        elif ob.type == 'EMPTY':
+        elif ob.type == "EMPTY":
             return ob.nwo.object_type in types or len(ob.children) > 0
-        elif ob.type == 'LIGHT' and types != 'MARKER':
+        elif ob.type == "LIGHT" and types != "MARKER":
             return True
         elif ob.nwo.object_type in types:
             return True
         else:
             return False
 
+
 def object_prefix(ob, prefixes):
     return ob.name.startswith(prefixes)
 
+
 def not_parented_to_poop(ob):
-    return not mesh_type(ob.parent, '_connected_geometry_mesh_type_poop')
+    return not mesh_type(ob.parent, "_connected_geometry_mesh_type_poop")
+
 
 def is_design(ob):
     nwo = ob.nwo
     mesh_type = nwo.mesh_type
-    return CheckType.fog(ob) or CheckType.boundary_surface(ob) or CheckType.water_physics(ob) or CheckType.poop_rain_blocker(ob)
+    return (
+        CheckType.fog(ob)
+        or CheckType.boundary_surface(ob)
+        or CheckType.water_physics(ob)
+        or CheckType.poop_rain_blocker(ob)
+    )
+
 
 def is_marker(ob):
-    if ob.type == 'MESH':
-        return ob.nwo.object_type == '_connected_geometry_object_type_marker'
-    elif ob.type == 'EMPTY':
-        return ob.nwo.object_type == '_connected_geometry_object_type_marker'
+    if ob.type == "MESH":
+        return ob.nwo.object_type == "_connected_geometry_object_type_marker"
+    elif ob.type == "EMPTY":
+        return ob.nwo.object_type == "_connected_geometry_object_type_marker"
     else:
         return False
+
 
 def is_frame(ob):
-    if ob.type == 'MESH':
-        return ob.nwo.object_type == '_connected_geometry_object_type_frame'
-    elif ob.type == 'EMPTY':
-        return ob.nwo.object_type == '_connected_geometry_object_type_frame'
+    if ob.type == "MESH":
+        return ob.nwo.object_type == "_connected_geometry_object_type_frame"
+    elif ob.type == "EMPTY":
+        return ob.nwo.object_type == "_connected_geometry_object_type_frame"
     else:
         return False
 
+
 def is_mesh(ob):
-    return ob.type in blender_object_types_mesh and ob.nwo.object_type == '_connected_geometry_object_type_mesh'
+    return (
+        ob.type in blender_object_types_mesh
+        and ob.nwo.object_type == "_connected_geometry_object_type_mesh"
+    )
+
 
 def vector_str(velocity):
     x = velocity.x
     y = velocity.y
     z = velocity.z
-    return f'{jstr(x)} {jstr(y)} {jstr(z)}'
+    return f"{jstr(x)} {jstr(y)} {jstr(z)}"
+
 
 def color_3p_str(color):
     red = color.r
     green = color.g
     blue = color.b
-    return f'{jstr(red)} {jstr(green)} {jstr(blue)}'
+    return f"{jstr(red)} {jstr(green)} {jstr(blue)}"
+
 
 def color_4p_str(color):
     red = color.r
     green = color.g
     blue = color.b
-    return f'1 {jstr(red)} {jstr(green)} {jstr(blue)}'
+    return f"1 {jstr(red)} {jstr(green)} {jstr(blue)}"
+
 
 def bool_str(bool_var):
     """Returns a boolean as a string. 1 if true, 0 if false"""
     if bool_var:
-        return '1'
+        return "1"
     else:
-        return '0'
+        return "0"
 
-def radius_str(ob, pill = False):
+
+def radius_str(ob, pill=False):
     """Returns the radius of a sphere (or a pill if second arg is True) as a string"""
     if pill:
         diameter = max(ob.dimensions.x, ob.dimensions.y)
@@ -354,242 +814,363 @@ def radius_str(ob, pill = False):
 
     return jstr(radius)
 
+
 def jstr(number):
     """Takes a number, rounds it to six decimal places and returns it as a string"""
     return str(round(number, 6))
 
+
 def true_bsp(halo):
-    if halo.bsp_name_locked_ui !='':
+    if halo.bsp_name_locked_ui != "":
         return halo.bsp_name_locked_ui.lower()
     else:
         return halo.bsp_name_ui.lower()
 
+
 def true_region(halo):
-    if halo.region_name_locked_ui !='':
+    if halo.region_name_locked_ui != "":
         return halo.region_name_locked_ui.lower()
     else:
         return halo.region_name_ui.lower()
-    
+
+
 def true_permutation(halo):
-    if halo.permutation_name_locked_ui !='':
+    if halo.permutation_name_locked_ui != "":
         return halo.permutation_name_locked_ui.lower()
     else:
         return halo.permutation_name_ui.lower()
 
-def clean_tag_path(path, file_ext = None):
+
+def clean_tag_path(path, file_ext=None):
     """Cleans a path and attempts to make it appropriate for reading by Tool. Can accept a file extension (without a period) to force the existing one if it exists to be replaced"""
-    if path != '':
+    if path != "":
         path = path.lower()
         # If a file ext is provided, replace the existing one / add it
         if file_ext is not None:
-            path = shortest_string(path, path.rpartition('.')[0])
-            path = f'{path}.{file_ext}'
+            path = shortest_string(path, path.rpartition(".")[0])
+            path = f"{path}.{file_ext}"
         # remove any quotation characters from path
-        path = path.replace('\"\'', '')
+        path = path.replace("\"'", "")
         # strip bad characters from the start and end of the path
-        path = path.strip('\\/.')
+        path = path.strip("\\/.")
         # # remove 'tags' if path starts with this
         # if path.startswith('tags'):
         #     path = path.replace('tags', '')
         #     # strip following backslash
         #     path = path.strip('\\')
         # attempt to make path tag relative
-        path = path.replace(get_tags_path().lower(), '')
+        path = path.replace(get_tags_path().lower(), "")
         # return the new path in lower case
         return path
     else:
-        return ''
+        return ""
+
 
 def is_shared(ob):
-    return true_bsp(ob.nwo) == 'shared'
+    return true_bsp(ob.nwo) == "shared"
+
 
 def shortest_string(*strings):
     """Takes strings and returns the shortest non null string"""
     string_list = [*strings]
-    temp_string = ''
-    while temp_string == '' and len(string_list) > 0:
+    temp_string = ""
+    while temp_string == "" and len(string_list) > 0:
         temp_string = min(string_list, key=len)
         string_list.remove(temp_string)
 
     return temp_string
 
-def print_box(text, line_char='-', char_count=100):
+
+def print_box(text, line_char="-", char_count=100):
     """Prints the specified text surrounded by lines created with the specified character. Optionally define the number of charactrers to repeat per line"""
     side_char_count = (char_count - len(text) - 2) // 2
     side_char_count = max(side_char_count, 0)
     side_fix = 0
     if side_char_count > 1:
-        side_fix = 1 if (char_count - len(text) - 2) // 2 != (char_count - len(text) - 2) / 2 else 0
+        side_fix = (
+            1
+            if (char_count - len(text) - 2) // 2
+            != (char_count - len(text) - 2) / 2
+            else 0
+        )
     print(line_char * char_count)
-    print(f'{line_char * side_char_count} {text} {line_char * (side_char_count + side_fix)}')
+    print(
+        f"{line_char * side_char_count} {text} {line_char * (side_char_count + side_fix)}"
+    )
     print(line_char * char_count)
+
 
 class CheckType:
     @staticmethod
     def get(ob):
         if CheckType.animation_control(ob):
-            return '_connected_geometry_object_type_animation_control'
+            return "_connected_geometry_object_type_animation_control"
         elif CheckType.animation_event(ob):
-            return '_connected_geometry_object_type_animation_event'
+            return "_connected_geometry_object_type_animation_event"
         elif CheckType.animation_camera(ob):
-            return '_connected_geometry_object_type_animation_camera'
+            return "_connected_geometry_object_type_animation_camera"
         elif CheckType.light(ob):
-            return '_connected_geometry_object_type_light'
+            return "_connected_geometry_object_type_light"
         elif CheckType.frame_pca(ob):
-            return '_connected_geometry_object_type_frame_pca'
+            return "_connected_geometry_object_type_frame_pca"
         elif CheckType.frame(ob):
-            return '_connected_geometry_object_type_frame'
+            return "_connected_geometry_object_type_frame"
         elif CheckType.marker(ob):
-            return '_connected_geometry_object_type_marker'
+            return "_connected_geometry_object_type_marker"
         else:
-            return '_connected_geometry_object_type_mesh'
+            return "_connected_geometry_object_type_mesh"
+
     @staticmethod
     def render(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_default',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_default",))
+
     @staticmethod
     def collision(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_collision',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_collision",))
+
     @staticmethod
     def physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_physics',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_physics",))
+
     @staticmethod
     def default(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_default',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_default",))
+
     @staticmethod
     def marker(ob):
-        return object_type(ob, ('_connected_geometry_object_type_marker',))
+        return object_type(ob, ("_connected_geometry_object_type_marker",))
+
     @staticmethod
     def structure(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_default',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_default",))
+
     @staticmethod
     def poop(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_poop",))
+
     @staticmethod
     def poop_all(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_poop_physics'))
+        return mesh_type(
+            ob,
+            (
+                "_connected_geometry_mesh_type_poop",
+                "_connected_geometry_mesh_type_poop_collision",
+                "_connected_geometry_mesh_type_poop_physics",
+            ),
+        )
+
     @staticmethod
     def poop_marker(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_marker',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_poop_marker",))
+
     @staticmethod
     def object_instance(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_object_instance',))
+        return mesh_type(
+            ob, ("_connected_geometry_mesh_type_object_instance",)
+        )
+
     @staticmethod
     def poop_collision_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_poop_physics'))
+        return mesh_type(
+            ob,
+            (
+                "_connected_geometry_mesh_type_poop_collision",
+                "_connected_geometry_mesh_type_poop_physics",
+            ),
+        )
+
     @staticmethod
     def light(ob):
-        return ob.type == 'LIGHT'
+        return ob.type == "LIGHT"
+
     @staticmethod
     def portal(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_portal',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_portal",))
+
     @staticmethod
     def seam(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_seam',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_seam",))
+
     @staticmethod
     def water_surface(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_water_surface',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_water_surface",))
+
     @staticmethod
     def misc(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_lightmap_region', '_connected_geometry_mesh_type_obb_volume'))
+        return mesh_type(
+            ob,
+            (
+                "_connected_geometry_mesh_type_lightmap_region",
+                "_connected_geometry_mesh_type_obb_volume",
+            ),
+        )
+
     @staticmethod
     def lightmap_region(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_lightmap_region',))
+        return mesh_type(
+            ob, ("_connected_geometry_mesh_type_lightmap_region",)
+        )
+
     @staticmethod
     def fog(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_planar_fog_volume',))
+        return mesh_type(
+            ob, ("_connected_geometry_mesh_type_planar_fog_volume",)
+        )
+
     @staticmethod
     def boundary_surface(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_boundary_surface',))
+        return mesh_type(
+            ob, ("_connected_geometry_mesh_type_boundary_surface",)
+        )
+
     @staticmethod
     def water_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_water_physics_volume',))
+        return mesh_type(
+            ob, ("_connected_geometry_mesh_type_water_physics_volume",)
+        )
+
     @staticmethod
     def poop_rain_blocker(ob):
-        return mesh_type(ob, tuple('_connected_geometry_mesh_type_poop_rain_blocker',))
+        return mesh_type(
+            ob,
+            tuple(
+                "_connected_geometry_mesh_type_poop_rain_blocker",
+            ),
+        )
+
     @staticmethod
     def poop_rain_sheet(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_vertical_rain_sheet',))
+        return mesh_type(
+            ob, ("_connected_geometry_mesh_type_poop_vertical_rain_sheet",)
+        )
+
     @staticmethod
     def frame(ob):
-        return object_type(ob, ('_connected_geometry_object_type_frame',)) and not ob.type == 'LIGHT'and not ob.type == 'ARMATURE' # ignores objects we know must be frames (like bones / armatures) as these are handled seperately
+        return (
+            object_type(ob, ("_connected_geometry_object_type_frame",))
+            and not ob.type == "LIGHT"
+            and not ob.type == "ARMATURE"
+        )  # ignores objects we know must be frames (like bones / armatures) as these are handled seperately
+
     @staticmethod
     def decorator(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_decorator',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_decorator",))
+
     @staticmethod
     def poop_collision(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_collision',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_poop_collision",))
+
     @staticmethod
     def poop_physics(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_poop_physics',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_poop_physics",))
+
     @staticmethod
     def cookie_cutter(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_cookie_cutter',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_cookie_cutter",))
+
     @staticmethod
     def obb_volume(ob):
-        return mesh_type(ob, ('_connected_geometry_mesh_type_obb_volume',))
+        return mesh_type(ob, ("_connected_geometry_mesh_type_obb_volume",))
+
     @staticmethod
     def mesh(ob):
-        return ob.type == 'MESH' and ob.nwo.object_type in '_connected_geometry_object_type_mesh'
+        return (
+            ob.type == "MESH"
+            and ob.nwo.object_type in "_connected_geometry_object_type_mesh"
+        )
+
     @staticmethod
     def model(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_model',))
+        return marker_type(ob, ("_connected_geometry_marker_type_model",))
+
     @staticmethod
     def effects(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_effects',))
+        return marker_type(ob, ("_connected_geometry_marker_type_effects",))
+
     @staticmethod
     def game_instance(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_game_instance',))
+        return marker_type(
+            ob, ("_connected_geometry_marker_type_game_instance",)
+        )
+
     @staticmethod
     def garbage(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_garbage',))
+        return marker_type(ob, ("_connected_geometry_marker_type_garbage",))
+
     @staticmethod
     def hint(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_hint',))
+        return marker_type(ob, ("_connected_geometry_marker_type_hint",))
+
     @staticmethod
     def pathfinding_sphere(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_pathfinding_sphere',))
+        return marker_type(
+            ob, ("_connected_geometry_marker_type_pathfinding_sphere",)
+        )
+
     @staticmethod
     def physics_constraint(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_physics_constraint',))
+        return marker_type(
+            ob, ("_connected_geometry_marker_type_physics_constraint",)
+        )
+
     @staticmethod
     def target(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_target',))
+        return marker_type(ob, ("_connected_geometry_marker_type_target",))
+
     @staticmethod
     def water_volume_flow(ob):
-        return marker_type(ob, ('_connected_geometry_marker_type_water_volume_flow',))
+        return marker_type(
+            ob, ("_connected_geometry_marker_type_water_volume_flow",)
+        )
+
     @staticmethod
-    def airprobe(ob): # H4+ ONLY
-        return marker_type(ob, ('_connected_geometry_marker_type_airprobe',))
+    def airprobe(ob):  # H4+ ONLY
+        return marker_type(ob, ("_connected_geometry_marker_type_airprobe",))
+
     @staticmethod
-    def envfx(ob): # H4+ ONLY
-        return marker_type(ob, ('_connected_geometry_marker_type_envfx',))
+    def envfx(ob):  # H4+ ONLY
+        return marker_type(ob, ("_connected_geometry_marker_type_envfx",))
+
     @staticmethod
-    def lightCone(ob): # H4+ ONLY
-        return marker_type(ob, ('_connected_geometry_marker_type_lightCone',))
+    def lightCone(ob):  # H4+ ONLY
+        return marker_type(ob, ("_connected_geometry_marker_type_lightCone",))
+
     @staticmethod
     def animation_event(ob):
         return ob.nwo.is_animation_event
+
     @staticmethod
     def animation_control(ob):
         return False
+
     @staticmethod
     def animation_camera(ob):
-        return ob.type == 'CAMERA'
+        return ob.type == "CAMERA"
+
     @staticmethod
-    def frame_pca(ob): # H4+ ONLY
+    def frame_pca(ob):  # H4+ ONLY
         return False
+
     @staticmethod
     def override(material):
         if not_bungie_game():
-            return material.name.startswith('+') or material.nwo.material_override_h4 != 'none'
+            return (
+                material.name.startswith("+")
+                or material.nwo.material_override_h4 != "none"
+            )
         else:
-            return material.name.startswith('+') or material.nwo.material_override != 'none'
+            return (
+                material.name.startswith("+")
+                or material.nwo.material_override != "none"
+            )
 
 
 def run_tool(tool_args: list, in_background=False, null_output=False):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     os.chdir(get_ek_path())
-    command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
+    command = (
+        f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
+    )
     # print(command)
     if in_background:
         if null_output:
@@ -603,6 +1184,7 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
             return check_call(command)
         except Exception as e:
             return e
+
 
 def run_ek_cmd(args: list, in_background=False):
     """Executes a cmd line argument at the root editing kit directory"""
@@ -618,29 +1200,34 @@ def run_ek_cmd(args: list, in_background=False):
             return e
 
 
-def rename_file(file_path, new_file_path=''):
+def rename_file(file_path, new_file_path=""):
     os.replace(file_path, new_file_path)
+
 
 def dot_partition(target_string, get_suffix=False):
     """Returns a string after partitioning it using period. If the returned string will be empty, the function will instead return the argument passed"""
     if get_suffix:
-        return shortest_string(target_string.rpartition('.')[2], target_string)
+        return shortest_string(target_string.rpartition(".")[2], target_string)
     else:
-        return shortest_string(target_string.rpartition('.')[0], target_string)
+        return shortest_string(target_string.rpartition(".")[0], target_string)
+
 
 def comma_partition(target_string):
     """Returns a string after partitioning it using comma. If the returned string will be empty, the function will instead return the argument passed"""
-    return shortest_string(target_string.rpartition(',')[0], target_string)
+    return shortest_string(target_string.rpartition(",")[0], target_string)
 
-def write_error_report(asset_path, report_text, file_1 = None, file_2 = None, file_3 = None):
-    errors_folder = os.path.join(asset_path, 'errors')
+
+def write_error_report(
+    asset_path, report_text, file_1=None, file_2=None, file_3=None
+):
+    errors_folder = os.path.join(asset_path, "errors")
 
     if not file_exists(errors_folder):
         os.makedirs(errors_folder)
 
-    with open(os.path.join(errors_folder, 'output.txt'), 'a+') as f:
+    with open(os.path.join(errors_folder, "output.txt"), "a+") as f:
         f.write(report_text)
-        f.write('\n')
+        f.write("\n")
 
     if file_1 is not None and file_exists(file_1):
         shutil.copy(file_1, errors_folder)
@@ -651,94 +1238,135 @@ def write_error_report(asset_path, report_text, file_1 = None, file_2 = None, fi
 
     clean_files(file_1, file_2, file_3)
 
+
 def clean_files(file_1, file_2, file_3):
     if file_1 is not None and file_exists(file_1):
         os.remove(file_1)
     if file_2 is not None and file_exists(file_2):
         os.remove(file_2)
-    if file_3 != '' and file_3 is not None and file_exists(file_3):
+    if file_3 != "" and file_3 is not None and file_exists(file_3):
         os.remove(file_3)
+
 
 def get_structure_from_halo_objects(halo_objects, include_frames=True):
     """Gets structure objects when passed a HaloObjects instance"""
-    objects = halo_objects.lights + halo_objects.default + halo_objects.collision + halo_objects.physics + halo_objects.markers + halo_objects.cookie_cutters + halo_objects.poops + halo_objects.poop_markers + halo_objects.misc + halo_objects.seams + halo_objects.portals + halo_objects.water_surfaces
+    objects = (
+        halo_objects.lights
+        + halo_objects.default
+        + halo_objects.collision
+        + halo_objects.physics
+        + halo_objects.markers
+        + halo_objects.cookie_cutters
+        + halo_objects.poops
+        + halo_objects.poop_markers
+        + halo_objects.misc
+        + halo_objects.seams
+        + halo_objects.portals
+        + halo_objects.water_surfaces
+    )
     if include_frames:
         objects += halo_objects.frame
     return objects
+
 
 def get_prefab_from_halo_objects(halo_objects):
     """Gets structure objects when passed a HaloObjects instance"""
-    return halo_objects.lights + halo_objects.collision + halo_objects.markers + halo_objects.cookie_cutters + halo_objects.poops + halo_objects.water_surfaces + halo_objects.frame
+    return (
+        halo_objects.lights
+        + halo_objects.collision
+        + halo_objects.markers
+        + halo_objects.cookie_cutters
+        + halo_objects.poops
+        + halo_objects.water_surfaces
+        + halo_objects.frame
+    )
+
 
 def get_design_from_halo_objects(halo_objects, include_frames=True):
     """Gets structure design objects when passed a HaloObjects instance"""
-    objects = halo_objects.boundary_surfaces + halo_objects.fog + halo_objects.water_physics + halo_objects.poop_rain_blockers
+    objects = (
+        halo_objects.boundary_surfaces
+        + halo_objects.fog
+        + halo_objects.water_physics
+        + halo_objects.poop_rain_blockers
+    )
     if include_frames:
         objects += halo_objects.frame
     return objects
 
+
 def get_render_from_halo_objects(halo_objects):
     """Gets render objects when passed a HaloObjects instance"""
-    return halo_objects.default + halo_objects.object_instances + halo_objects.lights
+    return (
+        halo_objects.default
+        + halo_objects.object_instances
+        + halo_objects.lights
+    )
+
 
 def select_all_lights(halo_objects):
     for ob in halo_objects.lights:
         ob.select_set(True)
 
+
 # def get_skeleton_from_halo_objects(halo_objects, model_armature=None):
 #     """Gets skeleton objects when passed a HaloObjects instance"""
 #     return halo_objects.frame + model_armature + model_armature.data.bones
 
+
 def SetBoneJSONValues(bones):
-    print('tbd')
+    print("tbd")
+
 
 def HaloBoner(bones, model_armature, context):
     objects_in_scope = context.view_layer.objects
     ob_matrix = create_ob_matric_dict(objects_in_scope)
     set_active_object(model_armature)
-    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+    bpy.ops.object.mode_set(mode="EDIT", toggle=False)
     for b in bones:
         pivot = b.head
         angle_x = radians(-90)
         axis_x = (1, 0, 0)
         M = (
-            Matrix.Translation(pivot) @
-            Matrix.Rotation(angle_x, 4, axis_x) @
-            Matrix.Translation(-pivot)
-            )
+            Matrix.Translation(pivot)
+            @ Matrix.Rotation(angle_x, 4, axis_x)
+            @ Matrix.Translation(-pivot)
+        )
         b.matrix = M @ b.matrix
 
-    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
 
     for ob in objects_in_scope:
         for key, value in ob_matrix.items():
             if key == ob:
                 ob.matrix_world = value
                 break
+
 
 def halo_deboner(bones, model_armature, context):
     objects_in_scope = context.view_layer.objects
     ob_matrix = create_ob_matric_dict(objects_in_scope)
     set_active_object(model_armature)
-    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+    bpy.ops.object.mode_set(mode="EDIT", toggle=False)
     for b in bones:
         pivot = b.head
         angle_x = radians(90)
         axis_x = (1, 0, 0)
         M = (
-            Matrix.Translation(pivot) @
-            Matrix.Rotation(angle_x, 4, axis_x) @
-            Matrix.Translation(-pivot)
-            )
+            Matrix.Translation(pivot)
+            @ Matrix.Rotation(angle_x, 4, axis_x)
+            @ Matrix.Translation(-pivot)
+        )
         b.matrix = M @ b.matrix
 
-    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
 
     for ob in objects_in_scope:
         for key, value in ob_matrix.items():
             if key == ob:
                 ob.matrix_world = value
                 break
+
 
 def halo_noder(nodes, model_armature):
     set_active_object(model_armature)
@@ -749,12 +1377,13 @@ def halo_noder(nodes, model_armature):
         axis_x = (1, 0, 0)
         axis_z = (0, 0, 1)
         M = (
-            Matrix.Translation(pivot) @
-            Matrix.Rotation(angle_x, 4, axis_x) @
-            Matrix.Rotation(angle_z, 4, axis_z) @ 
-            Matrix.Translation(-pivot)
-            )
+            Matrix.Translation(pivot)
+            @ Matrix.Rotation(angle_x, 4, axis_x)
+            @ Matrix.Rotation(angle_z, 4, axis_z)
+            @ Matrix.Translation(-pivot)
+        )
         n.matrix_world = M @ n.matrix_world
+
 
 def halo_denoder(nodes, model_armature):
     set_active_object(model_armature)
@@ -765,12 +1394,13 @@ def halo_denoder(nodes, model_armature):
         axis_x = (1, 0, 0)
         axis_z = (0, 0, 1)
         M = (
-            Matrix.Translation(pivot) @
-            Matrix.Rotation(angle_z, 4, axis_z) @ 
-            Matrix.Rotation(angle_x, 4, axis_x) @
-            Matrix.Translation(-pivot)
-            )
+            Matrix.Translation(pivot)
+            @ Matrix.Rotation(angle_z, 4, axis_z)
+            @ Matrix.Rotation(angle_x, 4, axis_x)
+            @ Matrix.Translation(-pivot)
+        )
         n.matrix_world = M @ n.matrix_world
+
 
 def create_ob_matric_dict(objects_in_scope):
     ob_matrix = {}
@@ -780,8 +1410,10 @@ def create_ob_matric_dict(objects_in_scope):
 
     return ob_matrix
 
+
 def check_path(filePath):
-    return filePath.startswith(os.path.join(get_ek_path(), 'data'))
+    return filePath.startswith(os.path.join(get_ek_path(), "data"))
+
 
 #################################
 
@@ -789,22 +1421,30 @@ def check_path(filePath):
 # EXTRA
 ################################################
 
+
 def valid_nwo_asset(context):
     """Returns true if this blender scene is a valid NWO asset i.e. has an existing sidecar file. bpy.context must be supplied"""
-    return context.scene.nwo_halo_launcher.sidecar_path != '' and file_exists(os.path.join(get_data_path(), context.scene.nwo_halo_launcher.sidecar_path))
+    return context.scene.nwo_halo_launcher.sidecar_path != "" and file_exists(
+        os.path.join(
+            get_data_path(), context.scene.nwo_halo_launcher.sidecar_path
+        )
+    )
+
 
 def nwo_asset_type():
     """Returns the NWO asset type"""
     return bpy.context.scene.nwo.asset_type
 
+
 ######################################
 # MANAGER STUFF
 ######################################
 
+
 def get_collection_parents(current_coll, all_collections):
     coll_list = [current_coll.name]
     keep_looping = True
-    
+
     while keep_looping:
         for coll in all_collections:
             keep_looping = True
@@ -817,8 +1457,9 @@ def get_collection_parents(current_coll, all_collections):
 
     return coll_list
 
+
 def get_prop_from_collection(ob, prefixes):
-    prop = ''
+    prop = ""
     if len(bpy.data.collections) > 0:
         collection = None
         all_collections = bpy.data.collections
@@ -829,46 +1470,64 @@ def get_prop_from_collection(ob, prefixes):
                 break
         # get collection parent tree
         if collection != None:
-            collection_list = get_collection_parents(collection, all_collections)
+            collection_list = get_collection_parents(
+                collection, all_collections
+            )
 
             # test object collection parent tree
             for c in collection_list:
-                if c.lower().startswith(prefixes[0]) or c.lower().startswith(prefixes[1]):
-                    prop = c.rpartition(':')[2]
-                    prop = prop.strip(' ')
-                    prop = prop.replace(' ', '_')
-                    if prop.rpartition('.')[0] != '':
-                        prop = prop.rpartition('.')[0]
+                if c.lower().startswith(prefixes[0]) or c.lower().startswith(
+                    prefixes[1]
+                ):
+                    prop = c.rpartition(":")[2]
+                    prop = prop.strip(" ")
+                    prop = prop.replace(" ", "_")
+                    if prop.rpartition(".")[0] != "":
+                        prop = prop.rpartition(".")[0]
                     prop = prop.lower()
                     break
 
     return prop
 
+
 # returns true if this material is a halo shader
 def is_shader(mat):
     halo_mat = mat.nwo
-    shader_path_not_empty = True if halo_mat.shader_path != '' else False
-    no_material_override = True if halo_mat.material_override == 'NONE' else False
-    no_special_material_name = True if not mat.name.lower().startswith(special_materials) else False
+    shader_path_not_empty = True if halo_mat.shader_path != "" else False
+    no_material_override = (
+        True if halo_mat.material_override == "NONE" else False
+    )
+    no_special_material_name = (
+        True if not mat.name.lower().startswith(special_materials) else False
+    )
 
-    return shader_path_not_empty and no_material_override and no_special_material_name
+    return (
+        shader_path_not_empty
+        and no_material_override
+        and no_special_material_name
+    )
 
-def print_warning(string = 'Warning'):
+
+def print_warning(string="Warning"):
     print("\033[33m" + string + "\033[0m")
 
-def print_error(string = 'Error'):
+
+def print_error(string="Error"):
     print("\033[31m" + string + "\033[0m")
 
+
 def managed_blam_active():
-    return os.path.exists(os.path.join(bpy.app.tempdir, 'blam.txt'))
+    return os.path.exists(os.path.join(bpy.app.tempdir, "blam.txt"))
+
 
 def get_valid_shader_name(string):
     shader_name = get_valid_material_name(string)
     return cull_invalid_chars(shader_name)
 
+
 def get_valid_material_name(material_name):
     """Removes characters from a blender material name that would have been used in legacy material properties"""
-    material_parts = material_name.split(' ')
+    material_parts = material_name.split(" ")
     # clean material name
     if len(material_parts) > 1:
         material_name = material_parts[1]
@@ -881,61 +1540,80 @@ def get_valid_material_name(material_name):
     # dot partition again in case a pesky dot remains
     return dot_partition(material_name).lower()
 
+
 def cull_invalid_chars(string):
     """Calls invalid characters from a string to make a valid path. Spaces are replaced with underscores"""
-    path = string.replace(' ', '_')
-    path = path.replace('<', '')
-    path = path.replace('>', '')
-    path = path.replace(':', '')
-    path = path.replace('"', '')
-    path = path.replace('/', '')
-    path = path.replace('\\', '')
-    path = path.replace('|', '')
-    path = path.replace('?', '')
-    path = path.replace('*', '')
+    path = string.replace(" ", "_")
+    path = path.replace("<", "")
+    path = path.replace(">", "")
+    path = path.replace(":", "")
+    path = path.replace('"', "")
+    path = path.replace("/", "")
+    path = path.replace("\\", "")
+    path = path.replace("|", "")
+    path = path.replace("?", "")
+    path = path.replace("*", "")
 
     return path
+
 
 def protected_material_name(material_name):
     """Returns True if the passed material name is equal to a protected material"""
     return material_name.startswith(protected_materials)
 
+
 ############ FOUNDRY UI UTILS
 def mesh_object(ob):
     return ob.type in blender_object_types_mesh
 
+
 def formalise_string(string):
-    formal_string = string.replace('_',' ')
+    formal_string = string.replace("_", " ")
     return formal_string.title()
 
+
 def bpy_enum(name, index):
-    return (name, formalise_string(name), '', '', index)
+    return (name, formalise_string(name), "", "", index)
+
 
 def bpy_enum_list(name, index):
-    return (name, name, '', '', index)
+    return (name, name, "", "", index)
+
 
 def bpy_enum_seam(name, index):
-    return (name, name, '', get_icon_id("seam"), index)
+    return (name, name, "", get_icon_id("seam"), index)
+
 
 def formalise_game_version(game):
-    if game == 'reach':
-        return 'Halo Reach'
-    elif game == 'h4':
-        return 'Halo 4'
+    if game == "reach":
+        return "Halo Reach"
+    elif game == "h4":
+        return "Halo 4"
     else:
-        return 'Halo 2 Anniversary Multiplayer'
-    
+        return "Halo 2 Anniversary Multiplayer"
+
+
 def export_objects():
     context = bpy.context
     export_obs = []
     for ob in context.view_layer.objects:
-        if ob.nwo.export_this and not any(coll.name.startswith("+exclude") for coll in ob.users_collection):
+        if ob.nwo.export_this and not any(
+            coll.name.startswith("+exclude") for coll in ob.users_collection
+        ):
             export_obs.append(ob)
 
     return export_obs
 
+
 def sort_alphanum(var_list):
-    return sorted(var_list, key=lambda item: (int(item.partition(' ')[0]) if item[0].isdigit() else float('inf'), item))
+    return sorted(
+        var_list,
+        key=lambda item: (
+            int(item.partition(" ")[0]) if item[0].isdigit() else float("inf"),
+            item,
+        ),
+    )
+
 
 def closest_bsp_object(ob):
     closest_bsp = None
@@ -946,28 +1624,42 @@ def closest_bsp_object(ob):
         me = source_object.data
         verts_sel = [v.co for v in me.vertices if v.select]
         if len(verts_sel):
-            seam_median = source_object.matrix_world @ sum(verts_sel, Vector()) / len(verts_sel)
+            seam_median = (
+                source_object.matrix_world
+                @ sum(verts_sel, Vector())
+                / len(verts_sel)
+            )
 
             me = target_object.data
             verts = [v.co for v in me.vertices]
-            target_median = target_object.matrix_world @ sum(verts, Vector()) / len(verts)
+            target_median = (
+                target_object.matrix_world @ sum(verts, Vector()) / len(verts)
+            )
 
             [x1, y1, z1] = seam_median
             [x2, y2, z2] = target_median
 
-            return (((x2-x1)**2) + ((y2-y1)**2) + ((z2-z1)**2)) ** (1/2)
-        
+            return (
+                ((x2 - x1) ** 2) + ((y2 - y1) ** 2) + ((z2 - z1) ** 2)
+            ) ** (1 / 2)
+
         return None
 
     for target_ob in export_objects():
-        if ob == target_ob or not target_ob.type == 'MESH' and target_ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and true_bsp(target_ob) != true_bsp(ob):
+        if (
+            ob == target_ob
+            or not target_ob.type == "MESH"
+            and target_ob.nwo.mesh_type_ui
+            == "_connected_geometry_mesh_type_structure"
+            and true_bsp(target_ob) != true_bsp(ob)
+        ):
             continue
         d = get_distance(ob, target_ob)
         if d is not None:
             if distance < 0 or d < distance:
                 distance = d
                 closest_bsp = target_ob
-    
+
     return closest_bsp
 
 
@@ -976,29 +1668,41 @@ def object_median_point(ob):
     verts = [v.co for v in me.vertices]
     return ob.matrix_world @ sum(verts, Vector()) / len(verts)
 
+
 def layer_face_count(bm, face_layer):
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
     return len([face for face in bm.faces if face[face_layer]])
+
 
 def layer_faces(bm, face_layer):
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
     return [face for face in bm.faces if face[face_layer]]
 
+
 def random_colour(max_hue=True):
     rgb = [random.random() for i in range(3)]
     if max_hue:
-        rand_idx = random.randint(0,2)
+        rand_idx = random.randint(0, 2)
         rgb[rand_idx] = 1
     return rgb
 
-def nwo_enum(enum_name, display_name, description, icon="", index=-1, custom_icon=True):
+
+def nwo_enum(
+    enum_name, display_name, description, icon="", index=-1, custom_icon=True
+):
     full_enum = icon != "" or index != -1
     if full_enum:
         if custom_icon:
-            return (enum_name, display_name, description, get_icon_id(icon), index)
-        
+            return (
+                enum_name,
+                display_name,
+                description,
+                get_icon_id(icon),
+                index,
+            )
+
         return (enum_name, display_name, description, icon, index)
-    
+
     return (enum_name, display_name, description)
 
 
@@ -1007,8 +1711,9 @@ def area_redraw(context):
     for window in windows:
         areas = window.screen.areas
         for area in areas:
-            if(area.type == 'VIEW_3D'):
+            if area.type == "VIEW_3D":
                 area.tag_redraw()
+
 
 def delete_object_list(context, object_list):
     override = context.copy()
@@ -1016,23 +1721,33 @@ def delete_object_list(context, object_list):
     with context.temp_override(**override):
         bpy.ops.object.delete()
 
+
 def disable_prints():
-    sys.stdout = open(os.devnull, 'w')
+    sys.stdout = open(os.devnull, "w")
+
 
 def enable_prints():
     sys.stdout = sys.__stdout__
 
+
 def data_relative(path):
     return path.replace(get_data_path(), "")
 
+
 def update_progress(job_title, progress):
     if progress <= 1:
-        length = 20 # modify this to change the length
-        block = int(round(length*progress))
-        msg = "\r{0}: [{1}] {2}%".format(job_title, "#"*block + "-"*(length-block), round(progress*100, 2))
-        if progress >= 1: msg += " DONE\r\n"
+        length = 20  # modify this to change the length
+        block = int(round(length * progress))
+        msg = "\r{0}: [{1}] {2}%".format(
+            job_title,
+            "#" * block + "-" * (length - block),
+            round(progress * 100, 2),
+        )
+        if progress >= 1:
+            msg += " DONE\r\n"
         sys.stdout.write(msg)
         sys.stdout.flush()
+
 
 def update_job(job_title, progress):
     msg = "\r{0}".format(job_title)
@@ -1040,7 +1755,6 @@ def update_job(job_title, progress):
         msg += "..."
     else:
         msg += " DONE\r\n"
-    
+
     sys.stdout.write(msg)
     sys.stdout.flush()
-

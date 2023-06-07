@@ -37,205 +37,374 @@ from ..utils.nwo_utils import (
     not_bungie_game,
 )
 
-class Sidecar():
 
-    def __init__(self, context, sidecar_path, sidecar_path_full, asset_path, asset_name, nwo_scene, sidecar_paths, sidecar_type,        
-                output_biped,
-                output_crate,
-                output_creature,
-                output_device_control,
-                output_device_dispenser,
-                output_device_machine,
-                output_device_terminal,
-                output_effect_scenery,
-                output_equipment,
-                output_giant,
-                output_scenery,
-                output_vehicle,
-                output_weapon
-                ):
-        
+class Sidecar:
+    def __init__(
+        self,
+        context,
+        sidecar_path,
+        sidecar_path_full,
+        asset_path,
+        asset_name,
+        nwo_scene,
+        sidecar_paths,
+        sidecar_type,
+        output_biped,
+        output_crate,
+        output_creature,
+        output_device_control,
+        output_device_dispenser,
+        output_device_machine,
+        output_device_terminal,
+        output_effect_scenery,
+        output_equipment,
+        output_giant,
+        output_scenery,
+        output_vehicle,
+        output_weapon,
+    ):
         self.tag_path = data_relative(asset_path)
 
-        self.build_sidecar(nwo_scene, sidecar_path, sidecar_path_full, asset_path, asset_name, sidecar_paths, sidecar_type, 
-                           context, output_biped,output_crate,output_creature,output_device_control, 
-                           output_device_dispenser, output_device_machine,output_device_terminal,output_effect_scenery,
-                           output_equipment,output_giant,output_scenery,output_vehicle,output_weapon
-                           )
-        
+        self.build_sidecar(
+            nwo_scene,
+            sidecar_path,
+            sidecar_path_full,
+            asset_path,
+            asset_name,
+            sidecar_paths,
+            sidecar_type,
+            context,
+            output_biped,
+            output_crate,
+            output_creature,
+            output_device_control,
+            output_device_dispenser,
+            output_device_machine,
+            output_device_terminal,
+            output_effect_scenery,
+            output_equipment,
+            output_giant,
+            output_scenery,
+            output_vehicle,
+            output_weapon,
+        )
+
         del self.tag_path
 
         self.message = f"{str.title(sidecar_type)} Sidecar Export Complete"
 
-    def build_sidecar(self, nwo_scene, sidecar_path, sidecar_path_full, asset_path, asset_name, sidecar_paths, sidecar_type, context,      
-                            output_biped,
-                            output_crate,
-                            output_creature,
-                            output_device_control,
-                            output_device_dispenser,
-                            output_device_machine,
-                            output_device_terminal,
-                            output_effect_scenery,
-                            output_equipment,
-                            output_giant,
-                            output_scenery,
-                            output_vehicle,
-                            output_weapon, ):
-
-        m_encoding = 'utf-8'
-        m_standalone = 'yes'
+    def build_sidecar(
+        self,
+        nwo_scene,
+        sidecar_path,
+        sidecar_path_full,
+        asset_path,
+        asset_name,
+        sidecar_paths,
+        sidecar_type,
+        context,
+        output_biped,
+        output_crate,
+        output_creature,
+        output_device_control,
+        output_device_dispenser,
+        output_device_machine,
+        output_device_terminal,
+        output_effect_scenery,
+        output_equipment,
+        output_giant,
+        output_scenery,
+        output_vehicle,
+        output_weapon,
+    ):
+        m_encoding = "utf-8"
+        m_standalone = "yes"
         metadata = ET.Element("Metadata")
         # set a boolean to check if game is h4+ or not
         not_bungo_game = not_bungie_game()
         self.write_header(metadata)
-        if sidecar_type == 'MODEL':
-            self.get_object_output_types(context, metadata, "model", sidecar_paths, sidecar_type, self.get_model_tags(output_biped,output_crate,output_creature,output_device_control, output_device_dispenser, output_device_machine,output_device_terminal,output_effect_scenery,output_equipment,output_giant,output_scenery,output_vehicle,output_weapon))
-        elif sidecar_type == 'SCENARIO':
-            self.get_object_output_types(context, metadata, 'scenario', asset_path, asset_name, sidecar_type)
-        elif sidecar_type == 'SKY':
-            self.get_object_output_types(context, metadata, 'sky' if not not_bungo_game else 'model', asset_path, asset_name, sidecar_type)
-        elif sidecar_type == 'DECORATOR SET':
-            self.get_object_output_types(context, metadata, 'decorator_set', asset_path, asset_name, sidecar_type, 'decorator_set')
-        elif sidecar_type == 'PARTICLE MODEL':
-            self.get_object_output_types(context, metadata, 'particle_model', asset_path, asset_name, sidecar_type, 'particle_model')
-        elif sidecar_type == 'PREFAB':
-            self.get_object_output_types(context, metadata, 'prefab', asset_path, asset_name, sidecar_type, 'prefab')
-        elif sidecar_type == 'FP ANIMATION':
-            self.get_object_output_types(context, metadata, 'model', asset_path, asset_name, sidecar_type)
+        if sidecar_type == "MODEL":
+            self.get_object_output_types(
+                context,
+                metadata,
+                "model",
+                sidecar_paths,
+                sidecar_type,
+                self.get_model_tags(
+                    output_biped,
+                    output_crate,
+                    output_creature,
+                    output_device_control,
+                    output_device_dispenser,
+                    output_device_machine,
+                    output_device_terminal,
+                    output_effect_scenery,
+                    output_equipment,
+                    output_giant,
+                    output_scenery,
+                    output_vehicle,
+                    output_weapon,
+                ),
+            )
+        elif sidecar_type == "SCENARIO":
+            self.get_object_output_types(
+                context,
+                metadata,
+                "scenario",
+                asset_path,
+                asset_name,
+                sidecar_type,
+            )
+        elif sidecar_type == "SKY":
+            self.get_object_output_types(
+                context,
+                metadata,
+                "sky" if not not_bungo_game else "model",
+                asset_path,
+                asset_name,
+                sidecar_type,
+            )
+        elif sidecar_type == "DECORATOR SET":
+            self.get_object_output_types(
+                context,
+                metadata,
+                "decorator_set",
+                asset_path,
+                asset_name,
+                sidecar_type,
+                "decorator_set",
+            )
+        elif sidecar_type == "PARTICLE MODEL":
+            self.get_object_output_types(
+                context,
+                metadata,
+                "particle_model",
+                asset_path,
+                asset_name,
+                sidecar_type,
+                "particle_model",
+            )
+        elif sidecar_type == "PREFAB":
+            self.get_object_output_types(
+                context,
+                metadata,
+                "prefab",
+                asset_path,
+                asset_name,
+                sidecar_type,
+                "prefab",
+            )
+        elif sidecar_type == "FP ANIMATION":
+            self.get_object_output_types(
+                context,
+                metadata,
+                "model",
+                asset_path,
+                asset_name,
+                sidecar_type,
+            )
 
         self.write_folders(metadata, not_bungo_game)
-        self.write_face_collections(metadata, sidecar_type, not_bungo_game, nwo_scene.regions_dict, nwo_scene.global_materials_dict)
+        self.write_face_collections(
+            metadata,
+            sidecar_type,
+            not_bungo_game,
+            nwo_scene.regions_dict,
+            nwo_scene.global_materials_dict,
+        )
 
-        if sidecar_type == 'MODEL':
-            self.write_model_contents( metadata, sidecar_paths, asset_name)
+        if sidecar_type == "MODEL":
+            self.write_model_contents(metadata, sidecar_paths, asset_name)
 
-        elif sidecar_type == 'SCENARIO':
-            self.write_scenario_contents(nwo_scene, metadata, sidecar_paths, asset_name)
+        elif sidecar_type == "SCENARIO":
+            self.write_scenario_contents(
+                nwo_scene, metadata, sidecar_paths, asset_name
+            )
 
-        elif sidecar_type == 'SKY':
+        elif sidecar_type == "SKY":
             self.write_sky_contents(metadata, sidecar_paths, asset_name)
 
-        elif sidecar_type == 'DECORATOR SET':
+        elif sidecar_type == "DECORATOR SET":
             self.write_decorator_contents(metadata, sidecar_paths, asset_name)
 
-        elif sidecar_type == 'PARTICLE MODEL':
+        elif sidecar_type == "PARTICLE MODEL":
             self.write_particle_contents(metadata, sidecar_paths, asset_name)
 
-        elif sidecar_type == 'PREFAB':
+        elif sidecar_type == "PREFAB":
             self.write_prefab_contents(metadata, sidecar_paths, asset_name)
 
-        elif sidecar_type == 'FP ANIMATION':
+        elif sidecar_type == "FP ANIMATION":
             self.add_null_render(asset_path)
-            self.write_fp_animation_contents(metadata, sidecar_paths, asset_name)
+            self.write_fp_animation_contents(
+                metadata, sidecar_paths, asset_name
+            )
 
         dom = xml.dom.minidom.parseString(ET.tostring(metadata))
-        xml_string = dom.toprettyxml(indent='  ')
-        part1, part2 = xml_string.split('?>')
+        xml_string = dom.toprettyxml(indent="  ")
+        part1, part2 = xml_string.split("?>")
         # update sidecar path in halo launcher
         context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
 
-        with open(sidecar_path_full, 'w') as xfile:
-            xfile.write(part1 + 'encoding=\"{}\" standalone=\"{}\"?>'.format(m_encoding, m_standalone) + part2)
+        with open(sidecar_path_full, "w") as xfile:
+            xfile.write(
+                part1
+                + 'encoding="{}" standalone="{}"?>'.format(
+                    m_encoding, m_standalone
+                )
+                + part2
+            )
             xfile.close()
 
     def add_null_render(self, asset_path):
-        null_gr2_path = os.path.join(get_data_path() + asset_path, 'export', 'models', 'null_render.gr2')
+        null_gr2_path = os.path.join(
+            get_data_path() + asset_path, "export", "models", "null_render.gr2"
+        )
         if not os.path.exists(null_gr2_path):
             # copy the null gr2 from io_scene_nwo to act as the render model
             try:
                 import shutil
+
                 script_folder_path = os.path.dirname(os.path.dirname(__file__))
-                null_gr2 = os.path.join(script_folder_path, 'export', 'resources', 'null_render.gr2')
+                null_gr2 = os.path.join(
+                    script_folder_path,
+                    "export",
+                    "resources",
+                    "null_render.gr2",
+                )
                 shutil.copy(null_gr2, null_gr2_path)
             except:
-                print("Unable to copy null gr2 from io_scene_foundry to asset folder")
-
+                print(
+                    "Unable to copy null gr2 from io_scene_foundry to asset folder"
+                )
 
     def write_header(self, metadata):
         header = ET.SubElement(metadata, "Header")
         ET.SubElement(header, "MainRev").text = "0"
         ET.SubElement(header, "PointRev").text = "6"
         ET.SubElement(header, "Description").text = "Forged in Foundry"
-        ET.SubElement(header, "Created").text = str(datetime.today().strftime('%Y-%m-%d %H:%M:%S'))
+        ET.SubElement(header, "Created").text = str(
+            datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+        )
         ET.SubElement(header, "By").text = getpass.getuser()
-        ET.SubElement(header, 'SourceFile').text = bpy.data.filepath.replace(get_data_path(), '')
-        ET.SubElement(header, "DirectoryType").text = "TAE.Shared.NWOAssetDirectory"
+        ET.SubElement(header, "SourceFile").text = bpy.data.filepath.replace(
+            get_data_path(), ""
+        )
+        ET.SubElement(
+            header, "DirectoryType"
+        ).text = "TAE.Shared.NWOAssetDirectory"
         ET.SubElement(header, "Schema").text = "1"
 
-    def get_model_tags(       self, output_biped=False,
-                            output_crate=False,
-                            output_creature=False,
-                            output_device_control=False,
-                            output_device_dispenser=False,
-                            output_device_machine=False,
-                            output_device_terminal=False,
-                            output_effect_scenery=False,
-                            output_equipment=False,
-                            output_giant=False,
-                            output_scenery=False,
-                            output_vehicle=False,
-                            output_weapon=False):
-        
-        tags = ['model']
+    def get_model_tags(
+        self,
+        output_biped=False,
+        output_crate=False,
+        output_creature=False,
+        output_device_control=False,
+        output_device_dispenser=False,
+        output_device_machine=False,
+        output_device_terminal=False,
+        output_effect_scenery=False,
+        output_equipment=False,
+        output_giant=False,
+        output_scenery=False,
+        output_vehicle=False,
+        output_weapon=False,
+    ):
+        tags = ["model"]
 
-        if output_biped: 
-            tags.append('biped')
+        if output_biped:
+            tags.append("biped")
         if output_crate:
-            tags.append('crate')
+            tags.append("crate")
         if output_creature:
-            tags.append('creature')
+            tags.append("creature")
         if output_device_control:
-            tags.append('device_control') 
+            tags.append("device_control")
         if output_device_dispenser:
-            tags.append('device_dispenser')
+            tags.append("device_dispenser")
         if output_device_machine:
-            tags.append('device_machine')
+            tags.append("device_machine")
         if output_device_terminal:
-            tags.append('device_terminal')
+            tags.append("device_terminal")
         if output_effect_scenery:
-            tags.append('effect_scenery')
+            tags.append("effect_scenery")
         if output_equipment:
-            tags.append('equipment')
+            tags.append("equipment")
         if output_giant:
-            tags.append('giant')
+            tags.append("giant")
         if output_scenery:
-            tags.append('scenery')
+            tags.append("scenery")
         if output_vehicle:
-            tags.append('vehicle')
+            tags.append("vehicle")
         if output_weapon:
-            tags.append('weapon')
+            tags.append("weapon")
 
         return tags
 
-    def get_object_output_types(self, context, metadata, type, asset_path, asset_name, sidecar_type, output_tags=[]):
-        if sidecar_type == 'SKY':
-            asset = ET.SubElement(metadata, "Asset", Name=asset_name, Type=type, Sky='true')
+    def get_object_output_types(
+        self,
+        context,
+        metadata,
+        type,
+        asset_path,
+        asset_name,
+        sidecar_type,
+        output_tags=[],
+    ):
+        if sidecar_type == "SKY":
+            asset = ET.SubElement(
+                metadata, "Asset", Name=asset_name, Type=type, Sky="true"
+            )
         else:
-            asset = ET.SubElement(metadata, "Asset", Name=asset_name, Type=type)
+            asset = ET.SubElement(
+                metadata, "Asset", Name=asset_name, Type=type
+            )
         tagcollection = ET.SubElement(asset, "OutputTagCollection")
 
-        if type == 'model' and sidecar_type == 'MODEL':
-            for tag in output_tags: # for each output tag that that user as opted to export, add this to the sidecar
-                ET.SubElement(tagcollection, "OutputTag", Type=tag).text = self.tag_path
+        if type == "model" and sidecar_type == "MODEL":
+            for (
+                tag
+            ) in (
+                output_tags
+            ):  # for each output tag that that user as opted to export, add this to the sidecar
+                ET.SubElement(
+                    tagcollection, "OutputTag", Type=tag
+                ).text = self.tag_path
         # models are the only sidecar type with optional high level tags exports, all others are fixed
-        elif type == 'scenario':
-            ET.SubElement(tagcollection, "OutputTag", Type='scenario_lightmap').text = os.path.join(asset_path, f'{asset_name}_faux_lightmaps')
-            ET.SubElement(tagcollection, "OutputTag", Type='structure_seams').text = self.tag_path
-            ET.SubElement(tagcollection, "OutputTag", Type='scenario').text = self.tag_path
+        elif type == "scenario":
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="scenario_lightmap"
+            ).text = os.path.join(asset_path, f"{asset_name}_faux_lightmaps")
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="structure_seams"
+            ).text = self.tag_path
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="scenario"
+            ).text = self.tag_path
 
-        elif type == 'decorator_set':
-            ET.SubElement(tagcollection, "OutputTag", Type='decorator_set').text = self.tag_path
+        elif type == "decorator_set":
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="decorator_set"
+            ).text = self.tag_path
 
-        elif type == 'particle_model':
-            ET.SubElement(tagcollection, "OutputTag", Type='particle_model').text = self.tag_path
+        elif type == "particle_model":
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="particle_model"
+            ).text = self.tag_path
 
-        elif type == 'prefab':
-            ET.SubElement(tagcollection, "OutputTag", Type='prefab').text = self.tag_path
-        
-        else: # sky & fp animation
-            ET.SubElement(tagcollection, "OutputTag", Type='model').text = self.tag_path
-            ET.SubElement(tagcollection, "OutputTag", Type='scenery').text = self.tag_path
-        
+        elif type == "prefab":
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="prefab"
+            ).text = self.tag_path
+
+        else:  # sky & fp animation
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="model"
+            ).text = self.tag_path
+            ET.SubElement(
+                tagcollection, "OutputTag", Type="scenery"
+            ).text = self.tag_path
+
         # TODO reimplement shared asset stuff before this can be uncommented
         # shared = ET.SubElement(asset, "SharedAssetCollection")
         # # create a shared asset entry for each that exists
@@ -254,11 +423,15 @@ class Sidecar():
         ET.SubElement(folders, "GameCollisionModels").text = "\\models"
         ET.SubElement(folders, "ExportModels").text = "\\export\\models"
         ET.SubElement(folders, "ExportPhysicsModels").text = "\\export\\models"
-        ET.SubElement(folders, "ExportCollisionModels").text = "\\export\\models"
+        ET.SubElement(
+            folders, "ExportCollisionModels"
+        ).text = "\\export\\models"
         ET.SubElement(folders, "SourceAnimations").text = "\\animations\\work"
         ET.SubElement(folders, "AnimationsRigs").text = "\\animations\\rigs"
         ET.SubElement(folders, "GameAnimations").text = "\\animations"
-        ET.SubElement(folders, "ExportAnimations").text = "\\export\\animations"
+        ET.SubElement(
+            folders, "ExportAnimations"
+        ).text = "\\export\\animations"
         ET.SubElement(folders, "SourceBitmaps").text = "\\bitmaps"
         ET.SubElement(folders, "GameBitmaps").text = "\\bitmaps"
         ET.SubElement(folders, "CinemaSource").text = "\\cinematics"
@@ -267,287 +440,516 @@ class Sidecar():
         ET.SubElement(folders, "SourceBSPs").text = "\\models"
         ET.SubElement(folders, "RigFlags").text = "\\animations\\rigs\\flags"
         ET.SubElement(folders, "RigPoses").text = "\\animations\\rigs\\poses"
-        ET.SubElement(folders, "RigRenders").text = "\\animations\\rigs\\render"
+        ET.SubElement(
+            folders, "RigRenders"
+        ).text = "\\animations\\rigs\\render"
         ET.SubElement(folders, "Scripts").text = "\\scripts"
-        ET.SubElement(folders, "FacePoses").text = "\\animations\\rigs\\poses\\face_poses"
+        ET.SubElement(
+            folders, "FacePoses"
+        ).text = "\\animations\\rigs\\poses\\face_poses"
         ET.SubElement(folders, "CinematicOutsource").text = "\\outsource"
 
         if not_bungie_game:
             ET.SubElement(folders, "Retarget").text = "\\working\\retarget"
-            ET.SubElement(folders, "RetargetSourceAnimations").text = "\\working\\retarget\\binge"
-            ET.SubElement(folders, "RetargetTargetAnimations").text = "\\working\\retarget\\purge"
+            ET.SubElement(
+                folders, "RetargetSourceAnimations"
+            ).text = "\\working\\retarget\\binge"
+            ET.SubElement(
+                folders, "RetargetTargetAnimations"
+            ).text = "\\working\\retarget\\purge"
             ET.SubElement(folders, "Export").text = "\\export"
-            ET.SubElement(folders, "CinematicSceneSegments").text = "\\segments"
-            ET.SubElement(folders, "SourceAnimationLibrary").text = "\\animations\\library"
+            ET.SubElement(
+                folders, "CinematicSceneSegments"
+            ).text = "\\segments"
+            ET.SubElement(
+                folders, "SourceAnimationLibrary"
+            ).text = "\\animations\\library"
 
-    def write_face_collections(self, metadata, sidecar_type, not_bungie_game, regions_dict, global_materials_dict): # FaceCollections is where regions and global materials are defined in the sidecar. 
+    def write_face_collections(
+        self,
+        metadata,
+        sidecar_type,
+        not_bungie_game,
+        regions_dict,
+        global_materials_dict,
+    ):  # FaceCollections is where regions and global materials are defined in the sidecar.
         faceCollections = ET.SubElement(metadata, "FaceCollections")
 
-        if sidecar_type == 'SCENARIO' and not_bungie_game:
-            bsp_list = ["default",""]
-            f1 = ET.SubElement(faceCollections, "FaceCollection", Name="connected_geometry_bsp_table", StringTable="connected_geometry_bsp_table", Description="BSPs")
+        if sidecar_type == "SCENARIO" and not_bungie_game:
+            bsp_list = ["default", ""]
+            f1 = ET.SubElement(
+                faceCollections,
+                "FaceCollection",
+                Name="connected_geometry_bsp_table",
+                StringTable="connected_geometry_bsp_table",
+                Description="BSPs",
+            )
 
             FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
             using_default_bsp = False
             for ob in bpy.context.view_layer.objects:
                 bsp = ob.nwo.bsp_name
-                if bsp == 'default':
+                if bsp == "default":
                     using_default_bsp = True
                     break
 
-            ET.SubElement(FaceCollectionsEntries, "FaceCollectionEntry", Index="0", Name="default", Active=str(using_default_bsp).lower())
+            ET.SubElement(
+                FaceCollectionsEntries,
+                "FaceCollectionEntry",
+                Index="0",
+                Name="default",
+                Active=str(using_default_bsp).lower(),
+            )
 
             count = 1
             for ob in bpy.context.view_layer.objects:
                 bsp = ob.nwo.bsp_name
                 if bsp not in bsp_list:
-                    ET.SubElement(FaceCollectionsEntries, "FaceCollectionEntry", Index=str(count), Name=bsp, Active="true")
+                    ET.SubElement(
+                        FaceCollectionsEntries,
+                        "FaceCollectionEntry",
+                        Index=str(count),
+                        Name=bsp,
+                        Active="true",
+                    )
                     bsp_list.append(bsp)
-                    count += 1     
+                    count += 1
 
-        if(sidecar_type in ('MODEL', 'SKY')):
-            f1 = ET.SubElement(faceCollections, "FaceCollection", Name="regions", StringTable="connected_geometry_regions_table", Description="Model regions")
+        if sidecar_type in ("MODEL", "SKY"):
+            f1 = ET.SubElement(
+                faceCollections,
+                "FaceCollection",
+                Name="regions",
+                StringTable="connected_geometry_regions_table",
+                Description="Model regions",
+            )
 
             FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
             for region in regions_dict.keys():
-                ET.SubElement(FaceCollectionsEntries, "FaceCollectionEntry", Index=str(regions_dict.get(region)), Name=region, Active="true")
+                ET.SubElement(
+                    FaceCollectionsEntries,
+                    "FaceCollectionEntry",
+                    Index=str(regions_dict.get(region)),
+                    Name=region,
+                    Active="true",
+                )
 
-        if(sidecar_type in ('MODEL', 'SCENARIO', 'PREFAB', 'SKY')):
-            f2 = ET.SubElement(faceCollections, "FaceCollection", Name="global materials override", StringTable="connected_geometry_global_material_table", Description="Global material overrides")
+        if sidecar_type in ("MODEL", "SCENARIO", "PREFAB", "SKY"):
+            f2 = ET.SubElement(
+                faceCollections,
+                "FaceCollection",
+                Name="global materials override",
+                StringTable="connected_geometry_global_material_table",
+                Description="Global material overrides",
+            )
 
-            FaceCollectionsEntries2 = ET.SubElement(f2, "FaceCollectionEntries")
+            FaceCollectionsEntries2 = ET.SubElement(
+                f2, "FaceCollectionEntries"
+            )
             for global_material in global_materials_dict.keys():
-                ET.SubElement(FaceCollectionsEntries2, "FaceCollectionEntry", Index=str(global_materials_dict.get(global_material)), Name=global_material, Active="true")
+                ET.SubElement(
+                    FaceCollectionsEntries2,
+                    "FaceCollectionEntry",
+                    Index=str(global_materials_dict.get(global_material)),
+                    Name=global_material,
+                    Active="true",
+                )
 
     def write_network_files(self, object, path):
-        network = ET.SubElement(object, 'ContentNetwork' ,Name=path[3], Type="")
-        ET.SubElement(network, 'InputFile').text = path[0]
-        ET.SubElement(network, 'ComponentFile').text = path[1]
-        ET.SubElement(network, 'IntermediateFile').text = path[2]
+        network = ET.SubElement(
+            object, "ContentNetwork", Name=path[3], Type=""
+        )
+        ET.SubElement(network, "InputFile").text = path[0]
+        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "IntermediateFile").text = path[2]
 
     def write_model_contents(self, metadata, sidecar_paths, asset_name):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=asset_name, Type='model')
+        content = ET.SubElement(
+            contents, "Content", Name=asset_name, Type="model"
+        )
         ##### RENDER #####
-        object = ET.SubElement(content, 'ContentObject', Name='', Type="render_model")
-        render_paths = sidecar_paths.get('render')
+        object = ET.SubElement(
+            content, "ContentObject", Name="", Type="render_model"
+        )
+        render_paths = sidecar_paths.get("render")
         for path in render_paths:
             self.write_network_files(object, path)
 
-        output = ET.SubElement(object, 'OutputTagCollection')
-        ET.SubElement(output, 'OutputTag', Type='render_model').text = self.tag_path
+        output = ET.SubElement(object, "OutputTagCollection")
+        ET.SubElement(
+            output, "OutputTag", Type="render_model"
+        ).text = self.tag_path
 
         ##### PHYSICS #####
-        if 'physics' in sidecar_paths.keys():
-            object = ET.SubElement(content, 'ContentObject', Name='', Type="physics_model")
-            physics_paths = sidecar_paths.get('physics')
+        if "physics" in sidecar_paths.keys():
+            object = ET.SubElement(
+                content, "ContentObject", Name="", Type="physics_model"
+            )
+            physics_paths = sidecar_paths.get("physics")
             for path in physics_paths:
                 self.write_network_files(object, path)
 
-            output = ET.SubElement(object, 'OutputTagCollection')
-            ET.SubElement(output, 'OutputTag', Type='physics_model').text = self.tag_path
+            output = ET.SubElement(object, "OutputTagCollection")
+            ET.SubElement(
+                output, "OutputTag", Type="physics_model"
+            ).text = self.tag_path
 
-        ##### COLLISION #####    
-        if 'collision' in sidecar_paths.keys():
-            object = ET.SubElement(content, 'ContentObject', Name='', Type="collision_model")
+        ##### COLLISION #####
+        if "collision" in sidecar_paths.keys():
+            object = ET.SubElement(
+                content, "ContentObject", Name="", Type="collision_model"
+            )
 
-            collision_paths = sidecar_paths.get('collision')
+            collision_paths = sidecar_paths.get("collision")
             for path in collision_paths:
                 self.write_network_files(object, path)
 
-            output = ET.SubElement(object, 'OutputTagCollection')
-            ET.SubElement(output, 'OutputTag', Type='collision_model').text = self.tag_path
+            output = ET.SubElement(object, "OutputTagCollection")
+            ET.SubElement(
+                output, "OutputTag", Type="collision_model"
+            ).text = self.tag_path
 
         ##### SKELETON #####
         self.write_skeleton_content(content, sidecar_paths)
-        
+
         ##### MARKERS #####
-        if 'markers' in sidecar_paths.keys():
-            object = ET.SubElement(content, 'ContentObject', Name='', Type="markers")
-            network = ET.SubElement(object, 'ContentNetwork' , Name='default', Type="")
+        if "markers" in sidecar_paths.keys():
+            object = ET.SubElement(
+                content, "ContentObject", Name="", Type="markers"
+            )
+            network = ET.SubElement(
+                object, "ContentNetwork", Name="default", Type=""
+            )
 
-            path = sidecar_paths.get('markers')[0]
+            path = sidecar_paths.get("markers")[0]
 
-            ET.SubElement(network, 'InputFile').text = path[0]
-            ET.SubElement(network, 'ComponentFile').text = path[1]
-            ET.SubElement(network, 'IntermediateFile').text = path[2]
-            
-            output = ET.SubElement(object, 'OutputTagCollection')
+            ET.SubElement(network, "InputFile").text = path[0]
+            ET.SubElement(network, "ComponentFile").text = path[1]
+            ET.SubElement(network, "IntermediateFile").text = path[2]
+
+            output = ET.SubElement(object, "OutputTagCollection")
 
         ##### ANIMATIONS #####
         self.write_animation_content(content, sidecar_paths)
 
     def write_network_files_bsp(self, object, path, asset_name, bsp):
         perm = path[3]
-        if perm =='default':
-            network = ET.SubElement(object, 'ContentNetwork' ,Name=f"{asset_name}_{bsp}", Type="")
+        if perm == "default":
+            network = ET.SubElement(
+                object, "ContentNetwork", Name=f"{asset_name}_{bsp}", Type=""
+            )
         else:
-            network = ET.SubElement(object, 'ContentNetwork' ,Name=f"{asset_name}_{bsp}_{path[3]}", Type="")
-            
-        ET.SubElement(network, 'InputFile').text = path[0]
-        ET.SubElement(network, 'ComponentFile').text = path[1]
-        ET.SubElement(network, 'IntermediateFile').text = path[2]
+            network = ET.SubElement(
+                object,
+                "ContentNetwork",
+                Name=f"{asset_name}_{bsp}_{path[3]}",
+                Type="",
+            )
 
+        ET.SubElement(network, "InputFile").text = path[0]
+        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "IntermediateFile").text = path[2]
 
-    def write_scenario_contents(self, nwo_scene, metadata, sidecar_paths, asset_name):
+    def write_scenario_contents(
+        self, nwo_scene, metadata, sidecar_paths, asset_name
+    ):
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
-        scene_bsps = [b for b in nwo_scene.structure_bsps if b != 'shared']
+        scene_bsps = [b for b in nwo_scene.structure_bsps if b != "shared"]
         shared = len(scene_bsps) != len(nwo_scene.structure_bsps)
 
         for bsp in scene_bsps:
-            content = ET.SubElement(contents, "Content", Name=f"{asset_name}_{bsp}", Type='bsp')
-            object = ET.SubElement(content, 'ContentObject', Name='', Type="scenario_structure_bsp")
+            content = ET.SubElement(
+                contents, "Content", Name=f"{asset_name}_{bsp}", Type="bsp"
+            )
+            object = ET.SubElement(
+                content,
+                "ContentObject",
+                Name="",
+                Type="scenario_structure_bsp",
+            )
             bsp_paths = sidecar_paths.get(bsp)
             for path in bsp_paths:
-                    self.write_network_files_bsp(object, path, asset_name, bsp)
+                self.write_network_files_bsp(object, path, asset_name, bsp)
 
             if shared:
-                shared_paths = [i for i in sidecar_paths if i == 'shared']
+                shared_paths = [i for i in sidecar_paths if i == "shared"]
                 for path in shared_paths:
-                    self.write_network_files_bsp(object, path, asset_name, 'shared')
+                    self.write_network_files_bsp(
+                        object, path, asset_name, "shared"
+                    )
 
-            output = ET.SubElement(object, 'OutputTagCollection')
-            ET.SubElement(output, 'OutputTag', Type='scenario_structure_bsp').text = f'{self.tag_path}_{bsp}'
-            ET.SubElement(output, 'OutputTag', Type='scenario_structure_lighting_info').text = f'{self.tag_path}_{bsp}'
-            
+            output = ET.SubElement(object, "OutputTagCollection")
+            ET.SubElement(
+                output, "OutputTag", Type="scenario_structure_bsp"
+            ).text = f"{self.tag_path}_{bsp}"
+            ET.SubElement(
+                output, "OutputTag", Type="scenario_structure_lighting_info"
+            ).text = f"{self.tag_path}_{bsp}"
+
         ##### STRUCTURE DESIGN #####
         scene_design = nwo_scene.design_bsps
 
         for bsp in scene_design:
-            content = ET.SubElement(contents, "Content", Name=f"{asset_name}_{bsp}_structure_design", Type='bsp')
-            object = ET.SubElement(content, 'ContentObject', Name='', Type="structure_design")
+            content = ET.SubElement(
+                contents,
+                "Content",
+                Name=f"{asset_name}_{bsp}_structure_design",
+                Type="bsp",
+            )
+            object = ET.SubElement(
+                content, "ContentObject", Name="", Type="structure_design"
+            )
 
             bsp_paths = sidecar_paths.get(bsp)
             for path in bsp_paths:
-                    self.write_network_files_bsp(object, path, asset_name, bsp)
+                self.write_network_files_bsp(object, path, asset_name, bsp)
 
-            output = ET.SubElement(object, 'OutputTagCollection')
-            ET.SubElement(output, 'OutputTag', Type='scenario_structure_bsp').text = f'{self.tag_path}_{bsp}_structure_design'
+            output = ET.SubElement(object, "OutputTagCollection")
+            ET.SubElement(
+                output, "OutputTag", Type="scenario_structure_bsp"
+            ).text = f"{self.tag_path}_{bsp}_structure_design"
 
     def write_sky_contents(self, metadata, sidecar_paths, asset_name):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=asset_name, Type='model')
-        object = ET.SubElement(content, 'ContentObject', Name='', Type="render_model")
+        content = ET.SubElement(
+            contents, "Content", Name=asset_name, Type="model"
+        )
+        object = ET.SubElement(
+            content, "ContentObject", Name="", Type="render_model"
+        )
 
-        path = sidecar_paths.get('sky')[0]
+        path = sidecar_paths.get("sky")[0]
 
-        network = ET.SubElement(object, 'ContentNetwork' ,Name='default', Type="")
-        ET.SubElement(network, 'InputFile').text = path[0]
-        ET.SubElement(network, 'ComponentFile').text = path[1]
-        ET.SubElement(network, 'IntermediateFile').text = path[2]
+        network = ET.SubElement(
+            object, "ContentNetwork", Name="default", Type=""
+        )
+        ET.SubElement(network, "InputFile").text = path[0]
+        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "IntermediateFile").text = path[2]
 
-        output = ET.SubElement(object, 'OutputTagCollection')
-        ET.SubElement(output, 'OutputTag', Type='render_model').text = self.tag_path
+        output = ET.SubElement(object, "OutputTagCollection")
+        ET.SubElement(
+            output, "OutputTag", Type="render_model"
+        ).text = self.tag_path
 
     def write_decorator_contents(self, metadata, sidecar_paths, asset_name):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=asset_name, Type='decorator_set')
+        content = ET.SubElement(
+            contents, "Content", Name=asset_name, Type="decorator_set"
+        )
 
-        decorator_paths = sidecar_paths.get('decorator')
+        decorator_paths = sidecar_paths.get("decorator")
         for idx, path in enumerate(decorator_paths):
             lod = str(idx + 1)
-            object = ET.SubElement(content, 'ContentObject', Name=lod, Type="render_model", LOD=lod)
-            network = ET.SubElement(object, 'ContentNetwork' ,Name='default', Type="")
+            object = ET.SubElement(
+                content,
+                "ContentObject",
+                Name=lod,
+                Type="render_model",
+                LOD=lod,
+            )
+            network = ET.SubElement(
+                object, "ContentNetwork", Name="default", Type=""
+            )
 
-            ET.SubElement(network, 'InputFile').text = path[0]
-            ET.SubElement(network, 'ComponentFile').text = path[1]
-            ET.SubElement(network, 'IntermediateFile').text = path[2]
+            ET.SubElement(network, "InputFile").text = path[0]
+            ET.SubElement(network, "ComponentFile").text = path[1]
+            ET.SubElement(network, "IntermediateFile").text = path[2]
 
-            output = ET.SubElement(object, 'OutputTagCollection')
-            ET.SubElement(output, 'OutputTag', Type='render_model').text = f'{self.tag_path}_lod{lod}'
+            output = ET.SubElement(object, "OutputTagCollection")
+            ET.SubElement(
+                output, "OutputTag", Type="render_model"
+            ).text = f"{self.tag_path}_lod{lod}"
 
-        output = ET.SubElement(object, 'OutputTagCollection')
+        output = ET.SubElement(object, "OutputTagCollection")
 
     def write_particle_contents(self, metadata, sidecar_paths, asset_name):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=asset_name, Type='particle_model')
-        object = ET.SubElement(content, 'ContentObject', Name='', Type="particle_model")
+        content = ET.SubElement(
+            contents, "Content", Name=asset_name, Type="particle_model"
+        )
+        object = ET.SubElement(
+            content, "ContentObject", Name="", Type="particle_model"
+        )
 
-        path = sidecar_paths.get('particle_model')[0]
+        path = sidecar_paths.get("particle_model")[0]
 
-        network = ET.SubElement(object, 'ContentNetwork' ,Name=asset_name, Type="")
-        ET.SubElement(network, 'InputFile').text = path[0]
-        ET.SubElement(network, 'ComponentFile').text = path[1]
-        ET.SubElement(network, 'IntermediateFile').text = path[2]
+        network = ET.SubElement(
+            object, "ContentNetwork", Name=asset_name, Type=""
+        )
+        ET.SubElement(network, "InputFile").text = path[0]
+        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "IntermediateFile").text = path[2]
 
-        ET.SubElement(object, 'OutputTagCollection')
+        ET.SubElement(object, "OutputTagCollection")
 
     def write_prefab_contents(self, metadata, sidecar_paths, asset_name):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=asset_name, Type='prefab')
-        object = ET.SubElement(content, 'ContentObject', Name='', Type="scenario_structure_bsp")
+        content = ET.SubElement(
+            contents, "Content", Name=asset_name, Type="prefab"
+        )
+        object = ET.SubElement(
+            content, "ContentObject", Name="", Type="scenario_structure_bsp"
+        )
 
-        path = sidecar_paths.get('prefab')[0]
+        path = sidecar_paths.get("prefab")[0]
 
-        network = ET.SubElement(object, 'ContentNetwork' ,Name=asset_name, Type="")
-        ET.SubElement(network, 'InputFile').text = path[0]
-        ET.SubElement(network, 'ComponentFile').text = path[1]
-        ET.SubElement(network, 'IntermediateFile').text = path[2]
+        network = ET.SubElement(
+            object, "ContentNetwork", Name=asset_name, Type=""
+        )
+        ET.SubElement(network, "InputFile").text = path[0]
+        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "IntermediateFile").text = path[2]
 
-        output = ET.SubElement(object, 'OutputTagCollection')
-        ET.SubElement(output, 'OutputTag', Type='scenario_structure_bsp').text = f'{self.tag_path}'
-        ET.SubElement(output, 'OutputTag', Type='scenario_structure_lighting_info').text = f'{self.tag_path}'
+        output = ET.SubElement(object, "OutputTagCollection")
+        ET.SubElement(
+            output, "OutputTag", Type="scenario_structure_bsp"
+        ).text = f"{self.tag_path}"
+        ET.SubElement(
+            output, "OutputTag", Type="scenario_structure_lighting_info"
+        ).text = f"{self.tag_path}"
 
-    def write_fp_animation_contents(self, metadata, sidecar_paths, asset_path, asset_name):
+    def write_fp_animation_contents(
+        self, metadata, sidecar_paths, asset_path, asset_name
+    ):
         # NULL RENDER
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=asset_name, Type='model')
-        object = ET.SubElement(content, 'ContentObject', Name='', Type="render_model")
+        content = ET.SubElement(
+            contents, "Content", Name=asset_name, Type="model"
+        )
+        object = ET.SubElement(
+            content, "ContentObject", Name="", Type="render_model"
+        )
 
-        network = ET.SubElement(object, 'ContentNetwork' ,Name='default', Type="")
-        ET.SubElement(network, 'IntermediateFile').text = os.path.join(asset_path, "export", "models", 'null_render_default.gr2')
+        network = ET.SubElement(
+            object, "ContentNetwork", Name="default", Type=""
+        )
+        ET.SubElement(network, "IntermediateFile").text = os.path.join(
+            asset_path, "export", "models", "null_render_default.gr2"
+        )
 
-        output = ET.SubElement(object, 'OutputTagCollection')
-        ET.SubElement(output, 'OutputTag', Type='render_model').text = self.tag_path
+        output = ET.SubElement(object, "OutputTagCollection")
+        ET.SubElement(
+            output, "OutputTag", Type="render_model"
+        ).text = self.tag_path
 
         ##### SKELETON #####
         self.write_skeleton_content(content, sidecar_paths)
-        
+
         ##### ANIMATIONS #####
         self.write_animation_content(content, sidecar_paths)
 
     def write_skeleton_content(self, content, sidecar_paths):
-        object = ET.SubElement(content, 'ContentObject', Name='', Type="skeleton")
-        network = ET.SubElement(object, 'ContentNetwork' , Name='default', Type="")
+        object = ET.SubElement(
+            content, "ContentObject", Name="", Type="skeleton"
+        )
+        network = ET.SubElement(
+            object, "ContentNetwork", Name="default", Type=""
+        )
 
-        path = sidecar_paths.get('skeleton')[0]
+        path = sidecar_paths.get("skeleton")[0]
 
-        ET.SubElement(network, 'InputFile').text = path[0]
-        ET.SubElement(network, 'ComponentFile').text = path[1]
-        ET.SubElement(network, 'IntermediateFile').text = path[2]
+        ET.SubElement(network, "InputFile").text = path[0]
+        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "IntermediateFile").text = path[2]
 
-        output = ET.SubElement(object, 'OutputTagCollection')
+        output = ET.SubElement(object, "OutputTagCollection")
 
     def write_animation_content(self, content, sidecar_paths):
-        if 'animation' in sidecar_paths.keys():
-            object = ET.SubElement(content, 'ContentObject', Name='', Type="model_animation_graph")
-            animation_paths = sidecar_paths.get('animation')
+        if "animation" in sidecar_paths.keys():
+            object = ET.SubElement(
+                content, "ContentObject", Name="", Type="model_animation_graph"
+            )
+            animation_paths = sidecar_paths.get("animation")
             for path in animation_paths:
                 match path[4]:
-                    case 'JMM':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Base', ModelAnimationMovementData='None')
-                    case 'JMA':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Base', ModelAnimationMovementData='XY')
-                    case 'JMT':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Base', ModelAnimationMovementData='XYYaw')
-                    case 'JMZ':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Base', ModelAnimationMovementData='XYZYaw')
-                    case 'JMV':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Base', ModelAnimationMovementData='XYZFullRotation')
-                    case 'JMO':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Overlay', ModelAnimationOverlayType='Keyframe', ModelAnimationOverlayBlending='Additive')
-                    case 'JMOX':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Overlay', ModelAnimationOverlayType='Pose', ModelAnimationOverlayBlending='Additive')
-                    case 'JMR':
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Overlay', ModelAnimationOverlayType='Keyframe', ModelAnimationOverlayBlending='ReplacementObjectSpace')
+                    case "JMM":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Base",
+                            ModelAnimationMovementData="None",
+                        )
+                    case "JMA":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Base",
+                            ModelAnimationMovementData="XY",
+                        )
+                    case "JMT":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Base",
+                            ModelAnimationMovementData="XYYaw",
+                        )
+                    case "JMZ":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Base",
+                            ModelAnimationMovementData="XYZYaw",
+                        )
+                    case "JMV":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Base",
+                            ModelAnimationMovementData="XYZFullRotation",
+                        )
+                    case "JMO":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Overlay",
+                            ModelAnimationOverlayType="Keyframe",
+                            ModelAnimationOverlayBlending="Additive",
+                        )
+                    case "JMOX":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Overlay",
+                            ModelAnimationOverlayType="Pose",
+                            ModelAnimationOverlayBlending="Additive",
+                        )
+                    case "JMR":
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Overlay",
+                            ModelAnimationOverlayType="Keyframe",
+                            ModelAnimationOverlayBlending="ReplacementObjectSpace",
+                        )
                     case _:
-                        network = ET.SubElement(object, 'ContentNetwork' , Name=path[3], Type='Overlay', ModelAnimationOverlayType='Keyframe', ModelAnimationOverlayBlending='ReplacementLocalSpace')
+                        network = ET.SubElement(
+                            object,
+                            "ContentNetwork",
+                            Name=path[3],
+                            Type="Overlay",
+                            ModelAnimationOverlayType="Keyframe",
+                            ModelAnimationOverlayBlending="ReplacementLocalSpace",
+                        )
 
-                ET.SubElement(network, 'InputFile').text = path[0]
-                ET.SubElement(network, 'ComponentFile').text = path[1]
-                ET.SubElement(network, 'IntermediateFile').text = path[2]
+                ET.SubElement(network, "InputFile").text = path[0]
+                ET.SubElement(network, "ComponentFile").text = path[1]
+                ET.SubElement(network, "IntermediateFile").text = path[2]
 
-            output = ET.SubElement(object, 'OutputTagCollection')
-            ET.SubElement(output, 'OutputTag', Type='frame_event_list').text = self.tag_path
-            ET.SubElement(output, 'OutputTag', Type='model_animation_graph').text = self.tag_path
+            output = ET.SubElement(object, "OutputTagCollection")
+            ET.SubElement(
+                output, "OutputTag", Type="frame_event_list"
+            ).text = self.tag_path
+            ET.SubElement(
+                output, "OutputTag", Type="model_animation_graph"
+            ).text = self.tag_path

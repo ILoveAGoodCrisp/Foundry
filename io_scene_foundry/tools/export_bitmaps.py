@@ -26,44 +26,60 @@
 
 import os
 import bpy
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_info, get_data_path, not_bungie_game, run_tool
+from io_scene_foundry.utils.nwo_utils import (
+    dot_partition,
+    get_asset_info,
+    get_data_path,
+    not_bungie_game,
+    run_tool,
+)
+
 
 def save_image_as(image, path, name):
-    scene = bpy.data.scenes.new("temp") 
+    scene = bpy.data.scenes.new("temp")
 
     settings = scene.render.image_settings
-    settings.file_format = 'TIFF'
-    settings.color_mode = 'RGBA'
-    settings.color_depth = '16' 
-    settings.tiff_codec = 'NONE'
-    
-    name_tiff = dot_partition(name) + '.tiff'
+    settings.file_format = "TIFF"
+    settings.color_mode = "RGBA"
+    settings.color_depth = "16"
+    settings.tiff_codec = "NONE"
+
+    name_tiff = dot_partition(name) + ".tiff"
     path = os.path.join(path, name_tiff)
     image.save_render(filepath=path, scene=scene)
     bpy.data.scenes.remove(scene)
 
-def export_bitmaps(report, context, material, sidecar_path, overwrite, export_type, bitmaps_selection):
+
+def export_bitmaps(
+    report,
+    context,
+    material,
+    sidecar_path,
+    overwrite,
+    export_type,
+    bitmaps_selection,
+):
     if context.scene.nwo_export.show_output:
-        bpy.ops.wm.console_toggle() # toggle the console so users can see progress of export
+        bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
 
     context.scene.nwo_export.show_output = False
 
     asset_path, asset = get_asset_info(sidecar_path)
     # Create a bitmap folder in the asset directory
-    bitmaps_data_dir = os.path.join(get_data_path() + asset_path, 'bitmaps')
+    bitmaps_data_dir = os.path.join(get_data_path() + asset_path, "bitmaps")
     if not os.path.exists(bitmaps_data_dir):
         os.mkdir(bitmaps_data_dir)
         # get a list of textures associated with this material
     textures = []
     bitmap_count = 0
-    if bitmaps_selection == 'active':
+    if bitmaps_selection == "active":
         for node in material.node_tree.nodes:
-            if node.type == 'TEX_IMAGE':
+            if node.type == "TEX_IMAGE":
                 if node.image not in textures:
                     textures.append(node.image)
     else:
         for image in bpy.data.images:
-            if image.name != 'Render Result':
+            if image.name != "Render Result":
                 textures.append(image)
     # export each texture as a tiff to the asset bitmaps folder
     bitmap_paths = []
@@ -73,46 +89,54 @@ def export_bitmaps(report, context, material, sidecar_path, overwrite, export_ty
         if image.name not in texture_names:
             texture_names.append(image.name)
             try:
-                tiff_name = dot_partition(image.name) + '.tiff'
+                tiff_name = dot_partition(image.name) + ".tiff"
 
-                if export_type != 'import':
-                    if overwrite or not os.path.exists(os.path.join(bitmaps_data_dir, tiff_name)):
+                if export_type != "import":
+                    if overwrite or not os.path.exists(
+                        os.path.join(bitmaps_data_dir, tiff_name)
+                    ):
                         save_image_as(image, bitmaps_data_dir, image.name)
                         print(f"Exported {image.name} as tiff")
 
-                    bitmap_count +=1
+                    bitmap_count += 1
 
-                bitmap_paths.append(os.path.join(asset_path, 'bitmaps', tiff_name))
+                bitmap_paths.append(
+                    os.path.join(asset_path, "bitmaps", tiff_name)
+                )
 
             except:
                 print(f"Failed to export {image.name}")
 
         else:
-            print('\033[93m' + f'{image.name} is a duplicate name, please make it unique. Export skipped' + '\033[0m')
-
+            print(
+                "\033[93m"
+                + f"{image.name} is a duplicate name, please make it unique. Export skipped"
+                + "\033[0m"
+            )
 
     if bitmap_count == 0:
-        report({'WARNING'}, 'No Bitmaps exported')
+        report({"WARNING"}, "No Bitmaps exported")
     else:
-        report({'INFO'}, f'Exported {bitmap_count} bitmaps')
+        report({"INFO"}, f"Exported {bitmap_count} bitmaps")
     h4 = not_bungie_game()
-    if export_type != 'export':
+    if export_type != "export":
         for path in bitmap_paths:
-            bm_name = dot_partition(path.rpartition('\\')[2])
+            bm_name = dot_partition(path.rpartition("\\")[2])
             bm_type = get_bitmap_type()
-            bpy.ops.managed_blam.new_bitmap(bitmap_name=bm_name, bitmap_type=bm_type)
+            bpy.ops.managed_blam.new_bitmap(
+                bitmap_name=bm_name, bitmap_type=bm_type
+            )
             path = dot_partition(path)
 
             if h4:
-                run_tool(['reimport-bitmaps-single', path, 'default'])
+                run_tool(["reimport-bitmaps-single", path, "default"])
             else:
-                run_tool(['reimport-bitmaps-single', path])
+                run_tool(["reimport-bitmaps-single", path])
 
-        report({'INFO'}, 'Bitmaps Import Complete')
+        report({"INFO"}, "Bitmaps Import Complete")
 
+    return {"FINISHED"}
 
-    return {'FINISHED'}
 
 def get_bitmap_type():
-    return 'diffuse'
-
+    return "diffuse"

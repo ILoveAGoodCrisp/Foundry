@@ -25,155 +25,229 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from bpy.types import PropertyGroup
-from bpy.props import StringProperty, BoolProperty, IntProperty, FloatProperty, EnumProperty, FloatVectorProperty
+from bpy.props import (
+    StringProperty,
+    BoolProperty,
+    IntProperty,
+    FloatProperty,
+    EnumProperty,
+    FloatVectorProperty,
+)
 from ..utils.nwo_utils import bpy_enum_seam, true_bsp
 
+
 class NWO_FaceProperties_ListItems(PropertyGroup):
-    layer_name : StringProperty()
-    face_count : IntProperty(options=set())
-    layer_colour : FloatVectorProperty(
-        subtype='COLOR_GAMMA',
+    layer_name: StringProperty()
+    face_count: IntProperty(options=set())
+    layer_colour: FloatVectorProperty(
+        subtype="COLOR_GAMMA",
         size=3,
         default=(1.0, 1.0, 1.0),
-        min=0, 
+        min=0,
         max=1,
-        options=set()
+        options=set(),
     )
-    name : StringProperty()
-    face_type_override : BoolProperty()
-    face_mode_override : BoolProperty()
-    face_two_sided_override : BoolProperty()
-    face_draw_distance_override : BoolProperty()
-    texcoord_usage_override : BoolProperty()
-    region_name_override : BoolProperty()
-    is_pca_override : BoolProperty()
-    face_global_material_override : BoolProperty()
-    sky_permutation_index_override : BoolProperty()
-    ladder_override : BoolProperty()
-    slip_surface_override : BoolProperty()
-    decal_offset_override : BoolProperty()
-    group_transparents_by_plane_override : BoolProperty()
-    no_shadow_override : BoolProperty()
-    precise_position_override : BoolProperty()
-    no_lightmap_override : BoolProperty()
-    no_pvs_override : BoolProperty()
+    name: StringProperty()
+    face_type_override: BoolProperty()
+    face_mode_override: BoolProperty()
+    face_two_sided_override: BoolProperty()
+    face_draw_distance_override: BoolProperty()
+    texcoord_usage_override: BoolProperty()
+    region_name_override: BoolProperty()
+    is_pca_override: BoolProperty()
+    face_global_material_override: BoolProperty()
+    sky_permutation_index_override: BoolProperty()
+    ladder_override: BoolProperty()
+    slip_surface_override: BoolProperty()
+    decal_offset_override: BoolProperty()
+    group_transparents_by_plane_override: BoolProperty()
+    no_shadow_override: BoolProperty()
+    precise_position_override: BoolProperty()
+    no_lightmap_override: BoolProperty()
+    no_pvs_override: BoolProperty()
     # instances
-    instanced_collision_override : BoolProperty()
-    instanced_physics_override : BoolProperty()
-    cookie_cutter_override : BoolProperty()
+    instanced_collision_override: BoolProperty()
+    instanced_physics_override: BoolProperty()
+    cookie_cutter_override: BoolProperty()
     # lightmap
-    lightmap_additive_transparency_override : BoolProperty()
-    lightmap_resolution_scale_override : BoolProperty()
-    lightmap_type_override : BoolProperty()
-    lightmap_analytical_bounce_modifier_override : BoolProperty()
-    lightmap_general_bounce_modifier_override : BoolProperty()
-    lightmap_translucency_tint_color_override : BoolProperty()
-    lightmap_lighting_from_both_sides_override : BoolProperty()
+    lightmap_additive_transparency_override: BoolProperty()
+    lightmap_resolution_scale_override: BoolProperty()
+    lightmap_type_override: BoolProperty()
+    lightmap_analytical_bounce_modifier_override: BoolProperty()
+    lightmap_general_bounce_modifier_override: BoolProperty()
+    lightmap_translucency_tint_color_override: BoolProperty()
+    lightmap_lighting_from_both_sides_override: BoolProperty()
     # material lighting
-    emissive_override : BoolProperty()
+    emissive_override: BoolProperty()
     # seam
-    seam_override : BoolProperty()
+    seam_override: BoolProperty()
 
     # def seam_item(self, context):
     #     return [('seam', true_bsp(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam_facing"), 0)]
 
     # seam : EnumProperty(
-    #     name="Seam Facing BSP", 
-    #     options=set(), 
+    #     name="Seam Facing BSP",
+    #     options=set(),
     #     items=seam_item,
     #     )
-    
+
     def scene_bsps(self, context):
         bsp_list = []
         for ob in context.scene.objects:
             bsp = true_bsp(ob.nwo)
             if bsp not in bsp_list and bsp != true_bsp(context.object.nwo):
                 bsp_list.append(bsp)
-        
+
         items = []
         for index, bsp in enumerate(bsp_list):
             items.append(bpy_enum_seam(bsp, index))
 
         return items
 
-    seam_adjacent_bsp : StringProperty(name="Seam Backfacing BSP", description="The BSP that this seam has it's back to", options=set())
+    seam_adjacent_bsp: StringProperty(
+        name="Seam Backfacing BSP",
+        description="The BSP that this seam has it's back to",
+        options=set(),
+    )
 
-    face_type_ui : EnumProperty(
+    face_type_ui: EnumProperty(
         name="Face Type",
         options=set(),
         description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
-        items=[ 
-                ('_connected_geometry_face_type_seam_sealer', "Seam Sealer", "Used on faces that will not be seen by the player, however are required to make a mesh manifold or to properly block light.  Seam sealer faces use no lightmap space.  Can also be used on render only meshes"),
-                ('_connected_geometry_face_type_sky', "Sky", "Assigned faces will act as a window into the sky assigned to the level in the .scenario tag"),
-               ]
-        )
+        items=[
+            (
+                "_connected_geometry_face_type_seam_sealer",
+                "Seam Sealer",
+                "Used on faces that will not be seen by the player, however are required to make a mesh manifold or to properly block light.  Seam sealer faces use no lightmap space.  Can also be used on render only meshes",
+            ),
+            (
+                "_connected_geometry_face_type_sky",
+                "Sky",
+                "Assigned faces will act as a window into the sky assigned to the level in the .scenario tag",
+            ),
+        ],
+    )
 
-    face_mode_ui : EnumProperty(
+    face_mode_ui: EnumProperty(
         name="Face Mode",
         options=set(),
         description="Sets face mode for this mesh",
-        items=[ 
-                ('_connected_geometry_face_mode_render_only', "Render Only", "Assigned faces will render in game and properly respect lighting, however they will have no collision or path finding interaction"),
-                ('_connected_geometry_face_mode_collision_only', "Collision Only", "Faces set to collision only"),
-                ('_connected_geometry_face_mode_sphere_collision_only', "Sphere Collision Only", "Assigned faces provide physics (player) collision only in game.  The faces will not visually render on screen or provide raycast (bullet) collision"),
-                ('_connected_geometry_face_mode_shadow_only', "Shadow Only", "Faces set to only cast shadows"),
-                ('_connected_geometry_face_mode_lightmap_only', "Lightmap Only", "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry"),
-                ('_connected_geometry_face_mode_breakable', "Breakable", "Faces set to be breakable"),
-               ]
-        )
+        items=[
+            (
+                "_connected_geometry_face_mode_render_only",
+                "Render Only",
+                "Assigned faces will render in game and properly respect lighting, however they will have no collision or path finding interaction",
+            ),
+            (
+                "_connected_geometry_face_mode_collision_only",
+                "Collision Only",
+                "Faces set to collision only",
+            ),
+            (
+                "_connected_geometry_face_mode_sphere_collision_only",
+                "Sphere Collision Only",
+                "Assigned faces provide physics (player) collision only in game.  The faces will not visually render on screen or provide raycast (bullet) collision",
+            ),
+            (
+                "_connected_geometry_face_mode_shadow_only",
+                "Shadow Only",
+                "Faces set to only cast shadows",
+            ),
+            (
+                "_connected_geometry_face_mode_lightmap_only",
+                "Lightmap Only",
+                "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
+            ),
+            (
+                "_connected_geometry_face_mode_breakable",
+                "Breakable",
+                "Faces set to be breakable",
+            ),
+        ],
+    )
 
-    face_sides_ui : EnumProperty(
+    face_sides_ui: EnumProperty(
         name="Face Sides",
         options=set(),
         description="Sets the face sides for this mesh",
-        items=[ 
-                ('_connected_geometry_face_sides_one_sided_transparent', "One Sided Transparent", "Faces set to only render on one side (the direction of face normals), but also render geometry behind them"),
-                ('_connected_geometry_face_sides_two_sided', "Two Sided", "Faces set to render on both sides"),
-                ('_connected_geometry_face_sides_two_sided_transparent', "Two Sided Transparent", "Faces set to render on both sides and are transparent"),
-                ('_connected_geometry_face_sides_mirror', "Mirror", "H4+ only"),
-                ('_connected_geometry_face_sides_mirror_transparent', "Mirror Transparent", "H4+ only"),
-                ('_connected_geometry_face_sides_keep', "Keep", "H4+ only"),
-                ('_connected_geometry_face_sides_keep_transparent', "Keep Transparent", "H4+ only"),
-               ]
-        )
-    
-    face_two_sided_ui : BoolProperty(
-        name="Two Sided",
-        description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
-        options=set()
+        items=[
+            (
+                "_connected_geometry_face_sides_one_sided_transparent",
+                "One Sided Transparent",
+                "Faces set to only render on one side (the direction of face normals), but also render geometry behind them",
+            ),
+            (
+                "_connected_geometry_face_sides_two_sided",
+                "Two Sided",
+                "Faces set to render on both sides",
+            ),
+            (
+                "_connected_geometry_face_sides_two_sided_transparent",
+                "Two Sided Transparent",
+                "Faces set to render on both sides and are transparent",
+            ),
+            ("_connected_geometry_face_sides_mirror", "Mirror", "H4+ only"),
+            (
+                "_connected_geometry_face_sides_mirror_transparent",
+                "Mirror Transparent",
+                "H4+ only",
+            ),
+            ("_connected_geometry_face_sides_keep", "Keep", "H4+ only"),
+            (
+                "_connected_geometry_face_sides_keep_transparent",
+                "Keep Transparent",
+                "H4+ only",
+            ),
+        ],
     )
 
-    face_draw_distance_ui : EnumProperty(
+    face_two_sided_ui: BoolProperty(
+        name="Two Sided",
+        description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
+        options=set(),
+    )
+
+    face_draw_distance_ui: EnumProperty(
         name="Face Draw Distance",
         options=set(),
         description="Controls the distance at which the assigned faces will stop rendering",
-        default = "_connected_geometry_face_draw_distance_normal",
-        items=[ ('_connected_geometry_face_draw_distance_normal', "Normal", ""),
-                ('_connected_geometry_face_draw_distance_detail_mid', "Mid", ""),
-                ('_connected_geometry_face_draw_distance_detail_close', "Close", ""),
-               ]
-        ) 
+        default="_connected_geometry_face_draw_distance_normal",
+        items=[
+            ("_connected_geometry_face_draw_distance_normal", "Normal", ""),
+            ("_connected_geometry_face_draw_distance_detail_mid", "Mid", ""),
+            (
+                "_connected_geometry_face_draw_distance_detail_close",
+                "Close",
+                "",
+            ),
+        ],
+    )
 
-    texcoord_usage_ui : EnumProperty(
+    texcoord_usage_ui: EnumProperty(
         name="Texture Coordinate Usage",
         options=set(),
         description="",
-        default = '_connected_material_texcoord_usage_default',
-        items=[ ('_connected_material_texcoord_usage_default', "Default", ""),
-                ('_connected_material_texcoord_usage_none', "None", ""),
-                ('_connected_material_texcoord_usage_anisotropic', "Ansiotropic", ""),
-               ]
-        )
+        default="_connected_material_texcoord_usage_default",
+        items=[
+            ("_connected_material_texcoord_usage_default", "Default", ""),
+            ("_connected_material_texcoord_usage_none", "None", ""),
+            (
+                "_connected_material_texcoord_usage_anisotropic",
+                "Ansiotropic",
+                "",
+            ),
+        ],
+    )
 
     region_name_ui: StringProperty(
         name="Region",
-        default='default',
+        default="default",
         description="Define the name of the region these faces should be associated with",
     )
 
     face_global_material_ui: StringProperty(
         name="Collision Material",
-        default='',
+        default="",
         description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
     )
 
@@ -184,81 +258,81 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         min=0,
     )
 
-    conveyor_ui: BoolProperty( # UNSUPPORTED
-        name ="Conveyor",
+    conveyor_ui: BoolProperty(  # UNSUPPORTED
+        name="Conveyor",
         options=set(),
-        description = "Enables the conveyor property",
-        default = True,
-        )
+        description="Enables the conveyor property",
+        default=True,
+    )
 
     ladder_ui: BoolProperty(
-        name ="Ladder",
+        name="Ladder",
         options=set(),
-        description = "Makes faces climbable",
-        default = True,
+        description="Makes faces climbable",
+        default=True,
     )
 
     slip_surface_ui: BoolProperty(
-        name ="Slip Surface",
+        name="Slip Surface",
         options=set(),
-        description = "Assigned faces will be non traversable by the player. Used to ensure the player can not climb a surface regardless of slope angle",
-        default = True,
+        description="Assigned faces will be non traversable by the player. Used to ensure the player can not climb a surface regardless of slope angle",
+        default=True,
     )
 
     decal_offset_ui: BoolProperty(
-        name ="Decal Offset",
+        name="Decal Offset",
         options=set(),
-        description = "Provides a Z bias to the faces that will not be overridden by the plane build.  If placing a face coplanar against another surface, this flag will prevent Z fighting",
-        default = True,
+        description="Provides a Z bias to the faces that will not be overridden by the plane build.  If placing a face coplanar against another surface, this flag will prevent Z fighting",
+        default=True,
     )
 
     group_transparents_by_plane_ui: BoolProperty(
-        name ="Group Transparents By Plane",
+        name="Group Transparents By Plane",
         options=set(),
-        description = "Determines if objects will sort based on center point or by plane.  Provides more accurate sorting of large alpha'd objects, but is very expensive",
-        default = True,
+        description="Determines if objects will sort based on center point or by plane.  Provides more accurate sorting of large alpha'd objects, but is very expensive",
+        default=True,
     )
 
     no_shadow_ui: BoolProperty(
-        name ="No Shadow",
+        name="No Shadow",
         options=set(),
-        description = "Prevents faces from casting shadows",
-        default = True,
+        description="Prevents faces from casting shadows",
+        default=True,
     )
 
     precise_position_ui: BoolProperty(
-        name ="Precise Position",
+        name="Precise Position",
         options=set(),
-        description = "Provides more accurate render and collision geometry",
-        default = True,
+        description="Provides more accurate render and collision geometry",
+        default=True,
     )
 
     no_lightmap_ui: BoolProperty(
-        name ="Exclude From Lightmap",
+        name="Exclude From Lightmap",
         options=set(),
-        description = "",
-        default = True,
+        description="",
+        default=True,
     )
 
     no_pvs_ui: BoolProperty(
-        name ="Invisible To PVS",
+        name="Invisible To PVS",
         options=set(),
-        description = "",
-        default = True,
+        description="",
+        default=True,
     )
 
     # INSTANCED GEOMETRY ONLY
 
-    instanced_collision : BoolProperty(
+    instanced_collision: BoolProperty(
         name="Bullet Collision",
         default=True,
     )
-    instanced_physics : BoolProperty(
+    instanced_physics: BoolProperty(
         name="Player Collision",
         default=True,
     )
 
-    cookie_cutter : BoolProperty(
+    cookie_cutter: BoolProperty(
         name="Cookie Cutter",
         default=True,
     )
@@ -272,9 +346,9 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="Overrides the amount and color of light that will pass through the surface. Tint colour will override the alpha blend settings in the shader.",
         default=(1.0, 1.0, 1.0),
-        subtype='COLOR',
+        subtype="COLOR",
         min=0.0,
-        max=1.0
+        max=1.0,
     )
 
     lightmap_resolution_scale_ui: IntProperty(
@@ -286,17 +360,26 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         max=7,
     )
 
-    lightmap_photon_fidelity_ui : EnumProperty( # DONT SET THIS
+    lightmap_photon_fidelity_ui: EnumProperty(  # DONT SET THIS
         name="Photon Fidelity",
         options=set(),
         description="H4+ only",
-        default = "_connected_material_lightmap_photon_fidelity_normal",
-        items=[ ('_connected_material_lightmap_photon_fidelity_normal', "Normal", ""),
-                ('_connected_material_lightmap_photon_fidelity_medium', "Medium", ""),
-                ('_connected_material_lightmap_photon_fidelity_high', "High", ""),
-                ('_connected_material_lightmap_photon_fidelity_none', "None", ""),
-               ]
-        )
+        default="_connected_material_lightmap_photon_fidelity_normal",
+        items=[
+            (
+                "_connected_material_lightmap_photon_fidelity_normal",
+                "Normal",
+                "",
+            ),
+            (
+                "_connected_material_lightmap_photon_fidelity_medium",
+                "Medium",
+                "",
+            ),
+            ("_connected_material_lightmap_photon_fidelity_high", "High", ""),
+            ("_connected_material_lightmap_photon_fidelity_none", "None", ""),
+        ],
+    )
 
     # Lightmap_Chart_Group: IntProperty(
     #     name="Lightmap Chart Group",
@@ -306,15 +389,16 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     #     min=1,
     # )
 
-    lightmap_type_ui : EnumProperty(
+    lightmap_type_ui: EnumProperty(
         name="Lightmap Type",
         options=set(),
         description="Sets how this should be lit while lightmapping",
-        default = "_connected_material_lightmap_type_per_pixel",
-        items=[ ('_connected_material_lightmap_type_per_pixel', "Per Pixel", ""),
-                ('_connected_material_lightmap_type_per_vertex', "Per Vetex", ""),
-               ]
-        )
+        default="_connected_material_lightmap_type_per_pixel",
+        items=[
+            ("_connected_material_lightmap_type_per_pixel", "Per Pixel", ""),
+            ("_connected_material_lightmap_type_per_vertex", "Per Vetex", ""),
+        ],
+    )
 
     lightmap_analytical_bounce_modifier_ui: FloatProperty(
         name="Lightmap Analytical Bounce Modifier",
@@ -323,9 +407,9 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         default=1,
         soft_max=1,
         min=0,
-        subtype='FACTOR',
+        subtype="FACTOR",
     )
-    
+
     lightmap_general_bounce_modifier_ui: FloatProperty(
         name="Lightmap General Bounce Modifier",
         options=set(),
@@ -333,7 +417,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         default=1,
         soft_max=1,
         min=0,
-        subtype='FACTOR',
+        subtype="FACTOR",
     )
 
     lightmap_translucency_tint_color_ui: FloatVectorProperty(
@@ -341,16 +425,16 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="",
         default=(1.0, 1.0, 1.0),
-        subtype='COLOR',
+        subtype="COLOR",
         min=0.0,
-        max=1.0
+        max=1.0,
     )
 
     lightmap_lighting_from_both_sides_ui: BoolProperty(
-        name ="Lightmap Lighting From Both Sides",
+        name="Lightmap Lighting From Both Sides",
         options=set(),
-        description = "",
-        default = True,
+        description="",
+        default=True,
     )
 
     # MATERIAL LIGHTING
@@ -361,7 +445,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         description="Determines how far light travels before it stops",
         min=0,
         default=200,
-    ) 
+    )
 
     material_lighting_attenuation_falloff_ui: FloatProperty(
         name="Attenuation Falloff",
@@ -377,8 +461,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         description="Controls the spread of the light emitting from this surface. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
         min=0,
         max=1,
-        subtype='FACTOR',
-
+        subtype="FACTOR",
     )
 
     material_lighting_emissive_color_ui: FloatVectorProperty(
@@ -386,16 +469,16 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="The RGB value of the emitted light",
         default=(1.0, 1.0, 1.0),
-        subtype='COLOR',
+        subtype="COLOR",
         min=0.0,
         max=1.0,
     )
 
     material_lighting_emissive_per_unit_ui: BoolProperty(
-        name ="Emissive Per Unit",
+        name="Emissive Per Unit",
         options=set(),
-        description = "When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
-        default = False,
+        description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
+        default=False,
     )
 
     material_lighting_emissive_power_ui: FloatProperty(
@@ -415,10 +498,10 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_use_shader_gel_ui: BoolProperty(
-        name ="Use Shader Gel",
+        name="Use Shader Gel",
         options=set(),
-        description = "",
-        default = False,
+        description="",
+        default=False,
     )
 
     material_lighting_bounce_ratio_ui: FloatProperty(

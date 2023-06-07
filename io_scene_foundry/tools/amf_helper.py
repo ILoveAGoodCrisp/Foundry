@@ -32,14 +32,16 @@ def amf_assign(context, report):
     loop_count = 0
     for ob in context.view_layer.objects:
         true_name = dot_partition(ob.name)
-        if not true_name.startswith(('+', ':')) and ':' in true_name:
-            if true_name.rpartition(':')[0] != '':
-                ob.nwo.region_name = true_name.rpartition(':')[0]
-            if true_name.rpartition(':')[2] != '':
-                ob.nwo.permutation_name = true_name.rpartition(':')[2]
+        if not true_name.startswith(("+", ":")) and ":" in true_name:
+            if true_name.rpartition(":")[0] != "":
+                ob.nwo.region_name = true_name.rpartition(":")[0]
+            if true_name.rpartition(":")[2] != "":
+                ob.nwo.permutation_name = true_name.rpartition(":")[2]
             loop_count += 1
 
-    report({'INFO'},f"Updated regions & permutations for {loop_count} AMF objects")
+    report(
+        {"INFO"},
+        f"Updated regions & permutations for {loop_count} AMF objects",
+    )
 
-    return {'FINISHED'}
-
+    return {"FINISHED"}

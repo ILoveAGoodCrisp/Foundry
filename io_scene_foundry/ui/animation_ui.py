@@ -26,11 +26,12 @@
 
 from .templates import NWO_PropPanel
 
+
 # ACTION PROPERTIES
 class NWO_ActionProps(NWO_PropPanel):
     bl_label = "Halo Animation Properties"
     bl_idname = "NWO_PT_ActionDetailsPanel"
-    bl_space_type = 'DOPESHEET_EDITOR'
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
     bl_context = "Action"
     bl_parent_id = "DOPESHEET_PT_action"
@@ -38,25 +39,31 @@ class NWO_ActionProps(NWO_PropPanel):
     @classmethod
     def poll(cls, context):
         return context.object.animation_data.action
-    
+
     def draw_header(self, context):
         action = context.active_object.animation_data.action
         action_nwo = action.nwo
-        self.layout.prop(action_nwo, "export_this", text='')
-    
+        self.layout.prop(action_nwo, "export_this", text="")
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        
+        flow = layout.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+
         action = context.object.animation_data.action
         action_nwo = action.nwo
 
         if not action_nwo.export_this:
             layout.label(text="Animation is excluded from export")
             layout.active = False
-        
+
         else:
             col = flow.column()
-            col.prop(action_nwo, 'name_override')
-            col.prop(action_nwo, 'animation_type')
+            col.prop(action_nwo, "name_override")
+            col.prop(action_nwo, "animation_type")

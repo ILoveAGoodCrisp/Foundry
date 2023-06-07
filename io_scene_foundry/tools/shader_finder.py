@@ -30,16 +30,19 @@ from io_scene_foundry.utils.nwo_utils import (
     shader_exts,
 )
 
+
 def find_shaders(materials, report, shaders_dir="", overwrite=False):
     shaders = set()
     update_count = 0
     tags_path = get_tags_path()
 
     if not shaders_dir:
-        #clean shaders directory path
-        shaders_dir = shaders_dir.replace('"', '').strip('\\').replace(tags_path, '')
-    
-    #verify that the path created actually exists
+        # clean shaders directory path
+        shaders_dir = (
+            shaders_dir.replace('"', "").strip("\\").replace(tags_path, "")
+        )
+
+    # verify that the path created actually exists
     shaders_dir = os.path.join(tags_path, shaders_dir)
     if os.path.isdir(shaders_dir):
         for entry in os.scandir(shaders_dir):
@@ -49,19 +52,20 @@ def find_shaders(materials, report, shaders_dir="", overwrite=False):
         # loop through mats, find a matching shader, and apply it if the shader path field is empty
         for mat in materials:
             shader_path = FindShaderMatch(mat, shaders, tags_path)
-            if shader_path != '':
-                if overwrite or mat.nwo.shader_path == '':
+            if shader_path != "":
+                if overwrite or mat.nwo.shader_path == "":
                     mat_shader_path = mat.nwo.shader_path
                     if mat_shader_path != shader_path:
                         mat_shader_path = shader_path
                         update_count += 1
 
-    report({'INFO'},"Updated " + str(update_count) + ' shader paths')
-    return {'FINISHED'}
+    report({"INFO"}, "Updated " + str(update_count) + " shader paths")
+    return {"FINISHED"}
+
 
 def FindShaderMatch(mat, shaders, tags_path):
     material_name = mat.name
-    material_parts = material_name.split(' ')
+    material_parts = material_name.split(" ")
     # clean material name
     if len(material_parts) > 1:
         material_name = material_parts[1]
@@ -75,9 +79,9 @@ def FindShaderMatch(mat, shaders, tags_path):
     dot_partition(material_name)
     for s in shaders:
         # get just the shader name
-        shader_name = s.rpartition('\\')[2]
-        shader_name = shader_name.rpartition('.')[0]
+        shader_name = s.rpartition("\\")[2]
+        shader_name = shader_name.rpartition(".")[0]
         if material_name.lower() == shader_name.lower():
-            return s.replace(tags_path, '')
-    
-    return ''
+            return s.replace(tags_path, "")
+
+    return ""

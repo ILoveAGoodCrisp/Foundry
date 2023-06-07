@@ -27,8 +27,26 @@
 from io_scene_foundry.utils.nwo_utils import dot_partition
 import bpy
 
-special_materials = ('InvisibleSky', 'Physics', 'Seam', 'Portal', 'Collision', 'PlayCollision', 'WallCollision', 'BulletCollision', 'CookieCutter', 'RainBlocker', 'RainSheet', 'WaterVolume', 'Structure', 'SoftCeiling', 'SoftKill', 'SlipSurface')
+special_materials = (
+    "InvisibleSky",
+    "Physics",
+    "Seam",
+    "Portal",
+    "Collision",
+    "PlayCollision",
+    "WallCollision",
+    "BulletCollision",
+    "CookieCutter",
+    "RainBlocker",
+    "RainSheet",
+    "WaterVolume",
+    "Structure",
+    "SoftCeiling",
+    "SoftKill",
+    "SlipSurface",
+)
 # face_prop_types = ()
+
 
 def clear_special_mats(materials):
     """Removes special materials from an objects material slots i.e. ones that are not used as Halo shaders/materials"""
@@ -36,6 +54,7 @@ def clear_special_mats(materials):
     for name in material_names:
         if name in special_materials:
             materials.pop(materials[name])
+
 
 def halo_material_color(material, color):
     """Sets the material to the specifier colour in both viewport and shader, setting alpha if appropriate"""
@@ -45,6 +64,7 @@ def halo_material_color(material, color):
     material.node_tree.nodes[0].inputs[0].default_value = color
     if color[3] < 1.0:
         material.blend_method = "BLEND"
+
 
 def halo_material(mat_name):
     """Adds a halo material to the blend if it doesn't exist and applies settings, then returning the material"""
@@ -57,58 +77,90 @@ def halo_material(mat_name):
     new_material = materials.new(mat_name)
     match mat_name:
         case "InvisibleSky":
-            halo_material_color(new_material, (0.8, 0.8, 0.8, 0.0)) # light turqouise with 90% opacity 
+            halo_material_color(
+                new_material, (0.8, 0.8, 0.8, 0.0)
+            )  # light turqouise with 90% opacity
 
         case "Physics":
-            halo_material_color(new_material, (0.26, 0.33, 0.46, 0.2)) # green with 20% opacity
+            halo_material_color(
+                new_material, (0.26, 0.33, 0.46, 0.2)
+            )  # green with 20% opacity
 
         case "Seam":
-            halo_material_color(new_material, (0.39, 1.0, 0.39, 0.4)) # light green with 40% opacity
+            halo_material_color(
+                new_material, (0.39, 1.0, 0.39, 0.4)
+            )  # light green with 40% opacity
 
         case "Portal":
-            halo_material_color(new_material, (0.78, 0.69, 0.15, 0.4)) # yellow with 40% opacity
+            halo_material_color(
+                new_material, (0.78, 0.69, 0.15, 0.4)
+            )  # yellow with 40% opacity
 
         case "Collision":
-            halo_material_color(new_material, (0.0, 0.0, 1.0, 0.2)) # medium blue with 20% opacity
+            halo_material_color(
+                new_material, (0.0, 0.0, 1.0, 0.2)
+            )  # medium blue with 20% opacity
 
         case "PlayCollision":
-            halo_material_color(new_material, (1.0, 0.5, 0.0, 0.2)) # orange with 20% opacity
+            halo_material_color(
+                new_material, (1.0, 0.5, 0.0, 0.2)
+            )  # orange with 20% opacity
 
         case "WallCollision":
-            halo_material_color(new_material, (0.0, 0.8, 0.0, 0.2)) # green with 20% opacity
+            halo_material_color(
+                new_material, (0.0, 0.8, 0.0, 0.2)
+            )  # green with 20% opacity
 
         case "BulletCollision":
-            halo_material_color(new_material, (0.0, 0.8, 0.8, 0.2)) # cyan with 20% opacity
+            halo_material_color(
+                new_material, (0.0, 0.8, 0.8, 0.2)
+            )  # cyan with 20% opacity
 
         case "CookieCutter":
-            halo_material_color(new_material, (0.3, 0.3, 1.0, 0.2)) # purply-blue with 20% opacity
+            halo_material_color(
+                new_material, (0.3, 0.3, 1.0, 0.2)
+            )  # purply-blue with 20% opacity
 
         case "RainBlocker":
-            halo_material_color(new_material, (0.3, 0.3, 1.0, 1.0)) # blue with 100% opacity
+            halo_material_color(
+                new_material, (0.3, 0.3, 1.0, 1.0)
+            )  # blue with 100% opacity
 
         case "RainSheet":
-            halo_material_color(new_material, (0.3, 0.3, 1.0, 1.0)) # blue with 100% opacity
+            halo_material_color(
+                new_material, (0.3, 0.3, 1.0, 1.0)
+            )  # blue with 100% opacity
 
         case "WaterVolume":
-            halo_material_color(new_material, (0.0, 0.0, 1.0, 0.9)) # deep blue with 90% opacity
+            halo_material_color(
+                new_material, (0.0, 0.0, 1.0, 0.9)
+            )  # deep blue with 90% opacity
 
         case "Structure":
-            halo_material_color(new_material, (0.0, 0.0, 1.0, 0.9)) # champion orange with 90% opacity
+            halo_material_color(
+                new_material, (0.0, 0.0, 1.0, 0.9)
+            )  # champion orange with 90% opacity
 
         case "SoftCeiling":
-            halo_material_color(new_material, (0.51, 0.02, 0.06, 0.9)) # blood red with 90% opacity
+            halo_material_color(
+                new_material, (0.51, 0.02, 0.06, 0.9)
+            )  # blood red with 90% opacity
 
         case "SoftKill":
-            halo_material_color(new_material, (0.51, 0.02, 0.06, 0.9)) # blood red with 90% opacity
+            halo_material_color(
+                new_material, (0.51, 0.02, 0.06, 0.9)
+            )  # blood red with 90% opacity
 
         case "SlipSurface":
-            halo_material_color(new_material, (0.51, 0.02, 0.06, 0.9))# blood red with 90% opacity
+            halo_material_color(
+                new_material, (0.51, 0.02, 0.06, 0.9)
+            )  # blood red with 90% opacity
 
     return new_material
+
 
 def apply_props(ob, mat_name):
     if mat_name in special_materials:
         halo_material(mat_name)
     else:
         clear_special_mats(ob.materials)
-        

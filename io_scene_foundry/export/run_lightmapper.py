@@ -25,97 +25,176 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
-from io_scene_foundry.utils.nwo_utils import formalise_string, get_asset_path, print_box, print_warning, run_tool
+from io_scene_foundry.utils.nwo_utils import (
+    formalise_string,
+    get_asset_path,
+    print_box,
+    print_warning,
+    run_tool,
+)
 import datetime
 import multiprocessing
 
-def run_lightmapper(not_bungie_game, misc_halo_objects, asset,
-        lightmap_quality='DIRECT',
-        lightmap_quality_h4='default_new',
-        lightmap_quality_custom='',
-        lightmap_all_bsps='TRUE',
-        lightmap_specific_bsp='000',
-        lightmap_region='all',
-        **kwargs
-        ):
-        lightmap = LightMapper(not_bungie_game, misc_halo_objects, lightmap_quality, lightmap_quality_h4, lightmap_quality_custom, lightmap_all_bsps, lightmap_specific_bsp, lightmap_region, asset)
-        try:
-            if not_bungie_game:
-                lightmap_message = lightmap.lightmap_h4()
-            else:
-                lightmap_message = lightmap.lightmap_reach()
-        except RuntimeError:
-            lightmap_message = "Lightmapper failed"
 
-        return lightmap_message
+def run_lightmapper(
+    not_bungie_game,
+    misc_halo_objects,
+    asset,
+    lightmap_quality="DIRECT",
+    lightmap_quality_h4="default_new",
+    lightmap_quality_custom="",
+    lightmap_all_bsps="TRUE",
+    lightmap_specific_bsp="000",
+    lightmap_region="all",
+    **kwargs,
+):
+    lightmap = LightMapper(
+        not_bungie_game,
+        misc_halo_objects,
+        lightmap_quality,
+        lightmap_quality_h4,
+        lightmap_quality_custom,
+        lightmap_all_bsps,
+        lightmap_specific_bsp,
+        lightmap_region,
+        asset,
+    )
+    try:
+        if not_bungie_game:
+            lightmap_message = lightmap.lightmap_h4()
+        else:
+            lightmap_message = lightmap.lightmap_reach()
+    except RuntimeError:
+        lightmap_message = "Lightmapper failed"
+
+    return lightmap_message
+
 
 class LightMapper:
-    def __init__(self, not_bungie_game, misc_halo_objects, lightmap_quality, lightmap_quality_h4, lightmap_quality_custom, lightmap_all_bsps, lightmap_specific_bsp, lightmap_region, asset):
+    def __init__(
+        self,
+        not_bungie_game,
+        misc_halo_objects,
+        lightmap_quality,
+        lightmap_quality_h4,
+        lightmap_quality_custom,
+        lightmap_all_bsps,
+        lightmap_specific_bsp,
+        lightmap_region,
+        asset,
+    ):
         self.asset_name = asset
         self.scenario = os.path.join(get_asset_path(), self.asset_name)
-        self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
-        self.quality = self.get_quality(lightmap_quality, lightmap_quality_h4, not_bungie_game, lightmap_quality_custom)
-        self.light_group = self.get_light_group(lightmap_region, misc_halo_objects, not_bungie_game)
+        self.bsp = self.bsp_to_lightmap(
+            lightmap_all_bsps, lightmap_specific_bsp
+        )
+        self.quality = self.get_quality(
+            lightmap_quality,
+            lightmap_quality_h4,
+            not_bungie_game,
+            lightmap_quality_custom,
+        )
+        self.light_group = self.get_light_group(
+            lightmap_region, misc_halo_objects, not_bungie_game
+        )
 
     # HELPERS --------------------------
-    def get_light_group(self, lightmap_region, misc_halo_objects, not_bungie_game):
-        if not not_bungie_game and lightmap_region != '' and lightmap_region != 'all':
+    def get_light_group(
+        self, lightmap_region, misc_halo_objects, not_bungie_game
+    ):
+        if (
+            not not_bungie_game
+            and lightmap_region != ""
+            and lightmap_region != "all"
+        ):
             for ob in misc_halo_objects:
                 if ob.name == lightmap_region:
                     return lightmap_region
             else:
-                print_warning(f"Lightmap region specified but no lightmap region named {lightmap_region} exists in scene")
-                
-        return 'all'
+                print_warning(
+                    f"Lightmap region specified but no lightmap region named {lightmap_region} exists in scene"
+                )
+
+        return "all"
 
     def bsp_to_lightmap(self, lightmap_all_bsps, lightmap_specific_bsp):
-        bsp = 'all'
+        bsp = "all"
         if not lightmap_all_bsps:
-            bsp = f'{self.asset_name}_{lightmap_specific_bsp}'
+            bsp = f"{self.asset_name}_{lightmap_specific_bsp}"
 
         return bsp
 
-    def get_quality(self, lightmap_quality, lightmap_quality_h4, not_bungie_game, lightmap_quality_custom):
+    def get_quality(
+        self,
+        lightmap_quality,
+        lightmap_quality_h4,
+        not_bungie_game,
+        lightmap_quality_custom,
+    ):
         if not_bungie_game:
-            if lightmap_quality_custom != '':
+            if lightmap_quality_custom != "":
                 return lightmap_quality_custom
             else:
                 return lightmap_quality_h4
         match lightmap_quality:
-            case 'DIRECT':
-                return 'direct_only'
-            case 'DRAFT':
-                return 'draft'
-            case 'LOW':
-                return 'low'
-            case 'MEDIUM':
-                return 'medium'
-            case 'HIGH':
-                return 'high'
+            case "DIRECT":
+                return "direct_only"
+            case "DRAFT":
+                return "draft"
+            case "LOW":
+                return "low"
+            case "MEDIUM":
+                return "medium"
+            case "HIGH":
+                return "high"
             case _:
-                return 'super_slow'
-            
-            
+                return "super_slow"
+
     # EXECUTE LIGHTMAP ---------------------------------------------------------------------
 
     def print_exec_time(self):
         print(datetime.datetime.now() - self.start_time)
 
     def threads(self, stage, thread_index):
-        log_filename = os.path.join(self.blob_dir, "logs", stage, f'{thread_index}.txt')
+        log_filename = os.path.join(
+            self.blob_dir, "logs", stage, f"{thread_index}.txt"
+        )
         log_dir = os.path.dirname(log_filename)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        with open(log_filename, 'w') as log:
-            return run_tool(['faux_farm_' + stage, self.blob_dir, str(thread_index), str(self.thread_count)], True, log), log_filename
+        with open(log_filename, "w") as log:
+            return (
+                run_tool(
+                    [
+                        "faux_farm_" + stage,
+                        self.blob_dir,
+                        str(thread_index),
+                        str(self.thread_count),
+                    ],
+                    True,
+                    log,
+                ),
+                log_filename,
+            )
 
     def farm(self, stage):
-        #self.print_exec_time()
-        processes = [self.threads(stage, thread_index) for thread_index in range(self.thread_count)]
+        # self.print_exec_time()
+        processes = [
+            self.threads(stage, thread_index)
+            for thread_index in range(self.thread_count)
+        ]
         for p, log_filename in processes:
-            assert(p.wait() == 0), f"Lightmapper fail. See error log for details: {log_filename}"
-            
-        run_tool(["faux_farm_" + stage + "_merge", self.blob_dir, str(self.thread_count)])
+            assert (
+                p.wait() == 0
+            ), f"Lightmapper fail. See error log for details: {log_filename}"
+
+        run_tool(
+            [
+                "faux_farm_" + stage + "_merge",
+                self.blob_dir,
+                str(self.thread_count),
+            ]
+        )
 
     def lightmap_reach(self):
         self.blob_dir_name = "111"
@@ -124,12 +203,22 @@ class LightMapper:
         self.start_time = datetime.datetime.now()
 
         print_box("**Starting Faux Data Sync**")
-        #self.print_exec_time()
+        # self.print_exec_time()
         run_tool(["faux_data_sync", self.scenario, self.bsp])
 
         print_box("**Starting Faux Farm**")
-        #self.print_exec_time()
-        run_tool(["faux_farm_begin", self.scenario, self.bsp, self.light_group, self.quality, self.blob_dir_name, self.analytical_light])
+        # self.print_exec_time()
+        run_tool(
+            [
+                "faux_farm_begin",
+                self.scenario,
+                self.bsp,
+                self.light_group,
+                self.quality,
+                self.blob_dir_name,
+                self.analytical_light,
+            ]
+        )
 
         self.thread_count = multiprocessing.cpu_count()
 
@@ -145,22 +234,68 @@ class LightMapper:
         print_box("**Faux Farm Process Finalise**")
         run_tool(["faux_farm_finish", self.blob_dir])
 
-        run_tool(["faux-reorganize-mesh-for-analytical-lights", self.scenario, self.bsp])
-        run_tool(["faux-build-vmf-textures-from-quadratic", self.scenario, self.bsp, "true", "true"])
+        run_tool(
+            [
+                "faux-reorganize-mesh-for-analytical-lights",
+                self.scenario,
+                self.bsp,
+            ]
+        )
+        run_tool(
+            [
+                "faux-build-vmf-textures-from-quadratic",
+                self.scenario,
+                self.bsp,
+                "true",
+                "true",
+            ]
+        )
 
         return f"{formalise_string(self.quality)} Quality lightmap complete"
 
     def lightmap_h4(self):
         self.force_reatlas = "false"
-        self.suppress_dialog = "false" if self.quality == 'asset' or self.quality == '' else "true"
-        self.settings = os.path.join('globals', 'lightmapper_settings', self.quality)
+        self.suppress_dialog = (
+            "false"
+            if self.quality == "asset" or self.quality == ""
+            else "true"
+        )
+        self.settings = os.path.join(
+            "globals", "lightmapper_settings", self.quality
+        )
         print_box("**Starting Faux Farm**")
-        if self.suppress_dialog == 'false':
-            run_tool(["faux_lightmap", self.scenario, self.bsp, self.suppress_dialog, self.force_reatlas]) 
+        if self.suppress_dialog == "false":
+            run_tool(
+                [
+                    "faux_lightmap",
+                    self.scenario,
+                    self.bsp,
+                    self.suppress_dialog,
+                    self.force_reatlas,
+                ]
+            )
         else:
-            if self.bsp == 'all':
-                run_tool(["faux_lightmap_with_settings_for_all", self.scenario, self.bsp, self.suppress_dialog, self.force_reatlas, self.settings])
+            if self.bsp == "all":
+                run_tool(
+                    [
+                        "faux_lightmap_with_settings_for_all",
+                        self.scenario,
+                        self.bsp,
+                        self.suppress_dialog,
+                        self.force_reatlas,
+                        self.settings,
+                    ]
+                )
             else:
-                run_tool(["faux_lightmap_with_settings", self.scenario, self.bsp, self.suppress_dialog, self.force_reatlas, self.settings])
+                run_tool(
+                    [
+                        "faux_lightmap_with_settings",
+                        self.scenario,
+                        self.bsp,
+                        self.suppress_dialog,
+                        self.force_reatlas,
+                        self.settings,
+                    ]
+                )
 
         return f"Lightmap Complete"

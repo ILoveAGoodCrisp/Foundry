@@ -42,16 +42,17 @@ class NWO_ShaderPath(NWO_Op_Path):
     def execute(self, context):
         mat = context.material
         mat.nwo.shader_path = self.filepath
-        return {'FINISHED'}
-    
+        return {"FINISHED"}
+
+
 class NWO_MaterialPropertiesGroup(PropertyGroup):
     def update_shader(self, context):
-        self['shader_path'] = clean_tag_path(self['shader_path']).strip('"')
+        self["shader_path"] = clean_tag_path(self["shader_path"]).strip('"')
 
     shader_path: StringProperty(
-        name = "Shader Path",
-        description = "Define the path to a shader. This can either be a relative path, or if you have added your Editing Kit Path to add on preferences, the full path. Including the file extension will automatically update the shader type",
+        name="Shader Path",
+        description="Define the path to a shader. This can either be a relative path, or if you have added your Editing Kit Path to add on preferences, the full path. Including the file extension will automatically update the shader type",
         update=update_shader,
-        )
+    )
 
-    rendered : BoolProperty(default = True)
+    rendered: BoolProperty(default=True)

@@ -29,18 +29,19 @@ from mathutils import Vector
 import os
 import zipfile
 
+
 def add_scale_model(self, context):
-    if self.unit == 'biped':
-        if self.game == 'reach':
+    if self.unit == "biped":
+        if self.game == "reach":
             model = self.biped_model_reach
-        elif self.game == 'h4':
+        elif self.game == "h4":
             model = self.biped_model_h4
         else:
             model = self.biped_model_h2a
     else:
-        if self.game == 'reach':
+        if self.game == "reach":
             model = self.vehicle_model_reach
-        elif self.game == 'h4':
+        elif self.game == "h4":
             model = self.vehicle_model_h4
         else:
             model = self.vehicle_model_h2a
@@ -49,26 +50,27 @@ def add_scale_model(self, context):
     addon_dir = os.path.dirname(os.path.dirname(script_file))
     resources_zip = os.path.join(addon_dir, "resources.zip")
 
-    file = os.path.join(addon_dir, 'resources', self.game, model + '.txt')
+    file = os.path.join(addon_dir, "resources", self.game, model + ".txt")
     if os.path.exists(file):
         write_data(self, context, model, file)
     elif os.path.exists(resources_zip):
         os.chdir(addon_dir)
-        file_relative = f'{self.game}/{model}.txt'
-        with zipfile.ZipFile(resources_zip, 'r') as zip:
+        file_relative = f"{self.game}/{model}.txt"
+        with zipfile.ZipFile(resources_zip, "r") as zip:
             file = zip.extract(file_relative)
             write_data(self, context, model, file)
 
         os.remove(file)
         os.rmdir(os.path.dirname(file))
     else:
-        print('Resouces not found')
-        return ({'CANCELLED'})
-    
-    return ({'FINISHED'})
+        print("Resouces not found")
+        return {"CANCELLED"}
+
+    return {"FINISHED"}
+
 
 def write_data(self, context, model, file):
-    with open(file, 'r') as f:
+    with open(file, "r") as f:
         verts_str = f.readline()
         faces_str = f.readline()
 

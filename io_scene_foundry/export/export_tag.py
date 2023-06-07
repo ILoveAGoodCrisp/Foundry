@@ -34,17 +34,43 @@ from ..utils.nwo_utils import (
 )
 
 
-def import_sidecar(sidecar_type, sidecar_path, asset_path, asset_name, import_check, import_force, import_verbose,
-                   import_draft,import_seam_debug,import_skip_instances,import_decompose_instances,
-                   import_surpress_errors
-                   ):
-                   
+def import_sidecar(
+    sidecar_type,
+    sidecar_path,
+    asset_path,
+    asset_name,
+    import_check,
+    import_force,
+    import_verbose,
+    import_draft,
+    import_seam_debug,
+    import_skip_instances,
+    import_decompose_instances,
+    import_surpress_errors,
+):
     print("\n\nBuilding Tags")
-    print("-------------------------------------------------------------------------\n")
+    print(
+        "-------------------------------------------------------------------------\n"
+    )
     time.sleep(0.5)
-    run_tool(['import', sidecar_path, *get_import_flags(import_check, import_force, import_verbose, import_draft, import_seam_debug, import_skip_instances, import_decompose_instances, import_surpress_errors)])
-    
-    if sidecar_type == 'FP ANIMATION':
+    run_tool(
+        [
+            "import",
+            sidecar_path,
+            *get_import_flags(
+                import_check,
+                import_force,
+                import_verbose,
+                import_draft,
+                import_seam_debug,
+                import_skip_instances,
+                import_decompose_instances,
+                import_surpress_errors,
+            ),
+        ]
+    )
+
+    if sidecar_type == "FP ANIMATION":
         cull_unused_tags(asset_path, asset_name)
 
     return "Tag Export Processed"
@@ -53,9 +79,9 @@ def import_sidecar(sidecar_type, sidecar_path, asset_path, asset_name, import_ch
 def cull_unused_tags(asset_path, asset_name):
     try:
         tag_path = os.path.join(get_tags_path() + asset_path, asset_name)
-        scenery = f'{tag_path}.scenery'
-        model = f'{tag_path}.model'
-        render_model = f'{tag_path}.render_model'
+        scenery = f"{tag_path}.scenery"
+        model = f"{tag_path}.model"
+        render_model = f"{tag_path}.render_model"
         # remove the unused tags
         if os.path.exists(scenery):
             os.remove(scenery)
@@ -65,28 +91,38 @@ def cull_unused_tags(asset_path, asset_name):
             os.remove(render_model)
 
     except:
-        print('Failed to remove unused tags')
+        print("Failed to remove unused tags")
 
-def get_import_flags(flag_import_check, flag_import_force, flag_import_verbose, flag_import_draft, flag_import_seam_debug, flag_import_skip_instances, flag_import_decompose_instances, flag_import_surpress_errors):
+
+def get_import_flags(
+    flag_import_check,
+    flag_import_force,
+    flag_import_verbose,
+    flag_import_draft,
+    flag_import_seam_debug,
+    flag_import_skip_instances,
+    flag_import_decompose_instances,
+    flag_import_surpress_errors,
+):
     flags = []
     if flag_import_force:
-        flags.append('force')
+        flags.append("force")
     if flag_import_skip_instances:
-        flags.append('skip_instances')
+        flags.append("skip_instances")
     if not_bungie_game():
-        flags.append('preserve_namespaces')
+        flags.append("preserve_namespaces")
     else:
         if flag_import_check:
-            flags.append('check')
+            flags.append("check")
         if flag_import_verbose:
-            flags.append('verbose')
+            flags.append("verbose")
         if flag_import_draft:
-            flags.append('draft')
+            flags.append("draft")
         if flag_import_seam_debug:
-            flags.append('seam_debug')
+            flags.append("seam_debug")
         if flag_import_decompose_instances:
-            flags.append('decompose_instances')
+            flags.append("decompose_instances")
         if flag_import_surpress_errors:
-            flags.append('surpress_errors_to_vrml')
-    
+            flags.append("surpress_errors_to_vrml")
+
     return flags

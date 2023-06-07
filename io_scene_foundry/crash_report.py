@@ -5,17 +5,23 @@ import os
 import pdb, traceback, sys
 from io_scene_foundry import config
 
+
 class CrashReport:
     def __init__(self):
         self.zip_buffer = io.BytesIO()
-        self.zfile = zipfile.ZipFile(self.zip_buffer, "w", zipfile.ZIP_DEFLATED)
+        self.zfile = zipfile.ZipFile(
+            self.zip_buffer, "w", zipfile.ZIP_DEFLATED
+        )
 
-        self.add_file("readme.txt",
-        f"""Crash report for Halo-Asset-Blender-Development-Toolset
-Please create an issue at {config.URL} or email {config.EMAIL}""")
+        self.add_file(
+            "readme.txt",
+            f"""Crash report for Halo-Asset-Blender-Development-Toolset
+Please create an issue at {config.URL} or email {config.EMAIL}""",
+        )
 
     def add_file(self, name, contents):
         self.zfile.writestr(name, contents)
+
     def dump(self):
         """Returns the path the file was dumped to"""
         self.zfile.close()
@@ -25,9 +31,10 @@ Please create an issue at {config.URL} or email {config.EMAIL}""")
         except OSError:
             pass
         file_name = f"{crash_dir}\\{int(time.time())}_crash.zip"
-        with open(file_name, 'wb') as f:
+        with open(file_name, "wb") as f:
             f.write(self.zip_buffer.getvalue())
         return file_name
+
 
 def report_crash():
     info = sys.exc_info()
@@ -40,7 +47,9 @@ def report_crash():
         try:
             for i, (frame, _) in enumerate(traceback.walk_tb(info[2])):
                 if i > 2:
-                    report.add_file(f"crash/frames/locals_{i}.txt", str(frame.f_locals))
+                    report.add_file(
+                        f"crash/frames/locals_{i}.txt", str(frame.f_locals)
+                    )
         except:
             pass
 

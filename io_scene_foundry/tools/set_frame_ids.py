@@ -40,40 +40,46 @@ from io_scene_foundry.utils.nwo_utils import (
     comma_partition,
 )
 
+
 def reset_frame_ids(context, report):
     model_armature = GetArmature(context, report)
     if model_armature != None:
         blend_bones = model_armature.data.bones
         for b in blend_bones:
-            b.nwo.frame_id1 = ''
-            b.nwo.frame_id2 = ''
-        
-        report({'INFO'},"Frame IDs Reset")
-    
-    return {'FINISHED'}
-    
+            b.nwo.frame_id1 = ""
+            b.nwo.frame_id2 = ""
+
+        report({"INFO"}, "Frame IDs Reset")
+
+    return {"FINISHED"}
+
+
 def set_frame_ids(context, report):
     model_armature = GetArmature(context, report)
     frame_count = 0
     if model_armature != None:
         try:
             framelist = ImportTagXML(context, report)
-            if(not framelist == None):
+            if not framelist == None:
                 tag_bone_names = CleanBoneNames(framelist)
                 blend_bone_names = CleanBones(model_armature.data.bones)
                 blend_bones = model_armature.data.bones
-                
+
                 for blend_bone in blend_bone_names:
                     for tag_bone in tag_bone_names:
                         if blend_bone == tag_bone:
                             ApplyFrameIDs(blend_bone, blend_bones, framelist)
                             frame_count += 1
 
-                report({'INFO'},"Updated Frame IDs for " + str(frame_count) + ' bones')
+                report(
+                    {"INFO"},
+                    "Updated Frame IDs for " + str(frame_count) + " bones",
+                )
         except:
-            report({'WARNING'},"Failed to parse exported tag XML")
+            report({"WARNING"}, "Failed to parse exported tag XML")
 
-    return {'FINISHED'}
+    return {"FINISHED"}
+
 
 def ApplyFrameIDs(bone_name, bone_names_list, framelist):
     for b in bone_names_list:
@@ -81,13 +87,15 @@ def ApplyFrameIDs(bone_name, bone_names_list, framelist):
             b.nwo.frame_id1 = GetID(1, bone_name, framelist)
             b.nwo.frame_id2 = GetID(2, bone_name, framelist)
 
+
 def GetID(ID, name, framelist):
-    frame = ''
+    frame = ""
     for x in framelist:
         b_name = CleanBoneName(x[0])
         if b_name == name:
             frame = x[ID]
     return frame
+
 
 def CleanBoneNames(bones):
     cleanlist = []
@@ -95,8 +103,9 @@ def CleanBoneNames(bones):
         prefix = get_prefix(b[0], frame_prefixes)
         cleaned_bone = b[0].removeprefix(prefix)
         cleanlist.append(cleaned_bone)
-    
+
     return cleanlist
+
 
 def CleanBones(bones):
     cleanlist = []
@@ -107,11 +116,13 @@ def CleanBones(bones):
 
     return cleanlist
 
+
 def CleanBone(bone):
     prefix = get_prefix(bone.name, frame_prefixes)
     cleaned_bone = bone.name.removeprefix(prefix)
 
     return cleaned_bone
+
 
 def CleanBoneName(bone):
     prefix = get_prefix(bone, frame_prefixes)
@@ -119,18 +130,25 @@ def CleanBoneName(bone):
 
     return cleaned_bone
 
+
 def ImportTagXML(context, report):
     # try:
     xml_path = get_tags_path() + "temp.xml"
     tag_path = GetGraphPath(context)
     print(os.path.join(get_ek_path(), tag_path))
     if not os.path.exists(os.path.join(get_ek_path(), tag_path)):
-        report({'WARNING'},"Could not find file that exists at this path. Are your Editing Kit path and animation graph path correct?")
+        report(
+            {"WARNING"},
+            "Could not find file that exists at this path. Are your Editing Kit path and animation graph path correct?",
+        )
         return None
     os.chdir(get_ek_path())
-    run_tool(['export-tag-to-xml', f'\\{tag_path}', xml_path])
+    run_tool(["export-tag-to-xml", f"\\{tag_path}", xml_path])
     if not os.path.exists(xml_path):
-        report({'WARNING'},"Failed to convert supplied tag path to XML. Did you enter a valid tag path?")
+        report(
+            {"WARNING"},
+            "Failed to convert supplied tag path to XML. Did you enter a valid tag path?",
+        )
         return None
     bonelist = ParseXML(xml_path, context)
     os.remove(xml_path)
@@ -139,68 +157,76 @@ def ImportTagXML(context, report):
     #     ctypes.windll.user32.MessageBoxW(0, "Tool.exe failed to get tag XML for FrameIDs. Please check the path to your .model_animation_graph tag.", "GET FRAMEIDS FAILED", 0)
     #     return None
 
+
 def GetGraphPath(context):
     path = context.scene.nwo_frame_ids.anim_tag_path
     # path cleaning
-    path = path.strip('\\')
-    path = path.replace(get_tags_path(), '')
-    path = os.path.join('tags', path)
+    path = path.strip("\\")
+    path = path.replace(get_tags_path(), "")
+    path = os.path.join("tags", path)
     path = dot_partition(path)
     path = comma_partition(path)
-    path = f'{path}.model_animation_graph'
+    path = f"{path}.model_animation_graph"
 
     return path
+
 
 def ParseXML(xmlPath, context):
     parent = []
     scene = context.scene
     scene_nwo = scene.nwo_global
 
-    if scene_nwo.game_version in ('h4','h2a'):
-        tree = ET.parse(xmlPath, parser = ET.XMLParser(encoding = 'iso-8859-5'))
+    if scene_nwo.game_version in ("h4", "h2a"):
+        tree = ET.parse(xmlPath, parser=ET.XMLParser(encoding="iso-8859-5"))
         root = tree.getroot()
-        for b in root.findall('block'):
-            for e in b.findall('element'):
-                name = ''
-                frameID1 = ''
-                frameID2 = ''
-                for f in e.findall('field'):
+        for b in root.findall("block"):
+            for e in b.findall("element"):
+                name = ""
+                frameID1 = ""
+                frameID2 = ""
+                for f in e.findall("field"):
                     attributes = f.attrib
-                    if(attributes.get('name') == 'frame_ID1'):
-                        name = (e.get('name'))
-                        frameID1 = (attributes.get('value'))
-                    elif(attributes.get('name') == 'frame_ID2'):
-                        frameID2 = (attributes.get('value'))
-                if not name == '':
+                    if attributes.get("name") == "frame_ID1":
+                        name = e.get("name")
+                        frameID1 = attributes.get("value")
+                    elif attributes.get("name") == "frame_ID2":
+                        frameID2 = attributes.get("value")
+                if not name == "":
                     temp = [name, frameID1, frameID2]
                     parent.append(temp)
-    else: 
+    else:
         tree = ET.parse(xmlPath)
         root = tree.getroot()
-        for e in root.findall('element'):
-            name = ''
-            frameID1 = ''
-            frameID2 = ''
-            for f in e.findall('field'):
+        for e in root.findall("element"):
+            name = ""
+            frameID1 = ""
+            frameID2 = ""
+            for f in e.findall("field"):
                 attributes = f.attrib
-                if(attributes.get('name') == 'frame_ID1'):
-                    name = (e.get('name'))
-                    frameID1 = (attributes.get('value'))
-                elif(attributes.get('name') == 'frame_ID2'):
-                    frameID2 = (attributes.get('value'))
-            if not name == '':
+                if attributes.get("name") == "frame_ID1":
+                    name = e.get("name")
+                    frameID1 = attributes.get("value")
+                elif attributes.get("name") == "frame_ID2":
+                    frameID2 = attributes.get("value")
+            if not name == "":
                 temp = [name, frameID1, frameID2]
                 parent.append(temp)
 
     return parent
 
+
 def GetArmature(context, report):
     model_armature = None
     for ob in context.scene.objects:
-        if ob.type == 'ARMATURE' and not ob.name.startswith('+'): # added a check for a '+' prefix in armature name, to support special animation control armatures in the future
+        if ob.type == "ARMATURE" and not ob.name.startswith(
+            "+"
+        ):  # added a check for a '+' prefix in armature name, to support special animation control armatures in the future
             model_armature = ob
             break
     if model_armature == None:
-        report({'WARNING'},"Could not find any valid armature in the scene. Frame ID operation aborted")
+        report(
+            {"WARNING"},
+            "Could not find any valid armature in the scene. Frame ID operation aborted",
+        )
 
     return model_armature
