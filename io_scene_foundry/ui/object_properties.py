@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from .face_properties import NWO_FaceProperties_ListItems
-from . import poll_ui
+from .templates import poll_ui
 from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatProperty, StringProperty, PointerProperty, FloatVectorProperty, CollectionProperty
 from bpy.types import PropertyGroup, Object
 import bpy
@@ -1362,7 +1362,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     face_global_material_ui: StringProperty(
         name="Collision Material",
-        default='default',
+        default='',
         description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
     )
 

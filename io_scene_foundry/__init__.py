@@ -285,8 +285,6 @@ def get_temp_settings(dummy):
 
             os.remove(temp_file_path)
 
-        return False
-
 def register():
     bpy.utils.register_class(ToolkitLocationPreferences)
     bpy.utils.register_class(HREKLocationPath)

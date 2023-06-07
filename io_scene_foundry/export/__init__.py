@@ -26,13 +26,6 @@
 
 
 ####################
-# TODO Add proper exception handling for when frame id tool anim graph path invalid or empty
-# TODO Stop structure design bsps being added to the connected_geometry_bsp_table
-# TODO get / setter for halo light colour
-# TODO Animation name tool
-# TODO Face map properties
-# TODO Strip prefixes on export and apply maya namespace prefixes (h4/h2a)
-
 bl_info = {
     'name': 'Halo NWO Export',
     'author': 'Crisp',
@@ -50,10 +43,14 @@ from bpy.types import Operator
 from addon_utils import check, module_bl_info
 from os.path import exists as file_exists
 from os import path
+import time
+import os
 import ctypes
 
+from .prepare_scene import PrepareScene
+from .process_scene import ProcessScene
 
-from io_scene_foundry.utils.nwo_utils import CheckPath, bpy_enum, dot_partition, formalise_game_version, get_data_path, get_asset_info, get_ek_path, get_tags_path, get_tool_path, managed_blam_active
+from io_scene_foundry.utils.nwo_utils import check_path, bpy_enum, disable_prints, dot_partition, enable_prints, formalise_game_version, get_data_path, get_asset_info, get_ek_path, get_tags_path, get_tool_path, managed_blam_active, print_box
 
 # lightmapper_run_once = False
 sidecar_read = False
@@ -483,13 +480,79 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.filepath = path.join(get_data_path(),  'halo_export.fbx')
 
     def execute(self, context):
-        # get the asset name and path to the asset folder
-        asset_path, asset = get_asset_info(self.filepath)
+        os.system('cls')
 
+        start = time.perf_counter()
+
+        # get the asset name and path to the asset folder
+        self.asset_path, self.asset = get_asset_info(self.filepath)
+
+        sidecar_path_full = os.path.join(self.asset_path, self.asset + '.sidecar.xml')
+        sidecar_path = sidecar_path_full.replace(get_data_path(), "")
+
+        self.set_scene_props(context)
+
+        # Save the scene
+        bpy.ops.wm.save_mainfile()
+
+        # Check that we can export
+        if self.export_invalid():
+            return self.report({'WARNING'}, "Export aborted")
+
+        print('\n\n\n\n\n\nHalo Tag Export Started')
+        print("-------------------------------------------------------------------------\n")
+
+        console = bpy.ops.wm
+
+        if self.show_output:
+            console.console_toggle() # toggle the console so users can see progress of export
+
+        context.scene.nwo_export.show_output = False
+
+        nwo_scene = PrepareScene(context, self.report, self.asset, self.sidecar_type, self.use_armature_deform_only, 
+                                self.game_version, self.meshes_to_empties, self.export_animations, self.export_gr2_files, 
+                                self.export_all_perms, self.export_all_bsps
+                                )
+
+        export = ProcessScene(context, self.report, sidecar_path, sidecar_path_full, self.asset, self.asset_path, fbx_exporter(), nwo_scene,
+                                   self.sidecar_type, self.output_biped, self.output_crate, self.output_creature,
+                                   self.output_device_control, self.output_device_machine, self.output_device_terminal, self.output_device_dispenser,
+                                   self.output_effect_scenery, self.output_equipment, self.output_giant, self.output_scenery,
+                                   self.output_vehicle, self.output_weapon, self.export_skeleton, self.export_render,
+                                   self.export_collision, self.export_physics, self.export_markers, self.export_animations,
+                                   self.export_structure, self.export_design, self.export_sidecar_xml, self.lightmap_structure,
+                                   self.import_to_game, self.export_gr2_files, self.game_version, self.global_scale, 
+                                   self.use_mesh_modifiers, self.mesh_smooth_type, self.use_triangles, 
+                                   self.use_armature_deform_only, self.mesh_smooth_type_better,
+                                   self.import_check, self.import_force, self.import_verbose, self.import_draft,
+                                   self.import_seam_debug, self.import_skip_instances, self.import_decompose_instances, self.import_surpress_errors
+                                   )
+
+        # validate that a sidecar file exists
+        if not file_exists(sidecar_path_full):
+            sidecar_path = ""
+
+        # write scene settings generated during export to temp file
+        self.write_temp_settings(context, export.export_report, sidecar_path)
+        
+        end = time.perf_counter()
+        print("\n-------------------------------------------------------------------------")
+        print(f"Tag Export Completed in {end - start} seconds")
+        print("-------------------------------------------------------------------------\n")
+
+        
+
+        # restore scene back to its pre export state
+        bpy.ops.ed.undo_push()
+        bpy.ops.ed.undo()
+
+        return {'FINISHED'}
+    
+    def set_scene_props(self, context):
         scene_nwo = context.scene.nwo
 
         # set Halo scene version to match game_version (we do this do ensure the code is checking the right toolset)
-        context.scene.nwo.game_version = self.game_version
+        scene_nwo.game_version = self.game_version
 
         # Set the UI asset type to the export type
         scene_nwo.asset_type = self.sidecar_type
@@ -509,75 +572,46 @@ class NWO_Export_Scene(Operator, ExportHelper):
         scene_nwo.output_vehicle = self.output_vehicle
         scene_nwo.output_weapon = self.output_weapon
 
-        # Check that we can export
-        if not CheckPath(self.filepath) or not file_exists(f'{get_tool_path()}.exe') or asset_path + path.sep == get_data_path(): # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
+    def export_invalid(self):
+        if not check_path(self.filepath) or not file_exists(f'{get_tool_path()}.exe') or self.asset_path + os.sep == get_data_path(): # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
             game = formalise_game_version(self.game_version)
             if get_ek_path() is None or get_ek_path() == '':
                 ctypes.windll.user32.MessageBoxW(0, f"No {game} Editing Kit path found. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.", f"INVALID {game} EK PATH", 0)
             elif not file_exists(f'{get_tool_path()}.exe'):
                 ctypes.windll.user32.MessageBoxW(0, f"{game} Tool not found. Could not find {game} tool or tool_fast. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.", f"INVALID {game} TOOL PATH", 0)
-            elif asset_path + path.sep == get_data_path():
+            elif self.asset_path + path.sep == get_data_path():
                 ctypes.windll.user32.MessageBoxW(0, f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder', f"ROOT DATA FOLDER EXPORT", 0)
             else:
                 ctypes.windll.user32.MessageBoxW(0, f"The selected export folder is outside of your {game} editing kit data directory, please ensure you are exporting to a directory within your {game} editing kit data folder.", f"INVALID {game} EXPORT PATH", 0)
-            
-        else:
-            print('Preparing Scene for Export...')
 
-            keywords = self.as_keywords()
-            console = bpy.ops.wm
+            return True
+        
+        return False
 
-            if self.show_output:
-                console.console_toggle() # toggle the console so users can see progress of export
-
-            context.scene.nwo_export.show_output = False
-
-            from .prepare_scene import prepare_scene
-            (model_armature, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action
-            ) = prepare_scene(context, self.report, asset, **keywords) # prepares the scene for processing and returns information about the scene
-            # if self.build_shaders:
-            #     shader_builder()
-            # try:
-            from .process_scene import process_scene
-            final_report = process_scene(self, context, keywords, self.report, model_armature, asset_path, asset, skeleton_bones, halo_objects, timeline_start, timeline_end, lod_count, UsingBetterFBX(), selected_perms, selected_bsps, regions_dict, global_materials_dict, current_action, **keywords)
-            # except Exception:
-            #     from traceback import print_exc
-            #     print_exc()
-            #     self.report({'ERROR'}, 'ASSERT: Scene processing failed')
-
-            sidecar_path = path.join(asset_path.replace(get_data_path(), ''), f'{asset}.sidecar.xml')
-
-            if not file_exists(path.join(get_data_path(), sidecar_path)):
-                sidecar_path = ''
-
-            temp_file_path = path.join(bpy.app.tempdir, 'nwo_scene_settings.txt')
-            with open(temp_file_path, 'w') as temp_file:
-                temp_file.write(f'{sidecar_path}\n')
-                temp_file.write(f'{self.game_version}\n')
-                temp_file.write(f'{self.sidecar_type}\n')
-                temp_file.write(f'{self.output_biped}\n')
-                temp_file.write(f'{self.output_crate}\n')
-                temp_file.write(f'{self.output_creature}\n')
-                temp_file.write(f'{self.output_device_control}\n')
-                temp_file.write(f'{self.output_device_dispenser}\n')
-                temp_file.write(f'{self.output_device_machine}\n')
-                temp_file.write(f'{self.output_device_terminal}\n')
-                temp_file.write(f'{self.output_effect_scenery}\n')
-                temp_file.write(f'{self.output_equipment}\n')
-                temp_file.write(f'{self.output_giant}\n')
-                temp_file.write(f'{self.output_scenery}\n')
-                temp_file.write(f'{self.output_vehicle}\n')
-                temp_file.write(f'{self.output_weapon}\n')
-                temp_file.write(f'{context.scene.nwo_export.show_output}\n')
-                if self.quick_export:
-                    temp_file.write(f'{final_report}\n')
-                else:
-                    self.report({'INFO'}, final_report)
-                    
-        bpy.ops.ed.undo_push()
-        bpy.ops.ed.undo()
-
-        return {'FINISHED'}
+    def write_temp_settings(self, context, export_report, sidecar_path):
+        temp_file_path = path.join(bpy.app.tempdir, 'nwo_scene_settings.txt')
+        with open(temp_file_path, 'w') as temp_file:
+            temp_file.write(f'{sidecar_path}\n')
+            temp_file.write(f'{self.game_version}\n')
+            temp_file.write(f'{self.sidecar_type}\n')
+            temp_file.write(f'{self.output_biped}\n')
+            temp_file.write(f'{self.output_crate}\n')
+            temp_file.write(f'{self.output_creature}\n')
+            temp_file.write(f'{self.output_device_control}\n')
+            temp_file.write(f'{self.output_device_dispenser}\n')
+            temp_file.write(f'{self.output_device_machine}\n')
+            temp_file.write(f'{self.output_device_terminal}\n')
+            temp_file.write(f'{self.output_effect_scenery}\n')
+            temp_file.write(f'{self.output_equipment}\n')
+            temp_file.write(f'{self.output_giant}\n')
+            temp_file.write(f'{self.output_scenery}\n')
+            temp_file.write(f'{self.output_vehicle}\n')
+            temp_file.write(f'{self.output_weapon}\n')
+            temp_file.write(f'{context.scene.nwo_export.show_output}\n')
+            if self.quick_export:
+                temp_file.write(f'{export_report}\n')
+            else:
+                self.report({'INFO'}, export_report)
 
     def draw(self, context):
         layout = self.layout
@@ -702,7 +736,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         col.prop(self, "use_triangles")
         col.prop(self, 'use_armature_deform_only') 
         col.prop(self, 'meshes_to_empties')
-        if UsingBetterFBX():
+        if fbx_exporter() == "better":
             col.prop(self, 'mesh_smooth_type_better')
         else:
             col.prop(self, 'mesh_smooth_type')
@@ -712,18 +746,18 @@ class NWO_Export_Scene(Operator, ExportHelper):
 def menu_func_export(self, context):
     self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag Exporter")
 
-def UsingBetterFBX():
-    using_better_fbx = False
+def fbx_exporter():
+    exporter = "default"
     addon_default, addon_state = check('better_fbx')
 
     if (addon_default or addon_state):
         from sys import modules
         if module_bl_info(modules.get('better_fbx')).get('version') in ((5, 1, 5), (5, 2, 10)):
-            using_better_fbx = True
+            exporter = "better"
         else:
             print("Only BetterFBX versions [5.1.5] & [5.2.10] are supported. Using Blender's default fbx exporter")
 
-    return using_better_fbx
+    return exporter
 
 def ExportSettingsFromSidecar(sidecar_filepath):
     settings = []

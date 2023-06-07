@@ -29,7 +29,7 @@ from bpy.props import IntProperty, BoolProperty, EnumProperty, StringProperty, C
 from bpy.types import PropertyGroup
 import bpy
 
-from . import poll_ui
+from .templates import poll_ui
 from ..icons import get_icon_id
 from ..utils.nwo_utils import get_ek_path, not_bungie_game
 

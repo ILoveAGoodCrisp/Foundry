@@ -24,13 +24,14 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 import bmesh
+import sys
 import bpy
 import platform
 from math import radians
 from mathutils import Matrix, Vector
 import os
 from os.path import exists as file_exists
-from subprocess import Popen, run, check_call
+from subprocess import Popen, check_call, DEVNULL
 import shutil
 import random
 from ..icons import get_icon_id
@@ -247,8 +248,7 @@ def get_active_object():
 def get_asset_info(filepath):
     asset_path = filepath.rpartition(os.sep)[0]
     asset = asset_path.rpartition(os.sep)[2]
-    if asset.endswith('.fbx'):
-        asset = asset.replace('.fbx', '')
+    asset = dot_partition(asset)
 
     return asset_path, asset
 
@@ -586,17 +586,19 @@ class CheckType:
             return material.name.startswith('+') or material.nwo.material_override != 'none'
 
 
-def run_tool(tool_args: list, in_background=False, output_file=None):
+def run_tool(tool_args: list, in_background=False, null_output=False):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     os.chdir(get_ek_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     if in_background:
-        if output_file is not None:
-            return Popen(command, stdout=output_file, stderr=output_file)
+        if null_output:
+            return Popen(command, stdout=DEVNULL, stderr=DEVNULL)
         else:
             return Popen(command)
     else:
+        if null_output:
+            return check_call(command, stdout=DEVNULL, stderr=DEVNULL)
         try:
             return check_call(command)
         except Exception as e:
@@ -778,7 +780,7 @@ def create_ob_matric_dict(objects_in_scope):
 
     return ob_matrix
 
-def CheckPath(filePath):
+def check_path(filePath):
     return filePath.startswith(os.path.join(get_ek_path(), 'data'))
 
 #################################
@@ -976,12 +978,11 @@ def object_median_point(ob):
 
 def layer_face_count(bm, face_layer):
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
-    face_count = 0
-    for face in bm.faces:
-        if face[face_layer] == 1:
-            face_count += 1
+    return len([face for face in bm.faces if face[face_layer]])
 
-    return face_count
+def layer_faces(bm, face_layer):
+    """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
+    return [face for face in bm.faces if face[face_layer]]
 
 def random_colour(max_hue=True):
     rgb = [random.random() for i in range(3)]
@@ -1014,4 +1015,32 @@ def delete_object_list(context, object_list):
     override["selected_objects"] = object_list
     with context.temp_override(**override):
         bpy.ops.object.delete()
+
+def disable_prints():
+    sys.stdout = open(os.devnull, 'w')
+
+def enable_prints():
+    sys.stdout = sys.__stdout__
+
+def data_relative(path):
+    return path.replace(get_data_path(), "")
+
+def update_progress(job_title, progress):
+    if progress <= 1:
+        length = 20 # modify this to change the length
+        block = int(round(length*progress))
+        msg = "\r{0}: [{1}] {2}%".format(job_title, "#"*block + "-"*(length-block), round(progress*100, 2))
+        if progress >= 1: msg += " DONE\r\n"
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+
+def update_job(job_title, progress):
+    msg = "\r{0}".format(job_title)
+    if progress < 1:
+        msg += "..."
+    else:
+        msg += " DONE\r\n"
+    
+    sys.stdout.write(msg)
+    sys.stdout.flush()
 

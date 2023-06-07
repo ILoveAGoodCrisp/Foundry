@@ -773,7 +773,7 @@ class NWOMesh(NWOObject):
             if self.halo.precise_position:
                 self.bungie_mesh_use_uncompressed_verts = self.mesh_use_uncompressed_verts()
 
-        if self.halo.face_global_material and self.halo.face_global_material != 'default':
+        if self.halo.face_global_material:
             self.bungie_face_global_material = self.halo.face_global_material
         
         # SPECIFIC MESH TYPE PROPS
@@ -788,7 +788,7 @@ class NWOMesh(NWOObject):
                 if self.not_bungie_game:
                     self.bungie_mesh_poop_collision_type = self.mesh_poop_collision_type()
                     if self.bungie_mesh_poop_collision_type != '_connected_geometry_poop_collision_type_none':
-                        self.bungie_mesh_poop_collision_override_global_material = bool_str(self.halo.face_global_material != 'default' and self.halo.face_global_material != '')
+                        self.bungie_mesh_poop_collision_override_global_material = bool_str(self.halo.face_global_material)
                         if self.bungie_mesh_poop_collision_override_global_material == '1':
                             self.bungie_mesh_global_material = self.halo.face_global_material
 

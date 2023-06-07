@@ -31,11 +31,103 @@ from bpy.props import (
         PointerProperty,
         )
 
-def poll_ui(selected_types):
-    scene_nwo = bpy.context.scene.nwo
-    asset_type = scene_nwo.asset_type
 
-    return asset_type in selected_types
+# import classes from other files
+
+from .face_ui import (NWO_FaceLayerAddMenu,
+                      NWO_FacePropAddMenu,
+                      NWO_FacePropPanel,
+                      NWO_UL_FacePropList,
+                      NWO_EditMode,
+                      NWO_FaceLayerAdd,
+                      NWO_FaceLayerRemove,
+                      NWO_FaceLayerAssign,
+                      NWO_FaceLayerSelect,
+                      NWO_FaceLayerMove,
+                      NWO_FaceLayerAddFaceMode,
+                      NWO_FaceLayerAddFlags,
+                      NWO_FaceLayerAddLightmap,
+                      NWO_FacePropRemove,
+                      NWO_FacePropAdd,
+                      NWO_FacePropAddFaceMode,
+                      NWO_FacePropAddFlags,
+                      NWO_FacePropAddLightmap,
+                      NWO_FaceLayerColourAll,
+                      NWO_FaceLayerColour,
+                      NWO_RegionListFace,
+                      NWO_GlobalMaterialRegionListFace,
+                      NWO_GlobalMaterialListFace,
+                      NWO_GlobalMaterialMenuFace,
+                      )
+
+from .face_properties import NWO_FaceProperties_ListItems
+
+from .object_properties import (NWO_MeshPropertiesGroup,
+                                NWO_ObjectPropertiesGroup,
+                                NWO_LightPropertiesGroup,
+                                NWO_BonePropertiesGroup
+                                )
+
+from .object_ui import (NWO_UL_FaceMapProps,
+                        NWO_MeshFaceProps,
+                        NWO_FaceDefaultsToggle,
+                        NWO_MeshPropAddMenu,
+                        NWO_MeshPropAdd,
+                        NWO_MeshPropRemove,
+                        NWO_MeshPropAddFaceMode,
+                        NWO_MeshPropAddFaceSides,
+                        NWO_MeshPropAddFlags,
+                        NWO_MeshPropAddLightmap,
+                        NWO_MeshPropAddMaterialLighting,
+                        NWO_MeshPropAddMisc,
+                        NWO_ObjectProps,
+                        NWO_GameInstancePath,
+                        NWO_FogPath,
+                        NWO_EffectPath,
+                        NWO_LightConePath,
+                        NWO_LightConeCurvePath,
+                        NWO_LightTagPath,
+                        NWO_LightShaderPath,
+                        NWO_LightGelPath,
+                        NWO_LensFlarePath,
+                        NWO_GlobalMaterialMenu,
+                        NWO_RegionList,
+                        NWO_GlobalMaterialRegionList,
+                        NWO_GlobalMaterialList,
+                        NWO_PermutationList,
+                        NWO_BSPList,
+                        NWO_BSPListSeam,
+                        NWO_MasterInstance,
+                        NWO_BoneProps,
+                        NWO_LightProps,
+                        NWO_LightPropsCycles
+                        )
+
+from .materials_ui import (NWO_ShaderProps,
+                           NWO_MaterialOpenTag
+                           )
+
+from .materials_properties import (NWO_ShaderPath,
+                                   NWO_MaterialPropertiesGroup
+                                   )
+
+from .animation_properties import (NWO_UL_AnimProps_Events,
+                                   NWO_AnimProps_Events,
+                                   NWO_List_Add_Animation_Event,
+                                   NWO_List_Remove_Animation_Event,
+                                   NWO_Animation_ListItems,
+                                   NWO_ActionPropertiesGroup
+                                   )
+
+from .animation_ui import NWO_ActionProps
+
+from .scene_properties import (NWO_Asset_ListItems,
+                               NWO_ScenePropertiesGroup
+                               )
+
+from .scene_ui import (NWO_SceneProps,
+                       NWO_SetUnitScale,
+                       NWO_AssetMaker)
 
 mesh_type_items = [
     ('_connected_geometry_mesh_type_boundary_surface', "Boundary Surface", "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'"), # 0
@@ -167,22 +259,11 @@ class NWO_OpenAssetFoundry(NWO_Op):
     def open_in_new_blender(self, filepath):
         import subprocess
         filepath = filepath.replace("\\", "\\\\")
-        cli_args = f"""{bpy.app.binary_path} --python-expr "import bpy; bpy.ops.wm.read_homefile(app_template='Foundry'); bpy.ops.wm.open_mainfile(filepath='{filepath}')\""""
+        cli_args = (f"""{bpy.app.binary_path} --python-expr 
+                    "import bpy; bpy.ops.wm.read_homefile(app_template='Foundry'); bpy.ops.wm.open_mainfile(filepath='{filepath}')\"""")
+        
         self._process = subprocess.Popen(cli_args)
 
-
-
-# import classes from other files
-
-from .face_ui import *
-from .object_properties import *
-from .object_ui import *
-from .materials_ui import *
-from .materials_properties import *
-from .animation_properties import *
-from .animation_ui import *
-from .scene_properties import *
-from .scene_ui import *
 
 classes_nwo = (
     NWO_OpenAssetFoundry,

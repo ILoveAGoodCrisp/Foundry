@@ -30,7 +30,6 @@ import random
 
 from ..utils.nwo_utils import dot_partition
 
-
 class NWO_UL_AnimProps_Events(UIList):
     # use_name_reverse: BoolProperty(
     #     name="Reverse Name",

@@ -27,6 +27,13 @@
 from bpy.types import Panel, Operator
 from bpy.props import StringProperty
 from ..utils.nwo_utils import get_tags_path
+import bpy
+
+def poll_ui(selected_types):
+    scene_nwo = bpy.context.scene.nwo
+    asset_type = scene_nwo.asset_type
+
+    return asset_type in selected_types
 
 class NWO_PropPanel(Panel):
     bl_label = ""

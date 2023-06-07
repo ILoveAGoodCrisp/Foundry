@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2023 Generalkidd & Crisp
+# Copyright (c) 2023 Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,26 +25,29 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+import time
 
 from ..utils.nwo_utils import (
-    get_ek_path,
     get_tags_path,
     not_bungie_game,
     run_tool,
 )
 
-def import_now(report, sidecar_type, filePath='', import_check=False, import_force=False, import_verbose=False, import_draft=False,import_seam_debug=False,import_skip_instances=False,import_decompose_instances=False,import_surpress_errors=False, run_tagwatcher=False, import_in_background=False):
-    full_path = filePath.rpartition(os.sep)[0]
-    asset_path = CleanAssetPath(full_path)
-    asset_name = asset_path.rpartition(os.sep)[2]
-    try:
-        run_tool(['import', f'{os.path.join(asset_path, asset_name)}.sidecar.xml', *GetImportFlags(import_check, import_force, import_verbose, import_draft, import_seam_debug, import_skip_instances, import_decompose_instances, import_surpress_errors)])
-    except Exception:
-        report({'WARNING'},"Import Failed")
-    else:
-        if sidecar_type == 'FP ANIMATION':
-            cull_unused_tags(asset_path, asset_name)
-        report({'INFO'},"Import process complete")
+
+def import_sidecar(sidecar_type, sidecar_path, asset_path, asset_name, import_check, import_force, import_verbose,
+                   import_draft,import_seam_debug,import_skip_instances,import_decompose_instances,
+                   import_surpress_errors
+                   ):
+                   
+    print("\n\nBuilding Tags")
+    print("-------------------------------------------------------------------------\n")
+    time.sleep(0.5)
+    run_tool(['import', sidecar_path, *get_import_flags(import_check, import_force, import_verbose, import_draft, import_seam_debug, import_skip_instances, import_decompose_instances, import_surpress_errors)])
+    
+    if sidecar_type == 'FP ANIMATION':
+        cull_unused_tags(asset_path, asset_name)
+
+    return "Tag Export Processed"
 
 
 def cull_unused_tags(asset_path, asset_name):
@@ -64,14 +67,7 @@ def cull_unused_tags(asset_path, asset_name):
     except:
         print('Failed to remove unused tags')
 
-def CleanAssetPath(path):
-    path = path.replace('"','')
-    path = path.strip('\\')
-    path = path.replace(os.path.join(get_ek_path(), 'data', ''), '')
-
-    return path
-
-def GetImportFlags(flag_import_check, flag_import_force, flag_import_verbose, flag_import_draft, flag_import_seam_debug, flag_import_skip_instances, flag_import_decompose_instances, flag_import_surpress_errors):
+def get_import_flags(flag_import_check, flag_import_force, flag_import_verbose, flag_import_draft, flag_import_seam_debug, flag_import_skip_instances, flag_import_decompose_instances, flag_import_surpress_errors):
     flags = []
     if flag_import_force:
         flags.append('force')
@@ -94,23 +90,3 @@ def GetImportFlags(flag_import_check, flag_import_force, flag_import_verbose, fl
             flags.append('surpress_errors_to_vrml')
     
     return flags
-
-
-def import_sidecar(operator, context, report,
-        sidecar_type='MODEL',
-        filepath="",
-        import_check=False,
-        import_force=False,
-        import_verbose=False,
-        import_draft=False,
-        import_seam_debug=False,
-        import_skip_instances=False,
-        import_decompose_instances=False,
-        import_surpress_errors=False,
-        run_tagwatcher=False,
-        import_in_background=False,
-        **kwargs
-        ):
-        import_now(report, sidecar_type, filepath, import_check, import_force, import_verbose, import_draft,import_seam_debug,import_skip_instances,import_decompose_instances,import_surpress_errors, run_tagwatcher, import_in_background)
-
-        return {'FINISHED'}

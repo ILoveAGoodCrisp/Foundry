@@ -23,8 +23,6 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
-
-import bpy
 import os
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
@@ -32,32 +30,31 @@ from io_scene_foundry.utils.nwo_utils import (
     shader_exts,
 )
 
-def FindShaders(context, shaders_dir, report, overwrite):
-    shaders = []
-    materials = bpy.data.materials
+def find_shaders(materials, report, shaders_dir="", overwrite=False):
+    shaders = set()
     update_count = 0
-    if shaders_dir !='':
+    tags_path = get_tags_path()
+
+    if not shaders_dir:
         #clean shaders directory path
-        shaders_dir = shaders_dir.replace('"','')
-        shaders_dir = shaders_dir.strip('\\')
-        shaders_dir = shaders_dir.replace(get_tags_path(),'')
+        shaders_dir = shaders_dir.replace('"', '').strip('\\').replace(tags_path, '')
     
     #verify that the path created actually exists
-    shaders_dir = os.path.join(get_tags_path(), shaders_dir)
+    shaders_dir = os.path.join(tags_path, shaders_dir)
     if os.path.isdir(shaders_dir):
-        # then proceed to collect all shader names
-        for root, dirs, files in os.walk(shaders_dir):
-            for file in files:
-                if file.endswith(shader_exts):
-                    shaders.append(os.path.join(root, file))
+        for entry in os.scandir(shaders_dir):
+            if entry.is_file() and entry.name.endswith(shader_exts):
+                shaders.add(entry.path)
+
         # loop through mats, find a matching shader, and apply it if the shader path field is empty
         for mat in materials:
-            shader_path = FindShaderMatch(mat, shaders, get_tags_path())
-            # if we've found a shader path, and either overwrite shader path was set in the settings or the shader path field is empty, write the shader path.
+            shader_path = FindShaderMatch(mat, shaders, tags_path)
             if shader_path != '':
                 if overwrite or mat.nwo.shader_path == '':
-                    mat.nwo.shader_path = shader_path
-                    update_count +=1
+                    mat_shader_path = mat.nwo.shader_path
+                    if mat_shader_path != shader_path:
+                        mat_shader_path = shader_path
+                        update_count += 1
 
     report({'INFO'},"Updated " + str(update_count) + ' shader paths')
     return {'FINISHED'}

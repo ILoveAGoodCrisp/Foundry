@@ -24,8 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from . import poll_ui
-from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel
+from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel, poll_ui
 from ..utils.nwo_utils import bpy_enum_list, export_objects, is_linked, not_bungie_game, sort_alphanum, true_bsp, true_permutation, true_region
 import bpy
 from bpy.types import Menu, UIList
