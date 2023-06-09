@@ -498,7 +498,9 @@ class NWO_UL_FacePropList(bpy.types.UIList):
             )
             row = layout.row()
             row.alignment = "RIGHT"
-            row.label(text=f"{str(layer_face_count(bm, layer))}  ")
+            f_count = layer_face_count(bm, layer)
+            if f_count:
+                row.label(text=f"{str(f_count)}  ")
 
 
 def toggle_override(context, option, bool_var):
@@ -784,9 +786,9 @@ class NWO_FaceLayerAdd(NWO_Op):
 
 class NWO_FaceLayerRemove(NWO_Op):
     """Removes a face layer"""
-
     bl_idname = "nwo.face_layer_remove"
     bl_label = "Remove"
+    bl_options = {'REGISTER', 'UNDO_GROUPED'}
 
     @classmethod
     def poll(self, context):
@@ -797,7 +799,11 @@ class NWO_FaceLayerRemove(NWO_Op):
     def remove_face_layer(self, me, layer_name):
         bm = bmesh.from_edit_mesh(me)
         # get list of selected faces
-        bm.faces.layers.int.remove(bm.faces.layers.int.get(layer_name))
+        try:
+            bm.faces.layers.int.remove(bm.faces.layers.int.get(layer_name))
+        except:
+            pass
+        
         bmesh.update_edit_mesh(me)
 
     def execute(self, context):

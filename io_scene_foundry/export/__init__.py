@@ -46,6 +46,8 @@ from os import path
 import time
 import os
 import ctypes
+import traceback
+import logging
 
 from .prepare_scene import PrepareScene
 from .process_scene import ProcessScene
@@ -53,9 +55,7 @@ from .process_scene import ProcessScene
 from io_scene_foundry.utils.nwo_utils import (
     check_path,
     bpy_enum,
-    disable_prints,
     dot_partition,
-    enable_prints,
     formalise_game_version,
     get_data_path,
     get_asset_info,
@@ -63,7 +63,8 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     get_tool_path,
     managed_blam_active,
-    print_box,
+    print_error,
+    print_warning,
 )
 
 # lightmapper_run_once = False
@@ -563,87 +564,109 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         context.scene.nwo_export.show_output = False
 
-        nwo_scene = PrepareScene(
-            context,
-            self.report,
-            self.asset,
-            self.sidecar_type,
-            self.use_armature_deform_only,
-            self.game_version,
-            self.meshes_to_empties,
-            self.export_animations,
-            self.export_gr2_files,
-            self.export_all_perms,
-            self.export_all_bsps,
-        )
+        self.failed = False
+        error = None
 
-        export = ProcessScene(
-            context,
-            self.report,
-            sidecar_path,
-            sidecar_path_full,
-            self.asset,
-            self.asset_path,
-            fbx_exporter(),
-            nwo_scene,
-            self.sidecar_type,
-            self.output_biped,
-            self.output_crate,
-            self.output_creature,
-            self.output_device_control,
-            self.output_device_machine,
-            self.output_device_terminal,
-            self.output_device_dispenser,
-            self.output_effect_scenery,
-            self.output_equipment,
-            self.output_giant,
-            self.output_scenery,
-            self.output_vehicle,
-            self.output_weapon,
-            self.export_skeleton,
-            self.export_render,
-            self.export_collision,
-            self.export_physics,
-            self.export_markers,
-            self.export_animations,
-            self.export_structure,
-            self.export_design,
-            self.export_sidecar_xml,
-            self.lightmap_structure,
-            self.import_to_game,
-            self.export_gr2_files,
-            self.game_version,
-            self.global_scale,
-            self.use_mesh_modifiers,
-            self.mesh_smooth_type,
-            self.use_triangles,
-            self.use_armature_deform_only,
-            self.mesh_smooth_type_better,
-            self.import_check,
-            self.import_force,
-            self.import_verbose,
-            self.import_draft,
-            self.import_seam_debug,
-            self.import_skip_instances,
-            self.import_decompose_instances,
-            self.import_surpress_errors,
-        )
+        try:
+
+            nwo_scene = PrepareScene(
+                context,
+                self.report,
+                self.asset,
+                self.sidecar_type,
+                self.use_armature_deform_only,
+                self.game_version,
+                self.meshes_to_empties,
+                self.export_animations,
+                self.export_gr2_files,
+                self.export_all_perms,
+                self.export_all_bsps,
+            )
+
+            export = ProcessScene(
+                context,
+                self.report,
+                sidecar_path,
+                sidecar_path_full,
+                self.asset,
+                self.asset_path,
+                fbx_exporter(),
+                nwo_scene,
+                self.sidecar_type,
+                self.output_biped,
+                self.output_crate,
+                self.output_creature,
+                self.output_device_control,
+                self.output_device_machine,
+                self.output_device_terminal,
+                self.output_device_dispenser,
+                self.output_effect_scenery,
+                self.output_equipment,
+                self.output_giant,
+                self.output_scenery,
+                self.output_vehicle,
+                self.output_weapon,
+                self.export_skeleton,
+                self.export_render,
+                self.export_collision,
+                self.export_physics,
+                self.export_markers,
+                self.export_animations,
+                self.export_structure,
+                self.export_design,
+                self.export_sidecar_xml,
+                self.lightmap_structure,
+                self.import_to_game,
+                self.export_gr2_files,
+                self.game_version,
+                self.global_scale,
+                self.use_mesh_modifiers,
+                self.mesh_smooth_type,
+                self.use_triangles,
+                self.use_armature_deform_only,
+                self.mesh_smooth_type_better,
+                self.import_check,
+                self.import_force,
+                self.import_verbose,
+                self.import_draft,
+                self.import_seam_debug,
+                self.import_skip_instances,
+                self.import_decompose_instances,
+                self.import_surpress_errors,
+            )
+
+        except Exception as e:
+            print_error("\n\nException hit. Please include in report\n")
+            logging.error(traceback.format_exc())
+            self.failed = True
 
         # validate that a sidecar file exists
         if not file_exists(sidecar_path_full):
             sidecar_path = ""
 
         # write scene settings generated during export to temp file
-        self.write_temp_settings(context, export.export_report, sidecar_path)
+        if self.failed:
+            self.write_temp_settings(context, sidecar_path, "Export Failed")
+        else:
+            self.write_temp_settings(context, sidecar_path, export.export_report)
 
         end = time.perf_counter()
-        print(
-            "\n-------------------------------------------------------------------------"
-        )
-        print(f"Tag Export Completed in {end - start} seconds")
-        print(
-            "-------------------------------------------------------------------------\n"
-        )
+
+        if self.failed:
+            print_warning("\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n")
+            print_error(
+                "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            )
+
+        else:
+            print(
+                "\n-------------------------------------------------------------------------"
+            )
+            print(f"Tag Export Completed in {end - start} seconds")
+
+            print(
+                "-------------------------------------------------------------------------\n"
+            )
 
         # restore scene back to its pre export state
         bpy.ops.ed.undo_push()
@@ -715,7 +738,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         return False
 
-    def write_temp_settings(self, context, export_report, sidecar_path):
+    def write_temp_settings(self, context, sidecar_path, export_report=""):
         temp_file_path = path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
         with open(temp_file_path, "w") as temp_file:
             temp_file.write(f"{sidecar_path}\n")
@@ -850,15 +873,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 col.prop(self, "lightmap_all_bsps")
                 if not h4:
                     col.prop(self, "lightmap_region")
-
-        # # BITMAP SETTINGS #
-        # box = layout.box()
-        # box.label(text="Bitmap Settings")
-        # col = box.column()
-        # col.prop(self, "import_bitmaps")
-        # if self.import_bitmaps:
-        #     col.prop(self, "bitmap_type")
-
+                    
         # SCENE SETTINGS #
         box = layout.box()
         box.label(text="Scene Settings")

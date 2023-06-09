@@ -232,6 +232,7 @@ class ProcessScene:
             self.gr2_processes = []
             self.exported_files = []
             self.sidecar_paths = {}
+            self.sidecar_paths_design = {}
             if export_gr2_files:
                 self.max_export = 0.5
                 self.first_gr2 = True
@@ -340,7 +341,7 @@ class ProcessScene:
 
                     if export_skeleton:
                         if not self.skeleton_only:
-                            self.remove_all_but_armature(context, nwo_scene)
+                            self.remove_all_but_armature(nwo_scene)
 
                         fbx_path, json_path, gr2_path = self.get_path(
                             asset_path, asset, "skeleton", None, None, None
@@ -407,7 +408,7 @@ class ProcessScene:
                         and bpy.data.actions
                     ):
                         if not self.skeleton_only:
-                            self.remove_all_but_armature(context, nwo_scene)
+                            self.remove_all_but_armature(nwo_scene)
 
                         timeline = context.scene
                         print("\n\nStarting Animations Export")
@@ -671,6 +672,7 @@ class ProcessScene:
                     asset,
                     nwo_scene,
                     self.sidecar_paths,
+                    self.sidecar_paths_design,
                     sidecar_type,
                     output_biped,
                     output_crate,
@@ -968,7 +970,7 @@ class ProcessScene:
                     ob
                     for ob in objects
                     if ob.nwo.permutation_name == perm
-                    and ob.nwo.bsp_name == bsp
+                    and (ob.nwo.bsp_name == bsp)
                 ]
 
                 override = context.copy()
@@ -1012,24 +1014,45 @@ class ProcessScene:
                     self.max_export = max(self.max_export, end - start)
                     update_job(job, 1)
 
-                if bsp in self.sidecar_paths.keys():
-                    self.sidecar_paths[bsp].append(
-                        [
-                            data_relative(fbx_path),
-                            data_relative(json_path),
-                            data_relative(gr2_path),
-                            perm,
+                if type == "design":
+
+                    if bsp in self.sidecar_paths_design.keys():
+                        self.sidecar_paths[bsp].append(
+                            [
+                                data_relative(fbx_path),
+                                data_relative(json_path),
+                                data_relative(gr2_path),
+                                perm,
+                            ]
+                        )
+                    else:
+                        self.sidecar_paths_design[bsp] = [
+                            [
+                                data_relative(fbx_path),
+                                data_relative(json_path),
+                                data_relative(gr2_path),
+                                perm,
+                            ]
                         ]
-                    )
                 else:
-                    self.sidecar_paths[bsp] = [
-                        [
-                            data_relative(fbx_path),
-                            data_relative(json_path),
-                            data_relative(gr2_path),
-                            perm,
+                    if bsp in self.sidecar_paths.keys():
+                        self.sidecar_paths[bsp].append(
+                            [
+                                data_relative(fbx_path),
+                                data_relative(json_path),
+                                data_relative(gr2_path),
+                                perm,
+                            ]
+                        )
+                    else:
+                        self.sidecar_paths[bsp] = [
+                            [
+                                data_relative(fbx_path),
+                                data_relative(json_path),
+                                data_relative(gr2_path),
+                                perm,
+                            ]
                         ]
-                    ]
 
     def get_path(
         self, asset_path, asset_name, tag_type, perm="", bsp="", animation=""
@@ -1086,15 +1109,11 @@ class ProcessScene:
 
         return f"{path}.fbx", f"{path}.json", f"{path_gr2}.gr2"
 
-    def remove_all_but_armature(self, context, nwo_scene):
+    def remove_all_but_armature(self, nwo_scene):
         self.skeleton_only = True
-        objects = context.view_layer.objects[:]
-        objects.remove(nwo_scene.model_armature)
-
-        override = context.copy()
-        override["selected_objects"] = objects
-        with context.temp_override(**override):
-            bpy.ops.object.delete()
+        bpy.ops.object.select_all(action='SELECT')
+        nwo_scene.model_armature.select_set(False)
+        bpy.ops.object.delete()
 
     #####################################################################################
     #####################################################################################
@@ -1244,10 +1263,10 @@ class ProcessScene:
     # GR2
 
     def export_gr2(self, fbx_path, json_path, gr2_path, asyncr=True):
-        # if self.first_gr2:
-        #     self.first_gr2 = False
-        # else:
-        #     time.sleep(0.5)
+        if self.first_gr2:
+            self.first_gr2 = False
+        else:
+            time.sleep(0.5)
 
         # clear existing gr2, so we can test if export failed
         if os.path.exists(gr2_path):

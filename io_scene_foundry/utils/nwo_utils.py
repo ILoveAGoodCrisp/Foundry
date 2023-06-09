@@ -1671,7 +1671,10 @@ def object_median_point(ob):
 
 def layer_face_count(bm, face_layer):
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
-    return len([face for face in bm.faces if face[face_layer]])
+    if face_layer:
+        return len([face for face in bm.faces if face[face_layer]])
+    else:
+        return None
 
 
 def layer_faces(bm, face_layer):
@@ -1758,3 +1761,7 @@ def update_job(job_title, progress):
 
     sys.stdout.write(msg)
     sys.stdout.flush()
+
+def is_design_ui(ob):
+    """Takes a nwo reference and returns whether this object is a structure design one"""
+

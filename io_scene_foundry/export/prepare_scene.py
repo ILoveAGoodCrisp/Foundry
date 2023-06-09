@@ -103,12 +103,13 @@ class PrepareScene:
         # print("unhide_collections")
 
         # make objects linked to scene real and local
-        override = context.copy()
-        override["selected_objects"] = context.view_layer.objects
+        # Context override selection does not work here
         disable_prints()
-        with context.temp_override(**override):
-            bpy.ops.object.duplicates_make_real()
-            bpy.ops.object.make_local(type="ALL")
+
+        bpy.ops.object.select_all(action='SELECT')
+        bpy.ops.object.duplicates_make_real()
+        bpy.ops.object.make_local(type="ALL")
+        bpy.ops.object.select_all(action='DESELECT')
 
         enable_prints()
 
@@ -213,7 +214,6 @@ class PrepareScene:
             self.apply_object_mesh_marker_properties(
                 ob, sidecar_type, not h4, nwo
             )
-            # print("applied mesh_marker props")
 
             # add region/global_mat to sets
             uses_global_mat = (
@@ -588,6 +588,38 @@ class PrepareScene:
 
         for face_seq in faces_layer_dict.keys():
             if len(faces_layer_dict.keys()) == 1:
+                # delete faces from new mesh
+                for face in bm.faces:
+                    face.select = True if face in face_seq else False
+
+                split_bm = bm.copy()
+                # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
+
+
+                bmesh.ops.delete(
+                    bm,
+                    geom=[face for face in bm.faces if not face.select],
+                    context="FACES",
+                )
+
+                bm.to_mesh(me)
+
+                split_ob = ob.copy()
+
+                split_ob.data = me.copy()
+                split_me = split_ob.data
+
+
+                bmesh.ops.delete(
+                    split_bm,
+                    geom=[face for face in split_bm.faces if face.select],
+                    context="FACES",
+                )
+
+                split_bm.to_mesh(split_me)
+
+                scene_coll.link(split_ob)
+
                 for layer in faces_layer_dict[face_seq]:
                     self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
 
@@ -614,23 +646,21 @@ class PrepareScene:
 
                 bm.to_mesh(me)
 
+                split_ob = ob.copy()
+
+                split_ob.data = me.copy()
+                split_me = split_ob.data
+
+
                 bmesh.ops.delete(
                     split_bm,
                     geom=[face for face in split_bm.faces if face.select],
                     context="FACES",
                 )
 
-                # bm.free()
-
-                split_ob = ob.copy()
-
-                split_ob.data = me.copy()
-                split_me = split_ob.data
                 split_bm.to_mesh(split_me)
 
                 scene_coll.link(split_ob)
-
-                # split_objects.append(split_ob)
 
                 new_layer_faces_dict = {
                     layer: layer_faces(
@@ -661,6 +691,9 @@ class PrepareScene:
             layer: layer_faces(bm, bm.faces.layers.int.get(layer.layer_name))
             for layer in face_layers
         }
+
+        collision_ob = None
+
         if self.justify_face_split(layer_faces_dict, poly_count):
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
             if (
@@ -674,8 +707,10 @@ class PrepareScene:
                     collision_ob.data = me.copy()
                     scene_coll.link(collision_ob)
                     # Remove render only property faces from coll mesh
+                    coll_bm = bmesh.new()
+                    coll_bm.from_mesh()
                     poly_count = self.strip_render_only_faces(
-                        layer_faces_dict, bm
+                        layer_faces_dict, coll_bm
                     )
 
                     collision_ob.name = f"{ob.name}(collision)"
@@ -1891,17 +1926,24 @@ class PrepareScene:
         arm = bpy.data.armatures.new(arm_name)
         arm_ob = bpy.data.objects.new(arm_name, arm)
         scene_coll.link(arm_ob)
+        set_active_object(arm_ob)
+        arm_ob.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
 
         bone_name = "implied_root_node"
         bone = arm.edit_bones.new(bone_name)
         bone.tail[1] = 1
         bone.tail[2] = 0
 
+        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+
+        arm_ob.select_set(False)
+
         for ob in export_obs:
             if not ob.parent:
                 ob.parent = arm_ob
-                ob.parent_type = "BONE"
                 ob.parent_bone = bone_name
+                ob.parent_type = 'BONE'
 
         return arm_ob
 

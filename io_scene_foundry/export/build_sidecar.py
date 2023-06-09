@@ -48,6 +48,7 @@ class Sidecar:
         asset_name,
         nwo_scene,
         sidecar_paths,
+        sidecar_paths_design,
         sidecar_type,
         output_biped,
         output_crate,
@@ -63,7 +64,7 @@ class Sidecar:
         output_vehicle,
         output_weapon,
     ):
-        self.tag_path = data_relative(asset_path)
+        self.tag_path = data_relative(os.path.join (asset_path, asset_name))
 
         self.build_sidecar(
             nwo_scene,
@@ -72,6 +73,7 @@ class Sidecar:
             asset_path,
             asset_name,
             sidecar_paths,
+            sidecar_paths_design,
             sidecar_type,
             context,
             output_biped,
@@ -101,6 +103,7 @@ class Sidecar:
         asset_path,
         asset_name,
         sidecar_paths,
+        sidecar_paths_design,
         sidecar_type,
         context,
         output_biped,
@@ -218,7 +221,7 @@ class Sidecar:
 
         elif sidecar_type == "SCENARIO":
             self.write_scenario_contents(
-                nwo_scene, metadata, sidecar_paths, asset_name
+                nwo_scene, metadata, sidecar_paths, sidecar_paths_design, asset_name
             )
 
         elif sidecar_type == "SKY":
@@ -374,7 +377,7 @@ class Sidecar:
         elif type == "scenario":
             ET.SubElement(
                 tagcollection, "OutputTag", Type="scenario_lightmap"
-            ).text = os.path.join(asset_path, f"{asset_name}_faux_lightmaps")
+            ).text = f"{self.tag_path}_faux_lightmaps"
             ET.SubElement(
                 tagcollection, "OutputTag", Type="structure_seams"
             ).text = self.tag_path
@@ -652,7 +655,7 @@ class Sidecar:
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
     def write_scenario_contents(
-        self, nwo_scene, metadata, sidecar_paths, asset_name
+        self, nwo_scene, metadata, sidecar_paths, design_paths, asset_name
     ):
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
@@ -696,19 +699,19 @@ class Sidecar:
                 contents,
                 "Content",
                 Name=f"{asset_name}_{bsp}_structure_design",
-                Type="bsp",
+                Type="design",
             )
             object = ET.SubElement(
                 content, "ContentObject", Name="", Type="structure_design"
             )
 
-            bsp_paths = sidecar_paths.get(bsp)
+            bsp_paths = design_paths.get(bsp)
             for path in bsp_paths:
                 self.write_network_files_bsp(object, path, asset_name, bsp)
 
             output = ET.SubElement(object, "OutputTagCollection")
             ET.SubElement(
-                output, "OutputTag", Type="scenario_structure_bsp"
+                output, "OutputTag", Type="structure_design"
             ).text = f"{self.tag_path}_{bsp}_structure_design"
 
     def write_sky_contents(self, metadata, sidecar_paths, asset_name):
