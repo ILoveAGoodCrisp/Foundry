@@ -42,6 +42,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     enable_prints,
     jstr,
+    layer_face_count,
     layer_faces,
     print_warning,
     set_active_object,
@@ -371,7 +372,8 @@ class PrepareScene:
 
                     context.view_layer.update()
                     export_obs = context.view_layer.objects[:]
-                    self.fix_bad_parenting(self.model_armature, export_obs)
+                    # NOTE skipping vertex group fixes for now until it's more stable
+                    # self.fix_bad_parenting(self.model_armature, export_obs)
 
                 # set bone names equal to their name overrides (if not blank)
                 if export_gr2_files:
@@ -587,7 +589,33 @@ class PrepareScene:
                 faces_layer_dict[fs] = [layer]
 
         for face_seq in faces_layer_dict.keys():
-            if len(faces_layer_dict.keys()) == 1:
+            # if len(faces_layer_dict.keys()) == 1:
+            #     # delete faces from new mesh
+            #     for face in bm.faces:
+            #         face.select = True if face in face_seq else False
+
+            #     split_bm = bm.copy()
+            #     # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
+
+
+            #     bmesh.ops.delete(
+            #         bm,
+            #         geom=[face for face in bm.faces if not face.select],
+            #         context="FACES",
+            #     )
+
+            #     bm.to_mesh(me)
+
+            #     # for layer in faces_layer_dict[face_seq]:
+            #     #     self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
+
+            #     # ob_name_suffix = str(
+            #     #     [layer.name for layer in faces_layer_dict[face_seq]]
+            #     # )
+            #     # ob.name = f"{ob.name}{ob_name_suffix}"
+            #     # split_objects.append(ob)
+
+            if face_seq:
                 # delete faces from new mesh
                 for face in bm.faces:
                     face.select = True if face in face_seq else False
@@ -602,54 +630,12 @@ class PrepareScene:
                     context="FACES",
                 )
 
-                bm.to_mesh(me)
-
                 split_ob = ob.copy()
 
                 split_ob.data = me.copy()
                 split_me = split_ob.data
 
-
-                bmesh.ops.delete(
-                    split_bm,
-                    geom=[face for face in split_bm.faces if face.select],
-                    context="FACES",
-                )
-
-                split_bm.to_mesh(split_me)
-
-                scene_coll.link(split_ob)
-
-                for layer in faces_layer_dict[face_seq]:
-                    self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
-
-                ob_name_suffix = str(
-                    [layer.name for layer in faces_layer_dict[face_seq]]
-                )
-                ob.name = f"{ob.name}{ob_name_suffix}"
-                split_objects.append(ob)
-
-            elif face_seq:
-                # delete faces from new mesh
-                for face in bm.faces:
-                    face.select = True if face in face_seq else False
-
-                split_bm = bm.copy()
-                # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
-
-
-                bmesh.ops.delete(
-                    bm,
-                    geom=[face for face in bm.faces if not face.select],
-                    context="FACES",
-                )
-
                 bm.to_mesh(me)
-
-                split_ob = ob.copy()
-
-                split_ob.data = me.copy()
-                split_me = split_ob.data
 
 
                 bmesh.ops.delete(
@@ -670,16 +656,20 @@ class PrepareScene:
                     for layer in face_layers
                 }
 
-                self.recursive_layer_split(
-                    split_ob,
-                    split_me,
-                    face_layers,
-                    new_layer_faces_dict,
-                    h4,
-                    scene_coll,
-                    split_objects,
-                    split_bm,
-                )
+                split_objects.append(split_ob)
+
+                if split_me.polygons:
+
+                    self.recursive_layer_split(
+                        split_ob,
+                        split_me,
+                        face_layers,
+                        new_layer_faces_dict,
+                        h4,
+                        scene_coll,
+                        split_objects,
+                        split_bm,
+                    )
 
         return split_objects
 
@@ -724,9 +714,33 @@ class PrepareScene:
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
 
-            split_objects = self.recursive_layer_split(
+            split_objects_messy = self.recursive_layer_split(
                 ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm
             )
+
+            ori_ob_name = str(ob.name)
+
+            # remove zero poly obs from split_objects_messy
+            split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
+
+            for obj in split_objects:
+                more_than_one_prop = False
+                obj_bm = bmesh.new()
+                obj_bm.from_mesh(obj.data)
+                obj_name_suffix = ""
+                for layer in face_layers:
+                    if layer_face_count(obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)):
+                        self.face_prop_to_mesh_prop(obj.nwo, layer, h4)
+                        if more_than_one_prop:
+                            obj_name_suffix += ", "
+                        else:
+                            more_than_one_prop = True
+
+                        obj_name_suffix += layer.name
+                #obj_bm.free()
+                obj.name = f"{ori_ob_name}({obj_name_suffix})"
+
+
             for split_ob in split_objects:
                 if split_ob.data.polygons:
                     # TODO only do data transfer for rendered geo
@@ -961,8 +975,9 @@ class PrepareScene:
                     context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm
                 )
 
-                # remove the original ob from this list
-                split_objects.remove(ob)
+                # remove the original ob from this list if needed
+                if ob in split_objects:
+                    split_objects.remove(ob)
 
                 if not split_objects:
                     continue
@@ -1954,6 +1969,7 @@ class PrepareScene:
         me_ob_dict = {
             me: ob for me in meshes for ob in mesh_obs if ob.data == me
         }
+
         for item in me_ob_dict.items():
             me = item[0]
             ob = item[1]

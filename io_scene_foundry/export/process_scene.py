@@ -351,7 +351,7 @@ class ProcessScene:
                         override = context.copy()
                         override["selected_objects"] = export_obs
                         with context.temp_override(**override):
-                            job = "-- Skeleton"
+                            job = "-- skeleton"
                             update_job(job, 0)
                             start = time.perf_counter()
                             if self.export_fbx(
