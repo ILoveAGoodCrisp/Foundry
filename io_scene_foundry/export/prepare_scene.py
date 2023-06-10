@@ -738,7 +738,10 @@ class PrepareScene:
 
                         obj_name_suffix += layer.name
                 #obj_bm.free()
-                obj.name = f"{ori_ob_name}({obj_name_suffix})"
+                if obj_name_suffix:
+                    obj.name = f"{ori_ob_name}({obj_name_suffix})"
+                else:
+                    obj.name = ori_ob_name
 
 
             for split_ob in split_objects:

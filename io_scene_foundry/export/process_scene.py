@@ -415,7 +415,13 @@ class ProcessScene:
                         print(
                             "-------------------------------------------------------------------------\n"
                         )
+
                         for action in bpy.data.actions:
+                            # make animation dirs
+                            animations_dir = os.path.join(asset_path, "animations")
+                            export_animations_dir = os.path.join(asset_path, "export", "animations")
+                            os.makedirs(animations_dir, exist_ok=True)
+                            os.makedirs(export_animations_dir, exist_ok=True)
                             action_nwo = action.nwo
                             if action_nwo.export_this and (
                                 export_animations == "ALL"
@@ -425,12 +431,9 @@ class ProcessScene:
                                 job = f"-- {animation_name}"
                                 start = time.perf_counter()
                                 update_job(job, 0)
-                                self.get_path(
-                                    asset_path,
-                                    asset,
-                                    "animation",
-                                    None,
-                                    None,
+
+                                fbx_path, json_path, gr2_path = self.get_path(
+                                    asset_path, asset, "animations", None, None, 
                                     animation_name,
                                 )
 
@@ -512,7 +515,7 @@ class ProcessScene:
                                             data_relative(fbx_path),
                                             data_relative(json_path),
                                             data_relative(gr2_path),
-                                            animation_name,
+                                            dot_partition(animation_name),
                                             action_nwo.animation_type,
                                         ]
                                     )
@@ -522,7 +525,7 @@ class ProcessScene:
                                             data_relative(fbx_path),
                                             data_relative(json_path),
                                             data_relative(gr2_path),
-                                            animation_name,
+                                            dot_partition(animation_name),
                                             action_nwo.animation_type,
                                         ]
                                     ]
