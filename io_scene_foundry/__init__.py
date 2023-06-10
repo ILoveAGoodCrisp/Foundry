@@ -59,6 +59,7 @@ from . import tools
 from . import ui
 from . import export
 from . import managed_blam
+from . import keymap 
 
 
 modules = [
@@ -67,6 +68,7 @@ modules = [
     ui,
     managed_blam,
     export,
+    keymap,
 ]
 
 
