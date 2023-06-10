@@ -323,7 +323,11 @@ class PrepareScene:
             if back_ui == "" or back_ui == seam_nwo.bsp_name or back_ui not in self.bsps:
                 # this attempts to fix a bad back facing bsp ref
                 print_warning(f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp")
-                back_nwo.bsp_name = closest_bsp_object(seam).nwo.bsp_name
+                try:
+                    back_nwo.bsp_name = closest_bsp_object(seam).nwo.bsp_name
+                except:
+                    print_warning(f"Failed to automatically set back facing bsp reference for {seam.name}. Removing Seam from export")
+                    continue
             else:
                 back_nwo.bsp_name = seam_nwo.seam_back_ui
 
