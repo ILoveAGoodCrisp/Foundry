@@ -349,7 +349,12 @@ class ProcessScene:
                         export_obs = [nwo_scene.model_armature]
 
                         override = context.copy()
+                        area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
+                        override['area'] = area
+                        override['region'] = area.regions[-1]
+                        override['space_data'] = area.spaces.active
                         override["selected_objects"] = export_obs
+                        
                         with context.temp_override(**override):
                             job = "-- skeleton"
                             update_job(job, 0)
@@ -471,6 +476,10 @@ class ProcessScene:
                                     export_obs = [nwo_scene.model_armature]
 
                                 override = context.copy()
+                                area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
+                                override['area'] = area
+                                override['region'] = area.regions[-1]
+                                override['space_data'] = area.spaces.active
                                 override["selected_objects"] = export_obs
 
                                 with context.temp_override(**override):
@@ -880,6 +889,10 @@ class ProcessScene:
                 print_text = f"{perm} {type} model"
 
             override = context.copy()
+            area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
+            override['area'] = area
+            override['region'] = area.regions[-1]
+            override['space_data'] = area.spaces.active
             override["selected_objects"] = export_obs
 
             with context.temp_override(**override):
@@ -977,6 +990,10 @@ class ProcessScene:
                 ]
 
                 override = context.copy()
+                area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
+                override['area'] = area
+                override['region'] = area.regions[-1]
+                override['space_data'] = area.spaces.active
                 override["selected_objects"] = export_obs
 
                 with context.temp_override(**override):
