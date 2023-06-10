@@ -180,8 +180,8 @@ class PrepareScene:
 
          # start the great loop!
         for idx, ob in enumerate(export_obs):
-            set_active_object(ob)
-            ob.select_set(True)
+            # set_active_object(ob)
+            # ob.select_set(True)
             nwo = ob.nwo
             me = ob.data
             ob_type = ob.type
@@ -262,7 +262,7 @@ class PrepareScene:
                     self.fix_materials(ob, me, materials, override_mat)
                     # print("fix_materials")
 
-            ob.select_set(False)
+            # ob.select_set(False)
 
             update_progress(process, idx / len_export_obs)
 
@@ -2252,20 +2252,19 @@ class PrepareScene:
         slots = ob.material_slots
         mats = dict.fromkeys(slots)
         for idx, slot in enumerate(slots):
-            s_name = slot.material.name
-            if s_name not in mats.keys():
-                mats[s_name] = idx
+            if slot.material:
+                s_name = slot.material.name
+                if s_name not in mats.keys():
+                    mats[s_name] = idx
+                else:
+                    bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+                    ob.active_material_index = idx
+                    bpy.ops.object.material_slot_select()
+                    ob.active_material_index = mats[s_name]
+                    bpy.ops.object.material_slot_assign()
+                    bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
             else:
-                bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-                ob.active_material_index = idx
-                bpy.ops.object.material_slot_select()
-                ob.active_material_index = mats[s_name]
-                bpy.ops.object.material_slot_assign()
-                bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-
-        disable_prints()
-        bpy.ops.object.material_slot_remove_unused()
-        enable_prints()
+                slot.material = override_mat
 
         if not slots:
             # append the new material to the object
