@@ -127,7 +127,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
     export_animations: EnumProperty(
         name="Animations",
         description="",
-        default="ACTIVE",
+        default="ALL",
         items=[
             ("ALL", "All", ""),
             ("ACTIVE", "Active", ""),

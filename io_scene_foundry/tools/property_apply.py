@@ -41,6 +41,7 @@ special_materials = (
     "RainSheet",
     "WaterVolume",
     "Structure",
+    "Volume",
     "Fog",
     "SoftCeiling",
     "SoftKill",
@@ -53,9 +54,8 @@ def clear_special_mats(materials):
     """Removes special materials from an objects material slots i.e. ones that are not used as Halo shaders/materials"""
     for idx, mat in enumerate(materials):
         if mat.name in special_materials:
-            remove_idx = idx
-            materials.pop(index=remove_idx)
-            break
+            materials.pop(index=idx)
+            clear_special_mats(materials)
 
 
 def halo_material_color(material, color):
@@ -147,6 +147,10 @@ def halo_material(mat_name):
             )  # deep blue with 90% opacity
 
         case "Structure":
+            halo_material_color(
+                new_material, (0.0, 0.0, 1.0, 0.9)
+            )  # champion orange with 90% opacity
+        case "Volume":
             halo_material_color(
                 new_material, (0.0, 0.0, 1.0, 0.9)
             )  # champion orange with 90% opacity

@@ -324,10 +324,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         max_int = 0
         if poll_ui("MODEL"):
             max_int = 2
-            if not not_bungie_game():
-                max_int = 3
         elif poll_ui("SCENARIO"):
-            max_int = 4
+            max_int = 5
         elif poll_ui("PREFAB"):
             max_int = 2
         if self.mesh_type_ui_help > max_int:
@@ -473,11 +471,20 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         )
         items.append(
             (
+                "_connected_geometry_volume_type_water_physics_volume",
+                "Water Physics",
+                "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
+                get_icon_id("water_physics"),
+                3,
+            )
+        )
+        items.append(
+            (
                 "_connected_geometry_volume_type_cookie_cutter",
                 "Cookie Cutter",
                 "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
                 get_icon_id("cookie_cutter"),
-                3,
+                4,
             )
         )
         items.append(
@@ -486,7 +493,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 "Rain Blocker",
                 "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
                 get_icon_id("rain_sheet"),
-                4,
+                5,
             )
         )
         if h4:
@@ -496,7 +503,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     "Lightmap Exclude",
                     "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
                     get_icon_id("lightmap_exclude"),
-                    5,
+                    6,
                 )
             )
             items.append(
@@ -505,7 +512,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     "Streaming Volume",
                     "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
                     get_icon_id("streaming"),
-                    6,
+                    7,
                 )
             )
         else:
@@ -515,16 +522,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     "Lightmap Region",
                     "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
                     get_icon_id("lightmap_region"),
-                    5,
+                    6,
                 )
             )
 
         return items
 
     def get_volume_type_ui(self):
-        max_int = 5
+        max_int = 6
         if not_bungie_game():
-            max_int = 6
+            max_int = 7
         if self.volume_type_ui_help > max_int:
             return 0
         return self.volume_type_ui_help

@@ -1568,7 +1568,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     export_animations: EnumProperty(
         name="Animations",
         description="",
-        default="ACTIVE",
+        default="ALL",
         items=[
             ("ALL", "All", ""),
             ("ACTIVE", "Active", ""),

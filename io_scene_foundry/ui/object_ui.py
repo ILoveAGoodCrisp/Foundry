@@ -1758,7 +1758,6 @@ class NWO_LensFlarePath(NWO_Op_Path):
 # LIST SYSTEMS
 # ------------------------------------------------
 
-
 class NWO_GlobalMaterialMenu(Menu):
     bl_label = "Add Collision Material"
     bl_idname = "NWO_MT_AddGlobalMaterial"
