@@ -1701,6 +1701,9 @@ class NWO_PropertiesManager(Panel):
     def draw(self, context):
         layout = self.layout
 
+        # if context.scene.nwo.asset_type == 'SCENARIO':
+        #     layout.operator("nwo.auto_seam", icon_value=get_icon_id("seam"))
+
 
 class NWO_CollectionManager(Panel):
     bl_label = "Collection Creator"
@@ -2022,6 +2025,46 @@ class NWO_JMSHelper_Assign(Operator):
         from .jms_helper import jms_assign
 
         return jms_assign(context, self.report)
+    
+class NWO_AMFHelper(Panel):
+    bl_label = "Object Importer"
+    bl_idname = "NWO_PT_AMFHelper"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_parent_id = "NWO_PT_PropertiesManager"
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon_value=get_icon_id("import_helper"))
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.use_property_split = True
+        flow = layout.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        col = flow.column()
+        col.operator("nwo.amf_assign")
+
+
+class NWO_AutoSeam(Operator):
+    bl_idname = "nwo.auto_seam"
+    bl_label = "Auto Seam"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Automatically adds bsp seams to the blend scene"
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT'
+
+    def execute(self, context):
+        from .auto_seam import auto_seam
+        return auto_seam(context)
 
 
 class NWO_AnimationTools(Panel):
@@ -2327,6 +2370,7 @@ classeshalo = (
     NWO_HaloCollectionManagerPropertiesGroup,
     # NWO_CopyHaloProps,
     # NWO_CopyHaloProps_Copy, #unregistered until this operator is fixed
+    NWO_AutoSeam,
     NWO_MaterialsManager,
     NWO_MaterialFinder,
     NWO_ShaderFinder,

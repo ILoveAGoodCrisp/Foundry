@@ -62,11 +62,11 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         nwo = ob.nwo
         if poll_ui(("MODEL", "SKY")):
             layout.operator(self.op_prefix, text="Region").options = "region"
-        if (
-            poll_ui("SCENARIO")
-            and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
-        ):
-            layout.operator(self.op_prefix, text="Seam").options = "seam"
+        # if (
+        #     poll_ui("SCENARIO")
+        #     and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+        # ):
+        #     layout.operator(self.op_prefix, text="Seam").options = "seam"
         if (
             nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
@@ -512,6 +512,9 @@ class NWO_UL_FacePropList(bpy.types.UIList):
             f_count = layer_face_count(bm, layer)
             if f_count:
                 row.label(text=f"{str(f_count)}  ")
+            else:
+                row.label(text=f"Not Assigned  ")
+                
 
 
 def toggle_override(context, option, bool_var):

@@ -1660,9 +1660,9 @@ def closest_bsp_object(ob):
         if (
             ob == target_ob
             or not target_ob.type == "MESH"
-            and target_ob.nwo.mesh_type_ui
-            == "_connected_geometry_mesh_type_structure"
-            and true_bsp(target_ob) != true_bsp(ob)
+            and target_ob.nwo.mesh_type
+            == "_connected_geometry_mesh_type_default"
+            and target_ob.nwo.bsp_name != ob.nwo.bsp_name
         ):
             continue
         d = get_distance(ob, target_ob)

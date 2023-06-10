@@ -29,19 +29,14 @@ import random
 from math import degrees
 
 from ..utils.nwo_utils import (
-    CheckType,
     dot_partition,
     not_bungie_game,
-    mesh_type,
-    marker_type,
     object_type,
     color_3p_str,
     color_4p_str,
     bool_str,
     jstr,
-    vector_str,
     radius_str,
-    true_bsp,
     clean_tag_path,
     shader_exts,
 )

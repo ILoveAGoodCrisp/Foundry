@@ -264,11 +264,20 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             )
             items.append(
                 nwo_enum(
+                    "_connected_geometry_mesh_type_seam",
+                    "Seam",
+                    "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
+                    "seam",
+                    3,
+                )
+            )
+            items.append(
+                nwo_enum(
                     "_connected_geometry_mesh_type_plane",
                     "Plane",
                     "Non rendered geometry which provides various utility functions in a bsp. The planes can cut through bsp geometry. Supports portals, fog planes, and water surfaces",
                     "surface",
-                    3,
+                    4,
                 )
             )
             items.append(
@@ -277,7 +286,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     "Volume",
                     "Non rendered geometry which defines regions for special properties",
                     "volume",
-                    4,
+                    5,
                 )
             )
         elif poll_ui("PREFAB"):
@@ -769,6 +778,12 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="BSP Name",
         default="default",
         description="Set bsp name for this object. Only valid for scenario exports",
+    )
+
+    seam_back_ui: StringProperty(
+        name="Seam Back Facing BSP",
+        default="default",
+        description="The BSP that the normals of this seam are facing away from",
     )
 
     def get_bsp_from_collection(self):

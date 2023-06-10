@@ -1249,9 +1249,9 @@ class ProcessScene:
         json_props = NWOJSON(
             export_obs,
             sidecar_type,
-            asset_name,
             nwo_scene.model_armature,
             None,
+            asset_name,
             nwo_scene.skeleton_bones,
             nwo_scene.regions_dict,
             nwo_scene.global_materials_dict,

@@ -1104,17 +1104,38 @@ class NWO_ObjectProps(NWO_PropPanel):
                         )
 
                 if poll_ui("SCENARIO"):
+                    is_seam = ob_nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
                     row = col.row()
                     if ob_nwo.bsp_name_locked_ui != "":
-                        row.prop(ob_nwo, "bsp_name_locked_ui", text="BSP")
+                        if is_seam:
+                            row.prop(ob_nwo, "bsp_name_locked_ui", text="Front Facing BSP")
+                        else:
+                            row.prop(ob_nwo, "bsp_name_locked_ui", text="BSP")
                     else:
-                        row.prop(ob_nwo, "bsp_name_ui", text="BSP")
+                        if is_seam:
+                            row.prop(ob_nwo, "bsp_name_ui", text="Front Facing BSP")
+                        else:
+                            row.prop(ob_nwo, "bsp_name_ui", text="BSP")
                         row.operator_menu_enum(
                             "nwo.bsp_list",
                             "bsp",
                             text="",
                             icon="DOWNARROW_HLT",
                         )
+
+                    if is_seam:
+                        row = col.row()
+                        row.prop(ob_nwo, "seam_back_ui", text="Back Facing BSP")
+                        row.operator_menu_enum(
+                            "nwo.bsp_list_seam",
+                            "bsp",
+                            text="",
+                            icon="DOWNARROW_HLT",
+                        )
+                        # Seams guide
+                        col.separator()
+                        row = col.row()
+                        row.label(text="Seam normals should face towards the specified front facing BSP")
 
                 # col.separator()
 
@@ -1941,10 +1962,7 @@ class NWO_BSPListSeam(NWO_BSPList):
     )
 
     def execute(self, context):
-        ob = context.object
-        me = ob.data
-        item = me.nwo.face_props[me.face_maps.active.name]
-        item.seam_adjacent_bsp_ui = self.bsp
+        context.object.nwo.seam_back_ui = self.bsp
         return {"FINISHED"}
 
 

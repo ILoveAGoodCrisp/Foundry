@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from ..utils.nwo_utils import CheckType, true_region, blender_object_types_mesh
+from ..utils.nwo_utils import CheckType, blender_object_types_mesh
 from .nwo_format import (
     NWOFrame,
     NWOLight,
