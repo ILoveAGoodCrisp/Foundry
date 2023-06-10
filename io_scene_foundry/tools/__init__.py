@@ -1308,8 +1308,8 @@ class NWO_HaloExportSettings(Panel):
         col.prop(scene_nwo_export, "show_output", text="Output")
         col = layout.column(heading="Export")
         col.prop(scene_nwo_export, "export_gr2_files", text="GR2")
-        col = layout.column(heading="Build")
-        col.prop(scene_nwo_export, "export_sidecar_xml", text="Sidecar")
+        # col = layout.column(heading="Build")
+        # col.prop(scene_nwo_export, "export_sidecar_xml", text="Sidecar")
         col.separator()
         col = layout.column(heading="Create")
         col.prop(scene_nwo_export, "import_to_game", text="Tags")
@@ -1388,7 +1388,7 @@ class NWO_HaloExportSettingsExtended(Panel):
         col.prop(scene_nwo_export, "use_triangles")
         col.prop(scene_nwo_export, "use_armature_deform_only")
         col.prop(scene_nwo_export, "meshes_to_empties")
-        col.prop(scene_nwo_export, "global_scale")
+        # col.prop(scene_nwo_export, "global_scale")
 
 
 class NWO_HaloExport_Export(Operator):

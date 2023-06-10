@@ -31,6 +31,7 @@ from ..utils.nwo_utils import (
     bpy_enum_list,
     closest_bsp_object,
     export_objects,
+    export_objects_no_arm,
     layer_face_count,
     random_colour,
     sort_alphanum,
@@ -265,6 +266,10 @@ class NWO_FacePropPanel(NWO_PropPanel):
                         text="",
                         icon="DOWNARROW_HLT",
                     )
+                    row.operator(
+                        "nwo.face_prop_remove", text="", icon="X"
+                    ).options = "region"
+
                 if item.face_type_override:
                     if (
                         item.face_type_ui
@@ -274,6 +279,9 @@ class NWO_FacePropPanel(NWO_PropPanel):
                         box = col.box()
                         row = box.row()
                         row.label(text="Face Type Settings")
+                        row.operator(
+                            "nwo.face_prop_remove", text="", icon="X"
+                        ).options = "face_type"
                         row = box.row()
                         row.prop(item, "face_type_ui")
                         row = box.row()
@@ -281,6 +289,9 @@ class NWO_FacePropPanel(NWO_PropPanel):
                     else:
                         row = col.row()
                         row.prop(item, "face_type_ui")
+                        row.operator(
+                            "nwo.face_prop_remove", text="", icon="X"
+                        ).options = "face_type"
 
                 if item.face_mode_override:
                     row = col.row()
@@ -1224,7 +1235,7 @@ class NWO_RegionListFace(NWO_Op):
     def regions_items(self, context):
         # get scene regions
         regions = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             region = true_region(ob.nwo)
             if region not in regions:
                 regions.append(region)
@@ -1275,7 +1286,7 @@ class NWO_GlobalMaterialListFace(NWO_Op):
     def global_material_items(self, context):
         # get scene regions
         global_materials = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             global_material = ob.nwo.face_global_material_ui
             if global_material not in global_materials and global_material:
                 global_materials.append(global_material)
@@ -1318,7 +1329,7 @@ class NWO_GlobalMaterialMenuFace(bpy.types.Menu):
         layout = self.layout
         ob = context.object
         global_materials = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             global_material = ob.nwo.face_global_material_ui
             if global_material not in global_materials:
                 global_materials.append(global_material)

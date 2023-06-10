@@ -815,13 +815,13 @@ class NWO_Export_Scene(Operator, ExportHelper):
             ):
                 sub.prop(self, "export_all_perms", expand=True)
         # SIDECAR SETTINGS #
-        box = layout.box()
-        box.label(text="Sidecar Settings")
-        col = box.column()
-        col.prop(self, "export_sidecar_xml")
-        if self.export_sidecar_xml:
-            if self.sidecar_type == "MODEL" and self.export_sidecar_xml:
-                sub = box.column(heading="Output Tags")
+        if self.sidecar_type == "MODEL":
+            box = layout.box()
+            box.label(text="Sidecar Settings")
+            col = box.column()
+            # col.prop(self, "export_sidecar_xml")
+            #if self.export_sidecar_xml:
+            sub = box.column(heading="Output Tags")
             if self.sidecar_type == "MODEL":
                 sub.prop(self, "output_biped")
                 sub.prop(self, "output_crate")
@@ -886,7 +886,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         else:
             col.prop(self, "mesh_smooth_type")
         col.separator()
-        col.prop(self, "global_scale")
+        # col.prop(self, "global_scale")
 
 
 def menu_func_export(self, context):

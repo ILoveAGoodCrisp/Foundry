@@ -1604,6 +1604,17 @@ def export_objects():
 
     return export_obs
 
+def export_objects_no_arm():
+    context = bpy.context
+    export_obs = []
+    for ob in context.view_layer.objects:
+        if ob.nwo.export_this and ob.type != 'ARMATURE' and not any(
+            coll.name.startswith("+exclude") for coll in ob.users_collection
+        ):
+            export_obs.append(ob)
+
+    return export_obs
+
 
 def sort_alphanum(var_list):
     return sorted(

@@ -169,8 +169,8 @@ class PrepareScene:
         has_regions = sidecar_type in ("MODEL", "SKY")
         has_global_mats = sidecar_type in ("MODEL", "SCENARIO", "PREFAB")
 
-        regions = {"default"}
-        global_materials = {"default"}
+        self.regions = {"default"}
+        self.global_materials = {"default"}
         self.bsps = set()
         process = "Building Export Scene"
         update_progress(process, 0)
@@ -237,10 +237,10 @@ class PrepareScene:
             )
 
             if uses_regions:
-                regions.add(nwo.region_name)
+                self.regions.add(nwo.region_name)
 
             if uses_global_mat:
-                global_materials.add(nwo.face_global_material)
+                self.global_materials.add(nwo.face_global_material)
 
             if scenario_asset:
                 self.bsps.add(nwo.bsp_name)
@@ -329,7 +329,7 @@ class PrepareScene:
             # print("cull_zero_face")
 
         # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
-        regions = [region for region in regions if region]
+        regions = [region for region in self.regions if region]
         self.regions_dict = {
             region: str(idx) for idx, region in enumerate(regions)
         }
@@ -337,7 +337,7 @@ class PrepareScene:
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
         global_materials = [
             global_material
-            for global_material in global_materials
+            for global_material in self.global_materials
             if global_material
         ]
         self.global_materials_dict = {
@@ -822,48 +822,66 @@ class PrepareScene:
             )
         if face_props.face_mode_override:
             mesh_props.face_mode = face_props.face_mode_ui
+
         if face_props.face_two_sided_override and face_props.face_two_sided_ui:
             mesh_props.face_sides = "_connected_geometry_face_sides_two_sided"
+
         if face_props.face_draw_distance_override:
             mesh_props.face_draw_distance = face_props.face_draw_distance_ui
+
         if face_props.texcoord_usage_override:
             mesh_props.texcoord_usage = face_props.texcoord_usage_ui
+
         if face_props.region_name_override:
             mesh_props.region_name = face_props.region_name_ui
+            self.regions.add(mesh_props.region_name)
+
         if face_props.face_global_material_override:
             mesh_props.face_global_material = (
                 face_props.face_global_material_ui
             )
+            self.global_materials.add(mesh_props.face_global_material)
+
         if face_props.ladder_override:
             mesh_props.ladder = bool_str(face_props.ladder_ui)
+
         if face_props.slip_surface_override:
             mesh_props.slip_surface = bool_str(face_props.slip_surface_ui)
+
         if face_props.decal_offset_override:
             mesh_props.decal_offset = bool_str(face_props.decal_offset_ui)
+
         if face_props.group_transparents_by_plane_override:
             mesh_props.group_transparents_by_plane = bool_str(
                 face_props.group_transparents_by_plane_ui
             )
+
         if face_props.no_shadow_override:
             mesh_props.no_shadow = bool_str(face_props.no_shadow_ui)
+
         if face_props.precise_position_override:
             mesh_props.precise_position = bool_str(
                 face_props.precise_position_ui
             )
+
         if face_props.no_lightmap_override:
             mesh_props.no_lightmap = bool_str(face_props.no_lightmap_ui)
+
         if face_props.no_pvs_override:
             mesh_props.no_pvs = bool_str(face_props.no_pvs_ui)
+
         # lightmap props
         if face_props.lightmap_additive_transparency_override:
             mesh_props.lightmap_additive_transparency = jstr(
                 face_props.lightmap_additive_transparency_ui
             )
+
             mesh_props.lightmap_additive_transparency_active = True
         if face_props.lightmap_resolution_scale_override:
             mesh_props.lightmap_resolution_scale = int(
                 face_props.lightmap_resolution_scale_ui
             )
+
             mesh_props.lightmap_resolution_scale_active = True
         if face_props.lightmap_type_override:
             mesh_props.lightmap_type = face_props.lightmap_type_ui

@@ -37,7 +37,6 @@ from ..utils.nwo_utils import (
     not_bungie_game,
 )
 
-
 class Sidecar:
     def __init__(
         self,
@@ -128,10 +127,9 @@ class Sidecar:
         self.write_header(metadata)
         if sidecar_type == "MODEL":
             self.get_object_output_types(
-                context,
                 metadata,
                 "model",
-                sidecar_paths,
+                asset_name,
                 sidecar_type,
                 self.get_model_tags(
                     output_biped,
@@ -151,58 +149,46 @@ class Sidecar:
             )
         elif sidecar_type == "SCENARIO":
             self.get_object_output_types(
-                context,
                 metadata,
                 "scenario",
-                asset_path,
                 asset_name,
                 sidecar_type,
             )
         elif sidecar_type == "SKY":
             self.get_object_output_types(
-                context,
                 metadata,
                 "sky" if not not_bungo_game else "model",
-                asset_path,
                 asset_name,
                 sidecar_type,
             )
         elif sidecar_type == "DECORATOR SET":
             self.get_object_output_types(
-                context,
                 metadata,
                 "decorator_set",
-                asset_path,
                 asset_name,
                 sidecar_type,
                 "decorator_set",
             )
         elif sidecar_type == "PARTICLE MODEL":
             self.get_object_output_types(
-                context,
                 metadata,
                 "particle_model",
-                asset_path,
                 asset_name,
                 sidecar_type,
                 "particle_model",
             )
         elif sidecar_type == "PREFAB":
             self.get_object_output_types(
-                context,
                 metadata,
                 "prefab",
-                asset_path,
                 asset_name,
                 sidecar_type,
                 "prefab",
             )
         elif sidecar_type == "FP ANIMATION":
             self.get_object_output_types(
-                context,
                 metadata,
                 "model",
-                asset_path,
                 asset_name,
                 sidecar_type,
             )
@@ -346,10 +332,8 @@ class Sidecar:
 
     def get_object_output_types(
         self,
-        context,
         metadata,
         type,
-        asset_path,
         asset_name,
         sidecar_type,
         output_tags=[],

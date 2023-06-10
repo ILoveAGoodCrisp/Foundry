@@ -28,6 +28,7 @@ from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel, poll_ui
 from ..utils.nwo_utils import (
     bpy_enum_list,
     export_objects,
+    export_objects_no_arm,
     is_linked,
     not_bungie_game,
     sort_alphanum,
@@ -1745,7 +1746,7 @@ class NWO_GlobalMaterialMenu(Menu):
         layout = self.layout
         ob = context.object
         global_materials = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             global_material = ob.nwo.face_global_material_ui
             if global_material not in global_materials:
                 global_materials.append(global_material)
@@ -1778,7 +1779,7 @@ class NWO_RegionList(NWO_Op):
     def regions_items(self, context):
         # get scene regions
         regions = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             region = true_region(ob.nwo)
             if region not in regions:
                 regions.append(region)
@@ -1825,7 +1826,7 @@ class NWO_GlobalMaterialList(NWO_Op):
     def global_material_items(self, context):
         # get scene regions
         global_materials = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             global_material = ob.nwo.face_global_material_ui
             if global_material not in global_materials and global_material:
                 global_materials.append(global_material)
@@ -1863,7 +1864,7 @@ class NWO_PermutationList(NWO_Op):
     def permutations_items(self, context):
         # get scene perms
         permutations = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             permutation = true_permutation(ob.nwo)
             if permutation not in permutations:
                 permutations.append(permutation)
@@ -1893,7 +1894,7 @@ class NWO_BSPList(NWO_Op):
     def bsp_items(self, context):
         # get scene perms
         bsps = ["default"]
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             bsp = true_bsp(ob.nwo)
             if bsp not in bsps:
                 bsps.append(bsp)
@@ -1922,7 +1923,7 @@ class NWO_BSPListSeam(NWO_BSPList):
         # get scene perms
         self_bsp = true_bsp(context.object.nwo)
         bsps = []
-        for ob in export_objects():
+        for ob in export_objects_no_arm():
             bsp = true_bsp(ob.nwo)
             if bsp != self_bsp and bsp not in bsps:
                 bsps.append(bsp)
