@@ -706,6 +706,9 @@ class PrepareScene:
             return split_objects
 
         else:
+            for layer in face_layers:
+                self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
+
             return context.selected_objects
 
     def face_prop_to_mesh_prop(self, mesh_props, face_props, h4):
@@ -1128,7 +1131,14 @@ class PrepareScene:
                         nwo.mesh_tessellation_density = (
                             nwo.mesh_tessellation_density_ui
                         )
-
+                    elif (
+                        nwo.plane_type_ui
+                        == "_connected_geometry_plane_type_poop_vertical_rain_sheet"
+                    ):
+                        nwo.mesh_type = (
+                            "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
+                        )
+                        
                     elif (
                         nwo.plane_type_ui
                         == "_connected_geometry_plane_type_planar_fog_volume"
@@ -1238,8 +1248,6 @@ class PrepareScene:
                             nwo.mesh_type = (
                                 "_connected_geometry_mesh_type_poop"
                             )
-                    else:
-                        nwo.mesh_type = "_connected_geometry_mesh_type_default"
                 else:
                     nwo.mesh_type = "_connected_geometry_mesh_type_default"
 

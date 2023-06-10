@@ -1171,7 +1171,7 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
     command = (
         f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     )
-    print(command)
+    # print(command)
     if in_background:
         if null_output:
             return Popen(command, stdout=DEVNULL, stderr=DEVNULL)

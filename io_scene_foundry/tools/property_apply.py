@@ -41,6 +41,7 @@ special_materials = (
     "RainSheet",
     "WaterVolume",
     "Structure",
+    "Fog",
     "SoftCeiling",
     "SoftKill",
     "SlipSurface",
@@ -50,14 +51,16 @@ special_materials = (
 
 def clear_special_mats(materials):
     """Removes special materials from an objects material slots i.e. ones that are not used as Halo shaders/materials"""
-    material_names = (materials.name for materials.name in materials)
-    for name in material_names:
-        if name in special_materials:
-            materials.pop(materials[name])
+    for idx, mat in enumerate(materials):
+        if mat.name in special_materials:
+            remove_idx = idx
+            materials.pop(index=remove_idx)
+            break
 
 
 def halo_material_color(material, color):
     """Sets the material to the specifier colour in both viewport and shader, setting alpha if appropriate"""
+    material.use_nodes = True
     # viewport
     material.diffuse_color = color
     # shader
@@ -65,12 +68,14 @@ def halo_material_color(material, color):
     if color[3] < 1.0:
         material.blend_method = "BLEND"
 
+    material.use_nodes = False
+
 
 def halo_material(mat_name):
     """Adds a halo material to the blend if it doesn't exist and applies settings, then returning the material"""
     # first check if the material already exists
     materials = bpy.data.materials
-    material_names = (materials.name for materials.name in materials)
+    material_names = (mat.name for mat in materials)
     if mat_name in material_names:
         return materials[mat_name]
     # if not, make it, apply settings, and return it
@@ -83,7 +88,7 @@ def halo_material(mat_name):
 
         case "Physics":
             halo_material_color(
-                new_material, (0.26, 0.33, 0.46, 0.2)
+                new_material, (0.0, 1.0, 0.0, 0.2)
             )  # green with 20% opacity
 
         case "Seam":
@@ -117,6 +122,11 @@ def halo_material(mat_name):
             )  # cyan with 20% opacity
 
         case "CookieCutter":
+            halo_material_color(
+                new_material, (0.3, 0.3, 1.0, 0.2)
+            )  # purply-blue with 20% opacity
+
+        case "Fog":
             halo_material_color(
                 new_material, (0.3, 0.3, 1.0, 0.2)
             )  # purply-blue with 20% opacity
@@ -158,9 +168,9 @@ def halo_material(mat_name):
 
     return new_material
 
-
-def apply_props(ob, mat_name):
-    if mat_name in special_materials:
-        halo_material(mat_name)
+def apply_props_material(ob, mat_name):
+    if mat_name != "":
+        ob.data.materials.clear()
+        ob.data.materials.append(halo_material(mat_name))
     else:
-        clear_special_mats(ob.materials)
+        clear_special_mats(ob.data.materials)

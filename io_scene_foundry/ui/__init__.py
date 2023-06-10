@@ -126,6 +126,8 @@ from .scene_properties import NWO_Asset_ListItems, NWO_ScenePropertiesGroup
 
 from .scene_ui import NWO_SceneProps, NWO_SetUnitScale, NWO_AssetMaker
 
+from .viewport_ui import NWO_ApplyTypeMesh, NWO_MT_PIE_ApplyTypeMesh, NWO_PIE_ApplyTypeMesh
+
 mesh_type_items = [
     (
         "_connected_geometry_mesh_type_boundary_surface",
@@ -475,6 +477,10 @@ classes_nwo = (
     NWO_MeshPropAddMenu,
     NWO_FacePropAddMenu,
     NWO_FaceLayerAddMenu,
+    
+    NWO_MT_PIE_ApplyTypeMesh,
+    NWO_ApplyTypeMesh,
+    NWO_PIE_ApplyTypeMesh,
 )
 
 
