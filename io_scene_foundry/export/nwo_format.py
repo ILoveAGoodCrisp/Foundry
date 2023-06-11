@@ -1252,9 +1252,7 @@ class NWOMesh(NWOObject):
             self.bungie_mesh_water_volume_flow_velocity = (
                 self.halo.water_volume_flow_velocity
             )
-            self.bungie_mesh_water_volume_fog_color = (
-                self.mesh_water_volume_fog_color()
-            )
+            self.bungie_mesh_water_volume_fog_color = self.halo.water_volume_fog_color
             self.bungie_mesh_water_volume_fog_murkiness = (
                 self.halo.water_volume_fog_murkiness
             )
@@ -1415,12 +1413,6 @@ class NWOMesh(NWOObject):
             return self.halo.poop_collision_type
         else:
             return "_connected_geometry_poop_collision_type_default"
-
-    def mesh_water_volume_fog_color(self):
-        if self.not_bungie_game:
-            return color_3p_str(self.halo.water_volume_fog_color)
-        else:
-            return color_4p_str(self.halo.water_volume_fog_color)
 
     def lightmap_additive_transparency(self):
         return color_4p_str(self.halo.lightmap_additive_transparency)
