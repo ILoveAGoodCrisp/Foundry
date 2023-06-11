@@ -515,7 +515,8 @@ class PrepareScene:
                 bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
         return len(bm.faces)
-
+    
+                
     def recursive_layer_split(
         self,
         ob,
@@ -646,9 +647,13 @@ class PrepareScene:
                     scene_coll.link(collision_ob)
                     # Remove render only property faces from coll mesh
                     coll_bm = bmesh.new()
-                    coll_bm.from_mesh()
+                    coll_bm.from_mesh(collision_ob.data)
+                    coll_layer_faces_dict = {
+                        layer: layer_faces(coll_bm, coll_bm.faces.layers.int.get(layer.layer_name))
+                        for layer in face_layers
+                    }
                     poly_count = self.strip_render_only_faces(
-                        layer_faces_dict, coll_bm
+                        coll_layer_faces_dict, coll_bm
                     )
 
                     collision_ob.name = f"{ob.name}(collision)"
