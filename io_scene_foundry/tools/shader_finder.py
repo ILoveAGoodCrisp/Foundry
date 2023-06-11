@@ -57,19 +57,17 @@ def find_shaders(materials, report, shaders_dir="", overwrite=False):
         scan_tree(shaders_dir, shaders)
         # loop through mats, find a matching shader, and apply it if the shader path field is empty
         for mat in materials:
-            shader_path = FindShaderMatch(mat, shaders, tags_path)
-            if shader_path != "":
-                if overwrite or mat.nwo.shader_path == "":
-                    mat_shader_path = mat.nwo.shader_path
-                    if mat_shader_path != shader_path:
-                        mat_shader_path = shader_path
-                        update_count += 1
+            shader_path = find_shader_match(mat, shaders, tags_path)
+            if shader_path:
+                if overwrite or not mat.nwo.shader_path:
+                    mat.nwo.shader_path = shader_path
+                    update_count += 1
 
     report({"INFO"}, "Updated " + str(update_count) + " shader paths")
     return {"FINISHED"}
 
 
-def FindShaderMatch(mat, shaders, tags_path):
+def find_shader_match(mat, shaders, tags_path):
     material_name = mat.name
     material_parts = material_name.split(" ")
     # clean material name
