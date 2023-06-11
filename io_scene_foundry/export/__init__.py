@@ -795,7 +795,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             sub.prop(self, "keep_json")
             col.separator()
             sub = col.column(heading="Export")
-            sub.prop(self, "export_hidden")
+            # sub.prop(self, "export_hidden")
             if self.sidecar_type == "MODEL":
                 sub.prop(self, "export_render")
                 sub.prop(self, "export_collision")

@@ -1218,12 +1218,12 @@ class NWO_ShaderFinder_Find(Operator):
     def execute(self, context):
         scene = context.scene
         scene_nwo_shader_finder = scene.nwo_shader_finder
-        from .shader_finder import FindShaders
+        from .shader_finder import find_shaders
 
-        return FindShaders(
-            context,
-            scene_nwo_shader_finder.shaders_dir,
+        return find_shaders(
+            bpy.data.materials,
             self.report,
+            scene_nwo_shader_finder.shaders_dir,
             scene_nwo_shader_finder.overwrite_existing,
         )
 
@@ -1356,7 +1356,7 @@ class NWO_HaloExportSettingsExtended(Panel):
         col = flow.column()
         col = layout.column(heading="Include")
         if scene_nwo.asset_type == "MODEL":
-            col.prop(scene_nwo_export, "export_hidden", text="Hidden")
+            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
             col.prop(scene_nwo_export, "export_collision")
             col.prop(scene_nwo_export, "export_physics")
@@ -1367,11 +1367,11 @@ class NWO_HaloExportSettingsExtended(Panel):
             col.prop(scene_nwo_export, "export_skeleton")
             col.prop(scene_nwo_export, "export_animations", expand=True)
         elif scene_nwo.asset_type == "SCENARIO":
-            col.prop(scene_nwo_export, "export_hidden", text="Hidden")
+            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_structure")
             col.prop(scene_nwo_export, "export_design")
         elif scene_nwo.asset_type != "PREFAB":
-            col.prop(scene_nwo_export, "export_hidden", text="Hidden")
+            # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
         if scene_nwo_export.export_gr2_files:
             if scene_nwo.asset_type == "SCENARIO":
