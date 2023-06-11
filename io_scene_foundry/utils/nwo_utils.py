@@ -1459,10 +1459,9 @@ def get_collection_parents(current_coll, all_collections):
 
     return coll_list
 
-def get_coll_prefix(coll):
-    string = coll.lower()
-    for prefix in ("+perm", "+region", "+bsp", "+exclude"):
-        if string.startswith(prefix):
+def get_coll_prefix(coll, prefixes):
+    for prefix in prefixes:
+        if coll.startswith(prefix):
             return prefix
         
     return False
@@ -1485,11 +1484,13 @@ def get_prop_from_collection(ob, prefixes):
 
             # test object collection parent tree
             for c in collection_list:
-                if get_coll_prefix(c):
+                c_lower = c.lower()
+                pre = get_coll_prefix(c_lower, prefixes)
+                if pre:
+                    prop = c.replace(pre, "")
                     prop = prop.strip(" :_+';#~,.")
                     prop = prop.replace(" ", "_")
                     prop = dot_partition(prop)
-                    prop = prop.lower()
                     break
 
     return prop
