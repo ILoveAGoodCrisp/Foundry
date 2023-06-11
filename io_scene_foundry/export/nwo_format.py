@@ -1272,36 +1272,24 @@ class NWOMesh(NWOObject):
 
         # LIGHTMAP PROPERTIES
         if self.halo.lightmap_additive_transparency_active:
-            self.bungie_lightmap_transparency_override = (
-                self.lightmap_transparency_override()
-            )
-            self.bungie_lightmap_additive_transparency = (
-                self.lightmap_additive_transparency()
-            )
+            self.bungie_lightmap_transparency_override = "1"
+            self.bungie_lightmap_additive_transparency = self.halo.lightmap_additive_transparency
         if self.halo.lightmap_resolution_scale_active:
-            self.bungie_lightmap_ignore_default_resolution_scale = (
-                self.lightmap_ignore_default_resolution_scale()
-            )
-            self.bungie_lightmap_resolution_scale = (
-                self.lightmap_resolution_scale()
-            )
+            self.bungie_lightmap_ignore_default_resolution_scale = "1"
+            self.bungie_lightmap_resolution_scale = self.halo.lightmap_resolution_scale
         # self.bungie_lightmap_chart_group = self.lightmap_chart_group()
-        # self.bungie_lightmap_photon_fidelity = self.lightmap_photon_fidelity()
+        # self.bungie_lightmap_photon_fidelity = self.halo.lightmap_photon_fidelity
         if self.halo.lightmap_type_active:
-            self.bungie_lightmap_type = self.lightmap_type()
+            self.bungie_lightmap_type = self.halo.lightmap_type
         # if self.halo.lightmap_analytical_bounce_modifier_active:
         #     self.bungie_lightmap_analytical_bounce_modifier = self.lightmap_analytical_bounce_modifier()
         # if self.halo.lightmap_general_bounce_modifier_active:
         #     self.bungie_lightmap_general_bounce_modifier = self.lightmap_general_bounce_modifier()
         # self.bungie_lightmap_analytical_absorb_ratio = self.lightmap_analytical_absorb_ratio()
         if self.halo.lightmap_translucency_tint_color_active:
-            self.bungie_lightmap_translucency_tint_color = (
-                self.lightmap_translucency_tint_color()
-            )
+            self.bungie_lightmap_translucency_tint_color = self.halo.lightmap_translucency_tint_color
         if self.halo.lightmap_lighting_from_both_sides_active:
-            self.bungie_lightmap_lighting_from_both_sides = (
-                self.lightmap_lighting_from_both_sides()
-            )
+            self.bungie_lightmap_lighting_from_both_sides = "1"
             # if self.not_bungie_game:
             #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
         # EMMISSIVE PROPERTIES
@@ -1414,35 +1402,14 @@ class NWOMesh(NWOObject):
         else:
             return "_connected_geometry_poop_collision_type_default"
 
-    def lightmap_additive_transparency(self):
-        return color_4p_str(self.halo.lightmap_additive_transparency)
-
-    def lightmap_ignore_default_resolution_scale(self):
-        return bool_str(True)
-
-    def lightmap_resolution_scale(self):
-        return jstr(self.halo.lightmap_resolution_scale)
-
     def lightmap_photon_fidelity(self):
         return self.halo.lightmap_photon_fidelity
-
-    def lightmap_type(self):
-        return self.halo.lightmap_type
 
     def lightmap_analytical_bounce_modifier(self):
         return jstr(self.halo.lightmap_analytical_bounce_modifier)
 
     def lightmap_general_bounce_modifier(self):
         return jstr(self.halo.lightmap_general_bounce_modifier)
-
-    def lightmap_transparency_override(self):
-        return bool_str(True)
-
-    def lightmap_translucency_tint_color(self):
-        if self.not_bungie_game:
-            return color_3p_str(self.halo.lightmap_translucency_tint_color)
-        else:
-            return color_4p_str(self.halo.lightmap_translucency_tint_color)
 
     def lightmap_lighting_from_both_sides(self):
         return bool_str(self.halo.lightmap_lighting_from_both_sides)

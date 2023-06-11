@@ -795,9 +795,10 @@ class PrepareScene:
 
         # lightmap props
         if face_props.lightmap_additive_transparency_override:
-            mesh_props.lightmap_additive_transparency = jstr(
-                face_props.lightmap_additive_transparency_ui
-            )
+            if h4:
+                mesh_props.lightmap_additive_transparency = color_3p_str(face_props.lightmap_additive_transparency_ui)
+            else:
+                mesh_props.lightmap_additive_transparency = color_4p_str(face_props.lightmap_additive_transparency_ui)
 
             mesh_props.lightmap_additive_transparency_active = True
         if face_props.lightmap_resolution_scale_override:
@@ -1609,9 +1610,11 @@ class PrepareScene:
                         nwo.lightmap_general_bounce_modifier_ui
                     )
                 if nwo.lightmap_translucency_tint_color_active:
-                    nwo.lightmap_translucency_tint_color = color_3p_str(
-                        nwo.lightmap_translucency_tint_color_ui
-                    )
+                    if reach:
+                        nwo.lightmap_translucency_tint_color = color_4p_str(self.halo.lightmap_translucency_tint_color)
+                    else:
+                        nwo.lightmap_translucency_tint_color = color_3p_str(self.halo.lightmap_translucency_tint_color)
+
                 if nwo.lightmap_lighting_from_both_sides_active:
                     nwo.lightmap_lighting_from_both_sides = bool_str(
                         nwo.lightmap_lighting_from_both_sides_ui
