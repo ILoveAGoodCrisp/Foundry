@@ -985,16 +985,20 @@ class ProcessScene:
                 perms = obs_perms
 
             for perm in perms:
-                fbx_path, json_path, gr2_path = self.get_path(
-                    asset_path, asset, type, perm, bsp, None
-                )
                 export_obs = [
                     ob
                     for ob in objects
                     if ob.nwo.permutation_name == perm
                     and (ob.nwo.bsp_name == bsp)
                 ]
-                if export_check:
+                
+                if not export_obs:
+                    continue
+
+                fbx_path, json_path, gr2_path = self.get_path(
+                    asset_path, asset, type, perm, bsp, None
+                )
+                if export_check and export_obs:
                     override = context.copy()
                     area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
                     override['area'] = area

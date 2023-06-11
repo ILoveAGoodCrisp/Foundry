@@ -45,6 +45,7 @@ from ..utils.nwo_utils import (
     jstr,
     layer_face_count,
     layer_faces,
+    print_error,
     print_warning,
     set_active_object,
     is_shader,
@@ -115,6 +116,7 @@ class PrepareScene:
         bpy.ops.object.select_all(action='DESELECT')
 
         enable_prints()
+        
 
         context.view_layer.update()
         # print("make_local")
@@ -304,7 +306,9 @@ class PrepareScene:
             if len(self.bsps) < 2:
                 print_warning("Only single BSP in scene, seam objects ignored from export")
                 for seam in self.seams:
+                    print(seam.name)
                     self.unlink(seam)
+
             else:
                 for seam in self.seams:
                     seam_me = seam.data
@@ -354,7 +358,6 @@ class PrepareScene:
         # get new export_obs from split meshes
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
-
         if export_gr2_files:
             # poop proxy madness
             self.setup_poop_proxies(export_obs, h4)
@@ -407,7 +410,7 @@ class PrepareScene:
         self.model_armature = None
         self.skeleton_bones = {}
         self.current_action = None
-
+        
         if sidecar_type in ("MODEL", "SKY", "FP ANIMATION"):
             self.model_armature, using_auto_armature = self.get_scene_armature(
                 export_obs, asset, scene_coll
@@ -538,32 +541,6 @@ class PrepareScene:
                 faces_layer_dict[fs] = [layer]
 
         for face_seq in faces_layer_dict.keys():
-            # if len(faces_layer_dict.keys()) == 1:
-            #     # delete faces from new mesh
-            #     for face in bm.faces:
-            #         face.select = True if face in face_seq else False
-
-            #     split_bm = bm.copy()
-            #     # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
-
-
-            #     bmesh.ops.delete(
-            #         bm,
-            #         geom=[face for face in bm.faces if not face.select],
-            #         context="FACES",
-            #     )
-
-            #     bm.to_mesh(me)
-
-            #     # for layer in faces_layer_dict[face_seq]:
-            #     #     self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
-
-            #     # ob_name_suffix = str(
-            #     #     [layer.name for layer in faces_layer_dict[face_seq]]
-            #     # )
-            #     # ob.name = f"{ob.name}{ob_name_suffix}"
-            #     # split_objects.append(ob)
-
             if face_seq:
                 # delete faces from new mesh
                 for face in bm.faces:
@@ -885,10 +862,16 @@ class PrepareScene:
             if ob.nwo.object_type == "_connected_geometry_object_type_mesh"
             and ob.nwo.mesh_type in valid_mesh_types
         ]
-        meshes = set([ob.data for ob in mesh_obs])
-        me_ob_dict = {
-            me: ob for me in meshes for ob in mesh_obs if ob.data == me
-        }
+        meshes = {ob.data for ob in mesh_obs}
+        me_ob_dict = {}
+        for me in meshes:
+            for ob in mesh_obs:
+                if ob.data == me:
+                    if me not in me_ob_dict:
+                        me_ob_dict[me] = []
+
+                    me_ob_dict[me].append(ob)
+
         process = "Creating Meshes From Face Properties"
         len_me_ob_dict = len(me_ob_dict)
         any_face_props = False
@@ -899,12 +882,14 @@ class PrepareScene:
             if not linked_objects:
                 continue
 
-            is_linked = type(linked_objects) is list
+            is_linked = len(linked_objects) > 1
 
-            if is_linked:
-                ob = linked_objects[0]
-            else:
-                ob = linked_objects
+            ob = linked_objects[0]
+
+            # if is_linked:
+            #     ob = linked_objects[0]
+            # else:
+            #     ob = linked_objects
 
             me_nwo = me.nwo
             ob_nwo = ob.nwo
@@ -920,11 +905,10 @@ class PrepareScene:
                 # get bmesh rep now
                 bm = bmesh.new()
                 bm.from_mesh(me)
-
+                
                 split_objects = self.split_to_layers(
                     context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm
                 )
-
                 # remove the original ob from this list if needed
                 if ob in split_objects:
                     split_objects.remove(ob)
@@ -935,10 +919,11 @@ class PrepareScene:
                 # Can skip the below for loop if linked_objects is not a list
                 if is_linked:
                     # copy all new face split objects to all linked objects
+                    linked_objects.remove(ob)
                     for linked_ob in linked_objects:
                         for split_ob in split_objects:
                             new_ob = split_ob.copy()
-                            new_ob.matrix_world = split_ob.matrix_world
+                            new_ob.matrix_world = linked_ob.matrix_world
                             scene_coll.link(new_ob)
 
                         if ob.modifiers.get("HaloDataTransfer", 0):
