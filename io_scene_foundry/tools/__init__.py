@@ -1758,9 +1758,9 @@ class NWO_CollectionManager_Create(Operator):
     def execute(self, context):
         scene = context.scene
         scene_nwo_collection_manager = scene.nwo_collection_manager
-        from .collection_manager import CreateCollections
+        from .collection_manager import create_collections
 
-        return CreateCollections(
+        return create_collections(
             context,
             bpy.ops,
             bpy.data,
@@ -1770,17 +1770,28 @@ class NWO_CollectionManager_Create(Operator):
 
 
 class NWO_HaloCollectionManagerPropertiesGroup(PropertyGroup):
+    def collection_type_items(self, context):
+        items = []
+        asset_type = context.scene.nwo.asset_type
+        if asset_type in ('SCENARIO', 'PREFAB'):
+            items.append(("PERMUTATION", "Subgroup", ""))
+            if asset_type == 'SCENARIO':
+                items.insert(0, ("BSP", "BSP", ""))
+        elif asset_type in ('MODEL', 'SKY'):
+            items.append(("REGION", "Region", ""))
+            if asset_type == 'MODEL':
+                items.insert(0, ("PERMUTATION", "Permutation", ""))
+
+        items.append(("EXCLUDE", "Exclude", ""))
+
+        return items
+
+
     collection_type: EnumProperty(
         name="Collection Type",
         options=set(),
         description="Select the collection property you wish to apply to the selected objects",
-        default="PERMUTATION",
-        items=[
-            ("BSP", "BSP / Design", ""),
-            ("REGION", "Region", ""),
-            ("PERMUTATION", "Permutation", ""),
-            ("EXCLUDE", "Exclude", ""),
-        ],
+        items=collection_type_items,
     )
     collection_name: StringProperty(
         name="Collection Name",

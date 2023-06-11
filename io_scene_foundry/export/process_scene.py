@@ -251,7 +251,7 @@ class ProcessScene:
                     "FP ANIMATION",
                 ):  # Added FP animation to this. FP animation only exports the skeleton and animations
                     if sidecar_type == "MODEL":
-                        if export_render and nwo_scene.render:
+                        if nwo_scene.render:
                             self.exported_files.append(
                                 self.export_model(
                                     context,
@@ -271,10 +271,11 @@ class ProcessScene:
                                     mesh_smooth_type_better,
                                     sidecar_type,
                                     nwo_scene,
+                                    export_render,
                                 )
                             )
 
-                        if export_collision and nwo_scene.collision:
+                        if nwo_scene.collision:
                             self.export_model(
                                 context,
                                 asset_path,
@@ -293,9 +294,10 @@ class ProcessScene:
                                 mesh_smooth_type_better,
                                 sidecar_type,
                                 nwo_scene,
+                                export_collision,
                             )
 
-                        if export_physics and nwo_scene.physics:
+                        if  nwo_scene.physics:
                             self.export_model(
                                 context,
                                 asset_path,
@@ -314,9 +316,10 @@ class ProcessScene:
                                 mesh_smooth_type_better,
                                 sidecar_type,
                                 nwo_scene,
+                                export_physics,
                             )
 
-                        if export_markers and nwo_scene.markers:
+                        if  nwo_scene.markers:
                             self.export_model(
                                 context,
                                 asset_path,
@@ -335,15 +338,17 @@ class ProcessScene:
                                 mesh_smooth_type_better,
                                 sidecar_type,
                                 nwo_scene,
+                                export_markers,
                             )
 
-                    if export_skeleton:
-                        if not self.skeleton_only:
-                            self.remove_all_but_armature(nwo_scene)
+                    if not self.skeleton_only:
+                        self.remove_all_but_armature(nwo_scene)
 
-                        fbx_path, json_path, gr2_path = self.get_path(
-                            asset_path, asset, "skeleton", None, None, None
-                        )
+                    fbx_path, json_path, gr2_path = self.get_path(
+                        asset_path, asset, "skeleton", None, None, None
+                    )
+
+                    if export_skeleton:
                         export_obs = [nwo_scene.model_armature]
 
                         override = context.copy()
@@ -352,7 +357,6 @@ class ProcessScene:
                         override['region'] = area.regions[-1]
                         override['space_data'] = area.spaces.active
                         override["selected_objects"] = export_obs
-                        
                         with context.temp_override(**override):
                             job = "-- skeleton"
                             update_job(job, 0)
@@ -388,26 +392,25 @@ class ProcessScene:
                             self.max_export = max(self.max_export, end - start)
                             update_job(job, 1)
 
-                        if "skeleton" in self.sidecar_paths.keys():
-                            self.sidecar_paths["skeleton"].append(
-                                [
-                                    data_relative(fbx_path),
-                                    data_relative(json_path),
-                                    data_relative(gr2_path),
-                                ]
-                            )
-                        else:
-                            self.sidecar_paths["skeleton"] = [
-                                [
-                                    data_relative(fbx_path),
-                                    data_relative(json_path),
-                                    data_relative(gr2_path),
-                                ]
+                    if "skeleton" in self.sidecar_paths.keys():
+                        self.sidecar_paths["skeleton"].append(
+                            [
+                                data_relative(fbx_path),
+                                data_relative(json_path),
+                                data_relative(gr2_path),
                             ]
+                        )
+                    else:
+                        self.sidecar_paths["skeleton"] = [
+                            [
+                                data_relative(fbx_path),
+                                data_relative(json_path),
+                                data_relative(gr2_path),
+                            ]
+                        ]
 
                     if (
-                        export_animations != "NONE"
-                        and nwo_scene.model_armature
+                        nwo_scene.model_armature
                         and bpy.data.actions
                     ):
                         if not self.skeleton_only:
@@ -426,95 +429,94 @@ class ProcessScene:
                             os.makedirs(animations_dir, exist_ok=True)
                             os.makedirs(export_animations_dir, exist_ok=True)
                             action_nwo = action.nwo
-                            if action_nwo.export_this and (
-                                export_animations == "ALL"
-                                or nwo_scene.current_action == action
-                            ):
+                            if action_nwo.export_this:
                                 animation_name = action.nwo.name_override
-                                job = f"-- {animation_name}"
-                                start = time.perf_counter()
-                                update_job(job, 0)
-
                                 fbx_path, json_path, gr2_path = self.get_path(
                                     asset_path, asset, "animations", None, None, 
                                     animation_name,
                                 )
+                                if export_animations != "NONE":
+                                    if export_animations == "ALL" or nwo_scene.current_action == action:
+                                        job = f"-- {animation_name}"
+                                        start = time.perf_counter()
+                                        update_job(job, 0)
 
-                                nwo_scene.model_armature.animation_data.action = (
-                                    action
-                                )
-                                if action.use_frame_range:
-                                    timeline.frame_start = int(
-                                        action.frame_start
-                                    )
-                                    timeline.frame_end = int(action.frame_end)
-                                    context.scene.frame_set(
-                                        int(action.frame_start)
-                                    )
-                                else:
-                                    timeline.frame_start = (
-                                        nwo_scene.timeline_start
-                                    )
-                                    timeline.frame_end = nwo_scene.timeline_end
-                                    context.scene.frame_set(
-                                        nwo_scene.timeline_start
-                                    )
 
-                                event_obs = self.create_event_nodes(
-                                    context,
-                                    action_nwo.animation_events,
-                                    timeline.frame_start,
-                                    timeline.frame_end,
-                                )
-                                if event_obs:
-                                    export_obs = event_obs.append(
-                                        nwo_scene.model_armature
-                                    )
-                                else:
-                                    export_obs = [nwo_scene.model_armature]
-
-                                override = context.copy()
-                                area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
-                                override['area'] = area
-                                override['region'] = area.regions[-1]
-                                override['space_data'] = area.spaces.active
-                                override["selected_objects"] = export_obs
-
-                                with context.temp_override(**override):
-                                    if self.export_fbx(
-                                        fbx_exporter,
-                                        fbx_path,
-                                        global_scale,
-                                        use_mesh_modifiers,
-                                        mesh_smooth_type,
-                                        use_triangles,
-                                        use_armature_deform_only,
-                                        mesh_smooth_type_better,
-                                    ):
-                                        if self.export_json(
-                                            json_path,
-                                            export_obs,
-                                            sidecar_type,
-                                            asset,
-                                            nwo_scene,
-                                        ):
-                                            self.gr2_processes.append(
-                                                self.export_gr2(
-                                                    fbx_path,
-                                                    json_path,
-                                                    gr2_path,
-                                                )
+                                        nwo_scene.model_armature.animation_data.action = (
+                                            action
+                                        )
+                                        if action.use_frame_range:
+                                            timeline.frame_start = int(
+                                                action.frame_start
+                                            )
+                                            timeline.frame_end = int(action.frame_end)
+                                            context.scene.frame_set(
+                                                int(action.frame_start)
                                             )
                                         else:
-                                            return f"Failed to export skeleton JSON: {json_path}"
-                                    else:
-                                        return f"Failed to export skeleton FBX: {fbx_path}"
+                                            timeline.frame_start = (
+                                                nwo_scene.timeline_start
+                                            )
+                                            timeline.frame_end = nwo_scene.timeline_end
+                                            context.scene.frame_set(
+                                                nwo_scene.timeline_start
+                                            )
 
-                                end = time.perf_counter()
-                                self.max_export = max(
-                                    self.max_export, end - start
-                                )
-                                update_job(job, 1)
+                                        event_obs = self.create_event_nodes(
+                                            context,
+                                            action_nwo.animation_events,
+                                            timeline.frame_start,
+                                            timeline.frame_end,
+                                        )
+                                        if event_obs:
+                                            export_obs = event_obs.append(
+                                                nwo_scene.model_armature
+                                            )
+                                        else:
+                                            export_obs = [nwo_scene.model_armature]
+
+                                        override = context.copy()
+                                        area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
+                                        override['area'] = area
+                                        override['region'] = area.regions[-1]
+                                        override['space_data'] = area.spaces.active
+                                        override["selected_objects"] = export_obs
+
+                                        with context.temp_override(**override):
+                                            if self.export_fbx(
+                                                fbx_exporter,
+                                                fbx_path,
+                                                global_scale,
+                                                use_mesh_modifiers,
+                                                mesh_smooth_type,
+                                                use_triangles,
+                                                use_armature_deform_only,
+                                                mesh_smooth_type_better,
+                                            ):
+                                                if self.export_json(
+                                                    json_path,
+                                                    export_obs,
+                                                    sidecar_type,
+                                                    asset,
+                                                    nwo_scene,
+                                                ):
+                                                    self.gr2_processes.append(
+                                                        self.export_gr2(
+                                                            fbx_path,
+                                                            json_path,
+                                                            gr2_path,
+                                                        )
+                                                    )
+                                                else:
+                                                    return f"Failed to export skeleton JSON: {json_path}"
+                                            else:
+                                                return f"Failed to export skeleton FBX: {fbx_path}"
+
+                                        end = time.perf_counter()
+                                        self.max_export = max(
+                                            self.max_export, end - start
+                                        )
+                                        update_job(job, 1)
 
                                 if "animation" in self.sidecar_paths.keys():
                                     self.sidecar_paths["animation"].append(
@@ -538,7 +540,7 @@ class ProcessScene:
                                     ]
 
                 elif sidecar_type == "SCENARIO":
-                    if export_structure and nwo_scene.structure:
+                    if nwo_scene.structure:
                         self.export_bsp(
                             context,
                             asset_path,
@@ -558,9 +560,10 @@ class ProcessScene:
                             mesh_smooth_type_better,
                             sidecar_type,
                             nwo_scene,
+                            export_structure,
                         )
 
-                    if export_design and nwo_scene.design:
+                    if nwo_scene.design:
                         self.export_bsp(
                             context,
                             asset_path,
@@ -580,10 +583,11 @@ class ProcessScene:
                             mesh_smooth_type_better,
                             sidecar_type,
                             nwo_scene,
+                            export_design,
                         )
 
                 elif sidecar_type == "SKY":
-                    if export_render and nwo_scene.render:
+                    if nwo_scene.render:
                         self.export_model(
                             context,
                             asset_path,
@@ -602,10 +606,11 @@ class ProcessScene:
                             mesh_smooth_type_better,
                             sidecar_type,
                             nwo_scene,
+                            export_render,
                         )
 
                 elif sidecar_type == "DECORATOR SET":
-                    if export_render and nwo_scene.render:
+                    if nwo_scene.render:
                         self.export_model(
                             context,
                             asset_path,
@@ -624,6 +629,7 @@ class ProcessScene:
                             mesh_smooth_type_better,
                             sidecar_type,
                             nwo_scene,
+                            export_render,
                         )
 
                 elif sidecar_type == "PREFAB":
@@ -646,10 +652,11 @@ class ProcessScene:
                             mesh_smooth_type_better,
                             sidecar_type,
                             nwo_scene,
+                            True,
                         )
 
                 else:  # for particles
-                    if export_render and nwo_scene.render:
+                    if nwo_scene.render:
                         self.export_model(
                             context,
                             asset_path,
@@ -668,6 +675,7 @@ class ProcessScene:
                             mesh_smooth_type_better,
                             sidecar_type,
                             nwo_scene,
+                            export_render,
                         )
 
                 from .build_sidecar import Sidecar
@@ -842,6 +850,7 @@ class ProcessScene:
         mesh_smooth_type_better,
         sidecar_type,
         nwo_scene,
+        export_check,
     ):
         if obs_perms:
             if sel_perms:
@@ -885,44 +894,45 @@ class ProcessScene:
             else:
                 print_text = f"{perm} {type} model"
 
-            override = context.copy()
-            area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
-            override['area'] = area
-            override['region'] = area.regions[-1]
-            override['space_data'] = area.spaces.active
-            override["selected_objects"] = export_obs
+            if export_check:
+                override = context.copy()
+                area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
+                override['area'] = area
+                override['region'] = area.regions[-1]
+                override['space_data'] = area.spaces.active
+                override["selected_objects"] = export_obs
 
-            with context.temp_override(**override):
-                job = f"-- {print_text}"
-                update_job(job, 0)
-                start = time.perf_counter()
-                if self.export_fbx(
-                    fbx_exporter,
-                    fbx_path,
-                    global_scale,
-                    use_mesh_modifiers,
-                    mesh_smooth_type,
-                    use_triangles,
-                    use_armature_deform_only,
-                    mesh_smooth_type_better,
-                ):
-                    if self.export_json(
-                        json_path, export_obs, sidecar_type, asset, nwo_scene
+                with context.temp_override(**override):
+                    job = f"-- {print_text}"
+                    update_job(job, 0)
+                    start = time.perf_counter()
+                    if self.export_fbx(
+                        fbx_exporter,
+                        fbx_path,
+                        global_scale,
+                        use_mesh_modifiers,
+                        mesh_smooth_type,
+                        use_triangles,
+                        use_armature_deform_only,
+                        mesh_smooth_type_better,
                     ):
-                        self.gr2_processes.append(
-                            self.export_gr2(fbx_path, json_path, gr2_path)
-                        )
+                        if self.export_json(
+                            json_path, export_obs, sidecar_type, asset, nwo_scene
+                        ):
+                            self.gr2_processes.append(
+                                self.export_gr2(fbx_path, json_path, gr2_path)
+                            )
+                        else:
+                            return f"Failed to export {perm} {type} model JSON: {json_path}"
                     else:
-                        return f"Failed to export {perm} {type} model JSON: {json_path}"
-                else:
-                    return (
-                        f"Failed to export {perm} {type} model FBX: {fbx_path}"
-                    )
+                        return (
+                            f"Failed to export {perm} {type} model FBX: {fbx_path}"
+                        )
 
-                end = time.perf_counter()
-                self.max_export = max(self.max_export, end - start)
+                    end = time.perf_counter()
+                    self.max_export = max(self.max_export, end - start)
 
-                update_job(job, 1)
+                    update_job(job, 1)
 
             if type in self.sidecar_paths.keys():
                 self.sidecar_paths[type].append(
@@ -963,6 +973,7 @@ class ProcessScene:
         mesh_smooth_type_better,
         sidecar_type,
         nwo_scene,
+        export_check,
     ):
         if sel_bsps:
             bsps = [b for b in obs_bsps if b in sel_bsps]
@@ -985,51 +996,51 @@ class ProcessScene:
                     if ob.nwo.permutation_name == perm
                     and (ob.nwo.bsp_name == bsp)
                 ]
+                if export_check:
+                    override = context.copy()
+                    area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
+                    override['area'] = area
+                    override['region'] = area.regions[-1]
+                    override['space_data'] = area.spaces.active
+                    override["selected_objects"] = export_obs
 
-                override = context.copy()
-                area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
-                override['area'] = area
-                override['region'] = area.regions[-1]
-                override['space_data'] = area.spaces.active
-                override["selected_objects"] = export_obs
-
-                with context.temp_override(**override):
-                    if perm == "default":
-                        print_text = f"{bsp} {type}"
-                    else:
-                        print_text = f"{bsp} {perm} {type}"
-
-                    job = f"-- {print_text}"
-                    update_job(job, 0)
-                    start = time.perf_counter()
-                    if self.export_fbx(
-                        fbx_exporter,
-                        fbx_path,
-                        global_scale,
-                        use_mesh_modifiers,
-                        mesh_smooth_type,
-                        use_triangles,
-                        use_armature_deform_only,
-                        mesh_smooth_type_better,
-                    ):
-                        if self.export_json(
-                            json_path,
-                            export_obs,
-                            sidecar_type,
-                            asset,
-                            nwo_scene,
-                        ):
-                            self.gr2_processes.append(
-                                self.export_gr2(fbx_path, json_path, gr2_path)
-                            )
+                    with context.temp_override(**override):
+                        if perm == "default":
+                            print_text = f"{bsp} {type}"
                         else:
-                            return f"Failed to export {perm} {type} model JSON: {json_path}"
-                    else:
-                        return f"Failed to export {perm} {type} model FBX: {fbx_path}"
+                            print_text = f"{bsp} {perm} {type}"
 
-                    end = time.perf_counter()
-                    self.max_export = max(self.max_export, end - start)
-                    update_job(job, 1)
+                        job = f"-- {print_text}"
+                        update_job(job, 0)
+                        start = time.perf_counter()
+                        if self.export_fbx(
+                            fbx_exporter,
+                            fbx_path,
+                            global_scale,
+                            use_mesh_modifiers,
+                            mesh_smooth_type,
+                            use_triangles,
+                            use_armature_deform_only,
+                            mesh_smooth_type_better,
+                        ):
+                            if self.export_json(
+                                json_path,
+                                export_obs,
+                                sidecar_type,
+                                asset,
+                                nwo_scene,
+                            ):
+                                self.gr2_processes.append(
+                                    self.export_gr2(fbx_path, json_path, gr2_path)
+                                )
+                            else:
+                                return f"Failed to export {perm} {type} model JSON: {json_path}"
+                        else:
+                            return f"Failed to export {perm} {type} model FBX: {fbx_path}"
+
+                        end = time.perf_counter()
+                        self.max_export = max(self.max_export, end - start)
+                        update_job(job, 1)
 
                 if type == "design":
 

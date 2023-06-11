@@ -1958,7 +1958,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     def get_region_from_collection(self):
-        region = get_prop_from_collection(self.id_data, ("+region:", "+reg:"))
+        region = get_prop_from_collection(self.id_data, ("+region"))
         return region
 
     region_name_locked_ui: StringProperty(
@@ -1975,7 +1975,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def get_permutation_from_collection(self):
         permutation = get_prop_from_collection(
-            self.id_data, ("+perm:", "+permuation:")
+            self.id_data, ("+perm", "+group")
         )
         return permutation
 

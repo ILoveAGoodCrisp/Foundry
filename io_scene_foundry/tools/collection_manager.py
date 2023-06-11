@@ -26,10 +26,10 @@
 import bpy
 
 
-def CreateCollections(context, ops, data, coll_type, coll_name):
+def create_collections(context, ops, data, coll_type, coll_name):
     # iterates through the selected objects and applies the chosen collection type
-    full_name = GetFullName(coll_type, coll_name)
-    collection_index = GetCollIfExists(data, full_name)
+    full_name = get_full_name(coll_type, coll_name)
+    collection_index = get_coll_if_exists(data, full_name)
     if collection_index == -1:
         ops.object.move_to_collection(
             collection_index=0, is_new=True, new_collection_name=full_name
@@ -43,7 +43,7 @@ def CreateCollections(context, ops, data, coll_type, coll_name):
     return {"FINISHED"}
 
 
-def GetCollIfExists(data, full_name):
+def get_coll_if_exists(data, full_name):
     collection_index = -1
     if len(data.collections) > 0:
         all_collections = data.collections
@@ -55,17 +55,17 @@ def GetCollIfExists(data, full_name):
     return collection_index
 
 
-def GetFullName(coll_type, coll_name):
+def get_full_name(coll_type, coll_name):
     prefix = ""
     match coll_type:
         case "EXCLUDE":
-            prefix = "+exclude:"
+            prefix = "+exclude"
         case "BSP":
-            prefix = "+bsp:"
+            prefix = "+bsp"
         case "REGION":
-            prefix = "+region:"
+            prefix = "+region"
         case _:
-            prefix = "+perm:"
+            prefix = "+perm"
 
     full_name_base = f"{prefix} {coll_name}"
     full_name = full_name_base

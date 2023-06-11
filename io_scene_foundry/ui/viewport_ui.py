@@ -27,7 +27,7 @@
 import bpy
 
 from io_scene_foundry.tools.property_apply import apply_props_material
-from io_scene_foundry.utils.nwo_utils import nwo_enum
+from io_scene_foundry.utils.nwo_utils import closest_bsp_object, nwo_enum, true_bsp
 from .templates import NWO_Op
 
 class NWO_MT_PIE_ApplyTypeMesh(bpy.types.Menu):
@@ -106,7 +106,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
         self.layout.prop(self, "m_type", text="Mesh Type")
 
     def execute(self, context):
-        selection = context.selected_objects
         mesh_type = ""
         sub_type = ""
         material = ""
@@ -193,7 +192,15 @@ class NWO_ApplyTypeMesh(NWO_Op):
             case "decorator":
                 mesh_type = "_connected_geometry_mesh_type_decorator"
 
-        for ob in selection:
+        meshes = [ob for ob in context.selected_objects if ob.type in 
+                ("MESH",
+                "CURVE",
+                "META",
+                "SURFACE",
+                "FONT",)]
+
+        for ob in meshes:
+            print(ob.type)
             nwo = ob.nwo
             nwo.mesh_type_ui = mesh_type
             if sub_type:
@@ -203,6 +210,11 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     nwo.plane_type_ui = sub_type
 
             apply_props_material(ob, material)
+
+            if self.m_type == 'seam':
+                closest_bsp = closest_bsp_object(ob)
+                if closest_bsp is not None:
+                    ob.nwo.seam_back_ui = true_bsp(closest_bsp.nwo)
 
 
         return {'FINISHED'}

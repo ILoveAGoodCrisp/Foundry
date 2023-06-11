@@ -1017,11 +1017,11 @@ class NWO_ObjectProps(NWO_PropPanel):
                         row.prop(
                             ob_nwo,
                             "permutation_name_locked_ui",
-                            text="Permutation",
+                            text="Subgroup",
                         )
                     else:
                         row.prop(
-                            ob_nwo, "permutation_name_ui", text="Permutation"
+                            ob_nwo, "permutation_name_ui", text="Subgroup"
                         )
                         row.operator_menu_enum(
                             "nwo.permutation_list",
@@ -1079,6 +1079,10 @@ class NWO_ObjectProps(NWO_PropPanel):
                 col.use_property_split = True
 
                 if poll_ui(("MODEL", "SCENARIO")):
+                    perm_name = "Permutation"
+                    if poll_ui("SCENARIO"):
+                        perm_name = "Subgroup"
+
                     row = col.row()
                     if (
                         poll_ui("MODEL")
@@ -1090,11 +1094,11 @@ class NWO_ObjectProps(NWO_PropPanel):
                         row.prop(
                             ob_nwo,
                             "permutation_name_locked_ui",
-                            text="Permutation",
+                            text=perm_name,
                         )
                     else:
                         row.prop(
-                            ob_nwo, "permutation_name_ui", text="Permutation"
+                            ob_nwo, "permutation_name_ui", text=perm_name
                         )
                         row.operator_menu_enum(
                             "nwo.permutation_list",

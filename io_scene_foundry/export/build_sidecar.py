@@ -275,9 +275,9 @@ class Sidecar:
             datetime.today().strftime("%Y-%m-%d %H:%M:%S")
         )
         ET.SubElement(header, "By").text = getpass.getuser()
-        ET.SubElement(header, "SourceFile").text = bpy.data.filepath.replace(
-            get_data_path(), ""
-        )
+        # ET.SubElement(header, "SourceFile").text = bpy.data.filepath.replace(
+        #     get_data_path(), ""
+        # )
         ET.SubElement(
             header, "DirectoryType"
         ).text = "TAE.Shared.NWOAssetDirectory"

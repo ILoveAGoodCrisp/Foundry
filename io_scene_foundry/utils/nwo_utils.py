@@ -1459,6 +1459,13 @@ def get_collection_parents(current_coll, all_collections):
 
     return coll_list
 
+def get_coll_prefix(coll):
+    string = coll.lower()
+    for prefix in ("+perm", "+region", "+bsp", "+exclude"):
+        if string.startswith(prefix):
+            return prefix
+        
+    return False
 
 def get_prop_from_collection(ob, prefixes):
     prop = ""
@@ -1478,14 +1485,10 @@ def get_prop_from_collection(ob, prefixes):
 
             # test object collection parent tree
             for c in collection_list:
-                if c.lower().startswith(prefixes[0]) or c.lower().startswith(
-                    prefixes[1]
-                ):
-                    prop = c.rpartition(":")[2]
-                    prop = prop.strip(" ")
+                if get_coll_prefix(c):
+                    prop = prop.strip(" :_+';#~,.")
                     prop = prop.replace(" ", "_")
-                    if prop.rpartition(".")[0] != "":
-                        prop = prop.rpartition(".")[0]
+                    prop = dot_partition(prop)
                     prop = prop.lower()
                     break
 
@@ -1639,6 +1642,9 @@ def closest_bsp_object(ob):
 
             me = target_object.data
             verts = [v.co for v in me.vertices]
+            if not verts:
+                return
+            
             target_median = (
                 target_object.matrix_world @ sum(verts, Vector()) / len(verts)
             )
@@ -1650,9 +1656,11 @@ def closest_bsp_object(ob):
                 ((x2 - x1) ** 2) + ((y2 - y1) ** 2) + ((z2 - z1) ** 2)
             ) ** (1 / 2)
 
-        return None
+        return
+    
+    valid_targets = [ob for ob in export_objects() if ob.type == 'MESH']
 
-    for target_ob in export_objects():
+    for target_ob in valid_targets:
         if (
             ob == target_ob
             or not target_ob.type == "MESH"
