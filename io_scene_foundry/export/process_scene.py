@@ -28,7 +28,8 @@ import time
 import bpy
 import os
 import json
-import asyncio
+import multiprocessing
+import threading
 import random
 from .format_json import NWOJSON
 from ..utils.nwo_utils import (
@@ -102,6 +103,7 @@ class ProcessScene:
         import_surpress_errors,
     ):
         self.gr2_fail = False
+        self.thread_max = multiprocessing.cpu_count()
         self.export_report = self.process(
             context,
             report,
@@ -229,11 +231,14 @@ class ProcessScene:
                 or output_weapon
             )
         ):
-            self.gr2_processes = []
+            self.gr2_processes = 0
+            self.delay = 0
+            self.running_check = 0
             self.exported_files = []
             self.sidecar_paths = {}
             self.sidecar_paths_design = {}
             if export_gr2_files:
+                self.p_queue = []
                 self.max_export = 0.5
                 self.first_gr2 = True
                 self.skeleton_only = False
@@ -380,11 +385,9 @@ class ProcessScene:
                                     asset,
                                     nwo_scene,
                                 ):
-                                    self.gr2_processes.append(
                                         self.export_gr2(
                                             fbx_path, json_path, gr2_path
                                         )
-                                    )
                                 else:
                                     return f"Failed to export skeleton JSON: {json_path}"
                             else:
@@ -502,12 +505,10 @@ class ProcessScene:
                                                     asset,
                                                     nwo_scene,
                                                 ):
-                                                    self.gr2_processes.append(
-                                                        self.export_gr2(
-                                                            fbx_path,
-                                                            json_path,
-                                                            gr2_path,
-                                                        )
+                                                    self.export_gr2(
+                                                        fbx_path,
+                                                        json_path,
+                                                        gr2_path,
                                                     )
                                                 else:
                                                     return f"Failed to export skeleton JSON: {json_path}"
@@ -713,34 +714,30 @@ class ProcessScene:
                     "-------------------------------------------------------------------------\n"
                 )
 
-                completed_p = set()
-                total_p = len(self.gr2_processes)
+
+                total_p = self.gr2_processes
                 gr2_count = total_p
                 fake_p = 0.0
                 rand_div = (self.max_export * 3.3) ** 2
 
                 process = "Running GR2 Conversion"
                 update_progress(process, 0)
-                while len(completed_p) != total_p and fake_p < 1:
-                    for p in self.gr2_processes:
-                        if p.poll() is not None:
-                            completed_p.add(p)
 
-                    fake_p = fake_p + random.random() / rand_div
-                    if fake_p < len(completed_p) / total_p:
-                        fake_p = len(completed_p) / total_p
-
-                    if fake_p < 1:
-                        update_progress(process, fake_p)
-
+                while self.running_check:
                     time.sleep(0.1)
+                    if self.running_check:
+                        fake_p = fake_p + random.random() / rand_div
+                        real_p = total_p / self.running_check - 1
+                        if fake_p < real_p:
+                            fake_p = real_p
+                        
+                        if fake_p < 1:
+                            update_progress(process, fake_p)
 
                 update_progress(process, 1)
 
                 job = "Verifying GR2 Files"
                 update_job(job, 0)
-                for p in self.gr2_processes:
-                    p.wait()
 
                 # check that gr2 files exist (since fbx-to-gr2 doesn't return a non zero code on faiL!)
                 data_path = get_data_path()
@@ -755,8 +752,8 @@ class ProcessScene:
                             print(f"Retrying export...")
                             fbx_file = data_path + path_set[0]
                             json_file = data_path + path_set[1]
-                            self.export_gr2(
-                                fbx_file, json_file, gr2_file, False
+                            self.export_gr2_sync(
+                                fbx_file, json_file, gr2_file
                             )
                             if (
                                 os.path.exists(gr2_file)
@@ -767,8 +764,8 @@ class ProcessScene:
                                 print_warning(
                                     "Failed to build GR2 File on Second Attempt. Round 3..."
                                 )
-                                self.export_gr2(
-                                    fbx_file, json_file, gr2_file, False
+                                self.export_gr2_sync(
+                                    fbx_file, json_file, gr2_file
                                 )
                                 time.sleep(2)
                                 if (
@@ -922,9 +919,7 @@ class ProcessScene:
                         if self.export_json(
                             json_path, export_obs, sidecar_type, asset, nwo_scene
                         ):
-                            self.gr2_processes.append(
-                                self.export_gr2(fbx_path, json_path, gr2_path)
-                            )
+                            self.export_gr2(fbx_path, json_path, gr2_path)
                         else:
                             return f"Failed to export {perm} {type} model JSON: {json_path}"
                     else:
@@ -1033,9 +1028,7 @@ class ProcessScene:
                                 asset,
                                 nwo_scene,
                             ):
-                                self.gr2_processes.append(
-                                    self.export_gr2(fbx_path, json_path, gr2_path)
-                                )
+                                self.export_gr2(fbx_path, json_path, gr2_path)
                             else:
                                 return f"Failed to export {perm} {type} model JSON: {json_path}"
                         else:
@@ -1293,39 +1286,25 @@ class ProcessScene:
     #####################################################################################
     # GR2
 
-    def export_gr2(self, fbx_path, json_path, gr2_path, asyncr=True):
-        if self.first_gr2:
-            self.first_gr2 = False
-        else:
-            time.sleep(0.5)
+    def export_gr2_sync(self,  fbx_path, json_path, gr2_path):
+        run_tool(["fbx-to-gr2", data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path)], False, True)
 
+    def export_gr2(self, fbx_path, json_path, gr2_path):
         # clear existing gr2, so we can test if export failed
         if os.path.exists(gr2_path):
             os.remove(gr2_path)
-        if asyncr:
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(gr2(fbx_path, json_path, gr2_path))
-        else:
-            return run_tool(
-                [
-                    "fbx-to-gr2",
-                    data_relative(fbx_path),
-                    data_relative(json_path),
-                    data_relative(gr2_path),
-                ],
-                False,
-                True,
-            )
+
+        while self.running_check > self.thread_max * 2:
+            time.sleep(0.1)
+
+        thread = threading.Thread(target=self.gr2, args=(fbx_path, json_path, gr2_path))
+        thread.start()
+        self.first_gr2 = False
 
 
-async def gr2(fbx_path, json_path, gr2_path):
-    return run_tool(
-        [
-            "fbx-to-gr2",
-            data_relative(fbx_path),
-            data_relative(json_path),
-            data_relative(gr2_path),
-        ],
-        True,
-        True,
-    )
+    def gr2(self, fbx_path, json_path, gr2_path):
+        self.running_check +=1
+        self.gr2_processes += 1
+        time.sleep(self.running_check / 10)
+        run_tool(["fbx-to-gr2", data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path)], False, True)
+        self.running_check -= 1
