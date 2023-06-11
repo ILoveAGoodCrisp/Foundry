@@ -50,6 +50,7 @@ from ..utils.nwo_utils import (
     is_shader,
     get_tags_path,
     not_bungie_game,
+    sort_alphanum,
     true_region,
     true_bsp,
     true_permutation,
@@ -172,16 +173,16 @@ class PrepareScene:
         self.regions = {"default"}
         self.global_materials = {"default"}
         self.bsps = set()
+        self.seams = []
+
         process = "Building Export Scene"
         update_progress(process, 0)
         len_export_obs = len(export_obs)
 
-        self.seams = []
-
          # start the great loop!
         for idx, ob in enumerate(export_obs):
-            # set_active_object(ob)
-            # ob.select_set(True)
+            set_active_object(ob)
+            ob.select_set(True)
             nwo = ob.nwo
             me = ob.data
             ob_type = ob.type
@@ -262,7 +263,7 @@ class PrepareScene:
                     self.fix_materials(ob, me, materials, override_mat)
                     # print("fix_materials")
 
-            # ob.select_set(False)
+            ob.select_set(False)
 
             update_progress(process, idx / len_export_obs)
 
@@ -299,41 +300,48 @@ class PrepareScene:
         # print("found_shaders")
 
         # build seams
-        for seam in self.seams:
-            seam_me = seam.data
-            seam_bm = bmesh.new()
-            seam_bm.from_mesh(seam_me)
-            bmesh.ops.triangulate(seam_bm, faces=seam_bm.faces)
-            seam_bm.to_mesh(seam_me)
-            seam_nwo = seam.nwo
-
-            back_seam = seam.copy()
-            back_seam.data = seam_me.copy()
-            back_me = back_seam.data
-
-            back_nwo = back_seam.nwo
-
-            for f in seam_bm.faces:
-                f.normal_flip()
-
-            seam_bm.to_mesh(back_me)
-
-            # apply new bsp association
-            back_ui = seam_nwo.seam_back_ui
-            if back_ui == "" or back_ui == seam_nwo.bsp_name or back_ui not in self.bsps:
-                # this attempts to fix a bad back facing bsp ref
-                print_warning(f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp")
-                try:
-                    back_nwo.bsp_name = closest_bsp_object(seam).nwo.bsp_name
-                except:
-                    print_warning(f"Failed to automatically set back facing bsp reference for {seam.name}. Removing Seam from export")
-                    continue
+        if self.seams:
+            if len(self.bsps) < 2:
+                print_warning("Only single BSP in scene, seam objects ignored from export")
+                for seam in self.seams:
+                    self.unlink(seam)
             else:
-                back_nwo.bsp_name = seam_nwo.seam_back_ui
+                for seam in self.seams:
+                    seam_me = seam.data
+                    seam_bm = bmesh.new()
+                    seam_bm.from_mesh(seam_me)
+                    bmesh.ops.triangulate(seam_bm, faces=seam_bm.faces)
+                    seam_bm.to_mesh(seam_me)
+                    seam_nwo = seam.nwo
 
-            back_seam.name = f"seam({back_nwo.bsp_name}:{seam_nwo.bsp_name})"
+                    back_seam = seam.copy()
+                    back_seam.data = seam_me.copy()
+                    back_me = back_seam.data
 
-            scene_coll.link(back_seam)
+                    back_nwo = back_seam.nwo
+
+                    for f in seam_bm.faces:
+                        f.normal_flip()
+
+                    seam_bm.to_mesh(back_me)
+
+                    # apply new bsp association
+                    back_ui = seam_nwo.seam_back_ui
+                    if back_ui == "" or back_ui == seam_nwo.bsp_name or back_ui not in self.bsps:
+                        # this attempts to fix a bad back facing bsp ref
+                        print_warning(f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp")
+                        closest_bsp = closest_bsp_object(seam)
+                        if closest_bsp is None:
+                            print_warning(f"Failed to automatically set back facing bsp reference for {seam.name}. Removing Seam from export")
+                            self.unlink(seam)
+                        else:
+                            back_nwo.bsp_name = closest_bsp.nwo.bsp_name
+                    else:
+                        back_nwo.bsp_name = seam_nwo.seam_back_ui
+
+                    back_seam.name = f"seam({back_nwo.bsp_name}:{seam_nwo.bsp_name})"
+
+                    scene_coll.link(back_seam)
 
         # get new export_obs
         context.view_layer.update()
@@ -391,6 +399,10 @@ class PrepareScene:
         self.halo_objects_init()
         self.halo_objects(sidecar_type, export_obs)
         # print("halo_objects")
+
+        # order bsps
+        self.structure_bsps = sort_alphanum(self.structure_bsps)
+        self.design_bsps = sort_alphanum(self.design_bsps)
 
         self.model_armature = None
         self.skeleton_bones = {}

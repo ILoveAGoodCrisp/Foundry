@@ -38,8 +38,6 @@ from ..utils.nwo_utils import (
     enable_prints,
     get_data_path,
     run_tool,
-    print_box,
-    sort_alphanum,
     update_job,
     update_progress,
 )
@@ -541,12 +539,11 @@ class ProcessScene:
 
                 elif sidecar_type == "SCENARIO":
                     if export_structure and nwo_scene.structure:
-                        bsps_sorted = sort_alphanum(nwo_scene.structure_bsps)
                         self.export_bsp(
                             context,
                             asset_path,
                             asset,
-                            bsps_sorted,
+                            nwo_scene.structure_bsps,
                             "bsp",
                             nwo_scene.structure,
                             nwo_scene.structure_perms,
@@ -564,12 +561,11 @@ class ProcessScene:
                         )
 
                     if export_design and nwo_scene.design:
-                        design_sorted = sort_alphanum(nwo_scene.design_bsps)
                         self.export_bsp(
                             context,
                             asset_path,
                             asset,
-                            design_sorted,
+                            nwo_scene.design_bsps,
                             "design",
                             nwo_scene.design,
                             nwo_scene.design_perms,
@@ -724,7 +720,8 @@ class ProcessScene:
                     if fake_p < len(completed_p) / total_p:
                         fake_p = len(completed_p) / total_p
 
-                    update_progress(process, fake_p)
+                    if fake_p < 1:
+                        update_progress(process, fake_p)
 
                     time.sleep(0.1)
 

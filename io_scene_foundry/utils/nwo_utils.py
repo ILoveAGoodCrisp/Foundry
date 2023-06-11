@@ -1178,10 +1178,12 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
         else:
             return Popen(command)
     else:
-        if null_output:
-            return check_call(command, stdout=DEVNULL, stderr=DEVNULL)
         try:
-            return check_call(command)
+            if null_output:
+                return check_call(command, stdout=DEVNULL, stderr=DEVNULL)
+            else:
+                return check_call(command)
+            
         except Exception as e:
             return e
 
@@ -1507,23 +1509,18 @@ def is_shader(mat):
         and no_special_material_name
     )
 
-
 def print_warning(string="Warning"):
-    print("\033[33m" + string + "\033[0m")
-
+    print("\033[93m" + string + "\033[0m")
 
 def print_error(string="Error"):
-    print("\033[31m" + string + "\033[0m")
-
+    print("\033[91m" + string + "\033[0m")
 
 def managed_blam_active():
     return os.path.exists(os.path.join(bpy.app.tempdir, "blam.txt"))
 
-
 def get_valid_shader_name(string):
     shader_name = get_valid_material_name(string)
     return cull_invalid_chars(shader_name)
-
 
 def get_valid_material_name(material_name):
     """Removes characters from a blender material name that would have been used in legacy material properties"""
@@ -1631,10 +1628,9 @@ def closest_bsp_object(ob):
     distance = -1
 
     def get_distance(source_object, target_object):
-        source_object.update_from_editmode()
         me = source_object.data
         verts_sel = [v.co for v in me.vertices if v.select]
-        if len(verts_sel):
+        if verts_sel:
             seam_median = (
                 source_object.matrix_world
                 @ sum(verts_sel, Vector())
