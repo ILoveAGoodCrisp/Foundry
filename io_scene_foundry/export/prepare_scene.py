@@ -1777,14 +1777,10 @@ class PrepareScene:
             deselect_all_objects()
 
     def set_object_mode(self, context):
-        # try: # wrapped this in a try as the user can encounter an assert if no object is selected. No reason for this to crash the export
-        if not context.object:
+        if not context.active_object:
             set_active_object(context.view_layer.objects[0])
 
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-
-    # except:
-    #     print('WARNING: Unable to test mode')
 
     def get_current_action(self, context, model_armature):
         deselect_all_objects()
