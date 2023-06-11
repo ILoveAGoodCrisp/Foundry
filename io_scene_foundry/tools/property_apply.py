@@ -170,6 +170,8 @@ def halo_material(mat_name):
                 new_material, (0.51, 0.02, 0.06, 0.9)
             )  # blood red with 90% opacity
 
+    new_material.nwo.rendered = False
+
     return new_material
 
 def apply_props_material(ob, mat_name):

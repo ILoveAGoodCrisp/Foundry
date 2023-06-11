@@ -200,7 +200,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 "FONT",)]
 
         for ob in meshes:
-            print(ob.type)
             nwo = ob.nwo
             nwo.mesh_type_ui = mesh_type
             if sub_type:
