@@ -1278,7 +1278,8 @@ class NWOMesh(NWOObject):
             self.bungie_lightmap_ignore_default_resolution_scale = "1"
             self.bungie_lightmap_resolution_scale = self.halo.lightmap_resolution_scale
         # self.bungie_lightmap_chart_group = self.lightmap_chart_group()
-        # self.bungie_lightmap_photon_fidelity = self.halo.lightmap_photon_fidelity
+        # if self.not_bungie_game:
+        #     self.bungie_lightmap_photon_fidelity = self.halo.lightmap_photon_fidelity
         if self.halo.lightmap_type_active:
             self.bungie_lightmap_type = self.halo.lightmap_type
         # if self.halo.lightmap_analytical_bounce_modifier_active:

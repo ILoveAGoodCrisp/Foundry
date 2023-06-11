@@ -342,7 +342,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     # LIGHTMAP
 
     lightmap_additive_transparency_ui: FloatVectorProperty(
-        name="lightmap Additive Transparency",
+        name="Additive Transparency",
         options=set(),
         description="Overrides the amount and color of light that will pass through the surface. Tint colour will override the alpha blend settings in the shader.",
         default=(1.0, 1.0, 1.0),
@@ -352,7 +352,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     lightmap_resolution_scale_ui: IntProperty(
-        name="Lightmap Resolution Scale",
+        name="Resolution Scale",
         options=set(),
         description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces.  The relationships can be tweaked in the .scenario tag",
         default=3,
@@ -360,10 +360,10 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         max=7,
     )
 
-    lightmap_photon_fidelity_ui: EnumProperty(  # DONT SET THIS
+    lightmap_photon_fidelity_ui: EnumProperty(
         name="Photon Fidelity",
         options=set(),
-        description="H4+ only",
+        description="",
         default="_connected_material_lightmap_photon_fidelity_normal",
         items=[
             (
@@ -421,7 +421,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     lightmap_translucency_tint_color_ui: FloatVectorProperty(
-        name="Lightmap Translucency Tint Color",
+        name="Translucency Tint Color",
         options=set(),
         description="",
         default=(1.0, 1.0, 1.0),
@@ -431,7 +431,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     lightmap_lighting_from_both_sides_ui: BoolProperty(
-        name="Lightmap Lighting From Both Sides",
+        name="Lighting From Both Sides",
         options=set(),
         description="",
         default=True,

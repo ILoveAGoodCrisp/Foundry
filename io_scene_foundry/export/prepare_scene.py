@@ -1595,10 +1595,10 @@ class PrepareScene:
                     nwo.lightmap_resolution_scale = jstr(
                         nwo.lightmap_resolution_scale_ui
                     )
-                if nwo.lightmap_photon_fidelity_active:
-                    nwo.lightmap_photon_fidelity = (
-                        nwo.lightmap_photon_fidelity_ui
-                    )
+                # if nwo.lightmap_photon_fidelity_active: TODO Restore this
+                #     nwo.lightmap_photon_fidelity = (
+                #         nwo.lightmap_photon_fidelity_ui
+                #     )
                 if nwo.lightmap_type_active:
                     nwo.lightmap_type = nwo.lightmap_type_ui
                 if nwo.lightmap_analytical_bounce_modifier_active:
