@@ -1228,7 +1228,7 @@ class NWO_ObjectProps(NWO_PropPanel):
 
                     if (
                         ob_nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_water_physics"
+                        == "_connected_geometry_volume_type_water_physics_volume"
                     ):
                         col.separator()
                         col.prop(
