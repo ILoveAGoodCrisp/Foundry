@@ -52,7 +52,7 @@ def import_sidecar(
     print(
         "-------------------------------------------------------------------------\n"
     )
-    time.sleep(0.5)
+    # time.sleep(0.5)
     run_tool(
         [
             "import",

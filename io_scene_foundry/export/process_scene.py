@@ -37,6 +37,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     enable_prints,
     get_data_path,
+    print_warning,
     run_tool,
     update_job,
     update_progress,
@@ -100,6 +101,7 @@ class ProcessScene:
         import_decompose_instances,
         import_surpress_errors,
     ):
+        self.gr2_fail = False
         self.export_report = self.process(
             context,
             report,
@@ -749,7 +751,7 @@ class ProcessScene:
                             not os.path.exists(gr2_file)
                             or os.stat(gr2_file).st_size == 0
                         ):
-                            print(f"\n\nFailed to build GR2: {gr2_file}")
+                            print_warning(f"\n\nFailed to build GR2: {gr2_file}")
                             print(f"Retrying export...")
                             fbx_file = data_path + path_set[0]
                             json_file = data_path + path_set[1]
@@ -762,7 +764,7 @@ class ProcessScene:
                             ):
                                 print("Success!")
                             else:
-                                print(
+                                print_warning(
                                     "Failed to build GR2 File on Second Attempt. Round 3..."
                                 )
                                 self.export_gr2(
@@ -775,6 +777,7 @@ class ProcessScene:
                                 ):
                                     print("Success!!")
                                 else:
+                                    self.gr2_fail = True
                                     return "Failed to build GR2 File on Third Attempt, Giving Up"
 
                 update_job(job, 1)

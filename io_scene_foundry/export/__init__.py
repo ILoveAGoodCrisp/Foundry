@@ -550,7 +550,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         # Check that we can export
         if self.export_invalid():
-            return self.report({"WARNING"}, "Export aborted")
+            self.report({"WARNING"}, "Export aborted")
+            return {'CANCELLED'}
 
         print("\n\n\n\n\n\nHalo Tag Export Started")
         print(
@@ -656,6 +657,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
             print_error(
                 "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
             )
+
+        elif export.gr2_fail:
+            print_error("Failed to export a GR2 File. Export cancelled")
 
         else:
             print(
