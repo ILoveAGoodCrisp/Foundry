@@ -860,6 +860,7 @@ class PrepareScene:
             ob
             for ob in export_obs
             if ob.nwo.object_type == "_connected_geometry_object_type_mesh"
+            and ob.type == 'MESH'
             and ob.nwo.mesh_type in valid_mesh_types
         ]
         meshes = {ob.data for ob in mesh_obs}

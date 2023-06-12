@@ -99,18 +99,18 @@ class NWO_MeshFaceProps(NWO_PropPanel):
         )
 
         # Master Instance button since facemaps aren't stored in mesh data
-        if is_linked(ob):
-            row = layout.row()
-            if ob.data.nwo.master_instance == ob:
-                row.label(
-                    text=f"Object is the Master Instance for mesh: {ob.data.name}"
-                )
-            else:
-                row.operator("nwo.master_instance")
-                row = layout.row()
-                row.label(
-                    text=f"Object is Child Instance for mesh: {ob.data.name}"
-                )
+        # if is_linked(ob):
+        #     row = layout.row()
+        #     if ob.data.nwo.master_instance == ob:
+        #         row.label(
+        #             text=f"Object is the Master Instance for mesh: {ob.data.name}"
+        #         )
+        #     else:
+        #         row.operator("nwo.master_instance")
+        #         row = layout.row()
+        #         row.label(
+        #             text=f"Object is Child Instance for mesh: {ob.data.name}"
+        #         )
 
         # if is_poop:
         #     flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
