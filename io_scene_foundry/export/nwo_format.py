@@ -813,7 +813,7 @@ class NWOMarker(NWOObject):
             self.bungie_marker_velocity = self.halo.marker_velocity
 
         # game tag stuff
-        if self.halo.marker_game_instance_tag_name:
+        elif self.halo.marker_game_instance_tag_name:
             self.bungie_marker_game_instance_tag_name = (
                 self.halo.marker_game_instance_tag_name
             )
@@ -830,7 +830,7 @@ class NWOMarker(NWOObject):
                 )
 
         # rest of the pathfinding sphere props
-        if (
+        elif (
             self.bungie_marker_type
             == "_connected_geometry_marker_type_pathfinding_sphere"
         ):
@@ -847,9 +847,14 @@ class NWOMarker(NWOObject):
             self.bungie_marker_pathfinding_sphere_with_sectors = (
                 self.halo.pathfinding_sphere_with_sectors
             )
+        elif (
+            self.bungie_marker_type
+            == "_connected_geometry_marker_type_target"
+        ):
+                self.bungie_mesh_primitive_sphere_radius = self.marker_sphere_radius()
 
         # contraints props
-        if self.bungie_marker_type in (
+        elif self.bungie_marker_type in (
             "_connected_geometry_marker_type_physics_hinge_constraint",
             "_connected_geometry_marker_type_physics_socket_constraint",
         ):
