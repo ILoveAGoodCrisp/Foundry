@@ -1037,7 +1037,7 @@ class PrepareScene:
         # get mesh type
         if nwo.object_type == "_connected_geometry_object_type_mesh":
             if asset_type == "MODEL":
-                nwo.region_name = true_region(ob.nwo)
+                nwo.region_name = true_region(nwo)
                 if (
                     nwo.mesh_type_ui
                     == "_connected_geometry_mesh_type_collision"
@@ -1261,7 +1261,7 @@ class PrepareScene:
                     nwo.mesh_type = "_connected_geometry_mesh_type_default"
 
             if asset_type == "SKY":
-                nwo.region_name = true_region(ob.nwo)
+                nwo.region_name = true_region(nwo)
                 nwo.mesh_type = "_connected_geometry_mesh_type_default"
 
             if asset_type == "DECORATOR SET":
@@ -1293,6 +1293,8 @@ class PrepareScene:
         elif nwo.object_type == "_connected_geometry_object_type_marker":
             if asset_type == "MODEL":
                 nwo.marker_all_regions = bool_str(nwo.marker_all_regions_ui)
+                if nwo.marker_all_regions == "0":
+                    nwo.region_name = true_region(nwo)
                 if (
                     nwo.marker_type_ui
                     == "_connected_geometry_marker_type_hint"
