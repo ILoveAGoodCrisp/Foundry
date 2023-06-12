@@ -1331,7 +1331,7 @@ class PrepareScene:
                     nwo.marker_type = (
                         "_connected_geometry_marker_type_pathfinding_sphere"
                     )
-                    nwo.marker_sphere_radius = nwo.marker_sphere_radius_ui
+                    nwo.marker_sphere_radius = jstr(nwo.marker_sphere_radius_ui)
                     nwo.marker_pathfinding_sphere_vehicle = bool_str(
                         nwo.marker_pathfinding_sphere_vehicle_ui
                     )
