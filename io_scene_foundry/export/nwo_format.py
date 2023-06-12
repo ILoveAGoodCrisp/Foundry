@@ -800,13 +800,13 @@ class NWOMarker(NWOObject):
         )
         # SHARED
         self.bungie_marker_type = self.halo.marker_type
+        self.bungie_marker_model_group = self.marker_model_group()
         # properties for model/sky assets only
         if self.sidecar_type in ("MODEL", "SKY"):
             if self.halo.marker_all_regions:
                 self.bungie_marker_all_regions = self.halo.marker_all_regions
                 if self.bungie_marker_all_regions == "0":
                     self.bungie_marker_region = self.halo.region_name
-            self.bungie_marker_model_group = self.marker_model_group()
 
         # garbage has velocity
         if self.halo.marker_type == "_connected_geometry_marker_type_garbage":
