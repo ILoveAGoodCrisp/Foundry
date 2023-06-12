@@ -26,11 +26,10 @@
 from os import path, remove, chdir, rmdir
 import zipfile
 import bpy
-from os.path import join as path_join
 
 from io_scene_foundry.utils.nwo_utils import deselect_all_objects
 
-from .collection_manager import GetCollIfExists
+from .collection_manager import get_coll_if_exists
 
 
 def ArmatureCreate(context, armature_type, control_bones):
@@ -48,7 +47,7 @@ def ArmatureCreate(context, armature_type, control_bones):
     if control_bones:
         deselect_all_objects()
         coll_name = "+exclude: bone_shapes"
-        collection_index = GetCollIfExists(bpy.data, coll_name)
+        collection_index = get_coll_if_exists(bpy.data, coll_name)
         # Delete duplicate custom shapes
         for ob in context.view_layer.objects:
             if ob.name.rpartition(".")[0] in (
