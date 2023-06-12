@@ -2309,7 +2309,7 @@ class PrepareScene:
                 "_connected_geometry_marker_type_pathfinding_sphere",
                 "_connected_geometry_marker_type_target",
             ):  # need to handle pathfinding spheres / targets differently. Dimensions aren't retained for empties, so instead we can store the radius in the marker sphere radius
-                node_nwo.marker_sphere_radius = max(ob.dimensions) / 2
+                node_nwo.marker_sphere_radius = jstr(max(ob.dimensions) / 2)
 
             # copy the node props from the mesh to the empty
             self.set_node_props(ob_nwo, node_nwo)
