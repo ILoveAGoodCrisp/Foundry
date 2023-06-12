@@ -839,13 +839,13 @@ class NWOMarker(NWOObject):
                 self.marker_sphere_radius()
             )  # mesh properties in my node properties... Pathfinding spheres need this or they don't get written to the collision model
             self.bungie_marker_pathfinding_sphere_vehicle_only = (
-                self.halo.marker_pathfinding_sphere_vehicle_only
+                self.halo.marker_pathfinding_sphere_vehicle
             )
             self.bungie_marker_pathfinding_sphere_remains_when_open = (
-                self.halo.marker_pathfinding_sphere_remains_when_open
+                self.halo.pathfinding_sphere_remains_when_open
             )
             self.bungie_marker_pathfinding_sphere_with_sectors = (
-                self.halo.marker_pathfinding_sphere_with_sectors
+                self.halo.pathfinding_sphere_with_sectors
             )
 
         # contraints props
