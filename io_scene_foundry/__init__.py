@@ -261,6 +261,9 @@ def load_handler(dummy):
         with open(game_version_txt_path, "r") as temp_file:
             context.scene.nwo.game_version = temp_file.read()
 
+    # set output to on
+    bpy.context.scene.nwo_export.show_output = True
+
     # run ManagedBlam on startup if enabled
     if context.scene.nwo.mb_startup:
         bpy.ops.managed_blam.init()
@@ -328,21 +331,20 @@ def get_temp_settings(dummy):
 
         os.remove(temp_file_path)
 
-
 def register():
     bpy.utils.register_class(ToolkitLocationPreferences)
     bpy.utils.register_class(HREKLocationPath)
     bpy.utils.register_class(H4EKLocationPath)
     bpy.utils.register_class(H2AMPEKLocationPath)
     bpy.app.handlers.load_post.append(load_handler)
-    bpy.app.handlers.undo_post.append(get_temp_settings)
+    # bpy.app.handlers.undo_post.append(get_temp_settings)
     for module in modules:
         module.register()
 
 
 def unregister():
     bpy.app.handlers.load_post.remove(load_handler)
-    bpy.app.handlers.undo_post.remove(get_temp_settings)
+    # bpy.app.handlers.undo_post.remove(get_temp_settings)
     bpy.utils.unregister_class(ToolkitLocationPreferences)
     bpy.utils.unregister_class(HREKLocationPath)
     bpy.utils.unregister_class(H4EKLocationPath)

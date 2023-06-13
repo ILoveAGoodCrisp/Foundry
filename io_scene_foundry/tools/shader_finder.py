@@ -39,7 +39,7 @@ def scan_tree(shaders_dir, shaders):
     return shaders
 
 
-def find_shaders(materials, report, shaders_dir="", overwrite=False):
+def find_shaders(materials, report=None, shaders_dir="", overwrite=False):
     shaders = set()
     update_count = 0
     tags_path = get_tags_path()
@@ -63,7 +63,9 @@ def find_shaders(materials, report, shaders_dir="", overwrite=False):
                     mat.nwo.shader_path = shader_path
                     update_count += 1
 
-    report({"INFO"}, "Updated " + str(update_count) + " shader paths")
+    if report is not None:
+        report({"INFO"}, "Updated " + str(update_count) + " shader paths")
+        
     return {"FINISHED"}
 
 

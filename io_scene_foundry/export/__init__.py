@@ -33,7 +33,7 @@ bl_info = {
     "blender": (3, 5, 1),
     "location": "File > Export",
     "category": "Export",
-    "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer",
+    "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
 }
 
 import bpy
@@ -531,8 +531,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.filepath = path.join(get_data_path(), "halo_export.fbx")
 
     def execute(self, context):
-        os.system("cls")
-
         start = time.perf_counter()
 
         # get the asset name and path to the asset folder
@@ -545,110 +543,108 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         self.set_scene_props(context)
 
-        # Save the scene
-        bpy.ops.wm.save_mainfile()
-
         # Check that we can export
         if self.export_invalid():
             self.report({"WARNING"}, "Export aborted")
             return {'CANCELLED'}
+
+        # Save the scene
+        bpy.ops.wm.save_mainfile()
+
+        os.system("cls")
+
+        if self.show_output:
+            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
 
         print("\n\n\n\n\n\nHalo Tag Export Started")
         print(
             "-------------------------------------------------------------------------\n"
         )
 
-        console = bpy.ops.wm
-
-        if self.show_output:
-            console.console_toggle()  # toggle the console so users can see progress of export
-
-        context.scene.nwo_export.show_output = False
-
         self.failed = False
 
-        # try:
+        try:
 
-        nwo_scene = PrepareScene(
-            context,
-            self.report,
-            self.asset,
-            self.sidecar_type,
-            self.use_armature_deform_only,
-            self.game_version,
-            self.meshes_to_empties,
-            self.export_animations,
-            self.export_gr2_files,
-            self.export_all_perms,
-            self.export_all_bsps,
-        )
+            nwo_scene = PrepareScene(
+                context,
+                self.report,
+                self.asset,
+                self.sidecar_type,
+                self.use_armature_deform_only,
+                self.game_version,
+                self.meshes_to_empties,
+                self.export_animations,
+                self.export_gr2_files,
+                self.export_all_perms,
+                self.export_all_bsps,
+            )
 
-        export = ProcessScene(
-            context,
-            self.report,
-            sidecar_path,
-            sidecar_path_full,
-            self.asset,
-            self.asset_path,
-            fbx_exporter(),
-            nwo_scene,
-            self.sidecar_type,
-            self.output_biped,
-            self.output_crate,
-            self.output_creature,
-            self.output_device_control,
-            self.output_device_machine,
-            self.output_device_terminal,
-            self.output_device_dispenser,
-            self.output_effect_scenery,
-            self.output_equipment,
-            self.output_giant,
-            self.output_scenery,
-            self.output_vehicle,
-            self.output_weapon,
-            self.export_skeleton,
-            self.export_render,
-            self.export_collision,
-            self.export_physics,
-            self.export_markers,
-            self.export_animations,
-            self.export_structure,
-            self.export_design,
-            self.export_sidecar_xml,
-            self.lightmap_structure,
-            self.import_to_game,
-            self.export_gr2_files,
-            self.game_version,
-            self.global_scale,
-            self.use_mesh_modifiers,
-            self.mesh_smooth_type,
-            self.use_triangles,
-            self.use_armature_deform_only,
-            self.mesh_smooth_type_better,
-            self.import_check,
-            self.import_force,
-            self.import_verbose,
-            self.import_draft,
-            self.import_seam_debug,
-            self.import_skip_instances,
-            self.import_decompose_instances,
-            self.import_surpress_errors,
-        )
+            export = ProcessScene(
+                context,
+                self.report,
+                sidecar_path,
+                sidecar_path_full,
+                self.asset,
+                self.asset_path,
+                fbx_exporter(),
+                nwo_scene,
+                self.sidecar_type,
+                self.output_biped,
+                self.output_crate,
+                self.output_creature,
+                self.output_device_control,
+                self.output_device_machine,
+                self.output_device_terminal,
+                self.output_device_dispenser,
+                self.output_effect_scenery,
+                self.output_equipment,
+                self.output_giant,
+                self.output_scenery,
+                self.output_vehicle,
+                self.output_weapon,
+                self.export_skeleton,
+                self.export_render,
+                self.export_collision,
+                self.export_physics,
+                self.export_markers,
+                self.export_animations,
+                self.export_structure,
+                self.export_design,
+                self.export_sidecar_xml,
+                self.lightmap_structure,
+                self.import_to_game,
+                self.export_gr2_files,
+                self.game_version,
+                self.global_scale,
+                self.use_mesh_modifiers,
+                self.mesh_smooth_type,
+                self.use_triangles,
+                self.use_armature_deform_only,
+                self.mesh_smooth_type_better,
+                self.import_check,
+                self.import_force,
+                self.import_verbose,
+                self.import_draft,
+                self.import_seam_debug,
+                self.import_skip_instances,
+                self.import_decompose_instances,
+                self.import_surpress_errors,
+            )
 
-        # except Exception as e:
-        #     print_error("\n\nException hit. Please include in report\n")
-        #     logging.error(traceback.format_exc())
-        #     self.failed = True
+        except Exception as e:
+            print_error("\n\nException hit. Please include in report\n")
+            logging.error(traceback.format_exc())
+            self.failed = True
 
         # validate that a sidecar file exists
         if not file_exists(sidecar_path_full):
             sidecar_path = ""
 
         # write scene settings generated during export to temp file
-        if self.failed:
-            self.write_temp_settings(context, sidecar_path, "Export Failed")
-        else:
-            self.write_temp_settings(context, sidecar_path, export.export_report)
+        # if self.failed:
+        #     self.write_temp_settings(context, sidecar_path, "Export Failed")
+        # else:
+        #     self.write_temp_settings(context, sidecar_path, export.export_report)
 
         end = time.perf_counter()
 
@@ -672,8 +668,13 @@ class NWO_Export_Scene(Operator, ExportHelper):
             )
 
         # restore scene back to its pre export state
-        bpy.ops.ed.undo_push()
-        bpy.ops.ed.undo()
+        # bpy.ops.ed.undo_push()
+        # bpy.ops.ed.undo()
+        # A new method...
+        bpy.ops.wm.open_mainfile(filepath=bpy.data.filepath)
+
+        if self.show_output:
+            context.scene.nwo_export.show_output = False
 
         return {"FINISHED"}
 

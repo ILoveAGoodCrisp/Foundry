@@ -296,7 +296,7 @@ class PrepareScene:
         for mat in materials:
             mat_nwo = mat.nwo
             if mat_nwo.rendered and not mat_nwo.shader_path:
-                find_shaders(materials, report)
+                find_shaders(materials)
                 break
 
         # print("found_shaders")
@@ -1302,10 +1302,11 @@ class PrepareScene:
                 ):
                     nwo.marker_type = "_connected_geometry_marker_type_hint"
                     if not reach:
+                        max_abs_scale = max(abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z))
                         if ob.type == 'EMPTY':
-                            nwo.marker_hint_length = jstr(ob.empty_display_size * 2)
+                            nwo.marker_hint_length = jstr(ob.empty_display_size * 2 * max_abs_scale)
                         elif ob.type in ("MESH", "CURVE", "META", "SURFACE", "FONT"):
-                            nwo.marker_hint_length = jstr(max(ob.dimensions))
+                            nwo.marker_hint_length = jstr(max(ob.dimensions * max_abs_scale))
 
                     if not reach and (abs(ob.scale.x) != 1 or abs(ob.scale.y) != 1 or abs(ob.scale.z) != 1):
                         print_warning(f"\nHint marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
@@ -2462,13 +2463,10 @@ class PrepareScene:
 # VARIOUS FUNCTIONS
 
 def set_marker_sphere_size(ob, nwo):
+    max_abs_scale = max(abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z))
     if ob.type == 'EMPTY':
-         nwo.marker_sphere_radius = jstr(ob.empty_display_size)
+         nwo.marker_sphere_radius = jstr(ob.empty_display_size * max_abs_scale)
     else:
-        nwo.marker_sphere_radius = jstr(max(ob.dimensions) / 2)
+        nwo.marker_sphere_radius = jstr(max(ob.dimensions * max_abs_scale / 2))
 
-    if abs(ob.scale.x) != 1 or abs(ob.scale.y) != 1 or abs(ob.scale.z) != 1:
-        if nwo.marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
-            print_warning(f"\nPathfinding sphere marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
-        else:
-            print_warning(f"\nTarget marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
+        
