@@ -1301,7 +1301,15 @@ class PrepareScene:
                     == "_connected_geometry_marker_type_hint"
                 ):
                     nwo.marker_type = "_connected_geometry_marker_type_hint"
-                    nwo.marker_hint_length = jstr(nwo.marker_hint_length_ui)
+                    if not reach:
+                        if ob.type == 'EMPTY':
+                            nwo.marker_hint_length = jstr(ob.empty_display_size * 2)
+                        elif ob.type in ("MESH", "CURVE", "META", "SURFACE", "FONT"):
+                            nwo.marker_hint_length = jstr(max(ob.dimensions))
+
+                    if not reach and (abs(ob.scale.x) != 1 or abs(ob.scale.y) != 1 or abs(ob.scale.z) != 1):
+                        print_warning(f"Hint marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
+
                     ob.name = "hint_"
                     if nwo.marker_hint_type == "bunker":
                         ob.name += "bunker"
@@ -1334,7 +1342,7 @@ class PrepareScene:
                     nwo.marker_type = (
                         "_connected_geometry_marker_type_pathfinding_sphere"
                     )
-                    nwo.marker_sphere_radius = jstr(nwo.marker_sphere_radius_ui)
+                    set_marker_sphere_size(ob, nwo)
                     nwo.marker_pathfinding_sphere_vehicle = bool_str(
                         nwo.marker_pathfinding_sphere_vehicle_ui
                     )
@@ -1384,6 +1392,7 @@ class PrepareScene:
                     == "_connected_geometry_marker_type_target"
                 ):
                     nwo.marker_type = "_connected_geometry_marker_type_target"
+                    set_marker_sphere_size(ob, nwo)
                 elif (
                     nwo.marker_type_ui
                     == "_connected_geometry_marker_type_effects"
@@ -2308,11 +2317,6 @@ class PrepareScene:
             node.matrix_local = ob.matrix_local
             node.scale = ob.scale
             node_nwo = node.nwo
-            if ob_nwo.marker_type in (
-                "_connected_geometry_marker_type_pathfinding_sphere",
-                "_connected_geometry_marker_type_target",
-            ):  # need to handle pathfinding spheres / targets differently. Dimensions aren't retained for empties, so instead we can store the radius in the marker sphere radius
-                node_nwo.marker_sphere_radius = jstr(max(ob.dimensions) / 2)
 
             # copy the node props from the mesh to the empty
             self.set_node_props(ob_nwo, node_nwo)
@@ -2345,6 +2349,7 @@ class PrepareScene:
         node_halo.marker_game_instance_run_scripts = (
             ob_halo.marker_game_instance_run_scripts
         )
+        node_halo.marker_sphere_radius  = ob_halo.marker_sphere_radius
 
         node_halo.marker_pathfinding_sphere_vehicle = (
             ob_halo.marker_pathfinding_sphere_vehicle
@@ -2455,3 +2460,15 @@ class PrepareScene:
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
+
+def set_marker_sphere_size(ob, nwo):
+    if ob.type == 'EMPTY':
+         nwo.marker_sphere_radius = jstr(ob.empty_display_size)
+    else:
+        nwo.marker_sphere_radius = jstr(max(ob.dimensions) / 2)
+
+    if abs(ob.scale.x) != 1 or abs(ob.scale.y) != 1 or abs(ob.scale.z) != 1:
+        if nwo.marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
+            print_warning(f"Pathfinding sphere marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
+        else:
+            print_warning(f"Target marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")

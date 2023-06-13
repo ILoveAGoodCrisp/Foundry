@@ -836,7 +836,7 @@ class NWOMarker(NWOObject):
         ):
             # sphere radius is pulled from a mesh marker. In the case of an empty marker, this value is user defined
             self.bungie_mesh_primitive_sphere_radius = (
-                self.marker_sphere_radius()
+                self.halo.marker_sphere_radius
             )  # mesh properties in my node properties... Pathfinding spheres need this or they don't get written to the collision model
             self.bungie_marker_pathfinding_sphere_vehicle_only = (
                 self.halo.marker_pathfinding_sphere_vehicle
@@ -851,7 +851,7 @@ class NWOMarker(NWOObject):
             self.bungie_marker_type
             == "_connected_geometry_marker_type_target"
         ):
-                self.bungie_mesh_primitive_sphere_radius = self.marker_sphere_radius()
+                self.bungie_mesh_primitive_sphere_radius = self.halo.marker_sphere_radius
 
         # contraints props
         elif self.bungie_marker_type in (
@@ -930,7 +930,8 @@ class NWOMarker(NWOObject):
                 self.bungie_marker_type
                 == "_connected_geometry_marker_type_hint"
             ):
-                self.bungie_marker_hint_length = self.marker_hint_length()
+                if self.not_bungie_game and self.halo.marker_hint_length:
+                    self.bungie_marker_hint_length = self.halo.marker_hint_length
 
             # scenario place fx
             elif (
@@ -975,17 +976,6 @@ class NWOMarker(NWOObject):
 
     def marker_model_group(self):
         return dot_partition(self.name).strip("#_?$-")
-
-    def marker_sphere_radius(self):
-        return (
-            radius_str(self.ob)
-            if self.ob.type == "MESH"
-            else self.halo.marker_sphere_radius
-        )
-
-    def marker_hint_length(self):
-        # return jstr(self.halo.marker_hint_length)
-        return jstr(max(self.ob.scale.x, self.ob.scale.y, self.ob.scale.z))
 
 
 # MESH

@@ -1424,7 +1424,12 @@ class NWO_ObjectProps(NWO_PropPanel):
 
                 if (
                     ob_nwo.marker_type_ui
-                    == "_connected_geometry_marker_type_model"
+                    in ("_connected_geometry_marker_type_model", 
+                        "_connected_geometry_marker_type_garbage",
+                        "_connected_geometry_marker_type_effects",
+                        "_connected_geometry_marker_type_target",
+                        "_connected_geometry_marker_type_hint",
+                        "_connected_geometry_marker_type_pathfinding_sphere")
                 ):
                     if poll_ui(("MODEL", "SKY")):
                         row = col.row()
@@ -1486,8 +1491,8 @@ class NWO_ObjectProps(NWO_PropPanel):
                     ):
                         row = col.row(align=True)
                         row.prop(ob_nwo, "marker_hint_height", expand=True)
-                    if h4:
-                        col.prop(ob_nwo, "marker_hint_length_ui")
+                    # if h4:
+                    #     col.prop(ob_nwo, "marker_hint_length_ui")
 
                 elif (
                     ob_nwo.marker_type_ui
@@ -1517,8 +1522,8 @@ class NWO_ObjectProps(NWO_PropPanel):
                         "pathfinding_sphere_with_sectors_ui",
                         text="With Sectors",
                     )
-                    if ob.type != "MESH":
-                        col.prop(ob_nwo, "marker_sphere_radius_ui")
+                    # if ob.type != "MESH":
+                    #     col.prop(ob_nwo, "marker_sphere_radius_ui")
 
                 elif (
                     ob_nwo.marker_type_ui
@@ -1591,12 +1596,12 @@ class NWO_ObjectProps(NWO_PropPanel):
                                 text="Twist End",
                             )
 
-                elif (
-                    ob_nwo.marker_type_ui
-                    == "_connected_geometry_marker_type_target"
-                ):
-                    if ob.type != "MESH":
-                        col.prop(ob_nwo, "marker_sphere_radius_ui")
+                # elif (
+                #     ob_nwo.marker_type_ui
+                #     == "_connected_geometry_marker_type_target"
+                # ):
+                #     # if ob.type != "MESH":
+                #     #     col.prop(ob_nwo, "marker_sphere_radius_ui")
 
                 elif (
                     ob_nwo.marker_type_ui
