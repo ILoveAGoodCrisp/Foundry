@@ -673,6 +673,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # A new method...
         bpy.ops.wm.open_mainfile(filepath=bpy.data.filepath)
 
+        context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
+
         if self.show_output:
             context.scene.nwo_export.show_output = False
 
