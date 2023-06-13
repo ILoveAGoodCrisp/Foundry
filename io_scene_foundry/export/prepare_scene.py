@@ -1308,7 +1308,7 @@ class PrepareScene:
                             nwo.marker_hint_length = jstr(max(ob.dimensions))
 
                     if not reach and (abs(ob.scale.x) != 1 or abs(ob.scale.y) != 1 or abs(ob.scale.z) != 1):
-                        print_warning(f"Hint marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
+                        print_warning(f"\nHint marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
 
                     ob.name = "hint_"
                     if nwo.marker_hint_type == "bunker":
@@ -2469,6 +2469,6 @@ def set_marker_sphere_size(ob, nwo):
 
     if abs(ob.scale.x) != 1 or abs(ob.scale.y) != 1 or abs(ob.scale.z) != 1:
         if nwo.marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
-            print_warning(f"Pathfinding sphere marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
+            print_warning(f"\nPathfinding sphere marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
         else:
-            print_warning(f"Target marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
+            print_warning(f"\nTarget marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
