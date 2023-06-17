@@ -237,7 +237,6 @@ def msgbus_callback(context):
     except:
         pass
 
-
 def subscribe(owner):
     subscribe_to = bpy.types.Object, "mode"
     bpy.msgbus.subscribe_rna(
@@ -245,11 +244,22 @@ def subscribe(owner):
         owner=owner,
         args=(bpy.context,),
         notify=msgbus_callback,
-        options={
-            "PERSISTENT",
-        },
+        options={"PERSISTENT",},
     )
 
+@persistent
+def load_set_output_state(dummy):
+    file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            state = f.read()
+
+        if state == "True":
+            bpy.context.scene.nwo_export.show_output = True
+        else:
+            bpy.context.scene.nwo_export.show_output = False
+    else:
+        bpy.context.scene.nwo_export.show_output = True
 
 @persistent
 def load_handler(dummy):
@@ -262,7 +272,7 @@ def load_handler(dummy):
             context.scene.nwo.game_version = temp_file.read()
 
     # set output to on
-    bpy.context.scene.nwo_export.show_output = True
+    # context.scene.nwo_export.show_output = True
 
     # run ManagedBlam on startup if enabled
     if context.scene.nwo.mb_startup:
@@ -287,6 +297,11 @@ def load_handler(dummy):
     # like and subscribe
     subscription_owner = object()
     subscribe(subscription_owner)
+
+    file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
+    if not os.path.exists(file_path):
+        with open(file_path, "w") as f:
+            f.write("True")
 
 
 @persistent
@@ -337,6 +352,7 @@ def register():
     bpy.utils.register_class(H4EKLocationPath)
     bpy.utils.register_class(H2AMPEKLocationPath)
     bpy.app.handlers.load_post.append(load_handler)
+    bpy.app.handlers.load_post.append(load_set_output_state)
     # bpy.app.handlers.undo_post.append(get_temp_settings)
     for module in modules:
         module.register()
@@ -344,6 +360,7 @@ def register():
 
 def unregister():
     bpy.app.handlers.load_post.remove(load_handler)
+    bpy.app.handlers.load_post.append(load_set_output_state)
     # bpy.app.handlers.undo_post.remove(get_temp_settings)
     bpy.utils.unregister_class(ToolkitLocationPreferences)
     bpy.utils.unregister_class(HREKLocationPath)
@@ -351,7 +368,6 @@ def unregister():
     bpy.utils.unregister_class(H2AMPEKLocationPath)
     for module in reversed(modules):
         module.unregister()
-
 
 if __name__ == "__main__":
     register()

@@ -27,6 +27,7 @@
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
+import os
 
 from bpy.types import Panel, Operator, PropertyGroup
 
@@ -1649,29 +1650,42 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         options=set(),
     )
 
-    def get_show_output(self):
-        global is_blender_startup
-        if is_blender_startup:
-            is_blender_startup = False
-            self["show_output"] = True
-            return True
-        else:
-            try:
-                return self["show_output"]
-            except:
-                return True
+    # def get_show_output(self):
+    #     global is_blender_startup
+    #     if is_blender_startup:
+    #         print("Startup check")
+    #         is_blender_startup = False
+    #         file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
+    #         if file_exists(file_path):
+    #             with open(file_path, "r") as f:
+    #                 state = f.read()
 
-    def set_show_output(self, value):
-        self["show_output"] = value
+    #             if state == "True":
+    #                 return True
+    #             else:
+    #                 return False
+
+    #     return self.get("show_output", False)
+        
+    # def set_show_output(self, value):
+    #     self["show_output"] = value
+
+    def update_show_output(self, context):
+        file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
+        if file_exists(file_path):
+            with open(file_path, "w") as f:
+                f.write(str(self.show_output))
 
     show_output: BoolProperty(
-        name="Show Output",
-        description="",
-        default=True,
+        name="Toggle Output",
+        description="Select whether or not the output console should toggle at export",
         options=set(),
-        get=get_show_output,
-        set=set_show_output,
+        # get=get_show_output,
+        # set=set_show_output,
+        update=update_show_output,
     )
+
+
     keep_fbx: BoolProperty(
         name="FBX",
         description="Keep the source FBX file after GR2 conversion",
