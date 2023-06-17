@@ -671,9 +671,8 @@ def get_active_object():
 
 
 def get_asset_info(filepath):
-    asset_path = filepath.rpartition(os.sep)[0]
+    asset_path = os.path.dirname(filepath)
     asset = asset_path.rpartition(os.sep)[2]
-    asset = dot_partition(asset)
 
     return asset_path, asset
 
