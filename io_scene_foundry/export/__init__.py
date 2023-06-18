@@ -39,6 +39,7 @@ bl_info = {
 import contextlib
 import inspect
 import subprocess
+import uuid
 import bpy
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty
@@ -563,7 +564,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Save the scene
         # bpy.ops.wm.save_mainfile()
 
-        new_scene = dot_partition(bpy.data.filepath) + "_FHEB" + ".blend"
+        new_scene = dot_partition(bpy.data.filepath) + str(uuid.uuid4())[:4] + ".blend"
         disable_prints()
         bpy.ops.wm.save_as_mainfile(filepath=new_scene, copy=True, check_existing=False)
 
