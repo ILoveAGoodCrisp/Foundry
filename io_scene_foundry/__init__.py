@@ -263,45 +263,46 @@ def load_set_output_state(dummy):
 
 @persistent
 def load_handler(dummy):
-    # Set game version from file
-    context = bpy.context
-    game_version_txt_path = os.path.join(bpy.app.tempdir, "game_version.txt")
-    # only do this if the scene is not an asset
-    if not valid_nwo_asset(context) and os.path.exists(game_version_txt_path):
-        with open(game_version_txt_path, "r") as temp_file:
-            context.scene.nwo.game_version = temp_file.read()
+    if not bpy.app.background:
+        # Set game version from file
+        context = bpy.context
+        game_version_txt_path = os.path.join(bpy.app.tempdir, "game_version.txt")
+        # only do this if the scene is not an asset
+        if not valid_nwo_asset(context) and os.path.exists(game_version_txt_path):
+            with open(game_version_txt_path, "r") as temp_file:
+                context.scene.nwo.game_version = temp_file.read()
 
-    # set output to on
-    # context.scene.nwo_export.show_output = True
+        # set output to on
+        # context.scene.nwo_export.show_output = True
 
-    # run ManagedBlam on startup if enabled
-    if context.scene.nwo.mb_startup:
-        bpy.ops.managed_blam.init()
+        # run ManagedBlam on startup if enabled
+        if context.scene.nwo.mb_startup:
+            bpy.ops.managed_blam.init()
 
-    # create warning if current game_version is incompatible with loaded managedblam.dll
-    if os.path.exists(os.path.join(bpy.app.tempdir, "blam.txt")):
-        with open(os.path.join(bpy.app.tempdir, "blam.txt"), "r") as blam_txt:
-            mb_path = blam_txt.read()
+        # create warning if current game_version is incompatible with loaded managedblam.dll
+        if os.path.exists(os.path.join(bpy.app.tempdir, "blam.txt")):
+            with open(os.path.join(bpy.app.tempdir, "blam.txt"), "r") as blam_txt:
+                mb_path = blam_txt.read()
 
-        if not mb_path.startswith(get_ek_path()):
-            game = formalise_game_version(context.scene.nwo.game_version)
-            result = ctypes.windll.user32.MessageBoxW(
-                0,
-                f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?",
-                f"ManagedBlam / Game Mismatch",
-                4,
-            )
-            if result == 6:
-                bpy.ops.wm.quit_blender()
+            if not mb_path.startswith(get_ek_path()):
+                game = formalise_game_version(context.scene.nwo.game_version)
+                result = ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?",
+                    f"ManagedBlam / Game Mismatch",
+                    4,
+                )
+                if result == 6:
+                    bpy.ops.wm.quit_blender()
 
-    # like and subscribe
-    subscription_owner = object()
-    subscribe(subscription_owner)
+        # like and subscribe
+        subscription_owner = object()
+        subscribe(subscription_owner)
 
-    file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
-    if not os.path.exists(file_path):
-        with open(file_path, "w") as f:
-            f.write("True")
+        file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
+        if not os.path.exists(file_path):
+            with open(file_path, "w") as f:
+                f.write("True")
 
 
 @persistent
