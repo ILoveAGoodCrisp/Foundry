@@ -310,11 +310,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         description="",
         default=True,
     )
-    use_triangles: BoolProperty(
-        name="Triangulate",
-        description="",
-        default=True,
-    )
     global_scale: FloatProperty(name="Scale", description="", default=1.0)
     use_armature_deform_only: BoolProperty(
         name="Deform Bones Only",
@@ -475,7 +470,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         self.export_poops = scene_nwo_export.export_design
 
         self.use_mesh_modifiers = scene_nwo_export.use_mesh_modifiers
-        self.use_triangles = scene_nwo_export.use_triangles
         self.global_scale = scene_nwo_export.global_scale
         self.use_armature_deform_only = (
             scene_nwo_export.use_armature_deform_only
@@ -568,7 +562,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         disable_prints()
         bpy.ops.wm.save_as_mainfile(filepath=new_scene, copy=True, check_existing=False)
 
-        ops_args = f"""filepath=r'{self.filepath}', game_version=r'{self.game_version}', keep_fbx={self.keep_fbx}, keep_json={self.keep_json}, export_sidecar_xml=True, sidecar_type='{self.sidecar_type}', export_animations='{self.export_animations}', export_skeleton={self.export_skeleton}, export_render={self.export_render}, export_collision={self.export_collision}, export_physics={self.export_physics}, export_markers={self.export_markers}, export_structure={self.export_structure}, export_design={self.export_design}, export_all_bsps=r'{self.export_all_bsps}', export_all_perms=r'{self.export_all_perms}', output_biped={self.output_biped}, output_crate={self.output_crate}, output_creature={self.output_creature}, output_device_control={self.output_device_control}, output_device_dispenser={self.output_device_dispenser}, output_device_machine={self.output_device_machine}, output_device_terminal={self.output_device_terminal}, output_effect_scenery={self.output_effect_scenery}, output_equipment={self.output_equipment}, output_giant={self.output_giant}, output_scenery={self.output_scenery}, output_vehicle={self.output_vehicle}, output_weapon={self.output_weapon}, import_to_game={self.import_to_game}, show_output=False, import_check={self.import_check}, import_force={self.import_force}, import_verbose={self.import_verbose}, import_draft={self.import_draft}, import_seam_debug={self.import_seam_debug}, import_skip_instances={self.import_skip_instances}, import_decompose_instances={self.import_decompose_instances}, import_surpress_errors={self.import_surpress_errors}, use_selection=True, bake_anim=True, use_mesh_modifiers={self.use_mesh_modifiers}, use_triangles={self.use_triangles}, global_scale=1, use_armature_deform_only={self.use_armature_deform_only}, meshes_to_empties={self.meshes_to_empties}, export_hidden=True, import_in_background=False, lightmap_structure={self.lightmap_structure}, lightmap_quality=r'{self.lightmap_quality}', lightmap_quality_h4=r'{self.lightmap_quality_h4}', lightmap_all_bsps={self.lightmap_all_bsps}, lightmap_specific_bsp=r'{self.lightmap_specific_bsp}', lightmap_region=r'{self.lightmap_region}', mesh_smooth_type_better='{self.mesh_smooth_type_better}', mesh_smooth_type='{self.mesh_smooth_type}', quick_export={self.quick_export}, export_gr2_files={self.export_gr2_files}, use_tspace={self.use_tspace}, asset=r'{self.asset}', asset_path=r'{self.asset_path}', sidecar_path=r'{self.sidecar_path}', sidecar_path_full=r'{self.sidecar_path_full}', fbx_exporter='{fbx_exporter()}'"""
+        ops_args = f"""filepath=r'{self.filepath}', game_version=r'{self.game_version}', keep_fbx={self.keep_fbx}, keep_json={self.keep_json}, export_sidecar_xml=True, sidecar_type='{self.sidecar_type}', export_animations='{self.export_animations}', export_skeleton={self.export_skeleton}, export_render={self.export_render}, export_collision={self.export_collision}, export_physics={self.export_physics}, export_markers={self.export_markers}, export_structure={self.export_structure}, export_design={self.export_design}, export_all_bsps=r'{self.export_all_bsps}', export_all_perms=r'{self.export_all_perms}', output_biped={self.output_biped}, output_crate={self.output_crate}, output_creature={self.output_creature}, output_device_control={self.output_device_control}, output_device_dispenser={self.output_device_dispenser}, output_device_machine={self.output_device_machine}, output_device_terminal={self.output_device_terminal}, output_effect_scenery={self.output_effect_scenery}, output_equipment={self.output_equipment}, output_giant={self.output_giant}, output_scenery={self.output_scenery}, output_vehicle={self.output_vehicle}, output_weapon={self.output_weapon}, import_to_game={self.import_to_game}, show_output=False, import_check={self.import_check}, import_force={self.import_force}, import_verbose={self.import_verbose}, import_draft={self.import_draft}, import_seam_debug={self.import_seam_debug}, import_skip_instances={self.import_skip_instances}, import_decompose_instances={self.import_decompose_instances}, import_surpress_errors={self.import_surpress_errors}, use_selection=True, bake_anim=True, use_mesh_modifiers={self.use_mesh_modifiers}, global_scale=1, use_armature_deform_only={self.use_armature_deform_only}, meshes_to_empties={self.meshes_to_empties}, export_hidden=True, import_in_background=False, lightmap_structure={self.lightmap_structure}, lightmap_quality=r'{self.lightmap_quality}', lightmap_quality_h4=r'{self.lightmap_quality_h4}', lightmap_all_bsps={self.lightmap_all_bsps}, lightmap_specific_bsp=r'{self.lightmap_specific_bsp}', lightmap_region=r'{self.lightmap_region}', mesh_smooth_type_better='{self.mesh_smooth_type_better}', mesh_smooth_type='{self.mesh_smooth_type}', quick_export={self.quick_export}, export_gr2_files={self.export_gr2_files}, use_tspace={self.use_tspace}, asset=r'{self.asset}', asset_path=r'{self.asset_path}', sidecar_path=r'{self.sidecar_path}', sidecar_path_full=r'{self.sidecar_path_full}', fbx_exporter='{fbx_exporter()}'"""
         py_expr = f'''--python-expr "import bpy; bpy.ops.export_scene.nwo_local({ops_args})"'''
         blender_exe_path = bpy.app.binary_path
 
@@ -806,7 +800,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         box.label(text="Scene Settings")
         col = box.column()
         col.prop(self, "use_mesh_modifiers")
-        col.prop(self, "use_triangles")
         col.prop(self, "use_armature_deform_only")
         col.prop(self, "meshes_to_empties")
         if fbx_exporter() == "better":
@@ -956,7 +949,6 @@ class NWO_Export_Scene_Local(NWO_Export_Scene):
                 self.global_scale,
                 self.use_mesh_modifiers,
                 self.mesh_smooth_type,
-                self.use_triangles,
                 self.use_armature_deform_only,
                 self.mesh_smooth_type_better,
                 self.import_check,

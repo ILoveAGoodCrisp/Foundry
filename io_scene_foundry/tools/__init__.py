@@ -1386,7 +1386,6 @@ class NWO_HaloExportSettingsExtended(Panel):
         col.separator()
         col = layout.column(heading="Scene")
         col.prop(scene_nwo_export, "use_mesh_modifiers")
-        col.prop(scene_nwo_export, "use_triangles")
         col.prop(scene_nwo_export, "use_armature_deform_only")
         col.prop(scene_nwo_export, "meshes_to_empties")
         # col.prop(scene_nwo_export, "global_scale")
@@ -1443,7 +1442,6 @@ class NWO_HaloExport_ExportQuick(Operator):
             scene_nwo_export.export_structure,
             scene_nwo_export.export_design,
             scene_nwo_export.use_mesh_modifiers,
-            scene_nwo_export.use_triangles,
             scene_nwo_export.global_scale,
             scene_nwo_export.use_armature_deform_only,
             scene_nwo_export.meshes_to_empties,
@@ -1621,12 +1619,6 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     )
     use_mesh_modifiers: BoolProperty(
         name="Apply Modifiers",
-        description="",
-        default=True,
-        options=set(),
-    )
-    use_triangles: BoolProperty(
-        name="Triangulate",
         description="",
         default=True,
         options=set(),
