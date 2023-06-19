@@ -557,8 +557,12 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         # Save the scene
         # bpy.ops.wm.save_mainfile()
+        
+        if bpy.data.filepath:
+            new_scene = dot_partition(bpy.data.filepath) + str(uuid.uuid4())[:4] + ".blend"
+        else:
+            new_scene = os.path.join(self.asset_path, str(uuid.uuid4())[:4] + ".blend")
 
-        new_scene = dot_partition(bpy.data.filepath) + str(uuid.uuid4())[:4] + ".blend"
         disable_prints()
         bpy.ops.wm.save_as_mainfile(filepath=new_scene, copy=True, check_existing=False)
 
