@@ -1552,9 +1552,9 @@ class NWO_ObjectProps(NWO_PropPanel):
                         text="Uses Limits",
                     )
 
-                    if ob_nwo.physics_constraint_uses_limits:
+                    if ob_nwo.physics_constraint_uses_limits_ui:
                         if (
-                            ob_nwo.physics_constraint_type
+                            ob_nwo.physics_constraint_type_ui
                             == "_connected_geometry_marker_type_physics_hinge_constraint"
                         ):
                             col.prop(
@@ -1569,10 +1569,10 @@ class NWO_ObjectProps(NWO_PropPanel):
                             )
 
                         elif (
-                            ob_nwo.physics_constraint_type
+                            ob_nwo.physics_constraint_type_ui
                             == "_connected_geometry_marker_type_physics_socket_constraint"
                         ):
-                            col.prop(ob_nwo, "cone_angle", text="Cone Angle")
+                            col.prop(ob_nwo, "cone_angle_ui", text="Cone Angle")
 
                             col.prop(
                                 ob_nwo,
