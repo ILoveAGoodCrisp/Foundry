@@ -859,46 +859,47 @@ class NWOMarker(NWOObject):
             "_connected_geometry_marker_type_physics_socket_constraint",
         ):
             if self.halo.physics_constraint_parent:
-                self.bungie_physics_constraint_parent = (
-                    self.halo.physics_constraint_parent
-                )
+                    self.bungie_physics_constraint_parent = (
+                        self.halo.physics_constraint_parent
+                    )
             if self.halo.physics_constraint_child:
                 self.bungie_physics_constraint_child = (
                     self.halo.physics_constraint_child
                 )
             self.bungie_physics_constraint_use_limits = (
-                self.halo.physics_constraint_use_limits
+                self.halo.physics_constraint_uses_limits
             )
             if self.bungie_physics_constraint_use_limits == "1":
-                if (
-                    self.bungie_marker_type
-                    == "_connected_geometry_marker_type_physics_hinge_constraint"
-                ):
-                    self.bungie_physics_constraint_hinge_min = (
-                        self.halo.physics_constraint_hinge_min
-                    )
-                    self.bungie_physics_constraint_hinge_max = (
-                        self.halo.physics_constraint_hinge_max
-                    )
-                elif (
-                    self.bungie_marker_type
-                    == "_connected_geometry_marker_type_physics_socket_constraint"
-                ):
-                    self.bungie_physics_constraint_cone_angle = (
-                        self.halo.physics_constraint_cone_angle
-                    )
-                    self.bungie_physics_constraint_plane_min = (
-                        self.halo.physics_constraint_plane_min
-                    )
-                    self.bungie_physics_constraint_plane_max = (
-                        self.halo.physics_constraint_plane_max
-                    )
-                    self.bungie_physics_constraint_twist_start = (
-                        self.halo.physics_constraint_twist_start
-                    )
-                    self.bungie_physics_constraint_twist_end = (
-                        self.halo.physics_constraint_twist_end
-                    )
+                    if (
+                        self.bungie_marker_type
+                        == "_connected_geometry_marker_type_physics_hinge_constraint"
+                    ):
+                        self.bungie_physics_constraint_hinge_min = (
+                            self.halo.hinge_constraint_minimum
+                        )
+                        self.bungie_physics_constraint_hinge_max = (
+                            self.halo.hinge_constraint_maximum
+                        )
+                    
+                    elif (
+                        self.bungie_marker_type
+                        == "_connected_geometry_marker_type_physics_socket_constraint"
+                    ):
+                        self.bungie_physics_constraint_cone_angle = (
+                            self.halo.cone_angle
+                        )
+                        self.bungie_physics_constraint_plane_min = (
+                            self.halo.plane_constraint_minimum
+                        )
+                        self.bungie_physics_constraint_plane_max = (
+                            self.halo.plane_constraint_maximum
+                        )
+                        self.bungie_physics_constraint_twist_start = (
+                            self.halo.twist_constraint_start
+                        )
+                        self.bungie_physics_constraint_twist_end = (
+                            self.halo.twist_constraint_end
+                        )
 
         # H4 only props
         if self.not_bungie_game:

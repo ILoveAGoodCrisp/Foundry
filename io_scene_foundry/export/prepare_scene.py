@@ -1358,12 +1358,12 @@ class PrepareScene:
                     nwo.marker_type_ui
                     == "_connected_geometry_marker_type_physics_constraint"
                 ):
-                    nwo.marker_type = nwo.physics_constraint_type
+                    nwo.marker_type = nwo.physics_constraint_type_ui
                     nwo.physics_constraint_parent = str(
-                        nwo.physics_constraint_parent_ui
+                        nwo.physics_constraint_parent_ui.name
                     )
                     nwo.physics_constraint_child = str(
-                        nwo.physics_constraint_child_ui
+                        nwo.physics_constraint_child_ui.name
                     )
                     nwo.physics_constraint_uses_limits = bool_str(
                         nwo.physics_constraint_uses_limits_ui
