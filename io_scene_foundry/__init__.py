@@ -354,7 +354,7 @@ def register():
     bpy.utils.register_class(H2AMPEKLocationPath)
     bpy.app.handlers.load_post.append(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
-    # bpy.app.handlers.undo_post.append(get_temp_settings)
+    bpy.app.handlers.undo_post.append(get_temp_settings)
     for module in modules:
         module.register()
 
@@ -362,7 +362,7 @@ def register():
 def unregister():
     bpy.app.handlers.load_post.remove(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
-    # bpy.app.handlers.undo_post.remove(get_temp_settings)
+    bpy.app.handlers.undo_post.remove(get_temp_settings)
     bpy.utils.unregister_class(ToolkitLocationPreferences)
     bpy.utils.unregister_class(HREKLocationPath)
     bpy.utils.unregister_class(H4EKLocationPath)

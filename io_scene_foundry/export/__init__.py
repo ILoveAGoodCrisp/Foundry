@@ -4,11 +4,11 @@
 #
 # Copyright (c) 2022 Generalkidd & Crisp
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy
+# Permission is hereby granted, free of charge, to any person obtaining a copy 
 # of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
+# in the Software without restriction, including without limitation the rights 
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell    
+# copies of the Software, and to permit persons to whom the Software is        
 # furnished to do so, subject to the following conditions:
 #
 # The above copyright notice and this permission notice shall be included in all
@@ -36,10 +36,6 @@ bl_info = {
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
 }
 
-import contextlib
-import inspect
-import subprocess
-import uuid
 import bpy
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty
@@ -52,8 +48,6 @@ import os
 import ctypes
 import traceback
 import logging
-import sys
-import io
 
 from .prepare_scene import PrepareScene
 from .process_scene import ProcessScene
@@ -61,9 +55,7 @@ from .process_scene import ProcessScene
 from io_scene_foundry.utils.nwo_utils import (
     check_path,
     bpy_enum,
-    disable_prints,
     dot_partition,
-    enable_prints,
     formalise_game_version,
     get_data_path,
     get_asset_info,
@@ -77,6 +69,7 @@ from io_scene_foundry.utils.nwo_utils import (
 
 # lightmapper_run_once = False
 sidecar_read = False
+
 
 class NWO_Export_Scene(Operator, ExportHelper):
     """Exports a Reach+ Asset for use in your Halo Editing Kit"""
@@ -432,10 +425,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         name="use tspace",
         default=False,
     )
-    local: BoolProperty(
-        name="Local",
-        default=False,
-    )
 
     def __init__(self):
         # SETUP #
@@ -536,19 +525,17 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.filepath = path.join(get_data_path(), "halo_export.fbx")
 
     def execute(self, context):
-        scene = context.scene
+        start = time.perf_counter()
+
         # get the asset name and path to the asset folder
         self.asset_path, self.asset = get_asset_info(self.filepath)
 
-        self.sidecar_path_full = os.path.join(
+        sidecar_path_full = os.path.join(
             self.asset_path, self.asset + ".sidecar.xml"
         )
-
-        self.sidecar_path = self.sidecar_path_full.replace(get_data_path(), "")
+        sidecar_path = sidecar_path_full.replace(get_data_path(), "")
 
         self.set_scene_props(context)
-
-        scene.nwo_halo_launcher.sidecar_path = self.sidecar_path
 
         # Check that we can export
         if self.export_invalid():
@@ -557,45 +544,131 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         # Save the scene
         # bpy.ops.wm.save_mainfile()
-        
-        if bpy.data.filepath:
-            new_scene = dot_partition(bpy.data.filepath) + str(uuid.uuid4())[:4] + ".blend"
-        else:
-            new_scene = os.path.join(self.asset_path, str(uuid.uuid4())[:4] + ".blend")
 
-        disable_prints()
-        bpy.ops.wm.save_as_mainfile(filepath=new_scene, copy=True, check_existing=False)
+        os.system("cls")
 
-        ops_args = f"""filepath=r'{self.filepath}', game_version=r'{self.game_version}', keep_fbx={self.keep_fbx}, keep_json={self.keep_json}, export_sidecar_xml=True, sidecar_type='{self.sidecar_type}', export_animations='{self.export_animations}', export_skeleton={self.export_skeleton}, export_render={self.export_render}, export_collision={self.export_collision}, export_physics={self.export_physics}, export_markers={self.export_markers}, export_structure={self.export_structure}, export_design={self.export_design}, export_all_bsps=r'{self.export_all_bsps}', export_all_perms=r'{self.export_all_perms}', output_biped={self.output_biped}, output_crate={self.output_crate}, output_creature={self.output_creature}, output_device_control={self.output_device_control}, output_device_dispenser={self.output_device_dispenser}, output_device_machine={self.output_device_machine}, output_device_terminal={self.output_device_terminal}, output_effect_scenery={self.output_effect_scenery}, output_equipment={self.output_equipment}, output_giant={self.output_giant}, output_scenery={self.output_scenery}, output_vehicle={self.output_vehicle}, output_weapon={self.output_weapon}, import_to_game={self.import_to_game}, show_output=False, import_check={self.import_check}, import_force={self.import_force}, import_verbose={self.import_verbose}, import_draft={self.import_draft}, import_seam_debug={self.import_seam_debug}, import_skip_instances={self.import_skip_instances}, import_decompose_instances={self.import_decompose_instances}, import_surpress_errors={self.import_surpress_errors}, use_selection=True, bake_anim=True, use_mesh_modifiers={self.use_mesh_modifiers}, global_scale=1, use_armature_deform_only={self.use_armature_deform_only}, meshes_to_empties={self.meshes_to_empties}, export_hidden=True, import_in_background=False, lightmap_structure={self.lightmap_structure}, lightmap_quality=r'{self.lightmap_quality}', lightmap_quality_h4=r'{self.lightmap_quality_h4}', lightmap_all_bsps={self.lightmap_all_bsps}, lightmap_specific_bsp=r'{self.lightmap_specific_bsp}', lightmap_region=r'{self.lightmap_region}', mesh_smooth_type_better='{self.mesh_smooth_type_better}', mesh_smooth_type='{self.mesh_smooth_type}', quick_export={self.quick_export}, export_gr2_files={self.export_gr2_files}, use_tspace={self.use_tspace}, asset=r'{self.asset}', asset_path=r'{self.asset_path}', sidecar_path=r'{self.sidecar_path}', sidecar_path_full=r'{self.sidecar_path_full}', fbx_exporter='{fbx_exporter()}'"""
-        py_expr = f'''--python-expr "import bpy; bpy.ops.export_scene.nwo_local({ops_args})"'''
-        blender_exe_path = bpy.app.binary_path
-
-        process = f'''"{blender_exe_path}" "{new_scene}" --background {py_expr}'''
-        # os.system("cls")
-    
         if self.show_output:
-            bpy.ops.wm.console_toggle()
-            scene.nwo_export.show_output = False
+            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+            context.scene.nwo_export.show_output = False
 
-        # print(process)
-        # return {'FINISHED'}
-        # run internal export script on new blend file
-        # null error output as  some addons can assert when running in background
-        p = subprocess.Popen(process, stderr=subprocess.DEVNULL)
-        
-        
-        p.wait()
-        # This clears the "blender quit" print
-        enable_prints()
-        print ("\033[A                             \033[A")
+        print("\n\n\n\n\n\nHalo Tag Export Started")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
 
-        if os.path.exists(new_scene):
-            os.remove(new_scene)
+        self.failed = False
 
-        # also remove copy
-        blend1 = new_scene + "1"
-        if os.path.exists(blend1):
-            os.remove(blend1)
+        try:
+
+            nwo_scene = PrepareScene(
+                context,
+                self.report,
+                self.asset,
+                self.sidecar_type,
+                self.use_armature_deform_only,
+                self.game_version,
+                self.meshes_to_empties,
+                self.export_animations,
+                self.export_gr2_files,
+                self.export_all_perms,
+                self.export_all_bsps,
+            )
+
+            export = ProcessScene(
+                context,
+                self.report,
+                sidecar_path,
+                sidecar_path_full,
+                self.asset,
+                self.asset_path,
+                fbx_exporter(),
+                nwo_scene,
+                self.sidecar_type,
+                self.output_biped,
+                self.output_crate,
+                self.output_creature,
+                self.output_device_control,
+                self.output_device_machine,
+                self.output_device_terminal,
+                self.output_device_dispenser,
+                self.output_effect_scenery,
+                self.output_equipment,
+                self.output_giant,
+                self.output_scenery,
+                self.output_vehicle,
+                self.output_weapon,
+                self.export_skeleton,
+                self.export_render,
+                self.export_collision,
+                self.export_physics,
+                self.export_markers,
+                self.export_animations,
+                self.export_structure,
+                self.export_design,
+                self.export_sidecar_xml,
+                self.lightmap_structure,
+                self.import_to_game,
+                self.export_gr2_files,
+                self.game_version,
+                self.global_scale,
+                self.use_mesh_modifiers,
+                self.mesh_smooth_type,
+                self.use_armature_deform_only,
+                self.mesh_smooth_type_better,
+                self.import_check,
+                self.import_force,
+                self.import_verbose,
+                self.import_draft,
+                self.import_seam_debug,
+                self.import_skip_instances,
+                self.import_decompose_instances,
+                self.import_surpress_errors,
+                self.lightmap_quality,
+                self.lightmap_quality_h4,
+                self.lightmap_all_bsps,
+                self.lightmap_specific_bsp,
+                self.lightmap_region,
+            )
+
+        except Exception as e:
+            print_error("\n\nException hit. Please include in report\n")
+            logging.error(traceback.format_exc())
+            self.failed = True
+
+        # validate that a sidecar file exists
+        if not file_exists(sidecar_path_full):
+            sidecar_path = ""
+
+        # write scene settings generated during export to temp file
+        if self.failed:
+            self.write_temp_settings(context, sidecar_path, "Export Failed")
+        else:
+            self.write_temp_settings(context, sidecar_path, export.export_report)
+
+        end = time.perf_counter()
+
+        if self.failed:
+            print_warning("\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n")
+            print_error(
+                "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            )
+
+        elif export.gr2_fail:
+            print_error("Failed to export a GR2 File. Export cancelled")
+
+        else:
+            print(
+                "\n-------------------------------------------------------------------------"
+            )
+            print(f"Tag Export Completed in {end - start} seconds")
+
+            print(
+                "-------------------------------------------------------------------------\n"
+            )
+
+        # restore scene back to its pre export state
+        bpy.ops.ed.undo_push()
+        bpy.ops.ed.undo()
 
         return {"FINISHED"}
 
@@ -798,7 +871,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 col.prop(self, "lightmap_all_bsps")
                 if not h4:
                     col.prop(self, "lightmap_region")
-                    
+
         # SCENE SETTINGS #
         box = layout.box()
         box.label(text="Scene Settings")
@@ -819,25 +892,23 @@ def menu_func_export(self, context):
 
 
 def fbx_exporter():
-    return "default"
-    # TODO rewrite this code to handle fbx exporter selection
-    # exporter = "default"
-    # addon_default, addon_state = check("better_fbx")
+    exporter = "default"
+    addon_default, addon_state = check("better_fbx")
 
-    # if addon_default or addon_state:
-    #     from sys import modules
+    if addon_default or addon_state:
+        from sys import modules
 
-    #     if module_bl_info(modules.get("better_fbx")).get("version") in (
-    #         (5, 1, 5),
-    #         (5, 2, 10),
-    #     ):
-    #         exporter = "better"
-    #     else:
-    #         print(
-    #             "Only BetterFBX versions [5.1.5] & [5.2.10] are supported. Using Blender's default fbx exporter"
-    #         )
+        if module_bl_info(modules.get("better_fbx")).get("version") in (
+            (5, 1, 5),
+            (5, 2, 10),
+        ):
+            exporter = "better"
+        else:
+            print(
+                "Only BetterFBX versions [5.1.5] & [5.2.10] are supported. Using Blender's default fbx exporter"
+            )
 
-    # return exporter
+    return exporter
 
 
 def ExportSettingsFromSidecar(sidecar_filepath):
@@ -868,138 +939,8 @@ def ExportSettingsFromSidecar(sidecar_filepath):
 
     return settings
 
-class NWO_Export_Scene_Local(NWO_Export_Scene):
-    bl_idname = "export_scene.nwo_local"
-    bl_label = "Export Asset INTERNAL"
-    bl_options = {"UNDO"}
-
-    asset : StringProperty()
-    asset_path : StringProperty()
-    sidecar_path : StringProperty()
-    sidecar_path_full : StringProperty()
-    fbx_exporter : StringProperty()
-
-    def __init__(self):
-        pass
-
-    def execute(self, context):
-        print("\nFOUNDRY-EXPORT-START")
-
-        os.system("cls")
-
-        start = time.perf_counter()
-
-        print("\nHalo Tag Export Started")
-        print(
-            "-------------------------------------------------------------------------\n"
-        )
-
-        self.failed = False
-
-        # return {'FINISHED'}
-
-        try:
-
-            nwo_scene = PrepareScene(
-                context,
-                self.report,
-                self.asset,
-                self.sidecar_type,
-                self.use_armature_deform_only,
-                self.game_version,
-                self.meshes_to_empties,
-                self.export_animations,
-                self.export_gr2_files,
-                self.export_all_perms,
-                self.export_all_bsps,
-            )
-
-            export = ProcessScene(
-                context,
-                self.report,
-                self.sidecar_path,
-                self.sidecar_path_full,
-                self.asset,
-                self.asset_path,
-                self.fbx_exporter,
-                nwo_scene,
-                self.sidecar_type,
-                self.output_biped,
-                self.output_crate,
-                self.output_creature,
-                self.output_device_control,
-                self.output_device_machine,
-                self.output_device_terminal,
-                self.output_device_dispenser,
-                self.output_effect_scenery,
-                self.output_equipment,
-                self.output_giant,
-                self.output_scenery,
-                self.output_vehicle,
-                self.output_weapon,
-                self.export_skeleton,
-                self.export_render,
-                self.export_collision,
-                self.export_physics,
-                self.export_markers,
-                self.export_animations,
-                self.export_structure,
-                self.export_design,
-                self.export_sidecar_xml,
-                self.lightmap_structure,
-                self.import_to_game,
-                self.export_gr2_files,
-                self.game_version,
-                self.global_scale,
-                self.use_mesh_modifiers,
-                self.mesh_smooth_type,
-                self.use_armature_deform_only,
-                self.mesh_smooth_type_better,
-                self.import_check,
-                self.import_force,
-                self.import_verbose,
-                self.import_draft,
-                self.import_seam_debug,
-                self.import_skip_instances,
-                self.import_decompose_instances,
-                self.import_surpress_errors,
-            )
-
-        except Exception as e:
-            print_error("\n\nException hit. Please include in report\n")
-            logging.error(traceback.format_exc())
-            self.failed = True
-
-        # validate that a sidecar file exists
-        if not file_exists(self.sidecar_path_full):
-            self.sidecar_path = ""
-
-        end = time.perf_counter()
-
-        if self.failed:
-            print_warning("\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n")
-            print_error(
-                "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-            )
-
-        elif export.gr2_fail:
-            print_error("Failed to export a GR2 File. Export cancelled")
-
-        else:
-            print(
-                "\n-------------------------------------------------------------------------"
-            )
-            print(f"Tag Export Completed in {end - start} seconds")
-
-            print(
-                "-------------------------------------------------------------------------\n"
-            )
-
-        return {'FINISHED'}
-
 
 def register():
-    bpy.utils.register_class(NWO_Export_Scene_Local)
     bpy.utils.register_class(NWO_Export_Scene)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
@@ -1007,4 +948,3 @@ def register():
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_Export_Scene)
-    bpy.utils.unregister_class(NWO_Export_Scene_Local)

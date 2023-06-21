@@ -632,7 +632,7 @@ class NWO_EditMode(NWO_Op):
 
 class NWO_FaceLayerAdd(NWO_Op):
     bl_idname = "nwo.face_layer_add"
-    bl_label = "Add"
+    bl_label = "Add Face Layer"
 
     @classmethod
     def poll(cls, context):
@@ -777,7 +777,10 @@ class NWO_FaceLayerAdd(NWO_Op):
                     "No other BSPs in scene. Please create another BSP to use seams",
                 )
         context.area.tag_redraw()
-
+        # gotta do this mess so undo states correctly register
+        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+        bpy.ops.ed.undo_push()
+        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
         return {"FINISHED"}
 
     def draw(self, context):
@@ -832,7 +835,10 @@ class NWO_FaceLayerRemove(NWO_Op):
             bpy.ops.nwo.face_layer_colour_all(enable_highlight=nwo.highlight)
 
         context.area.tag_redraw()
-
+        # gotta do this mess so undo states correctly register
+        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+        bpy.ops.ed.undo_push()
+        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
         return {"FINISHED"}
 
 

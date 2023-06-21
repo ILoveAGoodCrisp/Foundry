@@ -41,19 +41,16 @@ def run_lightmapper(
     misc_halo_objects,
     asset,
     lightmap_quality="DIRECT",
-    lightmap_quality_h4="default_new",
-    lightmap_quality_custom="",
+    lightmap_quality_h4="asset",
     lightmap_all_bsps="TRUE",
-    lightmap_specific_bsp="000",
+    lightmap_specific_bsp="default",
     lightmap_region="all",
-    **kwargs,
 ):
     lightmap = LightMapper(
         not_bungie_game,
         misc_halo_objects,
         lightmap_quality,
         lightmap_quality_h4,
-        lightmap_quality_custom,
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
@@ -77,7 +74,6 @@ class LightMapper:
         misc_halo_objects,
         lightmap_quality,
         lightmap_quality_h4,
-        lightmap_quality_custom,
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
@@ -92,7 +88,6 @@ class LightMapper:
             lightmap_quality,
             lightmap_quality_h4,
             not_bungie_game,
-            lightmap_quality_custom,
         )
         self.light_group = self.get_light_group(
             lightmap_region, misc_halo_objects, not_bungie_game
@@ -129,13 +124,10 @@ class LightMapper:
         lightmap_quality,
         lightmap_quality_h4,
         not_bungie_game,
-        lightmap_quality_custom,
     ):
         if not_bungie_game:
-            if lightmap_quality_custom != "":
-                return lightmap_quality_custom
-            else:
-                return lightmap_quality_h4
+            return lightmap_quality_h4
+        
         match lightmap_quality:
             case "DIRECT":
                 return "direct_only"

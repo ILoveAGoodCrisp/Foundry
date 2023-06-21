@@ -100,6 +100,11 @@ class ProcessScene:
         import_skip_instances,
         import_decompose_instances,
         import_surpress_errors,
+        lightmap_quality,
+        lightmap_quality_h4,
+        lightmap_all_bsps,
+        lightmap_specific_bsp,
+        lightmap_region,
     ):
         self.gr2_fail = False
         self.thread_max = multiprocessing.cpu_count()
@@ -152,6 +157,11 @@ class ProcessScene:
             import_skip_instances,
             import_decompose_instances,
             import_surpress_errors,
+            lightmap_quality,
+            lightmap_quality_h4,
+            lightmap_all_bsps,
+            lightmap_specific_bsp,
+            lightmap_region,
         )
 
     def process(
@@ -204,6 +214,11 @@ class ProcessScene:
         import_skip_instances,
         import_decompose_instances,
         import_surpress_errors,
+        lightmap_quality,
+        lightmap_quality_h4,
+        lightmap_all_bsps,
+        lightmap_specific_bsp,
+        lightmap_region,
     ):
         if fbx_exporter == "better":
             print("Found Better FBX exporter")
@@ -802,6 +817,11 @@ class ProcessScene:
                         game_version in ("h4", "h2a"),
                         nwo_scene.structure,
                         asset,
+                        lightmap_quality,
+                        lightmap_quality_h4,
+                        lightmap_all_bsps,
+                        lightmap_specific_bsp,
+                        lightmap_region,
                     )
                 )
 
