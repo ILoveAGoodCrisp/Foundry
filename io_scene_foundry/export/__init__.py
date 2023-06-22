@@ -669,16 +669,20 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 "-------------------------------------------------------------------------\n"
             )
             
-        # elif export.sidecar_import_error:
-        #     print(
-        #         "\n-------------------------------------------------------------------------"
-        #     )
-        #     print_warning("Failed to create tags. Please review Tool output for error details:\n")
-        #     print_error(export.sidecar_import_error)
+        elif export.sidecar_import_failed:
+            print(
+                "\n-------------------------------------------------------------------------"
+            )
+            print_error("FAILED TO CREATE TAGS\n")
+            if export.sidecar_import_error:
+                # print("Explanation of error:")
+                print(export.sidecar_import_error)
 
-        #     print(
-        #         "-------------------------------------------------------------------------\n"
-        #     )
+            print("\nFor further details, please review the Tool output above")
+
+            print(
+                "-------------------------------------------------------------------------\n"
+            )
         else:
             print(
                 "\n-------------------------------------------------------------------------"

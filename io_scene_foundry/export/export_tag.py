@@ -31,6 +31,7 @@ from ..utils.nwo_utils import (
     get_tags_path,
     not_bungie_game,
     run_tool,
+    run_tool_sidecar,
 )
 
 
@@ -53,7 +54,7 @@ def import_sidecar(
         "-------------------------------------------------------------------------\n"
     )
     # time.sleep(0.5)
-    p = run_tool(
+    failed = run_tool_sidecar(
         [
             "import",
             sidecar_path,
@@ -68,21 +69,13 @@ def import_sidecar(
                 import_surpress_errors,
             ),
         ],
-        True,
+        asset_path
     )
-
-    p.wait()
-    _, stderr = p.communicate()
-
-    error = ""
-    if stderr is not None:
-        error = stderr.decode()
-
 
     if sidecar_type == "FP ANIMATION":
         cull_unused_tags(asset_path, asset_name)
 
-    return error
+    return failed
 
 
 def cull_unused_tags(asset_path, asset_name):

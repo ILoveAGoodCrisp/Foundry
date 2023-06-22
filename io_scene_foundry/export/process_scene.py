@@ -108,6 +108,7 @@ class ProcessScene:
         lightmap_region,
     ):
         self.gr2_fail = False
+        self.sidecar_import_failed = False
         self.sidecar_import_error = ""
         self.thread_max = multiprocessing.cpu_count()
         self.export_report = self.process(
@@ -766,7 +767,7 @@ class ProcessScene:
 
             if import_to_game:
                 if os.path.exists(sidecar_path_full):
-                    err_output = (
+                    export_failed, error = (
                         import_sidecar(
                             context,
                             sidecar_path,
@@ -782,8 +783,9 @@ class ProcessScene:
                             import_surpress_errors,
                         )
                     )
-                    if err_output:
-                        self.sidecar_import_error = err_output
+                    if export_failed:
+                        self.sidecar_import_failed = True
+                        self.sidecar_import_error = error
                         reports.append("Tag Export Failed")
                     else:
                         reports.append("Tag Export Complete")

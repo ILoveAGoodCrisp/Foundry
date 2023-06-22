@@ -1184,6 +1184,52 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
             
         except Exception as e:
             return e
+        
+def run_tool_sidecar(tool_args: list, asset_path):
+    """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
+    failed = False
+    os.chdir(get_ek_path())
+    command = (
+        f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
+    )
+    # print(command)
+    error = ""
+    p = Popen(command, stderr=PIPE)
+    error_log = os.path.join(asset_path, 'error.log')
+    with open(error_log, 'w') as f:
+        # Read and print stderr contents while writing to the file
+        for line in p.stderr:
+            line = line.decode().rstrip('\n')
+            if failed or is_error_line(line):
+                print_error(line)
+                failed = True
+            else:
+                print_warning(line)
+            f.write(line)
+
+    p.wait()
+
+    if failed:
+        # check for known errors, and return an explanation
+        error = get_export_error_explanation(error_log)
+
+    return failed, error
+
+def get_export_error_explanation(error_log):
+    with open(error_log, 'r') as f:
+        text = f.read()
+        if "point->node_indices[0]==section->node_index" in text:
+            return "A collision mesh had vertex weights that were not equal to 1 or 0. Collision objects must use rigid vertex weighting or be bone parented"
+        
+    return ""
+
+def is_error_line(line):
+    words = line.split()
+    if words:
+        first_word = words[0]
+        return first_word.isupper() or first_word == "content:" or first_word == "###"
+    
+    return False
 
 
 def run_ek_cmd(args: list, in_background=False):
