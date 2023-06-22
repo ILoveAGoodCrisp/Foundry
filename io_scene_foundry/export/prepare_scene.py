@@ -55,6 +55,7 @@ from ..utils.nwo_utils import (
     true_region,
     true_bsp,
     true_permutation,
+    update_job,
     update_progress,
     valid_animation_types,
     vector_str,
@@ -79,6 +80,11 @@ class PrepareScene:
         export_all_perms,
         export_all_bsps,
     ):
+        
+        print("\nPreparing Export Scene")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         # time it!
         start = time.perf_counter()
 
@@ -160,10 +166,32 @@ class PrepareScene:
 
         materials = bpy.data.materials
 
+        # create fixup materials
         if "Override" not in materials:
             override_mat = materials.new("Override")
+            override_mat.nwo.rendered = False
         else:
             override_mat = materials.get("Override")
+
+        if "invalid" not in materials:
+            invalid_mat = materials.new("invalid")
+            if h4:
+                invalid_mat.nwo.shader_path = r"shaders\invalid.material"
+            else:
+                invalid_mat.nwo.shader_path = r"shaders\invalid.shader"
+        else:
+            invalid_mat = materials.get("invalid")
+
+        if "water" not in materials:
+            water_surface_mat = materials.new("water")
+            if game_version == "h2a":
+                water_surface_mat.nwo.shader_path = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
+            elif h4:
+                water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
+            else:
+                water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
+        else:
+            water_surface_mat = materials.get("water")
 
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
@@ -177,7 +205,7 @@ class PrepareScene:
         self.bsps = set()
         self.seams = []
 
-        process = "Building Export Scene"
+        process = "Building Export Objects"
         update_progress(process, 0)
         len_export_obs = len(export_obs)
 
@@ -262,7 +290,7 @@ class PrepareScene:
                     # print("uv fix")
 
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
-                    self.fix_materials(ob, me, override_mat)
+                    self.fix_materials(ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4)
                     # print("fix_materials")
 
             ob.select_set(False)
@@ -274,6 +302,7 @@ class PrepareScene:
         # OB LOOP COMPLETE----------------------------------------------------------------------------------------------
         # --------------------------------------------------------------------------------------------------------------
         # print("ob_loop")
+
 
         # get selected perms and bsps for use later
         self.selected_perms = set()
@@ -293,10 +322,16 @@ class PrepareScene:
                     self.selected_bsps.add(nwo.bsp_name)
 
         # loop through each material to check if find_shaders is needed
-        for mat in materials:
+        for idx, mat in enumerate(materials):
             mat_nwo = mat.nwo
-            if mat_nwo.rendered and not mat_nwo.shader_path:
+            if not mat.is_grease_pencil and mat_nwo.rendered and not mat_nwo.shader_path:
+                if h4:
+                    job = "Fixing Empty Material Paths"
+                else:
+                    job = "Fixing Empty Shader Paths"
+                update_job(job, 0)
                 find_shaders(materials)
+                update_job(job, 1)
                 break
 
         # print("found_shaders")
@@ -306,7 +341,7 @@ class PrepareScene:
             if len(self.bsps) < 2:
                 print_warning("Only single BSP in scene, seam objects ignored from export")
                 for seam in self.seams:
-                    print(seam.name)
+                    # print(seam.name)
                     self.unlink(seam)
 
             else:
@@ -379,7 +414,6 @@ class PrepareScene:
             # remove meshes with zero faces
             self.cull_zero_face_meshes(export_obs)
             # print("cull_zero_face")
-
         # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
         regions = [region for region in self.regions if region]
         self.regions_dict = {
@@ -478,6 +512,9 @@ class PrepareScene:
         # time.sleep(3)
 
         # raise
+
+    ########################################################################################################################################
+    ########################################################################################################################################
 
     def unlink(self, ob):
         data_coll = bpy.data.collections
@@ -2263,8 +2300,12 @@ class PrepareScene:
 
         return child_ob_set
 
-    def fix_materials(self, ob, me, override_mat):
+    def fix_materials(self, ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4):
         # fix multi user materials
+        if h4:
+            render_mesh_types = ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_decorator')
+        else:
+            render_mesh_types = ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_decorator')
         slots = ob.material_slots
         materials = me.materials
         mats = dict.fromkeys(slots)
@@ -2283,7 +2324,12 @@ class PrepareScene:
                     bpy.ops.object.material_slot_assign()
                     bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
             else:
-                slot.material = override_mat
+                if nwo.mesh_type in render_mesh_types:
+                    slot.material = invalid_mat
+                elif nwo.mesh_type == '_connected_geometry_mesh_type_water_surface':
+                    slot.material = water_surface_mat
+                else:
+                    slot.material = override_mat
 
         while slots_to_remove:
             materials.pop(index=slots_to_remove[0])

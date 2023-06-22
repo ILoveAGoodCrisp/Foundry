@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import itertools
 import time
 import bpy
 import os
@@ -41,7 +42,7 @@ from ..utils.nwo_utils import (
     print_warning,
     run_tool,
     update_job,
-    update_progress,
+    update_job_count,
 )
 
 #####################################################################################
@@ -107,6 +108,7 @@ class ProcessScene:
         lightmap_region,
     ):
         self.gr2_fail = False
+        self.sidecar_import_error = ""
         self.thread_max = multiprocessing.cpu_count()
         self.export_report = self.process(
             context,
@@ -375,7 +377,6 @@ class ProcessScene:
                         with context.temp_override(**override):
                             job = "-- skeleton"
                             update_job(job, 0)
-                            start = time.perf_counter()
                             if self.export_fbx(
                                 fbx_exporter,
                                 fbx_path,
@@ -400,8 +401,6 @@ class ProcessScene:
                             else:
                                 return f"Failed to export skeleton FBX: {fbx_path}"
 
-                            end = time.perf_counter()
-                            self.max_export = max(self.max_export, end - start)
                             update_job(job, 1)
 
                     if "skeleton" in self.sidecar_paths.keys():
@@ -425,14 +424,15 @@ class ProcessScene:
                         nwo_scene.model_armature
                         and bpy.data.actions
                     ):
-                        if not self.skeleton_only:
-                            self.remove_all_but_armature(nwo_scene)
+                        if export_animations != "NONE":
+                            if not self.skeleton_only:
+                                self.remove_all_but_armature(nwo_scene)
 
-                        timeline = context.scene
-                        print("\n\nStarting Animations Export")
-                        print(
-                            "-------------------------------------------------------------------------\n"
-                        )
+                            timeline = context.scene
+                            print("\n\nStarting Animations Export")
+                            print(
+                                "-------------------------------------------------------------------------\n"
+                            )
 
                         for action in bpy.data.actions:
                             # make animation dirs
@@ -450,9 +450,7 @@ class ProcessScene:
                                 if export_animations != "NONE":
                                     if export_animations == "ALL" or nwo_scene.current_action == action:
                                         job = f"-- {animation_name}"
-                                        start = time.perf_counter()
                                         update_job(job, 0)
-
 
                                         nwo_scene.model_armature.animation_data.action = (
                                             action
@@ -520,11 +518,7 @@ class ProcessScene:
                                                     return f"Failed to export skeleton JSON: {json_path}"
                                             else:
                                                 return f"Failed to export skeleton FBX: {fbx_path}"
-
-                                        end = time.perf_counter()
-                                        self.max_export = max(
-                                            self.max_export, end - start
-                                        )
+                                            
                                         update_job(job, 1)
 
                                 if "animation" in self.sidecar_paths.keys():
@@ -716,28 +710,14 @@ class ProcessScene:
 
 
                 total_p = self.gr2_processes
-                gr2_count = total_p
-                fake_p = 0.0
-                rand_div = (self.max_export * 3.3) ** 2
 
-                process = "Running GR2 Conversion"
-                update_progress(process, 0)
-
+                job = "Running GR2 Conversion"
+                spinner = itertools.cycle(['/', '-', '\\', '|'])
                 while self.running_check:
+                    update_job_count(job, next(spinner), total_p - self.running_check, total_p)
                     time.sleep(0.1)
-                    if self.running_check:
-                        fake_p = fake_p + random.random() / rand_div
-                        real_p = total_p / self.running_check - 1
-                        if fake_p < real_p:
-                            fake_p = real_p
-                        
-                        if fake_p < 1:
-                            update_progress(process, fake_p)
 
-                update_progress(process, 1)
-
-                job = "Verifying GR2 Files"
-                update_job(job, 0)
+                update_job_count(job, "", total_p, total_p)
 
                 # check that gr2 files exist (since fbx-to-gr2 doesn't return a non zero code on faiL!)
                 data_path = get_data_path()
@@ -777,8 +757,6 @@ class ProcessScene:
                                     self.gr2_fail = True
                                     return "Failed to build GR2 File on Third Attempt, Giving Up"
 
-                update_job(job, 1)
-
                 # for p in self.gr2_processes:
                 #     p.wait()
 
@@ -788,7 +766,7 @@ class ProcessScene:
 
             if import_to_game:
                 if os.path.exists(sidecar_path_full):
-                    reports.append(
+                    err_output = (
                         import_sidecar(
                             context,
                             sidecar_path,
@@ -804,6 +782,11 @@ class ProcessScene:
                             import_surpress_errors,
                         )
                     )
+                    if err_output:
+                        self.sidecar_import_error = err_output
+                        reports.append("Tag Export Failed")
+                    else:
+                        reports.append("Tag Export Complete")
                 else:
                     reports.append(
                         "Skipped tag export, asset sidecar does not exist"
@@ -909,7 +892,6 @@ class ProcessScene:
                 with context.temp_override(**override):
                     job = f"-- {print_text}"
                     update_job(job, 0)
-                    start = time.perf_counter()
                     if self.export_fbx(
                         fbx_exporter,
                         fbx_path,
@@ -929,11 +911,9 @@ class ProcessScene:
                         return (
                             f"Failed to export {perm} {type} model FBX: {fbx_path}"
                         )
-
-                    end = time.perf_counter()
-                    self.max_export = max(self.max_export, end - start)
-
+                    
                     update_job(job, 1)
+
 
             if type in self.sidecar_paths.keys():
                 self.sidecar_paths[type].append(
@@ -1016,7 +996,6 @@ class ProcessScene:
 
                         job = f"-- {print_text}"
                         update_job(job, 0)
-                        start = time.perf_counter()
                         if self.export_fbx(
                             fbx_exporter,
                             fbx_path,
@@ -1038,9 +1017,7 @@ class ProcessScene:
                                 return f"Failed to export {perm} {type} model JSON: {json_path}"
                         else:
                             return f"Failed to export {perm} {type} model FBX: {fbx_path}"
-
-                        end = time.perf_counter()
-                        self.max_export = max(self.max_export, end - start)
+                        
                         update_job(job, 1)
 
                 if type == "design":

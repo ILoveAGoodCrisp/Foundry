@@ -53,7 +53,7 @@ def import_sidecar(
         "-------------------------------------------------------------------------\n"
     )
     # time.sleep(0.5)
-    run_tool(
+    p = run_tool(
         [
             "import",
             sidecar_path,
@@ -67,13 +67,18 @@ def import_sidecar(
                 import_decompose_instances,
                 import_surpress_errors,
             ),
-        ]
+        ],
+        True,
     )
+
+    p.wait()
+    _, stderr = p.communicate()
+
 
     if sidecar_type == "FP ANIMATION":
         cull_unused_tags(asset_path, asset_name)
 
-    return "Tag Export Processed"
+    return stderr.decode()
 
 
 def cull_unused_tags(asset_path, asset_name):

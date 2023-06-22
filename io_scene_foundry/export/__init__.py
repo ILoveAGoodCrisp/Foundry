@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2022 Generalkidd & Crisp
+# Copyright (c) 2023 Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy 
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,7 @@
 
 ####################
 bl_info = {
-    "name": "Halo NWO Export",
+    "name": "Halo Tag Export",
     "author": "Crisp",
     "version": (1, 0, 0),
     "blender": (3, 5, 1),
@@ -36,6 +36,8 @@ bl_info = {
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
 }
 
+from io import StringIO
+import sys
 import bpy
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty
@@ -551,10 +553,14 @@ class NWO_Export_Scene(Operator, ExportHelper):
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             context.scene.nwo_export.show_output = False
 
-        print("\n\n\n\n\n\nHalo Tag Export Started")
-        print(
-            "-------------------------------------------------------------------------\n"
-        )
+        export_title = """                __     ___       __      ___      __   __   __  ___ 
+|__|  /\  |    /  \     |   /\  / _`    |__  \_/ |__) /  \ |__)  |  
+|  | /~~\ |___ \__/     |  /~~\ \__>    |___ / \ |    \__/ |  \  |  
+                                                                    
+
+"""
+
+        print(export_title)
 
         self.failed = False
 
@@ -654,8 +660,25 @@ class NWO_Export_Scene(Operator, ExportHelper):
             )
 
         elif export.gr2_fail:
+            print(
+                "\n-------------------------------------------------------------------------"
+            )
             print_error("Failed to export a GR2 File. Export cancelled")
 
+            print(
+                "-------------------------------------------------------------------------\n"
+            )
+            
+        elif export.sidecar_import_error:
+            print(
+                "\n-------------------------------------------------------------------------"
+            )
+            print_warning("Failed to create tags. Please review Tool output for error details:\n")
+            print_error(export.sidecar_import_error)
+
+            print(
+                "-------------------------------------------------------------------------\n"
+            )
         else:
             print(
                 "\n-------------------------------------------------------------------------"

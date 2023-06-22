@@ -23,7 +23,6 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
-import bmesh
 import sys
 import bpy
 import platform
@@ -31,7 +30,7 @@ from math import radians
 from mathutils import Matrix, Vector
 import os
 from os.path import exists as file_exists
-from subprocess import Popen, check_call, DEVNULL
+from subprocess import Popen, check_call, DEVNULL, PIPE
 import shutil
 import random
 from ..icons import get_icon_id
@@ -1175,13 +1174,13 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
         if null_output:
             return Popen(command, stdout=DEVNULL, stderr=DEVNULL)
         else:
-            return Popen(command)
+            return Popen(command, stderr=PIPE)
     else:
         try:
             if null_output:
                 return check_call(command, stdout=DEVNULL, stderr=DEVNULL)
             else:
-                return check_call(command)
+                return check_call(command, stderr=PIPE)
             
         except Exception as e:
             return e
@@ -1756,9 +1755,9 @@ def update_progress(job_title, progress):
     if progress <= 1:
         length = 20  # modify this to change the length
         block = int(round(length * progress))
-        msg = "\r{0}: [{1}] {2}%".format(
+        msg = "\r{0}: {1} {2}%".format(
             job_title,
-            "#" * block + "-" * (length - block),
+            "■" * block + "□" * (length - block),
             round(progress * 100, 2),
         )
         if progress >= 1:
@@ -1777,6 +1776,13 @@ def update_job(job_title, progress):
     sys.stdout.write(msg)
     sys.stdout.flush()
 
-def is_design_ui(ob):
-    """Takes a nwo reference and returns whether this object is a structure design one"""
+def update_job_count(message, spinner, completed, total):
+    msg = "\r{0}".format(message)
+    msg += f" ({completed} / {total}) "
+    if completed < total:
+        msg += f"{spinner}"
+    else:
+        msg += "DONE\r\n"
 
+    sys.stdout.write(msg)
+    sys.stdout.flush()
