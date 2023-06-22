@@ -1174,13 +1174,13 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
         if null_output:
             return Popen(command, stdout=DEVNULL, stderr=DEVNULL)
         else:
-            return Popen(command, stderr=PIPE)
+            return Popen(command)#,stderr=PIPE)
     else:
         try:
             if null_output:
                 return check_call(command, stdout=DEVNULL, stderr=DEVNULL)
             else:
-                return check_call(command, stderr=PIPE)
+                return check_call(command)#,stderr=PIPE)
             
         except Exception as e:
             return e

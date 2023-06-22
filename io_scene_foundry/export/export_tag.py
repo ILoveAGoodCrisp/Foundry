@@ -74,11 +74,15 @@ def import_sidecar(
     p.wait()
     _, stderr = p.communicate()
 
+    error = ""
+    if stderr is not None:
+        error = stderr.decode()
+
 
     if sidecar_type == "FP ANIMATION":
         cull_unused_tags(asset_path, asset_name)
 
-    return stderr.decode()
+    return error
 
 
 def cull_unused_tags(asset_path, asset_name):
