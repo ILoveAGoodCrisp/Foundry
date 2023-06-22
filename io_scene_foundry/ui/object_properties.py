@@ -312,7 +312,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 nwo_enum(
                     "_connected_geometry_mesh_type_cookie_cutter",
                     "Cookie Cutter",
-                    "Non rendered geometry which cuts out the region it defines from the pathfinding grid",
+                    "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
                     "cookie_cutter",
                     2,
                 )
@@ -455,7 +455,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             (
                 "_connected_geometry_volume_type_soft_kill",
                 "Soft Kill",
-                "Defines an area in a cluster which renders fog defined in the scenario tag",
+                "Defines a region where the player will be killed... softly",
                 get_icon_id("soft_kill"),
                 1,
             )
@@ -464,7 +464,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             (
                 "_connected_geometry_volume_type_slip_surface",
                 "Slip Surface",
-                "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                "Defines a region in which surfaces become slippery",
                 get_icon_id("slip_surface"),
                 2,
             )
@@ -482,7 +482,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             (
                 "_connected_geometry_volume_type_cookie_cutter",
                 "Cookie Cutter",
-                "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
                 get_icon_id("cookie_cutter"),
                 4,
             )
@@ -491,7 +491,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             (
                 "_connected_geometry_volume_type_poop_rain_blocker",
                 "Rain Blocker",
-                "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                "Blocks rain from rendering in the region this volume occupies",
                 get_icon_id("rain_sheet"),
                 5,
             )
@@ -501,7 +501,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 (
                     "_connected_geometry_volume_type_lightmap_exclude",
                     "Lightmap Exclude",
-                    "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                    "Defines a region that should not be lightmapped",
                     get_icon_id("lightmap_exclude"),
                     6,
                 )
@@ -510,7 +510,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 (
                     "_connected_geometry_volume_type_streaming",
                     "Streaming Volume",
-                    "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                    """Defines the region in a zone set that should be used when generating a streamingzoneset tag. 
+                     By default the full space inside a zone set should be used when generating the streaming zone set. 
+                     This is useful for performance if you have textures in areas of the map the player will not get close to""",
                     get_icon_id("streaming"),
                     7,
                 )
