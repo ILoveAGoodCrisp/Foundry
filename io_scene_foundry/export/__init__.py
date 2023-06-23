@@ -783,10 +783,19 @@ class NWO_Export_Scene(Operator, ExportHelper):
             temp_file.write(f"{self.output_vehicle}\n")
             temp_file.write(f"{self.output_weapon}\n")
             temp_file.write(f"{context.scene.nwo_export.show_output}\n")
-            if self.quick_export:
+            temp_file.write(f"{self.lightmap_all_bsps}\n")
+            temp_file.write(f"{self.lightmap_quality}\n")
+            temp_file.write(f"{self.lightmap_quality_h4}\n")
+            temp_file.write(f"{self.lightmap_region}\n")
+            temp_file.write(f"{self.lightmap_specific_bsp}\n")
+            temp_file.write(f"{self.lightmap_structure}\n")
+
+        if self.quick_export:
+            temp_report_path = path.join(bpy.app.tempdir, "foundry_export_report.txt")
+            with open(temp_report_path, "w") as temp_file:
                 temp_file.write(f"{export_report}\n")
-            else:
-                self.report({"INFO"}, export_report)
+        else:
+            self.report({"INFO"}, export_report)
 
     def draw(self, context):
         layout = self.layout

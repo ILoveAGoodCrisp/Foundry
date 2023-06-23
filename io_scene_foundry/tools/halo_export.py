@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2022 Crisp
+# Copyright (c) 2023 Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,15 +28,13 @@ import os
 import bpy
 
 
-def Export(export):
-    export("INVOKE_DEFAULT")
+def export(export_op):
+    export_op("INVOKE_DEFAULT")
     return {"FINISHED"}
 
-
-def ExportQuick(
-    export,
+def export_quick(
+    export_op,
     report,
-    context,
     export_gr2_files,
     export_hidden,
     export_all_bsps,
@@ -66,7 +64,7 @@ def ExportQuick(
     keep_fbx,
     keep_json,
 ):
-    export(
+    export_op(
         export_gr2_files=export_gr2_files,
         export_hidden=export_hidden,
         export_all_bsps=export_all_bsps,
@@ -97,14 +95,13 @@ def ExportQuick(
         keep_json=keep_json,
         quick_export=True,
     )
-    temp_file_path = os.path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
-    if os.path.exists(temp_file_path):
-        with open(temp_file_path, "r") as temp_file:
-            settings = temp_file.readlines()
+    temp_report_path = os.path.join(bpy.app.tempdir, "foundry_export_report.txt")
+    if os.path.exists(temp_report_path):
+        with open(temp_report_path, "r") as temp_file:
+            report = temp_file.read()
 
-        settings = [line.strip() for line in settings]
-        final_report = settings[17]
-        report({"INFO"}, final_report)
+        os.remove(temp_report_path)
+        report({"INFO"}, report)
 
     else:
         report({"INFO"}, "Quick Export Complete")

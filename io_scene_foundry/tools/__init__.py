@@ -1399,27 +1399,25 @@ class NWO_HaloExport_Export(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        from .halo_export import Export
+        from .halo_export import export
 
-        return Export(bpy.ops.export_scene.nwo)
+        return export(bpy.ops.export_scene.nwo)
 
 
 class NWO_HaloExport_ExportQuick(Operator):
     """Runs the GR2 exporter immediately, using the settings definied in quick export settings"""
-
     bl_idname = "nwo.export_quick"
     bl_label = "Quick Export"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        from .halo_export import ExportQuick
+        from .halo_export import export_quick
 
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-        return ExportQuick(
+        return export_quick(
             bpy.ops.export_scene.nwo,
             self.report,
-            context,
             scene_nwo_export.export_gr2_files,
             scene_nwo_export.export_hidden,
             scene_nwo_export.export_all_bsps,

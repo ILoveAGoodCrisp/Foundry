@@ -309,6 +309,8 @@ def load_handler(dummy):
 def get_temp_settings(dummy):
     """Restores settings that the user created on export. Necesssary due to the way the exporter undos changes made during scene export"""
     scene = bpy.context.scene
+    nwo = scene.nwo
+    nwo_export = scene.nwo_export
     temp_file_path = os.path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
     if os.path.exists(temp_file_path):
         with open(temp_file_path, "r") as temp_file:
@@ -316,35 +318,44 @@ def get_temp_settings(dummy):
 
         settings = [line.strip() for line in settings]
         scene.nwo_halo_launcher.sidecar_path = settings[0]
-        scene.nwo.game_version = settings[1]
-        scene.nwo.asset_type = settings[2]
-        scene.nwo.output_biped = True if settings[3] == "True" else False
-        scene.nwo.output_crate = True if settings[4] == "True" else False
-        scene.nwo.output_creature = True if settings[5] == "True" else False
-        scene.nwo.output_device_control = (
+        nwo.game_version = settings[1]
+        nwo.asset_type = settings[2]
+        nwo.output_biped = True if settings[3] == "True" else False
+        nwo.output_crate = True if settings[4] == "True" else False
+        nwo.output_creature = True if settings[5] == "True" else False
+        nwo.output_device_control = (
             True if settings[6] == "True" else False
         )
-        scene.nwo.output_device_dispenser = (
+        nwo.output_device_dispenser = (
             True if settings[7] == "True" else False
         )
-        scene.nwo.output_device_machine = (
+        nwo.output_device_machine = (
             True if settings[8] == "True" else False
         )
-        scene.nwo.output_device_terminal = (
+        nwo.output_device_terminal = (
             True if settings[9] == "True" else False
         )
-        scene.nwo.output_effect_scenery = (
+        nwo.output_effect_scenery = (
             True if settings[10] == "True" else False
         )
-        scene.nwo.output_equipment = True if settings[11] == "True" else False
-        scene.nwo.output_giant = True if settings[12] == "True" else False
-        scene.nwo.output_scenery = True if settings[13] == "True" else False
-        scene.nwo.output_vehicle = True if settings[14] == "True" else False
-        scene.nwo.output_weapon = True if settings[15] == "True" else False
-        scene.nwo_export.show_output = (
+        nwo.output_equipment = True if settings[11] == "True" else False
+        nwo.output_giant = True if settings[12] == "True" else False
+        nwo.output_scenery = True if settings[13] == "True" else False
+        nwo.output_vehicle = True if settings[14] == "True" else False
+        nwo.output_weapon = True if settings[15] == "True" else False
+        nwo_export.show_output = (
             True if settings[16] == "True" else False
         )
-
+        nwo_export.lightmap_all_bsps = (
+            True if settings[17] == "True" else False
+        )
+        nwo_export.lightmap_quality = settings[18]
+        nwo_export.lightmap_quality_h4 = settings[19]
+        nwo_export.lightmap_region = settings[20]
+        nwo_export.lightmap_specific_bsp = settings[21]
+        nwo_export.lightmap_structure = (
+            True if settings[22] == "True" else False
+        )
         os.remove(temp_file_path)
 
 def register():
