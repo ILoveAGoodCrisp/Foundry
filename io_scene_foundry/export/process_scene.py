@@ -713,7 +713,7 @@ class ProcessScene:
                 total_p = self.gr2_processes
 
                 job = "Running GR2 Conversion"
-                spinner = itertools.cycle(['/', '-', '\\', '|'])
+                spinner = itertools.cycle(['|', '/', '—', '\\'])
                 while self.running_check:
                     update_job_count(job, next(spinner), total_p - self.running_check, total_p)
                     time.sleep(0.1)

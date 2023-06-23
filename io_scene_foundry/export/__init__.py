@@ -552,13 +552,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if self.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             context.scene.nwo_export.show_output = False
-
-        export_title = """                __     ___       __      ___      __   __   __  ___ 
-|__|  /\  |    /  \     |   /\  / _`    |__  \_/ |__) /  \ |__)  |  
-|  | /~~\ |___ \__/     |  /~~\ \__>    |___ / \ |    \__/ |  \  |  
-                                                                    
-
-"""
+            
+        export_title = "►►► HALO TAG EXPORT ◄◄◄"
 
         print(export_title)
 
@@ -646,20 +641,23 @@ class NWO_Export_Scene(Operator, ExportHelper):
             sidecar_path = ""
 
         # write scene settings generated during export to temp file
-        if self.failed:
-            self.write_temp_settings(context, sidecar_path, "Export Failed")
-        else:
-            self.write_temp_settings(context, sidecar_path, export.export_report)
 
         end = time.perf_counter()
 
+        final_report = ""
+        report_type = 'INFO'
+
         if self.failed:
+            final_report = "Export Failed"
+            report_type = 'ERROR'
             print_warning("\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n")
             print_error(
                 "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
             )
 
         elif export.gr2_fail:
+            final_report = "GR2 Conversion Failed. Export Aborted"
+            report_type = 'ERROR'
             print(
                 "\n-------------------------------------------------------------------------"
             )
@@ -670,6 +668,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
             )
             
         elif export.sidecar_import_failed:
+            final_report = "Failed to Create Tags"
+            report_type = 'ERROR'
             print(
                 "\n-------------------------------------------------------------------------"
             )
@@ -684,14 +684,18 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 "-------------------------------------------------------------------------\n"
             )
         else:
+            final_report = "Export Complete"
+            report_type = 'INFO'
             print(
                 "\n-------------------------------------------------------------------------"
             )
-            print(f"Tag Export Completed in {end - start} seconds")
+            print(f"Export Completed in {end - start} seconds")
 
             print(
                 "-------------------------------------------------------------------------\n"
             )
+
+        self.write_temp_settings(context, sidecar_path, final_report, report_type)
 
         # restore scene back to its pre export state
         bpy.ops.ed.undo_push()
@@ -763,7 +767,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         return False
 
-    def write_temp_settings(self, context, sidecar_path, export_report=""):
+    def write_temp_settings(self, context, sidecar_path, export_report="", report_type=""):
         temp_file_path = path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
         with open(temp_file_path, "w") as temp_file:
             temp_file.write(f"{sidecar_path}\n")
@@ -794,8 +798,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
             temp_report_path = path.join(bpy.app.tempdir, "foundry_export_report.txt")
             with open(temp_report_path, "w") as temp_file:
                 temp_file.write(f"{export_report}\n")
+                temp_file.write(f"{report_type}")
         else:
-            self.report({"INFO"}, export_report)
+            self.report({report_type}, export_report)
 
     def draw(self, context):
         layout = self.layout

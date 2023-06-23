@@ -98,10 +98,12 @@ def export_quick(
     temp_report_path = os.path.join(bpy.app.tempdir, "foundry_export_report.txt")
     if os.path.exists(temp_report_path):
         with open(temp_report_path, "r") as temp_file:
-            report = temp_file.read()
+            lines = temp_file.readlines()
+            report_text = lines[0]
+            report_type = lines[1]
 
         os.remove(temp_report_path)
-        report({"INFO"}, report)
+        report({report_type}, report_text)
 
     else:
         report({"INFO"}, "Quick Export Complete")
