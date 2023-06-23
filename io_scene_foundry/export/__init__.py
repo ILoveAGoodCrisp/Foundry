@@ -535,6 +535,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         sidecar_path_full = os.path.join(
             self.asset_path, self.asset + ".sidecar.xml"
         )
+        
         sidecar_path = sidecar_path_full.replace(get_data_path(), "")
 
         self.set_scene_props(context)
@@ -552,7 +553,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if self.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             context.scene.nwo_export.show_output = False
-            
+
         export_title = "►►► HALO TAG EXPORT ◄◄◄"
 
         print(export_title)
