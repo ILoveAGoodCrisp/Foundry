@@ -5,7 +5,7 @@ from io_scene_foundry.utils.nwo_utils import get_ek_path
 ##### UTIL FUNCTIONS
 
 
-def get_bungie(report):
+def get_bungie(report=None):
     """Get a reference to Bungie"""
     mb_path = os.path.join(get_ek_path(), "bin", "managedblam")
     try:

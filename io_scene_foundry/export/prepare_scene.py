@@ -1345,9 +1345,6 @@ class PrepareScene:
                         elif ob.type in ("MESH", "CURVE", "META", "SURFACE", "FONT"):
                             nwo.marker_hint_length = jstr(max(ob.dimensions * max_abs_scale))
 
-                    if not reach and (abs(ob.scale.x) != 1 or abs(ob.scale.y) != 1 or abs(ob.scale.z) != 1):
-                        print_warning(f"\nHint marker [{ob.name}] has scale not equal to 1. Size will be incorrect in game")
-
                     ob.name = "hint_"
                     if nwo.marker_hint_type == "bunker":
                         ob.name += "bunker"
@@ -1396,12 +1393,20 @@ class PrepareScene:
                     == "_connected_geometry_marker_type_physics_constraint"
                 ):
                     nwo.marker_type = nwo.physics_constraint_type_ui
-                    nwo.physics_constraint_parent = str(
-                        nwo.physics_constraint_parent_ui.name
-                    )
-                    nwo.physics_constraint_child = str(
-                        nwo.physics_constraint_child_ui.name
-                    )
+                    parent = nwo.physics_constraint_parent_ui
+                    if parent is not None and parent.type == 'ARMATURE' and nwo.physics_constraint_parent_bone_ui != "":
+                        nwo.physics_constraint_parent = nwo.physics_constraint_parent_bone_ui
+                    elif parent is not None:
+                        nwo.physics_constraint_parent = str(
+                            nwo.physics_constraint_parent_ui.name
+                        )
+                    child = nwo.physics_constraint_child_ui
+                    if child is not None and child.type == 'ARMATURE' and nwo.physics_constraint_child_bone_ui != "":
+                        nwo.physics_constraint_child = nwo.physics_constraint_child_bone_ui
+                    elif child is not None:
+                        nwo.physics_constraint_child = str(
+                            nwo.physics_constraint_child_ui.name
+                        )
                     nwo.physics_constraint_uses_limits = bool_str(
                         nwo.physics_constraint_uses_limits_ui
                     )
@@ -2361,7 +2366,9 @@ class PrepareScene:
 
         for idx, ob in enumerate(mesh_markers):
             ob_nwo = ob.nwo
-            node = bpy.data.objects.new(ob.name, None)
+            original_name = str(ob.name)
+            ob.name += "_OLD"
+            node = bpy.data.objects.new(original_name, None)
             scene_coll.link(node)
             if ob.parent is not None:
                 node.parent = ob.parent
@@ -2422,6 +2429,14 @@ class PrepareScene:
         node_halo.physics_constraint_uses_limits = (
             ob_halo.physics_constraint_uses_limits
         )
+
+        node_halo.hinge_constraint_minimum = ob_halo.hinge_constraint_minimum
+        node_halo.hinge_constraint_maximum = ob_halo.hinge_constraint_maximum
+        node_halo.cone_angle = ob_halo.cone_angle
+        node_halo.plane_constraint_minimum = ob_halo.plane_constraint_minimum
+        node_halo.plane_constraint_maximum = ob_halo.plane_constraint_maximum
+        node_halo.twist_constraint_start = ob_halo.twist_constraint_start
+        node_halo.twist_constraint_end = ob_halo.twist_constraint_end
 
         node_halo.marker_hint_length = ob_halo.marker_hint_length
 

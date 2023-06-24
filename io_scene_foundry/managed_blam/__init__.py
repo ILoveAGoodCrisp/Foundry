@@ -26,10 +26,8 @@
 
 from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_tag_and_path
 from io_scene_foundry.utils.nwo_utils import (
-    formalise_game_version,
     get_asset_path,
     get_valid_shader_name,
-    managed_blam_active,
     print_warning,
 )
 import bpy
@@ -54,7 +52,6 @@ class ManagedBlam_Init(Operator):
     bl_idname = "managed_blam.init"
     bl_label = "Managed Blam"
     bl_options = {"REGISTER"}
-    bl_options = {"UNDO", "PRESET"}
     bl_description = (
         "Initialises Managed Blam and locks the currently selected game"
     )
@@ -140,7 +137,23 @@ class ManagedBlam_Init(Operator):
                     os.path.join(bpy.app.tempdir, "blam.txt"), "x"
                 ) as blam_txt:
                     blam_txt.write(mb_path)
+
                 return {"FINISHED"}
+
+class ManagedBlam_Close(Operator):
+    """Closes Managed Blam"""
+
+    bl_idname = "managed_blam.close"
+    bl_label = "Managed Blam Close"
+    bl_options = {"REGISTER"}
+    bl_description = (
+        "Initialises Managed Blam and locks the currently selected game"
+    )
+
+    def execute(self, context):
+        Bungie = get_bungie(self.report)
+        Bungie.ManagedBlamSystem.Stop()
+        return {"FINISHED"}
 
 
 class ManagedBlam_NewShader(Operator):
@@ -295,6 +308,7 @@ class ManagedBlam_NewBitmap(Operator):
 
 classeshalo = (
     ManagedBlam_Init,
+    ManagedBlam_Close,
     ManagedBlam_NewShader,
     ManagedBlam_NewMaterial,
     ManagedBlam_NewBitmap,
@@ -304,7 +318,6 @@ classeshalo = (
 def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
-
 
 def unregister():
     for clshalo in classeshalo:

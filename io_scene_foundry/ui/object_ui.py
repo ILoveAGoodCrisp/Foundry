@@ -1534,11 +1534,17 @@ class NWO_ObjectProps(NWO_PropPanel):
                         "physics_constraint_parent_ui",
                         text="Constraint Parent",
                     )
+                    parent = ob_nwo.physics_constraint_parent_ui
+                    if parent is not None and parent.type == 'ARMATURE':
+                        col.prop_search(ob_nwo, "physics_constraint_parent_bone_ui", parent.data, "bones", text="Bone")
                     col.prop(
                         ob_nwo,
                         "physics_constraint_child_ui",
                         text="Constraint Child",
                     )
+                    child = ob_nwo.physics_constraint_child_ui
+                    if child is not None and child.type == 'ARMATURE':
+                        col.prop_search(ob_nwo, "physics_constraint_child_bone_ui", child.data, "bones", text="Bone")
                     row = col.row()
                     row.prop(
                         ob_nwo,

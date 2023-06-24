@@ -877,6 +877,7 @@ class NWOMarker(NWOObject):
                         self.bungie_physics_constraint_hinge_min = (
                             self.halo.hinge_constraint_minimum
                         )
+
                         self.bungie_physics_constraint_hinge_max = (
                             self.halo.hinge_constraint_maximum
                         )

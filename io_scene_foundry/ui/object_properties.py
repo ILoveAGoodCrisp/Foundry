@@ -1631,10 +1631,20 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         type=bpy.types.Object,
     )
 
+    physics_constraint_parent_bone_ui: StringProperty(
+        name="Physics Constraint Parent Bone",
+        description="Enter the name of the bone that is this marker's parent",
+    )
+
     physics_constraint_child_ui: PointerProperty(
         name="Physics Constraint Child",
         description="Enter the name of the object that is this marker's child",
         type=bpy.types.Object,
+    )
+
+    physics_constraint_child_bone_ui: StringProperty(
+        name="Physics Constraint Child Bone",
+        description="Enter the name of the bone that is this marker's child",
     )
 
     physics_constraint_type_ui: EnumProperty(

@@ -810,8 +810,10 @@ class NWO_FaceLayerRemove(NWO_Op):
     @classmethod
     def poll(self, context):
         ob = context.object
-        nwo = ob.data.nwo
-        return nwo.face_props
+        if ob.type == 'MESH':
+            nwo = ob.data.nwo
+            return nwo.face_props
+        return False
 
     def remove_face_layer(self, me, layer_name):
         bm = bmesh.from_edit_mesh(me)
@@ -909,8 +911,10 @@ class NWO_FaceLayerMove(NWO_Op):
     @classmethod
     def poll(self, context):
         ob = context.object
-        nwo = ob.data.nwo
-        return nwo.face_props
+        if ob.type == 'MESH':
+            nwo = ob.data.nwo
+            return nwo.face_props
+        return False
 
     def execute(self, context):
         ob = context.object
