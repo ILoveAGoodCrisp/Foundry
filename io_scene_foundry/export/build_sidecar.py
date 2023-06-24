@@ -30,6 +30,7 @@ import getpass
 import xml.etree.cElementTree as ET
 import xml.dom.minidom
 import os
+import shutil
 
 from ..utils.nwo_utils import (
     data_relative,
@@ -225,7 +226,7 @@ class Sidecar:
         elif sidecar_type == "FP ANIMATION":
             self.add_null_render(asset_path)
             self.write_fp_animation_contents(
-                metadata, sidecar_paths, asset_name
+                metadata, sidecar_paths, asset_path, asset_name
             )
 
         dom = xml.dom.minidom.parseString(ET.tostring(metadata))
@@ -246,12 +247,11 @@ class Sidecar:
 
     def add_null_render(self, asset_path):
         null_gr2_path = os.path.join(
-            get_data_path() + asset_path, "export", "models", "null_render.gr2"
+            asset_path, "export", "models", "null_render.gr2"
         )
         if not os.path.exists(null_gr2_path):
             # copy the null gr2 from io_scene_nwo to act as the render model
             try:
-                import shutil
 
                 script_folder_path = os.path.dirname(os.path.dirname(__file__))
                 null_gr2 = os.path.join(
@@ -814,7 +814,7 @@ class Sidecar:
             object, "ContentNetwork", Name="default", Type=""
         )
         ET.SubElement(network, "IntermediateFile").text = os.path.join(
-            asset_path, "export", "models", "null_render_default.gr2"
+            asset_path.replace(get_data_path(), ""), "export", "models", "null_render.gr2"
         )
 
         output = ET.SubElement(object, "OutputTagCollection")
