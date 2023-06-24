@@ -39,6 +39,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     enable_prints,
     get_data_path,
+    jstr,
     print_warning,
     run_tool,
     update_job,
@@ -407,7 +408,7 @@ class ProcessScene:
                                 )
                                 if export_animations != "NONE":
                                     if export_animations == "ALL" or nwo_scene.current_action == action:
-                                        job = f"-- {animation_name}"
+                                        job = f"-- {dot_partition(animation_name)}"
                                         update_job(job, 0)
 
                                         nwo_scene.model_armature.animation_data.action = (
@@ -430,18 +431,13 @@ class ProcessScene:
                                                 nwo_scene.timeline_start
                                             )
 
-                                        event_obs = self.create_event_nodes(
+                                        export_obs = self.create_event_nodes(
                                             context,
                                             action_nwo.animation_events,
+                                            nwo_scene.model_armature,
                                             timeline.frame_start,
                                             timeline.frame_end,
                                         )
-                                        if event_obs:
-                                            export_obs = event_obs.append(
-                                                nwo_scene.model_armature
-                                            )
-                                        else:
-                                            export_obs = [nwo_scene.model_armature]
 
                                         override = context.copy()
                                         area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
@@ -1029,48 +1025,48 @@ class ProcessScene:
     #####################################################################################
     # ANIMATION EVENTS
 
-    def create_event_nodes(self, context, events, frame_start, frame_end):
-        animation_events = []
+    def create_event_nodes(self, context, events, model_armature, frame_start, frame_end):
+        animation_events = [model_armature]
         scene_coll = context.scene.collection.objects
         for event in events:
             # create the event node to store event info
             event_ob = bpy.data.objects.new("animation_event", None)
-            scene_coll.link()
             nwo = event_ob.nwo
             # Set this node to be an animation event
             nwo.is_animation_event = True
             # Set up the event node with the action start and end frame and id
-            nwo.frame_start = frame_start + 0.4999
-            nwo.frame_end = frame_end + 0.4999
+            nwo.frame_start = jstr(frame_start + 0.4999)
+            nwo.frame_end = jstr(frame_end + 0.4999)
             # add the user defined properties from the action
-            nwo.event_id = event.event_id
+            nwo.event_id = str(abs(event.event_id))
             nwo.event_type = event.event_type
             nwo.wrinkle_map_face_region = event.wrinkle_map_face_region
-            nwo.wrinkle_map_effect = event.wrinkle_map_effect
+            nwo.wrinkle_map_effect = str(event.wrinkle_map_effect)
             nwo.footstep_type = event.footstep_type
-            nwo.footstep_effect = event.footstep_effect
+            nwo.footstep_effect = str(event.footstep_effect)
             nwo.ik_chain = event.ik_chain
             nwo.ik_active_tag = event.ik_active_tag
             nwo.ik_target_tag = event.ik_target_tag
             nwo.ik_target_marker = event.ik_target_marker
             nwo.ik_target_usage = event.ik_target_usage
-            nwo.ik_proxy_target_id = event.ik_proxy_target_id
-            nwo.ik_pole_vector_id = event.ik_pole_vector_id
-            nwo.ik_effector_id = event.ik_effector_id
+            nwo.ik_proxy_target_id = str(event.ik_proxy_target_id)
+            nwo.ik_pole_vector_id = str(event.ik_pole_vector_id)
+            nwo.ik_effector_id = str(event.ik_effector_id)
             nwo.cinematic_effect_tag = event.cinematic_effect_tag
-            nwo.cinematic_effect_effect = event.cinematic_effect_effect
+            nwo.cinematic_effect_effect = str(event.cinematic_effect_effect)
             nwo.cinematic_effect_marker = event.cinematic_effect_marker
             nwo.object_function_name = event.object_function_name
-            nwo.object_function_effect = event.object_function_effect
-            nwo.frame_frame = event.frame_frame
+            nwo.object_function_effect = str(event.object_function_effect)
+            nwo.frame_frame = str(event.frame_frame)
             nwo.frame_name = event.frame_name
-            nwo.frame_trigger = event.frame_trigger
-            nwo.import_frame = event.import_frame
+            nwo.frame_trigger = "1" if event.frame_trigger else "0"
+            nwo.import_frame = str(event.import_frame)
             nwo.import_name = event.import_name
             nwo.text = event.text
             # set event node name
             event_ob.name = f"event_node_{str(nwo.event_id)}"
             # add it to the list
+            scene_coll.link(event_ob)
             animation_events.append(event_ob)
             # duplicate for frame range
             if event.multi_frame == "range" and event.frame_range > 1:
@@ -1078,11 +1074,11 @@ class ProcessScene:
                     min(event.frame_range - 1, frame_end - event.frame_frame)
                 ):
                     event_ob_copy = event_ob.copy()
-                    scene_coll.link(event_ob_copy)
                     copy_nwo = event_ob_copy.nwo
                     copy_nwo.event_id += 1
                     copy_nwo.frame_frame += 1
                     copy_nwo.name = f"event_{str(copy_nwo.event_id)}"
+                    scene_coll.link(event_ob_copy)
                     animation_events.append(event_ob_copy)
 
         return animation_events

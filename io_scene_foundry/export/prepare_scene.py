@@ -241,6 +241,10 @@ class PrepareScene:
             if scenario_asset:
                 nwo.bsp_name = true_bsp(nwo)
 
+            self.strip_prefix(ob)
+            # if not_bungie_game():
+            #     self.apply_namespaces(ob, asset)
+
             self.set_object_type(ob, ob_type, nwo, is_mesh_loose)
 
             self.apply_object_mesh_marker_properties(
@@ -1703,11 +1707,11 @@ class PrepareScene:
             ob.name = ob.name[5:]
         if ob.name.lower().startswith(("bip ", "bip_", "+fog")):
             ob.name = ob.name[4:]
-        elif ob.name.lower().startswith(("b ", "b_")):
+        if ob.name.lower().startswith(("b ", "b_")):
             ob.name = ob.name[2:]
-        elif ob.name.lower().startswith(("#", "?", "@", "$", "'")):
+        if ob.name.lower().startswith(("#", "?", "@", "$", "'")):
             ob.name = ob.name[1:]
-        elif ob.name.lower().startswith(("%")):
+        if ob.name.lower().startswith(("%")):
             ob.name = ob.name[1:]
             if ob.name.lower().startswith(("?", "!", "+", "-", ">", "*")):
                 ob.name = ob.name[1:]
@@ -1745,10 +1749,6 @@ class PrepareScene:
             # Mesh invalid, don't export
             print(f"{ob.name} is invalid. Skipping export")
             self.unlink(ob)
-
-            # strip_prefix(ob)
-            # if not_bungie_game():
-            #     apply_namespaces(ob, asset)
 
     def apply_namespaces(self, ob, asset):
         """Reads the objects halo properties and then applies the appropriate maya namespace, or optionally a set namespace if a second arg is passed"""
