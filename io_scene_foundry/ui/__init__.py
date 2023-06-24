@@ -126,7 +126,14 @@ from .scene_properties import NWO_Asset_ListItems, NWO_ScenePropertiesGroup
 
 from .scene_ui import NWO_SceneProps, NWO_SetUnitScale, NWO_AssetMaker
 
-from .viewport_ui import NWO_ApplyTypeMesh, NWO_MT_PIE_ApplyTypeMesh, NWO_PIE_ApplyTypeMesh
+from .viewport_ui import (
+    NWO_ApplyTypeMesh, 
+    NWO_MT_PIE_ApplyTypeMesh, 
+    NWO_PIE_ApplyTypeMesh,
+    NWO_ApplyTypeMarker,
+    NWO_MT_PIE_ApplyTypeMarker,
+    NWO_PIE_ApplyTypeMarker,
+    )
 
 mesh_type_items = [
     (
@@ -481,6 +488,10 @@ classes_nwo = (
     NWO_MT_PIE_ApplyTypeMesh,
     NWO_ApplyTypeMesh,
     NWO_PIE_ApplyTypeMesh,
+
+    NWO_MT_PIE_ApplyTypeMarker,
+    NWO_ApplyTypeMarker,
+    NWO_PIE_ApplyTypeMarker,
 )
 
 

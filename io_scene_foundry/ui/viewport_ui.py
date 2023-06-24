@@ -201,6 +201,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
 
         for ob in meshes:
             nwo = ob.nwo
+            nwo.object_type_ui = "_connected_geometry_object_type_mesh"
             nwo.mesh_type_ui = mesh_type
             if sub_type:
                 if mesh_type == "_connected_geometry_mesh_type_volume":
@@ -215,6 +216,112 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 if closest_bsp is not None:
                     ob.nwo.seam_back_ui = true_bsp(closest_bsp.nwo)
 
+        self.report({'INFO'}, f"Applied Mesh Type [{self.m_type}] to {len(meshes)} objects")
+        return {'FINISHED'}
+    
+class NWO_MT_PIE_ApplyTypeMarker(bpy.types.Menu):
+    bl_label = "Marker Type"
+    bl_idname = "NWO_MT_PIE_ApplyTypeMarker"
 
+    def draw(self, context):
+        layout = self.layout
+
+        pie = layout.menu_pie()
+        pie.operator_enum("nwo.apply_type_marker", "m_type")
+
+
+class NWO_PIE_ApplyTypeMarker(NWO_Op):
+    bl_label = "Apply Marker Type"
+    bl_idname = "nwo.apply_types_marker_pie"
+
+    @classmethod
+    def poll(self, context):
+        asset_type = context.scene.nwo.asset_type
+        return asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB')
+
+    def execute(self, context):
+        bpy.ops.wm.call_menu_pie(name="NWO_MT_PIE_ApplyTypeMarker")
+
+        return {'FINISHED'}
+
+
+class NWO_ApplyTypeMarker(NWO_Op):
+    bl_label = "Apply Marker Type"
+    bl_idname = "nwo.apply_type_marker"
+
+    def m_type_items(self, context):
+        items = []
+        nwo = context.scene.nwo
+        asset_type = nwo.asset_type
+        reach = nwo.game_version == "reach"
+        if asset_type in ('MODEL', 'SKY'):
+            items.append(nwo_enum("model", "Model Marker", "", "marker", 0)),
+            items.append(nwo_enum("effects", "Effects", "", "effects", 1)),
+        
+            if asset_type == 'MODEL':
+                items.append(nwo_enum("garbage", "Garbage", "", "garbage", 2)),
+                items.append(nwo_enum("hint", "Hint", "", "hint", 3)),
+                items.append(nwo_enum("pathfinding_sphere", "Pathfinding Sphere", "", "pathfinding_sphere", 4)),
+                items.append(nwo_enum("physics_constraint", "Physics Constaint", "", "physics_constraint", 5)),
+                items.append(nwo_enum("target", "Target", "", "target", 6)),
+
+        elif asset_type in ('SCENARIO', 'PREFAB'):
+            items.append(nwo_enum("model", "Structure Marker", "", "marker", 0)),
+            items.append(nwo_enum("game_instance", "Game Object", "", "game_object", 1)),
+            if not reach:
+                items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", 2)),
+                items.append(nwo_enum("envfx", "Environment Effect", "", "environment_effect", 3)),
+                items.append(nwo_enum("lightcone", "Light Cone", "", "light_cone", 4)),
+        
+        return items
+
+    m_type : bpy.props.EnumProperty(
+        items=m_type_items,
+            
+    )
+
+    def draw(self, context):
+        self.layout.prop(self, "m_type", text="Marker Type")
+
+    def execute(self, context):
+        marker_type = ""
+        match self.m_type:
+            case "model":
+                marker_type = "_connected_geometry_marker_type_model"
+            case "effects":
+                marker_type = "_connected_geometry_marker_type_effects"
+            case "garbage":
+                marker_type = "_connected_geometry_marker_type_garbage"
+            case "hint":
+                marker_type = "_connected_geometry_marker_type_hint"
+            case "pathfinding_sphere":
+                marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
+            case "physics_constraint":
+                marker_type = "_connected_geometry_marker_type_physics_constraint"
+            case "target":
+                marker_type = "_connected_geometry_marker_type_target"
+            case "game_instance":
+                marker_type = "_connected_geometry_marker_type_game_instance"
+            case "airprobe":
+                marker_type = "_connected_geometry_marker_type_airprobe"
+            case "envfx":
+                marker_type = "_connected_geometry_marker_type_envfx"
+            case "lightcone":
+                marker_type = "_connected_geometry_marker_type_lightCone"
+
+        markers = [ob for ob in context.selected_objects if ob.type in 
+                ("MESH",
+                "CURVE",
+                "META",
+                "SURFACE",
+                "FONT",
+                "EMPTY")]
+
+        for ob in markers:
+            nwo = ob.nwo
+            nwo.object_type_ui = "_connected_geometry_object_type_marker"
+            nwo.marker_type_ui = marker_type
+        
+        self.report({'INFO'}, f"Applied Marker Type: [{self.m_type}] to {len(markers)} objects")
         return {'FINISHED'}
         

@@ -565,26 +565,26 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 (
                     "_connected_geometry_marker_type_model",
                     "Model Marker",
-                    "Soft barrier that blocks the player and player camera",
+                    "Default marker type. Can be used as an attachment point for objects and effects",
                     get_icon_id("marker"),
                     0,
+                )
+            )
+            items.append(
+                (
+                    "_connected_geometry_marker_type_effects",
+                    "Effects",
+                    'Marker type which automatically gets "fx_" prepended to the marker name at export',
+                    get_icon_id("effects"),
+                    1,
                 )
             )
             if poll_ui("MODEL"):
                 items.append(
                     (
-                        "_connected_geometry_marker_type_effects",
-                        "Effects",
-                        "Soft barrier that blocks the player and player camera",
-                        get_icon_id("effects"),
-                        1,
-                    )
-                )
-                items.append(
-                    (
                         "_connected_geometry_marker_type_garbage",
                         "Garbage",
-                        "Soft barrier that blocks the player and player camera",
+                        "Marker for creating effects with velocity. Typically used for model damage sections",
                         get_icon_id("garbage"),
                         2,
                     )
@@ -593,7 +593,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     (
                         "_connected_geometry_marker_type_hint",
                         "Hint",
-                        "Soft barrier that blocks the player and player camera",
+                        "This marker tells AI how to interact with parts of the model",
                         get_icon_id("hint"),
                         3,
                     )
@@ -602,7 +602,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     (
                         "_connected_geometry_marker_type_pathfinding_sphere",
                         "Pathfinding Sphere",
-                        "Soft barrier that blocks the player and player camera",
+                        "Informs AI about how to path around this object. The sphere defines a region that AI should not enter",
                         get_icon_id("pathfinding_sphere"),
                         4,
                     )
@@ -611,7 +611,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     (
                         "_connected_geometry_marker_type_physics_constraint",
                         "Physics Constraint",
-                        "Soft barrier that blocks the player and player camera",
+                        "Used for creating hinge and socket like contraints for objects. Allows object to have parts which react physically. For example creating a door which can be pushed open by the player, or a bipeds ragdoll",
                         get_icon_id("physics_constraint"),
                         5,
                     )
@@ -620,7 +620,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     (
                         "_connected_geometry_marker_type_target",
                         "Target",
-                        "Soft barrier that blocks the player and player camera",
+                        "Used to specify an area on the model AI should target. Also used for checking whether a player is aiming at a target or not. Target properties are specified in the model tag",
                         get_icon_id("target"),
                         6,
                     )
@@ -630,7 +630,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 (
                     "_connected_geometry_marker_type_model",
                     "Structure Marker",
-                    "Soft barrier that blocks the player and player camera",
+                    "Default marker type. Can be used as an attachment point for objects in Sapien",
                     get_icon_id("marker"),
                     0,
                 )
@@ -698,7 +698,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 (
                     "_connected_geometry_marker_type_game_instance",
                     name,
-                    "Creates the specified tag at this marker position in the scenario",
+                    "Creates the specified tag at this point in the scenario",
                     get_icon_id(icon),
                     1,
                 )
@@ -709,7 +709,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     (
                         "_connected_geometry_marker_type_airprobe",
                         "Airprobe",
-                        "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                        "Airprobes store a representation of scenario lighting at their origins. Objects close to this airprobe will take its lighting values as their own. Helpful if an object is not being lit correctly in the scenario",
                         get_icon_id("airprobe"),
                         2,
                     )
@@ -718,7 +718,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     (
                         "_connected_geometry_marker_type_envfx",
                         "Environment Effect",
-                        "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                        "Marker which loops the specified effect",
                         get_icon_id("environment_effect"),
                         3,
                     )
@@ -727,7 +727,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     (
                         "_connected_geometry_marker_type_lightCone",
                         "Light Cone",
-                        "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                        "Creates a light cone with the parameters defined",
                         get_icon_id("light_cone"),
                         4,
                     )
