@@ -1979,6 +1979,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         get=get_region_from_collection,
     )
 
+    def update_permutation_name_ui(self, context):
+        scene_nwo = context.scene.nwo
+
     permutation_name_ui: StringProperty(
         name="Permutation",
         default="default",

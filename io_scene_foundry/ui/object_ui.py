@@ -1783,15 +1783,16 @@ class NWO_GlobalMaterialMenu(Menu):
         global_materials = ["default"]
         for ob in export_objects_no_arm():
             global_material = ob.nwo.face_global_material_ui
-            if global_material not in global_materials:
+            if global_material != "" and global_material not in global_materials:
                 global_materials.append(global_material)
             # also need to loop through face props
-            for face_prop in ob.data.nwo.face_props:
-                if (
-                    face_prop.face_global_material_override
-                    and face_prop.face_global_material not in global_materials
-                ):
-                    global_materials.append(face_prop.face_global_material)
+            if ob.type == 'MESH':
+                for face_prop in ob.data.nwo.face_props:
+                    if (
+                        face_prop.face_global_material_override
+                        and face_prop.face_global_material != "" and face_prop.face_global_material not in global_materials
+                    ):
+                        global_materials.append(face_prop.face_global_material)
 
         for g_mat in global_materials:
             layout.operator(
@@ -1816,15 +1817,17 @@ class NWO_RegionList(NWO_Op):
         regions = ["default"]
         for ob in export_objects_no_arm():
             region = true_region(ob.nwo)
-            if region not in regions:
+            if region != "" and region not in regions:
                 regions.append(region)
             # also need to loop through face props
-            for face_prop in ob.data.nwo.face_props:
-                if (
-                    face_prop.region_name_override
-                    and face_prop.region_name_ui not in regions
-                ):
-                    regions.append(face_prop.region_name_ui)
+            if ob.type == 'MESH':
+                for face_prop in ob.data.nwo.face_props:
+                    if (
+                        face_prop.region_name_ui != ""
+                        and face_prop.region_name_override
+                        and face_prop.region_name_ui not in regions
+                    ):
+                        regions.append(face_prop.region_name_ui)
 
         regions = sort_alphanum(regions)
         items = []
@@ -1863,16 +1866,18 @@ class NWO_GlobalMaterialList(NWO_Op):
         global_materials = ["default"]
         for ob in export_objects_no_arm():
             global_material = ob.nwo.face_global_material_ui
-            if global_material not in global_materials and global_material:
+            if global_material != "" and global_material not in global_materials and global_material:
                 global_materials.append(global_material)
             # also need to loop through face props
-            for face_prop in ob.data.nwo.face_props:
-                if (
-                    face_prop.face_global_material_override
-                    and face_prop.face_global_material_ui
-                    not in global_materials
-                ):
-                    global_materials.append(face_prop.face_global_materia_ui)
+            if ob.type == 'MESH':
+                for face_prop in ob.data.nwo.face_props:
+                    if (
+                        face_prop.face_global_material_ui != ""
+                        and face_prop.face_global_material_override
+                        and face_prop.face_global_material_ui
+                        not in global_materials
+                    ):
+                        global_materials.append(face_prop.face_global_material_ui)
 
         global_materials = sort_alphanum(global_materials)
         items = []
