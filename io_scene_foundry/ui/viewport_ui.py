@@ -59,6 +59,7 @@ class NWO_PIE_ApplyTypeMesh(NWO_Op):
 class NWO_ApplyTypeMesh(NWO_Op):
     bl_label = "Apply Mesh Type"
     bl_idname = "nwo.apply_type_mesh"
+    bl_description = "Applies the specified mesh type to the selected objects"
 
     def m_type_items(self, context):
         items = []
@@ -66,34 +67,41 @@ class NWO_ApplyTypeMesh(NWO_Op):
         asset_type = nwo.asset_type
         reach = nwo.game_version == "reach"
         if asset_type == 'MODEL':
-            items.append(nwo_enum("collision", "Collision", "", "collider", 0)),
-            items.append(nwo_enum("physics", "Physics", "", "physics", 1)),
-            items.append(nwo_enum("render", "Render", "", "render_geometry", 2))
+            items.append(nwo_enum("collision", "Collision", "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player", "collider", 0)),
+            items.append(nwo_enum("physics", "Physics", "Physics only geometry. Uses havok physics to interact with static and dynamic objects", "physics", 1)),
+            items.append(nwo_enum("render", "Render", "Render only geometry", "render_geometry", 2))
 
         elif asset_type in ('SCENARIO', 'PREFAB'):
-            items.append(nwo_enum("collision", "Collision", "", "collider", 0)),
-            items.append(nwo_enum("poop", "Instance", "", "instance", 1)),
-            items.append(nwo_enum("cookie_cutter", "Cookie Cutter", "", "cookie_cutter", 2)),
+            items.append(nwo_enum("collision", "Collision", "Non rendered geometry which provides collision only", "collider", 0)),
+            items.append(nwo_enum("poop", "Instance", "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics", "instance", 1)),
+            items.append(nwo_enum("cookie_cutter", "Cookie Cutter", "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map", "cookie_cutter", 2)),
             if asset_type == 'SCENARIO':
-                items.append(nwo_enum("structure", "Structure", "", "structure", 3))
-                items.append(nwo_enum("seam", "Seam", "", "seam", 4))
-                items.append(nwo_enum("portal", "Portal", "", "portal", 5))
-                items.append(nwo_enum("water_surface", "Water Surface", "", "water", 6))
-                items.append(nwo_enum("fog", "Fog", "", "fog", 7))
-                items.append(nwo_enum("soft_ceiling", "Soft Ceiling", "", "soft_ceiling", 8))
-                items.append(nwo_enum("soft_kill", "Soft Kill", "", "soft_kill", 9))
-                items.append(nwo_enum("slip_surface", "Slip Surface", "", "slip_surface", 10))
-                items.append(nwo_enum("water_physics", "Water Physics", "", "water_physics", 11))
-                if reach:
-                    items.append(nwo_enum("lightmap", "Lightmap Region", "", "lightmap_region", 12))
+                if not reach:
+                    descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
                 else:
-                    items.append(nwo_enum("lightmap", "Lightmap Exclusion", "", "lightmap_exclude", 12))
+                    descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
+                items.append(nwo_enum("structure", "Structure", descrip, "structure", 3))
+                items.append(nwo_enum("seam", "Seam", "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag", "seam", 4))
+                items.append(nwo_enum("portal", "Portal", "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters.", "portal", 5))
+                items.append(nwo_enum("water_surface", "Water Surface", "Plane which can cut through structure geometry to define a water surface. Supports tesselation", "water", 6))
+                items.append(nwo_enum("fog", "Fog", "Defines an area in a cluster which renders fog defined in the scenario tag", "fog", 7))
+                items.append(nwo_enum("soft_ceiling", "Soft Ceiling", "Soft barrier that blocks the player and player camera", "soft_ceiling", 8))
+                items.append(nwo_enum("soft_kill", "Soft Kill", "Defines a region where the player will be killed... softly", "soft_kill", 9))
+                items.append(nwo_enum("slip_surface", "Slip Surface", "Defines a region in which surfaces become slippery", "slip_surface", 10))
+                items.append(nwo_enum("water_physics", "Water Physics", "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume", "water_physics", 11))
+                if reach:
+                    items.append(nwo_enum("lightmap", "Lightmap Region", "Restricts lightmapping to this area when specified during lightmapping", "lightmap_region", 12))
+                else:
+                    items.append(nwo_enum("lightmap", "Lightmap Exclusion", "Defines a region that should not be lightmapped", "lightmap_exclude", 12))
 
-                items.append(nwo_enum("rain_blocker", "Rain Blocker", "", "rain_sheet", 13))
+                items.append(nwo_enum("rain_blocker", "Rain Blocker", "Blocks rain from rendering in the region this volume occupies", "rain_sheet", 13))
                 if reach:
-                    items.append(nwo_enum("rain_sheet", "Rain Sheet", "", "rain_sheet", 14))
+                    items.append(nwo_enum("rain_sheet", "Rain Sheet", "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain", "rain_sheet", 14))
                 else:
-                    items.append(nwo_enum("streaming", "Streaming", "", "streaming", 14))
+                    stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. 
+                     By default the full space inside a zone set should be used when generating the streaming zone set. 
+                     This is useful for performance if you have textures in areas of the map the player will not get close to"""
+                    items.append(nwo_enum("streaming", "Streaming", stream_des, "streaming", 14))
     
         return items
 
@@ -248,6 +256,7 @@ class NWO_PIE_ApplyTypeMarker(NWO_Op):
 class NWO_ApplyTypeMarker(NWO_Op):
     bl_label = "Apply Marker Type"
     bl_idname = "nwo.apply_type_marker"
+    bl_description = "Applies the specified marker type to the selected objects"
 
     def m_type_items(self, context):
         items = []

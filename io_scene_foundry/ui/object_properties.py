@@ -218,7 +218,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     nwo_enum(
                         "_connected_geometry_mesh_type_collision",
                         "Collision",
-                        "Collision only geometry. Acts as bullet collision and for scenery also provides player collision",
+                        "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player",
                         "collider",
                         1,
                     )
@@ -227,7 +227,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     nwo_enum(
                         "_connected_geometry_mesh_type_physics",
                         "Physics",
-                        "Physics only geometry. Uses havok physics to interact with static and dynamic meshes",
+                        "Physics only geometry. Uses havok physics to interact with static and dynamic objects",
                         "physics",
                         2,
                     )
@@ -235,11 +235,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 # if not h4: NOTE removing these for now until I figure out how they work
                 #     items.append(('_connected_geometry_mesh_type_object_instance', 'Flair', 'Instanced mesh for models. Can be instanced across mutliple permutations', get_icon_id("flair"), 3))
         elif poll_ui("SCENARIO"):
+            if h4:
+                descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
+            else:
+                descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_structure",
                     "Structure",
-                    "Structure bsp geometry. By default provides render and bullet/player collision",
+                    descrip,
                     "structure",
                     0,
                 )
@@ -248,7 +252,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 nwo_enum(
                     "_connected_geometry_mesh_type_poop",
                     "Instance",
-                    "Instanced geometry. Geometry capable of cutting through structure mesh",
+                    "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
                     1,
                 )
@@ -294,7 +298,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 nwo_enum(
                     "_connected_geometry_mesh_type_poop",
                     "Instance",
-                    "Instanced geometry. Geometry capable of cutting through structure mesh",
+                    "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
                     0,
                 )
@@ -372,7 +376,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             (
                 "_connected_geometry_plane_type_portal",
                 "Portal",
-                "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters",
+                "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters.",
                 get_icon_id("portal"),
                 0,
             )
@@ -522,7 +526,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 (
                     "_connected_geometry_volume_type_lightmap_region",
                     "Lightmap Region",
-                    "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
+                    "Restricts lightmapping to this area when specified during lightmapping",
                     get_icon_id("lightmap_region"),
                     6,
                 )
