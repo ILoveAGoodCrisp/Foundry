@@ -31,8 +31,6 @@ from .templates import NWO_Op
 from bpy.props import (
     PointerProperty,
 )
-
-
 # import classes from other files
 
 from .face_ui import (

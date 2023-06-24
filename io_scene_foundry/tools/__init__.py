@@ -1,29 +1,3 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2022 Generalkidd & Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
@@ -55,6 +29,17 @@ from io_scene_foundry.utils.nwo_utils import (
 from bpy_extras.object_utils import AddObjectHelper
 
 is_blender_startup = True
+
+#######################################
+# NEW TOOL UI
+
+class NWO_FoundryPanel(Panel):
+    bl_label = "Foundry"
+    bl_idname = "NWO_PT_FoundryPanel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    # bl_options = {'DEFAULT_CLOSED'}
+    bl_category = "Foundry2"
 
 #######################################
 # ADD MENU TOOLS
@@ -347,60 +332,16 @@ class NWO_SetFrameIDsPropertiesGroup(PropertyGroup):
 #######################################
 # HALO MANAGER TOOL
 
-
-class NWO_HaloLauncher(Panel):
-    bl_label = "Halo Launcher"
-    bl_idname = "NWO_PT_HaloLauncher"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Foundry"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        row = col.row(align=False)
-        row.scale_y = 1.25
-        row.operator("nwo.launch_data", icon_value=get_icon_id("data"))
-        row.operator("nwo.launch_tags", icon_value=get_icon_id("tags"))
-        row = col.row(align=False)
-        row.scale_y = 1.5
-        row.operator(
-            "nwo.launch_foundation", icon_value=get_icon_id("foundation")
-        )
-        row = col.row(align=False)
-        row.scale_y = 1.25
-        row.operator("nwo.launch_sapien", icon_value=get_icon_id("sapien"))
-        row.scale_y = 1.25
-        row.operator("nwo.launch_tagtest", icon_value=get_icon_id("tag_test"))
-        # if scene_nwo_halo_launcher.sidecar_path != '' and file_exists(path_join(get_data_path(), scene_nwo_halo_launcher.sidecar_path)):
-        #     flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-        #     col = flow.column()
-        #     col.scale_y = 1.5
-        #     col.operator('nwo.launch_source')
-
-
 class NWO_HaloLauncherExplorerSettings(Panel):
     bl_label = "Explorer Settings"
     bl_idname = "NWO_PT_HaloLauncherExplorerSettings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_parent_id = "NWO_PT_HaloLauncher"
     bl_options = {"DEFAULT_CLOSED"}
 
-    @classmethod
-    def poll(cls, context):
-        return valid_nwo_asset(context)
+    # @classmethod
+    # def poll(cls, context):
+    #     return valid_nwo_asset(context)
 
     def draw(self, context):
         layout = self.layout
@@ -426,7 +367,6 @@ class NWO_HaloLauncherGameSettings(Panel):
     bl_idname = "NWO_PT_HaloLauncherGameSettings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_parent_id = "NWO_PT_HaloLauncher"
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
@@ -434,7 +374,7 @@ class NWO_HaloLauncherGameSettings(Panel):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
 
-        layout.use_property_split = True
+        layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
             columns=0,
@@ -446,10 +386,11 @@ class NWO_HaloLauncherGameSettings(Panel):
         col = flow.column()
         row = col.row()
         row.prop(scene_nwo_halo_launcher, "game_default", expand=True)
+        col.separator()
+        col.prop(scene_nwo_halo_launcher, "insertion_point_index")
         col.prop(scene_nwo_halo_launcher, "initial_zone_set")
         if not_bungie_game():
             col.prop(scene_nwo_halo_launcher, "initial_bsp")
-        col.prop(scene_nwo_halo_launcher, "insertion_point_index")
         col.prop(scene_nwo_halo_launcher, "custom_functions")
 
         col.prop(scene_nwo_halo_launcher, "run_game_scripts")
@@ -472,7 +413,7 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
 
-        layout.use_property_split = True
+        layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
             columns=0,
@@ -572,19 +513,18 @@ class NWO_HaloLauncherFoundationSettings(Panel):
     bl_idname = "NWO_PT_HaloLauncherFoundationSettings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_parent_id = "NWO_PT_HaloLauncher"
     bl_options = {"DEFAULT_CLOSED"}
 
-    @classmethod
-    def poll(cls, context):
-        return valid_nwo_asset(context)
+    # @classmethod
+    # def poll(cls, context):
+    #     return valid_nwo_asset(context)
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
 
-        layout.use_property_split = True
+        layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
             columns=0,
@@ -1246,49 +1186,12 @@ class NWO_HaloShaderFinderPropertiesGroup(PropertyGroup):
 #######################################
 # HALO EXPORT TOOL
 
-
-class NWO_HaloExport(Panel):
-    bl_label = "Halo Export"
-    bl_idname = "NWO_PT_HaloExport"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_icon = "EXPORT"
-    bl_category = "Foundry"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo_halo_launcher = scene.nwo_halo_launcher
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.scale_y = 1.5
-        col.operator("nwo.export", text="Export", icon="SETTINGS")
-        if scene_nwo_halo_launcher.sidecar_path != "" and file_exists(
-            path_join(get_data_path(), scene_nwo_halo_launcher.sidecar_path)
-        ):
-            col.separator()
-            col.operator(
-                "nwo.export_quick",
-                text="Quick Export",
-                icon_value=get_icon_id("quick_export"),
-            )
-
-
 class NWO_HaloExportSettings(Panel):
     bl_label = "Quick Export Settings"
     bl_idname = "NWO_PT_HaloExportSettings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_icon = "EXPORT"
-    bl_parent_id = "NWO_PT_HaloExport"
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
@@ -1296,7 +1199,7 @@ class NWO_HaloExportSettings(Panel):
         scene = context.scene
         scene_nwo_export = scene.nwo_export
         h4 = context.scene.nwo.game_version in ("h4", "h2a")
-        layout.use_property_split = True
+        layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
             columns=0,
@@ -1305,20 +1208,12 @@ class NWO_HaloExportSettings(Panel):
             align=False,
         )
         col = flow.column()
-        col = layout.column(heading="Toggle")
-        col.prop(scene_nwo_export, "show_output", text="Output")
-        col = layout.column(heading="Export")
-        col.prop(scene_nwo_export, "export_gr2_files", text="GR2")
-        # col = layout.column(heading="Build")
-        # col.prop(scene_nwo_export, "export_sidecar_xml", text="Sidecar")
-        col.separator()
-        col = layout.column(heading="Create")
-        col.prop(scene_nwo_export, "import_to_game", text="Tags")
-        if scene_nwo_export.import_to_game and not not_bungie_game():
-            col.prop(scene_nwo_export, "import_draft", text="As draft")
-        col.separator()
-        col = layout.column(heading="Run")
-        col.prop(scene_nwo_export, "lightmap_structure", text="Lightmap")
+        col.prop(scene_nwo_export, "export_quick", text="Quick Export")
+        col.prop(scene_nwo_export, "show_output", text="Toggle Output")
+        col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
+        # if scene_nwo_export.import_to_game and not not_bungie_game():
+        #     col.prop(scene_nwo_export, "import_draft", text="Draft")
+        col.prop(scene_nwo_export, "lightmap_structure", text="Run Lightmapper")
         if scene_nwo_export.lightmap_structure:
             if h4:
                 col.prop(scene_nwo_export, "lightmap_quality_h4")
@@ -1331,9 +1226,9 @@ class NWO_HaloExportSettings(Panel):
                 col.prop(scene_nwo_export, "lightmap_region")
 
 
-class NWO_HaloExportSettingsExtended(Panel):
-    bl_label = "Extended"
-    bl_idname = "NWO_PT_HaloExportSettingsExtended"
+class NWO_HaloExportSettingsScope(Panel):
+    bl_label = "Scope"
+    bl_idname = "NWO_PT_HaloExportSettingsScope"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_icon = "EXPORT"
@@ -1370,7 +1265,7 @@ class NWO_HaloExportSettingsExtended(Panel):
         elif scene_nwo.asset_type == "SCENARIO":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_structure")
-            col.prop(scene_nwo_export, "export_design")
+            col.prop(scene_nwo_export, "export_design", text="Design")
         elif scene_nwo.asset_type != "PREFAB":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
@@ -1378,75 +1273,50 @@ class NWO_HaloExportSettingsExtended(Panel):
             if scene_nwo.asset_type == "SCENARIO":
                 col.prop(scene_nwo_export, "export_all_bsps", expand=True)
             if scene_nwo.asset_type in (("MODEL", "SCENARIO", "PREFAB")):
-                col.prop(scene_nwo_export, "export_all_perms", expand=True)
-        col.separator()
-        col = layout.column(heading="Keep")
-        col.prop(scene_nwo_export, "keep_fbx")
-        col.prop(scene_nwo_export, "keep_json")
-        col.separator()
-        col = layout.column(heading="Scene")
-        col.prop(scene_nwo_export, "use_mesh_modifiers")
-        col.prop(scene_nwo_export, "use_armature_deform_only")
-        col.prop(scene_nwo_export, "meshes_to_empties")
-        # col.prop(scene_nwo_export, "global_scale")
+                if scene_nwo.asset_type == "MODEL":
+                    txt = "Permutations"
+                else:
+                    txt = "Subgroup"
+                col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
 
 
-class NWO_HaloExport_Export(Operator):
-    """Opens the Foundry export menu"""
-
-    bl_idname = "nwo.export"
-    bl_label = "Export"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        from .halo_export import export
-
-        return export(bpy.ops.export_scene.nwo)
-
-
-class NWO_HaloExport_ExportQuick(Operator):
+class NWO_HaloExport(Operator):
     """Runs the GR2 exporter immediately, using the settings definied in quick export settings"""
     bl_idname = "nwo.export_quick"
     bl_label = "Quick Export"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        from .halo_export import export_quick
+        from .halo_export import export_quick, export
 
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-        return export_quick(
-            bpy.ops.export_scene.nwo,
-            self.report,
-            scene_nwo_export.export_gr2_files,
-            scene_nwo_export.export_hidden,
-            scene_nwo_export.export_all_bsps,
-            scene_nwo_export.export_all_perms,
-            scene_nwo_export.export_sidecar_xml,
-            scene_nwo_export.import_to_game,
-            scene_nwo_export.import_draft,
-            scene_nwo_export.lightmap_structure,
-            scene_nwo_export.lightmap_quality_h4,
-            scene_nwo_export.lightmap_region,
-            scene_nwo_export.lightmap_quality,
-            scene_nwo_export.lightmap_specific_bsp,
-            scene_nwo_export.lightmap_all_bsps,
-            scene_nwo_export.export_animations,
-            scene_nwo_export.export_skeleton,
-            scene_nwo_export.export_render,
-            scene_nwo_export.export_collision,
-            scene_nwo_export.export_physics,
-            scene_nwo_export.export_markers,
-            scene_nwo_export.export_structure,
-            scene_nwo_export.export_design,
-            scene_nwo_export.use_mesh_modifiers,
-            scene_nwo_export.global_scale,
-            scene_nwo_export.use_armature_deform_only,
-            scene_nwo_export.meshes_to_empties,
-            scene_nwo_export.show_output,
-            scene_nwo_export.keep_fbx,
-            scene_nwo_export.keep_json,
-        )
+        if scene_nwo_export.export_quick and valid_nwo_asset(context):
+            return export_quick(
+                bpy.ops.export_scene.nwo,
+                self.report,
+                scene_nwo_export.export_gr2_files,
+                scene_nwo_export.export_all_bsps,
+                scene_nwo_export.export_all_perms,
+                scene_nwo_export.import_to_game,
+                scene_nwo_export.import_draft,
+                scene_nwo_export.lightmap_structure,
+                scene_nwo_export.lightmap_quality_h4,
+                scene_nwo_export.lightmap_region,
+                scene_nwo_export.lightmap_quality,
+                scene_nwo_export.lightmap_specific_bsp,
+                scene_nwo_export.lightmap_all_bsps,
+                scene_nwo_export.export_animations,
+                scene_nwo_export.export_skeleton,
+                scene_nwo_export.export_render,
+                scene_nwo_export.export_collision,
+                scene_nwo_export.export_physics,
+                scene_nwo_export.export_markers,
+                scene_nwo_export.export_structure,
+                scene_nwo_export.export_design,
+            )
+        else:
+            return export(bpy.ops.export_scene.nwo)
 
 
 class NWO_HaloExportPropertiesGroup(PropertyGroup):
@@ -1455,12 +1325,12 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         default=True,
         options=set(),
     )
-    export_hidden: BoolProperty(
-        name="Hidden",
-        description="Export visible objects only",
-        default=True,
-        options=set(),
-    )
+    # export_hidden: BoolProperty(
+    #     name="Hidden",
+    #     description="Export visible objects only",
+    #     default=True,
+    #     options=set(),
+    # )
     export_all_bsps: EnumProperty(
         name="BSPs",
         description="Specify whether to export all BSPs, or just those selected",
@@ -1475,15 +1345,21 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         items=[("all", "All", ""), ("selected", "Selected", "")],
         options=set(),
     )
-    export_sidecar_xml: BoolProperty(
-        name="Build Sidecar",
+    # export_sidecar_xml: BoolProperty(
+    #     name="Build Sidecar",
+    #     description="",
+    #     default=True,
+    #     options=set(),
+    # )
+    import_to_game: BoolProperty(
+        name="Import to Game",
         description="",
         default=True,
         options=set(),
     )
-    import_to_game: BoolProperty(
-        name="Import to Game",
-        description="",
+    export_quick: BoolProperty(
+        name="Quick Export",
+        description="Exports the scene without a file dialog, provided this scene is a Halo asset",
         default=True,
         options=set(),
     )
@@ -1615,30 +1491,30 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         default=True,
         options=set(),
     )
-    use_mesh_modifiers: BoolProperty(
-        name="Apply Modifiers",
-        description="",
-        default=True,
-        options=set(),
-    )
-    global_scale: FloatProperty(
-        name="Scale",
-        description="",
-        default=1.0,
-        options=set(),
-    )
-    use_armature_deform_only: BoolProperty(
-        name="Deform Bones Only",
-        description="Only export bones with the deform property ticked",
-        default=True,
-        options=set(),
-    )
-    meshes_to_empties: BoolProperty(
-        name="Markers as Empties",
-        description="Export all mesh Halo markers as empties. Helps save on export / import time and file size",
-        default=True,
-        options=set(),
-    )
+    # use_mesh_modifiers: BoolProperty(
+    #     name="Apply Modifiers",
+    #     description="",
+    #     default=True,
+    #     options=set(),
+    # )
+    # global_scale: FloatProperty(
+    #     name="Scale",
+    #     description="",
+    #     default=1.0,
+    #     options=set(),
+    # )
+    # use_armature_deform_only: BoolProperty(
+    #     name="Deform Bones Only",
+    #     description="Only export bones with the deform property ticked",
+    #     default=True,
+    #     options=set(),
+    # )
+    # meshes_to_empties: BoolProperty(
+    #     name="Markers as Empties",
+    #     description="Export all mesh Halo markers as empties. Helps save on export / import time and file size",
+    #     default=True,
+    #     options=set(),
+    # )
 
     # def get_show_output(self):
     #     global is_blender_startup
@@ -1679,16 +1555,15 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     keep_fbx: BoolProperty(
         name="FBX",
         description="Keep the source FBX file after GR2 conversion",
-        default=True,
+        default=False,
         options=set(),
     )
     keep_json: BoolProperty(
         name="JSON",
         description="Keep the source JSON file after GR2 conversion",
-        default=True,
+        default=False,
         options=set(),
     )
-
 
 #######################################
 # PROPERTIES MANAGER TOOL
@@ -2360,15 +2235,31 @@ class NWO_ShaderPropertiesGroup(PropertyGroup):
         ],
     )
 
+def foundry_toolbar(self, context):
+    layout = self.layout
+    layout.label(text="                 ")
+    row = layout.row()
+    row.scale_x = 1
+    sub0 = row.row(align=True)
+    sub0.operator('nwo.export_quick', text='Tag Export', icon_value=get_icon_id("quick_export"))
+    sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
+    sub1 = row.row(align=True)
+    sub1.operator('nwo.launch_sapien', text='Sapien', icon_value=get_icon_id("sapien"))
+    sub1.operator('nwo.launch_tagtest', text='Tag Test', icon_value=get_icon_id("tag_test"))
+    sub1.popover(panel="NWO_PT_HaloLauncherGameSettings", text="")
+    sub2 = row.row(align=True)
+    sub2.operator('nwo.launch_foundation', text='Tag Editor', icon_value=get_icon_id("foundation"))
+    sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
+    sub3 = row.row(align=True)
+    sub3.operator('nwo.launch_data', text='Data', icon_value=get_icon_id("data"))
+    sub3.operator('nwo.launch_tags', text='Tags', icon_value=get_icon_id("tags"))
+    sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
 
 classeshalo = (
     NWO_HaloExport,
-    NWO_HaloExport_Export,
-    NWO_HaloExport_ExportQuick,
     NWO_HaloExportSettings,
-    NWO_HaloExportSettingsExtended,
+    NWO_HaloExportSettingsScope,
     NWO_HaloExportPropertiesGroup,
-    NWO_HaloLauncher,
     NWO_HaloLauncherExplorerSettings,
     NWO_HaloLauncherGameSettings,
     NWO_HaloLauncherGamePruneSettings,
@@ -2422,6 +2313,7 @@ def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
 
+    bpy.types.VIEW3D_MT_editor_menus.append(foundry_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_object.append(add_halo_join)
     bpy.types.Scene.nwo_frame_ids = PointerProperty(
@@ -2467,6 +2359,7 @@ def register():
 def unregister():
     bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_object.remove(add_halo_join)
+    bpy.types.VIEW3D_MT_editor_menus.remove(foundry_toolbar)
     del bpy.types.Scene.nwo_frame_ids
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_finder

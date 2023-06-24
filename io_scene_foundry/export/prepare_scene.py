@@ -45,7 +45,6 @@ from ..utils.nwo_utils import (
     jstr,
     layer_face_count,
     layer_faces,
-    print_error,
     print_warning,
     set_active_object,
     is_shader,
@@ -69,12 +68,9 @@ class PrepareScene:
     def __init__(
         self,
         context,
-        report,
         asset,
         sidecar_type,
-        use_armature_deform_only,
         game_version,
-        meshes_to_empties,
         export_animations,
         export_gr2_files,
         export_all_perms,
@@ -403,13 +399,12 @@ class PrepareScene:
             export_obs = context.view_layer.objects[:]
 
             # Convert mesh markers to empty objects
-            if meshes_to_empties:
-                self.markerify(export_obs, scene_coll, context)
-                # print("markifiy")
+            self.markerify(export_obs, scene_coll, context)
+            # print("markifiy")
 
-                # get new export_obs from deleted markers
-                context.view_layer.update()
-                export_obs = context.view_layer.objects[:]
+            # get new export_obs from deleted markers
+            context.view_layer.update()
+            export_obs = context.view_layer.objects[:]
 
             # remove meshes with zero faces
             self.cull_zero_face_meshes(export_obs)
@@ -470,7 +465,7 @@ class PrepareScene:
                     self.set_bone_names(self.model_armature.data.bones)
 
                 self.skeleton_bones = self.get_bone_list(
-                    self.model_armature, use_armature_deform_only, h4
+                    self.model_armature, h4
                 )  # return a list of bones attached to the model armature, ignoring control / non-deform bones
                 if bpy.data.actions:
                     try:
@@ -2041,7 +2036,7 @@ class PrepareScene:
     #####################################################################################
     # BONE FUNCTIONS
 
-    def get_bone_list(self, model_armature, deform_only, h4):
+    def get_bone_list(self, model_armature, h4):
         boneslist = {}
         arm = model_armature.name
         boneslist.update({arm: self.get_armature_props(h4)})
@@ -2051,9 +2046,7 @@ class PrepareScene:
         )  # sample function call to get FrameIDs CSV values as dictionary
         f1 = frameIDs.keys()
         f2 = frameIDs.values()
-        bone_list = model_armature.data.bones
-        if deform_only:
-            bone_list = self.get_deform_bones_only(bone_list)
+        bone_list = [bone for bone in model_armature.data.bones if bone.use_deform]
         for b in bone_list:
             b_nwo = b.nwo
             if b_nwo.frame_id1 == "":
@@ -2078,9 +2071,6 @@ class PrepareScene:
             )
 
         return boneslist
-
-    def get_deform_bones_only(self, bone_list):
-        return [b for b in bone_list if b.use_deform]
 
     def get_armature_props(self, h4):
         node_props = {}

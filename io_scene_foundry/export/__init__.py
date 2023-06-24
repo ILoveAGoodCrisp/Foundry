@@ -97,16 +97,16 @@ class NWO_Export_Scene(Operator, ExportHelper):
             ("h2a", "Halo 2A MP", "Export an asset intended for Halo 2A MP"),
         ],
     )
-    keep_fbx: BoolProperty(
-        name="FBX",
-        description="Keep the source FBX file after GR2 conversion",
-        default=True,
-    )
-    keep_json: BoolProperty(
-        name="JSON",
-        description="Keep the source JSON file after GR2 conversion",
-        default=True,
-    )
+    # keep_fbx: BoolProperty(
+    #     name="FBX",
+    #     description="Keep the source FBX file after GR2 conversion",
+    #     default=True,
+    # )
+    # keep_json: BoolProperty(
+    #     name="JSON",
+    #     description="Keep the source JSON file after GR2 conversion",
+    #     default=True,
+    # )
     export_sidecar_xml: BoolProperty(
         name="Build Sidecar",
         description="",
@@ -300,23 +300,23 @@ class NWO_Export_Scene(Operator, ExportHelper):
         default=True,
     )
     bake_anim: BoolProperty(name="", description="", default=True)
-    use_mesh_modifiers: BoolProperty(
-        name="Apply Modifiers",
-        description="",
-        default=True,
-    )
-    global_scale: FloatProperty(name="Scale", description="", default=1.0)
-    use_armature_deform_only: BoolProperty(
-        name="Deform Bones Only",
-        description="Only export bones with the deform property ticked",
-        default=True,
-    )
+    # use_mesh_modifiers: BoolProperty(
+    #     name="Apply Modifiers",
+    #     description="",
+    #     default=True,
+    # )
+    # global_scale: FloatProperty(name="Scale", description="", default=1.0)
+    # use_armature_deform_only: BoolProperty(
+    #     name="Deform Bones Only",
+    #     description="Only export bones with the deform property ticked",
+    #     default=True,
+    # )
 
-    meshes_to_empties: BoolProperty(
-        name="Markers as Empties",
-        description="Export all mesh Halo markers as empties. Helps save on export / import time and file size",
-        default=True,
-    )
+    # meshes_to_empties: BoolProperty(
+    #     name="Markers as Empties",
+    #     description="Export all mesh Halo markers as empties. Helps save on export / import time and file size",
+    #     default=True,
+    # )
 
     export_hidden: BoolProperty(
         name="Hidden",
@@ -439,10 +439,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         scene_nwo_export = scene.nwo_export
         self.export_gr2_files = scene_nwo_export.export_gr2_files
-        self.export_hidden = scene_nwo_export.export_hidden
         self.export_all_bsps = scene_nwo_export.export_all_bsps
         self.export_all_perms = scene_nwo_export.export_all_perms
-        self.export_sidecar_xml = scene_nwo_export.export_sidecar_xml
         self.import_to_game = scene_nwo_export.import_to_game
         self.import_draft = scene_nwo_export.import_draft
         self.lightmap_structure = scene_nwo_export.lightmap_structure
@@ -458,18 +456,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
         self.export_physics = scene_nwo_export.export_physics
         self.export_markers = scene_nwo_export.export_markers
         self.export_structure = scene_nwo_export.export_structure
-        self.export_poops = scene_nwo_export.export_design
-
-        self.use_mesh_modifiers = scene_nwo_export.use_mesh_modifiers
-        self.global_scale = scene_nwo_export.global_scale
-        self.use_armature_deform_only = (
-            scene_nwo_export.use_armature_deform_only
-        )
-        self.meshes_to_empties = scene_nwo_export.meshes_to_empties
+        self.export_design = scene_nwo_export.export_design
 
         self.show_output = scene_nwo_export.show_output
-        self.keep_fbx = scene_nwo_export.keep_fbx
-        self.keep_json = scene_nwo_export.keep_json
 
         # SIDECAR SETTINGS #
         scene_nwo = bpy.context.scene.nwo
@@ -564,12 +553,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
             nwo_scene = PrepareScene(
                 context,
-                self.report,
                 self.asset,
                 self.sidecar_type,
-                self.use_armature_deform_only,
                 self.game_version,
-                self.meshes_to_empties,
                 self.export_animations,
                 self.export_gr2_files,
                 self.export_all_perms,
@@ -607,16 +593,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 self.export_animations,
                 self.export_structure,
                 self.export_design,
-                self.export_sidecar_xml,
                 self.lightmap_structure,
                 self.import_to_game,
                 self.export_gr2_files,
                 self.game_version,
-                self.global_scale,
-                self.use_mesh_modifiers,
-                self.mesh_smooth_type,
-                self.use_armature_deform_only,
-                self.mesh_smooth_type_better,
                 self.import_check,
                 self.import_force,
                 self.import_verbose,
@@ -914,19 +894,18 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 if not h4:
                     col.prop(self, "lightmap_region")
 
-        # SCENE SETTINGS #
-        box = layout.box()
-        box.label(text="Scene Settings")
-        col = box.column()
-        col.prop(self, "use_mesh_modifiers")
-        col.prop(self, "use_armature_deform_only")
-        col.prop(self, "meshes_to_empties")
-        if fbx_exporter() == "better":
-            col.prop(self, "mesh_smooth_type_better")
-        else:
-            col.prop(self, "mesh_smooth_type")
-        col.separator()
-        # col.prop(self, "global_scale")
+        # # SCENE SETTINGS #
+        # box = layout.box()
+        # box.label(text="Scene Settings")
+        # col = box.column()
+        # col.prop(self, "use_mesh_modifiers")
+        # col.prop(self, "use_armature_deform_only")
+        # if fbx_exporter() == "better":
+        #     col.prop(self, "mesh_smooth_type_better")
+        # else:
+        #     col.prop(self, "mesh_smooth_type")
+        # col.separator()
+        # # col.prop(self, "global_scale")
 
 
 def menu_func_export(self, context):
