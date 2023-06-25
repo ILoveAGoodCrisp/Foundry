@@ -27,6 +27,7 @@ import os
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_tags_path,
+    print_warning,
     shader_exts,
 )
 
@@ -39,9 +40,10 @@ def scan_tree(shaders_dir, shaders):
     return shaders
 
 
-def find_shaders(materials, report=None, shaders_dir="", overwrite=False):
+def find_shaders(materials, h4, report=None, shaders_dir="", overwrite=False):
     shaders = set()
     update_count = 0
+    no_path_materials = []
     tags_path = get_tags_path()
 
     if not shaders_dir:
@@ -62,11 +64,27 @@ def find_shaders(materials, report=None, shaders_dir="", overwrite=False):
                 if overwrite or not mat.nwo.shader_path:
                     mat.nwo.shader_path = shader_path
                     update_count += 1
+            else:
+                no_path_materials.append(mat.name)
+                if report is None:
+                    if h4:
+                        mat.nwo.shader_path = r"shaders\missing.material"
+                    else:
+                        mat.nwo.shader_path = r"shaders\invalid.shader"
 
     if report is not None:
-        report({"INFO"}, "Updated " + str(update_count) + " shader paths")
+        if no_path_materials:
+            report({"WARNING"}, "Missing material paths:")
+            for m in no_path_materials:
+                report({"ERROR"}, m)
+            report({"WARNING"}, "These materials should either be given paths to halo materials, or be set to non rendered")
+            report({"WARNING"}, f"Updated {update_count} material paths, but couldn't find paths for {len(no_path_materials)} materials. Click here for details")
+        else:
+            report({"INFO"}, f"Updated {update_count} material paths")
+
+        return {'FINISHED'}
         
-    return {"FINISHED"}
+    return no_path_materials
 
 
 def find_shader_match(mat, shaders, tags_path):

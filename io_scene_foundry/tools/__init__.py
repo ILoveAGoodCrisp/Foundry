@@ -1189,6 +1189,7 @@ class NWO_ShaderFinder_Find(Operator):
 
         return find_shaders(
             bpy.data.materials,
+            not_bungie_game(),
             self.report,
             scene_nwo_shader_finder.shaders_dir,
             scene_nwo_shader_finder.overwrite_existing,
@@ -1261,6 +1262,10 @@ class NWO_HaloExportSettingsScope(Panel):
     bl_parent_id = "NWO_PT_HaloExportSettings"
     bl_options = {"DEFAULT_CLOSED"}
 
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo_export.export_gr2_files
+
     def draw(self, context):
         layout = self.layout
         scene = context.scene
@@ -1277,6 +1282,7 @@ class NWO_HaloExportSettingsScope(Panel):
         )
         col = flow.column()
         col = layout.column(heading="Include")
+        
         if scene_nwo.asset_type == "MODEL":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
@@ -1295,15 +1301,15 @@ class NWO_HaloExportSettingsScope(Panel):
         elif scene_nwo.asset_type != "PREFAB":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
-        if scene_nwo_export.export_gr2_files:
-            if scene_nwo.asset_type == "SCENARIO":
-                col.prop(scene_nwo_export, "export_all_bsps", expand=True)
-            if scene_nwo.asset_type in (("MODEL", "SCENARIO", "PREFAB")):
-                if scene_nwo.asset_type == "MODEL":
-                    txt = "Permutations"
-                else:
-                    txt = "Subgroup"
-                col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
+
+        if scene_nwo.asset_type == "SCENARIO":
+            col.prop(scene_nwo_export, "export_all_bsps", expand=True)
+        if scene_nwo.asset_type in (("MODEL", "SCENARIO", "PREFAB")):
+            if scene_nwo.asset_type == "MODEL":
+                txt = "Permutations"
+            else:
+                txt = "Subgroup"
+            col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
 
 
 class NWO_HaloExport(Operator):

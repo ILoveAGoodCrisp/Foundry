@@ -331,8 +331,15 @@ class PrepareScene:
                 else:
                     job = "Fixing Empty Shader Paths"
                 update_job(job, 0)
-                find_shaders(materials)
+                no_path_materials = find_shaders(materials, h4)
                 update_job(job, 1)
+                print_warning("Unable to find paths for the follow rendered materials:")
+                for m in no_path_materials:
+                    print_warning(m)
+                if h4:
+                    print_warning("\nThese materials should either be given paths to halo materials, or be set to non rendered")
+                else:
+                    print_warning("\nThese materials should either be given paths to halo shaders, or be set to non rendered")
                 break
 
         # print("found_shaders")
@@ -1974,8 +1981,8 @@ class PrepareScene:
             nwo = ob.nwo
             marker = nwo.object_type == '_connected_geometry_object_type_marker'
             physics = nwo.mesh_type == '_connected_geometry_mesh_type_physics'
-            if marker or physics:
-                if ob.parent_type != 'BONE':
+            if ob.parent_type != 'BONE':
+                if marker or physics:
                     ob.parent_type = 'BONE'
                     root_bone_name = bones[0].name
                     ob.parent_bone = root_bone_name
@@ -1984,17 +1991,17 @@ class PrepareScene:
                     else:
                         print_warning(f"{ob.name} is a physics mesh but is not parented to a bone. Binding to bone: {root_bone_name}")
 
-            elif ob.type == 'MESH' and ob.parent_type in ('OBJECT', 'ARMATURE'):
-                # check if has armature mod
-                modifiers = ob.modifiers
-                for mod in modifiers:
-                    if mod.type == 'ARMATURE':
-                        if mod.object != model_armature:
-                            mod.object = model_armature
-                        break
-                else:
-                    arm_mod = ob.modifiers.new("Armature", "ARMATURE")
-                    arm_mod.object = model_armature
+                elif ob.type == 'MESH':
+                    # check if has armature mod
+                    modifiers = ob.modifiers
+                    for mod in modifiers:
+                        if mod.type == 'ARMATURE':
+                            if mod.object != model_armature:
+                                mod.object = model_armature
+                            break
+                    else:
+                        arm_mod = ob.modifiers.new("Armature", "ARMATURE")
+                        arm_mod.object = model_armature
 
 
         # bones = model_armature.data.edit_bones
