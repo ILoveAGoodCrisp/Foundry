@@ -1984,7 +1984,7 @@ class PrepareScene:
                     else:
                         print_warning(f"{ob.name} is a physics mesh but is not parented to a bone. Binding to bone: {root_bone_name}")
 
-            elif ob.type == 'MESH' and ob.parent_type == 'OBJECT':
+            elif ob.type == 'MESH' and ob.parent_type in ('OBJECT', 'ARMATURE'):
                 # check if has armature mod
                 modifiers = ob.modifiers
                 for mod in modifiers:
