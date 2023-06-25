@@ -39,7 +39,7 @@ from ..utils.nwo_utils import bpy_enum_seam, true_bsp
 class NWO_FaceProperties_ListItems(PropertyGroup):
     layer_name: StringProperty()
     face_count: IntProperty(options=set())
-    layer_colour: FloatVectorProperty(
+    layer_color: FloatVectorProperty(
         subtype="COLOR_GAMMA",
         size=3,
         default=(1.0, 1.0, 1.0),
@@ -344,7 +344,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     lightmap_additive_transparency_ui: FloatVectorProperty(
         name="Additive Transparency",
         options=set(),
-        description="Overrides the amount and color of light that will pass through the surface. Tint colour will override the alpha blend settings in the shader.",
+        description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader.",
         default=(1.0, 1.0, 1.0),
         subtype="COLOR",
         min=0.0,

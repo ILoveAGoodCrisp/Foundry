@@ -232,7 +232,7 @@ def msgbus_callback(context):
         if context.object:
             highlight = ob.data.nwo.highlight
             if highlight and context.mode == "EDIT_MESH":
-                bpy.ops.nwo.face_layer_colour_all(enable_highlight=highlight)
+                bpy.ops.nwo.face_layer_color_all(enable_highlight=highlight)
     except:
         pass
 

@@ -45,7 +45,6 @@ from ..utils.nwo_utils import (
     jstr,
     layer_face_count,
     layer_faces,
-    print_error,
     print_warning,
     set_active_object,
     is_shader,
@@ -85,6 +84,7 @@ class PrepareScene:
         # time it!
         # NOTE skipping timing as export is really fast now
         #start = time.perf_counter()
+        self.warning_hit = False
 
         h4 = game_version != "reach"
 
@@ -327,20 +327,30 @@ class PrepareScene:
         for idx, mat in enumerate(materials):
             mat_nwo = mat.nwo
             if not mat.is_grease_pencil and mat_nwo.rendered and not mat_nwo.shader_path:
+                self.warning_hit = True
+                print("")
+
                 if h4:
+                    print_warning("Scene has empty Halo material tag paths")
                     job = "Fixing Empty Material Paths"
                 else:
+                    print_warning("Scene has empty Halo shader tag paths")
                     job = "Fixing Empty Shader Paths"
+                
                 update_job(job, 0)
                 no_path_materials = find_shaders(materials, h4)
                 update_job(job, 1)
-                print_warning("Unable to find paths for the follow rendered materials:")
-                for m in no_path_materials:
-                    print_warning(m)
-                if h4:
-                    print_warning("\nThese materials should either be given paths to halo materials, or be set to non rendered")
-                else:
-                    print_warning("\nThese materials should either be given paths to halo shaders, or be set to non rendered")
+                if no_path_materials:
+                    if h4:
+                        print_warning("Unable to find material tag paths for the following Blender materials:")
+                    else:
+                        print_warning("Unable to find shader tag paths for the following Blender materials:")
+                    for m in no_path_materials:
+                        print_warning(m)
+                    if h4:
+                        print_warning("\nThese materials should either be given paths to Halo material tags, or specified as a Blender only material (by using the checkbox in Halo Material Paths)\n")
+                    else:
+                        print_warning("\nThese materials should either be given paths to Halo shader tags, or specified as a Blender only material (by using the checkbox in Halo Shader Paths)\n")
                 break
 
         # print("found_shaders")
@@ -348,6 +358,7 @@ class PrepareScene:
         # build seams
         if self.seams:
             if len(self.bsps) < 2:
+                self.warning_hit = True
                 print_warning("Only single BSP in scene, seam objects ignored from export")
                 for seam in self.seams:
                     # print(seam.name)
@@ -377,6 +388,7 @@ class PrepareScene:
                     back_ui = seam_nwo.seam_back_ui
                     if back_ui == "" or back_ui == seam_nwo.bsp_name or back_ui not in self.bsps:
                         # this attempts to fix a bad back facing bsp ref
+                        self.warning_hit = True
                         print_warning(f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp")
                         closest_bsp = closest_bsp_object(seam)
                         if closest_bsp is None:
@@ -461,8 +473,13 @@ class PrepareScene:
             if self.model_armature:
                 if not using_auto_armature or sidecar_type != "FP ANIMATION":
                     # unlink any unparented objects from the scene
+                    warn = False
                     for ob in export_obs:
                         if ob is not self.model_armature and not ob.parent:
+                            if not warn:
+                                self.warning_hit = True
+                                print("")
+                            warn = True
                             print_warning(
                                 f"Ignoring {ob.name} because it is not parented to the scene armature"
                             )
@@ -514,6 +531,10 @@ class PrepareScene:
         self.lod_count = self.get_decorator_lod_count(
             self.halo_objects, sidecar_type == "DECORATOR SET"
         )
+
+        if self.warning_hit:
+            print_warning("\nScene has issues that that have been temporarily resolved for export. These should be fixed for subsequent exports")
+            print_warning("Please see above output for details")
 
         # end = time.perf_counter()
         # print(f"\nScene Prepared in {end - start} seconds")
@@ -1976,14 +1997,20 @@ class PrepareScene:
         else:
             root_bone_name = bones[0].name
             bones[0].use_deform = True
-            print_warning(f"No deform bones in armature, setting {bones[0].name} to deform")
-        
+            self.warning_hit = True
+            print_warning(f"\nNo deform bones in armature, setting {bones[0].name} to deform")
+
+        warn = False
         for ob in export_obs:
             nwo = ob.nwo
             marker = nwo.object_type == '_connected_geometry_object_type_marker'
             physics = nwo.mesh_type == '_connected_geometry_mesh_type_physics'
             if ob.parent_type != 'BONE':
                 if marker or physics:
+                    if not warn:
+                        self.warning_hit = True
+                        print("")
+                    warn = True
                     ob.parent_type = 'BONE'
                     root_bone_name = bones[0].name
                     ob.parent_bone = root_bone_name

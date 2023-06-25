@@ -59,7 +59,7 @@ def clear_special_mats(materials):
 
 
 def halo_material_color(material, color):
-    """Sets the material to the specifier colour in both viewport and shader, setting alpha if appropriate"""
+    """Sets the material to the specifier color in both viewport and shader, setting alpha if appropriate"""
     material.use_nodes = True
     # viewport
     material.diffuse_color = color

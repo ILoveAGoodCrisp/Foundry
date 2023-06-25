@@ -1203,6 +1203,9 @@ def run_tool_sidecar(tool_args: list, asset_path):
             if failed or is_error_line(line):
                 print_error(line)
                 failed = True
+            elif "(skipping tangent-space calculations)" in line:
+                # this really shouldn't be a warning, so don't let it have yellow text
+                print(line)
             else:
                 print_warning(line)
             f.write(line)
@@ -1750,7 +1753,7 @@ def layer_faces(bm, face_layer):
     return [face for face in bm.faces if face[face_layer]]
 
 
-def random_colour(max_hue=True):
+def random_color(max_hue=True):
     rgb = [random.random() for i in range(3)]
     if max_hue:
         rand_idx = random.randint(0, 2)

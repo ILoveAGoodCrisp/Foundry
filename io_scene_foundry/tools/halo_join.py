@@ -46,7 +46,7 @@ class NWO_JoinHalo(NWO_Op):
         new_layer.name = old_layer.name
         new_layer.layer_name = old_layer.layer_name
         new_layer.face_count = old_layer.face_count
-        new_layer.layer_colour = old_layer.layer_colour
+        new_layer.layer_color = old_layer.layer_color
         new_layer.face_type_override = old_layer.face_type_override
         new_layer.face_mode_override = old_layer.face_mode_override
         new_layer.face_two_sided_override = old_layer.face_two_sided_override

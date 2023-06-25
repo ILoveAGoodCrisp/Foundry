@@ -547,6 +547,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         print(export_title)
 
+        print("\nIf you did not intend to export, hold CTRL+C")
+
         self.failed = False
 
         try:
@@ -671,7 +673,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 print(
                     "\n-------------------------------------------------------------------------"
                 )
-                print(f"Export Completed in {end - start} seconds")
+                print(f"Export Completed in {round(end - start, 3)} seconds")
 
                 print(
                     "-------------------------------------------------------------------------\n"

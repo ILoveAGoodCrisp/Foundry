@@ -33,7 +33,7 @@ from ..utils.nwo_utils import (
     export_objects,
     export_objects_no_arm,
     layer_face_count,
-    random_colour,
+    random_color,
     sort_alphanum,
     true_bsp,
     true_region,
@@ -206,7 +206,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
                 col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
                 col.separator()
                 col.operator(
-                    "nwo.face_layer_colour_all",
+                    "nwo.face_layer_color_all",
                     text="",
                     icon="SHADING_RENDERED",
                     depress=nwo.highlight,
@@ -502,7 +502,7 @@ class NWO_UL_FacePropList(bpy.types.UIList):
             layer = bm.faces.layers.int.get(face_layer.layer_name)
             row = layout.row()
             row.scale_x = 0.25
-            row.prop(face_layer, "layer_colour", text="")
+            row.prop(face_layer, "layer_color", text="")
             row = layout.row()
             row.prop(
                 face_layer, "name", text="", emboss=False, icon_value=icon
@@ -757,9 +757,9 @@ class NWO_FaceLayerAdd(NWO_Op):
             item.name = self.fm_name
             item.layer_name = layer_name
             item.face_count = face_count
-            item.layer_colour = random_colour()
+            item.layer_color = random_color()
             if nwo.highlight:
-                bpy.ops.nwo.face_layer_colour_all(
+                bpy.ops.nwo.face_layer_color_all(
                     enable_highlight=nwo.highlight
                 )
 
@@ -834,7 +834,7 @@ class NWO_FaceLayerRemove(NWO_Op):
         if nwo.face_props_index > len(nwo.face_props) - 1:
             nwo.face_props_index += -1
         if nwo.highlight:
-            bpy.ops.nwo.face_layer_colour_all(enable_highlight=nwo.highlight)
+            bpy.ops.nwo.face_layer_color_all(enable_highlight=nwo.highlight)
 
         context.area.tag_redraw()
         # gotta do this mess so undo states correctly register
@@ -867,7 +867,7 @@ class NWO_FaceLayerAssign(NWO_Op):
         item = nwo.face_props[nwo.face_props_index]
         item.face_count = self.edit_layer(ob.data, item.layer_name)
         if nwo.highlight:
-            bpy.ops.nwo.face_layer_colour_all(enable_highlight=nwo.highlight)
+            bpy.ops.nwo.face_layer_color_all(enable_highlight=nwo.highlight)
 
         context.area.tag_redraw()
 
@@ -995,7 +995,7 @@ class NWO_FaceLayerAddLightmap(NWO_FaceLayerAdd):
             # ('lightmap_general_bounce_modifier', 'General Light Bounce Modifier', ''),
             (
                 "lightmap_translucency_tint_color",
-                "Translucency Tint Colour",
+                "Translucency Tint Color",
                 "",
             ),
             (
@@ -1080,7 +1080,7 @@ def draw(self):
         "ModelViewProjectionMatrix", matrix @ self.ob.matrix_world
     )
     self.shader.uniform_float(
-        "color", (self.colour.r, self.colour.g, self.colour.b, self.alpha)
+        "color", (self.color.r, self.color.g, self.color.b, self.alpha)
     )
     self.shader.bind()
     self.batch.draw(self.shader)
@@ -1090,8 +1090,8 @@ def draw(self):
     gpu.state.face_culling_set("NONE")
 
 
-class NWO_FaceLayerColourAll(NWO_Op):
-    bl_idname = "nwo.face_layer_colour_all"
+class NWO_FaceLayerColorAll(NWO_Op):
+    bl_idname = "nwo.face_layer_color_all"
     bl_options = {"REGISTER"}
 
     enable_highlight: BoolProperty()
@@ -1110,7 +1110,7 @@ class NWO_FaceLayerColourAll(NWO_Op):
 
             face_layers = me.nwo.face_props
             for index in range(len(face_layers)):
-                bpy.ops.nwo.face_layer_colour(
+                bpy.ops.nwo.face_layer_color(
                     "INVOKE_DEFAULT",
                     layer_index=index,
                     highlight=int_highlight,
@@ -1119,8 +1119,8 @@ class NWO_FaceLayerColourAll(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_FaceLayerColour(NWO_Op):
-    bl_idname = "nwo.face_layer_colour"
+class NWO_FaceLayerColor(NWO_Op):
+    bl_idname = "nwo.face_layer_color"
     bl_options = {"REGISTER"}
 
     layer_index: bpy.props.IntProperty()
@@ -1224,7 +1224,7 @@ class NWO_FaceLayerColour(NWO_Op):
 
         layer = self.me.nwo.face_props[self.layer_index]
         self.layer_name = layer.layer_name
-        self.colour = layer.layer_colour
+        self.color = layer.layer_color
         self.alpha = 0
         self.batch = None
 

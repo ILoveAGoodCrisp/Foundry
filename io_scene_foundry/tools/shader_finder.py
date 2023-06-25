@@ -27,7 +27,7 @@ import os
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_tags_path,
-    print_warning,
+    not_bungie_game,
     shader_exts,
 )
 
@@ -40,7 +40,8 @@ def scan_tree(shaders_dir, shaders):
     return shaders
 
 
-def find_shaders(materials, h4, report=None, shaders_dir="", overwrite=False):
+def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False):
+    materials = [mat for mat in materials_all if mat.nwo.rendered and not mat.grease_pencil]
     shaders = set()
     update_count = 0
     no_path_materials = []
@@ -77,7 +78,10 @@ def find_shaders(materials, h4, report=None, shaders_dir="", overwrite=False):
             report({"WARNING"}, "Missing material paths:")
             for m in no_path_materials:
                 report({"ERROR"}, m)
-            report({"WARNING"}, "These materials should either be given paths to halo materials, or be set to non rendered")
+            if not_bungie_game():
+                report({"WARNING"}, "These materials should either be given paths to Halo material tags, or specified as a Blender only material (by using the checkbox in Halo Material Paths)")
+            else:
+                report({"WARNING"}, "These materials should either be given paths to Halo shader tags, or specified as a Blender only material (by using the checkbox in Halo Shader Paths)")
             report({"WARNING"}, f"Updated {update_count} material paths, but couldn't find paths for {len(no_path_materials)} materials. Click here for details")
         else:
             report({"INFO"}, f"Updated {update_count} material paths")

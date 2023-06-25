@@ -784,7 +784,7 @@ class NWO_MeshPropRemove(NWO_Op):
             ),
             (
                 "lightmap_translucency_tint_color",
-                "Translucency Tint Colour",
+                "Translucency Tint Color",
                 "",
             ),
             (
@@ -893,7 +893,7 @@ class NWO_MeshPropAddLightmap(NWO_MeshPropAdd):
             # ('lightmap_general_bounce_modifier', 'General Light Bounce Modifier', ''),
             (
                 "lightmap_translucency_tint_color",
-                "Translucency Tint Colour",
+                "Translucency Tint Color",
                 "",
             ),
             (
@@ -913,7 +913,7 @@ class NWO_MeshPropAddMaterialLighting(NWO_MeshPropAdd):
         items=[
             ("material_lighting_attenuation", "Attenuation", ""),
             ("material_lighting_emissive_focus", "Focus", ""),
-            ("material_lighting_emissive_color", "Colour", ""),
+            ("material_lighting_emissive_color", "Color", ""),
             ("material_lighting_emissive_per_unit", "Emissive per Unit", ""),
             ("material_lighting_emissive_power", "Power", ""),
             ("material_lighting_emissive_quality", "Quality", ""),

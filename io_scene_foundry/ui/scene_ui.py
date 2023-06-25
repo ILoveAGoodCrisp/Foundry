@@ -85,7 +85,7 @@ class NWO_SceneProps(Panel):
         elif os.path.exists(os.path.join(bpy.app.tempdir, "blam_new.txt")):
             col.label(text="Blender Restart Required for ManagedBlam")
         else:
-            col.operator("managed_blam.init", text="Initialise ManagedBlam")
+            col.operator("managed_blam.init", text="Initialize ManagedBlam")
 
         flow = layout.grid_flow(
             row_major=True,

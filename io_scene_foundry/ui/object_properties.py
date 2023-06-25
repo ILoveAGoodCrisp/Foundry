@@ -1328,7 +1328,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     lightmap_additive_transparency_ui: FloatVectorProperty(
         name="lightmap Additive Transparency",
         options=set(),
-        description="Overrides the amount and color of light that will pass through the surface. Tint colour will override the alpha blend settings in the shader.",
+        description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader.",
         default=(1.0, 1.0, 1.0),
         subtype="COLOR",
         min=0.0,
