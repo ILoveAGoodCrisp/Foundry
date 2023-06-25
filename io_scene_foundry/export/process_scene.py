@@ -687,7 +687,7 @@ class ProcessScene:
                 if os.path.exists(sidecar_path_full):
                     export_failed, error = (
                         import_sidecar(
-                            context,
+                            sidecar_type,
                             sidecar_path,
                             asset_path,
                             asset,

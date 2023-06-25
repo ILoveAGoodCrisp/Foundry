@@ -25,12 +25,10 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
-import time
 
 from ..utils.nwo_utils import (
     get_tags_path,
     not_bungie_game,
-    run_tool,
     run_tool_sidecar,
 )
 
@@ -71,9 +69,8 @@ def import_sidecar(
         ],
         asset_path
     )
-
     if sidecar_type == "FP ANIMATION":
-        cull_unused_tags(asset_path, asset_name)
+        cull_unused_tags(sidecar_path.rpartition('\\')[0], asset_name)
 
     return failed
 
