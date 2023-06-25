@@ -1220,9 +1220,13 @@ def run_tool_sidecar(tool_args: list, asset_path):
 
 def get_export_error_explanation(error_log):
     with open(error_log, 'r') as f:
-        text = f.read()
-        if "point->node_indices[0]==section->node_index" in text:
-            return "A collision mesh had vertex weights that were not equal to 1 or 0. Collision objects must use rigid vertex weighting or be bone parented"
+        lines = f.readlines()
+        for text in lines:
+            if "point->node_indices[0]==section->node_index" in text:
+                return "A collision mesh had vertex weights that were not equal to 1 or 0. Collision objects must use rigid vertex weighting or be bone parented"
+            elif "non-world space mesh has no valid bones" in text:
+                ob = text.rpartition("mesh=")[2].strip()
+                return f'Object "{ob}" is parented to the armature but has no bone weighting. You should either bone parent this object, or ensure each vertex is correctly weighted to a bone and that an armature modifier is active for "{ob}" and linked to the armature. See object modifiers and vertex groups / weight paint mode to debug'
         
     return ""
 
@@ -1230,7 +1234,8 @@ def is_error_line(line):
     words = line.split()
     if words:
         first_word = words[0]
-        return first_word.isupper() or first_word == "content:" or first_word == "###"
+        second_word = words[1]
+        return first_word.isupper() or first_word == "content:" or first_word == "###" or (first_word == "non-world" and second_word == "space")
     
     return False
 

@@ -45,6 +45,7 @@ from ..utils.nwo_utils import (
     jstr,
     layer_face_count,
     layer_faces,
+    print_error,
     print_warning,
     set_active_object,
     is_shader,
@@ -462,7 +463,7 @@ class PrepareScene:
                     context.view_layer.update()
                     export_obs = context.view_layer.objects[:]
                     # NOTE skipping vertex group fixes for now until it's more stable
-                    # self.fix_bad_parenting(self.model_armature, export_obs)
+                    self.fix_bad_parenting(self.model_armature, export_obs)
 
                 # set bone names equal to their name overrides (if not blank)
                 if export_gr2_files:
@@ -1959,60 +1960,97 @@ class PrepareScene:
         return arm_ob
 
     def fix_bad_parenting(self, model_armature, export_obs):
-        bones = model_armature.data.edit_bones
-        mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
-        meshes = set([ob.data for ob in mesh_obs])
-        me_ob_dict = {
-            me: ob for me in meshes for ob in mesh_obs if ob.data == me
-        }
-
-        for item in me_ob_dict.items():
-            me = item[0]
-            ob = item[1]
+        bones = model_armature.data.bones
+        for b in bones:
+            if b.use_deform:
+                root_bone_name = b.name
+                break
+        else:
+            root_bone_name = bones[0].name
+            bones[0].use_deform = True
+            print_warning(f"No deform bones in armature, setting {bones[0].name} to deform")
+        
+        for ob in export_obs:
             nwo = ob.nwo
-            mesh_type = nwo.mesh_type
-            marker = (
-                nwo.object_type == "_connected_geometry_object_type_marker"
-            )
-            vertices = me.vertices
+            marker = nwo.object_type == '_connected_geometry_object_type_marker'
+            physics = nwo.mesh_type == '_connected_geometry_mesh_type_physics'
+            if marker or physics:
+                if ob.parent_type != 'BONE':
+                    ob.parent_type = 'BONE'
+                    root_bone_name = bones[0].name
+                    ob.parent_bone = root_bone_name
+                    if marker:
+                        print_warning(f"{ob.name} is a marker but is not parented to a bone. Binding to bone: {root_bone_name}")
+                    else:
+                        print_warning(f"{ob.name} is a physics mesh but is not parented to a bone. Binding to bone: {root_bone_name}")
 
-            set_active_object(ob)
-            ob.select_set(True)
-
-            if ob.vertex_groups:
-                bpy.ops.object.vertex_group_lock(action="UNLOCK", mask="ALL")
-
-                # force bone parenting for physics
-                parent_type = ob.parent_type
-                if (
-                    marker
-                    or mesh_type == "_connected_geometry_mesh_type_physics"
-                ) and parent_type != "BONE":
-                    vertex_groups = ob.vertex_groups
-                    for vertex_group in vertex_groups:
-                        for i, w in self.get_weights(
-                            ob, vertex_group, vertices
-                        ):
-                            if w > 0:
-                                bone_name = vertex_group.name
-                                for bone in bones:
-                                    if bone.name == bone_name:
-                                        break
-                                else:
-                                    bone_name = bones[0].name
-
-                                break
-
-                    parent_type = "BONE"
-                    ob.parent_bone = bone_name
-
-                elif mesh_type == "_connected_geometry_mesh_type_collision":
-                    bpy.ops.object.vertex_group_clean(
-                        limit=0.9999, keep_single=False
-                    )
-
+            elif ob.type == 'MESH' and ob.parent_type == 'OBJECT':
+                # check if has armature mod
+                modifiers = ob.modifiers
+                for mod in modifiers:
+                    if mod.type == 'ARMATURE':
+                        if mod.object != model_armature:
+                            mod.object = model_armature
+                        break
                 else:
-                    bpy.ops.object.vertex_group_normalize_all()
+                    arm_mod = ob.modifiers.new("Armature", "ARMATURE")
+                    arm_mod.object = model_armature
+
+
+        # bones = model_armature.data.edit_bones
+        # mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
+        # meshes = set([ob.data for ob in mesh_obs])
+        # me_ob_dict = {
+        #     me: ob for me in meshes for ob in mesh_obs if ob.data == me
+        # }
+
+        # for item in me_ob_dict.items():
+        #     me = item[0]
+        #     ob = item[1]
+        #     nwo = ob.nwo
+        #     mesh_type = nwo.mesh_type
+        #     marker = (
+        #         nwo.object_type == "_connected_geometry_object_type_marker"
+        #     )
+        #     vertices = me.vertices
+
+        #     set_active_object(ob)
+        #     ob.select_set(True)
+
+        #     if ob.vertex_groups:
+        #         bpy.ops.object.vertex_group_lock(action="UNLOCK", mask="ALL")
+
+        #         # force bone parenting for physics
+        #         parent_type = ob.parent_type
+        #         if (
+        #             marker
+        #             or mesh_type == "_connected_geometry_mesh_type_physics"
+        #         ) and parent_type != "BONE":
+        #             vertex_groups = ob.vertex_groups
+        #             for vertex_group in vertex_groups:
+        #                 for i, w in self.get_weights(
+        #                     ob, vertex_group, vertices
+        #                 ):
+        #                     if w > 0:
+        #                         bone_name = vertex_group.name
+        #                         for bone in bones:
+        #                             if bone.name == bone_name:
+        #                                 break
+        #                         else:
+        #                             bone_name = bones[0].name
+
+        #                         break
+
+        #             parent_type = "BONE"
+        #             ob.parent_bone = bone_name
+
+        #         elif mesh_type == "_connected_geometry_mesh_type_collision":
+        #             bpy.ops.object.vertex_group_clean(
+        #                 limit=0.9999, keep_single=False
+        #             )
+
+        #         else:
+        #             bpy.ops.object.vertex_group_normalize_all()
 
     def get_weights(self, ob, vertex_group, vertices):
         group_index = vertex_group.index
