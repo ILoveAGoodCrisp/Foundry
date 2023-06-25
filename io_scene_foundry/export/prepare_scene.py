@@ -83,7 +83,8 @@ class PrepareScene:
             "-------------------------------------------------------------------------\n"
         )
         # time it!
-        start = time.perf_counter()
+        # NOTE skipping timing as export is really fast now
+        #start = time.perf_counter()
 
         h4 = game_version != "reach"
 
@@ -514,8 +515,8 @@ class PrepareScene:
             self.halo_objects, sidecar_type == "DECORATOR SET"
         )
 
-        end = time.perf_counter()
-        print(f"\nScene Prepared in {end - start} seconds")
+        # end = time.perf_counter()
+        # print(f"\nScene Prepared in {end - start} seconds")
         # time.sleep(3)
 
         # raise

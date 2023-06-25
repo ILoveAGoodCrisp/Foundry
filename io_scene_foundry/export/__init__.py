@@ -550,137 +550,143 @@ class NWO_Export_Scene(Operator, ExportHelper):
         self.failed = False
 
         try:
+            try:
 
-            nwo_scene = PrepareScene(
-                context,
-                self.asset,
-                self.sidecar_type,
-                self.game_version,
-                self.export_animations,
-                self.export_gr2_files,
-                self.export_all_perms,
-                self.export_all_bsps,
-            )
+                nwo_scene = PrepareScene(
+                    context,
+                    self.asset,
+                    self.sidecar_type,
+                    self.game_version,
+                    self.export_animations,
+                    self.export_gr2_files,
+                    self.export_all_perms,
+                    self.export_all_bsps,
+                )
 
-            export = ProcessScene(
-                context,
-                self.report,
-                sidecar_path,
-                sidecar_path_full,
-                self.asset,
-                self.asset_path,
-                fbx_exporter(),
-                nwo_scene,
-                self.sidecar_type,
-                self.output_biped,
-                self.output_crate,
-                self.output_creature,
-                self.output_device_control,
-                self.output_device_machine,
-                self.output_device_terminal,
-                self.output_device_dispenser,
-                self.output_effect_scenery,
-                self.output_equipment,
-                self.output_giant,
-                self.output_scenery,
-                self.output_vehicle,
-                self.output_weapon,
-                self.export_skeleton,
-                self.export_render,
-                self.export_collision,
-                self.export_physics,
-                self.export_markers,
-                self.export_animations,
-                self.export_structure,
-                self.export_design,
-                self.lightmap_structure,
-                self.import_to_game,
-                self.export_gr2_files,
-                self.game_version,
-                self.import_check,
-                self.import_force,
-                self.import_verbose,
-                self.import_draft,
-                self.import_seam_debug,
-                self.import_skip_instances,
-                self.import_decompose_instances,
-                self.import_surpress_errors,
-                self.lightmap_quality,
-                self.lightmap_quality_h4,
-                self.lightmap_all_bsps,
-                self.lightmap_specific_bsp,
-                self.lightmap_region,
-            )
+                export = ProcessScene(
+                    context,
+                    self.report,
+                    sidecar_path,
+                    sidecar_path_full,
+                    self.asset,
+                    self.asset_path,
+                    fbx_exporter(),
+                    nwo_scene,
+                    self.sidecar_type,
+                    self.output_biped,
+                    self.output_crate,
+                    self.output_creature,
+                    self.output_device_control,
+                    self.output_device_machine,
+                    self.output_device_terminal,
+                    self.output_device_dispenser,
+                    self.output_effect_scenery,
+                    self.output_equipment,
+                    self.output_giant,
+                    self.output_scenery,
+                    self.output_vehicle,
+                    self.output_weapon,
+                    self.export_skeleton,
+                    self.export_render,
+                    self.export_collision,
+                    self.export_physics,
+                    self.export_markers,
+                    self.export_animations,
+                    self.export_structure,
+                    self.export_design,
+                    self.lightmap_structure,
+                    self.import_to_game,
+                    self.export_gr2_files,
+                    self.game_version,
+                    self.import_check,
+                    self.import_force,
+                    self.import_verbose,
+                    self.import_draft,
+                    self.import_seam_debug,
+                    self.import_skip_instances,
+                    self.import_decompose_instances,
+                    self.import_surpress_errors,
+                    self.lightmap_quality,
+                    self.lightmap_quality_h4,
+                    self.lightmap_all_bsps,
+                    self.lightmap_specific_bsp,
+                    self.lightmap_region,
+                )
 
-        except Exception as e:
-            print_error("\n\nException hit. Please include in report\n")
-            logging.error(traceback.format_exc())
-            self.failed = True
+            except Exception as e:
+                print_error("\n\nException hit. Please include in report\n")
+                logging.error(traceback.format_exc())
+                self.failed = True
 
-        # validate that a sidecar file exists
-        if not file_exists(sidecar_path_full):
-            sidecar_path = ""
+            # validate that a sidecar file exists
+            if not file_exists(sidecar_path_full):
+                sidecar_path = ""
 
-        # write scene settings generated during export to temp file
+            # write scene settings generated during export to temp file
 
-        end = time.perf_counter()
+            end = time.perf_counter()
 
-        final_report = ""
-        report_type = 'INFO'
-
-        if self.failed:
-            final_report = "Export Failed"
-            report_type = 'ERROR'
-            print_warning("\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n")
-            print_error(
-                "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-            )
-
-        elif export.gr2_fail:
-            final_report = "GR2 Conversion Failed. Export Aborted"
-            report_type = 'ERROR'
-            print(
-                "\n-------------------------------------------------------------------------"
-            )
-            print_error("Failed to export a GR2 File. Export cancelled")
-
-            print(
-                "-------------------------------------------------------------------------\n"
-            )
-            
-        elif export.sidecar_import_failed:
-            final_report = "Failed to Create Tags"
-            report_type = 'ERROR'
-            print(
-                "\n-------------------------------------------------------------------------"
-            )
-            print_error("FAILED TO CREATE TAGS\n")
-            if export.sidecar_import_error:
-                # print("Explanation of error:")
-                print(export.sidecar_import_error)
-
-            print("\nFor further details, please review the Tool output above")
-
-            print(
-                "-------------------------------------------------------------------------\n"
-            )
-        else:
-            final_report = "Export Complete"
+            final_report = ""
             report_type = 'INFO'
-            print(
-                "\n-------------------------------------------------------------------------"
-            )
-            print(f"Export Completed in {end - start} seconds")
 
-            print(
-                "-------------------------------------------------------------------------\n"
-            )
+            if self.failed:
+                final_report = "Export Failed"
+                report_type = 'ERROR'
+                print_warning("\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n")
+                print_error(
+                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                )
 
-        self.write_temp_settings(context, sidecar_path, final_report, report_type)
+            elif export.gr2_fail:
+                final_report = "GR2 Conversion Failed. Export Aborted"
+                report_type = 'ERROR'
+                print(
+                    "\n-------------------------------------------------------------------------"
+                )
+                print_error("Failed to export a GR2 File. Export cancelled")
+
+                print(
+                    "-------------------------------------------------------------------------\n"
+                )
+                
+            elif export.sidecar_import_failed:
+                final_report = "Failed to Create Tags"
+                report_type = 'ERROR'
+                print(
+                    "\n-------------------------------------------------------------------------"
+                )
+                print_error("FAILED TO CREATE TAGS\n")
+                if export.sidecar_import_error:
+                    # print("Explanation of error:")
+                    print(export.sidecar_import_error)
+
+                print("\nFor further details, please review the Tool output above")
+
+                print(
+                    "-------------------------------------------------------------------------\n"
+                )
+            else:
+                final_report = "Export Complete"
+                report_type = 'INFO'
+                print(
+                    "\n-------------------------------------------------------------------------"
+                )
+                print(f"Export Completed in {end - start} seconds")
+
+                print(
+                    "-------------------------------------------------------------------------\n"
+                )
+
+            self.write_temp_settings(context, sidecar_path, final_report, report_type)
+
+        except KeyboardInterrupt:
+            print_warning("\n\nEXPORT CANCELLED BY USER")
+            self.write_temp_settings(context, sidecar_path)
 
         # restore scene back to its pre export state
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
+        
 
         return {"FINISHED"}
 
@@ -775,12 +781,12 @@ class NWO_Export_Scene(Operator, ExportHelper):
             temp_file.write(f"{self.lightmap_specific_bsp}\n")
             temp_file.write(f"{self.lightmap_structure}\n")
 
-        if self.quick_export:
+        if self.quick_export and export_report and report_type:
             temp_report_path = path.join(bpy.app.tempdir, "foundry_export_report.txt")
             with open(temp_report_path, "w") as temp_file:
                 temp_file.write(f"{export_report}\n")
                 temp_file.write(f"{report_type}")
-        else:
+        elif export_report and report_type:
             self.report({report_type}, export_report)
 
     def draw(self, context):
@@ -796,20 +802,16 @@ class NWO_Export_Scene(Operator, ExportHelper):
         row = col.row()
         if managed_blam_active():
             row.enabled = False
-        row.prop(self, "game_version", text="Game Version")
+        row.prop(self, "game_version", text="Game")
         row = col.row()
         col.prop(self, "sidecar_type", text="Asset Type")
         col.prop(self, "show_output", text="Toggle Output")
         # NWO SETTINGS #
         box = layout.box()
-        box.label(text="GR2 Settings")
+        box.label(text="Export Scope")
         col = box.column()
-        col.prop(self, "export_gr2_files", text="Export GR2 Files")
+        col.prop(self, "export_gr2_files", text="Export Tags")
         if self.export_gr2_files:
-            col.separator()
-            sub = col.column(heading="Keep")
-            sub.prop(self, "keep_fbx")
-            sub.prop(self, "keep_json")
             col.separator()
             sub = col.column(heading="Export")
             # sub.prop(self, "export_hidden")
@@ -836,9 +838,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
             ):
                 sub.prop(self, "export_all_perms", expand=True)
         # SIDECAR SETTINGS #
-        if self.sidecar_type == "MODEL":
+        if self.sidecar_type == "MODEL" and self.export_gr2_files:
             box = layout.box()
-            box.label(text="Sidecar Settings")
+            box.label(text="Model Settings")
             col = box.column()
             # col.prop(self, "export_sidecar_xml")
             #if self.export_sidecar_xml:
@@ -860,22 +862,20 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 sub.prop(self, "output_weapon")
 
         # IMPORT SETTINGS #
-        box = layout.box()
-        box.label(text="Import Settings")
-        col = box.column()
-        col.prop(self, "import_to_game")
-        if self.import_to_game:
-            sub = box.column(heading="Import Flags")
-            sub.prop(self, "import_check")
-            sub.prop(self, "import_force")
-            sub.prop(self, "import_verbose")
-            sub.prop(self, "import_surpress_errors")
-            if self.sidecar_type == "SCENARIO":
-                sub.prop(self, "import_seam_debug")
-                sub.prop(self, "import_skip_instances")
-                sub.prop(self, "import_decompose_instances")
-            else:
-                sub.prop(self, "import_draft")
+        if self.export_gr2_files:
+            box = layout.box()
+            if self.import_to_game:
+                sub = box.column(heading="Export Flags")
+                sub.prop(self, "import_check")
+                sub.prop(self, "import_force")
+                sub.prop(self, "import_verbose")
+                sub.prop(self, "import_surpress_errors")
+                if self.sidecar_type == "SCENARIO":
+                    sub.prop(self, "import_seam_debug")
+                    sub.prop(self, "import_skip_instances")
+                    sub.prop(self, "import_decompose_instances")
+                else:
+                    sub.prop(self, "import_draft")
 
         # LIGHTMAP SETTINGS #
         if self.sidecar_type == "SCENARIO":
@@ -909,7 +909,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
 
 def menu_func_export(self, context):
-    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag Exporter")
+    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag")
 
 
 def fbx_exporter():

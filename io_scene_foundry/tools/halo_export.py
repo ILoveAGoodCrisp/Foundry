@@ -87,7 +87,4 @@ def export_quick(
         os.remove(temp_report_path)
         report({report_type}, report_text)
 
-    else:
-        report({"INFO"}, "Quick Export Complete")
-
     return {"FINISHED"}
