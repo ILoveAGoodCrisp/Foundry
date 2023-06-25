@@ -374,7 +374,7 @@ class NWO_HaloLauncherExplorerSettings(Panel):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
 
-        layout.use_property_split = True
+        layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
             columns=0,
@@ -795,7 +795,7 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
         description="Select whether to open the root data / tags folder or the one for your asset. When no asset is found, defaults to root",
         default="asset",
         options=set(),
-        items=[("default", "Default", ""), ("asset", "Asset", "")],
+        items=[("default", "Root", ""), ("asset", "Asset", "")],
     )
 
     foundation_default: EnumProperty(
@@ -815,7 +815,7 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
         description="Select whether to open Sapien / Tag Test and select a scenario, or open the current scenario asset if it exists",
         default="asset",
         options=set(),
-        items=[("default", "Default", ""), ("asset", "Asset", "")],
+        items=[("default", "Browse", ""), ("asset", "Asset", "")],
     )
 
     open_model: BoolProperty(
