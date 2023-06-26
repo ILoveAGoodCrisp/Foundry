@@ -40,14 +40,12 @@ from bpy.types import PropertyGroup, Object
 import bpy
 from ..icons import get_icon_id
 from ..utils.nwo_utils import (
-    bpy_enum_seam,
     clean_tag_path,
     dot_partition,
     get_prop_from_collection,
     mesh_object,
     not_bungie_game,
     nwo_enum,
-    true_bsp,
 )
 
 # MESH PROPS
@@ -629,6 +627,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                         6,
                     )
                 )
+                if h4:
+                    items.append(
+                        (
+                            "_connected_geometry_marker_type_airprobe",
+                            "Airprobe",
+                            "Airprobes store a representation of scenario lighting at their origins. Objects close to this airprobe will take its lighting values as their own. Helpful if an object is not being lit correctly in the scenario",
+                            get_icon_id("airprobe"),
+                            7,
+                        )
+                    )
         elif poll_ui("SCENARIO"):
             items.append(
                 (
@@ -711,20 +719,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             if h4:
                 items.append(
                     (
-                        "_connected_geometry_marker_type_airprobe",
-                        "Airprobe",
-                        "Airprobes store a representation of scenario lighting at their origins. Objects close to this airprobe will take its lighting values as their own. Helpful if an object is not being lit correctly in the scenario",
-                        get_icon_id("airprobe"),
-                        2,
-                    )
-                )
-                items.append(
-                    (
                         "_connected_geometry_marker_type_envfx",
                         "Environment Effect",
                         "Marker which loops the specified effect",
                         get_icon_id("environment_effect"),
-                        3,
+                        32,
                     )
                 )
                 items.append(
@@ -733,6 +732,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                         "Light Cone",
                         "Creates a light cone with the parameters defined",
                         get_icon_id("light_cone"),
+                        3,
+                    )
+                )
+                items.append(
+                    (
+                        "_connected_geometry_marker_type_airprobe",
+                        "Airprobe",
+                        "Airprobes store a representation of scenario lighting at their origins. Objects close to this airprobe will take its lighting values as their own. Helpful if an object is not being lit correctly in the scenario",
+                        get_icon_id("airprobe"),
                         4,
                     )
                 )
@@ -746,7 +754,10 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def get_marker_type_ui(self):
         max_int = 0
         if poll_ui("MODEL"):
-            max_int = 6
+            if not_bungie_game():
+                max_int = 7
+            else:
+                max_int = 6
         elif poll_ui("SCENARIO"):
             max_int = 4
             if not not_bungie_game():

@@ -27,8 +27,10 @@
 import os
 
 from ..utils.nwo_utils import (
+    get_data_path,
     get_tags_path,
     not_bungie_game,
+    run_tool,
     run_tool_sidecar,
 )
 
@@ -46,12 +48,17 @@ def import_sidecar(
     import_skip_instances,
     import_decompose_instances,
     import_surpress_errors,
+    import_lighting,
+    model_lighting,
 ):
     print("\n\nBuilding Tags")
     print(
         "-------------------------------------------------------------------------\n"
     )
     # time.sleep(0.5)
+    faux_process = None
+    if model_lighting:
+        faux_process = run_tool(["import", sidecar_path.replace(f"{asset_name}.sidecar.xml", "faux.sidecar.xml"), "preserve_namespaces", "force"], True, True)
     failed = run_tool_sidecar(
         [
             "import",
@@ -65,12 +72,28 @@ def import_sidecar(
                 import_skip_instances,
                 import_decompose_instances,
                 import_surpress_errors,
+                import_lighting,
             ),
         ],
         asset_path
     )
     if sidecar_type == "FP ANIMATION":
         cull_unused_tags(sidecar_path.rpartition('\\')[0], asset_name)
+
+    if faux_process is not None:
+        faux_process.wait()
+        tag_folder_path = asset_path.replace(get_data_path(), get_tags_path())
+        tag_path = os.path.join(tag_folder_path, asset_name)
+        scenario = f"{tag_path}.scenario"
+        bsp = f"{tag_path}.scenario_structure_bsp"
+        seams = f"{tag_path}.structure_seams"
+
+        if os.path.exists(scenario):
+            os.remove(scenario)
+        if os.path.exists(bsp):
+            os.remove(bsp)
+        if os.path.exists(seams):
+            os.remove(seams)
 
     return failed
 
@@ -102,6 +125,7 @@ def get_import_flags(
     flag_import_skip_instances,
     flag_import_decompose_instances,
     flag_import_surpress_errors,
+    import_lighting,
 ):
     flags = []
     if flag_import_force:
@@ -110,6 +134,8 @@ def get_import_flags(
         flags.append("skip_instances")
     if not_bungie_game():
         flags.append("preserve_namespaces")
+        if import_lighting:
+            flags.append("lighting")
     else:
         if flag_import_check:
             flags.append("check")

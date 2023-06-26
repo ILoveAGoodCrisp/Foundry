@@ -42,9 +42,10 @@ def run_lightmapper(
     asset,
     lightmap_quality="DIRECT",
     lightmap_quality_h4="asset",
-    lightmap_all_bsps="TRUE",
+    lightmap_all_bsps=True,
     lightmap_specific_bsp="default",
     lightmap_region="all",
+    model_lightmap=False,
 ):
     lightmap = LightMapper(
         not_bungie_game,
@@ -55,6 +56,7 @@ def run_lightmapper(
         lightmap_specific_bsp,
         lightmap_region,
         asset,
+        model_lightmap,
     )
     try:
         if not_bungie_game:
@@ -78,8 +80,10 @@ class LightMapper:
         lightmap_specific_bsp,
         lightmap_region,
         asset,
+        model_lightmap,
     ):
         self.asset_name = asset
+        self.model_lightmap = model_lightmap
         self.scenario = os.path.join(get_asset_path(), self.asset_name)
         self.bsp = self.bsp_to_lightmap(
             lightmap_all_bsps, lightmap_specific_bsp
@@ -256,7 +260,10 @@ class LightMapper:
             "globals", "lightmapper_settings", self.quality
         )
         print_box("**Starting Faux Farm**")
-        if self.suppress_dialog == "false":
+        if self.model_lightmap:
+            run_tool(["faux_lightmap_model", self.scenario, self.suppress_dialog, self.force_reatlas])
+
+        elif self.suppress_dialog == "false":
             run_tool(
                 [
                     "faux_lightmap",

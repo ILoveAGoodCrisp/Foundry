@@ -39,6 +39,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     enable_prints,
     get_data_path,
+    get_tags_path,
     jstr,
     print_warning,
     run_tool,
@@ -96,6 +97,7 @@ class ProcessScene:
         import_skip_instances,
         import_decompose_instances,
         import_surpress_errors,
+        import_lighting,
         lightmap_quality,
         lightmap_quality_h4,
         lightmap_all_bsps,
@@ -149,6 +151,7 @@ class ProcessScene:
             import_skip_instances,
             import_decompose_instances,
             import_surpress_errors,
+            import_lighting,
             lightmap_quality,
             lightmap_quality_h4,
             lightmap_all_bsps,
@@ -200,6 +203,7 @@ class ProcessScene:
         import_skip_instances,
         import_decompose_instances,
         import_surpress_errors,
+        import_lighting,
         lightmap_quality,
         lightmap_quality_h4,
         lightmap_all_bsps,
@@ -621,6 +625,34 @@ class ProcessScene:
                     output_weapon,
                 )
 
+                # make another sidecar to generate model lighting files
+                if nwo_scene.model_lighting:
+                    Sidecar(
+                        context,
+                        sidecar_path,
+                        sidecar_path_full,
+                        asset_path,
+                        asset,
+                        nwo_scene,
+                        self.sidecar_paths,
+                        self.sidecar_paths_design,
+                        'MODEL SCENARIO',
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                    )
+
+
                 reports.append(sidecar_result.message)
                 print("\n\nBuilding Intermediary Files")
                 print(
@@ -699,6 +731,8 @@ class ProcessScene:
                             import_skip_instances,
                             import_decompose_instances,
                             import_surpress_errors,
+                            import_lighting,
+                            nwo_scene.model_lighting,
                         )
                     )
                     if export_failed:
@@ -714,7 +748,6 @@ class ProcessScene:
 
             if lightmap_structure:
                 from .run_lightmapper import run_lightmapper
-
                 reports.append(
                     run_lightmapper(
                         game_version in ("h4", "h2a"),
@@ -725,6 +758,7 @@ class ProcessScene:
                         lightmap_all_bsps,
                         lightmap_specific_bsp,
                         lightmap_region,
+                        sidecar_type in ('MODEL', 'SKY') and game_version != 'reach',
                     )
                 )
 
@@ -1082,6 +1116,7 @@ class ProcessScene:
                     animation_events.append(event_ob_copy)
 
         return animation_events
+        
 
     #####################################################################################
     #####################################################################################

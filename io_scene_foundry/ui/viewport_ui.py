@@ -273,6 +273,8 @@ class NWO_ApplyTypeMarker(NWO_Op):
                 items.append(nwo_enum("pathfinding_sphere", "Pathfinding Sphere", "", "pathfinding_sphere", 4)),
                 items.append(nwo_enum("physics_constraint", "Physics Constaint", "", "physics_constraint", 5)),
                 items.append(nwo_enum("target", "Target", "", "target", 6)),
+                if not reach:
+                    items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", 7)),
 
         elif asset_type in ('SCENARIO', 'PREFAB'):
             items.append(nwo_enum("model", "Structure Marker", "", "marker", 0)),

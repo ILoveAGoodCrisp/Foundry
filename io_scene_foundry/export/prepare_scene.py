@@ -24,6 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
+import subprocess
+import uuid
 import bmesh
 import bpy
 from os import path
@@ -85,6 +88,7 @@ class PrepareScene:
         # NOTE skipping timing as export is really fast now
         #start = time.perf_counter()
         self.warning_hit = False
+        self.model_lighting = False
 
         h4 = game_version != "reach"
 
@@ -141,8 +145,10 @@ class PrepareScene:
         # print("unlink_obs")
         scenario_asset = sidecar_type == "SCENARIO"
 
-        export_obs = context.view_layer.objects[:]
         scene_coll = context.scene.collection.objects
+
+        export_obs = context.view_layer.objects[:]
+
         # build proxy instances from structure
         if h4:
             proxy_owners = [
@@ -454,8 +460,11 @@ class PrepareScene:
 
         # get all objects that we plan to export later
         self.halo_objects_init()
-        self.halo_objects(sidecar_type, export_obs)
+        self.halo_objects(sidecar_type, export_obs, scene_coll, h4)
         # print("halo_objects")
+
+        context.view_layer.update()
+        export_obs = context.view_layer.objects[:]
 
         # order bsps
         self.structure_bsps = sort_alphanum(self.structure_bsps)
@@ -469,6 +478,10 @@ class PrepareScene:
             self.model_armature, using_auto_armature = self.get_scene_armature(
                 export_obs, asset, scene_coll
             )
+
+            if "lighting" in self.render_perms:
+                self.create_bsp_box(scene_coll)
+                self.model_lighting = True
 
             if self.model_armature:
                 if not using_auto_armature or sidecar_type != "FP ANIMATION":
@@ -539,7 +552,6 @@ class PrepareScene:
         # end = time.perf_counter()
         # print(f"\nScene Prepared in {end - start} seconds")
         # time.sleep(3)
-
         # raise
 
     ########################################################################################################################################
@@ -1474,6 +1486,14 @@ class PrepareScene:
                         nwo.marker_type = (
                             "_connected_geometry_marker_type_model"
                         )
+                elif (
+                    not reach
+                    and nwo.marker_type_ui
+                    == "_connected_geometry_marker_type_airprobe"
+                ):
+                    nwo.marker_type = (
+                        "_connected_geometry_marker_type_airprobe"
+                    )
                 else:
                     nwo.marker_type = "_connected_geometry_marker_type_model"
                     if (
@@ -2540,7 +2560,7 @@ class PrepareScene:
         self.structure_perms = set()
         self.structure_bsps = set()
 
-    def halo_objects(self, asset_type, export_obs):
+    def halo_objects(self, asset_type, export_obs, scene_coll , h4):
         render_asset = asset_type != "SCENARIO"
 
         for ob in export_obs:
@@ -2563,21 +2583,28 @@ class PrepareScene:
                     "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
                 )
 
-            if object_type == "_connected_geometry_object_type_frame":
+            if object_type == "_connected_geometry_object_type_frame" and ob.type != 'LIGHT':
                 self.frames.append(ob)
 
             elif render_asset:
-                if object_type == "_connected_geometry_object_type_marker":
-                    self.markers.append(ob)
-                elif default:
+                if default:
                     self.render.append(ob)
                     self.render_perms.add(permutation)
                 elif mesh_type == "_connected_geometry_mesh_type_collision":
                     self.collision.append(ob)
                     self.collision_perms.add(permutation)
-                else:
+                elif mesh_type == "_connected_geometry_mesh_type_physics":
                     self.physics.append(ob)
                     self.physics_perms.add(permutation)
+                elif h4 and ob.type == 'LIGHT' or nwo.marker_type == '_connected_geometry_marker_type_airprobe':
+                    self.render.append(ob)
+                    ob.nwo.permutation_name = 'lighting'
+                    self.render_perms.add('lighting')
+                elif object_type == '_connected_geometry_object_type_marker':
+                    self.markers.append(ob)
+                else:
+                    scene_coll.unlink(ob)
+
             else:
                 bsp = nwo.bsp_name
                 if design:
@@ -2589,6 +2616,34 @@ class PrepareScene:
                     self.structure_perms.add(permutation)
                     self.structure_bsps.add(bsp)
 
+    def create_bsp_box(self, scene_coll):
+        me = bpy.data.meshes.new('bsp_box')
+        ob = bpy.data.objects.new("bsp_box", me)
+        scene_coll.link(ob)
+
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=10000)
+        for f in bm.faces:
+            f.normal_flip()
+        bm.to_mesh(me)
+        bm.free()
+
+        ob.nwo.object_type = '_connected_geometry_object_type_mesh'
+        ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
+        ob.nwo.permutation_name = 'lighting'
+        self.render.append(ob)
+        ob.parent = self.model_armature
+        ob.parent_type = 'BONE'
+        bones = self.model_armature.data.bones
+        for b in bones:
+            if b.use_deform:
+                root_bone_name = b.name
+                break
+        ob.parent_bone = root_bone_name
+
+        # copy = ob.copy()
+        # copy.nwo.mesh_type = '_connected_geometry_mesh_type_lightprobevolume'
+        # scene_coll.link(copy)
 
 #####################################################################################
 #####################################################################################
@@ -2600,5 +2655,6 @@ def set_marker_sphere_size(ob, nwo):
          nwo.marker_sphere_radius = jstr(ob.empty_display_size * max_abs_scale)
     else:
         nwo.marker_sphere_radius = jstr(max(ob.dimensions * max_abs_scale / 2))
+        
 
         

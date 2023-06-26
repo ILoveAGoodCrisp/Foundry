@@ -1204,8 +1204,8 @@ def run_tool_sidecar(tool_args: list, asset_path):
                 print_error(line)
                 failed = True
             elif "(skipping tangent-space calculations)" in line:
-                # this really shouldn't be a warning, so don't let it have yellow text
-                print(line)
+                # this really shouldn't be a warning, so don't print/write it
+                continue
             else:
                 print_warning(line)
             f.write(line)

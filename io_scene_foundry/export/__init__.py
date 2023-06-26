@@ -37,7 +37,9 @@ bl_info = {
 }
 
 from io import StringIO
+import subprocess
 import sys
+import uuid
 import bpy
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty
@@ -57,7 +59,9 @@ from .process_scene import ProcessScene
 from io_scene_foundry.utils.nwo_utils import (
     check_path,
     bpy_enum,
+    disable_prints,
     dot_partition,
+    enable_prints,
     formalise_game_version,
     get_data_path,
     get_asset_info,
@@ -107,11 +111,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
     #     description="Keep the source JSON file after GR2 conversion",
     #     default=True,
     # )
-    export_sidecar_xml: BoolProperty(
-        name="Build Sidecar",
-        description="",
-        default=True,
-    )
+    # export_sidecar_xml: BoolProperty(
+    #     name="Build Sidecar",
+    #     description="",
+    #     default=True,
+    # )
     sidecar_type: EnumProperty(
         name="Asset Type",
         description="",
@@ -294,11 +298,16 @@ class NWO_Export_Scene(Operator, ExportHelper):
         description="Do not write errors to vrml files",
         default=False,
     )
-    use_selection: BoolProperty(
-        name="selection",
-        description="",
-        default=True,
+    import_lighting: BoolProperty(
+        name="Lighting Info Only",
+        description="Only build the scenario_structure_lighting_info tag",
+        default=False,
     )
+    # use_selection: BoolProperty(
+    #     name="selection",
+    #     description="",
+    #     default=True,
+    # )
     bake_anim: BoolProperty(name="", description="", default=True)
     # use_mesh_modifiers: BoolProperty(
     #     name="Apply Modifiers",
@@ -318,16 +327,16 @@ class NWO_Export_Scene(Operator, ExportHelper):
     #     default=True,
     # )
 
-    export_hidden: BoolProperty(
-        name="Hidden",
-        description="Export visible objects only",
-        default=True,
-    )
-    import_in_background: BoolProperty(
-        name="Run In Background",
-        description="If enabled does not pause use of blender during the import process",
-        default=False,
-    )
+    # export_hidden: BoolProperty(
+    #     name="Hidden",
+    #     description="Export visible objects only",
+    #     default=True,
+    # )
+    # import_in_background: BoolProperty(
+    #     name="Run In Background",
+    #     description="If enabled does not pause use of blender during the import process",
+    #     default=False,
+    # )
     lightmap_structure: BoolProperty(
         name="Run Lightmapper",
         default=False,
@@ -390,31 +399,31 @@ class NWO_Export_Scene(Operator, ExportHelper):
         description="Lightmap region to use for lightmapping",
     )
 
-    mesh_smooth_type_better: EnumProperty(
-        name="Smoothing",
-        items=(
-            ("None", "None", "Do not generate smoothing groups"),
-            ("Blender", "By Hard edges", ""),
-            ("FBXSDK", "By FBX SDK", ""),
-        ),
-        description="Determine how smoothing groups should be generated",
-        default="FBXSDK",
-    )
-    mesh_smooth_type: EnumProperty(
-        name="Smoothing",
-        items=(
-            (
-                "OFF",
-                "Normals Only",
-                "Export only normals instead of writing edge or face smoothing data",
-            ),
-            ("FACE", "Face", "Write face smoothing"),
-            ("EDGE", "Edge", "Write edge smoothing"),
-        ),
-        description="Export smoothing information "
-        "(prefer 'Normals Only' option if your target importer understand split normals)",
-        default="OFF",
-    )
+    # mesh_smooth_type_better: EnumProperty(
+    #     name="Smoothing",
+    #     items=(
+    #         ("None", "None", "Do not generate smoothing groups"),
+    #         ("Blender", "By Hard edges", ""),
+    #         ("FBXSDK", "By FBX SDK", ""),
+    #     ),
+    #     description="Determine how smoothing groups should be generated",
+    #     default="FBXSDK",
+    # )
+    # mesh_smooth_type: EnumProperty(
+    #     name="Smoothing",
+    #     items=(
+    #         (
+    #             "OFF",
+    #             "Normals Only",
+    #             "Export only normals instead of writing edge or face smoothing data",
+    #         ),
+    #         ("FACE", "Face", "Write face smoothing"),
+    #         ("EDGE", "Edge", "Write edge smoothing"),
+    #     ),
+    #     description="Export smoothing information "
+    #     "(prefer 'Normals Only' option if your target importer understand split normals)",
+    #     default="OFF",
+    # )
     quick_export: BoolProperty(
         name="",
         default=False,
@@ -423,10 +432,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
         name="Export GR2 Files",
         default=True,
     )
-    use_tspace: BoolProperty(
-        name="use tspace",
-        default=False,
-    )
+    # use_tspace: BoolProperty(
+    #     name="use tspace",
+    #     default=False,
+    # )
 
     def __init__(self):
         # SETUP #
@@ -524,7 +533,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         sidecar_path_full = os.path.join(
             self.asset_path, self.asset + ".sidecar.xml"
         )
-        
+    
         sidecar_path = sidecar_path_full.replace(get_data_path(), "")
 
         self.set_scene_props(context)
@@ -553,7 +562,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         try:
             try:
-
                 nwo_scene = PrepareScene(
                     context,
                     self.asset,
@@ -608,17 +616,19 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.import_skip_instances,
                     self.import_decompose_instances,
                     self.import_surpress_errors,
+                    self.import_lighting,
                     self.lightmap_quality,
                     self.lightmap_quality_h4,
                     self.lightmap_all_bsps,
                     self.lightmap_specific_bsp,
-                    self.lightmap_region,
+                    self.lightmap_region,               
                 )
 
             except Exception as e:
                 print_error("\n\nException hit. Please include in report\n")
                 logging.error(traceback.format_exc())
                 self.failed = True
+
 
             # validate that a sidecar file exists
             if not file_exists(sidecar_path_full):
@@ -688,7 +698,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # restore scene back to its pre export state
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
-        
 
         return {"FINISHED"}
 

@@ -148,7 +148,7 @@ class Sidecar:
                     output_weapon,
                 ),
             )
-        elif sidecar_type == "SCENARIO":
+        elif sidecar_type.endswith("SCENARIO"):
             self.get_object_output_types(
                 metadata,
                 "scenario",
@@ -211,6 +211,11 @@ class Sidecar:
                 nwo_scene, metadata, sidecar_paths, sidecar_paths_design, asset_name
             )
 
+        elif sidecar_type == "MODEL SCENARIO":
+            self.write_model_scenario_contents(
+                metadata, sidecar_paths, asset_name
+            )
+
         elif sidecar_type == "SKY":
             self.write_sky_contents(metadata, sidecar_paths, asset_name)
 
@@ -232,8 +237,12 @@ class Sidecar:
         dom = xml.dom.minidom.parseString(ET.tostring(metadata))
         xml_string = dom.toprettyxml(indent="  ")
         part1, part2 = xml_string.split("?>")
-        # update sidecar path in halo launcher
-        context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
+
+        if sidecar_type == 'MODEL SCENARIO':
+            sidecar_path_full = sidecar_path_full.replace(f"{asset_name}.sidecar.xml", "faux.sidecar.xml")
+        else:
+            # update sidecar path in halo launcher
+            context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
 
         with open(sidecar_path_full, "w") as xfile:
             xfile.write(
@@ -561,7 +570,8 @@ class Sidecar:
         )
         render_paths = sidecar_paths.get("render")
         for path in render_paths:
-            self.write_network_files(object, path)
+            if path[3] != 'lighting':
+                self.write_network_files(object, path)
 
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(
@@ -637,6 +647,40 @@ class Sidecar:
         ET.SubElement(network, "InputFile").text = path[0]
         ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
+
+
+    def write_model_scenario_contents(
+        self, metadata, sidecar_paths, asset_name
+    ):
+        contents = ET.SubElement(metadata, "Contents")
+        content = ET.SubElement(
+            contents, "Content", Name=f"{asset_name}", Type="bsp"
+        )
+        object = ET.SubElement(
+            content,
+            "ContentObject",
+            Name="",
+            Type="scenario_structure_bsp",
+        )
+        bsp_paths = sidecar_paths.get("render")
+        for path in bsp_paths:
+            if path[3] == 'lighting':
+                network = ET.SubElement(
+                    object, "ContentNetwork", Name=f"{asset_name}", Type=""
+                )
+
+                ET.SubElement(network, "InputFile").text = path[0]
+                ET.SubElement(network, "ComponentFile").text = path[1]
+                ET.SubElement(network, "IntermediateFile").text = path[2]
+                break
+
+        output = ET.SubElement(object, "OutputTagCollection")
+        ET.SubElement(
+            output, "OutputTag", Type="scenario_structure_bsp"
+        ).text = f"{self.tag_path}"
+        ET.SubElement(
+            output, "OutputTag", Type="scenario_structure_lighting_info"
+        ).text = f"{self.tag_path}"
 
     def write_scenario_contents(
         self, nwo_scene, metadata, sidecar_paths, design_paths, asset_name
@@ -937,6 +981,11 @@ class Sidecar:
             ET.SubElement(
                 output, "OutputTag", Type="frame_event_list"
             ).text = self.tag_path
+            if not_bungie_game():
+                output = ET.SubElement(object, "OutputTagCollection")
+                ET.SubElement(
+                    output, "OutputTag", Type="pca_animation"
+                ).text = self.tag_path
             ET.SubElement(
                 output, "OutputTag", Type="model_animation_graph"
             ).text = self.tag_path
