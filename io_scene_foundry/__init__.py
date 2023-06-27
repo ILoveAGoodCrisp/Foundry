@@ -352,9 +352,21 @@ def get_temp_settings(dummy):
         nwo_export.lightmap_quality_h4 = settings[19]
         nwo_export.lightmap_region = settings[20]
         nwo_export.lightmap_specific_bsp = settings[21]
-        nwo_export.lightmap_structure = (
-            True if settings[22] == "True" else False
-        )
+        nwo_export.lightmap_structure = True if settings[22] == "True" else False
+        nwo_export.import_force = True if settings[23] == "True" else False
+        nwo_export.import_verbose = True if settings[24] == "True" else False
+        nwo_export.import_draft = True if settings[25] == "True" else False
+        nwo_export.import_seam_debug = True if settings[26] == "True" else False
+        nwo_export.import_skip_instances = True if settings[27] == "True" else False
+        nwo_export.import_decompose_instances = True if settings[28] == "True" else False
+        nwo_export.import_surpress_errors = True if settings[29] == "True" else False
+        nwo_export.import_lighting = True if settings[30] == "True" else False
+        nwo_export.import_meta_only = True if settings[31] == "True" else False
+        nwo_export.import_disable_hulls = True if settings[32] == "True" else False
+        nwo_export.import_disable_collision = True if settings[33] == "True" else False
+        nwo_export.import_no_pca = True if settings[34] == "True" else False
+        nwo_export.import_force_animations = True if settings[35] == "True" else False
+
         os.remove(temp_file_path)
 
 def register():
