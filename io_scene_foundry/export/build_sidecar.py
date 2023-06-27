@@ -239,7 +239,7 @@ class Sidecar:
         part1, part2 = xml_string.split("?>")
 
         if sidecar_type == 'MODEL SCENARIO':
-            sidecar_path_full = sidecar_path_full.replace(f"{asset_name}.sidecar.xml", "faux.sidecar.xml")
+            sidecar_path_full = sidecar_path_full.replace(f"{asset_name}.sidecar.xml", f"{asset_name}_lighting.sidecar.xml")
         else:
             # update sidecar path in halo launcher
             context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
@@ -570,8 +570,7 @@ class Sidecar:
         )
         render_paths = sidecar_paths.get("render")
         for path in render_paths:
-            if path[3] != 'lighting':
-                self.write_network_files(object, path)
+            self.write_network_files(object, path)
 
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(
@@ -662,17 +661,14 @@ class Sidecar:
             Name="",
             Type="scenario_structure_bsp",
         )
-        bsp_paths = sidecar_paths.get("render")
-        for path in bsp_paths:
-            if path[3] == 'lighting':
-                network = ET.SubElement(
-                    object, "ContentNetwork", Name=f"{asset_name}", Type=""
-                )
+        lighting_path = sidecar_paths.get("lighting")[0]
+        network = ET.SubElement(
+            object, "ContentNetwork", Name=f"{asset_name}", Type=""
+        )
 
-                ET.SubElement(network, "InputFile").text = path[0]
-                ET.SubElement(network, "ComponentFile").text = path[1]
-                ET.SubElement(network, "IntermediateFile").text = path[2]
-                break
+        ET.SubElement(network, "InputFile").text = lighting_path[0]
+        ET.SubElement(network, "ComponentFile").text = lighting_path[1]
+        ET.SubElement(network, "IntermediateFile").text = lighting_path[2]
 
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(

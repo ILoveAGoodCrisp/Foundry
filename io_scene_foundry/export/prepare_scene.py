@@ -88,7 +88,6 @@ class PrepareScene:
         # NOTE skipping timing as export is really fast now
         #start = time.perf_counter()
         self.warning_hit = False
-        self.model_lighting = False
 
         h4 = game_version != "reach"
 
@@ -479,9 +478,8 @@ class PrepareScene:
                 export_obs, asset, scene_coll
             )
 
-            if "lighting" in self.render_perms:
+            if self.lighting:
                 self.create_bsp_box(scene_coll)
-                self.model_lighting = True
 
             if self.model_armature:
                 if not using_auto_armature or sidecar_type != "FP ANIMATION":
@@ -2542,6 +2540,7 @@ class PrepareScene:
     def halo_objects_init(self):
         self.frames = []
         self.markers = []
+        self.lighting = []
 
         self.render = []
         self.render_perms = set()
@@ -2597,9 +2596,7 @@ class PrepareScene:
                     self.physics.append(ob)
                     self.physics_perms.add(permutation)
                 elif h4 and ob.type == 'LIGHT' or nwo.marker_type == '_connected_geometry_marker_type_airprobe':
-                    self.render.append(ob)
-                    ob.nwo.permutation_name = 'lighting'
-                    self.render_perms.add('lighting')
+                    self.lighting.append(ob)
                 elif object_type == '_connected_geometry_object_type_marker':
                     self.markers.append(ob)
                 else:
@@ -2630,8 +2627,7 @@ class PrepareScene:
 
         ob.nwo.object_type = '_connected_geometry_object_type_mesh'
         ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
-        ob.nwo.permutation_name = 'lighting'
-        self.render.append(ob)
+        self.lighting.append(ob)
         ob.parent = self.model_armature
         ob.parent_type = 'BONE'
         bones = self.model_armature.data.bones

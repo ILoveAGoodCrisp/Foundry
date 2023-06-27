@@ -325,6 +325,21 @@ class ProcessScene:
                                 nwo_scene,
                                 export_markers,
                             )
+                        if  nwo_scene.lighting:
+                            self.export_model(
+                                context,
+                                asset_path,
+                                asset,
+                                "lighting",
+                                nwo_scene.lighting,
+                                None,
+                                None,
+                                nwo_scene.model_armature,
+                                fbx_exporter,
+                                sidecar_type,
+                                nwo_scene,
+                                True,
+                            )
 
                     if not self.skeleton_only:
                         self.remove_all_but_armature(nwo_scene)
@@ -546,6 +561,21 @@ class ProcessScene:
                             nwo_scene,
                             export_render,
                         )
+                    if  nwo_scene.lighting:
+                        self.export_model(
+                            context,
+                            asset_path,
+                            asset,
+                            "lighting",
+                            nwo_scene.lighting,
+                            None,
+                            None,
+                            nwo_scene.model_armature,
+                            fbx_exporter,
+                            sidecar_type,
+                            nwo_scene,
+                            True,
+                        )
 
                 elif sidecar_type == "DECORATOR SET":
                     if nwo_scene.render:
@@ -626,7 +656,7 @@ class ProcessScene:
                 )
 
                 # make another sidecar to generate model lighting files
-                if nwo_scene.model_lighting:
+                if nwo_scene.lighting:
                     Sidecar(
                         context,
                         sidecar_path,
@@ -732,7 +762,7 @@ class ProcessScene:
                             import_decompose_instances,
                             import_surpress_errors,
                             import_lighting,
-                            nwo_scene.model_lighting,
+                            bool(nwo_scene.lighting),
                         )
                     )
                     if export_failed:
@@ -827,6 +857,10 @@ class ProcessScene:
                 print_text = f"sky"
             elif type == "markers":
                 print_text = f"markers"
+            elif type == "lighting":
+                print_text = f"lighting"
+            elif perm == "default":
+                print_text = f"{type} model"
             else:
                 print_text = f"{perm} {type} model"
 
@@ -1030,11 +1064,12 @@ class ProcessScene:
                 "collision",
                 "physics",
                 "markers",
+                "lighting",
                 "skeleton",
                 "sky",
                 "decorator",
             ):
-                if perm == "default" or tag_type in ("markers", "skeleton"):
+                if perm == "default" or tag_type in ("markers", "skeleton", "lighting"):
                     path = f'{os.path.join(asset_path, "models", asset_name)}_{tag_type}'
                     path_gr2 = f'{os.path.join(asset_path, "export", "models", asset_name)}_{tag_type}'
                 else:

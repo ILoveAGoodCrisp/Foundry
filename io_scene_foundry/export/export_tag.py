@@ -58,7 +58,7 @@ def import_sidecar(
     # time.sleep(0.5)
     faux_process = None
     if model_lighting:
-        faux_process = run_tool(["import", sidecar_path.replace(f"{asset_name}.sidecar.xml", "faux.sidecar.xml"), "preserve_namespaces", "force"], True, True)
+        faux_process = run_tool(["import", sidecar_path.replace(f"{asset_name}.sidecar.xml", f"{asset_name}_lighting.sidecar.xml"), "preserve_namespaces", "force"], True, True)
     failed = run_tool_sidecar(
         [
             "import",
