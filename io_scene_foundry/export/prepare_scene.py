@@ -980,9 +980,12 @@ class PrepareScene:
                 # must force on auto smooth to avoid Normals transfer errors
                 me.use_auto_smooth = True
 
-                # get bmesh rep now
                 bm = bmesh.new()
                 bm.from_mesh(me)
+
+                # must ensure all faces are visible
+                for face in bm.faces:
+                    face.hide_set(False)
                 
                 split_objects = self.split_to_layers(
                     context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm
