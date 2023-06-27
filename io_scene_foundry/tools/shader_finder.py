@@ -65,7 +65,7 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
                 if overwrite or not mat.nwo.shader_path:
                     mat.nwo.shader_path = shader_path
                     update_count += 1
-            else:
+            elif not mat.nwo.shader_path:
                 no_path_materials.append(mat.name)
                 if report is None:
                     if h4:

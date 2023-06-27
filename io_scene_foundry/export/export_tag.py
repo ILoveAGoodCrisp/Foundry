@@ -30,6 +30,7 @@ from ..utils.nwo_utils import (
     get_data_path,
     get_tags_path,
     not_bungie_game,
+    print_warning,
     run_tool,
     run_tool_sidecar,
 )
@@ -97,13 +98,15 @@ def import_sidecar(
         scenario = f"{tag_path}.scenario"
         bsp = f"{tag_path}.scenario_structure_bsp"
         seams = f"{tag_path}.structure_seams"
-
-        if os.path.exists(scenario):
-            os.remove(scenario)
-        if os.path.exists(bsp):
-            os.remove(bsp)
-        if os.path.exists(seams):
-            os.remove(seams)
+        try:
+            if os.path.exists(scenario):
+                os.remove(scenario)
+            if os.path.exists(bsp):
+                os.remove(bsp)
+            if os.path.exists(seams):
+                os.remove(seams)
+        except:
+            print_warning("Failed to remove unused lightmap tags")
 
     return failed
 
