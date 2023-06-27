@@ -1876,10 +1876,39 @@ class PrepareScene:
             deselect_all_objects()
 
     def set_object_mode(self, context):
-        if not context.active_object:
-            set_active_object(context.view_layer.objects[0])
+        mode = context.mode
 
-        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+        if mode == 'OBJECT':
+            return
+        
+        if mode.startswith('EDIT') and not mode.endswith('GPENCIL'):
+            bpy.ops.object.editmode_toggle()
+        else:
+            match mode:
+                case 'POSE':
+                    bpy.ops.object.posemode_toggle()
+                case 'SCULPT':
+                    bpy.ops.sculpt.sculptmode_toggle()
+                case 'PAINT_WEIGHT':
+                    bpy.ops.paint.weight_paint_toggle()
+                case 'PAINT_VERTEX':
+                    bpy.ops.paint.vertex_paint_toggle()
+                case 'PAINT_TEXTURE':
+                    bpy.ops.paint.texture_paint_toggle()
+                case 'PARTICLE':
+                    bpy.ops.particle.particle_edit_toggle()
+                case 'PAINT_GPENCIL':
+                    bpy.ops.gpencil.paintmode_toggle()
+                case 'EDIT_GPENCIL':
+                    bpy.ops.gpencil.editmode_toggle()
+                case 'SCULPT_GPENCIL':
+                    bpy.ops.gpencil.sculptmode_toggle()
+                case 'WEIGHT_GPENCIL':
+                    bpy.ops.gpencil.weightmode_toggle()
+                case 'VERTEX_GPENCIL':
+                    bpy.ops.gpencil.vertexmode_toggle()
+                case 'SCULPT_CURVES':
+                    bpy.ops.curves.sculptmode_toggle()
 
     def get_current_action(self, context, model_armature):
         deselect_all_objects()
