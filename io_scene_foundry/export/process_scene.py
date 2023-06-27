@@ -98,6 +98,11 @@ class ProcessScene:
         import_decompose_instances,
         import_surpress_errors,
         import_lighting,
+        import_meta_only,
+        import_disable_hulls,
+        import_disable_collision,
+        import_no_pca,
+        import_force_animations,
         lightmap_quality,
         lightmap_quality_h4,
         lightmap_all_bsps,
@@ -152,6 +157,11 @@ class ProcessScene:
             import_decompose_instances,
             import_surpress_errors,
             import_lighting,
+            import_meta_only,
+            import_disable_hulls,
+            import_disable_collision,
+            import_no_pca,
+            import_force_animations,
             lightmap_quality,
             lightmap_quality_h4,
             lightmap_all_bsps,
@@ -204,6 +214,11 @@ class ProcessScene:
         import_decompose_instances,
         import_surpress_errors,
         import_lighting,
+        import_meta_only,
+        import_disable_hulls,
+        import_disable_collision,
+        import_no_pca,
+        import_force_animations,
         lightmap_quality,
         lightmap_quality_h4,
         lightmap_all_bsps,
@@ -745,7 +760,7 @@ class ProcessScene:
 
             from .export_tag import import_sidecar
 
-            if import_to_game:
+            if import_to_game or (not h4 and lightmap_structure):
                 if os.path.exists(sidecar_path_full):
                     export_failed, error = (
                         import_sidecar(
@@ -762,6 +777,11 @@ class ProcessScene:
                             import_decompose_instances,
                             import_surpress_errors,
                             import_lighting,
+                            import_meta_only,
+                            import_disable_hulls,
+                            import_disable_collision,
+                            import_no_pca,
+                            import_force_animations,
                             bool(nwo_scene.lighting),
                         )
                     )
@@ -775,12 +795,13 @@ class ProcessScene:
                     reports.append(
                         "Skipped tag export, asset sidecar does not exist"
                     )
-
-            if lightmap_structure:
+            h4 = game_version != 'reach'
+            should_lightmap = lightmap_structure and (sidecar_type == 'SCENARIO' or (h4 and sidecar_type in ('MODEL', 'SKY')))
+            if should_lightmap:
                 from .run_lightmapper import run_lightmapper
                 reports.append(
                     run_lightmapper(
-                        game_version in ("h4", "h2a"),
+                        h4,
                         nwo_scene.structure,
                         asset,
                         lightmap_quality,
@@ -788,7 +809,7 @@ class ProcessScene:
                         lightmap_all_bsps,
                         lightmap_specific_bsp,
                         lightmap_region,
-                        sidecar_type in ('MODEL', 'SKY') and game_version != 'reach',
+                        sidecar_type in ('MODEL', 'SKY') and h4,
                     )
                 )
 

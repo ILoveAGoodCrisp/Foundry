@@ -1203,7 +1203,7 @@ def run_tool_sidecar(tool_args: list, asset_path):
             if failed or is_error_line(line):
                 print_error(line)
                 failed = True
-            elif "(skipping tangent-space calculations)" in line:
+            elif "(skipping tangent-space calculations)" or "if it is a decorator," in line:
                 # this really shouldn't be a warning, so don't print/write it
                 continue
             else:

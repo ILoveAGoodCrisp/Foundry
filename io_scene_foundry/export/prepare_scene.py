@@ -211,7 +211,8 @@ class PrepareScene:
         process = "Building Export Objects"
         update_progress(process, 0)
         len_export_obs = len(export_obs)
-
+        
+        self.used_materials = set()
          # start the great loop!
         for idx, ob in enumerate(export_obs):
             set_active_object(ob)
@@ -329,7 +330,7 @@ class PrepareScene:
                     self.selected_bsps.add(nwo.bsp_name)
 
         # loop through each material to check if find_shaders is needed
-        for idx, mat in enumerate(materials):
+        for idx, mat in enumerate(self.used_materials):
             mat_nwo = mat.nwo
             if not mat.is_grease_pencil and mat_nwo.rendered and not mat_nwo.shader_path:
                 self.warning_hit = True
@@ -343,7 +344,7 @@ class PrepareScene:
                     job = "Fixing Empty Shader Paths"
                 
                 update_job(job, 0)
-                no_path_materials = find_shaders(materials, h4)
+                no_path_materials = find_shaders(self.used_materials, h4)
                 update_job(job, 1)
                 if no_path_materials:
                     if h4:
@@ -2397,8 +2398,10 @@ class PrepareScene:
         mats = dict.fromkeys(slots)
         slots_to_remove = []
         for idx, slot in enumerate(slots):
-            if slot.material:
-                s_name = slot.material.name
+            slot_mat = slot.material
+            self.used_materials.add(slot_mat)
+            if slot_mat:
+                s_name = slot_mat.name
                 if s_name not in mats.keys():
                     mats[s_name] = idx
                 else:

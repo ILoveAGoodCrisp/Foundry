@@ -1225,7 +1225,8 @@ class NWO_HaloExportSettings(Panel):
         layout = self.layout
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-        h4 = context.scene.nwo.game_version in ("h4", "h2a")
+        h4 = scene.nwo.game_version in ("h4", "h2a")
+        asset_type = scene.nwo.asset_type
         layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
@@ -1238,19 +1239,26 @@ class NWO_HaloExportSettings(Panel):
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
         col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
-        # if scene_nwo_export.import_to_game and not not_bungie_game():
-        #     col.prop(scene_nwo_export, "import_draft", text="Draft")
-        col.prop(scene_nwo_export, "lightmap_structure", text="Run Lightmapper")
-        if scene_nwo_export.lightmap_structure:
-            if h4:
-                col.prop(scene_nwo_export, "lightmap_quality_h4")
+        scenario = asset_type == 'SCENARIO'
+        render = asset_type in ('MODEL', 'SKY')
+        if (h4 and render) or scenario:
+            if scenario:
+                lighting_name = "Light Scenario"
             else:
-                col.prop(scene_nwo_export, "lightmap_quality")
-            if not scene_nwo_export.lightmap_all_bsps:
-                col.prop(scene_nwo_export, "lightmap_specific_bsp")
-            col.prop(scene_nwo_export, "lightmap_all_bsps")
-            if not h4:
-                col.prop(scene_nwo_export, "lightmap_region")
+                lighting_name = "Light Model"
+
+            col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
+            if scene_nwo_export.lightmap_structure:
+                if asset_type == 'SCENARIO':
+                    if h4:
+                        col.prop(scene_nwo_export, "lightmap_quality_h4")
+                    else:
+                        col.prop(scene_nwo_export, "lightmap_quality")
+                    if not scene_nwo_export.lightmap_all_bsps:
+                        col.prop(scene_nwo_export, "lightmap_specific_bsp")
+                    col.prop(scene_nwo_export, "lightmap_all_bsps")
+                    if not h4:
+                        col.prop(scene_nwo_export, "lightmap_region")
 
 
 class NWO_HaloExportSettingsScope(Panel):
@@ -1310,6 +1318,59 @@ class NWO_HaloExportSettingsScope(Panel):
             else:
                 txt = "Subgroup"
             col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
+
+class NWO_HaloExportSettingsFlags(Panel):
+    bl_label = "Flags"
+    bl_idname = "NWO_PT_HaloExportSettingsFlags"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_icon = "EXPORT"
+    bl_parent_id = "NWO_PT_HaloExportSettings"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo_export.export_gr2_files
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        scene_nwo = scene.nwo
+        scene_nwo_export = scene.nwo_export
+        h4 = scene_nwo.game_version != 'reach'
+        scenario = scene_nwo.asset_type == 'SCENARIO'
+
+        layout.use_property_split = False
+        flow = layout.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        col = flow.column()
+        if h4:
+            col.prop(scene_nwo_export, "import_force", text="Force full export")
+            if scenario:
+                col.prop(scene_nwo_export, "import_seam_debug", text="Show more seam debugging info")
+                col.prop(scene_nwo_export, "import_skip_instances", text="Skip importing instances")
+                col.prop(scene_nwo_export, "import_meta_only", text="Only import structure_meta tag")
+                col.prop(scene_nwo_export, "import_lighting", text="Only reimport lighting information")
+                col.prop(scene_nwo_export, "import_disable_hulls", text="Skip instance convex hull decomp")
+                col.prop(scene_nwo_export, "import_disable_collision", text="Don't generate complex collision")
+            else:
+                col.prop(scene_nwo_export, "import_no_pca", text="Skip PCA calculations")
+                col.prop(scene_nwo_export, "import_force_animations", text="Force import error animations")
+        else:
+            col.prop(scene_nwo_export, "import_force", text="Force full export")
+            col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
+            col.prop(scene_nwo_export, "import_surpress_errors", text="Don't write errors to VRML")
+            if scenario:
+                col.prop(scene_nwo_export, "import_seam_debug", text="Show more seam debugging info")
+                col.prop(scene_nwo_export, "import_skip_instances", text="Skip importing instances")
+                col.prop(scene_nwo_export, "import_decompose_instances", text="Run convex physics decomposition")
+            else:
+                col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
 
 
 class NWO_HaloExport(Operator):
@@ -1402,7 +1463,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         options=set(),
     )
     lightmap_structure: BoolProperty(
-        name="Run Lightmapper",
+        name="Burn Lighting",
         default=False,
         options=set(),
     )
@@ -1584,19 +1645,85 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     )
 
 
-    keep_fbx: BoolProperty(
-        name="FBX",
-        description="Keep the source FBX file after GR2 conversion",
-        default=False,
-        options=set(),
-    )
-    keep_json: BoolProperty(
-        name="JSON",
-        description="Keep the source JSON file after GR2 conversion",
-        default=False,
-        options=set(),
-    )
+    # keep_fbx: BoolProperty(
+    #     name="FBX",
+    #     description="Keep the source FBX file after GR2 conversion",
+    #     default=False,
+    #     options=set(),
+    # )
+    # keep_json: BoolProperty(
+    #     name="JSON",
+    #     description="Keep the source JSON file after GR2 conversion",
+    #     default=False,
+    #     options=set(),
+    # )
 
+    import_force: BoolProperty(
+        name="Force",
+        description="Force all files to import even if they haven't changed",
+        default=False,
+    )
+    import_verbose: BoolProperty(
+        name="Verbose",
+        description="Write additional import progress information to the console",
+        default=False,
+    )
+    import_draft: BoolProperty(
+        name="Draft",
+        description="Skip generating PRT data. Faster speed, lower quality",
+        default=False,
+    )
+    import_seam_debug: BoolProperty(
+        name="Seam Debug",
+        description="Write extra seam debugging information to the console",
+        default=False,
+    )
+    import_skip_instances: BoolProperty(
+        name="Skip Instances",
+        description="Skip importing all instanced geometry",
+        default=False,
+    )
+    import_decompose_instances: BoolProperty(
+        name="Decompose Instances",
+        description="Run convex decomposition for instanced geometry physics (very slow)",
+        default=False,
+    )
+    import_surpress_errors: BoolProperty(
+        name="Surpress Errors",
+        description="Do not write errors to vrml files",
+        default=False,
+    )
+    import_lighting: BoolProperty(
+        name="Lighting Info Only",
+        description="Only the scenario_structure_lighting_info tag will be reimported",
+        default=False,
+    )
+    import_meta_only: BoolProperty(
+        name="Meta Only",
+        description="Import only the structure_meta tag",
+        default=False,
+    )
+    import_disable_hulls: BoolProperty(
+        name="Disable Hulls",
+        description="Disables the contruction of conves hulls for instance physics and collision",
+        default=False,
+    )
+    import_disable_collision: BoolProperty(
+        name="Disable Collision",
+        description="Do not generate complex collision",
+        default=False,
+    )
+    import_no_pca: BoolProperty(
+        name="No PCA",
+        description="Skips PCA calculations",
+        default=False,
+    )
+    import_force_animations: BoolProperty(
+        name="Force Animations",
+        description="Force import of all animations that had errors during the last import",
+        default=False,
+    )
+    
 #######################################
 # PROPERTIES MANAGER TOOL
 
@@ -2291,6 +2418,7 @@ classeshalo = (
     NWO_HaloExport,
     NWO_HaloExportSettings,
     NWO_HaloExportSettingsScope,
+    NWO_HaloExportSettingsFlags,
     NWO_HaloExportPropertiesGroup,
     NWO_HaloLauncherExplorerSettings,
     NWO_HaloLauncherGameSettings,

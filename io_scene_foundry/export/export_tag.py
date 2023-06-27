@@ -49,6 +49,11 @@ def import_sidecar(
     import_decompose_instances,
     import_surpress_errors,
     import_lighting,
+    import_meta_only,
+    import_disable_hulls,
+    import_disable_collision,
+    import_no_pca,
+    import_force_animations,
     model_lighting,
 ):
     print("\n\nBuilding Tags")
@@ -73,6 +78,11 @@ def import_sidecar(
                 import_decompose_instances,
                 import_surpress_errors,
                 import_lighting,
+                import_meta_only,
+                import_disable_hulls,
+                import_disable_collision,
+                import_no_pca,
+                import_force_animations,
             ),
         ],
         asset_path
@@ -126,6 +136,11 @@ def get_import_flags(
     flag_import_decompose_instances,
     flag_import_surpress_errors,
     import_lighting,
+    import_meta_only,
+    import_disable_hulls,
+    import_disable_collision,
+    import_no_pca,
+    import_force_animations,
 ):
     flags = []
     if flag_import_force:
@@ -136,6 +151,16 @@ def get_import_flags(
         flags.append("preserve_namespaces")
         if import_lighting:
             flags.append("lighting")
+        if import_meta_only:
+            flags.append("meta_only")
+        if import_disable_hulls:
+            flags.append("disable_hulls")
+        if import_disable_collision:
+            flags.append("no_collision")
+        if import_no_pca:
+            flags.append("no_pca")
+        if import_force_animations:
+            flags.append("force_errors")
     else:
         if flag_import_check:
             flags.append("check")

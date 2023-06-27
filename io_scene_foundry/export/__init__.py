@@ -303,6 +303,31 @@ class NWO_Export_Scene(Operator, ExportHelper):
         description="Only build the scenario_structure_lighting_info tag",
         default=False,
     )
+    import_meta_only: BoolProperty(
+        name="Meta Only",
+        description="Import only the structure_meta tag",
+        default=False,
+    )
+    import_disable_hulls: BoolProperty(
+        name="Disable Hulls",
+        description="Disables the contruction of conves hulls for instance physics and collision",
+        default=False,
+    )
+    import_disable_collision: BoolProperty(
+        name="Disable Collision",
+        description="Do not generate complex collision",
+        default=False,
+    )
+    import_no_pca: BoolProperty(
+        name="No PCA",
+        description="Skips PCA calculations",
+        default=False,
+    )
+    import_force_animations: BoolProperty(
+        name="Force Animations",
+        description="Force import of all animations that had errors during the last import",
+        default=False,
+    )
     # use_selection: BoolProperty(
     #     name="selection",
     #     description="",
@@ -469,6 +494,20 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         self.show_output = scene_nwo_export.show_output
 
+        self.import_force = scene_nwo_export.import_force
+        self.import_verbose = scene_nwo_export.import_verbose
+        self.import_draft = scene_nwo_export.import_draft
+        self.import_seam_debug = scene_nwo_export.import_seam_debug
+        self.import_skip_instances = scene_nwo_export.import_skip_instances
+        self.import_decompose_instances = scene_nwo_export.import_decompose_instances
+        self.import_surpress_errors = scene_nwo_export.import_surpress_errors
+        self.import_lighting = scene_nwo_export.import_lighting
+        self.import_meta_only = scene_nwo_export.import_meta_only
+        self.import_disable_hulls = scene_nwo_export.import_disable_hulls
+        self.import_disable_collision = scene_nwo_export.import_disable_collision
+        self.import_no_pca = scene_nwo_export.import_no_pca
+        self.import_force_animations = scene_nwo_export.import_force_animations
+
         # SIDECAR SETTINGS #
         scene_nwo = bpy.context.scene.nwo
 
@@ -617,6 +656,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.import_decompose_instances,
                     self.import_surpress_errors,
                     self.import_lighting,
+                    self.import_meta_only,
+                    self.import_disable_hulls,
+                    self.import_disable_collision,
+                    self.import_no_pca,
+                    self.import_force_animations,
                     self.lightmap_quality,
                     self.lightmap_quality_h4,
                     self.lightmap_all_bsps,
@@ -809,6 +853,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # SETTINGS #
         box.label(text="Settings")
 
+        h4 = self.game_version != 'reach'
+        scenario = self.sidecar_type == 'SCENARIO'
+
         col = box.column()
         row = col.row()
         if managed_blam_active():
@@ -875,35 +922,53 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # IMPORT SETTINGS #
         if self.export_gr2_files:
             box = layout.box()
-            if self.import_to_game:
-                sub = box.column(heading="Export Flags")
-                sub.prop(self, "import_check")
-                sub.prop(self, "import_force")
-                sub.prop(self, "import_verbose")
-                sub.prop(self, "import_surpress_errors")
-                if self.sidecar_type == "SCENARIO":
-                    sub.prop(self, "import_seam_debug")
-                    sub.prop(self, "import_skip_instances")
-                    sub.prop(self, "import_decompose_instances")
+            sub = box.column(heading="Export Flags")
+            if h4:
+                sub.prop(self, "import_force", text="Force full export")
+                if scenario:
+                    sub.prop(self, "import_seam_debug", text="Show more seam debugging info")
+                    sub.prop(self, "import_skip_instances", text="Skip importing instances")
+                    sub.prop(self, "import_meta_only", text="Only import structure_meta tag")
+                    sub.prop(self, "import_lighting", text="Only reimport lighting information")
+                    sub.prop(self, "import_disable_hulls", text="Skip instance convex hull decomp")
+                    sub.prop(self, "import_disable_collision", text="Don't generate complex collision")
                 else:
-                    sub.prop(self, "import_draft")
+                    sub.prop(self, "import_no_pca", text="Skip PCA calculations")
+                    sub.prop(self, "import_force_animations", text="Force import error animations")
+            else:
+                sub.prop(self, "import_force", text="Force full export")
+                sub.prop(self, "import_verbose", text="Verbose Output")
+                sub.prop(self, "import_surpress_errors", text="Don't write errors to VRML")
+                if scenario:
+                    sub.prop(self, "import_seam_debug", text="Show more seam debugging info")
+                    sub.prop(self, "import_skip_instances", text="Skip importing instances")
+                    sub.prop(self, "import_decompose_instances", text="Run convex physics decomposition")
+                else:
+                    sub.prop(self, "import_draft", text="Skip PRT generation")
 
         # LIGHTMAP SETTINGS #
-        if self.sidecar_type == "SCENARIO":
+        render = self.sidecar_type in ('MODEL', 'SKY')
+        if (h4 and render) or scenario:
             box = layout.box()
             box.label(text="Lightmap Settings")
             col = box.column()
-            col.prop(self, "lightmap_structure")
+            if scenario:
+                lighting_name = "Light Scenario"
+            else:
+                lighting_name = "Light Model"
+
+            col.prop(self, "lightmap_structure", text=lighting_name)
             if self.lightmap_structure:
-                if h4:
-                    col.prop(self, "lightmap_quality_h4")
-                else:
-                    col.prop(self, "lightmap_quality")
-                if not self.lightmap_all_bsps:
-                    col.prop(self, "lightmap_specific_bsp")
-                col.prop(self, "lightmap_all_bsps")
-                if not h4:
-                    col.prop(self, "lightmap_region")
+                if scenario:
+                    if h4:
+                        col.prop(self, "lightmap_quality_h4")
+                    else:
+                        col.prop(self, "lightmap_quality")
+                    if not self.lightmap_all_bsps:
+                        col.prop(self, "lightmap_specific_bsp")
+                    col.prop(self, "lightmap_all_bsps")
+                    if not h4:
+                        col.prop(self, "lightmap_region")
 
         # # SCENE SETTINGS #
         # box = layout.box()
