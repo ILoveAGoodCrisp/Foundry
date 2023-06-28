@@ -159,6 +159,7 @@ class PrepareScene:
             ]
             for ob in proxy_owners:
                 proxy_instance = ob.copy()
+                proxy_instance.data = ob.data.copy()
                 proxy_instance.name = f"{ob.name}(instance)"
                 proxy_instance.nwo.mesh_type_ui = (
                     "_connected_geometry_mesh_type_poop"
