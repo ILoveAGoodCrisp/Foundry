@@ -467,6 +467,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         scene = bpy.context.scene
 
         self.game_version = scene.nwo.game_version
+        self.game_path_not_set = False
 
         if os.path.exists(get_tool_path() + ".exe"):
             # QUICK EXPORT SETTINGS #
