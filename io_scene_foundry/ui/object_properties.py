@@ -791,11 +791,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     # OBJECT LEVEL PROPERTIES
+    def update_uvmirror_across_entire_model_ui(self, context):
+        self.uvmirror_across_entire_model_active = True
+
     uvmirror_across_entire_model_active: BoolProperty()
     uvmirror_across_entire_model_ui: BoolProperty(
         name="UV Mirror Across Model",
         options=set(),
         default=False,
+        update=update_uvmirror_across_entire_model_ui,
     )
 
     bsp_name_ui: StringProperty(
@@ -1335,6 +1339,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     # LIGHTMAP PROPERTIES
 
+    def update_lightmap_additive_transparency_ui(self, context):
+        self.lightmap_additive_transparency_active = True
+
     lightmap_additive_transparency_active: BoolProperty()
     lightmap_additive_transparency_ui: FloatVectorProperty(
         name="lightmap Additive Transparency",
@@ -1344,7 +1351,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         subtype="COLOR",
         min=0.0,
         max=1.0,
+        update=update_lightmap_additive_transparency_ui,
     )
+
+    def update_lightmap_ignore_default_resolution_scale_ui(self, context):
+        self.lightmap_ignore_default_resolution_scale_active = True
 
     lightmap_ignore_default_resolution_scale_active: BoolProperty()
     lightmap_ignore_default_resolution_scale_ui: BoolProperty(
@@ -1352,7 +1363,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=False,
+        update=update_lightmap_ignore_default_resolution_scale_ui,
     )
+
+    def update_lightmap_resolution_scale_ui(self, context):
+        self.lightmap_resolution_scale_active = True
 
     lightmap_resolution_scale_active: BoolProperty()
     lightmap_resolution_scale_ui: IntProperty(
@@ -1361,12 +1376,17 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="",
         default=3,
         min=1,
+        update=update_lightmap_resolution_scale_ui,
     )
+
+    def update_lightmap_photon_fidelity_ui(self, context):
+        self.lightmap_photon_fidelity_active = True
 
     lightmap_photon_fidelity_active: BoolProperty()
     lightmap_photon_fidelity_ui: EnumProperty(
         name="Photon Fidelity",
         options=set(),
+        update=update_lightmap_photon_fidelity_ui,
         description="H4+ only",
         default="_connected_material_lightmap_photon_fidelity_normal",
         items=[
@@ -1392,10 +1412,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #     default=3,
     #     min=1,
     # )
+
+    def update_lightmap_type_ui(self, context):
+        self.lightmap_type_active = True
+
     lightmap_type_active: BoolProperty()
     lightmap_type_ui: EnumProperty(
         name="Lightmap Type",
         options=set(),
+        update=update_lightmap_type_ui,
         description="Sets how this should be lit while lightmapping",
         default="_connected_material_lightmap_type_per_pixel",
         items=[
@@ -1411,13 +1436,20 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=False,
     )
 
+    def update_lightmap_analytical_bounce_modifier_ui(self, context):
+        self.lightmap_analytical_bounce_modifier_active = True
+
     lightmap_analytical_bounce_modifier_active: BoolProperty()
     lightmap_analytical_bounce_modifier_ui: FloatProperty(
         name="Lightmap Analytical Bounce Modifier",
         options=set(),
         description="",
         default=1,
+        update=update_lightmap_analytical_bounce_modifier_ui,
     )
+
+    def update_lightmap_general_bounce_modifier_ui(self, context):
+        self.lightmap_general_bounce_modifier_active = True
 
     lightmap_general_bounce_modifier_active: BoolProperty()
     lightmap_general_bounce_modifier_ui: FloatProperty(
@@ -1425,7 +1457,12 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=1,
+        update=update_lightmap_general_bounce_modifier_ui,
     )
+
+    def update_lightmap_translucency_tint_color_ui(self, context):
+        self.lightmap_translucency_tint_color_active = True
+
     lightmap_translucency_tint_color_active: BoolProperty()
     lightmap_translucency_tint_color_ui: FloatVectorProperty(
         name="Lightmap Translucency Tint Color",
@@ -1435,7 +1472,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         subtype="COLOR",
         min=0.0,
         max=1.0,
+        update=update_lightmap_translucency_tint_color_ui,
     )
+
+    def update_lightmap_lighting_from_both_sides_ui(self, context):
+        self.lightmap_lighting_from_both_sides_active = True
 
     lightmap_lighting_from_both_sides_active: BoolProperty()
     lightmap_lighting_from_both_sides_ui: BoolProperty(
@@ -1443,9 +1484,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=False,
+        update=update_lightmap_lighting_from_both_sides_ui,
     )
 
     # MATERIAL LIGHTING PROPERTIES
+
+    def update_emissive(self, context):
+        self.emissive_active = True
+
     emissive_active: BoolProperty()
     material_lighting_attenuation_active: BoolProperty()
     material_lighting_attenuation_cutoff_ui: FloatProperty(
@@ -1504,6 +1550,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="",
         min=0,
         default=100,
+        update=update_emissive,
     )
 
     material_lighting_emissive_quality_active: BoolProperty()
@@ -1838,10 +1885,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
     )
 
+    def update_face_type_ui(self, context):
+        self.face_type_active = True
+
     face_type_active: BoolProperty()
     face_type_ui: EnumProperty(
         name="Face Type",
         options=set(),
+        update=update_face_type_ui,
         description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
         items=[
             (
@@ -1857,10 +1908,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ],
     )
 
+    def update_face_mode_ui(self, context):
+        self.face_mode_active = True
+
     face_mode_active: BoolProperty()
     face_mode_ui: EnumProperty(
         name="Face Mode",
         options=set(),
+        update=update_face_mode_ui,
         description="Sets face mode for this mesh",
         items=[
             (
@@ -1896,10 +1951,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ],
     )
 
+    def update_face_sides_ui(self, context):
+        self.face_sides_active = True
+
     face_sides_active: BoolProperty()
     face_sides_ui: EnumProperty(  # NOTE replaced by face_two_sided_ui
         name="Face Sides",
         options=set(),
+        update=update_face_sides_ui,
         description="Sets the face sides for this mesh",
         default="_connected_geometry_face_sides_one_sided",
         items=[
@@ -1944,10 +2003,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
     )
 
+    def update_face_draw_distance_ui(self, context):
+        self.face_draw_distance_active = True
+
     face_draw_distance_active: BoolProperty()
     face_draw_distance_ui: EnumProperty(
         name="Face Draw Distance",
         options=set(),
+        update=update_face_draw_distance_ui,
         description="Select the draw distance for faces on this mesh",
         default="_connected_geometry_face_draw_distance_normal",
         items=[
@@ -1961,11 +2024,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ],
     )
 
+    def update_texcoord_usage_ui(self, context):
+        self.texcoord_usage_active = True
+
     texcoord_usage_active: BoolProperty()
     texcoord_usage_ui: EnumProperty(
         name="Texture Coordinate Usage",
         options=set(),
         description="",
+        update=update_texcoord_usage_ui,
         default="_connected_material_texcoord_usage_default",
         items=[
             ("_connected_material_texcoord_usage_default", "Default", ""),
@@ -1993,9 +2060,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Define the region for this mesh",
         get=get_region_from_collection,
     )
-
-    def update_permutation_name_ui(self, context):
-        scene_nwo = context.scene.nwo
 
     permutation_name_ui: StringProperty(
         name="Permutation",
@@ -2034,13 +2098,20 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         soft_max=10,
     )
 
+    def update_ladder_ui(self, context):
+        self.ladder_active = True
+
     ladder_active: BoolProperty()
     ladder_ui: BoolProperty(
         name="Ladder",
         options=set(),
         description="Makes faces climbable",
         default=True,
+        update=update_ladder_ui,
     )
+
+    def update_slip_surface_ui(self, context):
+        self.slip_surface_active = True
 
     slip_surface_active: BoolProperty()
     slip_surface_ui: BoolProperty(
@@ -2048,7 +2119,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Makes faces slippery for units",
         default=True,
+        update=update_slip_surface_ui,
     )
+
+    def update_decal_offset_ui(self, context):
+        self.decal_offset_active = True
 
     decal_offset_active: BoolProperty()
     decal_offset_ui: BoolProperty(
@@ -2056,7 +2131,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Enable to offset these faces so that they appear to be layered on top of another face",
         default=True,
+        update=update_decal_offset_ui,
     )
+
+    def update_group_transparents_by_plane_ui(self, context):
+        self.group_transparents_by_plane_active = True
 
     group_transparents_by_plane_active: BoolProperty()
     group_transparents_by_plane_ui: BoolProperty(
@@ -2064,7 +2143,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Enable to group transparent geometry by fitted planes",
         default=True,
+        update=update_group_transparents_by_plane_ui,
     )
+
+    def update_no_shadow_ui(self, context):
+        self.no_shadow_active = True
 
     no_shadow_active: BoolProperty()
     no_shadow_ui: BoolProperty(
@@ -2072,7 +2155,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Enable to prevent faces from casting shadows",
         default=True,
+        update=update_no_shadow_ui,
     )
+
+    def update_precise_position_ui(self, context):
+        self.precise_position_active = True
 
     precise_position_active: BoolProperty()
     precise_position_ui: BoolProperty(
@@ -2080,7 +2167,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Enable to prevent faces from being altered during the import process",
         default=False,
+        update=update_precise_position_ui,
     )
+
+    def update_no_lightmap_ui(self, context):
+        self.no_lightmap_active = True
 
     no_lightmap_active: BoolProperty()
     no_lightmap_ui: BoolProperty(
@@ -2088,7 +2179,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=True,
+        update=update_no_lightmap_ui,
     )
+
+    def update_no_pvs_ui(self, context):
+        self.no_pvs_active = True
 
     no_pvs_active: BoolProperty()
     no_pvs_ui: BoolProperty(
@@ -2096,6 +2191,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=True,
+        update=update_no_pvs_ui,
     )
 
     # EXPORT ONLY PROPS
