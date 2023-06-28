@@ -26,15 +26,13 @@
 
 from bpy.types import Menu
 
-from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.icons import get_icon_id_special
 
 
 class FoundrySplashScreen(Menu):
     bl_label = "Splash"
 
     def draw(self, context):
-        from io_scene_foundry.icons import get_icon_id
-
         layout = self.layout
         layout.operator_context = "EXEC_DEFAULT"
         layout.emboss = "PULLDOWN_MENU"
@@ -42,42 +40,41 @@ class FoundrySplashScreen(Menu):
 
         # Templates
         col1 = split.column()
-        col1.prop(context.scene.nwo, "game_version", text="")
+        # col1.prop(context.scene.nwo, "game_version", text="")
         col1.label(text="New Asset")
 
         # bpy.types.TOPBAR_MT_file_new.draw_ex(col1, context, use_splash=True)
         col1.operator(
-            "wm.read_homefile", text="Model", icon_value=get_icon_id("model")
+            "wm.read_homefile", text="Model", icon_value=get_icon_id_special("model")
         ).app_template = "Model"
         col1.operator(
             "wm.read_homefile",
             text="Scenario",
-            icon_value=get_icon_id("scenario"),
+            icon_value=get_icon_id_special("scenario"),
         ).app_template = "Scenario"
         col1.operator(
-            "wm.read_homefile", text="Sky", icon_value=get_icon_id("sky")
+            "wm.read_homefile", text="Sky", icon_value=get_icon_id_special("sky")
         ).app_template = "Sky"
         col1.operator(
             "wm.read_homefile",
             text="Decorator Set",
-            icon_value=get_icon_id("decorator"),
+            icon_value=get_icon_id_special("decorator"),
         ).app_template = "Decorator Set"
         col1.operator(
             "wm.read_homefile",
             text="Particle Model",
-            icon_value=get_icon_id("particle_model"),
+            icon_value=get_icon_id_special("particle_model"),
         ).app_template = "Particle Model"
         col1.operator(
             "wm.read_homefile",
             text="First Person Animation",
-            icon_value=get_icon_id("animation"),
+            icon_value=get_icon_id_special("animation"),
         ).app_template = "First Person Animation"
         col1.operator(
-            "wm.read_homefile", text="Prefab", icon_value=get_icon_id("prefab")
+            "wm.read_homefile", text="Prefab", icon_value=get_icon_id_special("prefab")
         ).app_template = "Prefab"
         # Recent
         col2 = split.column()
-        col2.label(text="")
         col2_title = col2.row()
 
         found_recent = col2.template_recent_files(rows=7)
@@ -111,12 +108,12 @@ class FoundrySplashScreen(Menu):
         col2 = split.column()
 
         col2.operator(
-            "wm.url_open", text="Github", icon_value=get_icon_id("github")
+            "wm.url_open", text="Github", icon_value=get_icon_id_special("github")
         ).url = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
         col2.operator(
             "wm.url_open",
             text="Documentation",
-            icon_value=get_icon_id("c20_reclaimers"),
+            icon_value=get_icon_id_special("c20_reclaimers"),
         ).url = r"https://c20.reclaimers.net/"
 
         layout.separator()
@@ -133,7 +130,7 @@ class FoundryTOPBAREditor(Menu):  # TOPBAR_MT_editor_menus
         # Allow calling this menu directly (this might not be a header area).
         if getattr(context.area, "show_menus", False):
             layout.menu(
-                "TOPBAR_MT_blender", text="", icon_value=get_icon_id("foundry")
+                "TOPBAR_MT_blender", text="", icon_value=get_icon_id_special("foundry")
             )
         else:
             layout.menu("TOPBAR_MT_blender", text="Blender")

@@ -35,6 +35,8 @@ from bpy.app.handlers import persistent
 import os
 
 from io_scene_foundry.utils.nwo_utils import (
+    disable_prints,
+    enable_prints,
     formalise_game_version,
     get_ek_path,
     valid_nwo_asset,
@@ -44,7 +46,7 @@ bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
     "version": (1, 0, 0),
-    "blender": (3, 5, 1),
+    "blender": (3, 6, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",
     "warning": "",
@@ -53,21 +55,21 @@ bl_info = {
     "category": "Export",
 }
 
-from . import icons
 from . import tools
 from . import ui
 from . import export
 from . import managed_blam
 from . import keymap 
+from . import icons
 
 
 modules = [
-    icons,
     tools,
     ui,
     managed_blam,
     export,
     keymap,
+    icons,
 ]
 
 
@@ -369,6 +371,10 @@ def get_temp_settings(dummy):
 
         os.remove(temp_file_path)
 
+def fix_icons():
+    icons.icons_activate()
+
+
 def register():
     bpy.utils.register_class(ToolkitLocationPreferences)
     bpy.utils.register_class(HREKLocationPath)
@@ -380,8 +386,11 @@ def register():
     for module in modules:
         module.register()
 
+    bpy.app.timers.register(fix_icons, first_interval=0.04)
+
 
 def unregister():
+    bpy.app.timers.unregister(fix_icons)
     bpy.app.handlers.load_post.remove(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
     bpy.app.handlers.undo_post.remove(get_temp_settings)

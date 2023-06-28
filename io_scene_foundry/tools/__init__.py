@@ -37,7 +37,6 @@ from bpy.props import (
     IntProperty,
     EnumProperty,
     PointerProperty,
-    FloatProperty,
 )
 from io_scene_foundry.icons import get_icon_id
 
@@ -45,7 +44,6 @@ from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
     clean_tag_path,
     dot_partition,
-    get_data_path,
     get_tags_path,
     managed_blam_active,
     not_bungie_game,
