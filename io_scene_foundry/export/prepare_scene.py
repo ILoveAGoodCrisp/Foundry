@@ -414,6 +414,15 @@ class PrepareScene:
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
 
+        if export_gr2_files:
+            # Convert mesh markers to empty objects
+            self.markerify(export_obs, scene_coll, context)
+            # print("markifiy")
+
+            # get new export_obs from deleted markers
+            context.view_layer.update()
+            export_obs = context.view_layer.objects[:]
+
         # apply face layer properties
         self.apply_face_properties(context, export_obs, scene_coll, h4, sidecar_type == 'SCENARIO')
         # print("face_props_applied")
@@ -427,14 +436,6 @@ class PrepareScene:
             # print("poop_proxies")
 
             # get new proxy export_obs
-            context.view_layer.update()
-            export_obs = context.view_layer.objects[:]
-
-            # Convert mesh markers to empty objects
-            self.markerify(export_obs, scene_coll, context)
-            # print("markifiy")
-
-            # get new export_obs from deleted markers
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
 
@@ -929,11 +930,27 @@ class PrepareScene:
             #     mesh_props.poop_render_only = True
 
     def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario):
+        mesh_obs_full = [
+            ob
+            for ob in export_obs
+            if ob.type == 'MESH'
+        ]
+        meshes_full = {ob.data for ob in mesh_obs_full}
+        me_ob_dict_full = {}
+        for me in meshes_full:
+            for ob in mesh_obs_full:
+                if ob.data == me:
+                    if me not in me_ob_dict_full:
+                        me_ob_dict_full[me] = []
+
+                    me_ob_dict_full[me].append(ob)
+
         valid_mesh_types = (
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_poop",
         )
+
         mesh_obs = [
             ob
             for ob in export_obs
@@ -955,6 +972,16 @@ class PrepareScene:
         process = "Creating Meshes From Face Properties"
         len_me_ob_dict = len(me_ob_dict)
         any_face_props = False
+
+        # make invalid obs seperate mesh data
+        if me_ob_dict[me] != me_ob_dict_full[me]:
+            print("HIT!!!")
+            new_data = me.copy()
+            for ob in me_ob_dict_full[me]:
+                if ob not in me_ob_dict[me]:
+                    print(ob.name)
+                    ob.data = new_data
+
         for idx, me in enumerate(me_ob_dict.keys()):
             linked_objects = me_ob_dict.get(me)
             # Check to ensure linked objects is not empty
@@ -978,6 +1005,7 @@ class PrepareScene:
 
             if face_layers:
                 update_progress(process, idx / len_me_ob_dict)
+
                 any_face_props = True
                 # must force on auto smooth to avoid Normals transfer errors
                 me.use_auto_smooth = True

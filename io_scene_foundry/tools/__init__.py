@@ -2530,3 +2530,6 @@ def unregister():
     del bpy.types.Scene.nwo_shader_build
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
+
+if __name__ == "__main__":
+    register()

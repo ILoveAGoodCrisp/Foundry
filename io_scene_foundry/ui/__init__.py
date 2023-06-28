@@ -546,3 +546,6 @@ def unregister():
     del bpy.types.Mesh.nwo
     for cls_nwo in classes_nwo:
         bpy.utils.unregister_class(cls_nwo)
+
+if __name__ == "__main__":
+    register()
