@@ -360,8 +360,7 @@ class NWO_HaloLauncherExplorerSettings(Panel):
     bl_label = "Explorer Settings"
     bl_idname = "NWO_PT_HaloLauncherExplorerSettings"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_region_type = "HEADER"
 
     # @classmethod
     # def poll(cls, context):
@@ -390,8 +389,7 @@ class NWO_HaloLauncherGameSettings(Panel):
     bl_label = "Game Settings"
     bl_idname = "NWO_PT_HaloLauncherGameSettings"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_region_type = "HEADER"
 
     def draw(self, context):
         layout = self.layout
@@ -428,9 +426,8 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
     bl_label = "Pruning"
     bl_idname = "NWO_PT_HaloLauncherGamePruneSettings"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
     bl_parent_id = "NWO_PT_HaloLauncherGameSettings"
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_region_type = "HEADER"
 
     def draw(self, context):
         layout = self.layout
@@ -536,8 +533,7 @@ class NWO_HaloLauncherFoundationSettings(Panel):
     bl_label = "Foundation Settings"
     bl_idname = "NWO_PT_HaloLauncherFoundationSettings"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_region_type = "HEADER"
 
     # @classmethod
     # def poll(cls, context):
@@ -1215,9 +1211,7 @@ class NWO_HaloExportSettings(Panel):
     bl_label = "Quick Export Settings"
     bl_idname = "NWO_PT_HaloExportSettings"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_icon = "EXPORT"
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_region_type = "HEADER"
 
     def draw(self, context):
         layout = self.layout
@@ -1263,10 +1257,8 @@ class NWO_HaloExportSettingsScope(Panel):
     bl_label = "Scope"
     bl_idname = "NWO_PT_HaloExportSettingsScope"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_icon = "EXPORT"
     bl_parent_id = "NWO_PT_HaloExportSettings"
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_region_type = "HEADER"
 
     @classmethod
     def poll(self, context):
@@ -1321,10 +1313,8 @@ class NWO_HaloExportSettingsFlags(Panel):
     bl_label = "Flags"
     bl_idname = "NWO_PT_HaloExportSettingsFlags"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_icon = "EXPORT"
     bl_parent_id = "NWO_PT_HaloExportSettings"
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_region_type = "HEADER"
 
     @classmethod
     def poll(self, context):

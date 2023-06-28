@@ -35,8 +35,6 @@ from bpy.app.handlers import persistent
 import os
 
 from io_scene_foundry.utils.nwo_utils import (
-    disable_prints,
-    enable_prints,
     formalise_game_version,
     get_ek_path,
     valid_nwo_asset,

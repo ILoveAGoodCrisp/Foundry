@@ -466,104 +466,110 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # SETUP #
         scene = bpy.context.scene
 
-        if scene.nwo.game_version in (("reach", "h4", "h2a")):
-            self.game_version = scene.nwo.game_version
+        self.game_version = scene.nwo.game_version
 
-        # QUICK EXPORT SETTINGS #
+        if os.path.exists(get_tool_path() + ".exe"):
+            # QUICK EXPORT SETTINGS #
+            scene_nwo_export = scene.nwo_export
+            self.export_gr2_files = scene_nwo_export.export_gr2_files
+            self.export_all_bsps = scene_nwo_export.export_all_bsps
+            self.export_all_perms = scene_nwo_export.export_all_perms
+            self.import_to_game = scene_nwo_export.import_to_game
+            self.import_draft = scene_nwo_export.import_draft
+            self.lightmap_structure = scene_nwo_export.lightmap_structure
+            self.lightmap_quality_h4 = scene_nwo_export.lightmap_quality_h4
+            self.lightmap_quality = scene_nwo_export.lightmap_quality
+            self.lightmap_quality = scene_nwo_export.lightmap_quality
+            self.lightmap_all_bsps = scene_nwo_export.lightmap_all_bsps
 
-        scene_nwo_export = scene.nwo_export
-        self.export_gr2_files = scene_nwo_export.export_gr2_files
-        self.export_all_bsps = scene_nwo_export.export_all_bsps
-        self.export_all_perms = scene_nwo_export.export_all_perms
-        self.import_to_game = scene_nwo_export.import_to_game
-        self.import_draft = scene_nwo_export.import_draft
-        self.lightmap_structure = scene_nwo_export.lightmap_structure
-        self.lightmap_quality_h4 = scene_nwo_export.lightmap_quality_h4
-        self.lightmap_quality = scene_nwo_export.lightmap_quality
-        self.lightmap_quality = scene_nwo_export.lightmap_quality
-        self.lightmap_all_bsps = scene_nwo_export.lightmap_all_bsps
+            self.export_animations = scene_nwo_export.export_animations
+            self.export_skeleton = scene_nwo_export.export_skeleton
+            self.export_render = scene_nwo_export.export_render
+            self.export_collision = scene_nwo_export.export_collision
+            self.export_physics = scene_nwo_export.export_physics
+            self.export_markers = scene_nwo_export.export_markers
+            self.export_structure = scene_nwo_export.export_structure
+            self.export_design = scene_nwo_export.export_design
 
-        self.export_animations = scene_nwo_export.export_animations
-        self.export_skeleton = scene_nwo_export.export_skeleton
-        self.export_render = scene_nwo_export.export_render
-        self.export_collision = scene_nwo_export.export_collision
-        self.export_physics = scene_nwo_export.export_physics
-        self.export_markers = scene_nwo_export.export_markers
-        self.export_structure = scene_nwo_export.export_structure
-        self.export_design = scene_nwo_export.export_design
+            self.show_output = scene_nwo_export.show_output
 
-        self.show_output = scene_nwo_export.show_output
+            self.import_force = scene_nwo_export.import_force
+            self.import_verbose = scene_nwo_export.import_verbose
+            self.import_draft = scene_nwo_export.import_draft
+            self.import_seam_debug = scene_nwo_export.import_seam_debug
+            self.import_skip_instances = scene_nwo_export.import_skip_instances
+            self.import_decompose_instances = scene_nwo_export.import_decompose_instances
+            self.import_surpress_errors = scene_nwo_export.import_surpress_errors
+            self.import_lighting = scene_nwo_export.import_lighting
+            self.import_meta_only = scene_nwo_export.import_meta_only
+            self.import_disable_hulls = scene_nwo_export.import_disable_hulls
+            self.import_disable_collision = scene_nwo_export.import_disable_collision
+            self.import_no_pca = scene_nwo_export.import_no_pca
+            self.import_force_animations = scene_nwo_export.import_force_animations
 
-        self.import_force = scene_nwo_export.import_force
-        self.import_verbose = scene_nwo_export.import_verbose
-        self.import_draft = scene_nwo_export.import_draft
-        self.import_seam_debug = scene_nwo_export.import_seam_debug
-        self.import_skip_instances = scene_nwo_export.import_skip_instances
-        self.import_decompose_instances = scene_nwo_export.import_decompose_instances
-        self.import_surpress_errors = scene_nwo_export.import_surpress_errors
-        self.import_lighting = scene_nwo_export.import_lighting
-        self.import_meta_only = scene_nwo_export.import_meta_only
-        self.import_disable_hulls = scene_nwo_export.import_disable_hulls
-        self.import_disable_collision = scene_nwo_export.import_disable_collision
-        self.import_no_pca = scene_nwo_export.import_no_pca
-        self.import_force_animations = scene_nwo_export.import_force_animations
+            # SIDECAR SETTINGS #
+            scene_nwo = bpy.context.scene.nwo
 
-        # SIDECAR SETTINGS #
-        scene_nwo = bpy.context.scene.nwo
+            self.sidecar_type = scene_nwo.asset_type
 
-        self.sidecar_type = scene_nwo.asset_type
-
-        self.output_biped = scene_nwo.output_biped
-        self.output_crate = scene_nwo.output_crate
-        self.output_creature = scene_nwo.output_creature
-        self.output_device_control = scene_nwo.output_device_control
-        self.output_device_dispenser = scene_nwo.output_device_dispenser
-        self.output_device_machine = scene_nwo.output_device_machine
-        self.output_device_terminal = scene_nwo.output_device_terminal
-        self.output_effect_scenery = scene_nwo.output_effect_scenery
-        self.output_equipment = scene_nwo.output_equipment
-        self.output_giant = scene_nwo.output_giant
-        self.output_scenery = scene_nwo.output_scenery
-        self.output_vehicle = scene_nwo.output_vehicle
-        self.output_weapon = scene_nwo.output_weapon
-        # get sidecar path from users EK data path + internal path
-        sidecar_filepath = path.join(
-            get_data_path(), scene.nwo_halo_launcher.sidecar_path
-        )
-        if not sidecar_filepath.endswith(".sidecar.xml"):
-            sidecar_filepath = ""
-        if sidecar_filepath != "" and file_exists(sidecar_filepath):
-            # export_settings = ExportSettingsFromSidecar(sidecar_filepath)
-            self.filepath = path.join(
-                sidecar_filepath.rpartition("\\")[0], "halo_export.fbx"
+            self.output_biped = scene_nwo.output_biped
+            self.output_crate = scene_nwo.output_crate
+            self.output_creature = scene_nwo.output_creature
+            self.output_device_control = scene_nwo.output_device_control
+            self.output_device_dispenser = scene_nwo.output_device_dispenser
+            self.output_device_machine = scene_nwo.output_device_machine
+            self.output_device_terminal = scene_nwo.output_device_terminal
+            self.output_effect_scenery = scene_nwo.output_effect_scenery
+            self.output_equipment = scene_nwo.output_equipment
+            self.output_giant = scene_nwo.output_giant
+            self.output_scenery = scene_nwo.output_scenery
+            self.output_vehicle = scene_nwo.output_vehicle
+            self.output_weapon = scene_nwo.output_weapon
+            # get sidecar path from users EK data path + internal path
+            sidecar_filepath = path.join(
+                get_data_path(), scene.nwo_halo_launcher.sidecar_path
             )
-        elif bpy.data.is_saved:
-            try:
-                filepath_list = bpy.path.abspath("//").split("\\")
-                del filepath_list[-1]
-                if filepath_list[-1] == "work" and filepath_list[-2] in (
-                    "models",
-                    "animations",
-                ):
-                    del filepath_list[-1]
-                    del filepath_list[-1]
-                elif filepath_list[-1] in ("models", "animations"):
-                    del filepath_list[-1]
-                drive = filepath_list[0]
-                del filepath_list[0]
+            if not sidecar_filepath.endswith(".sidecar.xml"):
+                sidecar_filepath = ""
+            if sidecar_filepath != "" and file_exists(sidecar_filepath):
+                # export_settings = ExportSettingsFromSidecar(sidecar_filepath)
                 self.filepath = path.join(
-                    drive, path.sep, *filepath_list, "halo_export.fbx"
+                    sidecar_filepath.rpartition("\\")[0], "halo_export.fbx"
                 )
-            except:
-                if get_data_path() != "":
+            elif bpy.data.is_saved:
+                try:
+                    filepath_list = bpy.path.abspath("//").split("\\")
+                    del filepath_list[-1]
+                    if filepath_list[-1] == "work" and filepath_list[-2] in (
+                        "models",
+                        "animations",
+                    ):
+                        del filepath_list[-1]
+                        del filepath_list[-1]
+                    elif filepath_list[-1] in ("models", "animations"):
+                        del filepath_list[-1]
+                    drive = filepath_list[0]
+                    del filepath_list[0]
                     self.filepath = path.join(
-                        get_data_path(), "halo_export.fbx"
+                        drive, path.sep, *filepath_list, "halo_export.fbx"
                     )
+                except:
+                    if get_data_path() != "":
+                        self.filepath = path.join(
+                            get_data_path(), "halo_export.fbx"
+                        )
 
-        elif get_data_path() != "":
-            self.filepath = path.join(get_data_path(), "halo_export.fbx")
+            elif get_data_path() != "":
+                self.filepath = path.join(get_data_path(), "halo_export.fbx")
+
+        else:
+            self.game_path_not_set = True
 
     def execute(self, context):
+        if self.game_path_not_set:
+            self.report({'WARNING'}, f"Unable to export. Your {formalise_game_version(self.game_version)} Editing Kit path must be set in preferences")
+            return {'CANCELLED'}
+        
         start = time.perf_counter()
 
         # get the asset name and path to the asset folder
@@ -999,7 +1005,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
 def menu_func_export(self, context):
     self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag")
-
 
 def fbx_exporter():
     exporter = "default"
