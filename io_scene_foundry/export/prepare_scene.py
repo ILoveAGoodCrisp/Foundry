@@ -415,7 +415,7 @@ class PrepareScene:
         export_obs = context.view_layer.objects[:]
 
         # apply face layer properties
-        self.apply_face_properties(context, export_obs, scene_coll, h4)
+        self.apply_face_properties(context, export_obs, scene_coll, h4, sidecar_type == 'SCENARIO')
         # print("face_props_applied")
 
         # get new export_obs from split meshes
@@ -928,7 +928,7 @@ class PrepareScene:
             # elif is_poop and ob != main_mesh:
             #     mesh_props.poop_render_only = True
 
-    def apply_face_properties(self, context, export_obs, scene_coll, h4):
+    def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario):
         valid_mesh_types = (
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_default",
@@ -940,6 +940,7 @@ class PrepareScene:
             if ob.nwo.object_type == "_connected_geometry_object_type_mesh"
             and ob.type == 'MESH'
             and ob.nwo.mesh_type in valid_mesh_types
+            and not (ob.nwo.mesh_type == '_connected_geometry_mesh_type_default' and h4 and scenario)
         ]
         meshes = {ob.data for ob in mesh_obs}
         me_ob_dict = {}
