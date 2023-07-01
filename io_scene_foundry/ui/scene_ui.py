@@ -204,31 +204,34 @@ class NWO_SetUnitScale(NWO_Op):
     bl_idname = "nwo.set_unit_scale"
     bl_label = "Set Halo Scene"
 
+    scale : bpy.props.FloatProperty()
+
     @classmethod
     def poll(self, context):
         return context.scene
 
     def execute(self, context):
         # Set the frame rate to 30
-        context.scene.render.fps = 30
+        if self.scale != 1.0:
+            context.scene.render.fps = 30
         # define the Halo scale
-        halo_scale = 0.03048
         # Apply scale to clipping in all windows if halo_scale has not already been set
-        if round(context.scene.unit_settings.scale_length, 5) != halo_scale:
-            for workspace in bpy.data.workspaces:
-                for screen in workspace.screens:
-                    for area in screen.areas:
-                        if area.type == "VIEW_3D":
-                            for space in area.spaces:
-                                if space.type == "VIEW_3D":
-                                    space.clip_start = (
-                                        space.clip_start / halo_scale
-                                    )
-                                    space.clip_end = (
-                                        space.clip_end / halo_scale
-                                    )
+        current_scale = context.scene.unit_settings.scale_length
+        scale_ratio = current_scale / self.scale
+        for workspace in bpy.data.workspaces:
+            for screen in workspace.screens:
+                for area in screen.areas:
+                    if area.type == "VIEW_3D":
+                        for space in area.spaces:
+                            if space.type == "VIEW_3D":
+                                space.clip_start = (
+                                    space.clip_start * scale_ratio
+                                )
+                                space.clip_end = (
+                                    space.clip_end * scale_ratio
+                                )
         # Set halo scale
-        context.scene.unit_settings.scale_length = halo_scale
+        current_scale = self.scale
         return {"FINISHED"}
 
 

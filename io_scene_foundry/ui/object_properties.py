@@ -25,7 +25,6 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from .face_properties import NWO_FaceProperties_ListItems
-from .templates import poll_ui
 from bpy.props import (
     IntProperty,
     BoolProperty,
@@ -46,6 +45,7 @@ from ..utils.nwo_utils import (
     mesh_object,
     not_bungie_game,
     nwo_enum,
+    poll_ui,
 )
 
 # MESH PROPS

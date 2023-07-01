@@ -35,9 +35,8 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 import bpy
 
-from .templates import poll_ui
 from ..icons import get_icon_id
-from ..utils.nwo_utils import get_ek_path, not_bungie_game
+from ..utils.nwo_utils import get_ek_path, not_bungie_game, poll_ui
 
 
 def game_version_warning(self, context):
@@ -484,3 +483,33 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=False,
         options=set(),
     )
+
+    object_tools_active: BoolProperty()
+    object_tools_expanded: BoolProperty(default=True)
+
+    material_tools_active: BoolProperty()
+    material_tools_expanded: BoolProperty(default=True)
+
+    animation_tools_active: BoolProperty()
+    animation_tools_expanded: BoolProperty(default=True)
+
+    light_tools_active: BoolProperty()
+    light_tools_expanded: BoolProperty(default=True)
+
+    object_properties_active: BoolProperty(default=True)
+    object_properties_expanded: BoolProperty(default=True)
+
+    material_properties_active: BoolProperty()
+    material_properties_expanded: BoolProperty(default=True)
+
+    animation_properties_active: BoolProperty()
+    animation_properties_expanded: BoolProperty(default=True)
+
+    scene_properties_active: BoolProperty(default=True)
+    scene_properties_expanded: BoolProperty(default=True)
+
+    asset_editor_active: BoolProperty()
+    asset_editor_expanded: BoolProperty(default=True)
+
+    sets_viewer_active: BoolProperty()
+    sets_viewer_expanded: BoolProperty(default=True)

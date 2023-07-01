@@ -65,6 +65,7 @@ class Sidecar:
         output_weapon,
     ):
         self.tag_path = data_relative(os.path.join (asset_path, asset_name))
+        self.relative_blend = bpy.data.filepath.replace(get_data_path(), "")
 
         self.build_sidecar(
             nwo_scene,
@@ -92,6 +93,7 @@ class Sidecar:
         )
 
         del self.tag_path
+        del self.relative_blend
 
         self.message = f"{str.title(sidecar_type)} Sidecar Export Complete"
 
@@ -555,8 +557,8 @@ class Sidecar:
         network = ET.SubElement(
             object, "ContentNetwork", Name=path[3], Type=""
         )
-        ET.SubElement(network, "InputFile").text = path[0]
-        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
     def write_model_contents(self, metadata, sidecar_paths, asset_name):
@@ -620,8 +622,8 @@ class Sidecar:
 
             path = sidecar_paths.get("markers")[0]
 
-            ET.SubElement(network, "InputFile").text = path[0]
-            ET.SubElement(network, "ComponentFile").text = path[1]
+            ET.SubElement(network, "InputFile").text = self.relative_blend
+            # ET.SubElement(network, "ComponentFile").text = path[1]
             ET.SubElement(network, "IntermediateFile").text = path[2]
 
             output = ET.SubElement(object, "OutputTagCollection")
@@ -643,8 +645,8 @@ class Sidecar:
                 Type="",
             )
 
-        ET.SubElement(network, "InputFile").text = path[0]
-        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
 
@@ -666,8 +668,8 @@ class Sidecar:
             object, "ContentNetwork", Name=f"{asset_name}", Type=""
         )
 
-        ET.SubElement(network, "InputFile").text = lighting_path[0]
-        ET.SubElement(network, "ComponentFile").text = lighting_path[1]
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "ComponentFile").text = lighting_path[1]
         ET.SubElement(network, "IntermediateFile").text = lighting_path[2]
 
         output = ET.SubElement(object, "OutputTagCollection")
@@ -752,8 +754,8 @@ class Sidecar:
         network = ET.SubElement(
             object, "ContentNetwork", Name="default", Type=""
         )
-        ET.SubElement(network, "InputFile").text = path[0]
-        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
         output = ET.SubElement(object, "OutputTagCollection")
@@ -781,8 +783,8 @@ class Sidecar:
                 object, "ContentNetwork", Name="default", Type=""
             )
 
-            ET.SubElement(network, "InputFile").text = path[0]
-            ET.SubElement(network, "ComponentFile").text = path[1]
+            ET.SubElement(network, "InputFile").text = self.relative_blend
+            # ET.SubElement(network, "ComponentFile").text = path[1]
             ET.SubElement(network, "IntermediateFile").text = path[2]
 
             output = ET.SubElement(object, "OutputTagCollection")
@@ -806,8 +808,8 @@ class Sidecar:
         network = ET.SubElement(
             object, "ContentNetwork", Name=asset_name, Type=""
         )
-        ET.SubElement(network, "InputFile").text = path[0]
-        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
         ET.SubElement(object, "OutputTagCollection")
@@ -826,8 +828,8 @@ class Sidecar:
         network = ET.SubElement(
             object, "ContentNetwork", Name=asset_name, Type=""
         )
-        ET.SubElement(network, "InputFile").text = path[0]
-        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
         output = ET.SubElement(object, "OutputTagCollection")
@@ -878,8 +880,8 @@ class Sidecar:
 
         path = sidecar_paths.get("skeleton")[0]
 
-        ET.SubElement(network, "InputFile").text = path[0]
-        ET.SubElement(network, "ComponentFile").text = path[1]
+        ET.SubElement(network, "InputFile").text = self.relative_blend
+        # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
         output = ET.SubElement(object, "OutputTagCollection")
@@ -969,8 +971,8 @@ class Sidecar:
                             ModelAnimationOverlayBlending="ReplacementLocalSpace",
                         )
 
-                ET.SubElement(network, "InputFile").text = path[0]
-                ET.SubElement(network, "ComponentFile").text = path[1]
+                ET.SubElement(network, "InputFile").text = self.relative_blend
+                # ET.SubElement(network, "ComponentFile").text = path[1]
                 ET.SubElement(network, "IntermediateFile").text = path[2]
 
             output = ET.SubElement(object, "OutputTagCollection")

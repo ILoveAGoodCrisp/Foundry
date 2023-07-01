@@ -118,7 +118,7 @@ from .animation_properties import (
     NWO_ActionPropertiesGroup,
 )
 
-from .animation_ui import NWO_ActionProps
+from .animation_ui import NWO_ActionProps, NWO_NewAnimation, NWO_DeleteAnimation
 
 from .scene_properties import NWO_Asset_ListItems, NWO_ScenePropertiesGroup
 
@@ -400,6 +400,8 @@ class NWO_OpenAssetFoundry(NWO_Op):
 
 classes_nwo = (
     NWO_OpenAssetFoundry,
+    NWO_NewAnimation,
+    NWO_DeleteAnimation,
     NWO_Asset_ListItems,
     NWO_ScenePropertiesGroup,
     # NWO_List_Add_Shared_Asset,
@@ -407,7 +409,7 @@ classes_nwo = (
     # NWO_UL_SceneProps_SharedAssets,
     # NWO_SceneProps_SharedAssets,
     NWO_LightPropsCycles,
-    NWO_SceneProps,
+    # NWO_SceneProps,
     NWO_SetUnitScale,
     NWO_AssetMaker,
     NWO_GameInstancePath,
@@ -420,7 +422,7 @@ classes_nwo = (
     NWO_LightGelPath,
     NWO_LensFlarePath,
     NWO_ShaderPath,
-    NWO_ObjectProps,
+    # NWO_ObjectProps,
     NWO_GlobalMaterialRegionListFace,
     NWO_RegionListFace,
     NWO_GlobalMaterialListFace,
@@ -432,7 +434,7 @@ classes_nwo = (
     NWO_BSPList,
     NWO_GlobalMaterialList,
     NWO_GlobalMaterialMenu,
-    NWO_ShaderProps,
+    # NWO_ShaderProps,
     NWO_MaterialOpenTag,
     NWO_UL_FaceMapProps,
     NWO_FaceProperties_ListItems,
@@ -472,8 +474,8 @@ classes_nwo = (
     NWO_EditMode,
     NWO_MasterInstance,
     NWO_FaceDefaultsToggle,
-    NWO_MeshFaceProps,
-    NWO_FacePropPanel,
+    # NWO_MeshFaceProps,
+    # NWO_FacePropPanel,
     NWO_UL_FacePropList,
     NWO_FaceLayerAddFaceMode,
     NWO_FaceLayerAddFlags,

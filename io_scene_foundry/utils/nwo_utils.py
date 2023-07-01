@@ -1843,3 +1843,58 @@ def update_job_count(message, spinner, completed, total):
 
     sys.stdout.write(msg)
     sys.stdout.flush()
+
+def poll_ui(selected_types):
+    scene_nwo = bpy.context.scene.nwo
+    asset_type = scene_nwo.asset_type
+
+    return asset_type in selected_types
+
+def is_halo_object(ob):
+    return (
+        ob
+        and ob.type
+        not in ("LATTICE", "LIGHT_PROBE", "SPEAKER", "CAMERA")
+        and not (ob.type == "EMPTY" and ob.empty_display_type == "IMAGE")
+        and poll_ui(
+            (
+                "MODEL",
+                "SCENARIO",
+                "SKY",
+                "DECORATOR SET",
+                "PARTICLE MODEL",
+                "PREFAB",
+            )
+        )
+    )
+
+def has_mesh_props(ob):
+    valid_mesh_types = (
+        "_connected_geometry_mesh_type_collision",
+        "_connected_geometry_mesh_type_physics",
+        "_connected_geometry_mesh_type_structure",
+        "_connected_geometry_mesh_type_render",
+        "_connected_geometry_mesh_type_poop",
+    )
+    nwo = ob.nwo
+    return (
+        ob
+        and nwo.export_this
+        and nwo.object_type_ui == "_connected_geometry_object_type_mesh"
+        and nwo.mesh_type_ui in valid_mesh_types
+    )
+
+def has_face_props(ob):
+    valid_mesh_types = (
+        "_connected_geometry_mesh_type_collision",
+        "_connected_geometry_mesh_type_structure",
+        "_connected_geometry_mesh_type_render",
+        "_connected_geometry_mesh_type_poop",
+    )
+    return (
+        ob
+        and ob.nwo.export_this
+        and ob.type == "MESH"
+        and ob.nwo.object_type_ui == "_connected_geometry_object_type_mesh"
+        and ob.nwo.mesh_type_ui in valid_mesh_types
+    )

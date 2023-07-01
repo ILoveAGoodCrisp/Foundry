@@ -24,7 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from .templates import NWO_PropPanel
+from bpy.types import Context, Event
+from .templates import NWO_Op, NWO_PropPanel
+import bpy
 
 
 # ACTION PROPERTIES
@@ -67,3 +69,293 @@ class NWO_ActionProps(NWO_PropPanel):
             col = flow.column()
             col.prop(action_nwo, "name_override")
             col.prop(action_nwo, "animation_type")
+
+class NWO_DeleteAnimation(NWO_Op):
+    bl_label = "Delete Animation"
+    bl_idname = "nwo.delete_animation"
+    bl_description = "Deletes a Halo Animation from the blend file"
+
+    def execute(self, context):
+        action = context.object.animation_data.action
+        name = str(action.name)
+        bpy.data.actions.remove(action)
+        self.report({'INFO'}, f"Deleted animation: {name}")
+        return {'FINISHED'}
+
+class NWO_NewAnimation(NWO_Op):
+    bl_label = "New Animation"
+    bl_idname = "nwo.new_animation"
+    bl_description = "Creates a new Halo Animation"
+
+    frame_start : bpy.props.IntProperty(name="First Frame", default=0)
+    frame_end : bpy.props.IntProperty(name="Last Frame", default=29)
+    animation_type : bpy.props.EnumProperty(
+        name="Animation Type",
+        items=[
+            (
+                "JMM",
+                "Base (JMM)",
+                "Full skeleton animation. Has no physics movement. Examples: enter, exit, idle",
+            ),
+            (
+                "JMA",
+                "Base - Horizontal Movement (JMA)",
+                "Full skeleton animation with physics movement on the X-Y plane. Examples: move_front, walk_left, h_ping front gut",
+            ),
+            (
+                "JMT",
+                "Base - Yaw Rotation (JMT)",
+                "Full skeleton animation with physics rotation on the yaw axis. Examples: turn_left, turn_right",
+            ),
+            (
+                "JMZ",
+                "Base - Full Movement / Yaw Rotation (JMZ)",
+                "Full skeleton animation with physics movement on the X-Y-Z axis and yaw rotation. Examples: climb, jump_down_long, jump_forward_short",
+            ),
+            (
+                "JMV",
+                "Base - Full Movement & Rotation (JMV)",
+                "Full skeleton animation for vehicles. Has full roll / pitch / yaw rotation and angular velocity. Do not use for bipeds. Examples: vehicle roll_left, vehicle roll_right_short",
+            ),
+            (
+                "JMO",
+                "Overlay - Keyframe (JMO)",
+                "Overlays animation on top of others. Use on animations that aren't controlled by a function. Use this type for animating device_machines. Examples: fire_1, reload_1, device position",
+            ),
+            (
+                "JMOX",
+                "Overlay - Pose (JMOX)",
+                "Overlays animation on top of others. Use on animations that rely on functions like aiming / steering / accelaration. These animations require pitch & yaw bones to be animated and defined in the animation graph. Examples: aim_still_up, acc_up_down, vehicle steering",
+            ),
+            (
+                "JMR",
+                "Replacement - Object Space (JMR)",
+                "Replaces animation only on the bones animated in the replacement animation. Examples: combat pistol hp melee_strike_2, revenant_p sword put_away",
+            ),
+            (
+                "JMRX",
+                "Replacement - Local Space (JMRX)",
+                "Replaces animation only on the bones animated in the replacement animation. Examples: combat pistol any grip, combat rifle sr grip",
+            ),
+        ],
+    )
+    
+    state_type : bpy.props.EnumProperty(
+        name="State Type",
+        items=[
+            ("action", "Action / Overlay", ""),
+            ("transition", "Transition", ""),
+            ("damage", "Death & Damage", ""),
+            ("custom", "Custom", ""),
+        ]
+    )
+
+    mode : bpy.props.StringProperty(
+        name="Mode",
+        description="""The mode the object must be in to use this animation. Use 'any' for all modes. Other valid
+        inputs inlcude but are not limited to: 'crouch' when a unit is crouching, 
+        'combat' when a unit is in combat. Modes can also refer
+        to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more
+        information refer to existing model_animation_graph tags. Can be empty"""
+        )
+    
+    weapon_class : bpy.props.StringProperty(
+        name="Weapon Class",
+        description="""The weapon class this unit must be holding to use this animation. Weapon class is defined
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
+        )
+    weapon_type : bpy.props.StringProperty(
+        name="Weapon Name",
+        description="""The weapon type this unit must be holding to use this animation.  Weapon name is defined
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
+        )
+    set : bpy.props.StringProperty(
+        name="Set",
+        description="The set this animtion is a part of. Can be empty"
+        )
+    state : bpy.props.StringProperty(
+        name="State",
+        description="""The state this animation plays in. States can refer to hardcoded properties or be entirely
+        custom. You should refer to existing model_animation_graph tags for more information. Examples include: 'idle' for 
+        animations that should play when the object is inactive, 'move-left', 'move-front' for moving. 'put-away' for
+        an animation that should play when putting away a weapon. Must not be empty"""
+        )
+
+    destination_mode : bpy.props.StringProperty(
+        name="Destination Mode",
+        description="The mode to put this object in when it finishes this animation. Can be empty"
+    )
+    destination_state : bpy.props.StringProperty(
+        name="Destination State",
+        description="The state to put this object in when it finishes this animation. Must not be empty"
+    )
+
+    damage_power : bpy.props.EnumProperty(
+        name="Power",
+        items=[
+            ("hard", "Hard", ""),
+            ("soft", "Soft", ""),
+        ]
+    )
+    damage_type : bpy.props.EnumProperty(
+        name="Type",
+        items=[
+            ("ping", "Ping", ""),
+            ("kill", "Kill", ""),
+        ]
+    )
+    damage_direction : bpy.props.EnumProperty(
+        name="Direction",
+        items=[
+            ("front", "Front", ""),
+            ("left", "Left", ""),
+            ("right", "Right", ""),
+            ("back", "Back", ""),
+        ]
+    )
+    damage_region : bpy.props.EnumProperty(
+        name="Region",
+        items=[
+            ("gut", "Gut", ""),
+            ("chest", "Chest", ""),
+            ("head", "Head", ""),
+            ("leftarm", "Left Arm", ""),
+            ("lefthand", "Left Hand", ""),
+            ("leftleg", "Left Leg", ""),
+            ("leftfoot", "Left Foot", ""),
+            ("rightarm", "Right Arm", ""),
+            ("righthand", "Right Hand", ""),
+            ("rightleg", "Right Leg", ""),
+            ("rightfoot", "Right Foot", ""),
+        ]
+    )
+
+    variant : bpy.props.IntProperty(min=0, soft_max=3, name="Variant", 
+            description="""The variation of this animation. Variations can have different weightings
+            to determine whether they play. 0 = no variation
+                                    """)
+
+    custom : bpy.props.StringProperty(name="Custom")
+
+    def execute(self, context):
+        bad_chars = ' :_,-'
+        # Strip bad chars from inputs
+        mode = self.mode.strip(bad_chars)
+        weapon_class = self.weapon_class.strip(bad_chars)
+        weapon_type = self.weapon_type.strip(bad_chars)
+        set = self.set.strip(bad_chars)
+        state = self.state.strip(bad_chars)
+        destination_mode = self.destination_mode.strip(bad_chars)
+        destination_state = self.destination_state.strip(bad_chars)
+        custom = self.custom.strip(bad_chars)
+
+        # Get the animation name from user inputs
+        if self.state_type != 'custom':
+            is_damage = self.state_type == "damage"
+            is_transition = self.state_type == "transition"
+            full_name = ""
+            if mode:
+                full_name = mode
+            elif weapon_class or weapon_type or weapon_type or set or is_damage or is_transition:
+                full_name = "any"
+    
+            if weapon_class:
+                full_name += f" {weapon_class}"
+            elif weapon_type or is_transition:
+                full_name += f" any"
+
+            if weapon_type:
+                full_name += f" {weapon_type}"
+            elif set or is_transition:
+                full_name += f" any"
+
+            if set:
+                full_name += f" {set}"
+            elif is_transition:
+                full_name += f" any"
+
+            if state and not is_damage:
+                full_name += f" {state}"
+            elif not is_damage:
+                self.report({'WARNING'}, "No state defined. Setting to idle")
+                full_name += f" idle"
+
+            if is_transition:
+                if destination_mode:
+                    full_name += f" {destination_mode}"
+                else:
+                    full_name += f" any"
+
+                if destination_state:
+                    full_name += f" {destination_state}"
+                else:
+                    self.report({'WARNING'}, "No destination state defined. Setting to idle")
+                    full_name += f" idle"
+
+            elif is_damage:
+                full_name += f" {self.damage_power[0]}"
+                full_name += f"_{self.damage_type}"
+                full_name += f" {self.damage_direction}"
+                full_name += f" {self.damage_region}"
+
+            if self.variant:
+                full_name += f" var{self.variant}"
+
+        else:
+            if custom:
+                full_name = custom
+            else:
+                self.report({'WARNING'}, "Animation name empty. Setting to idle")
+                full_name = "idle"
+
+        # Create the animation
+        animation = bpy.data.actions.new(full_name.lower().strip(bad_chars))
+        animation.use_frame_range = True
+        animation.use_fake_user = True
+        animation.frame_start = self.frame_start
+        animation.frame_end = self.frame_end
+        ob = context.object
+        ob.animation_data_create()
+        ob.animation_data.action = animation
+        nwo = animation.nwo
+        nwo.animation_type = self.animation_type
+        # Blender animations have a max 64 character limit
+        # on action names, so apply the full animation name to
+        # the name_override field if this limit is breached
+        if animation.name < full_name:
+            nwo.name_override = full_name
+
+        self.report({'INFO'}, f"Created animation: {full_name}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "state_type", text="")
+        layout.label(text="* Denotes required fields")
+        is_damage = self.state_type == "damage"
+        col = layout.column()
+        col.use_property_split = True
+        if self.state_type == "custom":
+            col.prop(self, "custom")
+        else:
+            col.prop(self, "mode")
+            col.prop(self, "weapon_class")
+            col.prop(self, "weapon_type")
+            col.prop(self, "set")
+            if not is_damage:
+                col.prop(self, "state", text="*State")
+
+            if self.state_type == "transition":
+                col.prop(self, "destination_mode")
+                col.prop(self, "destination_state", text="*Destination State")
+            elif is_damage:
+                col.prop(self, "damage_power")
+                col.prop(self, "damage_type")
+                col.prop(self, "damage_direction")
+                col.prop(self, "damage_region")
+            
+            col.prop(self, "variant")

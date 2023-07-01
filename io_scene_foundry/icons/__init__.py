@@ -14,9 +14,12 @@ def get_icon_id_special(id):
 def get_icon_id(id):
     global icons_active
     if icons_active:
-        if id in foundry_icons:
-            return foundry_icons[id].icon_id
-        return foundry_icons.load(id, path.join(icons_dir, id + ".png"), "IMAGE").icon_id
+        try:
+            if id in foundry_icons:
+                return foundry_icons[id].icon_id
+            return foundry_icons.load(id, path.join(icons_dir, id + ".png"), "IMAGE").icon_id
+        except:
+            pass
     return 0
 
 def icons_activate():

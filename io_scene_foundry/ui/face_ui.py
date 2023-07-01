@@ -27,18 +27,17 @@
 from mathutils import Matrix, Vector
 
 from ..utils.nwo_utils import (
-    area_redraw,
     bpy_enum_list,
     closest_bsp_object,
-    export_objects,
     export_objects_no_arm,
     layer_face_count,
     random_color,
     sort_alphanum,
     true_bsp,
     true_region,
+    poll_ui,
 )
-from .templates import NWO_Op, NWO_PropPanel, poll_ui
+from .templates import NWO_Op, NWO_PropPanel
 from bpy.props import EnumProperty, BoolProperty, StringProperty
 import bpy
 import bmesh

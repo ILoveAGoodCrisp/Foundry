@@ -37,10 +37,10 @@ class NWO_ShaderPath(NWO_Op_Path):
 
     def __init__(self):
         self.filter_glob = "*.material;*.shader*"
-        self.tag_path_field = bpy.context.material.nwo.shader_path
+        self.tag_path_field = bpy.context.object.active_material.nwo.shader_path
 
     def execute(self, context):
-        mat = context.material
+        mat = context.object.active_material
         mat.nwo.shader_path = self.filepath
         return {"FINISHED"}
 
