@@ -40,80 +40,16 @@ from ..utils.nwo_utils import dot_partition
 
 
 class NWO_UL_AnimProps_Events(UIList):
-    # use_name_reverse: BoolProperty(
-    #     name="Reverse Name",
-    #     default=False,
-    #     options=set(),
-    #     description="Reverse name sort order",
-    # )
-
-    # use_order_name: BoolProperty(
-    #     name="Name",
-    #     default=False,
-    #     options=set(),
-    #     description="Sort groups by their name (case-insensitive)",
-    # )
-
-    # filter_string: StringProperty(
-    #     name="filter_string",
-    #     default = "",
-    #     description="Filter string for name"
-    # )
-
-    # filter_invert: BoolProperty(
-    #     name="Invert",
-    #     default = False,
-    #     options=set(),
-    #     description="Invert Filter"
-    # )
-
-    # def filter_items(self, _context, data, property):
-    #     attributes = getattr(data, property)
-    #     flags = []
-    #     indices = [i for i in range(len(attributes))]
-
-    #     # Filtering by name
-    #     if self.filter_name:
-    #         flags = bpy.types.UI_UL_list.filter_items_by_name(
-    #             self.filter_name, self.bitflag_filter_item, attributes, "name", reverse=self.use_filter_invert)
-    #     if not flags:
-    #         flags = [self.bitflag_filter_item] * len(attributes)
-
-    #     # Filtering internal attributes
-    #     for idx, item in enumerate(attributes):
-    #         flags[idx] = 0 if item.is_internal else flags[idx]
-
-    #     return flags, indices
-
-    # def draw_filter(self, context,
-    #                 layout
-    #     ):
-
-    #     row = layout.row(align=True)
-    #     row.prop(self, "filter_string", text="Filter", icon="VIEWZOOM")
-    #     row.prop(self, "filter_invert", text="", icon="ARROW_LEFTRIGHT")
-
-    #     row = layout.row(align=True)
-    #     row.label(text="Order by:")
-    #     row.prop(self, "use_order_name", toggle=True)
-
-    #     icon = 'TRIA_UP' if self.use_name_reverse else 'TRIA_DOWN'
-    #     row.prop(self, "use_name_reverse", text="", icon=icon)
-
     def draw_item(
         self, context, layout, data, item, icon, active_data, active_propname
     ):
         animation = item
-        if self.layout_type in {"DEFAULT", "COMPACT"}:
-            if animation:
-                layout.prop(
-                    animation, "name", text="", emboss=False, icon_value=495
-                )
-            else:
-                layout.label(text="", translate=False, icon_value=icon)
-        elif self.layout_type == "GRID":
-            layout.alignment = "CENTER"
-            layout.label(text="", icon_value=icon)
+        if animation:
+            layout.prop(
+                animation, "name", text="", emboss=False, icon_value=495
+            )
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
 
     # def draw_item(self, _context, layout, _data, item, icon, _active_data, _active_propname, _index):
     #     if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -145,8 +81,6 @@ class NWO_List_Add_Animation_Event(Operator):
     filename_ext = ""
     bl_options = {"REGISTER", "UNDO"}
 
-    name: StringProperty(name="Name")
-
     @classmethod
     def poll(cls, context):
         return (
@@ -165,17 +99,12 @@ class NWO_List_Add_Animation_Event(Operator):
         )
         event = nwo.animation_events[nwo.animation_events_index]
         event.frame_frame = context.scene.frame_current
-        event.name = self.name
         event.event_id = random.randint(0, 2147483647)
+        event.name = f"event_{len(nwo.animation_events)}"
 
         context.area.tag_redraw()
 
         return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.invoke_props_dialog(self)
-
-        return {"RUNNING_MODAL"}
 
 
 class NWO_List_Remove_Animation_Event(Operator):

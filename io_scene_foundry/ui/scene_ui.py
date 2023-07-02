@@ -231,7 +231,7 @@ class NWO_SetUnitScale(NWO_Op):
                                     space.clip_end * scale_ratio
                                 )
         # Set halo scale
-        current_scale = self.scale
+        context.scene.unit_settings.scale_length = self.scale
         return {"FINISHED"}
 
 

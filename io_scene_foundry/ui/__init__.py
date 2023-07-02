@@ -450,7 +450,7 @@ classes_nwo = (
     NWO_LightProps,
     NWO_BoneProps,
     NWO_BonePropertiesGroup,
-    NWO_ActionProps,
+    # NWO_ActionProps,
     NWO_UL_AnimProps_Events,
     # NWO_AnimProps_Events,
     NWO_List_Add_Animation_Event,

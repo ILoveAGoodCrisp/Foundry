@@ -46,6 +46,7 @@ from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
     clean_tag_path,
     dot_partition,
+    get_halo_material_count,
     get_tags_path,
     has_face_props,
     has_mesh_props,
@@ -124,35 +125,60 @@ class NWO_FoundryPanelProps(Panel):
         if mb_active:
             flow.enabled = False
         row = flow.row()
-        row.prop(nwo, "game_version", text="")
         row.scale_y = 1.5
-
-        flow = box.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
+        row.prop(nwo, "game_version", text="")
+        col = box.column()
         col.use_property_split = True
-        col.scale_y = 1.5
-        col.prop(nwo, "asset_type", text="Asset Type")
+        # col.prop(nwo, "asset_type", text="Asset Type")
         col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
         if nwo.asset_type in ("MODEL", "FP ANIMATION"):
             col.prop(nwo, "forward_direction", text="Model Forward")
 
-        row = flow.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=True,
-            align=True,
-        )
+        col.separator()
+        row = col.row()
 
+        if mb_active or nwo.mb_startup:
+            row = row.row()
+            row.prop(nwo, "mb_startup")
+        row = row.row()
+        row.scale_y = 1.1
+        if not valid_nwo_asset(context):
+            row.operator("nwo.make_asset")
+        if mb_active:
+            row.label(text="ManagedBlam Active")
+        elif os.path.exists(os.path.join(bpy.app.tempdir, "blam_new.txt")):
+            row.label(text="Blender Restart Required for ManagedBlam")
+        else:
+            row.operator("managed_blam.init", text="Initialize ManagedBlam")
+
+        row = col.row()
+        row.scale_y = 1.1
+
+        unit_scale = scene.unit_settings.scale_length
+
+        if unit_scale == 1.0:
+            row.operator("nwo.set_unit_scale", text="Set Halo Scale").scale = 0.03048
+        else:
+            row.operator("nwo.set_unit_scale", text="Set Default Scale").scale = 1.0
+
+    def draw_asset_editor(self):
+        box = self.box.box()
+        nwo = self.scene.nwo
+        context = self.context
+        scene = self.scene
+        h4 = self.h4
+        col = box.column()
+        row = col.row()
+        row.scale_y = 1.5
+        row.prop(nwo, "asset_type", text="")
+        col.separator()
+        asset_name = scene.nwo_halo_launcher.sidecar_path.rpartition('\\')[2].replace('.sidecar.xml', '')
+        if asset_name:
+            col.label(text=f"Asset Name: {asset_name}")
+            col.separator()
         if nwo.asset_type == "MODEL":
-            row.label(text="Output Tags")
-            row = flow.grid_flow(
+            col.label(text="Model Tags")
+            row = col.grid_flow(
                 row_major=True,
                 columns=0,
                 even_columns=True,
@@ -245,46 +271,19 @@ class NWO_FoundryPanelProps(Panel):
                 icon_value=get_icon_id("equipment"),
             )
 
-        row = flow.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=True,
-            align=False,
-        )
-
-        row.separator(factor=0.5)
-
-        if mb_active or nwo.mb_startup:
-            row = row.row()
-            row.prop(nwo, "mb_startup")
-        row = row.row()
-        row.scale_y = 1.5
-        if not valid_nwo_asset(context):
-            row.operator("nwo.make_asset")
-        if mb_active:
-            row.label(text="ManagedBlam Active")
-        elif os.path.exists(os.path.join(bpy.app.tempdir, "blam_new.txt")):
-            row.label(text="Blender Restart Required for ManagedBlam")
-        else:
-            row.operator("managed_blam.init", text="Initialize ManagedBlam")
-
-        row = flow.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=True,
-            align=False,
-        )
-        row = row.row()
-        row.scale_y = 1.5
-
-        unit_scale = scene.unit_settings.scale_length
-
-        if unit_scale == 1.0:
-            row.operator("nwo.set_unit_scale", text="Set Halo Scale").scale = 0.03048
-        else:
-            row.operator("nwo.set_unit_scale", text="Set Default Scale").scale = 1.0
+        count, total = get_halo_material_count()
+        shader_type = "material" if h4 else "shader"
+        if total:
+            col.label(text=f"Asset {shader_type}s")
+            col.separator()
+            col.label(text=f"{count} {shader_type} paths found out of {total} materials")
+            row = col.row(align=True)
+            col1 = row.column(align=True)
+            col2 = row.column(align=True)
+            col2.alignment = 'RIGHT'
+            col1.operator("nwo.shader_finder", text=f"Find Missing {shader_type}s", icon_value=get_icon_id("material_finder"))
+            col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
+        
 
     def draw_object_properties(self):
         box = self.box.box()
@@ -3011,50 +3010,19 @@ class NWO_ShaderFinder(Panel):
     bl_label = "Shader Finder"
     bl_idname = "NWO_PT_ShaderFinder"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_MaterialTools"
-
-    @classmethod
-    def poll(cls, context):
-        return not not_bungie_game()
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("material_finder"))
+    bl_region_type = "WINDOW"
+    bl_options = {'INSTANCED'}
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
         scene_nwo_shader_finder = scene.nwo_shader_finder
 
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col = layout.column(heading="Shaders Directory")
+        col = layout.column(heading="Shaders Directory (Optional)")
         col.prop(scene_nwo_shader_finder, "shaders_dir", text="")
-        col = layout.column(heading="Overwrite")
-        sub = col.column(align=True)
-        sub.prop(
-            scene_nwo_shader_finder, "overwrite_existing", text="Existing"
+        col.prop(
+            scene_nwo_shader_finder, "overwrite_existing", text="Overwrite Existing Paths"
         )
-        col = col.row()
-        col.scale_y = 1.5
-        col.operator("nwo.shader_finder")
-
-
-class NWO_MaterialFinder(NWO_ShaderFinder):
-    bl_label = "Material Finder"
-    bl_idname = "NWO_PT_MaterialFinder"
-
-    @classmethod
-    def poll(cls, context):
-        return not_bungie_game()
 
 
 class NWO_ShaderFinder_Find(Operator):
@@ -4274,20 +4242,21 @@ def foundry_toolbar(self, context):
     layout = self.layout
     layout.label(text="                 ")
     row = layout.row()
+    icons_only = True
     row.scale_x = 1
     sub0 = row.row(align=True)
-    sub0.operator('nwo.export_quick', text='Tag Export', icon_value=get_icon_id("quick_export"))
+    sub0.operator('nwo.export_quick', text="" if icons_only else 'Tag Export', icon_value=get_icon_id("quick_export"))
     sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
     sub1 = row.row(align=True)
-    sub1.operator('nwo.launch_sapien', text='Sapien', icon_value=get_icon_id("sapien"))
-    sub1.operator('nwo.launch_tagtest', text='Tag Test', icon_value=get_icon_id("tag_test"))
+    sub1.operator('nwo.launch_sapien', text="" if icons_only else 'Sapien', icon_value=get_icon_id("sapien"))
+    sub1.operator('nwo.launch_tagtest', text="" if icons_only else 'Tag Test', icon_value=get_icon_id("tag_test"))
     sub1.popover(panel="NWO_PT_HaloLauncherGameSettings", text="")
     sub2 = row.row(align=True)
-    sub2.operator('nwo.launch_foundation', text='Tag Editor', icon_value=get_icon_id("foundation"))
+    sub2.operator('nwo.launch_foundation', text="" if icons_only else 'Tag Editor', icon_value=get_icon_id("foundation"))
     sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
     sub3 = row.row(align=True)
-    sub3.operator('nwo.launch_data', text='Data', icon_value=get_icon_id("data"))
-    sub3.operator('nwo.launch_tags', text='Tags', icon_value=get_icon_id("tags"))
+    sub3.operator('nwo.launch_data', text="" if icons_only else 'Data', icon_value=get_icon_id("data"))
+    sub3.operator('nwo.launch_tags', text="" if icons_only else 'Tags', icon_value=get_icon_id("tags"))
     sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
 
 classeshalo = (
@@ -4319,7 +4288,7 @@ classeshalo = (
     NWO_AutoSeam,
     # NWO_MaterialsManager,
     # NWO_MaterialFinder,
-    # NWO_ShaderFinder,
+    NWO_ShaderFinder,
     NWO_ShaderFinder_Find,
     NWO_HaloShaderFinderPropertiesGroup,
     NWO_GraphPath,

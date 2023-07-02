@@ -508,7 +508,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     scene_properties_active: BoolProperty(default=True)
     scene_properties_expanded: BoolProperty(default=True)
 
-    asset_editor_active: BoolProperty()
+    asset_editor_active: BoolProperty(default=True)
     asset_editor_expanded: BoolProperty(default=True)
 
     sets_viewer_active: BoolProperty()

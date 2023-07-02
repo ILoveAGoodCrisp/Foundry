@@ -1898,3 +1898,17 @@ def has_face_props(ob):
         and ob.nwo.object_type_ui == "_connected_geometry_object_type_mesh"
         and ob.nwo.mesh_type_ui in valid_mesh_types
     )
+
+def get_halo_material_count():
+    count = 0
+    total = 0
+    for mat in bpy.data.materials:
+        if mat.grease_pencil:
+            continue
+        nwo = mat.nwo
+        if nwo.shader_path:
+            count += 1
+
+        total += 1
+
+    return count, total

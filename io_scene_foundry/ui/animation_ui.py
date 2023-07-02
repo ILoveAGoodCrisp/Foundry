@@ -495,4 +495,4 @@ class NWO_UL_AnimationRename(bpy.types.UIList):
         active_propname,
         index,
     ):
-        layout.prop(item, "rename_name", text="")
+        layout.prop(item, "rename_name", text="", emboss=False)
