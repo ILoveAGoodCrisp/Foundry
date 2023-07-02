@@ -34,6 +34,7 @@ from bpy.props import (
     FloatProperty,
 )
 import random
+import bpy
 
 from ..utils.nwo_utils import dot_partition
 
@@ -125,120 +126,15 @@ class NWO_UL_AnimProps_Events(UIList):
 
 
 #############################################################
-# ANIMATION EVENTS
+# ANIMATION RENAMES
 #############################################################
 
+class NWO_AnimationRenamesItems(PropertyGroup):
+    rename_name : StringProperty(name="Name")
 
-class NWO_AnimProps_Events(Panel):
-    bl_label = "Animation Events"
-    bl_idname = "NWO_PT_AnimPropsPanel_Events"
-    bl_space_type = "DOPESHEET_EDITOR"
-    bl_region_type = "UI"
-    bl_context = "Action"
-    bl_parent_id = "NWO_PT_ActionDetailsPanel"
-
-    @classmethod
-    def poll(cls, context):
-        action = context.active_object.animation_data.action
-        action_nwo = action.nwo
-        return action_nwo.export_this
-
-    def draw(self, context):
-        action = context.active_object.animation_data.action
-        action_nwo = action.nwo
-        layout = self.layout
-        row = layout.row()
-
-        # layout.template_list("NWO_UL_AnimProps_Events", "", action_nwo, "animation_events", action_nwo, 'animation_events_index')
-        row.template_list(
-            "NWO_UL_AnimProps_Events",
-            "",
-            action_nwo,
-            "animation_events",
-            action_nwo,
-            "animation_events_index",
-            rows=2,
-        )
-
-        col = row.column(align=True)
-        col.operator("animation_event.list_add", icon="ADD", text="")
-        col.operator("animation_event.list_remove", icon="REMOVE", text="")
-
-        if len(action_nwo.animation_events) > 0:
-            item = action_nwo.animation_events[
-                action_nwo.animation_events_index
-            ]
-            # row = layout.row()
-            # row.prop(item, "name") # debug only
-            flow = layout.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=False,
-                align=False,
-            )
-            col = flow.column()
-            row = col.row()
-            row.prop(item, "multi_frame", expand=True)
-            col.prop(item, "frame_frame")
-            if item.multi_frame == "range":
-                col.prop(item, "frame_range")
-            col.prop(item, "frame_name")
-            col.prop(item, "event_type")
-            if (
-                item.event_type
-                == "_connected_geometry_animation_event_type_wrinkle_map"
-            ):
-                col.prop(item, "wrinkle_map_face_region")
-                col.prop(item, "wrinkle_map_effect")
-            elif (
-                item.event_type
-                == "_connected_geometry_animation_event_type_footstep"
-            ):
-                col.prop(item, "footstep_type")
-                col.prop(item, "footstep_effect")
-            elif item.event_type in (
-                "_connected_geometry_animation_event_type_ik_active",
-                "_connected_geometry_animation_event_type_ik_passive",
-            ):
-                col.prop(item, "ik_chain")
-                col.prop(item, "ik_active_tag")
-                col.prop(item, "ik_target_tag")
-                col.prop(item, "ik_target_marker")
-                col.prop(item, "ik_target_usage")
-                col.prop(item, "ik_proxy_target_id")
-                col.prop(item, "ik_pole_vector_id")
-                col.prop(item, "ik_effector_id")
-            elif (
-                item.event_type
-                == "_connected_geometry_animation_event_type_cinematic_effect"
-            ):
-                col.prop(item, "cinematic_effect_tag")
-                col.prop(item, "cinematic_effect_effect")
-                col.prop(item, "cinematic_effect_marker")
-            elif (
-                item.event_type
-                == "_connected_geometry_animation_event_type_object_function"
-            ):
-                col.prop(item, "object_function_name")
-                col.prop(item, "object_function_effect")
-            elif (
-                item.event_type
-                == "_connected_geometry_animation_event_type_frame"
-            ):
-                col.prop(item, "frame_trigger")
-            elif (
-                item.event_type
-                == "_connected_geometry_animation_event_type_import"
-            ):
-                col.prop(item, "import_frame")
-                col.prop(item, "import_name")
-            elif (
-                item.event_type
-                == "_connected_geometry_animation_event_type_text"
-            ):
-                col.prop(item, "text")
-
+#############################################################
+# ANIMATION EVENTS
+#############################################################
 
 class NWO_List_Add_Animation_Event(Operator):
     """Add an Item to the UIList"""
@@ -262,13 +158,17 @@ class NWO_List_Add_Animation_Event(Operator):
 
     def execute(self, context):
         action = context.active_object.animation_data.action
-        action_nwo = action.nwo
-        event = action_nwo.animation_events.add()
+        nwo = action.nwo
+        bpy.ops.uilist.entry_add(
+            list_path="object.animation_data.action.nwo.animation_events",
+            active_index_path="object.animation_data.action.nwo.animation_events_index",
+        )
+        event = nwo.animation_events[nwo.animation_events_index]
         event.frame_frame = context.scene.frame_current
         event.name = self.name
-        event.event_id = random.randint(-2147483647, 2147483647)
+        event.event_id = random.randint(0, 2147483647)
 
-        action_nwo.animation_event_index = len(action_nwo.animation_events) - 1
+        context.area.tag_redraw()
 
         return {"FINISHED"}
 
@@ -579,7 +479,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
 
     name_override: StringProperty(
         name="Name Override",
-        update=update_name_override,
+        # update=update_name_override,
         description="Overrides the action name when setting exported animation name. Use this if the action field is too short for your animation name",
         default="",
     )
@@ -614,7 +514,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
 
     animation_type: EnumProperty(
         name="Type",
-        update=update_animation_type,
+        # update=update_animation_type,
         description="Set the type of Halo animation you want this action to be.",
         default="JMM",
         items=[
@@ -675,3 +575,113 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         default=0,
         min=0,
     )
+
+    animation_renames: CollectionProperty(
+        type=NWO_AnimationRenamesItems,
+    )
+
+    animation_renames_index: IntProperty(
+        name="Index for Animation Event",
+        default=0,
+        min=0,
+    )
+
+    # NOT VISIBLE TO USER, USED FOR ANIMATION RENAMES
+    state_type : EnumProperty(
+        name="State Type",
+        items=[
+            ("action", "Action / Overlay", ""),
+            ("transition", "Transition", ""),
+            ("damage", "Death & Damage", ""),
+            ("custom", "Custom", ""),
+        ]
+    )
+
+    mode : StringProperty(
+        name="Mode",
+        description="""The mode the object must be in to use this animation. Use 'any' for all modes. Other valid
+        inputs inlcude but are not limited to: 'crouch' when a unit is crouching, 
+        'combat' when a unit is in combat. Modes can also refer
+        to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more
+        information refer to existing model_animation_graph tags. Can be empty"""
+        )
+    
+    weapon_class : StringProperty(
+        name="Weapon Class",
+        description="""The weapon class this unit must be holding to use this animation. Weapon class is defined
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
+        )
+    weapon_type : StringProperty(
+        name="Weapon Name",
+        description="""The weapon type this unit must be holding to use this animation.  Weapon name is defined
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
+        )
+    set : StringProperty(
+        name="Set",
+        description="The set this animtion is a part of. Can be empty"
+        )
+    state : StringProperty(
+        name="State",
+        description="""The state this animation plays in. States can refer to hardcoded properties or be entirely
+        custom. You should refer to existing model_animation_graph tags for more information. Examples include: 'idle' for 
+        animations that should play when the object is inactive, 'move-left', 'move-front' for moving. 'put-away' for
+        an animation that should play when putting away a weapon. Must not be empty"""
+        )
+
+    destination_mode : StringProperty(
+        name="Destination Mode",
+        description="The mode to put this object in when it finishes this animation. Can be empty"
+    )
+    destination_state : StringProperty(
+        name="Destination State",
+        description="The state to put this object in when it finishes this animation. Must not be empty"
+    )
+
+    damage_power : EnumProperty(
+        name="Power",
+        items=[
+            ("hard", "Hard", ""),
+            ("soft", "Soft", ""),
+        ]
+    )
+    damage_type : EnumProperty(
+        name="Type",
+        items=[
+            ("ping", "Ping", ""),
+            ("kill", "Kill", ""),
+        ]
+    )
+    damage_direction : EnumProperty(
+        name="Direction",
+        items=[
+            ("front", "Front", ""),
+            ("left", "Left", ""),
+            ("right", "Right", ""),
+            ("back", "Back", ""),
+        ]
+    )
+    damage_region : EnumProperty(
+        name="Region",
+        items=[
+            ("gut", "Gut", ""),
+            ("chest", "Chest", ""),
+            ("head", "Head", ""),
+            ("leftarm", "Left Arm", ""),
+            ("lefthand", "Left Hand", ""),
+            ("leftleg", "Left Leg", ""),
+            ("leftfoot", "Left Foot", ""),
+            ("rightarm", "Right Arm", ""),
+            ("righthand", "Right Hand", ""),
+            ("rightleg", "Right Leg", ""),
+            ("rightfoot", "Right Foot", ""),
+        ]
+    )
+
+    variant : IntProperty(min=0, soft_max=3, name="Variant", 
+            description="""The variation of this animation. Variations can have different weightings
+            to determine whether they play. 0 = no variation
+                                    """)
+
+    custom : StringProperty(name="Custom")
+
+    created_with_foundry : BoolProperty()

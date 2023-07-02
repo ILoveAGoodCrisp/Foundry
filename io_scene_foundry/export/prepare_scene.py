@@ -82,7 +82,7 @@ class PrepareScene:
         
         print("\nPreparing Export Scene")
         print(
-            "-------------------------------------------------------------------------\n"
+            "-----------------------------------------------------------------------\n"
         )
         # time it!
         # NOTE skipping timing as export is really fast now
@@ -511,13 +511,8 @@ class PrepareScene:
                 self.skeleton_bones = self.get_bone_list(
                     self.model_armature, h4
                 )  # return a list of bones attached to the model armature, ignoring control / non-deform bones
-                if bpy.data.actions:
-                    try:
-                        self.current_action = self.get_current_action(
-                            context, self.model_armature
-                        )
-                    except:
-                        pass
+                if bpy.data.actions and self.model_armature.animation_data:
+                    self.current_action = self.get_current_action(self.model_armature)
 
         # print("armature")
 
@@ -538,8 +533,8 @@ class PrepareScene:
                 self.timeline_end,
             )
 
-        # Set animation name overrides / fix them up for the exporter
-        self.set_animation_overrides(self.model_armature, self.current_action)
+        # Set animation name overrides
+        self.set_animation_overrides(self.model_armature)
 
         # get the max LOD count in the scene if we're exporting a decorator
         self.lod_count = self.get_decorator_lod_count(
@@ -1878,35 +1873,13 @@ class PrepareScene:
 
         ob.name = f"{namespace}:{ob.name}"
 
-    def set_animation_overrides(self, model_armature, current_action):
-        if model_armature is not None and len(bpy.data.actions) > 0:
-            deselect_all_objects()
-            model_armature.select_set(True)
-            set_active_object(model_armature)
+    def set_animation_overrides(self, model_armature):
+        if model_armature is not None and len(bpy.data.actions) > 0 and model_armature.animation_data:
             for action in bpy.data.actions:
-                try:
-                    model_armature.animation_data.action = action
-                    forced_type = dot_partition(action.name.upper(), True)
-                    action.name = dot_partition(action.name)
-                    if forced_type in valid_animation_types:
-                        action.nwo.animation_type = forced_type
-                    if action.nwo.name_override == "":
-                        animation = action.name
-                        if (
-                            animation.rpartition(".")[2]
-                            not in valid_animation_types
-                        ):
-                            animation = (
-                                f"{animation}.{action.nwo.animation_type}"
-                            )
-                        action.nwo.name_override = animation
-                except:
-                    pass
-
-            if current_action is not None:
-                model_armature.animation_data.action = current_action
-
-            deselect_all_objects()
+                action.name = dot_partition(action.name).lower().strip(' :_,-')
+                nwo = action.nwo
+                if not nwo.name_override:
+                    nwo.name_override = action.name
 
     def set_object_mode(self, context):
         mode = context.mode
@@ -1943,13 +1916,8 @@ class PrepareScene:
                 case 'SCULPT_CURVES':
                     bpy.ops.curves.sculptmode_toggle()
 
-    def get_current_action(self, context, model_armature):
-        deselect_all_objects()
-        model_armature.select_set(True)
-        set_active_object(model_armature)
-        current_action = context.active_object.animation_data.action
-        deselect_all_objects()
-        return current_action
+    def get_current_action(self, model_armature):
+        return model_armature.animation_data.action
 
     def exit_local_view(self, context):
         for area in context.screen.areas:

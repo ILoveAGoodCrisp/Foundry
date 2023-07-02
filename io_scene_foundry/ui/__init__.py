@@ -111,18 +111,20 @@ from .materials_properties import NWO_ShaderPath, NWO_MaterialPropertiesGroup
 
 from .animation_properties import (
     NWO_UL_AnimProps_Events,
-    NWO_AnimProps_Events,
     NWO_List_Add_Animation_Event,
     NWO_List_Remove_Animation_Event,
     NWO_Animation_ListItems,
+    NWO_AnimationRenamesItems,
     NWO_ActionPropertiesGroup,
+    NWO_List_Remove_Animation_Event,
+    NWO_AnimationRenamesItems,
 )
 
-from .animation_ui import NWO_ActionProps, NWO_NewAnimation, NWO_DeleteAnimation
+from .animation_ui import NWO_ActionProps, NWO_NewAnimation, NWO_DeleteAnimation, NWO_List_Add_Animation_Rename, NWO_UL_AnimationRename, NWO_List_Remove_Animation_Rename
 
 from .scene_properties import NWO_Asset_ListItems, NWO_ScenePropertiesGroup
 
-from .scene_ui import NWO_SceneProps, NWO_SetUnitScale, NWO_AssetMaker
+from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker
 
 from .viewport_ui import (
     NWO_ApplyTypeMesh, 
@@ -400,9 +402,12 @@ class NWO_OpenAssetFoundry(NWO_Op):
 
 classes_nwo = (
     NWO_OpenAssetFoundry,
+    NWO_List_Add_Animation_Rename,
+    NWO_List_Remove_Animation_Rename,
     NWO_NewAnimation,
     NWO_DeleteAnimation,
     NWO_Asset_ListItems,
+    NWO_UL_AnimationRename,
     NWO_ScenePropertiesGroup,
     # NWO_List_Add_Shared_Asset,
     # NWO_List_Remove_Shared_Asset,
@@ -447,10 +452,11 @@ classes_nwo = (
     NWO_BonePropertiesGroup,
     NWO_ActionProps,
     NWO_UL_AnimProps_Events,
-    NWO_AnimProps_Events,
+    # NWO_AnimProps_Events,
     NWO_List_Add_Animation_Event,
     NWO_List_Remove_Animation_Event,
     NWO_Animation_ListItems,
+    NWO_AnimationRenamesItems,
     NWO_ActionPropertiesGroup,
     NWO_MeshPropAddFaceMode,
     NWO_MeshPropAddFaceSides,

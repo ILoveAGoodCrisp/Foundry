@@ -261,7 +261,7 @@ class ProcessScene:
                 self.skeleton_only = False
                 print("\n\nStarting Models Export")
                 print(
-                    "-------------------------------------------------------------------------\n"
+                    "-----------------------------------------------------------------------\n"
                 )
 
                 # make necessary directories
@@ -416,6 +416,7 @@ class ProcessScene:
                     if (
                         nwo_scene.model_armature
                         and bpy.data.actions
+                        and nwo_scene.model_armature.animation_data
                     ):
                         if export_animations != "NONE":
                             if not self.skeleton_only:
@@ -424,7 +425,7 @@ class ProcessScene:
                             timeline = context.scene
                             print("\n\nStarting Animations Export")
                             print(
-                                "-------------------------------------------------------------------------\n"
+                                "-----------------------------------------------------------------------\n"
                             )
 
                         for action in bpy.data.actions:
@@ -434,7 +435,8 @@ class ProcessScene:
                             os.makedirs(animations_dir, exist_ok=True)
                             os.makedirs(export_animations_dir, exist_ok=True)
                             action_nwo = action.nwo
-                            if action_nwo.export_this:
+                            # only export animations that have manual frame range
+                            if action.use_frame_range:
                                 animation_name = action.nwo.name_override
                                 fbx_path, json_path, gr2_path = self.get_path(
                                     asset_path, asset, "animations", None, None, 
@@ -442,28 +444,20 @@ class ProcessScene:
                                 )
                                 if export_animations != "NONE":
                                     if export_animations == "ALL" or nwo_scene.current_action == action:
-                                        job = f"-- {dot_partition(animation_name)}"
+                                        job = f"-- {animation_name}"
                                         update_job(job, 0)
 
                                         nwo_scene.model_armature.animation_data.action = (
                                             action
                                         )
-                                        if action.use_frame_range:
-                                            timeline.frame_start = int(
-                                                action.frame_start
-                                            )
-                                            timeline.frame_end = int(action.frame_end)
-                                            context.scene.frame_set(
-                                                int(action.frame_start)
-                                            )
-                                        else:
-                                            timeline.frame_start = (
-                                                nwo_scene.timeline_start
-                                            )
-                                            timeline.frame_end = nwo_scene.timeline_end
-                                            context.scene.frame_set(
-                                                nwo_scene.timeline_start
-                                            )
+                                        timeline.frame_start = int(
+                                            action.frame_start
+                                        )
+                                        timeline.frame_end = int(action.frame_end)
+
+                                        context.scene.frame_set(
+                                            int(action.frame_start)
+                                        )
 
                                         export_obs = self.create_event_nodes(
                                             context,
@@ -510,7 +504,7 @@ class ProcessScene:
                                             data_relative(fbx_path),
                                             data_relative(json_path),
                                             data_relative(gr2_path),
-                                            dot_partition(animation_name),
+                                            animation_name,
                                             action_nwo.animation_type,
                                         ]
                                     )
@@ -520,7 +514,7 @@ class ProcessScene:
                                             data_relative(fbx_path),
                                             data_relative(json_path),
                                             data_relative(gr2_path),
-                                            dot_partition(animation_name),
+                                            animation_name,
                                             action_nwo.animation_type,
                                         ]
                                     ]
@@ -701,7 +695,7 @@ class ProcessScene:
                 reports.append(sidecar_result.message)
                 print("\n\nBuilding Intermediary Files")
                 print(
-                    "-------------------------------------------------------------------------\n"
+                    "-----------------------------------------------------------------------\n"
                 )
 
 
@@ -760,41 +754,41 @@ class ProcessScene:
 
             from .export_tag import import_sidecar
 
-            if import_to_game or (not h4 and lightmap_structure):
-                if os.path.exists(sidecar_path_full):
-                    export_failed, error = (
-                        import_sidecar(
-                            sidecar_type,
-                            sidecar_path,
-                            asset_path,
-                            asset,
-                            import_check,
-                            import_force,
-                            import_verbose,
-                            import_draft,
-                            import_seam_debug,
-                            import_skip_instances,
-                            import_decompose_instances,
-                            import_surpress_errors,
-                            import_lighting,
-                            import_meta_only,
-                            import_disable_hulls,
-                            import_disable_collision,
-                            import_no_pca,
-                            import_force_animations,
-                            bool(nwo_scene.lighting),
-                        )
+            if export_gr2_files and os.path.exists(sidecar_path_full):
+                export_failed, error = (
+                    import_sidecar(
+                        sidecar_type,
+                        sidecar_path,
+                        asset_path,
+                        asset,
+                        import_check,
+                        import_force,
+                        import_verbose,
+                        import_draft,
+                        import_seam_debug,
+                        import_skip_instances,
+                        import_decompose_instances,
+                        import_surpress_errors,
+                        import_lighting,
+                        import_meta_only,
+                        import_disable_hulls,
+                        import_disable_collision,
+                        import_no_pca,
+                        import_force_animations,
+                        bool(nwo_scene.lighting),
                     )
-                    if export_failed:
-                        self.sidecar_import_failed = True
-                        self.sidecar_import_error = error
-                        reports.append("Tag Export Failed")
-                    else:
-                        reports.append("Tag Export Complete")
+                )
+                if export_failed:
+                    self.sidecar_import_failed = True
+                    self.sidecar_import_error = error
+                    reports.append("Tag Export Failed")
                 else:
-                    reports.append(
-                        "Skipped tag export, asset sidecar does not exist"
-                    )
+                    reports.append("Tag Export Complete")
+            else:
+                reports.append(
+                    "Skipped tag export, asset sidecar does not exist"
+                )
+
             h4 = game_version != 'reach'
             should_lightmap = lightmap_structure and (sidecar_type == 'SCENARIO' or (h4 and sidecar_type in ('MODEL', 'SKY')))
             if should_lightmap:
@@ -1071,13 +1065,13 @@ class ProcessScene:
         else:
             if tag_type == "animations":
                 path = os.path.join(
-                    asset_path, "animations", dot_partition(animation)
+                    asset_path, "animations", animation
                 )
                 path_gr2 = os.path.join(
                     asset_path,
                     "export",
                     "animations",
-                    dot_partition(animation),
+                    animation,
                 )
 
             elif tag_type in (
@@ -1123,7 +1117,7 @@ class ProcessScene:
             event_ob = bpy.data.objects.new("animation_event", None)
             nwo = event_ob.nwo
             # Set this node to be an animation event
-            nwo.is_animation_event = True
+            nwo.object_type = "_connected_geometry_object_type_animation_event"
             # Set up the event node with the action start and end frame and id
             nwo.frame_start = jstr(frame_start + 0.4999)
             nwo.frame_end = jstr(frame_end + 0.4999)

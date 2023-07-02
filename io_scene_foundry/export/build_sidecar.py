@@ -975,6 +975,21 @@ class Sidecar:
                 # ET.SubElement(network, "ComponentFile").text = path[1]
                 ET.SubElement(network, "IntermediateFile").text = path[2]
 
+            for action in bpy.data.actions:
+                if not action.use_frame_range:
+                    continue
+                
+                nwo = action.nwo
+                renames = nwo.animation_renames
+                for rename in renames:
+                    network = ET.SubElement(
+                        object,
+                        "ContentNetwork",
+                        Name=rename.rename_name,
+                        Type="Rename",
+                        NetworkReference=nwo.name_override,
+                    )
+
             output = ET.SubElement(object, "OutputTagCollection")
             ET.SubElement(
                 output, "OutputTag", Type="frame_event_list"

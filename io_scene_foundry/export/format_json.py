@@ -127,7 +127,8 @@ class NWOJSON(dict):
         node_properties.update(self.bone_list)
         # build frame props
         for ob in self.objects:
-            match CheckType.get(ob):
+            nwo = ob.nwo
+            match nwo.object_type:
                 case "_connected_geometry_object_type_animation_event":
                     props = NWOAnimationEvent(
                         ob,

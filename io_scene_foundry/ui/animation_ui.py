@@ -25,6 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from bpy.types import Context, Event
+
+from io_scene_foundry.utils.nwo_utils import poll_ui
 from .templates import NWO_Op, NWO_PropPanel
 import bpy
 
@@ -237,7 +239,100 @@ class NWO_NewAnimation(NWO_Op):
 
     custom : bpy.props.StringProperty(name="Custom")
 
+    fp_animation : bpy.props.BoolProperty()
+
+    def __init__(self):
+        self.fp_animation = poll_ui("FP ANIMATION")
+        if self.fp_animation:
+            self.mode = "first_person"
+
     def execute(self, context):
+        full_name = self.create_name()
+        # Create the animation
+        animation = bpy.data.actions.new(full_name)
+        animation.use_frame_range = True
+        animation.use_fake_user = True
+        animation.frame_start = self.frame_start
+        animation.frame_end = self.frame_end
+        ob = context.object
+        ob.animation_data_create()
+        ob.animation_data.action = animation
+        nwo = animation.nwo
+        nwo.animation_type = self.animation_type
+        # Blender animations have a max 64 character limit
+        # on action names, so apply the full animation name to
+        # the name_override field if this limit is breached
+        if animation.name < full_name:
+            nwo.name_override = full_name
+
+        # record the inputs from this operator
+        nwo.state_type = self.state_type
+        nwo.custom = self.custom
+        nwo.mode = self.mode
+        nwo.weapon_class = self.weapon_class
+        nwo.weapon_type = self.weapon_type
+        nwo.set = self.set
+        nwo.state = self.state
+        nwo.destination_mode = self.destination_mode
+        nwo.destination_state = self.destination_state
+        nwo.damage_power = self.damage_power
+        nwo.damage_type = self.damage_type
+        nwo.damage_direction = self.damage_direction
+        nwo.damage_region = self.damage_region
+        nwo.variant = self.variant
+
+        nwo.created_with_foundry = True
+
+        self.report({'INFO'}, f"Created animation: {full_name}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "frame_start", text="First Frame")
+        layout.prop(self, "frame_end", text="Last Frame")
+        layout.label(text="Animation Type")
+        layout.prop(self, "animation_type", text="")
+        layout.separator()
+        self.draw_name(layout)
+
+    def draw_name(self, layout):
+        if self.fp_animation:
+            layout.label(text="* Denotes required fields")
+            layout.prop(self, "state", text="*State")
+            layout.prop(self, "variant")
+        else:
+            layout.label(text="Animation State Type")
+            layout.prop(self, "state_type", text="")
+            layout.label(text="* Denotes required fields")
+            is_damage = self.state_type == "damage"
+            col = layout.column()
+            col.use_property_split = True
+            if self.state_type == "custom":
+                col.prop(self, "custom")
+            else:
+                col.prop(self, "mode")
+                col.prop(self, "weapon_class")
+                col.prop(self, "weapon_type")
+                col.prop(self, "set")
+                if not is_damage:
+                    col.prop(self, "state", text="*State")
+
+                if self.state_type == "transition":
+                    col.prop(self, "destination_mode")
+                    col.prop(self, "destination_state", text="*Destination State")
+                elif is_damage:
+                    col.prop(self, "damage_power")
+                    col.prop(self, "damage_type")
+                    col.prop(self, "damage_direction")
+                    col.prop(self, "damage_region")
+                
+                col.prop(self, "variant")
+
+    def create_name(self):
         bad_chars = ' :_,-'
         # Strip bad chars from inputs
         mode = self.mode.strip(bad_chars)
@@ -256,7 +351,7 @@ class NWO_NewAnimation(NWO_Op):
             full_name = ""
             if mode:
                 full_name = mode
-            elif weapon_class or weapon_type or weapon_type or set or is_damage or is_transition:
+            else:
                 full_name = "any"
     
             if weapon_class:
@@ -308,54 +403,96 @@ class NWO_NewAnimation(NWO_Op):
                 self.report({'WARNING'}, "Animation name empty. Setting to idle")
                 full_name = "idle"
 
-        # Create the animation
-        animation = bpy.data.actions.new(full_name.lower().strip(bad_chars))
-        animation.use_frame_range = True
-        animation.use_fake_user = True
-        animation.frame_start = self.frame_start
-        animation.frame_end = self.frame_end
-        ob = context.object
-        ob.animation_data_create()
-        ob.animation_data.action = animation
-        nwo = animation.nwo
-        nwo.animation_type = self.animation_type
-        # Blender animations have a max 64 character limit
-        # on action names, so apply the full animation name to
-        # the name_override field if this limit is breached
-        if animation.name < full_name:
-            nwo.name_override = full_name
+        return full_name.lower().strip(bad_chars)
 
-        self.report({'INFO'}, f"Created animation: {full_name}")
-        return {'FINISHED'}
+class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
+    bl_label = "New Animation Rename"
+    bl_idname = "nwo.animation_rename_add"
+    bl_description = "Creates a new Halo Animation Rename"
 
-    def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
+    def __init__(self):
+        action = bpy.context.object.animation_data.action
+        nwo = action.nwo
+        state = nwo.state.lower().strip(' :_,-')
+        state = "idle" if state == "" else state
+        if nwo.created_with_foundry and state in action.name:
+            self.state_type = nwo.state_type
+            self.custom = nwo.custom
+            self.mode = nwo.mode
+            self.weapon_class = nwo.weapon_class
+            self.weapon_type = nwo.weapon_type
+            self.set = nwo.set
+            self.state = nwo.state
+            self.destination_mode = nwo.destination_mode
+            self.destination_state = nwo.destination_state
+            self.damage_power = nwo.damage_power
+            self.damage_type = nwo.damage_type
+            self.damage_direction = nwo.damage_direction
+            self.damage_region = nwo.damage_region
+            self.variant = nwo.variant
+
+        else:
+            self.state_type = "custom"
+            self.custom = action.name
 
     def draw(self, context):
-        layout = self.layout
-        layout.prop(self, "state_type", text="")
-        layout.label(text="* Denotes required fields")
-        is_damage = self.state_type == "damage"
-        col = layout.column()
-        col.use_property_split = True
-        if self.state_type == "custom":
-            col.prop(self, "custom")
-        else:
-            col.prop(self, "mode")
-            col.prop(self, "weapon_class")
-            col.prop(self, "weapon_type")
-            col.prop(self, "set")
-            if not is_damage:
-                col.prop(self, "state", text="*State")
+        self.draw_name(self.layout)
 
-            if self.state_type == "transition":
-                col.prop(self, "destination_mode")
-                col.prop(self, "destination_state", text="*Destination State")
-            elif is_damage:
-                col.prop(self, "damage_power")
-                col.prop(self, "damage_type")
-                col.prop(self, "damage_direction")
-                col.prop(self, "damage_region")
-            
-            col.prop(self, "variant")
+    def execute(self, context):
+        full_name = self.create_name()
+        action = context.active_object.animation_data.action
+        nwo = action.nwo
+        if full_name == action.name:
+            self.report({'WARNING'}, f"Rename entry not created. Rename cannot match animation name")
+            return {'CANCELLED'}
+        
+        # Create the rename
+        bpy.ops.uilist.entry_add(
+            list_path="object.animation_data.action.nwo.animation_renames",
+            active_index_path="object.animation_data.action.nwo.animation_renames_index",
+        )
+        rename = nwo.animation_renames[nwo.animation_renames_index]
+        rename.rename_name = full_name
+        context.area.tag_redraw()
+
+        self.report({'INFO'}, f"Created rename: {full_name}")
+        return {'FINISHED'}
+    
+class NWO_List_Remove_Animation_Rename(NWO_Op):
+    """Remove an Item from the UIList"""
+    bl_idname = "nwo.animation_rename_remove"
+    bl_label = "Remove"
+    bl_description = "Remove an animation event from the list."
+
+    @classmethod
+    def poll(cls, context):
+        return (
+            context.object
+            and context.object.type == "ARMATURE"
+            and context.object.animation_data
+            and context.object.animation_data.action
+            and len(context.object.animation_data.action.nwo.animation_renames)
+            > 0
+        )
+
+    def execute(self, context):
+        action = context.active_object.animation_data.action
+        nwo = action.nwo
+        nwo.animation_renames.remove(nwo.animation_renames_index)
+        if nwo.animation_renames_index > len(nwo.animation_renames) - 1:
+            nwo.animation_renames_index += -1
+        return {"FINISHED"}
+    
+class NWO_UL_AnimationRename(bpy.types.UIList):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index,
+    ):
+        layout.prop(item, "rename_name", text="")

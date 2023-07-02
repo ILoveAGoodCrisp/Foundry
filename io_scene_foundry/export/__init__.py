@@ -704,19 +704,19 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 final_report = "GR2 Conversion Failed. Export Aborted"
                 report_type = 'ERROR'
                 print(
-                    "\n-------------------------------------------------------------------------"
+                    "\n-----------------------------------------------------------------------"
                 )
                 print_error("Failed to export a GR2 File. Export cancelled")
 
                 print(
-                    "-------------------------------------------------------------------------\n"
+                    "-----------------------------------------------------------------------\n"
                 )
                 
             elif export.sidecar_import_failed:
                 final_report = "Failed to Create Tags"
                 report_type = 'ERROR'
                 print(
-                    "\n-------------------------------------------------------------------------"
+                    "\n-----------------------------------------------------------------------"
                 )
                 print_error("FAILED TO CREATE TAGS\n")
                 if export.sidecar_import_error:
@@ -726,18 +726,18 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 print("\nFor further details, please review the Tool output above")
 
                 print(
-                    "-------------------------------------------------------------------------\n"
+                    "-----------------------------------------------------------------------\n"
                 )
             else:
                 final_report = "Export Complete"
                 report_type = 'INFO'
                 print(
-                    "\n-------------------------------------------------------------------------"
+                    "\n-----------------------------------------------------------------------"
                 )
                 print(f"Export Completed in {round(end - start, 3)} seconds")
 
                 print(
-                    "-------------------------------------------------------------------------\n"
+                    "-----------------------------------------------------------------------\n"
                 )
 
             self.write_temp_settings(context, sidecar_path, final_report, report_type)

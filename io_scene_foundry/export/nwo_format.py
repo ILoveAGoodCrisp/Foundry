@@ -92,35 +92,6 @@ class NWOObject:
     def object_animates(self):
         return bool_str(self.sidecar_type == "MODEL")
 
-    def frame_pca(self):
-        return self.halo.is_pca and not_bungie_game() and self.frame()
-
-    def frame(self):
-        return object_type(self.ob, ("_connected_geometry_object_type_frame"))
-
-    def marker(self):
-        return object_type(self.ob, ("_connected_geometry_object_type_marker"))
-
-    def mesh(self):
-        return (
-            self.ob.type == "MESH"
-            and self.ob.nwo.object_type_all
-            in "_connected_geometry_object_type_mesh"
-        )
-
-    def light(self):
-        return self.ob.type == "LIGHT"
-
-    def animation_camera(self):
-        return self.ob.type == "CAMERA"
-
-    def animation_control(self):
-        return False  # temporary until a system for setting these is created
-
-    def animation_event(self):
-        return self.halo.is_animation_event
-
-
 # ANIMATION CONTROL
 #####################
 class NWOAnimationControl(NWOObject):

@@ -198,11 +198,17 @@ class LightMapper:
         self.blob_dir = os.path.join("faux", self.blob_dir_name)
         self.start_time = datetime.datetime.now()
 
-        print_box("**Starting Faux Data Sync**")
+        print("\n\nFaux Data Sync")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         # self.print_exec_time()
         run_tool(["faux_data_sync", self.scenario, self.bsp])
 
-        print_box("**Starting Faux Farm**")
+        print("\nFaux Farm")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         # self.print_exec_time()
         run_tool(
             [
@@ -218,16 +224,31 @@ class LightMapper:
 
         self.thread_count = multiprocessing.cpu_count()
 
-        print_box("**Direct Illumination**")
+        print("\nDirect Illumination")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         self.farm("dillum")
-        print_box("**Casting Photons**")
+        print("\nCasting Photons")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         self.farm("pcast")
-        print_box("**Extended Illumination**")
+        print("\nExtended Illumination")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         self.farm("radest_extillum")
-        print_box("**Final Gather**")
+        print("\nFinal Gather")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         self.farm("fgather")
 
-        print_box("**Faux Farm Process Finalise**")
+        print("\nFaux Farm Process Finalise")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         run_tool(["faux_farm_finish", self.blob_dir])
 
         run_tool(
@@ -259,7 +280,10 @@ class LightMapper:
         self.settings = os.path.join(
             "globals", "lightmapper_settings", self.quality
         )
-        print_box("**Starting Faux Farm**")
+        print("\n\nRunning Lightmapper")
+        print(
+            "-------------------------------------------------------------------------\n"
+        )
         if self.model_lightmap:
             run_tool(["faux_lightmap_model", self.scenario, self.suppress_dialog, self.force_reatlas])
 
