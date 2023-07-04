@@ -985,6 +985,9 @@ class NWO_FoundryPanelProps(Panel):
                 col2 = col.column()
                 flow2 = col2.grid_flow()
                 flow2.prop(nwo, "precise_position_ui", text="Uncompressed")
+                col3 = col.column()
+                flow3 = col3.grid_flow()
+                flow3.prop(nwo, "decal_offset_ui")
 
         if nwo.mesh_type_ui in (
             "_connected_geometry_mesh_type_render",
@@ -992,9 +995,9 @@ class NWO_FoundryPanelProps(Panel):
             "_connected_geometry_mesh_type_poop_collision",
             "_connected_geometry_mesh_type_collision",
         ):
-            col3 = col.column()
-            flow3 = col3.grid_flow()
-            flow3.prop(nwo, "face_two_sided_ui")
+            col4 = col.column()
+            flow4 = col4.grid_flow()
+            flow4.prop(nwo, "face_two_sided_ui")
 
         if poll_ui(("SCENARIO", "PREFAB")):
             if nwo.face_mode_active:
@@ -1033,12 +1036,6 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator(
                     "nwo.remove_mesh_property", text="", icon="X"
                 ).options = "slip_surface"
-            if nwo.decal_offset_active:
-                row = col.row()
-                row.prop(nwo, "decal_offset_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "decal_offset"
             if nwo.group_transparents_by_plane_active:
                 row = col.row()
                 row.prop(nwo, "group_transparents_by_plane_ui")
@@ -2150,7 +2147,7 @@ def add_halo_armature_buttons(self, context):
 
 
 def create_halo_collection(self, context):
-    self.layout.operator("nwo.collection_create", text="New Halo Collection")
+    self.layout.operator("nwo.collection_create", text="", icon_value=get_icon_id("collection_creator"))
 
 
 from .halo_join import NWO_JoinHalo
@@ -3700,33 +3697,9 @@ class NWO_CollectionManager_Create(Operator):
     """Creates a special collection with the specified name and adds all currently selected objects to it"""
 
     bl_idname = "nwo.collection_create"
-    bl_label = "Create New Collection"
+    bl_label = "New Halo Collection"
     bl_options = {"REGISTER", "UNDO"}
 
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        scene_nwo_collection_manager = scene.nwo_collection_manager
-        return (
-            scene_nwo_collection_manager.collection_name != ""
-            and not scene_nwo_collection_manager.collection_name.isspace()
-        )
-
-    def execute(self, context):
-        scene = context.scene
-        scene_nwo_collection_manager = scene.nwo_collection_manager
-        from .collection_manager import create_collections
-
-        return create_collections(
-            context,
-            bpy.ops,
-            bpy.data,
-            scene_nwo_collection_manager.collection_type,
-            scene_nwo_collection_manager.collection_name,
-        )
-
-
-class NWO_HaloCollectionManagerPropertiesGroup(PropertyGroup):
     def collection_type_items(self, context):
         items = []
         asset_type = context.scene.nwo.asset_type
@@ -3743,22 +3716,28 @@ class NWO_HaloCollectionManagerPropertiesGroup(PropertyGroup):
 
         return items
 
-    collection_type: EnumProperty(
-        name="Collection Type",
-        options=set(),
-        description="Select the collection property you wish to apply to the selected objects",
-        items=collection_type_items,
-    )
-    collection_name: StringProperty(
-        name="Collection Name",
-        description="Select the collection name you wish to apply to the selected objects",
-        default="",
-    )
-    collection_special: BoolProperty(
-        name="",
-        description="Enable this property",
-        default=False,
-    )
+    type : EnumProperty(items=collection_type_items)
+    name : StringProperty()
+
+    def execute(self, context):
+        from .collection_manager import create_collections
+
+        return create_collections(
+            context,
+            bpy.ops,
+            bpy.data,
+            self.type,
+            self.name,
+        )
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "type", text="Type")
+        layout.prop(self, "name", text="Name")
 
 
 class NWO_ArmatureCreator(Panel):
@@ -4403,7 +4382,6 @@ classeshalo = (
     # NWO_PropertiesManager,
     # NWO_CollectionManager,
     NWO_CollectionManager_Create,
-    NWO_HaloCollectionManagerPropertiesGroup,
     # NWO_CopyHaloProps,
     # NWO_CopyHaloProps_Copy, #unregistered until this operator is fixed
     NWO_AutoSeam,
@@ -4447,7 +4425,7 @@ def register():
     bpy.types.VIEW3D_HT_tool_header.append(draw_foundry_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_armature_add.append(add_halo_armature_buttons)
-    bpy.types.VIEW3D_MT_object_collection.append(create_halo_collection)
+    bpy.types.OUTLINER_HT_header.append(create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(add_halo_join)
     bpy.types.Scene.nwo_frame_ids = PointerProperty(
         type=NWO_SetFrameIDsPropertiesGroup,
@@ -4466,11 +4444,6 @@ def register():
     )
     bpy.types.Scene.nwo_export = PointerProperty(
         type=NWO_HaloExportPropertiesGroup, name="Halo Export", description=""
-    )
-    bpy.types.Scene.nwo_collection_manager = PointerProperty(
-        type=NWO_HaloCollectionManagerPropertiesGroup,
-        name="Collection Manager",
-        description="",
     )
     bpy.types.Scene.nwo_armature_creator = PointerProperty(
         type=NWO_ArmatureCreatorPropertiesGroup,
@@ -4494,12 +4467,11 @@ def unregister():
     bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_armature_add.remove(add_halo_armature_buttons)
     bpy.types.VIEW3D_MT_object.remove(add_halo_join)
-    bpy.types.VIEW3D_MT_object_collection.remove(create_halo_collection)
+    bpy.types.OUTLINER_HT_header.remove(create_halo_collection)
     del bpy.types.Scene.nwo_frame_ids
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_finder
     del bpy.types.Scene.nwo_export
-    del bpy.types.Scene.nwo_collection_manager
     del bpy.types.Scene.nwo_armature_creator
     del bpy.types.Scene.nwo_bitmap_export
     del bpy.types.Scene.nwo_shader_build

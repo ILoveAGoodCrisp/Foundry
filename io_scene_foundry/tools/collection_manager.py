@@ -70,6 +70,9 @@ def get_full_name(coll_type, coll_name):
             else:
                 prefix = "+perm"
 
+    if not coll_name:
+        coll_name = "default"
+        
     full_name_base = f"{prefix} {coll_name}"
     full_name = full_name_base
 

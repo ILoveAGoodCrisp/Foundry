@@ -1584,11 +1584,13 @@ class PrepareScene:
                 "_connected_geometry_mesh_type_poop",
             ):
                 if nwo.precise_position_ui:
-                    nwo.precise_position = bool_str(nwo.precise_position_ui)
-                if nwo.face_draw_distance_active:
-                    nwo.face_draw_distance = nwo.face_draw_distance_ui
-                if nwo.texcoord_usage_active:
-                    nwo.texcoord_usage = nwo.texcoord_usage_ui
+                    nwo.precise_position = "1"
+                # if nwo.face_draw_distance_active:
+                #     nwo.face_draw_distance = nwo.face_draw_distance_ui
+                # if nwo.texcoord_usage_active:
+                #     nwo.texcoord_usage = nwo.texcoord_usage_ui
+                if nwo.decal_offset_ui:
+                    nwo.decal_offset = "1"
             if asset_type in ("SCENARIO", "PREFAB"):
                 h4_structure = (
                     not reach
@@ -1607,8 +1609,6 @@ class PrepareScene:
                     nwo.ladder = bool_str(nwo.ladder_ui)
                 if nwo.slip_surface_active:
                     nwo.slip_surface = bool_str(nwo.slip_surface_ui)
-                if nwo.decal_offset_active:
-                    nwo.decal_offset = bool_str(nwo.decal_offset_ui)
                 if nwo.group_transparents_by_plane_active:
                     nwo.group_transparents_by_plane = bool_str(
                         nwo.group_transparents_by_plane_ui

@@ -2110,16 +2110,12 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         update=update_slip_surface_ui,
     )
 
-    def update_decal_offset_ui(self, context):
-        self.decal_offset_active = True
 
-    decal_offset_active: BoolProperty()
     decal_offset_ui: BoolProperty(
         name="Decal Offset",
         options=set(),
         description="Enable to offset these faces so that they appear to be layered on top of another face",
-        default=True,
-        update=update_decal_offset_ui,
+        default=False,
     )
 
     def update_group_transparents_by_plane_ui(self, context):

@@ -206,6 +206,9 @@ class NWO_MeshFaceProps(NWO_PropPanel):
             col3 = col.column()
             flow3 = col3.grid_flow()
             flow3.prop(ob_nwo, "face_two_sided_ui")
+            col4 = col.column()
+            flow4 = col4.grid_flow()
+            flow4.prop(ob_nwo, "decal_offset_ui")
 
         if poll_ui(("SCENARIO", "PREFAB")):
             if ob_nwo.face_mode_active:
@@ -244,12 +247,6 @@ class NWO_MeshFaceProps(NWO_PropPanel):
                 row.operator(
                     "nwo.remove_mesh_property", text="", icon="X"
                 ).options = "slip_surface"
-            if ob_nwo.decal_offset_active:
-                row = col.row()
-                row.prop(ob_nwo, "decal_offset_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "decal_offset"
             if ob_nwo.group_transparents_by_plane_active:
                 row = col.row()
                 row.prop(ob_nwo, "group_transparents_by_plane_ui")
@@ -847,7 +844,7 @@ class NWO_MeshPropAddFlags(NWO_MeshPropAdd):
         items=[
             ("ladder", "Ladder", ""),
             ("slip_surface", "Slip Surface", ""),
-            ("decal_offset", "Decal Offset", ""),
+            # ("decal_offset", "Decal Offset", ""),
             ("group_transparents_by_plane", "Group Transparents by Plane", ""),
             ("no_shadow", "No Shadow", ""),
             ("no_lightmap", "No Lightmap", ""),

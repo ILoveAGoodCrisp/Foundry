@@ -64,6 +64,14 @@ def register():
     )
     keys.append((km, kmi))
 
+    kmi = km.keymap_items.new(
+        idname="nwo.collection_create",
+        type="M",
+        value="PRESS",
+        alt=True,
+    )
+    keys.append((km, kmi))
+
 
 def unregister():
     for km, kmi in keys:
