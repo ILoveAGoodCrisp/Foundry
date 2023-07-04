@@ -32,47 +32,45 @@ from io_scene_foundry.utils.nwo_utils import deselect_all_objects
 from .collection_manager import get_coll_if_exists
 
 
-def ArmatureCreate(context, armature_type, control_bones):
+def armature_create(context, armature_type):
     import_file = ""
     if armature_type == "PEDESTAL":
         import_file = "pedestal"
     else:
         import_file = "unit"
 
-    if control_bones:
-        import_file += "_control"
+    import_file += "_control"
 
     append_blend(import_file)
 
-    if control_bones:
-        deselect_all_objects()
-        coll_name = "+exclude: bone_shapes"
-        collection_index = get_coll_if_exists(bpy.data, coll_name)
-        # Delete duplicate custom shapes
-        for ob in context.view_layer.objects:
-            if ob.name.rpartition(".")[0] in (
-                "shape_pedestal",
-                "shape_aim_control",
-            ):
-                ob.select_set(True)
-        bpy.ops.object.delete()
-        # Select custom shapes
-        for ob in context.view_layer.objects:
-            if ob.name in ("shape_pedestal", "shape_aim_control"):
-                ob.select_set(True)
+    deselect_all_objects()
+    coll_name = "+exclude: bone_shapes"
+    collection_index = get_coll_if_exists(bpy.data, coll_name)
+    # Delete duplicate custom shapes
+    for ob in context.view_layer.objects:
+        if ob.name.rpartition(".")[0] in (
+            "shape_pedestal",
+            "shape_aim_control",
+        ):
+            ob.select_set(True)
+    bpy.ops.object.delete()
+    # Select custom shapes
+    for ob in context.view_layer.objects:
+        if ob.name in ("shape_pedestal", "shape_aim_control"):
+            ob.select_set(True)
 
-        if collection_index == -1:
-            bpy.ops.object.move_to_collection(
-                collection_index=0, is_new=True, new_collection_name=coll_name
-            )
-            collection_index = 0
-        else:
-            bpy.data.collections[collection_index]
+    if collection_index == -1:
+        bpy.ops.object.move_to_collection(
+            collection_index=0, is_new=True, new_collection_name=coll_name
+        )
+        collection_index = 0
+    else:
+        bpy.data.collections[collection_index]
 
-        # Disable the bone shapes collection
-        for layer in context.view_layer.layer_collection.children:
-            if layer.collection == bpy.data.collections[collection_index]:
-                layer.exclude = True
+    # Disable the bone shapes collection
+    for layer in context.view_layer.layer_collection.children:
+        if layer.collection == bpy.data.collections[collection_index]:
+            layer.exclude = True
 
     # deselect_all_objects()
     # pedestal = 'b_pedestal'

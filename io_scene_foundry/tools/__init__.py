@@ -118,7 +118,6 @@ class NWO_FoundryPanelProps(Panel):
                 panel_expanded = getattr(nwo, f"{p}_expanded")
                 self.box = col2.box()
                 row_header = self.box.row(align=True)
-                row_header.alignment = "EXPAND"
                 row_header.operator(
                     "nwo.panel_expand",
                     text=panel_display_name,
@@ -1921,7 +1920,9 @@ class NWO_OT_PanelSet(Operator):
             setattr(nwo, prop_pin, True)
         else:
             setattr(nwo, prop_pin, False)
-        setattr(nwo, prop, not getattr(nwo, prop))
+
+        setattr(nwo, prop, True)
+
         # toggle all others off
         if not self.keep_enabled:
             for p in PANELS_PROPS:
@@ -2133,6 +2134,19 @@ def add_halo_scale_model_button(self, context):
         text="Halo Scale Model",
         icon_value=get_icon_id("biped"),
     )
+
+def add_halo_armature_buttons(self, context):
+    self.layout.operator(
+        "nwo.armature_create",
+        text="Halo Pedestal",
+        icon_value=get_icon_id("rig_creator"),
+    ).rig = "PEDESTAL"
+
+    self.layout.operator(
+        "nwo.armature_create",
+        text="Halo Unit",
+        icon_value=get_icon_id("rig_creator"),
+    ).rig = "UNIT"
 
 
 def create_halo_collection(self, context):
@@ -3793,16 +3807,26 @@ class NWO_ArmatureCreator_Create(Operator):
     bl_label = "Create Armature"
     bl_options = {"REGISTER", "UNDO"}
 
+    rig : StringProperty()
+
     def execute(self, context):
         scene = context.scene
-        scene_nwo_armature_creator = scene.nwo_armature_creator
-        from .armature_creator import ArmatureCreate
+        from .armature_creator import armature_create
 
-        return ArmatureCreate(
+        return armature_create(
             context,
-            scene_nwo_armature_creator.armature_type,
-            scene_nwo_armature_creator.control_rig,
+            self.rig,
         )
+    
+    @classmethod
+    def description(cls, context, properties):
+        if properties.rig == 'PEDESTAL':
+            return "Creates a Halo rig with a pedestal deform and control bone"
+        elif properties.rig == 'UNIT':
+            return ("Creates a Halo rig requried for a unit (biped / vehicle / giant). "
+            "Includes a pedestal bone, and pitch and yaw bones (with a controller) necessary "
+            "for pose overlay animations (e.g. aiming / steering)"
+            )
 
 
 class NWO_ArmatureCreatorPropertiesGroup(PropertyGroup):
@@ -4422,8 +4446,7 @@ def register():
 
     bpy.types.VIEW3D_HT_tool_header.append(draw_foundry_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
-    bpy.types.VIEW3D_MT_armature_add.append(add_halo_scale_model_button)
-    # bpy.types.OUTLINER_HT_header.append()
+    bpy.types.VIEW3D_MT_armature_add.append(add_halo_armature_buttons)
     bpy.types.VIEW3D_MT_object_collection.append(create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(add_halo_join)
     bpy.types.Scene.nwo_frame_ids = PointerProperty(
@@ -4469,6 +4492,7 @@ def register():
 def unregister():
     bpy.types.VIEW3D_HT_tool_header.remove(draw_foundry_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_armature_add.remove(add_halo_armature_buttons)
     bpy.types.VIEW3D_MT_object.remove(add_halo_join)
     bpy.types.VIEW3D_MT_object_collection.remove(create_halo_collection)
     del bpy.types.Scene.nwo_frame_ids
