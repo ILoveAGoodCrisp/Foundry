@@ -293,25 +293,6 @@ class NWO_FoundryPanelProps(Panel):
                 icon_value=get_icon_id("equipment"),
             )
 
-        count, total = get_halo_material_count()
-        shader_type = "material" if h4 else "shader"
-        if total:
-            col.label(text=f"Asset {shader_type}s")
-            # col.separator()
-            col.label(
-                text=f"{count} {shader_type} paths found out of {total} materials"
-            )
-            row = col.row(align=True)
-            col1 = row.column(align=True)
-            col2 = row.column(align=True)
-            col2.alignment = "RIGHT"
-            col1.operator(
-                "nwo.shader_finder",
-                text=f"Find Missing {shader_type}s",
-                icon_value=get_icon_id("material_finder"),
-            )
-            col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
-
     def draw_object_properties(self):
         box = self.box.box()
         row = box.row()
@@ -1608,8 +1589,9 @@ class NWO_FoundryPanelProps(Panel):
             row = box.row()
             if nwo.rendered:
                 row.label(text=f"{txt} Path")
-                row = box.row()
-                row.prop(nwo, "shader_path", text="")
+                row = box.row(align=True)
+                row.prop(nwo, "shader_path", text="", icon_value=get_icon_id("tags"))
+                row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
                 row.operator("nwo.shader_path", icon="FILE_FOLDER", text="")
                 ext = nwo.shader_path.rpartition(".")[2]
                 if ext != nwo.shader_path and (ext == "material" or "shader" in ext):
@@ -1625,6 +1607,28 @@ class NWO_FoundryPanelProps(Panel):
                     row.label(text=f"Not a {txt}")
                 else:
                     row.label(text=f"Not a {txt}")
+
+        return
+        count, total = get_halo_material_count()
+        shader_type = "material" if h4 else "shader"
+        if total:
+            row = box.row()
+            col = row.column()
+            col.label(text=f"Asset {shader_type}s")
+            # col.separator()
+            col.label(
+                text=f"{count} {shader_type} paths found out of {total} materials"
+            )
+            row = col.row(align=True)
+            col1 = row.column(align=True)
+            col2 = row.column(align=True)
+            col2.alignment = "RIGHT"
+            col1.operator(
+                "nwo.shader_finder",
+                text=f"Find Missing {shader_type}s",
+                icon_value=get_icon_id("material_finder"),
+            )
+            col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
 
     def draw_animation_properties(self):
         box = self.box.box()
@@ -1910,6 +1914,10 @@ class NWO_OT_PanelSet(Operator):
         setattr(nwo, prop, not getattr(nwo, prop))
         self.report({"INFO"}, f"Toggled: {prop}")
         return {"FINISHED"}
+    
+    @classmethod
+    def description(cls, context, properties):
+        return properties.panel_str.title().replace("_", " ")
 
 
 class NWO_OT_PanelExpand(Operator):
@@ -2990,6 +2998,7 @@ class NWO_ShaderFinder(Panel):
         )
 
 
+
 class NWO_ShaderFinder_Find(Operator):
     """Searches the tags folder for shaders (or the specified directory) and applies all that match blender material names"""
 
@@ -3010,6 +3019,21 @@ class NWO_ShaderFinder_Find(Operator):
             scene_nwo_shader_finder.overwrite_existing,
         )
 
+class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
+    bl_idname = "nwo.shader_finder_single"
+
+    def execute(self, context):
+        scene = context.scene
+        scene_nwo_shader_finder = scene.nwo_shader_finder
+        from .shader_finder import find_shaders
+
+        return find_shaders(
+            [context.object.active_material],
+            not_bungie_game(),
+            self.report,
+            scene_nwo_shader_finder.shaders_dir,
+            True,
+        )
 
 class NWO_HaloShaderFinderPropertiesGroup(PropertyGroup):
     shaders_dir: StringProperty(
@@ -4330,6 +4354,7 @@ classeshalo = (
     # NWO_MaterialsManager,
     # NWO_MaterialFinder,
     NWO_ShaderFinder,
+    NWO_ShaderFinder_FindSingle,
     NWO_ShaderFinder_Find,
     NWO_HaloShaderFinderPropertiesGroup,
     NWO_GraphPath,
@@ -4365,6 +4390,7 @@ def register():
 
     bpy.types.VIEW3D_MT_editor_menus.append(foundry_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_armature_add.append(add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_object_collection.append(create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(add_halo_join)
     bpy.types.Scene.nwo_frame_ids = PointerProperty(
