@@ -102,6 +102,7 @@ class NWO_FoundryPanelProps(Panel):
             col1.separator()
             row_icon = box.row(align=True)
             panel_active = getattr(nwo, f"{p}_active")
+            panel_pinned = getattr(nwo, f"{p}_pinned")
             row_icon.scale_x = 1.2
             row_icon.scale_y = 1.2
             row_icon.operator(
@@ -109,7 +110,7 @@ class NWO_FoundryPanelProps(Panel):
                 text="",
                 icon_value=get_icon_id(f"category_{p}"),
                 emboss=panel_active,
-                depress=False,
+                depress=panel_pinned,
             ).panel_str = p
 
             if panel_active:
@@ -1614,7 +1615,6 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row()
         context = self.context
         ob = context.object
-        h4 = self.h4
         if not ob or ob.type != "ARMATURE":
             if ob:
                 row.label(text="Halo Animations are only supported for Armatures")
@@ -1820,6 +1820,7 @@ class NWO_FoundryPanelSetsViewer(Panel):
             col1.separator()
             row_icon = col1.row(align=True)
             panel_active = getattr(nwo, f"{p}_active")
+            panel_pinned = getattr(nwo, f"{p}_pinned")
             row_icon.scale_x = 1.2
             row_icon.scale_y = 1.2
             row_icon.operator(
@@ -1827,7 +1828,7 @@ class NWO_FoundryPanelSetsViewer(Panel):
                 text="",
                 icon_value=get_icon_id(f"category_{p}"),
                 emboss=panel_active,
-                depress=False,
+                depress=panel_pinned,
             ).panel_str = p
 
             if panel_active:
@@ -1907,20 +1908,41 @@ class NWO_OT_PanelSet(Operator):
     bl_idname = "nwo.panel_set"
     bl_label = ""
     bl_options = {"REGISTER"}
-    bl_description = "Toggle a panel"
 
     panel_str: StringProperty()
+    keep_enabled : BoolProperty()
+    pin : BoolProperty()
 
     def execute(self, context):
         nwo = context.scene.nwo
         prop = f"{self.panel_str}_active"
+        prop_pin = f"{self.panel_str}_pinned"
+        if self.pin:
+            setattr(nwo, prop_pin, True)
+        else:
+            setattr(nwo, prop_pin, False)
         setattr(nwo, prop, not getattr(nwo, prop))
-        self.report({"INFO"}, f"Toggled: {prop}")
+        # toggle all others off
+        if not self.keep_enabled:
+            for p in PANELS_PROPS:
+                p_name = f"{p}_active"
+                if p_name != prop and not getattr(nwo, f"{p}_pinned"):
+                    setattr(nwo, p_name, False)
+
         return {"FINISHED"}
+    
+    def invoke(self, context, event):
+        self.keep_enabled = event.shift or event.ctrl
+        self.pin = event.ctrl
+        return self.execute(context)
+        
     
     @classmethod
     def description(cls, context, properties):
-        return properties.panel_str.title().replace("_", " ")
+        name = properties.panel_str.title().replace("_", " ")
+        descr = "Shift+Click to select multiple\nCtrl+Click to pin"
+        full_descr = f'{name}\n\n{descr}'
+        return full_descr
 
 
 class NWO_OT_PanelExpand(Operator):
@@ -4328,7 +4350,7 @@ def foundry_toolbar(layout, context):
             icon_value=get_icon_id("tags"),
         )
         sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
-        
+
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
 

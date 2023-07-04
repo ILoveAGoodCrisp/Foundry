@@ -456,37 +456,36 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
     )
 
-    object_tools_active: BoolProperty()
-    object_tools_expanded: BoolProperty(default=True)
-
-    material_tools_active: BoolProperty()
-    material_tools_expanded: BoolProperty(default=True)
-
-    animation_tools_active: BoolProperty()
-    animation_tools_expanded: BoolProperty(default=True)
-
     light_tools_active: BoolProperty()
+    light_tools_pinned: BoolProperty()
     light_tools_expanded: BoolProperty(default=True)
 
-    object_properties_active: BoolProperty(default=True)
+    object_properties_active: BoolProperty()
+    object_properties_pinned: BoolProperty()
     object_properties_expanded: BoolProperty(default=True)
 
     material_properties_active: BoolProperty()
+    material_properties_pinned: BoolProperty()
     material_properties_expanded: BoolProperty(default=True)
 
     animation_properties_active: BoolProperty()
+    animation_properties_pinned: BoolProperty()
     animation_properties_expanded: BoolProperty(default=True)
 
     scene_properties_active: BoolProperty(default=True)
+    scene_properties_pinned: BoolProperty()
     scene_properties_expanded: BoolProperty(default=True)
 
-    asset_editor_active: BoolProperty(default=True)
+    asset_editor_active: BoolProperty()
+    asset_editor_pinned: BoolProperty()
     asset_editor_expanded: BoolProperty(default=True)
 
     tools_active : BoolProperty()
+    tools_pinned: BoolProperty()
     tools_expanded : BoolProperty(default=True)
 
     sets_viewer_active: BoolProperty()
+    sets_viewer_pinned: BoolProperty()
     sets_viewer_expanded: BoolProperty(default=True)
 
     toolbar_expanded : BoolProperty(
