@@ -67,6 +67,7 @@ PANELS_PROPS = [
     "object_properties",
     "material_properties",
     "animation_properties",
+    "tools",
 ]
 PANELS_TOOLS = ["sets_viewer"]
 
@@ -1608,28 +1609,6 @@ class NWO_FoundryPanelProps(Panel):
                 else:
                     row.label(text=f"Not a {txt}")
 
-        return
-        count, total = get_halo_material_count()
-        shader_type = "material" if h4 else "shader"
-        if total:
-            row = box.row()
-            col = row.column()
-            col.label(text=f"Asset {shader_type}s")
-            # col.separator()
-            col.label(
-                text=f"{count} {shader_type} paths found out of {total} materials"
-            )
-            row = col.row(align=True)
-            col1 = row.column(align=True)
-            col2 = row.column(align=True)
-            col2.alignment = "RIGHT"
-            col1.operator(
-                "nwo.shader_finder",
-                text=f"Find Missing {shader_type}s",
-                icon_value=get_icon_id("material_finder"),
-            )
-            col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
-
     def draw_animation_properties(self):
         box = self.box.box()
         row = box.row()
@@ -1793,6 +1772,30 @@ class NWO_FoundryPanelProps(Panel):
                         == "_connected_geometry_animation_event_type_text"
                     ):
                         col.prop(item, "text")
+
+    def draw_tools(self):
+        box = self.box.box()
+        h4 = self.h4
+        count, total = get_halo_material_count()
+        shader_type = "Material" if h4 else "Shader"
+        if total:
+            row = box.row()
+            col = row.column()
+            col.label(text=f"Asset {shader_type}s")
+            # col.separator()
+            col.label(
+                text=f"{count} {shader_type} paths found out of {total} materials"
+            )
+            row = col.row(align=True)
+            col1 = row.column(align=True)
+            col2 = row.column(align=True)
+            col2.alignment = "RIGHT"
+            col1.operator(
+                "nwo.shader_finder",
+                text=f"Find Missing {shader_type}s",
+                icon_value=get_icon_id("material_finder"),
+            )
+            col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
 
 
 class NWO_FoundryPanelSetsViewer(Panel):
