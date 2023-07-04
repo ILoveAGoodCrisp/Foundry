@@ -108,7 +108,7 @@ class NWO_FoundryPanelProps(Panel):
             row_icon.operator(
                 "nwo.panel_set",
                 text="",
-                icon_value=get_icon_id(f"category_{p}"),
+                icon_value=get_icon_id(f"category_{p}_pinned") if panel_pinned else get_icon_id(f"category_{p}"),
                 emboss=panel_active,
                 depress=panel_pinned,
             ).panel_str = p
