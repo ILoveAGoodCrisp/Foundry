@@ -275,7 +275,7 @@ class NWO_FoundryPanelProps(Panel):
         shader_type = "material" if h4 else "shader"
         if total:
             col.label(text=f"Asset {shader_type}s")
-            col.separator()
+            # col.separator()
             col.label(text=f"{count} {shader_type} paths found out of {total} materials")
             row = col.row(align=True)
             col1 = row.column(align=True)

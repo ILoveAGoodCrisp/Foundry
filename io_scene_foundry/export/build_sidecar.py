@@ -995,7 +995,6 @@ class Sidecar:
                 output, "OutputTag", Type="frame_event_list"
             ).text = self.tag_path
             if not_bungie_game():
-                output = ET.SubElement(object, "OutputTagCollection")
                 ET.SubElement(
                     output, "OutputTag", Type="pca_animation"
                 ).text = self.tag_path
