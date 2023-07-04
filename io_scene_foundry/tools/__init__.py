@@ -29,7 +29,7 @@ from os.path import exists as file_exists
 from os.path import join as path_join
 import os
 
-from bpy.types import Panel, Operator, PropertyGroup
+from bpy.types import Context, OperatorProperties, Panel, Operator, PropertyGroup
 
 from bpy.props import (
     StringProperty,
@@ -136,16 +136,10 @@ class NWO_FoundryPanelProps(Panel):
         context = self.context
         scene = self.scene
 
-        flow = box.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
+        col = box.column()
         if mb_active:
-            flow.enabled = False
-        row = flow.row()
+            col.enabled = False
+        row = col.row()
         row.scale_y = 1.5
         row.prop(nwo, "game_version", text="")
         col = box.column()
@@ -158,15 +152,20 @@ class NWO_FoundryPanelProps(Panel):
         col.separator()
         row = col.row()
 
-        if mb_active or nwo.mb_startup:
-            row = row.row()
-            row.prop(nwo, "mb_startup")
-        row = row.row()
         row.scale_y = 1.1
-        if not valid_nwo_asset(context):
-            row.operator("nwo.make_asset")
-        if mb_active:
-            row.label(text="ManagedBlam Active")
+        # if not valid_nwo_asset(context):
+        #     row.operator("nwo.make_asset")
+
+        if mb_active or nwo.mb_startup:
+            row = col.row()
+            col1 = row.column()
+            col2 = row.column()
+            col1.use_property_split = False
+            col2.use_property_split = False
+            col1.alignment = 'LEFT'
+            col2.alignment = 'RIGHT'
+            col1.prop(nwo, "mb_startup")
+            col2.label(text="ManagedBlam Active")
         elif os.path.exists(os.path.join(bpy.app.tempdir, "blam_new.txt")):
             row.label(text="Blender Restart Required for ManagedBlam")
         else:
@@ -3039,7 +3038,7 @@ class NWO_ShaderFinder_Find(Operator):
     """Searches the tags folder for shaders (or the specified directory) and applies all that match blender material names"""
 
     bl_idname = "nwo.shader_finder"
-    bl_label = "Update Shader Paths"
+    bl_label = ""
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -3054,6 +3053,13 @@ class NWO_ShaderFinder_Find(Operator):
             scene_nwo_shader_finder.shaders_dir,
             scene_nwo_shader_finder.overwrite_existing,
         )
+
+    @classmethod
+    def description(cls, context: Context, properties: OperatorProperties) -> str:
+        if not_bungie_game():
+            return "Update Halo Material path"
+        else:
+            return "Update Halo Shader Path"
 
 class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
     bl_idname = "nwo.shader_finder_single"
@@ -4315,6 +4321,9 @@ def foundry_toolbar(layout, context):
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if nwo_scene.toolbar_expanded:
+        if not valid_nwo_asset(context):
+            sub_asset = row.row(align=True)
+            sub_asset.operator("nwo.make_asset")
         sub0 = row.row(align=True)
         sub0.operator(
             "nwo.export_quick",

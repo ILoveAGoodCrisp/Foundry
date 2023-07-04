@@ -38,7 +38,9 @@ def register():
     if not kc:
         return
 
-    # Activate tool
+
+    # VIEW_3D
+
     km = kc.keymaps.new(name="3D View", space_type="VIEW_3D")
 
     kmi = km.keymap_items.new(
@@ -63,6 +65,18 @@ def register():
         shift=True,
     )
     keys.append((km, kmi))
+
+    kmi = km.keymap_items.new(
+        idname="nwo.collection_create",
+        type="M",
+        value="PRESS",
+        alt=True,
+    )
+    keys.append((km, kmi))
+
+    # OUTLINER
+
+    km = kc.keymaps.new(name="Outliner", space_type="OUTLINER")
 
     kmi = km.keymap_items.new(
         idname="nwo.collection_create",

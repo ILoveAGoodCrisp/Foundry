@@ -1883,7 +1883,8 @@ def get_halo_material_count():
     count = 0
     total = 0
     for mat in bpy.data.materials:
-        if mat.grease_pencil:
+        nwo = mat.nwo
+        if mat.grease_pencil or not nwo.rendered:
             continue
         nwo = mat.nwo
         if nwo.shader_path:

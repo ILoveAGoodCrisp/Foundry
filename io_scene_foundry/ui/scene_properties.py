@@ -133,8 +133,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
 
     mb_startup: BoolProperty(
-        name="Run ManagedBlam on Startup",
+        name="ManagedBlam on Startup",
         description="Runs ManagedBlam.dll on Blender startup, this will lock the selected game on startup. Disable and and restart blender if you wish to change the selected game.",
+        options=set(),
     )
 
     def get_temp_settings(self):
