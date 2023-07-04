@@ -4323,7 +4323,7 @@ def foundry_toolbar(layout, context):
     if nwo_scene.toolbar_expanded:
         if not valid_nwo_asset(context):
             sub_asset = row.row(align=True)
-            sub_asset.operator("nwo.make_asset")
+            sub_asset.operator("nwo.make_asset", text="New Halo Asset", icon_value=get_icon_id("halo_asset"))
         sub0 = row.row(align=True)
         sub0.operator(
             "nwo.export_quick",
