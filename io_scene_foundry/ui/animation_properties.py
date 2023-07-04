@@ -36,6 +36,8 @@ from bpy.props import (
 import random
 import bpy
 
+from io_scene_foundry.icons import get_icon_id
+
 from ..utils.nwo_utils import dot_partition
 
 
@@ -45,7 +47,7 @@ class NWO_UL_AnimProps_Events(UIList):
     ):
         animation = item
         if animation:
-            layout.prop(animation, "name", text="", emboss=False, icon_value=495)
+            layout.prop(animation, "name", text="", emboss=False, icon_value=get_icon_id("animation_event"))
         else:
             layout.label(text="", translate=False, icon_value=icon)
 

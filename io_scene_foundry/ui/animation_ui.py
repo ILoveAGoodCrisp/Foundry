@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from bpy.types import Context, Event
+from io_scene_foundry.icons import get_icon_id
 
 from io_scene_foundry.utils.nwo_utils import poll_ui
 from .templates import NWO_Op, NWO_PropPanel
@@ -508,4 +509,4 @@ class NWO_UL_AnimationRename(bpy.types.UIList):
         active_propname,
         index,
     ):
-        layout.prop(item, "rename_name", text="", emboss=False)
+        layout.prop(item, "rename_name", text="", emboss=False, icon_value=get_icon_id("animation_rename"))
