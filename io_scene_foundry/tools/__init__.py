@@ -4276,16 +4276,19 @@ class NWO_ShaderPropertiesGroup(PropertyGroup):
         ],
     )
 
+def draw_foundry_toolbar(self, context):
+    #if context.region.alignment == 'RIGHT':
+    foundry_toolbar(self.layout, context)
 
-def foundry_toolbar(self, context):
-    layout = self.layout
-    layout.label(text=" ")
+def foundry_toolbar(layout, context):
+    #layout.label(text=" ")
     row = layout.row()
     icons_only = False
     row.scale_x = 1
     nwo_scene = context.scene.nwo
-    sub_foundry = row.row(align=True)
-    sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+    if not nwo_scene.toolbar_expanded:
+        sub_foundry = row.row(align=True)
+        sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if nwo_scene.toolbar_expanded:
         sub0 = row.row(align=True)
         sub0.operator(
@@ -4325,6 +4328,10 @@ def foundry_toolbar(self, context):
             icon_value=get_icon_id("tags"),
         )
         sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
+        
+        sub_foundry = row.row(align=True)
+        sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+
 
 
 classeshalo = (
@@ -4391,9 +4398,10 @@ def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
 
-    bpy.types.VIEW3D_MT_editor_menus.append(foundry_toolbar)
+    bpy.types.VIEW3D_HT_tool_header.append(draw_foundry_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_armature_add.append(add_halo_scale_model_button)
+    # bpy.types.OUTLINER_HT_header.append()
     bpy.types.VIEW3D_MT_object_collection.append(create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(add_halo_join)
     bpy.types.Scene.nwo_frame_ids = PointerProperty(
@@ -4437,9 +4445,9 @@ def register():
 
 
 def unregister():
+    bpy.types.VIEW3D_HT_tool_header.remove(draw_foundry_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
     bpy.types.VIEW3D_MT_object.remove(add_halo_join)
-    bpy.types.VIEW3D_MT_editor_menus.remove(foundry_toolbar)
     bpy.types.VIEW3D_MT_object_collection.remove(create_halo_collection)
     del bpy.types.Scene.nwo_frame_ids
     del bpy.types.Scene.nwo_halo_launcher
