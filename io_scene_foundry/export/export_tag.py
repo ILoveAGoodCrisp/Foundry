@@ -58,13 +58,22 @@ def import_sidecar(
     model_lighting,
 ):
     print("\n\nBuilding Tags")
-    print(
-        "-----------------------------------------------------------------------\n"
-    )
+    print("-----------------------------------------------------------------------\n")
     # time.sleep(0.5)
     faux_process = None
     if model_lighting:
-        faux_process = run_tool(["import", sidecar_path.replace(f"{asset_name}.sidecar.xml", f"{asset_name}_lighting.sidecar.xml"), "preserve_namespaces", "force"], True, True)
+        faux_process = run_tool(
+            [
+                "import",
+                sidecar_path.replace(
+                    f"{asset_name}.sidecar.xml", f"{asset_name}_lighting.sidecar.xml"
+                ),
+                "preserve_namespaces",
+                "force",
+            ],
+            True,
+            True,
+        )
     failed = run_tool_sidecar(
         [
             "import",
@@ -86,10 +95,10 @@ def import_sidecar(
                 import_force_animations,
             ),
         ],
-        asset_path
+        asset_path,
     )
     if sidecar_type == "FP ANIMATION":
-        cull_unused_tags(sidecar_path.rpartition('\\')[0], asset_name)
+        cull_unused_tags(sidecar_path.rpartition("\\")[0], asset_name)
 
     if faux_process is not None:
         faux_process.wait()

@@ -61,11 +61,18 @@ from bpy_extras.object_utils import AddObjectHelper
 
 is_blender_startup = True
 
-PANELS_PROPS = ['scene_properties', 'asset_editor', 'object_properties', 'material_properties', 'animation_properties']
-PANELS_TOOLS = ['sets_viewer']
+PANELS_PROPS = [
+    "scene_properties",
+    "asset_editor",
+    "object_properties",
+    "material_properties",
+    "animation_properties",
+]
+PANELS_TOOLS = ["sets_viewer"]
 
 #######################################
 # NEW TOOL UI
+
 
 class NWO_FoundryPanelProps(Panel):
     bl_label = "Halo Properties"
@@ -75,8 +82,8 @@ class NWO_FoundryPanelProps(Panel):
     # bl_options = {'DEFAULT_CLOSED'}
     bl_category = "Foundry"
 
-#######################################
-# ADD MENU TOOLS
+    #######################################
+    # ADD MENU TOOLS
 
     def draw(self, context):
         self.context = context
@@ -94,15 +101,26 @@ class NWO_FoundryPanelProps(Panel):
             panel_active = getattr(nwo, f"{p}_active")
             row_icon.scale_x = 1.2
             row_icon.scale_y = 1.2
-            row_icon.operator("nwo.panel_set", text="", icon_value=get_icon_id(f"category_{p}"), emboss=panel_active, depress=False).panel_str = p
+            row_icon.operator(
+                "nwo.panel_set",
+                text="",
+                icon_value=get_icon_id(f"category_{p}"),
+                emboss=panel_active,
+                depress=False,
+            ).panel_str = p
 
             if panel_active:
                 panel_display_name = f"Halo {p.replace('_', ' ').title()}"
                 panel_expanded = getattr(nwo, f"{p}_expanded")
                 self.box = col2.box()
                 row_header = self.box.row(align=True)
-                row_header.alignment = 'EXPAND'
-                row_header.operator("nwo.panel_expand", text=panel_display_name, icon='TRIA_DOWN' if panel_expanded else 'TRIA_RIGHT', emboss=False).panel_str = p
+                row_header.alignment = "EXPAND"
+                row_header.operator(
+                    "nwo.panel_expand",
+                    text=panel_display_name,
+                    icon="TRIA_DOWN" if panel_expanded else "TRIA_RIGHT",
+                    emboss=False,
+                ).panel_str = p
 
                 if panel_expanded:
                     draw_panel = getattr(self, f"draw_{p}")
@@ -172,7 +190,9 @@ class NWO_FoundryPanelProps(Panel):
         row.scale_y = 1.5
         row.prop(nwo, "asset_type", text="")
         col.separator()
-        asset_name = scene.nwo_halo_launcher.sidecar_path.rpartition('\\')[2].replace('.sidecar.xml', '')
+        asset_name = scene.nwo_halo_launcher.sidecar_path.rpartition("\\")[2].replace(
+            ".sidecar.xml", ""
+        )
         if asset_name:
             col.label(text=f"Asset Name: {asset_name}")
             col.separator()
@@ -276,14 +296,19 @@ class NWO_FoundryPanelProps(Panel):
         if total:
             col.label(text=f"Asset {shader_type}s")
             # col.separator()
-            col.label(text=f"{count} {shader_type} paths found out of {total} materials")
+            col.label(
+                text=f"{count} {shader_type} paths found out of {total} materials"
+            )
             row = col.row(align=True)
             col1 = row.column(align=True)
             col2 = row.column(align=True)
-            col2.alignment = 'RIGHT'
-            col1.operator("nwo.shader_finder", text=f"Find Missing {shader_type}s", icon_value=get_icon_id("material_finder"))
+            col2.alignment = "RIGHT"
+            col1.operator(
+                "nwo.shader_finder",
+                text=f"Find Missing {shader_type}s",
+                icon_value=get_icon_id("material_finder"),
+            )
             col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
-        
 
     def draw_object_properties(self):
         box = self.box.box()
@@ -297,19 +322,19 @@ class NWO_FoundryPanelProps(Panel):
         elif not is_halo_object(ob):
             row.label(text="Not a Halo Object")
             return
-        
+
         nwo = ob.nwo
         col1 = row.column()
-        col1.template_ID(context.view_layer.objects, "active", filter='AVAILABLE')
+        col1.template_ID(context.view_layer.objects, "active", filter="AVAILABLE")
         col2 = row.column()
-        col2.alignment = 'RIGHT'
+        col2.alignment = "RIGHT"
         col2.prop(nwo, "export_this", text="Export")
 
         if not nwo.export_this:
             box.label(text="Object is excluded from export")
             return
-        
-        elif ob.type == 'ARMATURE':
+
+        elif ob.type == "ARMATURE":
             box.label(text="This object contains the skeleton for this asset")
             return
 
@@ -335,10 +360,7 @@ class NWO_FoundryPanelProps(Panel):
 
         row.prop(nwo, "object_type_ui", text="", expand=True)
 
-        if (
-            nwo.object_type_ui
-            == "_connected_geometry_object_type_light"
-        ):
+        if nwo.object_type_ui == "_connected_geometry_object_type_light":
             flow = box.grid_flow(
                 row_major=True,
                 columns=0,
@@ -357,9 +379,7 @@ class NWO_FoundryPanelProps(Panel):
                         text="Subgroup",
                     )
                 else:
-                    row.prop(
-                        nwo, "permutation_name_ui", text="Subgroup"
-                    )
+                    row.prop(nwo, "permutation_name_ui", text="Subgroup")
                     row.operator_menu_enum(
                         "nwo.permutation_list",
                         "permutation",
@@ -385,9 +405,7 @@ class NWO_FoundryPanelProps(Panel):
                 text="See the Object Data Properties panel for Halo Light Properties"
             )
 
-        elif (
-            nwo.object_type_ui == "_connected_geometry_object_type_mesh"
-        ):
+        elif nwo.object_type_ui == "_connected_geometry_object_type_mesh":
             # SPECIFIC MESH PROPS
             flow = box.grid_flow(
                 row_major=True,
@@ -434,9 +452,7 @@ class NWO_FoundryPanelProps(Panel):
                         text=perm_name,
                     )
                 else:
-                    row.prop(
-                        nwo, "permutation_name_ui", text=perm_name
-                    )
+                    row.prop(nwo, "permutation_name_ui", text=perm_name)
                     row.operator_menu_enum(
                         "nwo.permutation_list",
                         "permutation",
@@ -476,36 +492,24 @@ class NWO_FoundryPanelProps(Panel):
                     # Seams guide
                     col.separator()
                     row = col.row()
-                    row.label(text="Seam normals should face towards the specified front facing BSP")
+                    row.label(
+                        text="Seam normals should face towards the specified front facing BSP"
+                    )
 
             # col.separator()
 
-            if (
-                nwo.mesh_type_ui
-                == "_connected_geometry_mesh_type_decorator"
-            ):
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
                 col.prop(nwo, "decorator_lod_ui")
 
-            elif (
-                nwo.mesh_type_ui
-                == "_connected_geometry_mesh_type_physics"
-            ):
-                col.prop(
-                    nwo, "mesh_primitive_type_ui", text="Primitive Type"
-                )
+            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
+                col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
 
-            elif (
-                nwo.mesh_type_ui
-                == "_connected_geometry_mesh_type_plane"
-            ):
+            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_plane":
                 row = col.row()
                 row.scale_y = 1.25
                 row.prop(nwo, "plane_type_ui")
 
-                if (
-                    nwo.plane_type_ui
-                    == "_connected_geometry_plane_type_portal"
-                ):
+                if nwo.plane_type_ui == "_connected_geometry_plane_type_portal":
                     row = col.row()
                     row.prop(
                         nwo,
@@ -540,9 +544,7 @@ class NWO_FoundryPanelProps(Panel):
                         "fog_appearance_tag_ui",
                         text="Fog Appearance Tag",
                     )
-                    row.operator(
-                        "nwo.fog_path", icon="FILE_FOLDER", text=""
-                    )
+                    row.operator("nwo.fog_path", icon="FILE_FOLDER", text="")
                     col.prop(
                         nwo,
                         "fog_volume_depth_ui",
@@ -550,15 +552,11 @@ class NWO_FoundryPanelProps(Panel):
                     )
 
                 elif (
-                    nwo.plane_type_ui
-                    == "_connected_geometry_plane_type_water_surface"
+                    nwo.plane_type_ui == "_connected_geometry_plane_type_water_surface"
                 ):
                     col.prop(nwo, "mesh_tessellation_density_ui")
 
-            elif (
-                nwo.mesh_type_ui
-                == "_connected_geometry_mesh_type_volume"
-            ):
+            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_volume":
                 row = col.row()
                 row.scale_y = 1.25
                 row.prop(nwo, "volume_type_ui")
@@ -594,35 +592,21 @@ class NWO_FoundryPanelProps(Panel):
                         text="Underwater Fog Murkiness",
                     )
 
-            elif (
-                nwo.mesh_type_ui
-                == "_connected_geometry_mesh_type_poop_collision"
-            ):
+            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
                 col.prop(nwo, "poop_collision_type_ui")
 
             elif nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_poop",
                 "_connected_geometry_mesh_type_structure",
             ):
-                if (
-                    h4
-                    and nwo.mesh_type_ui
-                    == "_connected_geometry_mesh_type_structure"
-                ):
+                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
                     col.prop(nwo, "proxy_instance")
-                if (
-                    nwo.mesh_type_ui
-                    == "_connected_geometry_mesh_type_poop"
-                    or (
-                        nwo.mesh_type_ui
-                        == "_connected_geometry_mesh_type_structure"
-                        and h4
-                        and nwo.proxy_instance
-                    )
+                if nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop" or (
+                    nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+                    and h4
+                    and nwo.proxy_instance
                 ):
-                    col.prop(
-                        nwo, "poop_lighting_ui", text="Lighting Policy"
-                    )
+                    col.prop(nwo, "poop_lighting_ui", text="Lighting Policy")
 
                     # if h4:
                     #     col.prop(nwo, "poop_lightmap_resolution_scale_ui")
@@ -648,9 +632,7 @@ class NWO_FoundryPanelProps(Panel):
                             "poop_imposter_transition_distance_auto",
                             text="Automatic",
                         )
-                        if (
-                            not nwo.poop_imposter_transition_distance_auto
-                        ):
+                        if not nwo.poop_imposter_transition_distance_auto:
                             sub.prop(
                                 nwo,
                                 "poop_imposter_transition_distance_ui",
@@ -687,17 +669,13 @@ class NWO_FoundryPanelProps(Panel):
                     # col.prop(nwo, "poop_decal_spacing_ui", text='Decal Spacing')
                     if h4:
                         # col.prop(nwo, "poop_remove_from_shadow_geometry_ui")
-                        col.prop(
-                            nwo, "poop_disallow_lighting_samples_ui"
-                        )
+                        col.prop(nwo, "poop_disallow_lighting_samples_ui")
                         # col.prop(nwo, "poop_rain_occluder")
 
             # MESH LEVEL / FACE LEVEL PROPERTIES
 
-        elif (
-            nwo.object_type_ui
-            == "_connected_geometry_object_type_marker"
-            and poll_ui(("MODEL", "SCENARIO", "SKY"))
+        elif nwo.object_type_ui == "_connected_geometry_object_type_marker" and poll_ui(
+            ("MODEL", "SCENARIO", "SKY")
         ):
             # MARKER PROPERTIES
             flow = box.grid_flow(
@@ -735,9 +713,7 @@ class NWO_FoundryPanelProps(Panel):
                         text="Permutation",
                     )
                 else:
-                    row.prop(
-                        nwo, "permutation_name_ui", text="Permutation"
-                    )
+                    row.prop(nwo, "permutation_name_ui", text="Permutation")
                     row.operator_menu_enum(
                         "nwo.permutation_list",
                         "permutation",
@@ -759,14 +735,13 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.separator()
 
-            if (
-                nwo.marker_type_ui
-                in ("_connected_geometry_marker_type_model", 
-                    "_connected_geometry_marker_type_garbage",
-                    "_connected_geometry_marker_type_effects",
-                    "_connected_geometry_marker_type_target",
-                    "_connected_geometry_marker_type_hint",
-                    "_connected_geometry_marker_type_pathfinding_sphere")
+            if nwo.marker_type_ui in (
+                "_connected_geometry_marker_type_model",
+                "_connected_geometry_marker_type_garbage",
+                "_connected_geometry_marker_type_effects",
+                "_connected_geometry_marker_type_target",
+                "_connected_geometry_marker_type_hint",
+                "_connected_geometry_marker_type_pathfinding_sphere",
             ):
                 if poll_ui(("MODEL", "SKY")):
                     row = col.row()
@@ -779,26 +754,17 @@ class NWO_FoundryPanelProps(Panel):
                                 text="Region",
                             )
                         else:
-                            col.prop(
-                                nwo, "region_name_ui", text="Region"
-                            )
-                    sub.prop(
-                        nwo, "marker_all_regions_ui", text="All Regions"
-                    )
+                            col.prop(nwo, "region_name_ui", text="Region")
+                    sub.prop(nwo, "marker_all_regions_ui", text="All Regions")
 
-            elif (
-                nwo.marker_type_ui
-                == "_connected_geometry_marker_type_game_instance"
-            ):
+            elif nwo.marker_type_ui == "_connected_geometry_marker_type_game_instance":
                 row = col.row()
                 row.prop(
                     nwo,
                     "marker_game_instance_tag_name_ui",
                     text="Tag Path",
                 )
-                row.operator(
-                    "nwo.game_instance_path", icon="FILE_FOLDER", text=""
-                )
+                row.operator("nwo.game_instance_path", icon="FILE_FOLDER", text="")
                 if not nwo.marker_game_instance_tag_name_ui.endswith(
                     (".prefab", ".cheap_light", ".light", ".leaf")
                 ):
@@ -808,14 +774,9 @@ class NWO_FoundryPanelProps(Panel):
                         text="Tag Variant",
                     )
                     if h4:
-                        col.prop(
-                            nwo, "marker_game_instance_run_scripts_ui"
-                        )
+                        col.prop(nwo, "marker_game_instance_run_scripts_ui")
 
-            elif (
-                nwo.marker_type_ui
-                == "_connected_geometry_marker_type_hint"
-            ):
+            elif nwo.marker_type_ui == "_connected_geometry_marker_type_hint":
                 row = col.row(align=True)
                 row.prop(nwo, "marker_hint_type")
                 if nwo.marker_hint_type == "corner":
@@ -831,13 +792,8 @@ class NWO_FoundryPanelProps(Panel):
                 # if h4:
                 #     col.prop(nwo, "marker_hint_length_ui")
 
-            elif (
-                nwo.marker_type_ui
-                == "_connected_geometry_marker_type_garbage"
-            ):
-                col.prop(
-                    nwo, "marker_velocity_ui", text="Marker Velocity"
-                )
+            elif nwo.marker_type_ui == "_connected_geometry_marker_type_garbage":
+                col.prop(nwo, "marker_velocity_ui", text="Marker Velocity")
 
             elif (
                 nwo.marker_type_ui
@@ -872,16 +828,28 @@ class NWO_FoundryPanelProps(Panel):
                     text="Constraint Parent",
                 )
                 parent = nwo.physics_constraint_parent_ui
-                if parent is not None and parent.type == 'ARMATURE':
-                    col.prop_search(nwo, "physics_constraint_parent_bone_ui", parent.data, "bones", text="Bone")
+                if parent is not None and parent.type == "ARMATURE":
+                    col.prop_search(
+                        nwo,
+                        "physics_constraint_parent_bone_ui",
+                        parent.data,
+                        "bones",
+                        text="Bone",
+                    )
                 col.prop(
                     nwo,
                     "physics_constraint_child_ui",
                     text="Constraint Child",
                 )
                 child = nwo.physics_constraint_child_ui
-                if child is not None and child.type == 'ARMATURE':
-                    col.prop_search(nwo, "physics_constraint_child_bone_ui", child.data, "bones", text="Bone")
+                if child is not None and child.type == "ARMATURE":
+                    col.prop_search(
+                        nwo,
+                        "physics_constraint_child_bone_ui",
+                        child.data,
+                        "bones",
+                        text="Bone",
+                    )
                 row = col.row()
                 row.prop(
                     nwo,
@@ -946,25 +914,17 @@ class NWO_FoundryPanelProps(Panel):
             #     # if ob.type != "MESH":
             #     #     col.prop(nwo, "marker_sphere_radius_ui")
 
-            elif (
-                nwo.marker_type_ui
-                == "_connected_geometry_marker_type_envfx"
-                and h4
-            ):
+            elif nwo.marker_type_ui == "_connected_geometry_marker_type_envfx" and h4:
                 row = col.row()
                 row.prop(nwo, "marker_looping_effect_ui")
                 row.operator("nwo.effect_path")
 
             elif (
-                nwo.marker_type_ui
-                == "_connected_geometry_marker_type_lightCone"
-                and h4
+                nwo.marker_type_ui == "_connected_geometry_marker_type_lightCone" and h4
             ):
                 row = col.row()
                 row.prop(nwo, "marker_light_cone_tag_ui")
-                row.operator(
-                    "nwo.light_cone_path", icon="FILE_FOLDER", text=""
-                )
+                row.operator("nwo.light_cone_path", icon="FILE_FOLDER", text="")
                 col.prop(nwo, "marker_light_cone_color_ui")
                 col.prop(nwo, "marker_light_cone_alpha_ui")
                 col.prop(nwo, "marker_light_cone_intensity_ui")
@@ -980,7 +940,7 @@ class NWO_FoundryPanelProps(Panel):
 
         if not has_mesh_props(ob):
             return
-        
+
         flow = box.grid_flow(
             row_major=True,
             columns=0,
@@ -1222,13 +1182,9 @@ class NWO_FoundryPanelProps(Panel):
                     "nwo.remove_mesh_property", text="", icon="X"
                 ).options = "emissive"
                 row = box.row()
-                row.prop(
-                    nwo, "material_lighting_emissive_color_ui", text="Color"
-                )
+                row.prop(nwo, "material_lighting_emissive_color_ui", text="Color")
                 row = box.row()
-                row.prop(
-                    nwo, "material_lighting_emissive_power_ui", text="Power"
-                )
+                row.prop(nwo, "material_lighting_emissive_power_ui", text="Power")
                 row = box.row()
                 row.prop(
                     nwo,
@@ -1236,9 +1192,7 @@ class NWO_FoundryPanelProps(Panel):
                     text="Quality",
                 )
                 row = box.row()
-                row.prop(
-                    nwo, "material_lighting_emissive_focus_ui", text="Focus"
-                )
+                row.prop(nwo, "material_lighting_emissive_focus_ui", text="Focus")
                 row = box.row()
                 row.prop(
                     nwo,
@@ -1274,7 +1228,7 @@ class NWO_FoundryPanelProps(Panel):
 
         if not has_face_props(ob):
             return
-        
+
         flow = box.grid_flow(
             row_major=True,
             columns=0,
@@ -1340,16 +1294,10 @@ class NWO_FoundryPanelProps(Panel):
 
                 if nwo.face_props:
                     sub = row.row(align=True)
-                    sub.operator(
-                        "nwo.face_layer_assign", text="Assign"
-                    ).assign = True
-                    sub.operator(
-                        "nwo.face_layer_assign", text="Remove"
-                    ).assign = False
+                    sub.operator("nwo.face_layer_assign", text="Assign").assign = True
+                    sub.operator("nwo.face_layer_assign", text="Remove").assign = False
                     sub = row.row(align=True)
-                    sub.operator(
-                        "nwo.face_layer_select", text="Select"
-                    ).select = True
+                    sub.operator("nwo.face_layer_select", text="Select").select = True
                     sub.operator(
                         "nwo.face_layer_select", text="Deselect"
                     ).select = False
@@ -1388,10 +1336,7 @@ class NWO_FoundryPanelProps(Panel):
                     ).options = "region"
 
                 if item.face_type_override:
-                    if (
-                        item.face_type_ui
-                        == "_connected_geometry_face_type_sky"
-                    ):
+                    if item.face_type_ui == "_connected_geometry_face_type_sky":
                         col.separator()
                         box = col.box()
                         row = box.row()
@@ -1604,7 +1549,7 @@ class NWO_FoundryPanelProps(Panel):
         if ob_type not in ("MESH", "CURVE", "SURFACE", "META", "FONT"):
             row.label(text="Active object does not support materials")
             return
-        
+
         mat = ob.active_material
         col1 = row.column()
         col1.template_ID(ob, "active_material", new="material.new")
@@ -1612,7 +1557,7 @@ class NWO_FoundryPanelProps(Panel):
             txt = "Halo Material" if h4 else "Halo Shader"
             nwo = mat.nwo
             col2 = row.column()
-            col2.alignment = 'RIGHT'
+            col2.alignment = "RIGHT"
             col2.prop(nwo, "rendered", text="Export")
 
         is_sortable = len(ob.material_slots) > 1
@@ -1621,26 +1566,38 @@ class NWO_FoundryPanelProps(Panel):
             rows = 5
 
         row = box.row()
-        
-        row.template_list("MATERIAL_UL_matslots", "", ob, "material_slots", ob, "active_material_index", rows=rows)
+
+        row.template_list(
+            "MATERIAL_UL_matslots",
+            "",
+            ob,
+            "material_slots",
+            ob,
+            "active_material_index",
+            rows=rows,
+        )
 
         col = row.column(align=True)
-        col.operator("object.material_slot_add", icon='ADD', text="")
-        col.operator("object.material_slot_remove", icon='REMOVE', text="")
+        col.operator("object.material_slot_add", icon="ADD", text="")
+        col.operator("object.material_slot_remove", icon="REMOVE", text="")
 
         col.separator()
 
-        col.menu("MATERIAL_MT_context_menu", icon='DOWNARROW_HLT', text="")
+        col.menu("MATERIAL_MT_context_menu", icon="DOWNARROW_HLT", text="")
 
         if is_sortable:
             col.separator()
 
-            col.operator("object.material_slot_move", icon='TRIA_UP', text="").direction = 'UP'
-            col.operator("object.material_slot_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
+            col.operator(
+                "object.material_slot_move", icon="TRIA_UP", text=""
+            ).direction = "UP"
+            col.operator(
+                "object.material_slot_move", icon="TRIA_DOWN", text=""
+            ).direction = "DOWN"
 
         row = box.row()
 
-        if ob.mode == 'EDIT':
+        if ob.mode == "EDIT":
             row = box.row(align=True)
             row.operator("object.material_slot_assign", text="Assign")
             row.operator("object.material_slot_select", text="Select")
@@ -1653,9 +1610,7 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(nwo, "shader_path", text="")
                 row.operator("nwo.shader_path", icon="FILE_FOLDER", text="")
                 ext = nwo.shader_path.rpartition(".")[2]
-                if ext != nwo.shader_path and (
-                    ext == "material" or "shader" in ext
-                ):
+                if ext != nwo.shader_path and (ext == "material" or "shader" in ext):
                     row = box.row()
                     row.scale_y = 1.5
                     row.operator(
@@ -1681,7 +1636,7 @@ class NWO_FoundryPanelProps(Panel):
             else:
                 row.label(text="No active object")
             return
-        
+
         animation_data = ob.animation_data
 
         if not animation_data:
@@ -1689,12 +1644,17 @@ class NWO_FoundryPanelProps(Panel):
             return
 
         col1 = row.column(align=True)
-        col1.template_ID(animation_data, "action", new="nwo.new_animation", unlink="nwo.delete_animation")
+        col1.template_ID(
+            animation_data,
+            "action",
+            new="nwo.new_animation",
+            unlink="nwo.delete_animation",
+        )
         action = animation_data.action
         if action:
             nwo = action.nwo
             col2 = row.column()
-            col2.alignment = 'RIGHT'
+            col2.alignment = "RIGHT"
             col2.prop(action, "use_frame_range", text="Export")
 
             if action.use_frame_range:
@@ -1756,9 +1716,7 @@ class NWO_FoundryPanelProps(Panel):
                 col.operator("animation_event.list_remove", icon="REMOVE", text="")
 
                 if len(nwo.animation_events) > 0:
-                    item = nwo.animation_events[
-                        nwo.animation_events_index
-                    ]
+                    item = nwo.animation_events[nwo.animation_events_index]
                     # row = layout.row()
                     # row.prop(item, "name") # debug only
                     flow = box.grid_flow(
@@ -1830,7 +1788,7 @@ class NWO_FoundryPanelProps(Panel):
                     ):
                         col.prop(item, "text")
 
-        
+
 class NWO_FoundryPanelSetsViewer(Panel):
     bl_label = "Halo Sets Viewer"
     bl_idname = "NWO_PT_FoundryPanelSetsViewer"
@@ -1855,15 +1813,26 @@ class NWO_FoundryPanelSetsViewer(Panel):
             panel_active = getattr(nwo, f"{p}_active")
             row_icon.scale_x = 1.2
             row_icon.scale_y = 1.2
-            row_icon.operator("nwo.panel_set", text="", icon_value=get_icon_id(f"category_{p}"), emboss=panel_active, depress=False).panel_str = p
+            row_icon.operator(
+                "nwo.panel_set",
+                text="",
+                icon_value=get_icon_id(f"category_{p}"),
+                emboss=panel_active,
+                depress=False,
+            ).panel_str = p
 
             if panel_active:
                 panel_display_name = f"Halo {p.replace('_', ' ').title()}"
                 panel_expanded = getattr(nwo, f"{p}_expanded")
                 self.box = col2.box()
                 row_header = self.box.row(align=True)
-                row_header.alignment = 'EXPAND'
-                row_header.operator("nwo.panel_expand", text=panel_display_name, icon='TRIA_DOWN' if panel_expanded else 'TRIA_RIGHT', emboss=False).panel_str = p
+                row_header.alignment = "EXPAND"
+                row_header.operator(
+                    "nwo.panel_expand",
+                    text=panel_display_name,
+                    icon="TRIA_DOWN" if panel_expanded else "TRIA_RIGHT",
+                    emboss=False,
+                ).panel_str = p
 
                 if panel_expanded:
                     draw_panel = getattr(self, f"draw_{p}")
@@ -1873,7 +1842,9 @@ class NWO_FoundryPanelSetsViewer(Panel):
         collection_manager = self.scene.nwo_collection_manager
         frame_id_tool = self.scene.nwo_frame_ids
         box = self.box.box()
-        box.label(text="Collection Creator", icon_value=get_icon_id("collection_creator"))
+        box.label(
+            text="Collection Creator", icon_value=get_icon_id("collection_creator")
+        )
         row = box.row()
         row.prop(collection_manager, "collection_name", text="Name")
         row = box.row()
@@ -1888,7 +1859,7 @@ class NWO_FoundryPanelSetsViewer(Panel):
         row = box.row()
         row.prop(frame_id_tool, "anim_tag_path", text="")
         row.scale_x = 0.25
-        row.operator("nwo.graph_path", text="Find", icon='FILE_FOLDER')
+        row.operator("nwo.graph_path", text="Find", icon="FILE_FOLDER")
         row = box.row()
         row.scale_y = 1.5
         row.operator("nwo.set_frame_ids", text="Set Frame IDs")
@@ -1903,7 +1874,7 @@ class NWO_FoundryPanelSetsViewer(Panel):
         row = box.row()
         row.label(text="Limit Search To:")
         row = box.row()
-        row.prop(shader_finder,  "shaders_dir", text="", icon='FILE_FOLDER')
+        row.prop(shader_finder, "shaders_dir", text="", icon="FILE_FOLDER")
         row = box.row()
         row.prop(shader_finder, "overwrite_existing", text="Overwrite Existing Paths")
         row = box.row()
@@ -1920,38 +1891,42 @@ class NWO_FoundryPanelSetsViewer(Panel):
         row.scale_y = 1.5
         row.operator("nwo.armature_create", text="Create Rig")
 
+
 class NWO_OT_PanelSet(Operator):
     """Toggles a Foundry panel on/off"""
+
     bl_idname = "nwo.panel_set"
     bl_label = ""
     bl_options = {"REGISTER"}
     bl_description = "Toggle a panel"
 
-    panel_str : StringProperty()
+    panel_str: StringProperty()
 
     def execute(self, context):
         nwo = context.scene.nwo
         prop = f"{self.panel_str}_active"
         setattr(nwo, prop, not getattr(nwo, prop))
-        self.report({'INFO'}, f"Toggled: {prop}" )
-        return {'FINISHED'}
-    
+        self.report({"INFO"}, f"Toggled: {prop}")
+        return {"FINISHED"}
+
+
 class NWO_OT_PanelExpand(Operator):
     """Expands or contracts Foundry panel on/off"""
+
     bl_idname = "nwo.panel_expand"
     bl_label = ""
     bl_options = {"REGISTER"}
     bl_description = "Expand a panel"
 
-    panel_str : StringProperty()
+    panel_str: StringProperty()
 
     def execute(self, context):
         nwo = context.scene.nwo
         prop = f"{self.panel_str}_expanded"
         setattr(nwo, prop, not getattr(nwo, prop))
-        self.report({'INFO'}, f"Expanded: {prop}" )
-        return {'FINISHED'}
-            
+        self.report({"INFO"}, f"Expanded: {prop}")
+        return {"FINISHED"}
+
 
 class NWO_ScaleModels_Add(Operator, AddObjectHelper):
     """Create a new Halo Scale Model Object"""
@@ -2124,6 +2099,7 @@ def add_halo_scale_model_button(self, context):
         icon_value=get_icon_id("biped"),
     )
 
+
 def create_halo_collection(self, context):
     self.layout.operator("nwo.collection_create", text="New Halo Collection")
 
@@ -2228,9 +2204,7 @@ class NWO_ResetFrameIDsOp(Operator):
 
 class NWO_SetFrameIDsPropertiesGroup(PropertyGroup):
     def graph_clean_tag_path(self, context):
-        self["anim_tag_path"] = clean_tag_path(self["anim_tag_path"]).strip(
-            '"'
-        )
+        self["anim_tag_path"] = clean_tag_path(self["anim_tag_path"]).strip('"')
 
     anim_tag_path: StringProperty(
         name="Path to Animation Tag",
@@ -2242,6 +2216,7 @@ class NWO_SetFrameIDsPropertiesGroup(PropertyGroup):
 
 #######################################
 # HALO MANAGER TOOL
+
 
 class NWO_HaloLauncherExplorerSettings(Panel):
     bl_label = "Explorer Settings"
@@ -2344,9 +2319,7 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
                 "prune_scenario_keep_scriptable_objects",
             )
         col.prop(scene_nwo_halo_launcher, "prune_scenario_all_lightmaps")
-        col.prop(
-            scene_nwo_halo_launcher, "prune_all_materials_use_gray_shader"
-        )
+        col.prop(scene_nwo_halo_launcher, "prune_all_materials_use_gray_shader")
         if not_bungie_game():
             col.prop(
                 scene_nwo_halo_launcher,
@@ -2376,9 +2349,7 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
                 "prune_scenario_force_single_bsp_zones",
             )
             col.prop(scene_nwo_halo_launcher, "prune_keep_scripts")
-        col.prop(
-            scene_nwo_halo_launcher, "prune_scenario_for_environment_editing"
-        )
+        col.prop(scene_nwo_halo_launcher, "prune_scenario_for_environment_editing")
         if scene_nwo_halo_launcher.prune_scenario_for_environment_editing:
             col.prop(
                 scene_nwo_halo_launcher,
@@ -2451,9 +2422,7 @@ class NWO_HaloLauncherFoundationSettings(Panel):
                 col.prop(scene_nwo_halo_launcher, "open_collision_model")
                 col.prop(scene_nwo_halo_launcher, "open_physics_model")
                 if len(bpy.data.actions) > 0:
-                    col.prop(
-                        scene_nwo_halo_launcher, "open_model_animation_graph"
-                    )
+                    col.prop(scene_nwo_halo_launcher, "open_model_animation_graph")
                     col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
                 col.separator()
                 if scene.nwo.output_biped:
@@ -2484,12 +2453,8 @@ class NWO_HaloLauncherFoundationSettings(Panel):
                     col.prop(scene_nwo_halo_launcher, "open_weapon")
             elif nwo_asset_type() == "SCENARIO":
                 col.prop(scene_nwo_halo_launcher, "open_scenario")
-                col.prop(
-                    scene_nwo_halo_launcher, "open_scenario_structure_bsp"
-                )
-                col.prop(
-                    scene_nwo_halo_launcher, "open_scenario_lightmap_bsp_data"
-                )
+                col.prop(scene_nwo_halo_launcher, "open_scenario_structure_bsp")
+                col.prop(scene_nwo_halo_launcher, "open_scenario_lightmap_bsp_data")
                 col.prop(
                     scene_nwo_halo_launcher,
                     "open_scenario_structure_lighting_info",
@@ -2512,9 +2477,7 @@ class NWO_HaloLauncherFoundationSettings(Panel):
                 col.prop(scene_nwo_halo_launcher, "open_particle_model")
             elif nwo_asset_type() == "PREFAB":
                 col.prop(scene_nwo_halo_launcher, "open_prefab")
-                col.prop(
-                    scene_nwo_halo_launcher, "open_scenario_structure_bsp"
-                )
+                col.prop(scene_nwo_halo_launcher, "open_scenario_structure_bsp")
                 col.prop(
                     scene_nwo_halo_launcher,
                     "open_scenario_structure_lighting_info",
@@ -2751,9 +2714,7 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
         options=set(), name="Particle Model", default=True
     )
 
-    open_decorator_set: BoolProperty(
-        options=set(), name="Decorator Set", default=True
-    )
+    open_decorator_set: BoolProperty(options=set(), name="Decorator Set", default=True)
 
     bsp_name: StringProperty(
         options=set(),
@@ -3011,7 +2972,7 @@ class NWO_ShaderFinder(Panel):
     bl_idname = "NWO_PT_ShaderFinder"
     bl_space_type = "VIEW_3D"
     bl_region_type = "WINDOW"
-    bl_options = {'INSTANCED'}
+    bl_options = {"INSTANCED"}
 
     def draw(self, context):
         layout = self.layout
@@ -3021,7 +2982,9 @@ class NWO_ShaderFinder(Panel):
         col = layout.column(heading="Shaders Directory (Optional)")
         col.prop(scene_nwo_shader_finder, "shaders_dir", text="")
         col.prop(
-            scene_nwo_shader_finder, "overwrite_existing", text="Overwrite Existing Paths"
+            scene_nwo_shader_finder,
+            "overwrite_existing",
+            text="Overwrite Existing Paths",
         )
 
 
@@ -3063,6 +3026,7 @@ class NWO_HaloShaderFinderPropertiesGroup(PropertyGroup):
 #######################################
 # HALO EXPORT TOOL
 
+
 class NWO_HaloExportSettings(Panel):
     bl_label = "Quick Export Settings"
     bl_idname = "NWO_PT_HaloExportSettings"
@@ -3087,8 +3051,8 @@ class NWO_HaloExportSettings(Panel):
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
         col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
-        scenario = asset_type == 'SCENARIO'
-        render = asset_type in ('MODEL', 'SKY')
+        scenario = asset_type == "SCENARIO"
+        render = asset_type in ("MODEL", "SKY")
         if (h4 and render) or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
@@ -3097,7 +3061,7 @@ class NWO_HaloExportSettings(Panel):
 
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure:
-                if asset_type == 'SCENARIO':
+                if asset_type == "SCENARIO":
                     if h4:
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
                     else:
@@ -3136,7 +3100,7 @@ class NWO_HaloExportSettingsScope(Panel):
         )
         col = flow.column()
         col = layout.column(heading="Include")
-        
+
         if scene_nwo.asset_type == "MODEL":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
@@ -3165,6 +3129,7 @@ class NWO_HaloExportSettingsScope(Panel):
                 txt = "Subgroup"
             col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
 
+
 class NWO_HaloExportSettingsFlags(Panel):
     bl_label = "Flags"
     bl_idname = "NWO_PT_HaloExportSettingsFlags"
@@ -3181,8 +3146,8 @@ class NWO_HaloExportSettingsFlags(Panel):
         scene = context.scene
         scene_nwo = scene.nwo
         scene_nwo_export = scene.nwo_export
-        h4 = scene_nwo.game_version != 'reach'
-        scenario = scene_nwo.asset_type == 'SCENARIO'
+        h4 = scene_nwo.game_version != "reach"
+        scenario = scene_nwo.asset_type == "SCENARIO"
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -3196,29 +3161,76 @@ class NWO_HaloExportSettingsFlags(Panel):
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario:
-                col.prop(scene_nwo_export, "import_seam_debug", text="Show more seam debugging info")
-                col.prop(scene_nwo_export, "import_skip_instances", text="Skip importing instances")
-                col.prop(scene_nwo_export, "import_meta_only", text="Only import structure_meta tag")
-                col.prop(scene_nwo_export, "import_lighting", text="Only reimport lighting information")
-                col.prop(scene_nwo_export, "import_disable_hulls", text="Skip instance convex hull decomp")
-                col.prop(scene_nwo_export, "import_disable_collision", text="Don't generate complex collision")
+                col.prop(
+                    scene_nwo_export,
+                    "import_seam_debug",
+                    text="Show more seam debugging info",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_skip_instances",
+                    text="Skip importing instances",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_meta_only",
+                    text="Only import structure_meta tag",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_lighting",
+                    text="Only reimport lighting information",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_disable_hulls",
+                    text="Skip instance convex hull decomp",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_disable_collision",
+                    text="Don't generate complex collision",
+                )
             else:
-                col.prop(scene_nwo_export, "import_no_pca", text="Skip PCA calculations")
-                col.prop(scene_nwo_export, "import_force_animations", text="Force import error animations")
+                col.prop(
+                    scene_nwo_export, "import_no_pca", text="Skip PCA calculations"
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_force_animations",
+                    text="Force import error animations",
+                )
         else:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
-            col.prop(scene_nwo_export, "import_surpress_errors", text="Don't write errors to VRML")
+            col.prop(
+                scene_nwo_export,
+                "import_surpress_errors",
+                text="Don't write errors to VRML",
+            )
             if scenario:
-                col.prop(scene_nwo_export, "import_seam_debug", text="Show more seam debugging info")
-                col.prop(scene_nwo_export, "import_skip_instances", text="Skip importing instances")
-                col.prop(scene_nwo_export, "import_decompose_instances", text="Run convex physics decomposition")
+                col.prop(
+                    scene_nwo_export,
+                    "import_seam_debug",
+                    text="Show more seam debugging info",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_skip_instances",
+                    text="Skip importing instances",
+                )
+                col.prop(
+                    scene_nwo_export,
+                    "import_decompose_instances",
+                    text="Run convex physics decomposition",
+                )
             else:
                 col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
 
 
 class NWO_HaloExport(Operator):
     """Runs the GR2 exporter immediately, using the settings definied in quick export settings"""
+
     bl_idname = "nwo.export_quick"
     bl_label = "Quick Export"
     bl_options = {"REGISTER", "UNDO"}
@@ -3469,7 +3481,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     #                 return False
 
     #     return self.get("show_output", False)
-        
+
     # def set_show_output(self, value):
     #     self["show_output"] = value
 
@@ -3487,7 +3499,6 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         # set=set_show_output,
         update=update_show_output,
     )
-
 
     # keep_fbx: BoolProperty(
     #     name="FBX",
@@ -3567,7 +3578,8 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         description="Force import of all animations that had errors during the last import",
         default=False,
     )
-    
+
+
 #######################################
 # PROPERTIES MANAGER TOOL
 
@@ -3596,9 +3608,7 @@ class NWO_CollectionManager(Panel):
     bl_parent_id = "NWO_PT_PropertiesManager"
 
     def draw_header(self, context):
-        self.layout.label(
-            text="", icon_value=get_icon_id("collection_creator")
-        )
+        self.layout.label(text="", icon_value=get_icon_id("collection_creator"))
 
     def draw(self, context):
         layout = self.layout
@@ -3655,19 +3665,18 @@ class NWO_HaloCollectionManagerPropertiesGroup(PropertyGroup):
     def collection_type_items(self, context):
         items = []
         asset_type = context.scene.nwo.asset_type
-        if asset_type in ('SCENARIO', 'PREFAB'):
+        if asset_type in ("SCENARIO", "PREFAB"):
             items.append(("PERMUTATION", "Subgroup", ""))
-            if asset_type == 'SCENARIO':
+            if asset_type == "SCENARIO":
                 items.insert(0, ("BSP", "BSP", ""))
-        elif asset_type in ('MODEL', 'SKY'):
+        elif asset_type in ("MODEL", "SKY"):
             items.append(("REGION", "Region", ""))
-            if asset_type == 'MODEL':
+            if asset_type == "MODEL":
                 items.insert(0, ("PERMUTATION", "Permutation", ""))
 
         items.append(("EXCLUDE", "Exclude", ""))
 
         return items
-
 
     collection_type: EnumProperty(
         name="Collection Type",
@@ -3799,9 +3808,7 @@ class NWO_CopyHaloProps_Copy(Operator):
     bl_idname = "nwo.props_copy"
     bl_label = "Copy Properties"
     bl_options = {"REGISTER", "UNDO"}
-    bl_description = (
-        "Copy Halo Properties from the active object to selected objects"
-    )
+    bl_description = "Copy Halo Properties from the active object to selected objects"
 
     @classmethod
     def poll(cls, context):
@@ -3918,7 +3925,8 @@ class NWO_JMSHelper_Assign(Operator):
         from .jms_helper import jms_assign
 
         return jms_assign(context, self.report)
-    
+
+
 class NWO_AMFHelper(Panel):
     bl_label = "Object Importer"
     bl_idname = "NWO_PT_AMFHelper"
@@ -3953,10 +3961,11 @@ class NWO_AutoSeam(Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.mode == 'OBJECT'
+        return context.mode == "OBJECT"
 
     def execute(self, context):
         from .auto_seam import auto_seam
+
         return auto_seam(context)
 
 
@@ -4238,6 +4247,7 @@ class NWO_ShaderPropertiesGroup(PropertyGroup):
         ],
     )
 
+
 def foundry_toolbar(self, context):
     layout = self.layout
     layout.label(text="                 ")
@@ -4245,19 +4255,44 @@ def foundry_toolbar(self, context):
     icons_only = True
     row.scale_x = 1
     sub0 = row.row(align=True)
-    sub0.operator('nwo.export_quick', text="" if icons_only else 'Tag Export', icon_value=get_icon_id("quick_export"))
+    sub0.operator(
+        "nwo.export_quick",
+        text="" if icons_only else "Tag Export",
+        icon_value=get_icon_id("quick_export"),
+    )
     sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
     sub1 = row.row(align=True)
-    sub1.operator('nwo.launch_sapien', text="" if icons_only else 'Sapien', icon_value=get_icon_id("sapien"))
-    sub1.operator('nwo.launch_tagtest', text="" if icons_only else 'Tag Test', icon_value=get_icon_id("tag_test"))
+    sub1.operator(
+        "nwo.launch_sapien",
+        text="" if icons_only else "Sapien",
+        icon_value=get_icon_id("sapien"),
+    )
+    sub1.operator(
+        "nwo.launch_tagtest",
+        text="" if icons_only else "Tag Test",
+        icon_value=get_icon_id("tag_test"),
+    )
     sub1.popover(panel="NWO_PT_HaloLauncherGameSettings", text="")
     sub2 = row.row(align=True)
-    sub2.operator('nwo.launch_foundation', text="" if icons_only else 'Tag Editor', icon_value=get_icon_id("foundation"))
+    sub2.operator(
+        "nwo.launch_foundation",
+        text="" if icons_only else "Tag Editor",
+        icon_value=get_icon_id("foundation"),
+    )
     sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
     sub3 = row.row(align=True)
-    sub3.operator('nwo.launch_data', text="" if icons_only else 'Data', icon_value=get_icon_id("data"))
-    sub3.operator('nwo.launch_tags', text="" if icons_only else 'Tags', icon_value=get_icon_id("tags"))
+    sub3.operator(
+        "nwo.launch_data",
+        text="" if icons_only else "Data",
+        icon_value=get_icon_id("data"),
+    )
+    sub3.operator(
+        "nwo.launch_tags",
+        text="" if icons_only else "Tags",
+        icon_value=get_icon_id("tags"),
+    )
     sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
+
 
 classeshalo = (
     NWO_OT_PanelExpand,
@@ -4381,6 +4416,7 @@ def unregister():
     del bpy.types.Scene.nwo_shader_build
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
+
 
 if __name__ == "__main__":
     register()

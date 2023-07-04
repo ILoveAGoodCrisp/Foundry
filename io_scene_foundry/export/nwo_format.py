@@ -44,9 +44,7 @@ from ..utils.nwo_utils import (
 
 # OBJECT LEVEL
 class NWOObject:
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
         # Set variables passed to this class
         self.ob = ob
         self.data = ob.data
@@ -92,15 +90,12 @@ class NWOObject:
     def object_animates(self):
         return bool_str(self.sidecar_type == "MODEL")
 
+
 # ANIMATION CONTROL
 #####################
 class NWOAnimationControl(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         self.bungie_animation_control_type = None
         self.bungie_animation_control_id = None
         self.bungie_animation_control_ik_chain = None
@@ -116,22 +111,14 @@ class NWOAnimationControl(NWOObject):
 # ANIMATION EVENT
 #####################
 class NWOAnimationEvent(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         self.bungie_animation_event_type = self.halo.event_type
         self.bungie_animation_event_start = self.halo.frame_start
         self.bungie_animation_event_end = self.halo.frame_end
         self.bungie_animation_event_id = self.halo.event_id
-        self.bungie_animation_event_frame_frame = (
-            self.halo.frame_frame
-        )
-        self.bungie_animation_event_frame_name = (
-            self.halo.frame_name
-        )
+        self.bungie_animation_event_frame_frame = self.halo.frame_frame
+        self.bungie_animation_event_frame_name = self.halo.frame_name
         if (
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_wrinkle_map"
@@ -146,40 +133,22 @@ class NWOAnimationEvent(NWOObject):
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_footstep"
         ):
-            self.bungie_animation_event_footstep_type = (
-                self.halo.footstep_type
-            )
-            self.bungie_animation_event_footstep_effect = (
-                self.halo.footstep_effect
-            )
+            self.bungie_animation_event_footstep_type = self.halo.footstep_type
+            self.bungie_animation_event_footstep_effect = self.halo.footstep_effect
         elif self.bungie_animation_event_type in (
             "_connected_geometry_animation_event_type_ik_active",
             "_connected_geometry_animation_event_type_ik_passive",
         ):
-            self.bungie_animation_event_ik_chain = (
-                self.halo.ik_chain
-            )
-            self.bungie_animation_event_ik_active_tag = (
-                self.halo.ik_active_tag
-            )
-            self.bungie_animation_event_ik_target_tag = (
-                self.halo.ik_target_tag
-            )
-            self.bungie_animation_event_ik_target_marker = (
-                self.halo.ik_target_marker
-            )
-            self.bungie_animation_event_ik_target_usage = (
-                self.halo.ik_target_usage
-            )
+            self.bungie_animation_event_ik_chain = self.halo.ik_chain
+            self.bungie_animation_event_ik_active_tag = self.halo.ik_active_tag
+            self.bungie_animation_event_ik_target_tag = self.halo.ik_target_tag
+            self.bungie_animation_event_ik_target_marker = self.halo.ik_target_marker
+            self.bungie_animation_event_ik_target_usage = self.halo.ik_target_usage
             self.bungie_animation_event_ik_proxy_target_id = (
                 self.halo.ik_proxy_target_id
             )
-            self.bungie_animation_event_ik_pole_vector_id = (
-                self.halo.ik_pole_vector_id
-            )
-            self.bungie_animation_event_ik_effector_id = (
-                self.halo.ik_effector_id
-            )
+            self.bungie_animation_event_ik_pole_vector_id = self.halo.ik_pole_vector_id
+            self.bungie_animation_event_ik_effector_id = self.halo.ik_effector_id
         elif (
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_cinematic_effect"
@@ -207,19 +176,13 @@ class NWOAnimationEvent(NWOObject):
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_frame"
         ):
-            self.bungie_animation_event_frame_trigger = (
-                self.halo.frame_trigger
-            )
+            self.bungie_animation_event_frame_trigger = self.halo.frame_trigger
         elif (
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_import"
         ):
-            self.bungie_animation_event_import_frame = (
-                self.halo.import_frame
-            )
-            self.bungie_animation_event_import_name = (
-                self.halo.import_name
-            )
+            self.bungie_animation_event_import_frame = self.halo.import_frame
+            self.bungie_animation_event_import_name = self.halo.import_name
         elif (
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_text"
@@ -234,12 +197,8 @@ class NWOAnimationEvent(NWOObject):
 
 
 class NWOAnimationCamera(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
 
         self.cleanup()
 
@@ -247,12 +206,8 @@ class NWOAnimationCamera(NWOObject):
 # LIGHT
 #####################
 class NWOLight(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         # SHARED
         self.bungie_light_type = self.light_type()
         self.bungie_light_color = self.light_color()
@@ -265,21 +220,11 @@ class NWOLight(NWOObject):
             self.bungie_light_near_attenuation_start = (
                 self.light_near_attenuation_start()
             )
-            self.bungie_light_near_attenuation_end = (
-                self.light_near_attenuation_end()
-            )
-            self.bungie_light_fade_start_distance = (
-                self.light_fade_start_distance()
-            )
-            self.bungie_light_fade_out_distance = (
-                self.light_fade_out_distance()
-            )
-            self.bungie_light_far_attenuation_start = (
-                self.light_far_attenuation_start()
-            )
-            self.bungie_light_far_attenuation_end = (
-                self.light_far_attenuation_end()
-            )
+            self.bungie_light_near_attenuation_end = self.light_near_attenuation_end()
+            self.bungie_light_fade_start_distance = self.light_fade_start_distance()
+            self.bungie_light_fade_out_distance = self.light_fade_out_distance()
+            self.bungie_light_far_attenuation_start = self.light_far_attenuation_start()
+            self.bungie_light_far_attenuation_end = self.light_far_attenuation_end()
             # self.bungie_light_is_uber_light = self.is_uber_light()
             # self.bungie_light_indirect_only = self.light_indirect_only()
             # self.bungie_light_attenuation_near_radius = self.light_attenuation_near_radius()
@@ -308,9 +253,7 @@ class NWOLight(NWOObject):
                 self.indirect_amplification_factor()
             )
             self.bungie_light_jitter_quality = self.light_jitter_quality()
-            self.bungie_light_jitter_sphere_radius = (
-                self.light_jitter_sphere_radius()
-            )
+            self.bungie_light_jitter_sphere_radius = self.light_jitter_sphere_radius()
             self.bungie_light_jitter_angle = self.light_jitter_angle()
             self.bungie_is_sun = self.is_sun()
             self.bungie_is_indirect_only = self.is_indirect_only()
@@ -326,26 +269,14 @@ class NWOLight(NWOObject):
             self.bungie_light_near_attenuation_start = (
                 self.light_near_attenuation_start()
             )
-            self.bungie_light_near_attenuation_end = (
-                self.light_near_attenuation_end()
-            )
-            self.bungie_light_fade_start_distance = (
-                self.light_fade_start_distance()
-            )
-            self.bungie_light_fade_out_distance = (
-                self.light_fade_out_distance()
-            )
-            self.bungie_light_far_attenuation_start = (
-                self.light_far_attenuation_start()
-            )
-            self.bungie_light_far_attenuation_end = (
-                self.light_far_attenuation_end()
-            )
+            self.bungie_light_near_attenuation_end = self.light_near_attenuation_end()
+            self.bungie_light_fade_start_distance = self.light_fade_start_distance()
+            self.bungie_light_fade_out_distance = self.light_fade_out_distance()
+            self.bungie_light_far_attenuation_start = self.light_far_attenuation_start()
+            self.bungie_light_far_attenuation_end = self.light_far_attenuation_end()
             # self.bungie_light_use_near_attenuation = "1" # self.light_use_near_attenuation()
             # self.bungie_light_use_far_attenuation = "1" #self.light_use_far_attenuation()
-            self.bungie_light_ignore_bsp_visibility = (
-                self.light_ignore_bsp_visibility()
-            )
+            self.bungie_light_ignore_bsp_visibility = self.light_ignore_bsp_visibility()
             # self.bungie_light_clipping_size_x_pos = None # not setting these currently
             # self.bungie_light_clipping_size_y_pos = None
             # self.bungie_light_clipping_size_z_pos = None
@@ -359,21 +290,15 @@ class NWOLight(NWOObject):
             self.bungie_light_falloff_shape = self.light_falloff_shape()
             self.bungie_light_frustum_width = self.light_frustum_width()
             self.bungie_light_frustum_height = self.light_frustum_height()
-            self.bungie_light_bounce_light_ratio = (
-                self.light_bounce_light_ratio()
-            )
+            self.bungie_light_bounce_light_ratio = self.light_bounce_light_ratio()
             self.bungie_light_dynamic_light_has_bounce = (
                 self.light_dynamic_light_has_bounce()
             )
             # self.bungie_light_screenspace_light_has_specular = self.light_screenspace_light_has_specular()
-            self.bungie_light_light_tag_override = (
-                self.light_light_tag_override()
-            )
+            self.bungie_light_light_tag_override = self.light_light_tag_override()
             self.bungie_light_shader_reference = self.light_shader_reference()
             self.bungie_light_gel_reference = self.light_gel_reference()
-            self.bungie_light_lens_flare_reference = (
-                self.light_lens_flare_reference()
-            )
+            self.bungie_light_lens_flare_reference = self.light_lens_flare_reference()
             self.bungie_light_volume_distance = self.light_volume_distance()
             self.bungie_light_volume_intensity_scalar = (
                 self.light_volume_intensity_scala()
@@ -397,8 +322,7 @@ class NWOLight(NWOObject):
 
     def is_uber_light(self):
         return bool_str(
-            self.data.nwo.light_sub_type
-            == "_connected_geometry_lighting_sub_type_uber"
+            self.data.nwo.light_sub_type == "_connected_geometry_lighting_sub_type_uber"
         )
 
     def light_fade_start_distance(self):
@@ -488,8 +412,7 @@ class NWOLight(NWOObject):
             return jstr(
                 min(
                     160,
-                    degrees(self.data.spot_size)
-                    * abs(1 - self.data.spot_blend),
+                    degrees(self.data.spot_size) * abs(1 - self.data.spot_blend),
                 )
             )
         else:
@@ -532,20 +455,16 @@ class NWOLight(NWOObject):
         return bool_str(self.data.nwo.light_ignore_dynamic_objects)
 
     def cinema_objects_only(self):
-        return bool_str(
-            self.data.nwo.light_cinema_objects_only
-        )  # NEED TO ADD TO UI
+        return bool_str(self.data.nwo.light_cinema_objects_only)  # NEED TO ADD TO UI
 
     def cinema_only(self):
         return bool_str(
-            self.data.nwo.light_cinema
-            == "_connected_geometry_lighting_cinema_only"
+            self.data.nwo.light_cinema == "_connected_geometry_lighting_cinema_only"
         )
 
     def cinema_exclude(self):
         return bool_str(
-            self.data.nwo.light_cinema
-            == "_connected_geometry_lighting_cinema_exclude"
+            self.data.nwo.light_cinema == "_connected_geometry_lighting_cinema_exclude"
         )
 
     def specular_contribution(self):
@@ -618,9 +537,7 @@ class NWOLight(NWOObject):
         return clean_tag_path(self.data.nwo.light_gel_reference)
 
     def light_lens_flare_reference(self):
-        return clean_tag_path(
-            self.data.nwo.light_lens_flare_reference, "lens_flare"
-        )
+        return clean_tag_path(self.data.nwo.light_lens_flare_reference, "lens_flare")
 
     def light_volume_distance(self):
         return jstr(self.data.nwo.light_volume_distance)
@@ -635,12 +552,8 @@ class NWOLight(NWOObject):
 # FRAME PCA
 #####################
 class NWOFramePCA(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         self.bungie_mesh_ispca = self.mesh_ispca()
 
         self.cleanup()
@@ -652,12 +565,8 @@ class NWOFramePCA(NWOObject):
 # FRAME
 #####################
 class NWOFrame(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         self.bungie_frame_ID1 = self.frame_ID1()
         self.bungie_frame_ID2 = self.frame_ID2()
 
@@ -682,12 +591,8 @@ class NWOFrame(NWOObject):
 # MARKER
 #####################
 class NWOMarker(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         # SHARED
         self.bungie_marker_type = self.halo.marker_type
         self.bungie_marker_model_group = self.marker_model_group()
@@ -711,10 +616,7 @@ class NWOMarker(NWOObject):
                 self.bungie_marker_game_instance_variant_name = (
                     self.halo.marker_game_instance_tag_variant_name
                 )
-            if (
-                self.not_bungie_game
-                and self.halo.marker_game_instance_run_scripts
-            ):
+            if self.not_bungie_game and self.halo.marker_game_instance_run_scripts:
                 self.bungie_marker_game_instance_run_scripts = (
                     self.halo.marker_game_instance_run_scripts
                 )
@@ -737,11 +639,8 @@ class NWOMarker(NWOObject):
             self.bungie_marker_pathfinding_sphere_with_sectors = (
                 self.halo.pathfinding_sphere_with_sectors
             )
-        elif (
-            self.bungie_marker_type
-            == "_connected_geometry_marker_type_target"
-        ):
-                self.bungie_mesh_primitive_sphere_radius = self.halo.marker_sphere_radius
+        elif self.bungie_marker_type == "_connected_geometry_marker_type_target":
+            self.bungie_mesh_primitive_sphere_radius = self.halo.marker_sphere_radius
 
         # contraints props
         elif self.bungie_marker_type in (
@@ -749,9 +648,9 @@ class NWOMarker(NWOObject):
             "_connected_geometry_marker_type_physics_socket_constraint",
         ):
             if self.halo.physics_constraint_parent:
-                    self.bungie_physics_constraint_parent = (
-                        self.halo.physics_constraint_parent
-                    )
+                self.bungie_physics_constraint_parent = (
+                    self.halo.physics_constraint_parent
+                )
             if self.halo.physics_constraint_child:
                 self.bungie_physics_constraint_child = (
                     self.halo.physics_constraint_child
@@ -760,52 +659,44 @@ class NWOMarker(NWOObject):
                 self.halo.physics_constraint_uses_limits
             )
             if self.bungie_physics_constraint_use_limits == "1":
-                    if (
-                        self.bungie_marker_type
-                        == "_connected_geometry_marker_type_physics_hinge_constraint"
-                    ):
-                        self.bungie_physics_constraint_hinge_min = (
-                            self.halo.hinge_constraint_minimum
-                        )
+                if (
+                    self.bungie_marker_type
+                    == "_connected_geometry_marker_type_physics_hinge_constraint"
+                ):
+                    self.bungie_physics_constraint_hinge_min = (
+                        self.halo.hinge_constraint_minimum
+                    )
 
-                        self.bungie_physics_constraint_hinge_max = (
-                            self.halo.hinge_constraint_maximum
-                        )
-                    
-                    elif (
-                        self.bungie_marker_type
-                        == "_connected_geometry_marker_type_physics_socket_constraint"
-                    ):
-                        self.bungie_physics_constraint_cone_angle = (
-                            self.halo.cone_angle
-                        )
-                        self.bungie_physics_constraint_plane_min = (
-                            self.halo.plane_constraint_minimum
-                        )
-                        self.bungie_physics_constraint_plane_max = (
-                            self.halo.plane_constraint_maximum
-                        )
-                        self.bungie_physics_constraint_twist_start = (
-                            self.halo.twist_constraint_start
-                        )
-                        self.bungie_physics_constraint_twist_end = (
-                            self.halo.twist_constraint_end
-                        )
+                    self.bungie_physics_constraint_hinge_max = (
+                        self.halo.hinge_constraint_maximum
+                    )
+
+                elif (
+                    self.bungie_marker_type
+                    == "_connected_geometry_marker_type_physics_socket_constraint"
+                ):
+                    self.bungie_physics_constraint_cone_angle = self.halo.cone_angle
+                    self.bungie_physics_constraint_plane_min = (
+                        self.halo.plane_constraint_minimum
+                    )
+                    self.bungie_physics_constraint_plane_max = (
+                        self.halo.plane_constraint_maximum
+                    )
+                    self.bungie_physics_constraint_twist_start = (
+                        self.halo.twist_constraint_start
+                    )
+                    self.bungie_physics_constraint_twist_end = (
+                        self.halo.twist_constraint_end
+                    )
 
         # H4 only props
         if self.not_bungie_game:
             # special game instance types
-            if (
-                self.bungie_marker_type
-                == "_connected_geometry_marker_type_cheap_light"
-            ):
+            if self.bungie_marker_type == "_connected_geometry_marker_type_cheap_light":
                 self.bungie_marker_cheap_light_tag_name = (
                     self.halo.marker_game_instance_tag_name
                 )
-            elif (
-                self.bungie_marker_type
-                == "_connected_geometry_marker_type_light"
-            ):
+            elif self.bungie_marker_type == "_connected_geometry_marker_type_light":
                 self.bungie_marker_light_tag_name = (
                     self.halo.marker_game_instance_tag_name
                 )
@@ -818,39 +709,23 @@ class NWOMarker(NWOObject):
                 )
 
             # h4 has hint length
-            elif (
-                self.bungie_marker_type
-                == "_connected_geometry_marker_type_hint"
-            ):
+            elif self.bungie_marker_type == "_connected_geometry_marker_type_hint":
                 if self.not_bungie_game and self.halo.marker_hint_length:
                     self.bungie_marker_hint_length = self.halo.marker_hint_length
 
             # scenario place fx
-            elif (
-                self.bungie_marker_type
-                == "_connected_geometry_marker_type_envfx"
-            ):
-                self.bungie_marker_looping_effect = (
-                    self.marker_looping_effect()
-                )
+            elif self.bungie_marker_type == "_connected_geometry_marker_type_envfx":
+                self.bungie_marker_looping_effect = self.marker_looping_effect()
 
             # airprobes
-            elif (
-                self.bungie_marker_type
-                == "_connected_geometry_marker_type_airprobe"
-            ):
+            elif self.bungie_marker_type == "_connected_geometry_marker_type_airprobe":
                 self.bungie_marker_airprobe = self.marker_model_group()
 
             # light cone props
-            elif (
-                self.bungie_marker_type
-                == "_connected_geometry_marker_type_lightCone"
-            ):
+            elif self.bungie_marker_type == "_connected_geometry_marker_type_lightCone":
                 self.bungie_marker_light_tag = self.halo.marker_light_tag
                 self.bungie_marker_light_color = self.halo.marker_light_color
-                self.bungie_marker_light_cone_width = (
-                    self.halo.marker_light_cone_width
-                )
+                self.bungie_marker_light_cone_width = self.halo.marker_light_cone_width
                 self.bungie_marker_light_cone_length = (
                     self.halo.marker_light_cone_length
                 )
@@ -860,9 +735,7 @@ class NWOMarker(NWOObject):
                 self.bungie_marker_light_cone_intensity = (
                     self.halo.marker_light_cone_intensity
                 )
-                self.bungie_marker_light_cone_curve = (
-                    self.halo.marker_light_cone_curve
-                )
+                self.bungie_marker_light_cone_curve = self.halo.marker_light_cone_curve
 
         self.cleanup()
 
@@ -873,12 +746,8 @@ class NWOMarker(NWOObject):
 # MESH
 #####################
 class NWOMesh(NWOObject):
-    def __init__(
-        self, ob, sidecar_type, model_armature, world_frame, asset_name
-    ):
-        super().__init__(
-            ob, sidecar_type, model_armature, world_frame, asset_name
-        )
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         # SHARED
         self.bungie_mesh_type = self.halo.mesh_type
         if self.sidecar_type in ("MODEL", "SKY"):
@@ -888,9 +757,7 @@ class NWOMesh(NWOObject):
         if self.halo.face_type:
             self.bungie_face_type = self.halo.face_type
             if self.bungie_face_type == "_connected_geometry_face_type_sky":
-                self.bungie_sky_permutation_index = (
-                    self.halo.sky_permutation_index
-                )
+                self.bungie_sky_permutation_index = self.halo.sky_permutation_index
 
         if self.halo.face_mode:
             self.bungie_face_mode = self.halo.face_mode
@@ -918,13 +785,9 @@ class NWOMesh(NWOObject):
             if self.bungie_mesh_type == "_connected_geometry_mesh_type_poop":
                 self.bungie_mesh_poop_precise_geometry = "1"
         if self.halo.mesh_tessellation_density:
-            self.bungie_mesh_tessellation_density = (
-                self.halo.mesh_tessellation_density
-            )
+            self.bungie_mesh_tessellation_density = self.halo.mesh_tessellation_density
         if self.halo.mesh_compression:
-            self.bungie_mesh_additional_compression = (
-                self.halo.mesh_compression
-            )
+            self.bungie_mesh_additional_compression = self.halo.mesh_compression
         if self.not_bungie_game:
             if self.halo.no_pvs:
                 self.bungie_invisible_to_pvs = self.halo.no_pvs
@@ -944,13 +807,8 @@ class NWOMesh(NWOObject):
             self.bungie_face_global_material = self.halo.face_global_material
 
         # SPECIFIC MESH TYPE PROPS
-        if (
-            self.bungie_mesh_type
-            == "_connected_geometry_mesh_type_boundary_surface"
-        ):
-            self.bungie_mesh_boundary_surface_type = (
-                self.halo.boundary_surface_type
-            )
+        if self.bungie_mesh_type == "_connected_geometry_mesh_type_boundary_surface":
+            self.bungie_mesh_boundary_surface_type = self.halo.boundary_surface_type
             self.bungie_mesh_boundary_surface_name = dot_partition(self.name)
 
         elif self.bungie_mesh_type in (
@@ -959,8 +817,7 @@ class NWOMesh(NWOObject):
         ):
             if (
                 self.not_bungie_game
-                and self.bungie_mesh_type
-                == "_connected_geometry_mesh_type_poop"
+                and self.bungie_mesh_type == "_connected_geometry_mesh_type_poop"
                 and self.halo.poop_rain_occluder == "1"
             ):
                 self.bungie_mesh_poop_is_rain_occluder = "1"
@@ -973,8 +830,8 @@ class NWOMesh(NWOObject):
                         self.bungie_mesh_poop_collision_type
                         != "_connected_geometry_poop_collision_type_none"
                     ):
-                        self.bungie_mesh_poop_collision_override_global_material = bool_str(
-                            self.halo.face_global_material
+                        self.bungie_mesh_poop_collision_override_global_material = (
+                            bool_str(self.halo.face_global_material)
                         )
                         if (
                             self.bungie_mesh_poop_collision_override_global_material
@@ -984,18 +841,13 @@ class NWOMesh(NWOObject):
                                 self.halo.face_global_material
                             )
 
-                if (
-                    self.bungie_mesh_type
-                    == "_connected_geometry_mesh_type_poop"
-                ):
+                if self.bungie_mesh_type == "_connected_geometry_mesh_type_poop":
                     self.bungie_mesh_poop_lighting = self.halo.poop_lighting
                     if self.halo.lightmap_resolution_scale:
                         self.bungie_mesh_poop_lightmap_resolution_scale = (
                             self.halo.lightmap_resolution_scale
                         )
-                    self.bungie_mesh_poop_pathfinding = (
-                        self.halo.poop_pathfinding
-                    )
+                    self.bungie_mesh_poop_pathfinding = self.halo.poop_pathfinding
                     self.bungie_mesh_poop_imposter_policy = (
                         self.halo.poop_imposter_policy
                     )
@@ -1107,19 +959,13 @@ class NWOMesh(NWOObject):
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_portal":
             self.bungie_mesh_portal_type = self.halo.portal_type
             if self.halo.portal_ai_deafening:
-                self.bungie_mesh_portal_ai_deafening = (
-                    self.halo.portal_ai_deafening
-                )
+                self.bungie_mesh_portal_ai_deafening = self.halo.portal_ai_deafening
             if self.halo.portal_blocks_sounds:
-                self.bungie_mesh_portal_blocks_sound = (
-                    self.halo.portal_blocks_sounds
-                )
+                self.bungie_mesh_portal_blocks_sound = self.halo.portal_blocks_sounds
             if self.halo.portal_is_door:
                 self.bungie_mesh_portal_is_door = self.halo.portal_is_door
 
-        elif (
-            self.bungie_mesh_type == "_connected_geometry_mesh_type_decorator"
-        ):
+        elif self.bungie_mesh_type == "_connected_geometry_mesh_type_decorator":
             self.bungie_mesh_decorator_lod = self.halo.decorator_lod
             self.bungie_mesh_decorator_name = dot_partition(self.name)
 
@@ -1144,23 +990,20 @@ class NWOMesh(NWOObject):
                 self.halo.water_volume_fog_murkiness
             )
 
-        elif (
-            self.bungie_mesh_type
-            == "_connected_geometry_mesh_type_planar_fog_volume"
-        ):
+        elif self.bungie_mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
             self.bungie_mesh_fog_name = dot_partition(self.name)
             self.bungie_mesh_fog_appearance_tag = self.halo.fog_appearance_tag
             self.bungie_mesh_fog_volume_depth = self.halo.fog_volume_depth
 
-        elif (
-            self.bungie_mesh_type == "_connected_geometry_mesh_type_obb_volume"
-        ):
+        elif self.bungie_mesh_type == "_connected_geometry_mesh_type_obb_volume":
             self.bungie_mesh_obb_type = self.halo.obb_volume_type
 
         # LIGHTMAP PROPERTIES
         if self.halo.lightmap_additive_transparency_active:
             self.bungie_lightmap_transparency_override = "1"
-            self.bungie_lightmap_additive_transparency = self.halo.lightmap_additive_transparency
+            self.bungie_lightmap_additive_transparency = (
+                self.halo.lightmap_additive_transparency
+            )
         if self.halo.lightmap_resolution_scale_active:
             self.bungie_lightmap_ignore_default_resolution_scale = "1"
             self.bungie_lightmap_resolution_scale = self.halo.lightmap_resolution_scale
@@ -1175,7 +1018,9 @@ class NWOMesh(NWOObject):
         #     self.bungie_lightmap_general_bounce_modifier = self.lightmap_general_bounce_modifier()
         # self.bungie_lightmap_analytical_absorb_ratio = self.lightmap_analytical_absorb_ratio()
         if self.halo.lightmap_translucency_tint_color_active:
-            self.bungie_lightmap_translucency_tint_color = self.halo.lightmap_translucency_tint_color
+            self.bungie_lightmap_translucency_tint_color = (
+                self.halo.lightmap_translucency_tint_color
+            )
         if self.halo.lightmap_lighting_from_both_sides_active:
             self.bungie_lightmap_lighting_from_both_sides = "1"
             # if self.not_bungie_game:
@@ -1242,8 +1087,7 @@ class NWOMesh(NWOObject):
 
     def mesh_poop_cinema_only(self):
         return bool_str(
-            self.halo.poop_cinematic_properties
-            == "bungie_mesh_poop_cinema_only"
+            self.halo.poop_cinematic_properties == "bungie_mesh_poop_cinema_only"
         )
 
     def mesh_poop_exclude_from_cinema(self):
@@ -1270,22 +1114,17 @@ class NWOMesh(NWOObject):
 
     def mesh_per_vertex_lighting(self):
         return bool_str(
-            self.halo.lightmap_type
-            == "_connected_material_lightmap_type_per_vertex"
+            self.halo.lightmap_type == "_connected_material_lightmap_type_per_vertex"
         )
 
     def mesh_poop_collision_type(self):
         if self.halo.face_mode == "_connected_geometry_face_mode_render_only":
             return "_connected_geometry_poop_collision_type_none"
         elif (
-            self.halo.face_mode
-            == "_connected_geometry_face_mode_sphere_collision_only"
+            self.halo.face_mode == "_connected_geometry_face_mode_sphere_collision_only"
         ):
             return "_connected_geometry_poop_collision_type_play_collision"
-        elif (
-            self.halo.mesh_type
-            == "_connected_geometry_mesh_type_poop_collision"
-        ):
+        elif self.halo.mesh_type == "_connected_geometry_mesh_type_poop_collision":
             return self.halo.poop_collision_type
         else:
             return "_connected_geometry_poop_collision_type_default"

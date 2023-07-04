@@ -67,9 +67,7 @@ class NWOJSON(dict):
         self.json_dict.update({"string_table": self.string_table})
         self.json_dict.update({"nodes_properties": self.nodes_properties})
         self.json_dict.update({"meshes_properties": self.meshes_properties})
-        self.json_dict.update(
-            {"material_properties": self.material_properties}
-        )
+        self.json_dict.update({"material_properties": self.material_properties})
 
     # STRING TABLE
     def build_string_table(self):
@@ -77,12 +75,8 @@ class NWOJSON(dict):
         regions = self.get_regions()
         table = {}
         if self.sidecar_type in ("MODEL", "SCENARIO", "PREFAB", "SKY"):
-            table.update(
-                {"global_materials_names": list(global_materials.keys())}
-            )
-            table.update(
-                {"global_materials_values": list(global_materials.values())}
-            )
+            table.update({"global_materials_names": list(global_materials.keys())})
+            table.update({"global_materials_values": list(global_materials.values())})
         if self.sidecar_type in ("MODEL", "SKY"):
             table.update({"regions_names": list(regions.keys())})
             table.update({"regions_values": list(regions.values())})
@@ -219,10 +213,7 @@ class NWOJSON(dict):
         materials = []
         for ob in self.objects:
             for slot in ob.material_slots:
-                if (
-                    slot.material is not None
-                    and slot.material not in materials
-                ):
+                if slot.material is not None and slot.material not in materials:
                     materials.append(slot.material)
 
         material_properties = {}

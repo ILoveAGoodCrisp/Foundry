@@ -93,9 +93,7 @@ def build_rig(report, selected_objects):
 
     # assign the fp and gun armatures to variables
     if (
-        get_halo_bone_name(
-            selected_objects[0], selected_objects[0].pose.bones[0]
-        )
+        get_halo_bone_name(selected_objects[0], selected_objects[0].pose.bones[0])
         == "gun"
     ):
         gun_armature = selected_objects[0]
@@ -145,10 +143,7 @@ def build_rig(report, selected_objects):
         return {"CANCELLED"}
 
     for pbone in gun_armature.pose.bones:
-        if (
-            pbone.parent is None
-            and get_halo_bone_name(gun_armature, pbone) == "gun"
-        ):
+        if pbone.parent is None and get_halo_bone_name(gun_armature, pbone) == "gun":
             deform_gun = pbone
             break
     else:
@@ -228,9 +223,7 @@ def build_rig(report, selected_objects):
 
     # set up control rig if valid
     if control_pedestal is not None:
-        edit_control_pedestal = fp_armature.data.edit_bones[
-            control_pedestal.name
-        ]
+        edit_control_pedestal = fp_armature.data.edit_bones[control_pedestal.name]
 
         edit_control_gun = fp_armature.data.edit_bones.new("CTRL_gun")
         edit_control_gun.length = edit_deform_gun.length
@@ -240,12 +233,8 @@ def build_rig(report, selected_objects):
 
         # add magazine control bone if a deform magazine bone exists
         if deform_magazine is not None:
-            edit_deform_magazine = fp_armature.data.edit_bones[
-                deform_magazine.name
-            ]
-            edit_control_magazine = fp_armature.data.edit_bones.new(
-                "CTRL_magazine"
-            )
+            edit_deform_magazine = fp_armature.data.edit_bones[deform_magazine.name]
+            edit_control_magazine = fp_armature.data.edit_bones.new("CTRL_magazine")
             edit_control_magazine.length = edit_deform_magazine.length
             edit_control_magazine.matrix = edit_deform_magazine.matrix.copy()
             edit_control_magazine.use_deform = False

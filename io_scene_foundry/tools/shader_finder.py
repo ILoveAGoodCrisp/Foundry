@@ -31,6 +31,7 @@ from io_scene_foundry.utils.nwo_utils import (
     shader_exts,
 )
 
+
 def scan_tree(shaders_dir, shaders):
     for root, dirs, files in os.walk(shaders_dir):
         for file in files:
@@ -41,7 +42,9 @@ def scan_tree(shaders_dir, shaders):
 
 
 def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False):
-    materials = [mat for mat in materials_all if mat.nwo.rendered and not mat.grease_pencil]
+    materials = [
+        mat for mat in materials_all if mat.nwo.rendered and not mat.grease_pencil
+    ]
     shaders = set()
     update_count = 0
     no_path_materials = []
@@ -49,9 +52,7 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
 
     if not shaders_dir:
         # clean shaders directory path
-        shaders_dir = (
-            shaders_dir.replace('"', "").strip("\\").replace(tags_path, "")
-        )
+        shaders_dir = shaders_dir.replace('"', "").strip("\\").replace(tags_path, "")
 
     # verify that the path created actually exists
     shaders_dir = os.path.join(tags_path, shaders_dir)
@@ -80,15 +81,24 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
             for m in no_path_materials:
                 report({"ERROR"}, m)
             if not_bungie_game():
-                report({"WARNING"}, "These materials should either be given paths to Halo material tags, or specified as a Blender only material (by using the checkbox in Halo Material Paths)")
+                report(
+                    {"WARNING"},
+                    "These materials should either be given paths to Halo material tags, or specified as a Blender only material (by using the checkbox in Halo Material Paths)",
+                )
             else:
-                report({"WARNING"}, "These materials should either be given paths to Halo shader tags, or specified as a Blender only material (by using the checkbox in Halo Shader Paths)")
-            report({"WARNING"}, f"Updated {update_count} material paths, but couldn't find paths for {len(no_path_materials)} materials. Click here for details")
+                report(
+                    {"WARNING"},
+                    "These materials should either be given paths to Halo shader tags, or specified as a Blender only material (by using the checkbox in Halo Shader Paths)",
+                )
+            report(
+                {"WARNING"},
+                f"Updated {update_count} material paths, but couldn't find paths for {len(no_path_materials)} materials. Click here for details",
+            )
         else:
             report({"INFO"}, f"Updated {update_count} material paths")
 
-        return {'FINISHED'}
-        
+        return {"FINISHED"}
+
     return no_path_materials
 
 

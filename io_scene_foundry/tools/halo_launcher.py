@@ -57,55 +57,37 @@ def LaunchFoundation(settings, context):
         asset_path, asset_name = get_asset_info(settings.sidecar_path)
         if nwo_asset_type() == "MODEL":
             if settings.open_model:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "model")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "model"))
             if settings.open_render_model:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "render_model")
                 )
             if settings.open_collision_model:
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "collision_model"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "collision_model")
                 )
             if settings.open_physics_model:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "physics_model")
                 )
-            if (
-                settings.open_model_animation_graph
-                and len(bpy.data.actions) > 0
-            ):
+            if settings.open_model_animation_graph and len(bpy.data.actions) > 0:
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "model_animation_graph"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "model_animation_graph")
                 )
             if settings.open_frame_event_list and len(bpy.data.actions) > 0:
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "frame_event_list"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "frame_event_list")
                 )
 
             if settings.open_biped and scene_nwo.output_biped:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "biped")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "biped"))
             if settings.open_crate and scene_nwo.output_crate:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "crate")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "crate"))
             if settings.open_creature and scene_nwo.output_creature:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "creature")
                 )
-            if (
-                settings.open_device_control
-                and scene_nwo.output_device_control
-            ):
+            if settings.open_device_control and scene_nwo.output_device_control:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "device_control")
                 )
@@ -115,30 +97,17 @@ def LaunchFoundation(settings, context):
                 and not_bungie_game()
             ):
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "device_dispenser"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "device_dispenser")
                 )
-            if (
-                settings.open_device_machine
-                and scene_nwo.output_device_machine
-            ):
+            if settings.open_device_machine and scene_nwo.output_device_machine:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "device_machine")
                 )
-            if (
-                settings.open_device_terminal
-                and scene_nwo.output_device_terminal
-            ):
+            if settings.open_device_terminal and scene_nwo.output_device_terminal:
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "device_terminal"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "device_terminal")
                 )
-            if (
-                settings.open_effect_scenery
-                and scene_nwo.output_effect_scenery
-            ):
+            if settings.open_effect_scenery and scene_nwo.output_effect_scenery:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "effect_scenery")
                 )
@@ -147,21 +116,13 @@ def LaunchFoundation(settings, context):
                     get_tag_if_exists(asset_path, asset_name, "equipment")
                 )
             if settings.open_giant and scene_nwo.output_giant:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "giant")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "giant"))
             if settings.open_scenery and scene_nwo.output_scenery:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "scenery")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "scenery"))
             if settings.open_vehicle and scene_nwo.output_vehicle:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "vehicle")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "vehicle"))
             if settings.open_weapon and scene_nwo.output_weapon:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "weapon")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "weapon"))
 
         elif nwo_asset_type() == "SCENARIO":
             if settings.open_scenario:
@@ -192,9 +153,7 @@ def LaunchFoundation(settings, context):
                     ):
                         file = file.rpartition(".")[0]
                         if file.endswith(bsps):
-                            launch_args.append(
-                                file + ".scenario_structure_bsp"
-                            )
+                            launch_args.append(file + ".scenario_structure_bsp")
 
             if settings.open_scenario_lightmap_bsp_data:
                 if settings.bsp_name == "":
@@ -220,9 +179,7 @@ def LaunchFoundation(settings, context):
                     ):
                         file = file.rpartition(".")[0]
                         if file.endswith(bsps):
-                            launch_args.append(
-                                file + ".scenario_lightmap_bsp_data"
-                            )
+                            launch_args.append(file + ".scenario_lightmap_bsp_data")
             if settings.open_scenario_structure_lighting_info:
                 if settings.bsp_name == "":
                     for file in glob.glob(
@@ -254,17 +211,13 @@ def LaunchFoundation(settings, context):
 
         elif nwo_asset_type() == "SKY":
             if settings.open_model:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "model")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "model"))
             if settings.open_render_model:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "render_model")
                 )
             if settings.open_scenery:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "scenery")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "scenery"))
 
         elif nwo_asset_type() == "DECORATOR SET":
             if settings.open_decorator_set:
@@ -280,14 +233,10 @@ def LaunchFoundation(settings, context):
 
         elif nwo_asset_type() == "PREFAB":
             if settings.open_prefab:
-                launch_args.append(
-                    get_tag_if_exists(asset_path, asset_name, "prefab")
-                )
+                launch_args.append(get_tag_if_exists(asset_path, asset_name, "prefab"))
             if settings.open_scenario_structure_bsp:
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "scenario_structure_bsp"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "scenario_structure_bsp")
                 )
             if settings.open_scenario_structure_lighting_info:
                 launch_args.append(
@@ -301,15 +250,11 @@ def LaunchFoundation(settings, context):
         elif nwo_asset_type() == "FP ANIMATION":
             if settings.open_model_animation_graph:
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "model_animation_graph"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "model_animation_graph")
                 )
             if settings.open_frame_event_list:
                 launch_args.append(
-                    get_tag_if_exists(
-                        asset_path, asset_name, "frame_event_list"
-                    )
+                    get_tag_if_exists(asset_path, asset_name, "frame_event_list")
                 )
 
     elif (
@@ -354,9 +299,7 @@ def launch_game(is_sapien, settings, filepath):
                 os.rename("editor_init.txt", "editor_init_old.txt")
                 init = "editor_init.txt"
             except:
-                print(
-                    "Unable to replace editor_init.txt. It is currently read only"
-                )
+                print("Unable to replace editor_init.txt. It is currently read only")
         else:
             init = "editor_init.txt"
     else:
@@ -367,9 +310,7 @@ def launch_game(is_sapien, settings, filepath):
                 os.rename("bonobo_init.txt", "bonobo_init_old.txt")
                 init = "bonobo_init.txt"
             except:
-                print(
-                    "Unable to replace bonobo_init.txt. It is currently read only"
-                )
+                print("Unable to replace bonobo_init.txt. It is currently read only")
         else:
             init = "bonobo_init.txt"
 
@@ -390,47 +331,33 @@ def launch_game(is_sapien, settings, filepath):
             if settings.prune_scenario_for_environment_editing:
                 file.write("prune_scenario_for_environment_editing 1\n")
                 if settings.prune_scenario_for_environment_editing:
-                    if (
-                        settings.prune_scenario_for_environment_editing_keep_cinematics
-                    ):
+                    if settings.prune_scenario_for_environment_editing_keep_cinematics:
                         file.write(
                             "prune_scenario_for_environment_editing_keep_cinematics 1\n"
                         )
-                    if (
-                        settings.prune_scenario_for_environment_editing_keep_scenery
-                    ):
+                    if settings.prune_scenario_for_environment_editing_keep_scenery:
                         file.write(
                             "prune_scenario_for_environment_editing_keep_scenery 1\n"
                         )
-                    if (
-                        settings.prune_scenario_for_environment_editing_keep_decals
-                    ):
+                    if settings.prune_scenario_for_environment_editing_keep_decals:
                         file.write(
                             "prune_scenario_for_environment_editing_keep_decals 1\n"
                         )
-                    if (
-                        settings.prune_scenario_for_environment_editing_keep_crates
-                    ):
+                    if settings.prune_scenario_for_environment_editing_keep_crates:
                         file.write(
                             "prune_scenario_for_environment_editing_keep_crates 1\n"
                         )
-                    if (
-                        settings.prune_scenario_for_environment_editing_keep_creatures
-                    ):
+                    if settings.prune_scenario_for_environment_editing_keep_creatures:
                         file.write(
                             "prune_scenario_for_environment_editing_keep_creatures 1\n"
                         )
-                    if (
-                        settings.prune_scenario_for_environment_editing_keep_pathfinding
-                    ):
+                    if settings.prune_scenario_for_environment_editing_keep_pathfinding:
                         if h4_plus:
                             file.write(
                                 "prune_scenario_for_environment_editing_keep_pathfinding 1\n"
                             )
                         else:
-                            file.write(
-                                "prune_scenario_for_environment_pathfinding 1\n"
-                            )
+                            file.write("prune_scenario_for_environment_pathfinding 1\n")
 
                     if (
                         settings.prune_scenario_for_environment_editing_keep_new_decorator_block
@@ -471,16 +398,12 @@ def launch_game(is_sapien, settings, filepath):
                 if settings.prune_globals_use_empty:
                     file.write("prune_globals_use_empty 1\n")
                 if settings.prune_models_enable_alternate_render_models:
-                    file.write(
-                        "prune_models_enable_alternate_render_models 1\n"
-                    )
+                    file.write("prune_models_enable_alternate_render_models 1\n")
                 if settings.prune_scenario_keep_scriptable_objects:
                     file.write("prune_scenario_keep_scriptable_objects 1\n")
                 if settings.prune_all_materials_use_default_textures:
                     file.write("prune_all_materials_use_default_textures 1\n")
-                if (
-                    settings.prune_all_materials_use_default_textures_fx_textures
-                ):
+                if settings.prune_all_materials_use_default_textures_fx_textures:
                     file.write(
                         "prune_all_materials_use_default_textures_keep_fx_textures 1\n"
                     )
@@ -500,9 +423,7 @@ def launch_game(is_sapien, settings, filepath):
                     file.write("prune_scenario_force_solo_mode 1\n")
                 if settings.prune_scenario_for_environment_editing:
                     if settings.prune_scenario_for_environment_finishing:
-                        file.write(
-                            "prune_scenario_for_environment_finishing 1\n"
-                        )
+                        file.write("prune_scenario_for_environment_finishing 1\n")
                 if settings.prune_scenario_force_single_bsp_zone_set:
                     file.write("prune_scenario_force_single_bsp_zone_set 1\n")
                 if settings.prune_scenario_force_single_bsp_zones:
@@ -525,9 +446,7 @@ def launch_game(is_sapien, settings, filepath):
                     )
 
             if settings.initial_zone_set != "":
-                file.write(
-                    f"game_initial_zone_set {settings.initial_zone_set}\n"
-                )
+                file.write(f"game_initial_zone_set {settings.initial_zone_set}\n")
             elif settings.initial_bsp != "" and h4_plus:
                 file.write(f"game_initial_BSP {settings.initial_bsp}\n")
 
@@ -539,19 +458,13 @@ def launch_game(is_sapien, settings, filepath):
             if settings.enable_firefight and h4_plus:
                 file.write(f"game_firefight {settings.enable_firefight}\n")
                 if settings.firefight_mission == "":
-                    file.write(
-                        f'game_set_variant "midnight_firefight_firefight"\n'
-                    )
+                    file.write(f'game_set_variant "midnight_firefight_firefight"\n')
                 else:
-                    file.write(
-                        f'game_set_variant "{settings.firefight_mission}"\n'
-                    )
+                    file.write(f'game_set_variant "{settings.firefight_mission}"\n')
 
             if settings.custom_functions != "":
                 try:
-                    for line in bpy.data.texts[
-                        settings.custom_functions
-                    ].lines:
+                    for line in bpy.data.texts[settings.custom_functions].lines:
                         file.write(f"{line.body}\n")
                 except:
                     if os.path.exists(f"{settings.custom_functions}.txt"):

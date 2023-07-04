@@ -51,9 +51,7 @@ def CopyProps(report, template, targets):
             target_count += 1
             target_props = ob.nwo
 
-            target_props.object_type_items_all = (
-                template_props.object_type_items_all
-            )
+            target_props.object_type_items_all = template_props.object_type_items_all
 
     report(
         {"INFO"},

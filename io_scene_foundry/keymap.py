@@ -28,6 +28,7 @@ import bpy
 
 keys = []
 
+
 def register():
     wm = bpy.context.window_manager
     active_keyconfig = wm.keyconfigs.active
@@ -38,16 +39,31 @@ def register():
         return
 
     # Activate tool
-    km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
+    km = kc.keymaps.new(name="3D View", space_type="VIEW_3D")
 
-    kmi = km.keymap_items.new(idname='nwo.join_halo', type='J', value='PRESS', ctrl=True, shift=True)
+    kmi = km.keymap_items.new(
+        idname="nwo.join_halo", type="J", value="PRESS", ctrl=True, shift=True
+    )
     keys.append((km, kmi))
 
-    kmi = km.keymap_items.new(idname="nwo.apply_types_mesh_pie", type='F', value='PRESS', ctrl=True, shift=False)
+    kmi = km.keymap_items.new(
+        idname="nwo.apply_types_mesh_pie",
+        type="F",
+        value="PRESS",
+        ctrl=True,
+        shift=False,
+    )
     keys.append((km, kmi))
 
-    kmi = km.keymap_items.new(idname="nwo.apply_types_marker_pie", type='F', value='PRESS', ctrl=False, shift=True)
+    kmi = km.keymap_items.new(
+        idname="nwo.apply_types_marker_pie",
+        type="F",
+        value="PRESS",
+        ctrl=False,
+        shift=True,
+    )
     keys.append((km, kmi))
+
 
 def unregister():
     for km, kmi in keys:

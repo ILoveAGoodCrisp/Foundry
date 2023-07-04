@@ -57,7 +57,7 @@ from . import tools
 from . import ui
 from . import export
 from . import managed_blam
-from . import keymap 
+from . import keymap
 from . import icons
 
 
@@ -236,6 +236,7 @@ def msgbus_callback(context):
     except:
         pass
 
+
 def subscribe(owner):
     subscribe_to = bpy.types.Object, "mode"
     bpy.msgbus.subscribe_rna(
@@ -243,8 +244,11 @@ def subscribe(owner):
         owner=owner,
         args=(bpy.context,),
         notify=msgbus_callback,
-        options={"PERSISTENT",},
+        options={
+            "PERSISTENT",
+        },
     )
+
 
 @persistent
 def load_set_output_state(dummy):
@@ -259,6 +263,7 @@ def load_set_output_state(dummy):
             bpy.context.scene.nwo_export.show_output = False
     else:
         bpy.context.scene.nwo_export.show_output = True
+
 
 @persistent
 def load_handler(dummy):
@@ -322,32 +327,18 @@ def get_temp_settings(dummy):
         nwo.output_biped = True if settings[3] == "True" else False
         nwo.output_crate = True if settings[4] == "True" else False
         nwo.output_creature = True if settings[5] == "True" else False
-        nwo.output_device_control = (
-            True if settings[6] == "True" else False
-        )
-        nwo.output_device_dispenser = (
-            True if settings[7] == "True" else False
-        )
-        nwo.output_device_machine = (
-            True if settings[8] == "True" else False
-        )
-        nwo.output_device_terminal = (
-            True if settings[9] == "True" else False
-        )
-        nwo.output_effect_scenery = (
-            True if settings[10] == "True" else False
-        )
+        nwo.output_device_control = True if settings[6] == "True" else False
+        nwo.output_device_dispenser = True if settings[7] == "True" else False
+        nwo.output_device_machine = True if settings[8] == "True" else False
+        nwo.output_device_terminal = True if settings[9] == "True" else False
+        nwo.output_effect_scenery = True if settings[10] == "True" else False
         nwo.output_equipment = True if settings[11] == "True" else False
         nwo.output_giant = True if settings[12] == "True" else False
         nwo.output_scenery = True if settings[13] == "True" else False
         nwo.output_vehicle = True if settings[14] == "True" else False
         nwo.output_weapon = True if settings[15] == "True" else False
-        nwo_export.show_output = (
-            True if settings[16] == "True" else False
-        )
-        nwo_export.lightmap_all_bsps = (
-            True if settings[17] == "True" else False
-        )
+        nwo_export.show_output = True if settings[16] == "True" else False
+        nwo_export.lightmap_all_bsps = True if settings[17] == "True" else False
         nwo_export.lightmap_quality = settings[18]
         nwo_export.lightmap_quality_h4 = settings[19]
         nwo_export.lightmap_region = settings[20]
@@ -358,7 +349,9 @@ def get_temp_settings(dummy):
         nwo_export.import_draft = True if settings[25] == "True" else False
         nwo_export.import_seam_debug = True if settings[26] == "True" else False
         nwo_export.import_skip_instances = True if settings[27] == "True" else False
-        nwo_export.import_decompose_instances = True if settings[28] == "True" else False
+        nwo_export.import_decompose_instances = (
+            True if settings[28] == "True" else False
+        )
         nwo_export.import_surpress_errors = True if settings[29] == "True" else False
         nwo_export.import_lighting = True if settings[30] == "True" else False
         nwo_export.import_meta_only = True if settings[31] == "True" else False
@@ -368,6 +361,7 @@ def get_temp_settings(dummy):
         nwo_export.import_force_animations = True if settings[35] == "True" else False
 
         os.remove(temp_file_path)
+
 
 def fix_icons():
     icons.icons_activate()
@@ -398,6 +392,7 @@ def unregister():
     bpy.utils.unregister_class(H2AMPEKLocationPath)
     for module in reversed(modules):
         module.unregister()
+
 
 if __name__ == "__main__":
     register()

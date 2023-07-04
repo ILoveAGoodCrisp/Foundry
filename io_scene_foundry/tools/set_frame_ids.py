@@ -37,6 +37,7 @@ from io_scene_foundry.utils.nwo_utils import (
     comma_partition,
 )
 
+
 def reset_frame_ids(context, report):
     model_armature = get_armature(context, report)
     if model_armature != None:

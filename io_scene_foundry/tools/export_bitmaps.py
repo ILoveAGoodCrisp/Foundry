@@ -100,9 +100,7 @@ def export_bitmaps(
 
                     bitmap_count += 1
 
-                bitmap_paths.append(
-                    os.path.join(asset_path, "bitmaps", tiff_name)
-                )
+                bitmap_paths.append(os.path.join(asset_path, "bitmaps", tiff_name))
 
             except:
                 print(f"Failed to export {image.name}")
@@ -123,9 +121,7 @@ def export_bitmaps(
         for path in bitmap_paths:
             bm_name = dot_partition(path.rpartition("\\")[2])
             bm_type = get_bitmap_type()
-            bpy.ops.managed_blam.new_bitmap(
-                bitmap_name=bm_name, bitmap_type=bm_type
-            )
+            bpy.ops.managed_blam.new_bitmap(bitmap_name=bm_name, bitmap_type=bm_type)
             path = dot_partition(path)
 
             if h4:

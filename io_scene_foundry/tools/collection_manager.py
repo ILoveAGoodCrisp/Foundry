@@ -68,7 +68,7 @@ def get_full_name(coll_type, coll_name):
             if bpy.context.scene.nwo.asset_type in ("SCENARIO", "PREFAB"):
                 prefix = "+group"
             else:
-             prefix = "+perm"
+                prefix = "+perm"
 
     full_name_base = f"{prefix} {coll_name}"
     full_name = full_name_base

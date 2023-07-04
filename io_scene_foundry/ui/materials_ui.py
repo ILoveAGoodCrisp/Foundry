@@ -87,26 +87,16 @@ class NWO_ShaderProps(NWO_PropPanel):
 class NWO_MaterialOpenTag(NWO_Op):
     bl_idname = "nwo.open_halo_material"
     bl_label = "Open in Foundation"
-    bl_description = (
-        "Opens the active material's Halo Shader/Material in Foundation"
-    )
+    bl_description = "Opens the active material's Halo Shader/Material in Foundation"
 
     def execute(self, context):
-        tag_path = (
-            get_tags_path() + context.object.active_material.nwo.shader_path
-        )
+        tag_path = get_tags_path() + context.object.active_material.nwo.shader_path
         if os.path.exists(tag_path):
-            run_ek_cmd(
-                ["foundation", "/dontloadlastopenedwindows", tag_path], True
-            )
+            run_ek_cmd(["foundation", "/dontloadlastopenedwindows", tag_path], True)
         else:
             if not_bungie_game():
-                self.report(
-                    {"ERROR_INVALID_INPUT"}, "Material tag does not exist"
-                )
+                self.report({"ERROR_INVALID_INPUT"}, "Material tag does not exist")
             else:
-                self.report(
-                    {"ERROR_INVALID_INPUT"}, "Shader tag does not exist"
-                )
+                self.report({"ERROR_INVALID_INPUT"}, "Shader tag does not exist")
 
         return {"FINISHED"}

@@ -50,9 +50,7 @@ class NWO_JoinHalo(NWO_Op):
         new_layer.face_type_override = old_layer.face_type_override
         new_layer.face_mode_override = old_layer.face_mode_override
         new_layer.face_two_sided_override = old_layer.face_two_sided_override
-        new_layer.face_draw_distance_override = (
-            old_layer.face_draw_distance_override
-        )
+        new_layer.face_draw_distance_override = old_layer.face_draw_distance_override
         new_layer.texcoord_usage_override = old_layer.texcoord_usage_override
         new_layer.region_name_override = old_layer.region_name_override
         new_layer.is_pca_override = old_layer.is_pca_override
@@ -69,9 +67,7 @@ class NWO_JoinHalo(NWO_Op):
             old_layer.group_transparents_by_plane_override
         )
         new_layer.no_shadow_override = old_layer.no_shadow_override
-        new_layer.precise_position_override = (
-            old_layer.precise_position_override
-        )
+        new_layer.precise_position_override = old_layer.precise_position_override
         new_layer.no_lightmap_override = old_layer.no_lightmap_override
         new_layer.no_pvs_override = old_layer.no_pvs_override
         new_layer.lightmap_additive_transparency_override = (
@@ -116,12 +112,8 @@ class NWO_JoinHalo(NWO_Op):
         new_layer.lightmap_additive_transparency_ui = (
             old_layer.lightmap_additive_transparency_ui
         )
-        new_layer.lightmap_resolution_scale_ui = (
-            old_layer.lightmap_resolution_scale_ui
-        )
-        new_layer.lightmap_photon_fidelity_ui = (
-            old_layer.lightmap_photon_fidelity_ui
-        )
+        new_layer.lightmap_resolution_scale_ui = old_layer.lightmap_resolution_scale_ui
+        new_layer.lightmap_photon_fidelity_ui = old_layer.lightmap_photon_fidelity_ui
         new_layer.lightmap_type_ui = old_layer.lightmap_type_ui
         new_layer.lightmap_analytical_bounce_modifier_ui = (
             old_layer.lightmap_analytical_bounce_modifier_ui
@@ -169,9 +161,7 @@ class NWO_JoinHalo(NWO_Op):
         active_face_props = active_nwo.face_props
 
         face_layers = []
-        non_active_objects = [
-            ob for ob in context.selected_objects if ob != active_ob
-        ]
+        non_active_objects = [ob for ob in context.selected_objects if ob != active_ob]
         for ob in non_active_objects:
             for layer in ob.data.nwo.face_props:
                 if layer not in face_layers:

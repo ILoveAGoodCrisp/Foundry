@@ -204,7 +204,7 @@ class NWO_SetUnitScale(NWO_Op):
     bl_idname = "nwo.set_unit_scale"
     bl_label = "Set Halo Scene"
 
-    scale : bpy.props.FloatProperty()
+    scale: bpy.props.FloatProperty()
 
     @classmethod
     def poll(self, context):
@@ -224,12 +224,8 @@ class NWO_SetUnitScale(NWO_Op):
                     if area.type == "VIEW_3D":
                         for space in area.spaces:
                             if space.type == "VIEW_3D":
-                                space.clip_start = (
-                                    space.clip_start * scale_ratio
-                                )
-                                space.clip_end = (
-                                    space.clip_end * scale_ratio
-                                )
+                                space.clip_start = space.clip_start * scale_ratio
+                                space.clip_end = space.clip_end * scale_ratio
         # Set halo scale
         context.scene.unit_settings.scale_length = self.scale
         return {"FINISHED"}
@@ -320,9 +316,7 @@ class NWO_AssetMaker(NWO_Op):
             )
             os.makedirs(os.path.dirname(blend_save_path), True)
         else:
-            blend_save_path = os.path.join(
-                self.filepath, asset_name_clean + ".blend"
-            )
+            blend_save_path = os.path.join(self.filepath, asset_name_clean + ".blend")
 
         bpy.ops.wm.save_as_mainfile(filepath=blend_save_path)
 
@@ -501,9 +495,7 @@ class NWO_UL_SceneProps_SharedAssets(UIList):
             flt_flags = [self.bitflag_filter_item] * len(items)
 
         if self.use_order_name:
-            flt_neworder = bpy.types.UI_UL_list.sort_items_by_name(
-                items, "name"
-            )
+            flt_neworder = bpy.types.UI_UL_list.sort_items_by_name(items, "name")
             if self.use_name_reverse:
                 flt_neworder.reverse()
         else:

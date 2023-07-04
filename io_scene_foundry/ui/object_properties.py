@@ -335,9 +335,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         if not self.mesh_type_ui_help_bool:
             self.mesh_type_ui_help_bool = True
             try:
-                self.mesh_type_ui_help = bpy.context.scene.nwo[
-                    "default_mesh_type_ui"
-                ]
+                self.mesh_type_ui_help = bpy.context.scene.nwo["default_mesh_type_ui"]
             except:
                 pass
 
@@ -647,9 +645,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     0,
                 )
             )
-            tag_ext = dot_partition(
-                self.marker_game_instance_tag_name_ui, True
-            )
+            tag_ext = dot_partition(self.marker_game_instance_tag_name_ui, True)
             match tag_ext:
                 case "crate":
                     name = "Crate Tag"
@@ -827,15 +823,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def mesh_primitive_type_items(self, context):
         items = []
-        items.append(
-            ("_connected_geometry_primitive_type_none", "None", "None", 0)
-        )
-        items.append(
-            ("_connected_geometry_primitive_type_box", "Box", "Box", 1)
-        )
-        items.append(
-            ("_connected_geometry_primitive_type_pill", "Pill", "Pill", 2)
-        )
+        items.append(("_connected_geometry_primitive_type_none", "None", "None", 0))
+        items.append(("_connected_geometry_primitive_type_box", "Box", "Box", 1))
+        items.append(("_connected_geometry_primitive_type_pill", "Pill", "Pill", 2))
         items.append(
             (
                 "_connected_geometry_primitive_type_sphere",
@@ -845,9 +835,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             )
         )
         if not_bungie_game():
-            items.append(
-                ("_connected_geometry_primitive_type_mopp", "MOPP", "", 4)
-            )
+            items.append(("_connected_geometry_primitive_type_mopp", "MOPP", "", 4))
 
         return items
 
@@ -2663,9 +2651,9 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
 
     def light_tag_clean_tag_path(self, context):
-        self["light_tag_override"] = clean_tag_path(
-            self["light_tag_override"]
-        ).strip('"')
+        self["light_tag_override"] = clean_tag_path(self["light_tag_override"]).strip(
+            '"'
+        )
 
     light_tag_override: StringProperty(
         name="Light Tag Override",
@@ -2687,9 +2675,9 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
 
     def light_gel_clean_tag_path(self, context):
-        self["light_gel_reference"] = clean_tag_path(
-            self["light_gel_reference"]
-        ).strip('"')
+        self["light_gel_reference"] = clean_tag_path(self["light_gel_reference"]).strip(
+            '"'
+        )
 
     light_gel_reference: StringProperty(
         name="Light Gel Reference",

@@ -4,11 +4,11 @@
 #
 # Copyright (c) 2023 Crisp
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights 
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell    
-# copies of the Software, and to permit persons to whom the Software is        
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
 # The above copyright notice and this permission notice shall be included in all
@@ -499,7 +499,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.import_draft = scene_nwo_export.import_draft
             self.import_seam_debug = scene_nwo_export.import_seam_debug
             self.import_skip_instances = scene_nwo_export.import_skip_instances
-            self.import_decompose_instances = scene_nwo_export.import_decompose_instances
+            self.import_decompose_instances = (
+                scene_nwo_export.import_decompose_instances
+            )
             self.import_surpress_errors = scene_nwo_export.import_surpress_errors
             self.import_lighting = scene_nwo_export.import_lighting
             self.import_meta_only = scene_nwo_export.import_meta_only
@@ -556,9 +558,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     )
                 except:
                     if get_data_path() != "":
-                        self.filepath = path.join(
-                            get_data_path(), "halo_export.fbx"
-                        )
+                        self.filepath = path.join(get_data_path(), "halo_export.fbx")
 
             elif get_data_path() != "":
                 self.filepath = path.join(get_data_path(), "halo_export.fbx")
@@ -568,18 +568,19 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
     def execute(self, context):
         if self.game_path_not_set:
-            self.report({'WARNING'}, f"Unable to export. Your {formalise_game_version(self.game_version)} Editing Kit path must be set in preferences")
-            return {'CANCELLED'}
-        
+            self.report(
+                {"WARNING"},
+                f"Unable to export. Your {formalise_game_version(self.game_version)} Editing Kit path must be set in preferences",
+            )
+            return {"CANCELLED"}
+
         start = time.perf_counter()
 
         # get the asset name and path to the asset folder
         self.asset_path, self.asset = get_asset_info(self.filepath)
 
-        sidecar_path_full = os.path.join(
-            self.asset_path, self.asset + ".sidecar.xml"
-        )
-    
+        sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml")
+
         sidecar_path = sidecar_path_full.replace(get_data_path(), "")
 
         self.set_scene_props(context)
@@ -587,7 +588,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Check that we can export
         if self.export_invalid():
             self.report({"WARNING"}, "Export aborted")
-            return {'CANCELLED'}
+            return {"CANCELLED"}
 
         # Save the scene
         # bpy.ops.wm.save_mainfile()
@@ -672,14 +673,13 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.lightmap_quality_h4,
                     self.lightmap_all_bsps,
                     self.lightmap_specific_bsp,
-                    self.lightmap_region,               
+                    self.lightmap_region,
                 )
 
             except Exception as e:
                 print_error("\n\nException hit. Please include in report\n")
                 logging.error(traceback.format_exc())
                 self.failed = True
-
 
             # validate that a sidecar file exists
             if not file_exists(sidecar_path_full):
@@ -690,19 +690,21 @@ class NWO_Export_Scene(Operator, ExportHelper):
             end = time.perf_counter()
 
             final_report = ""
-            report_type = 'INFO'
+            report_type = "INFO"
 
             if self.failed:
                 final_report = "Export Failed"
-                report_type = 'ERROR'
-                print_warning("\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n")
+                report_type = "ERROR"
+                print_warning(
+                    "\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n"
+                )
                 print_error(
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
                 )
 
             elif export.gr2_fail:
                 final_report = "GR2 Conversion Failed. Export Aborted"
-                report_type = 'ERROR'
+                report_type = "ERROR"
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
@@ -711,10 +713,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
-                
+
             elif export.sidecar_import_failed:
                 final_report = "Failed to Create Tags"
-                report_type = 'ERROR'
+                report_type = "ERROR"
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
@@ -730,7 +732,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 )
             else:
                 final_report = "Export Complete"
-                report_type = 'INFO'
+                report_type = "INFO"
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
@@ -816,7 +818,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         return False
 
-    def write_temp_settings(self, context, sidecar_path, export_report="", report_type=""):
+    def write_temp_settings(
+        self, context, sidecar_path, export_report="", report_type=""
+    ):
         temp_file_path = path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
         with open(temp_file_path, "w") as temp_file:
             temp_file.write(f"{sidecar_path}\n")
@@ -873,8 +877,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # SETTINGS #
         box.label(text="Settings")
 
-        h4 = self.game_version != 'reach'
-        scenario = self.sidecar_type == 'SCENARIO'
+        h4 = self.game_version != "reach"
+        scenario = self.sidecar_type == "SCENARIO"
 
         col = box.column()
         row = col.row()
@@ -921,7 +925,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             box.label(text="Model Settings")
             col = box.column()
             # col.prop(self, "export_sidecar_xml")
-            #if self.export_sidecar_xml:
+            # if self.export_sidecar_xml:
             sub = box.column(heading="Output Tags")
             if self.sidecar_type == "MODEL":
                 sub.prop(self, "output_biped")
@@ -946,28 +950,60 @@ class NWO_Export_Scene(Operator, ExportHelper):
             if h4:
                 sub.prop(self, "import_force", text="Force full export")
                 if scenario:
-                    sub.prop(self, "import_seam_debug", text="Show more seam debugging info")
-                    sub.prop(self, "import_skip_instances", text="Skip importing instances")
-                    sub.prop(self, "import_meta_only", text="Only import structure_meta tag")
-                    sub.prop(self, "import_lighting", text="Only reimport lighting information")
-                    sub.prop(self, "import_disable_hulls", text="Skip instance convex hull decomp")
-                    sub.prop(self, "import_disable_collision", text="Don't generate complex collision")
+                    sub.prop(
+                        self, "import_seam_debug", text="Show more seam debugging info"
+                    )
+                    sub.prop(
+                        self, "import_skip_instances", text="Skip importing instances"
+                    )
+                    sub.prop(
+                        self, "import_meta_only", text="Only import structure_meta tag"
+                    )
+                    sub.prop(
+                        self,
+                        "import_lighting",
+                        text="Only reimport lighting information",
+                    )
+                    sub.prop(
+                        self,
+                        "import_disable_hulls",
+                        text="Skip instance convex hull decomp",
+                    )
+                    sub.prop(
+                        self,
+                        "import_disable_collision",
+                        text="Don't generate complex collision",
+                    )
                 else:
                     sub.prop(self, "import_no_pca", text="Skip PCA calculations")
-                    sub.prop(self, "import_force_animations", text="Force import error animations")
+                    sub.prop(
+                        self,
+                        "import_force_animations",
+                        text="Force import error animations",
+                    )
             else:
                 sub.prop(self, "import_force", text="Force full export")
                 sub.prop(self, "import_verbose", text="Verbose Output")
-                sub.prop(self, "import_surpress_errors", text="Don't write errors to VRML")
+                sub.prop(
+                    self, "import_surpress_errors", text="Don't write errors to VRML"
+                )
                 if scenario:
-                    sub.prop(self, "import_seam_debug", text="Show more seam debugging info")
-                    sub.prop(self, "import_skip_instances", text="Skip importing instances")
-                    sub.prop(self, "import_decompose_instances", text="Run convex physics decomposition")
+                    sub.prop(
+                        self, "import_seam_debug", text="Show more seam debugging info"
+                    )
+                    sub.prop(
+                        self, "import_skip_instances", text="Skip importing instances"
+                    )
+                    sub.prop(
+                        self,
+                        "import_decompose_instances",
+                        text="Run convex physics decomposition",
+                    )
                 else:
                     sub.prop(self, "import_draft", text="Skip PRT generation")
 
         # LIGHTMAP SETTINGS #
-        render = self.sidecar_type in ('MODEL', 'SKY')
+        render = self.sidecar_type in ("MODEL", "SKY")
         if (h4 and render) or scenario:
             box = layout.box()
             box.label(text="Lightmap Settings")
@@ -1006,6 +1042,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
 def menu_func_export(self, context):
     self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag")
+
 
 def fbx_exporter():
     exporter = "default"

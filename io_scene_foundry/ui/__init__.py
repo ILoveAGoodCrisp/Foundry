@@ -31,6 +31,7 @@ from .templates import NWO_Op
 from bpy.props import (
     PointerProperty,
 )
+
 # import classes from other files
 
 from .face_ui import (
@@ -120,20 +121,27 @@ from .animation_properties import (
     NWO_AnimationRenamesItems,
 )
 
-from .animation_ui import NWO_ActionProps, NWO_NewAnimation, NWO_DeleteAnimation, NWO_List_Add_Animation_Rename, NWO_UL_AnimationRename, NWO_List_Remove_Animation_Rename
+from .animation_ui import (
+    NWO_ActionProps,
+    NWO_NewAnimation,
+    NWO_DeleteAnimation,
+    NWO_List_Add_Animation_Rename,
+    NWO_UL_AnimationRename,
+    NWO_List_Remove_Animation_Rename,
+)
 
 from .scene_properties import NWO_Asset_ListItems, NWO_ScenePropertiesGroup
 
 from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker
 
 from .viewport_ui import (
-    NWO_ApplyTypeMesh, 
-    NWO_MT_PIE_ApplyTypeMesh, 
+    NWO_ApplyTypeMesh,
+    NWO_MT_PIE_ApplyTypeMesh,
     NWO_PIE_ApplyTypeMesh,
     NWO_ApplyTypeMarker,
     NWO_MT_PIE_ApplyTypeMarker,
     NWO_PIE_ApplyTypeMarker,
-    )
+)
 
 mesh_type_items = [
     (
@@ -316,9 +324,7 @@ marker_type_items = [
 
 
 def add_asset_open_in_foundry(self, context):
-    self.layout.operator(
-        NWO_OpenAssetFoundry.bl_idname, text="Open in Foundry"
-    )
+    self.layout.operator(NWO_OpenAssetFoundry.bl_idname, text="Open in Foundry")
 
 
 class NWO_OpenAssetFoundry(NWO_Op):
@@ -340,9 +346,7 @@ class NWO_OpenAssetFoundry(NWO_Op):
             cls.poll_message_set("No asset selected")
             return False
         if asset_file_handle.local_id:
-            cls.poll_message_set(
-                "Selected asset is contained in the current file"
-            )
+            cls.poll_message_set("Selected asset is contained in the current file")
             return False
         return True
 
@@ -350,14 +354,10 @@ class NWO_OpenAssetFoundry(NWO_Op):
         asset_file_handle = context.asset_file_handle
 
         if asset_file_handle.local_id:
-            self.report(
-                {"WARNING"}, "This asset is stored in the current blend file"
-            )
+            self.report({"WARNING"}, "This asset is stored in the current blend file")
             return {"CANCELLED"}
 
-        asset_lib_path = bpy.types.AssetHandle.get_full_library_path(
-            asset_file_handle
-        )
+        asset_lib_path = bpy.types.AssetHandle.get_full_library_path(asset_file_handle)
         self.open_in_new_blender(asset_lib_path)
 
         wm = context.window_manager
@@ -490,11 +490,9 @@ classes_nwo = (
     NWO_MeshPropAddMenu,
     NWO_FacePropAddMenu,
     NWO_FaceLayerAddMenu,
-    
     NWO_MT_PIE_ApplyTypeMesh,
     NWO_ApplyTypeMesh,
     NWO_PIE_ApplyTypeMesh,
-
     NWO_MT_PIE_ApplyTypeMarker,
     NWO_ApplyTypeMarker,
     NWO_PIE_ApplyTypeMarker,
@@ -554,6 +552,7 @@ def unregister():
     del bpy.types.Mesh.nwo
     for cls_nwo in classes_nwo:
         bpy.utils.unregister_class(cls_nwo)
+
 
 if __name__ == "__main__":
     register()

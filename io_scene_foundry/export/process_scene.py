@@ -309,7 +309,7 @@ class ProcessScene:
                                 export_collision,
                             )
 
-                        if  nwo_scene.physics:
+                        if nwo_scene.physics:
                             self.export_model(
                                 context,
                                 asset_path,
@@ -325,7 +325,7 @@ class ProcessScene:
                                 export_physics,
                             )
 
-                        if  nwo_scene.markers:
+                        if nwo_scene.markers:
                             self.export_model(
                                 context,
                                 asset_path,
@@ -340,7 +340,7 @@ class ProcessScene:
                                 nwo_scene,
                                 export_markers,
                             )
-                        if  nwo_scene.lighting:
+                        if nwo_scene.lighting:
                             self.export_model(
                                 context,
                                 asset_path,
@@ -367,10 +367,14 @@ class ProcessScene:
                         export_obs = [nwo_scene.model_armature]
 
                         override = context.copy()
-                        area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
-                        override['area'] = area
-                        override['region'] = area.regions[-1]
-                        override['space_data'] = area.spaces.active
+                        area = [
+                            area
+                            for area in context.screen.areas
+                            if area.type == "VIEW_3D"
+                        ][0]
+                        override["area"] = area
+                        override["region"] = area.regions[-1]
+                        override["space_data"] = area.spaces.active
                         override["selected_objects"] = export_obs
                         with context.temp_override(**override):
                             job = "-- skeleton"
@@ -386,11 +390,11 @@ class ProcessScene:
                                     asset,
                                     nwo_scene,
                                 ):
-                                        self.export_gr2(
-                                            fbx_path, json_path, gr2_path
-                                        )
+                                    self.export_gr2(fbx_path, json_path, gr2_path)
                                 else:
-                                    return f"Failed to export skeleton JSON: {json_path}"
+                                    return (
+                                        f"Failed to export skeleton JSON: {json_path}"
+                                    )
                             else:
                                 return f"Failed to export skeleton FBX: {fbx_path}"
 
@@ -431,7 +435,9 @@ class ProcessScene:
                         for action in bpy.data.actions:
                             # make animation dirs
                             animations_dir = os.path.join(asset_path, "animations")
-                            export_animations_dir = os.path.join(asset_path, "export", "animations")
+                            export_animations_dir = os.path.join(
+                                asset_path, "export", "animations"
+                            )
                             os.makedirs(animations_dir, exist_ok=True)
                             os.makedirs(export_animations_dir, exist_ok=True)
                             action_nwo = action.nwo
@@ -439,25 +445,28 @@ class ProcessScene:
                             if action.use_frame_range:
                                 animation_name = action.nwo.name_override
                                 fbx_path, json_path, gr2_path = self.get_path(
-                                    asset_path, asset, "animations", None, None, 
+                                    asset_path,
+                                    asset,
+                                    "animations",
+                                    None,
+                                    None,
                                     animation_name,
                                 )
                                 if export_animations != "NONE":
-                                    if export_animations == "ALL" or nwo_scene.current_action == action:
+                                    if (
+                                        export_animations == "ALL"
+                                        or nwo_scene.current_action == action
+                                    ):
                                         job = f"-- {animation_name}"
                                         update_job(job, 0)
 
                                         nwo_scene.model_armature.animation_data.action = (
                                             action
                                         )
-                                        timeline.frame_start = int(
-                                            action.frame_start
-                                        )
+                                        timeline.frame_start = int(action.frame_start)
                                         timeline.frame_end = int(action.frame_end)
 
-                                        context.scene.frame_set(
-                                            int(action.frame_start)
-                                        )
+                                        context.scene.frame_set(int(action.frame_start))
 
                                         export_obs = self.create_event_nodes(
                                             context,
@@ -468,10 +477,14 @@ class ProcessScene:
                                         )
 
                                         override = context.copy()
-                                        area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
-                                        override['area'] = area
-                                        override['region'] = area.regions[-1]
-                                        override['space_data'] = area.spaces.active
+                                        area = [
+                                            area
+                                            for area in context.screen.areas
+                                            if area.type == "VIEW_3D"
+                                        ][0]
+                                        override["area"] = area
+                                        override["region"] = area.regions[-1]
+                                        override["space_data"] = area.spaces.active
                                         override["selected_objects"] = export_obs
 
                                         with context.temp_override(**override):
@@ -495,7 +508,7 @@ class ProcessScene:
                                                     return f"Failed to export skeleton JSON: {json_path}"
                                             else:
                                                 return f"Failed to export skeleton FBX: {fbx_path}"
-                                            
+
                                         update_job(job, 1)
 
                                 if "animation" in self.sidecar_paths.keys():
@@ -570,7 +583,7 @@ class ProcessScene:
                             nwo_scene,
                             export_render,
                         )
-                    if  nwo_scene.lighting:
+                    if nwo_scene.lighting:
                         self.export_model(
                             context,
                             asset_path,
@@ -675,7 +688,7 @@ class ProcessScene:
                         nwo_scene,
                         self.sidecar_paths,
                         self.sidecar_paths_design,
-                        'MODEL SCENARIO',
+                        "MODEL SCENARIO",
                         False,
                         False,
                         False,
@@ -691,20 +704,20 @@ class ProcessScene:
                         False,
                     )
 
-
                 reports.append(sidecar_result.message)
                 print("\n\nBuilding Intermediary Files")
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
 
-
                 total_p = self.gr2_processes
 
                 job = "Running GR2 Conversion"
-                spinner = itertools.cycle(['|', '/', '—', '\\'])
+                spinner = itertools.cycle(["|", "/", "—", "\\"])
                 while self.running_check:
-                    update_job_count(job, next(spinner), total_p - self.running_check, total_p)
+                    update_job_count(
+                        job, next(spinner), total_p - self.running_check, total_p
+                    )
                     time.sleep(0.1)
 
                 update_job_count(job, "", total_p, total_p)
@@ -722,9 +735,7 @@ class ProcessScene:
                             print(f"Retrying export...")
                             fbx_file = data_path + path_set[0]
                             json_file = data_path + path_set[1]
-                            self.export_gr2_sync(
-                                fbx_file, json_file, gr2_file
-                            )
+                            self.export_gr2_sync(fbx_file, json_file, gr2_file)
                             if (
                                 os.path.exists(gr2_file)
                                 and os.stat(gr2_file).st_size > 0
@@ -734,9 +745,7 @@ class ProcessScene:
                                 print_warning(
                                     "Failed to build GR2 File on Second Attempt. Round 3..."
                                 )
-                                self.export_gr2_sync(
-                                    fbx_file, json_file, gr2_file
-                                )
+                                self.export_gr2_sync(fbx_file, json_file, gr2_file)
                                 time.sleep(2)
                                 if (
                                     os.path.exists(gr2_file)
@@ -755,28 +764,26 @@ class ProcessScene:
             from .export_tag import import_sidecar
 
             if export_gr2_files and os.path.exists(sidecar_path_full):
-                export_failed, error = (
-                    import_sidecar(
-                        sidecar_type,
-                        sidecar_path,
-                        asset_path,
-                        asset,
-                        import_check,
-                        import_force,
-                        import_verbose,
-                        import_draft,
-                        import_seam_debug,
-                        import_skip_instances,
-                        import_decompose_instances,
-                        import_surpress_errors,
-                        import_lighting,
-                        import_meta_only,
-                        import_disable_hulls,
-                        import_disable_collision,
-                        import_no_pca,
-                        import_force_animations,
-                        bool(nwo_scene.lighting),
-                    )
+                export_failed, error = import_sidecar(
+                    sidecar_type,
+                    sidecar_path,
+                    asset_path,
+                    asset,
+                    import_check,
+                    import_force,
+                    import_verbose,
+                    import_draft,
+                    import_seam_debug,
+                    import_skip_instances,
+                    import_decompose_instances,
+                    import_surpress_errors,
+                    import_lighting,
+                    import_meta_only,
+                    import_disable_hulls,
+                    import_disable_collision,
+                    import_no_pca,
+                    import_force_animations,
+                    bool(nwo_scene.lighting),
                 )
                 if export_failed:
                     self.sidecar_import_failed = True
@@ -785,14 +792,15 @@ class ProcessScene:
                 else:
                     reports.append("Tag Export Complete")
             else:
-                reports.append(
-                    "Skipped tag export, asset sidecar does not exist"
-                )
+                reports.append("Skipped tag export, asset sidecar does not exist")
 
-            h4 = game_version != 'reach'
-            should_lightmap = lightmap_structure and (sidecar_type == 'SCENARIO' or (h4 and sidecar_type in ('MODEL', 'SKY')))
+            h4 = game_version != "reach"
+            should_lightmap = lightmap_structure and (
+                sidecar_type == "SCENARIO" or (h4 and sidecar_type in ("MODEL", "SKY"))
+            )
             if should_lightmap:
                 from .run_lightmapper import run_lightmapper
+
                 reports.append(
                     run_lightmapper(
                         h4,
@@ -803,7 +811,7 @@ class ProcessScene:
                         lightmap_all_bsps,
                         lightmap_specific_bsp,
                         lightmap_region,
-                        sidecar_type in ('MODEL', 'SKY') and h4,
+                        sidecar_type in ("MODEL", "SKY") and h4,
                     )
                 )
 
@@ -881,10 +889,12 @@ class ProcessScene:
 
             if export_check:
                 override = context.copy()
-                area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
-                override['area'] = area
-                override['region'] = area.regions[-1]
-                override['space_data'] = area.spaces.active
+                area = [
+                    area for area in context.screen.areas if area.type == "VIEW_3D"
+                ][0]
+                override["area"] = area
+                override["region"] = area.regions[-1]
+                override["space_data"] = area.spaces.active
                 override["selected_objects"] = export_obs
 
                 with context.temp_override(**override):
@@ -901,12 +911,9 @@ class ProcessScene:
                         else:
                             return f"Failed to export {perm} {type} model JSON: {json_path}"
                     else:
-                        return (
-                            f"Failed to export {perm} {type} model FBX: {fbx_path}"
-                        )
-                    
-                    update_job(job, 1)
+                        return f"Failed to export {perm} {type} model FBX: {fbx_path}"
 
+                    update_job(job, 1)
 
             if type in self.sidecar_paths.keys():
                 self.sidecar_paths[type].append(
@@ -958,10 +965,9 @@ class ProcessScene:
                 export_obs = [
                     ob
                     for ob in objects
-                    if ob.nwo.permutation_name == perm
-                    and (ob.nwo.bsp_name == bsp)
+                    if ob.nwo.permutation_name == perm and (ob.nwo.bsp_name == bsp)
                 ]
-                
+
                 if not export_obs:
                     continue
 
@@ -970,10 +976,12 @@ class ProcessScene:
                 )
                 if export_check and export_obs:
                     override = context.copy()
-                    area = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
-                    override['area'] = area
-                    override['region'] = area.regions[-1]
-                    override['space_data'] = area.spaces.active
+                    area = [
+                        area for area in context.screen.areas if area.type == "VIEW_3D"
+                    ][0]
+                    override["area"] = area
+                    override["region"] = area.regions[-1]
+                    override["space_data"] = area.spaces.active
                     override["selected_objects"] = export_obs
 
                     with context.temp_override(**override):
@@ -999,12 +1007,13 @@ class ProcessScene:
                             else:
                                 return f"Failed to export {perm} {type} model JSON: {json_path}"
                         else:
-                            return f"Failed to export {perm} {type} model FBX: {fbx_path}"
-                        
+                            return (
+                                f"Failed to export {perm} {type} model FBX: {fbx_path}"
+                            )
+
                         update_job(job, 1)
 
                 if type == "design":
-
                     if bsp in self.sidecar_paths_design.keys():
                         self.sidecar_paths[bsp].append(
                             [
@@ -1043,14 +1052,14 @@ class ProcessScene:
                             ]
                         ]
 
-    def get_path(
-        self, asset_path, asset_name, tag_type, perm="", bsp="", animation=""
-    ):
+    def get_path(self, asset_path, asset_name, tag_type, perm="", bsp="", animation=""):
         """Gets an appropriate new path for the exported fbx file"""
         if bsp:
             if tag_type == "design":
                 if perm == "default":
-                    path = f'{os.path.join(asset_path, "models", asset_name)}_{bsp}_design'
+                    path = (
+                        f'{os.path.join(asset_path, "models", asset_name)}_{bsp}_design'
+                    )
                     path_gr2 = f'{os.path.join(asset_path, "export", "models", asset_name)}_{bsp}_design'
                 else:
                     path = f'{os.path.join(asset_path, "models", asset_name)}_{bsp}_{perm}_design'
@@ -1060,13 +1069,13 @@ class ProcessScene:
                     path = f'{os.path.join(asset_path, "models", asset_name)}_{bsp}'
                     path_gr2 = f'{os.path.join(asset_path, "export", "models", asset_name)}_{bsp}'
                 else:
-                    path = f'{os.path.join(asset_path, "models", asset_name)}_{bsp}_{perm}'
+                    path = (
+                        f'{os.path.join(asset_path, "models", asset_name)}_{bsp}_{perm}'
+                    )
                     path_gr2 = f'{os.path.join(asset_path, "export", "models", asset_name)}_{bsp}_{perm}'
         else:
             if tag_type == "animations":
-                path = os.path.join(
-                    asset_path, "animations", animation
-                )
+                path = os.path.join(asset_path, "animations", animation)
                 path_gr2 = os.path.join(
                     asset_path,
                     "export",
@@ -1085,7 +1094,9 @@ class ProcessScene:
                 "decorator",
             ):
                 if perm == "default" or tag_type in ("markers", "skeleton", "lighting"):
-                    path = f'{os.path.join(asset_path, "models", asset_name)}_{tag_type}'
+                    path = (
+                        f'{os.path.join(asset_path, "models", asset_name)}_{tag_type}'
+                    )
                     path_gr2 = f'{os.path.join(asset_path, "export", "models", asset_name)}_{tag_type}'
                 else:
                     path = f'{os.path.join(asset_path, "models", asset_name)}_{perm}_{tag_type}'
@@ -1093,15 +1104,13 @@ class ProcessScene:
 
             else:
                 path = os.path.join(asset_path, "models", asset_name)
-                path_gr2 = os.path.join(
-                    asset_path, "export", "models", asset_name
-                )
+                path_gr2 = os.path.join(asset_path, "export", "models", asset_name)
 
         return f"{path}.fbx", f"{path}.json", f"{path_gr2}.gr2"
 
     def remove_all_but_armature(self, nwo_scene):
         self.skeleton_only = True
-        bpy.ops.object.select_all(action='SELECT')
+        bpy.ops.object.select_all(action="SELECT")
         nwo_scene.model_armature.select_set(False)
         bpy.ops.object.delete()
 
@@ -1109,7 +1118,9 @@ class ProcessScene:
     #####################################################################################
     # ANIMATION EVENTS
 
-    def create_event_nodes(self, context, events, model_armature, frame_start, frame_end):
+    def create_event_nodes(
+        self, context, events, model_armature, frame_start, frame_end
+    ):
         animation_events = [model_armature]
         scene_coll = context.scene.collection.objects
         for event in events:
@@ -1166,7 +1177,6 @@ class ProcessScene:
                     animation_events.append(event_ob_copy)
 
         return animation_events
-        
 
     #####################################################################################
     #####################################################################################
@@ -1191,7 +1201,7 @@ class ProcessScene:
                 use_triangulate=False,
                 use_optimize_for_game_engine=False,
                 use_ignore_armature_node=False,
-                my_edge_smoothing='FBXSDK',
+                my_edge_smoothing="FBXSDK",
                 my_material_style="Blender",
             )
         else:
@@ -1202,7 +1212,7 @@ class ProcessScene:
                 use_visible=True,
                 apply_scale_options="FBX_SCALE_UNITS",
                 use_mesh_modifiers=True,
-                mesh_smooth_type='OFF',
+                mesh_smooth_type="OFF",
                 use_triangles=False,
                 add_leaf_bones=False,
                 use_armature_deform_only=True,
@@ -1222,9 +1232,7 @@ class ProcessScene:
     #####################################################################################
     # JSON
 
-    def export_json(
-        self, json_path, export_obs, sidecar_type, asset_name, nwo_scene
-    ):
+    def export_json(self, json_path, export_obs, sidecar_type, asset_name, nwo_scene):
         """Exports a json file by passing the currently selected objects to the NWOJSON class, and then writing the resulting dictionary to a .json file"""
         json_props = NWOJSON(
             export_obs,
@@ -1245,8 +1253,17 @@ class ProcessScene:
     #####################################################################################
     # GR2
 
-    def export_gr2_sync(self,  fbx_path, json_path, gr2_path):
-        run_tool(["fbx-to-gr2", data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path)], False, True)
+    def export_gr2_sync(self, fbx_path, json_path, gr2_path):
+        run_tool(
+            [
+                "fbx-to-gr2",
+                data_relative(fbx_path),
+                data_relative(json_path),
+                data_relative(gr2_path),
+            ],
+            False,
+            True,
+        )
 
     def export_gr2(self, fbx_path, json_path, gr2_path):
         # clear existing gr2, so we can test if export failed
@@ -1260,10 +1277,18 @@ class ProcessScene:
         thread.start()
         self.first_gr2 = False
 
-
     def gr2(self, fbx_path, json_path, gr2_path):
-        self.running_check +=1
+        self.running_check += 1
         self.gr2_processes += 1
         time.sleep(self.running_check / 10)
-        run_tool(["fbx-to-gr2", data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path)], False, True)
+        run_tool(
+            [
+                "fbx-to-gr2",
+                data_relative(fbx_path),
+                data_relative(json_path),
+                data_relative(gr2_path),
+            ],
+            False,
+            True,
+        )
         self.running_check -= 1

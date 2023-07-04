@@ -85,9 +85,7 @@ class LightMapper:
         self.asset_name = asset
         self.model_lightmap = model_lightmap
         self.scenario = os.path.join(get_asset_path(), self.asset_name)
-        self.bsp = self.bsp_to_lightmap(
-            lightmap_all_bsps, lightmap_specific_bsp
-        )
+        self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
         self.quality = self.get_quality(
             lightmap_quality,
             lightmap_quality_h4,
@@ -98,14 +96,8 @@ class LightMapper:
         )
 
     # HELPERS --------------------------
-    def get_light_group(
-        self, lightmap_region, misc_halo_objects, not_bungie_game
-    ):
-        if (
-            not not_bungie_game
-            and lightmap_region != ""
-            and lightmap_region != "all"
-        ):
+    def get_light_group(self, lightmap_region, misc_halo_objects, not_bungie_game):
+        if not not_bungie_game and lightmap_region != "" and lightmap_region != "all":
             for ob in misc_halo_objects:
                 if ob.name == lightmap_region:
                     return lightmap_region
@@ -131,7 +123,7 @@ class LightMapper:
     ):
         if not_bungie_game:
             return lightmap_quality_h4
-        
+
         match lightmap_quality:
             case "DIRECT":
                 return "direct_only"
@@ -152,9 +144,7 @@ class LightMapper:
         print(datetime.datetime.now() - self.start_time)
 
     def threads(self, stage, thread_index):
-        log_filename = os.path.join(
-            self.blob_dir, "logs", stage, f"{thread_index}.txt"
-        )
+        log_filename = os.path.join(self.blob_dir, "logs", stage, f"{thread_index}.txt")
         log_dir = os.path.dirname(log_filename)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
@@ -273,19 +263,22 @@ class LightMapper:
     def lightmap_h4(self):
         self.force_reatlas = "false"
         self.suppress_dialog = (
-            "false"
-            if self.quality == "asset" or self.quality == ""
-            else "true"
+            "false" if self.quality == "asset" or self.quality == "" else "true"
         )
-        self.settings = os.path.join(
-            "globals", "lightmapper_settings", self.quality
-        )
+        self.settings = os.path.join("globals", "lightmapper_settings", self.quality)
         print("\n\nRunning Lightmapper")
         print(
             "-------------------------------------------------------------------------\n"
         )
         if self.model_lightmap:
-            run_tool(["faux_lightmap_model", self.scenario, self.suppress_dialog, self.force_reatlas])
+            run_tool(
+                [
+                    "faux_lightmap_model",
+                    self.scenario,
+                    self.suppress_dialog,
+                    self.force_reatlas,
+                ]
+            )
 
         elif self.suppress_dialog == "false":
             run_tool(

@@ -174,6 +174,7 @@ def halo_material(mat_name):
 
     return new_material
 
+
 def apply_props_material(ob, mat_name):
     if mat_name != "":
         ob.data.materials.clear()

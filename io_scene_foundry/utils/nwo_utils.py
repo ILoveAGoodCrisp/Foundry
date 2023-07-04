@@ -102,7 +102,9 @@ boundary_surface_prefixes = (
     "+slip_surface",
 )  # boundary surface prefixes can take a name with +prefix:name e.g. +soft_ceiling:camera_ceiling_01
 cookie_cutter_prefixes = "+cookie"
-decorator_prefixes = "+decorator"  # decorators can take a name with +decorator:name (not implemented)
+decorator_prefixes = (
+    "+decorator"  # decorators can take a name with +decorator:name (not implemented)
+)
 fog_volume_prefixes = (
     "+fog"  # fog volumes can take a name with +fog:name (not implemented)
 )
@@ -577,9 +579,9 @@ def select_model_objects(
         arm.select_set(True)
     for ob in halo_objects:
         halo = ob.nwo
-        if object_valid(
-            ob, export_hidden, perm, halo.permutation_name
-        ) and export_perm(perm, export_all_perms, selected_perms):
+        if object_valid(ob, export_hidden, perm, halo.permutation_name) and export_perm(
+            perm, export_all_perms, selected_perms
+        ):
             ob.select_set(True)
             boolean = True
 
@@ -678,17 +680,13 @@ def get_asset_info(filepath):
 
 def get_asset_path():
     """Returns the path to the asset folder."""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(
-        os.sep
-    )[0]
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
     return asset_path
 
 
 def get_asset_path_full(tags=False):
     """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(
-        os.sep
-    )[0]
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
     if tags:
         return get_tags_path() + asset_path
     else:
@@ -887,8 +885,7 @@ def print_box(text, line_char="-", char_count=100):
     if side_char_count > 1:
         side_fix = (
             1
-            if (char_count - len(text) - 2) // 2
-            != (char_count - len(text) - 2) / 2
+            if (char_count - len(text) - 2) // 2 != (char_count - len(text) - 2) / 2
             else 0
         )
     print(line_char * char_count)
@@ -963,9 +960,7 @@ class CheckType:
 
     @staticmethod
     def object_instance(ob):
-        return mesh_type(
-            ob, ("_connected_geometry_mesh_type_object_instance",)
-        )
+        return mesh_type(ob, ("_connected_geometry_mesh_type_object_instance",))
 
     @staticmethod
     def poop_collision_physics(ob):
@@ -1005,27 +1000,19 @@ class CheckType:
 
     @staticmethod
     def lightmap_region(ob):
-        return mesh_type(
-            ob, ("_connected_geometry_mesh_type_lightmap_region",)
-        )
+        return mesh_type(ob, ("_connected_geometry_mesh_type_lightmap_region",))
 
     @staticmethod
     def fog(ob):
-        return mesh_type(
-            ob, ("_connected_geometry_mesh_type_planar_fog_volume",)
-        )
+        return mesh_type(ob, ("_connected_geometry_mesh_type_planar_fog_volume",))
 
     @staticmethod
     def boundary_surface(ob):
-        return mesh_type(
-            ob, ("_connected_geometry_mesh_type_boundary_surface",)
-        )
+        return mesh_type(ob, ("_connected_geometry_mesh_type_boundary_surface",))
 
     @staticmethod
     def water_physics(ob):
-        return mesh_type(
-            ob, ("_connected_geometry_mesh_type_water_physics_volume",)
-        )
+        return mesh_type(ob, ("_connected_geometry_mesh_type_water_physics_volume",))
 
     @staticmethod
     def poop_rain_blocker(ob):
@@ -1087,9 +1074,7 @@ class CheckType:
 
     @staticmethod
     def game_instance(ob):
-        return marker_type(
-            ob, ("_connected_geometry_marker_type_game_instance",)
-        )
+        return marker_type(ob, ("_connected_geometry_marker_type_game_instance",))
 
     @staticmethod
     def garbage(ob):
@@ -1101,15 +1086,11 @@ class CheckType:
 
     @staticmethod
     def pathfinding_sphere(ob):
-        return marker_type(
-            ob, ("_connected_geometry_marker_type_pathfinding_sphere",)
-        )
+        return marker_type(ob, ("_connected_geometry_marker_type_pathfinding_sphere",))
 
     @staticmethod
     def physics_constraint(ob):
-        return marker_type(
-            ob, ("_connected_geometry_marker_type_physics_constraint",)
-        )
+        return marker_type(ob, ("_connected_geometry_marker_type_physics_constraint",))
 
     @staticmethod
     def target(ob):
@@ -1117,9 +1098,7 @@ class CheckType:
 
     @staticmethod
     def water_volume_flow(ob):
-        return marker_type(
-            ob, ("_connected_geometry_marker_type_water_volume_flow",)
-        )
+        return marker_type(ob, ("_connected_geometry_marker_type_water_volume_flow",))
 
     @staticmethod
     def airprobe(ob):  # H4+ ONLY
@@ -1166,44 +1145,44 @@ class CheckType:
 def run_tool(tool_args: list, in_background=False, null_output=False):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     os.chdir(get_ek_path())
-    command = (
-        f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    )
+    command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     if in_background:
         if null_output:
             return Popen(command, stdout=DEVNULL, stderr=DEVNULL)
         else:
-            return Popen(command)#,stderr=PIPE)
+            return Popen(command)  # ,stderr=PIPE)
     else:
         try:
             if null_output:
                 return check_call(command, stdout=DEVNULL, stderr=DEVNULL)
             else:
-                return check_call(command)#,stderr=PIPE)
-            
+                return check_call(command)  # ,stderr=PIPE)
+
         except Exception as e:
             return e
-        
+
+
 def run_tool_sidecar(tool_args: list, asset_path):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
     os.chdir(get_ek_path())
-    command = (
-        f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    )
+    command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     error = ""
     p = Popen(command, stderr=PIPE)
-    error_log = os.path.join(asset_path, 'error.log')
-    with open(error_log, 'w') as f:
+    error_log = os.path.join(asset_path, "error.log")
+    with open(error_log, "w") as f:
         # Read and print stderr contents while writing to the file
         for line in p.stderr:
-            line = line.decode().rstrip('\n')
+            line = line.decode().rstrip("\n")
             if failed or is_error_line(line):
                 print_error(line)
                 failed = True
-            elif "(skipping tangent-space calculations)" or "if it is a decorator," in line:
+            elif (
+                "(skipping tangent-space calculations)"
+                or "if it is a decorator," in line
+            ):
                 # this really shouldn't be a warning, so don't print/write it
                 continue
             else:
@@ -1221,8 +1200,9 @@ def run_tool_sidecar(tool_args: list, asset_path):
 
     return failed, error
 
+
 def get_export_error_explanation(error_log):
-    with open(error_log, 'r') as f:
+    with open(error_log, "r") as f:
         lines = f.readlines()
         for text in lines:
             if "point->node_indices[0]==section->node_index" in text:
@@ -1230,16 +1210,22 @@ def get_export_error_explanation(error_log):
             elif "non-world space mesh has no valid bones" in text:
                 ob = text.rpartition("mesh=")[2].strip()
                 return f'Object "{ob}" is parented to the armature but has no bone weighting. You should either bone parent this object, or ensure each vertex is correctly weighted to a bone and that an armature modifier is active for "{ob}" and linked to the armature. See object modifiers and vertex groups / weight paint mode to debug'
-        
+
     return ""
+
 
 def is_error_line(line):
     words = line.split()
     if words:
         first_word = words[0]
         second_word = words[1]
-        return first_word.isupper() or first_word == "content:" or first_word == "###" or (first_word == "non-world" and second_word == "space")
-    
+        return (
+            first_word.isupper()
+            or first_word == "content:"
+            or first_word == "###"
+            or (first_word == "non-world" and second_word == "space")
+        )
+
     return False
 
 
@@ -1274,9 +1260,7 @@ def comma_partition(target_string):
     return shortest_string(target_string.rpartition(",")[0], target_string)
 
 
-def write_error_report(
-    asset_path, report_text, file_1=None, file_2=None, file_3=None
-):
+def write_error_report(asset_path, report_text, file_1=None, file_2=None, file_3=None):
     errors_folder = os.path.join(asset_path, "errors")
 
     if not file_exists(errors_folder):
@@ -1354,11 +1338,7 @@ def get_design_from_halo_objects(halo_objects, include_frames=True):
 
 def get_render_from_halo_objects(halo_objects):
     """Gets render objects when passed a HaloObjects instance"""
-    return (
-        halo_objects.default
-        + halo_objects.object_instances
-        + halo_objects.lights
-    )
+    return halo_objects.default + halo_objects.object_instances + halo_objects.lights
 
 
 def select_all_lights(halo_objects):
@@ -1482,9 +1462,7 @@ def check_path(filePath):
 def valid_nwo_asset(context):
     """Returns true if this blender scene is a valid NWO asset i.e. has an existing sidecar file. bpy.context must be supplied"""
     return context.scene.nwo_halo_launcher.sidecar_path != "" and file_exists(
-        os.path.join(
-            get_data_path(), context.scene.nwo_halo_launcher.sidecar_path
-        )
+        os.path.join(get_data_path(), context.scene.nwo_halo_launcher.sidecar_path)
     )
 
 
@@ -1514,12 +1492,14 @@ def get_collection_parents(current_coll, all_collections):
 
     return coll_list
 
+
 def get_coll_prefix(coll, prefixes):
     for prefix in prefixes:
         if coll.startswith(prefix):
             return prefix
-        
+
     return False
+
 
 def get_prop_from_collection(ob, prefixes):
     prop = ""
@@ -1533,9 +1513,7 @@ def get_prop_from_collection(ob, prefixes):
                 break
         # get collection parent tree
         if collection != None:
-            collection_list = get_collection_parents(
-                collection, all_collections
-            )
+            collection_list = get_collection_parents(collection, all_collections)
 
             # test object collection parent tree
             for c in collection_list:
@@ -1555,31 +1533,30 @@ def get_prop_from_collection(ob, prefixes):
 def is_shader(mat):
     halo_mat = mat.nwo
     shader_path_not_empty = True if halo_mat.shader_path != "" else False
-    no_material_override = (
-        True if halo_mat.material_override == "NONE" else False
-    )
+    no_material_override = True if halo_mat.material_override == "NONE" else False
     no_special_material_name = (
         True if not mat.name.lower().startswith(special_materials) else False
     )
 
-    return (
-        shader_path_not_empty
-        and no_material_override
-        and no_special_material_name
-    )
+    return shader_path_not_empty and no_material_override and no_special_material_name
+
 
 def print_warning(string="Warning"):
     print("\033[93m" + string + "\033[0m")
 
+
 def print_error(string="Error"):
     print("\033[91m" + string + "\033[0m")
+
 
 def managed_blam_active():
     return os.path.exists(os.path.join(bpy.app.tempdir, "blam.txt"))
 
+
 def get_valid_shader_name(string):
     shader_name = get_valid_material_name(string)
     return cull_invalid_chars(shader_name)
+
 
 def get_valid_material_name(material_name):
     """Removes characters from a blender material name that would have been used in legacy material properties"""
@@ -1660,12 +1637,17 @@ def export_objects():
 
     return export_obs
 
+
 def export_objects_no_arm():
     context = bpy.context
     export_obs = []
     for ob in context.view_layer.objects:
-        if ob.nwo.export_this and ob.type != 'ARMATURE' and not any(
-            coll.name.startswith("+exclude") for coll in ob.users_collection
+        if (
+            ob.nwo.export_this
+            and ob.type != "ARMATURE"
+            and not any(
+                coll.name.startswith("+exclude") for coll in ob.users_collection
+            )
         ):
             export_obs.append(ob)
 
@@ -1691,16 +1673,14 @@ def closest_bsp_object(ob):
         verts_sel = [v.co for v in me.vertices if v.select]
         if verts_sel:
             seam_median = (
-                source_object.matrix_world
-                @ sum(verts_sel, Vector())
-                / len(verts_sel)
+                source_object.matrix_world @ sum(verts_sel, Vector()) / len(verts_sel)
             )
 
             me = target_object.data
             verts = [v.co for v in me.vertices]
             if not verts:
                 return
-            
+
             target_median = (
                 target_object.matrix_world @ sum(verts, Vector()) / len(verts)
             )
@@ -1708,20 +1688,17 @@ def closest_bsp_object(ob):
             [x1, y1, z1] = seam_median
             [x2, y2, z2] = target_median
 
-            return (
-                ((x2 - x1) ** 2) + ((y2 - y1) ** 2) + ((z2 - z1) ** 2)
-            ) ** (1 / 2)
+            return (((x2 - x1) ** 2) + ((y2 - y1) ** 2) + ((z2 - z1) ** 2)) ** (1 / 2)
 
         return
-    
-    valid_targets = [ob for ob in export_objects() if ob.type == 'MESH']
+
+    valid_targets = [ob for ob in export_objects() if ob.type == "MESH"]
 
     for target_ob in valid_targets:
         if (
             ob == target_ob
             or not target_ob.type == "MESH"
-            and target_ob.nwo.mesh_type
-            == "_connected_geometry_mesh_type_default"
+            and target_ob.nwo.mesh_type == "_connected_geometry_mesh_type_default"
             and target_ob.nwo.bsp_name != ob.nwo.bsp_name
         ):
             continue
@@ -1761,9 +1738,7 @@ def random_color(max_hue=True):
     return rgb
 
 
-def nwo_enum(
-    enum_name, display_name, description, icon="", index=-1, custom_icon=True
-):
+def nwo_enum(enum_name, display_name, description, icon="", index=-1, custom_icon=True):
     full_enum = icon != "" or index != -1
     if full_enum:
         if custom_icon:
@@ -1833,6 +1808,7 @@ def update_job(job_title, progress):
     sys.stdout.write(msg)
     sys.stdout.flush()
 
+
 def update_job_count(message, spinner, completed, total):
     msg = "\r{0}".format(message)
     msg += f" ({completed} / {total}) "
@@ -1844,17 +1820,18 @@ def update_job_count(message, spinner, completed, total):
     sys.stdout.write(msg)
     sys.stdout.flush()
 
+
 def poll_ui(selected_types):
     scene_nwo = bpy.context.scene.nwo
     asset_type = scene_nwo.asset_type
 
     return asset_type in selected_types
 
+
 def is_halo_object(ob):
     return (
         ob
-        and ob.type
-        not in ("LATTICE", "LIGHT_PROBE", "SPEAKER", "CAMERA")
+        and ob.type not in ("LATTICE", "LIGHT_PROBE", "SPEAKER", "CAMERA")
         and not (ob.type == "EMPTY" and ob.empty_display_type == "IMAGE")
         and poll_ui(
             (
@@ -1867,6 +1844,7 @@ def is_halo_object(ob):
             )
         )
     )
+
 
 def has_mesh_props(ob):
     valid_mesh_types = (
@@ -1884,6 +1862,7 @@ def has_mesh_props(ob):
         and nwo.mesh_type_ui in valid_mesh_types
     )
 
+
 def has_face_props(ob):
     valid_mesh_types = (
         "_connected_geometry_mesh_type_collision",
@@ -1898,6 +1877,7 @@ def has_face_props(ob):
         and ob.nwo.object_type_ui == "_connected_geometry_object_type_mesh"
         and ob.nwo.mesh_type_ui in valid_mesh_types
     )
+
 
 def get_halo_material_count():
     count = 0

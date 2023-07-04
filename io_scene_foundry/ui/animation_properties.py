@@ -45,9 +45,7 @@ class NWO_UL_AnimProps_Events(UIList):
     ):
         animation = item
         if animation:
-            layout.prop(
-                animation, "name", text="", emboss=False, icon_value=495
-            )
+            layout.prop(animation, "name", text="", emboss=False, icon_value=495)
         else:
             layout.label(text="", translate=False, icon_value=icon)
 
@@ -65,12 +63,15 @@ class NWO_UL_AnimProps_Events(UIList):
 # ANIMATION RENAMES
 #############################################################
 
+
 class NWO_AnimationRenamesItems(PropertyGroup):
-    rename_name : StringProperty(name="Name")
+    rename_name: StringProperty(name="Name")
+
 
 #############################################################
 # ANIMATION EVENTS
 #############################################################
+
 
 class NWO_List_Add_Animation_Event(Operator):
     """Add an Item to the UIList"""
@@ -122,8 +123,7 @@ class NWO_List_Remove_Animation_Event(Operator):
             and context.object.type == "ARMATURE"
             and context.object.animation_data
             and context.object.animation_data.action
-            and len(context.object.animation_data.action.nwo.animation_events)
-            > 0
+            and len(context.object.animation_data.action.nwo.animation_events) > 0
         )
 
     def execute(self, context):
@@ -516,80 +516,79 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
     )
 
     # NOT VISIBLE TO USER, USED FOR ANIMATION RENAMES
-    state_type : EnumProperty(
+    state_type: EnumProperty(
         name="State Type",
         items=[
             ("action", "Action / Overlay", ""),
             ("transition", "Transition", ""),
             ("damage", "Death & Damage", ""),
             ("custom", "Custom", ""),
-        ]
+        ],
     )
 
-    mode : StringProperty(
+    mode: StringProperty(
         name="Mode",
         description="""The mode the object must be in to use this animation. Use 'any' for all modes. Other valid
         inputs inlcude but are not limited to: 'crouch' when a unit is crouching, 
         'combat' when a unit is in combat. Modes can also refer
         to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more
-        information refer to existing model_animation_graph tags. Can be empty"""
-        )
-    
-    weapon_class : StringProperty(
+        information refer to existing model_animation_graph tags. Can be empty""",
+    )
+
+    weapon_class: StringProperty(
         name="Weapon Class",
         description="""The weapon class this unit must be holding to use this animation. Weapon class is defined
-        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
-        )
-    weapon_type : StringProperty(
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
+    )
+    weapon_type: StringProperty(
         name="Weapon Name",
         description="""The weapon type this unit must be holding to use this animation.  Weapon name is defined
-        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
-        )
-    set : StringProperty(
-        name="Set",
-        description="The set this animtion is a part of. Can be empty"
-        )
-    state : StringProperty(
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
+    )
+    set: StringProperty(
+        name="Set", description="The set this animtion is a part of. Can be empty"
+    )
+    state: StringProperty(
         name="State",
         description="""The state this animation plays in. States can refer to hardcoded properties or be entirely
         custom. You should refer to existing model_animation_graph tags for more information. Examples include: 'idle' for 
         animations that should play when the object is inactive, 'move-left', 'move-front' for moving. 'put-away' for
-        an animation that should play when putting away a weapon. Must not be empty"""
-        )
+        an animation that should play when putting away a weapon. Must not be empty""",
+    )
 
-    destination_mode : StringProperty(
+    destination_mode: StringProperty(
         name="Destination Mode",
-        description="The mode to put this object in when it finishes this animation. Can be empty"
+        description="The mode to put this object in when it finishes this animation. Can be empty",
     )
-    destination_state : StringProperty(
+    destination_state: StringProperty(
         name="Destination State",
-        description="The state to put this object in when it finishes this animation. Must not be empty"
+        description="The state to put this object in when it finishes this animation. Must not be empty",
     )
 
-    damage_power : EnumProperty(
+    damage_power: EnumProperty(
         name="Power",
         items=[
             ("hard", "Hard", ""),
             ("soft", "Soft", ""),
-        ]
+        ],
     )
-    damage_type : EnumProperty(
+    damage_type: EnumProperty(
         name="Type",
         items=[
             ("ping", "Ping", ""),
             ("kill", "Kill", ""),
-        ]
+        ],
     )
-    damage_direction : EnumProperty(
+    damage_direction: EnumProperty(
         name="Direction",
         items=[
             ("front", "Front", ""),
             ("left", "Left", ""),
             ("right", "Right", ""),
             ("back", "Back", ""),
-        ]
+        ],
     )
-    damage_region : EnumProperty(
+    damage_region: EnumProperty(
         name="Region",
         items=[
             ("gut", "Gut", ""),
@@ -603,14 +602,18 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
             ("righthand", "Right Hand", ""),
             ("rightleg", "Right Leg", ""),
             ("rightfoot", "Right Foot", ""),
-        ]
+        ],
     )
 
-    variant : IntProperty(min=0, soft_max=3, name="Variant", 
-            description="""The variation of this animation. Variations can have different weightings
+    variant: IntProperty(
+        min=0,
+        soft_max=3,
+        name="Variant",
+        description="""The variation of this animation. Variations can have different weightings
             to determine whether they play. 0 = no variation
-                                    """)
+                                    """,
+    )
 
-    custom : StringProperty(name="Custom")
+    custom: StringProperty(name="Custom")
 
-    created_with_foundry : BoolProperty()
+    created_with_foundry: BoolProperty()

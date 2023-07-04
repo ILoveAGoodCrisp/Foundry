@@ -139,9 +139,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
     def get_temp_settings(self):
         scene = bpy.context.scene
-        temp_file_path = os.path.join(
-            bpy.app.tempdir, "nwo_scene_settings.txt"
-        )
+        temp_file_path = os.path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
         if os.path.exists(temp_file_path):
             with open(temp_file_path, "r") as temp_file:
                 settings = temp_file.readlines()
@@ -152,38 +150,18 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             scene.nwo.asset_type = settings[2]
             scene.nwo.output_biped = True if settings[3] == "True" else False
             scene.nwo.output_crate = True if settings[4] == "True" else False
-            scene.nwo.output_creature = (
-                True if settings[5] == "True" else False
-            )
-            scene.nwo.output_device_control = (
-                True if settings[6] == "True" else False
-            )
-            scene.nwo.output_device_dispenser = (
-                True if settings[7] == "True" else False
-            )
-            scene.nwo.output_device_machine = (
-                True if settings[8] == "True" else False
-            )
-            scene.nwo.output_device_terminal = (
-                True if settings[9] == "True" else False
-            )
-            scene.nwo.output_effect_scenery = (
-                True if settings[10] == "True" else False
-            )
-            scene.nwo.output_equipment = (
-                True if settings[11] == "True" else False
-            )
+            scene.nwo.output_creature = True if settings[5] == "True" else False
+            scene.nwo.output_device_control = True if settings[6] == "True" else False
+            scene.nwo.output_device_dispenser = True if settings[7] == "True" else False
+            scene.nwo.output_device_machine = True if settings[8] == "True" else False
+            scene.nwo.output_device_terminal = True if settings[9] == "True" else False
+            scene.nwo.output_effect_scenery = True if settings[10] == "True" else False
+            scene.nwo.output_equipment = True if settings[11] == "True" else False
             scene.nwo.output_giant = True if settings[12] == "True" else False
-            scene.nwo.output_scenery = (
-                True if settings[13] == "True" else False
-            )
-            scene.nwo.output_vehicle = (
-                True if settings[14] == "True" else False
-            )
+            scene.nwo.output_scenery = True if settings[13] == "True" else False
+            scene.nwo.output_vehicle = True if settings[14] == "True" else False
             scene.nwo.output_weapon = True if settings[15] == "True" else False
-            scene.nwo_export.show_output = (
-                True if settings[16] == "True" else False
-            )
+            scene.nwo_export.show_output = True if settings[16] == "True" else False
 
             os.remove(temp_file_path)
 
@@ -340,19 +318,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
             if ob_nwo.mesh_type_ui == "":
                 if self.asset_type == "DECORATOR SET":
-                    ob_nwo.mesh_type_ui = (
-                        "_connected_geometry_mesh_type_decorator"
-                    )
+                    ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_decorator"
                 elif self.asset_type == "SCENARIO":
-                    ob_nwo.mesh_type_ui = (
-                        "_connected_geometry_mesh_type_structure"
-                    )
+                    ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_structure"
                 elif self.asset_type == "PREFAB":
                     ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_poop"
                 else:
-                    ob_nwo.mesh_type_ui = (
-                        "_connected_geometry_mesh_type_render"
-                    )
+                    ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_render"
 
     def asset_type_items(self, context):
         items = []

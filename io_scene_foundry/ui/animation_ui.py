@@ -72,6 +72,7 @@ class NWO_ActionProps(NWO_PropPanel):
             col.prop(action_nwo, "name_override")
             col.prop(action_nwo, "animation_type")
 
+
 class NWO_DeleteAnimation(NWO_Op):
     bl_label = "Delete Animation"
     bl_idname = "nwo.delete_animation"
@@ -81,17 +82,18 @@ class NWO_DeleteAnimation(NWO_Op):
         action = context.object.animation_data.action
         name = str(action.name)
         bpy.data.actions.remove(action)
-        self.report({'INFO'}, f"Deleted animation: {name}")
-        return {'FINISHED'}
+        self.report({"INFO"}, f"Deleted animation: {name}")
+        return {"FINISHED"}
+
 
 class NWO_NewAnimation(NWO_Op):
     bl_label = "New Animation"
     bl_idname = "nwo.new_animation"
     bl_description = "Creates a new Halo Animation"
 
-    frame_start : bpy.props.IntProperty(name="First Frame", default=0)
-    frame_end : bpy.props.IntProperty(name="Last Frame", default=29)
-    animation_type : bpy.props.EnumProperty(
+    frame_start: bpy.props.IntProperty(name="First Frame", default=0)
+    frame_end: bpy.props.IntProperty(name="Last Frame", default=29)
+    animation_type: bpy.props.EnumProperty(
         name="Animation Type",
         items=[
             (
@@ -141,81 +143,80 @@ class NWO_NewAnimation(NWO_Op):
             ),
         ],
     )
-    
-    state_type : bpy.props.EnumProperty(
+
+    state_type: bpy.props.EnumProperty(
         name="State Type",
         items=[
             ("action", "Action / Overlay", ""),
             ("transition", "Transition", ""),
             ("damage", "Death & Damage", ""),
             ("custom", "Custom", ""),
-        ]
+        ],
     )
 
-    mode : bpy.props.StringProperty(
+    mode: bpy.props.StringProperty(
         name="Mode",
         description="""The mode the object must be in to use this animation. Use 'any' for all modes. Other valid
         inputs inlcude but are not limited to: 'crouch' when a unit is crouching, 
         'combat' when a unit is in combat. Modes can also refer
         to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more
-        information refer to existing model_animation_graph tags. Can be empty"""
-        )
-    
-    weapon_class : bpy.props.StringProperty(
+        information refer to existing model_animation_graph tags. Can be empty""",
+    )
+
+    weapon_class: bpy.props.StringProperty(
         name="Weapon Class",
         description="""The weapon class this unit must be holding to use this animation. Weapon class is defined
-        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
-        )
-    weapon_type : bpy.props.StringProperty(
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
+    )
+    weapon_type: bpy.props.StringProperty(
         name="Weapon Name",
         description="""The weapon type this unit must be holding to use this animation.  Weapon name is defined
-        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty"""
-        )
-    set : bpy.props.StringProperty(
-        name="Set",
-        description="The set this animtion is a part of. Can be empty"
-        )
-    state : bpy.props.StringProperty(
+        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
+    )
+    set: bpy.props.StringProperty(
+        name="Set", description="The set this animtion is a part of. Can be empty"
+    )
+    state: bpy.props.StringProperty(
         name="State",
         description="""The state this animation plays in. States can refer to hardcoded properties or be entirely
         custom. You should refer to existing model_animation_graph tags for more information. Examples include: 'idle' for 
         animations that should play when the object is inactive, 'move-left', 'move-front' for moving. 'put-away' for
-        an animation that should play when putting away a weapon. Must not be empty"""
-        )
+        an animation that should play when putting away a weapon. Must not be empty""",
+    )
 
-    destination_mode : bpy.props.StringProperty(
+    destination_mode: bpy.props.StringProperty(
         name="Destination Mode",
-        description="The mode to put this object in when it finishes this animation. Can be empty"
+        description="The mode to put this object in when it finishes this animation. Can be empty",
     )
-    destination_state : bpy.props.StringProperty(
+    destination_state: bpy.props.StringProperty(
         name="Destination State",
-        description="The state to put this object in when it finishes this animation. Must not be empty"
+        description="The state to put this object in when it finishes this animation. Must not be empty",
     )
 
-    damage_power : bpy.props.EnumProperty(
+    damage_power: bpy.props.EnumProperty(
         name="Power",
         items=[
             ("hard", "Hard", ""),
             ("soft", "Soft", ""),
-        ]
+        ],
     )
-    damage_type : bpy.props.EnumProperty(
+    damage_type: bpy.props.EnumProperty(
         name="Type",
         items=[
             ("ping", "Ping", ""),
             ("kill", "Kill", ""),
-        ]
+        ],
     )
-    damage_direction : bpy.props.EnumProperty(
+    damage_direction: bpy.props.EnumProperty(
         name="Direction",
         items=[
             ("front", "Front", ""),
             ("left", "Left", ""),
             ("right", "Right", ""),
             ("back", "Back", ""),
-        ]
+        ],
     )
-    damage_region : bpy.props.EnumProperty(
+    damage_region: bpy.props.EnumProperty(
         name="Region",
         items=[
             ("gut", "Gut", ""),
@@ -229,17 +230,21 @@ class NWO_NewAnimation(NWO_Op):
             ("righthand", "Right Hand", ""),
             ("rightleg", "Right Leg", ""),
             ("rightfoot", "Right Foot", ""),
-        ]
+        ],
     )
 
-    variant : bpy.props.IntProperty(min=0, soft_max=3, name="Variant", 
-            description="""The variation of this animation. Variations can have different weightings
+    variant: bpy.props.IntProperty(
+        min=0,
+        soft_max=3,
+        name="Variant",
+        description="""The variation of this animation. Variations can have different weightings
             to determine whether they play. 0 = no variation
-                                    """)
+                                    """,
+    )
 
-    custom : bpy.props.StringProperty(name="Custom")
+    custom: bpy.props.StringProperty(name="Custom")
 
-    fp_animation : bpy.props.BoolProperty()
+    fp_animation: bpy.props.BoolProperty()
 
     def __init__(self):
         self.fp_animation = poll_ui("FP ANIMATION")
@@ -283,8 +288,8 @@ class NWO_NewAnimation(NWO_Op):
 
         nwo.created_with_foundry = True
 
-        self.report({'INFO'}, f"Created animation: {full_name}")
-        return {'FINISHED'}
+        self.report({"INFO"}, f"Created animation: {full_name}")
+        return {"FINISHED"}
 
     def invoke(self, context, event):
         wm = context.window_manager
@@ -329,11 +334,11 @@ class NWO_NewAnimation(NWO_Op):
                     col.prop(self, "damage_type")
                     col.prop(self, "damage_direction")
                     col.prop(self, "damage_region")
-                
+
                 col.prop(self, "variant")
 
     def create_name(self):
-        bad_chars = ' :_,-'
+        bad_chars = " :_,-"
         # Strip bad chars from inputs
         mode = self.mode.strip(bad_chars)
         weapon_class = self.weapon_class.strip(bad_chars)
@@ -345,7 +350,7 @@ class NWO_NewAnimation(NWO_Op):
         custom = self.custom.strip(bad_chars)
 
         # Get the animation name from user inputs
-        if self.state_type != 'custom':
+        if self.state_type != "custom":
             is_damage = self.state_type == "damage"
             is_transition = self.state_type == "transition"
             full_name = ""
@@ -353,7 +358,7 @@ class NWO_NewAnimation(NWO_Op):
                 full_name = mode
             else:
                 full_name = "any"
-    
+
             if weapon_class:
                 full_name += f" {weapon_class}"
             elif weapon_type or is_transition:
@@ -372,7 +377,7 @@ class NWO_NewAnimation(NWO_Op):
             if state and not is_damage:
                 full_name += f" {state}"
             elif not is_damage:
-                self.report({'WARNING'}, "No state defined. Setting to idle")
+                self.report({"WARNING"}, "No state defined. Setting to idle")
                 full_name += f" idle"
 
             if is_transition:
@@ -384,7 +389,9 @@ class NWO_NewAnimation(NWO_Op):
                 if destination_state:
                     full_name += f" {destination_state}"
                 else:
-                    self.report({'WARNING'}, "No destination state defined. Setting to idle")
+                    self.report(
+                        {"WARNING"}, "No destination state defined. Setting to idle"
+                    )
                     full_name += f" idle"
 
             elif is_damage:
@@ -400,10 +407,11 @@ class NWO_NewAnimation(NWO_Op):
             if custom:
                 full_name = custom
             else:
-                self.report({'WARNING'}, "Animation name empty. Setting to idle")
+                self.report({"WARNING"}, "Animation name empty. Setting to idle")
                 full_name = "idle"
 
         return full_name.lower().strip(bad_chars)
+
 
 class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
     bl_label = "New Animation Rename"
@@ -413,7 +421,7 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
     def __init__(self):
         action = bpy.context.object.animation_data.action
         nwo = action.nwo
-        state = nwo.state.lower().strip(' :_,-')
+        state = nwo.state.lower().strip(" :_,-")
         state = "idle" if state == "" else state
         if nwo.created_with_foundry and state in action.name:
             self.state_type = nwo.state_type
@@ -443,9 +451,12 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
         action = context.active_object.animation_data.action
         nwo = action.nwo
         if full_name == action.name:
-            self.report({'WARNING'}, f"Rename entry not created. Rename cannot match animation name")
-            return {'CANCELLED'}
-        
+            self.report(
+                {"WARNING"},
+                f"Rename entry not created. Rename cannot match animation name",
+            )
+            return {"CANCELLED"}
+
         # Create the rename
         bpy.ops.uilist.entry_add(
             list_path="object.animation_data.action.nwo.animation_renames",
@@ -455,11 +466,13 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
         rename.rename_name = full_name
         context.area.tag_redraw()
 
-        self.report({'INFO'}, f"Created rename: {full_name}")
-        return {'FINISHED'}
-    
+        self.report({"INFO"}, f"Created rename: {full_name}")
+        return {"FINISHED"}
+
+
 class NWO_List_Remove_Animation_Rename(NWO_Op):
     """Remove an Item from the UIList"""
+
     bl_idname = "nwo.animation_rename_remove"
     bl_label = "Remove"
     bl_description = "Remove an animation event from the list."
@@ -471,8 +484,7 @@ class NWO_List_Remove_Animation_Rename(NWO_Op):
             and context.object.type == "ARMATURE"
             and context.object.animation_data
             and context.object.animation_data.action
-            and len(context.object.animation_data.action.nwo.animation_renames)
-            > 0
+            and len(context.object.animation_data.action.nwo.animation_renames) > 0
         )
 
     def execute(self, context):
@@ -482,7 +494,8 @@ class NWO_List_Remove_Animation_Rename(NWO_Op):
         if nwo.animation_renames_index > len(nwo.animation_renames) - 1:
             nwo.animation_renames_index += -1
         return {"FINISHED"}
-    
+
+
 class NWO_UL_AnimationRename(bpy.types.UIList):
     def draw_item(
         self,

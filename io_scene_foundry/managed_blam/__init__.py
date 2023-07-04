@@ -52,9 +52,7 @@ class ManagedBlam_Init(Operator):
     bl_idname = "managed_blam.init"
     bl_label = "Managed Blam"
     bl_options = {"REGISTER"}
-    bl_description = (
-        "Initialises Managed Blam and locks the currently selected game"
-    )
+    bl_description = "Initialises Managed Blam and locks the currently selected game"
 
     def callback(self):
         pass
@@ -99,8 +97,9 @@ class ManagedBlam_Init(Operator):
                 subprocess.check_call(
                     [sys.executable, "-m", "pip", "install", "pythonnet"]
                 )
-                print("Succesfully installed necessary modules")
-                open(os.path.join(bpy.app.tempdir, "blam_new.txt"), "x")
+                with open(os.path.join(bpy.app.tempdir, "blam_new.txt"), "x") as _:
+                    print("Succesfully installed necessary modules")
+
                 shutdown = ctypes.windll.user32.MessageBoxW(
                     0,
                     "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.\n\nClose Blender now?",
@@ -122,9 +121,6 @@ class ManagedBlam_Init(Operator):
             print("Initialising ManagedBlam...")
             try:
                 startup_parameters = Bungie.ManagedBlamStartupParameters()
-                startup_parameters.InistializationLevel = (
-                    Bungie.InitializationType.TagsOnly
-                )
                 Bungie.ManagedBlamSystem.Start(
                     get_ek_path(), self.callback(), startup_parameters
                 )
@@ -132,13 +128,12 @@ class ManagedBlam_Init(Operator):
                 print("ManagedBlam already intialised. Skipping")
                 return {"CANCELLED"}
             else:
-                print("Success!")
-                with open(
-                    os.path.join(bpy.app.tempdir, "blam.txt"), "x"
-                ) as blam_txt:
+                # print("Success!")
+                with open(os.path.join(bpy.app.tempdir, "blam.txt"), "x") as blam_txt:
                     blam_txt.write(mb_path)
 
                 return {"FINISHED"}
+
 
 class ManagedBlam_Close(Operator):
     """Closes Managed Blam"""
@@ -146,9 +141,7 @@ class ManagedBlam_Close(Operator):
     bl_idname = "managed_blam.close"
     bl_label = "Managed Blam Close"
     bl_options = {"REGISTER"}
-    bl_description = (
-        "Initialises Managed Blam and locks the currently selected game"
-    )
+    bl_description = "Initialises Managed Blam and locks the currently selected game"
 
     def execute(self, context):
         Bungie = get_bungie(self.report)
@@ -319,9 +312,11 @@ def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
 
+
 def unregister():
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
+
 
 if __name__ == "__main__":
     register()

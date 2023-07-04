@@ -29,6 +29,7 @@ import bmesh
 
 from io_scene_foundry.utils.nwo_utils import set_active_object, true_bsp
 
+
 def auto_seam(context):
     structure_obs = []
     seam_obs = []
@@ -36,9 +37,15 @@ def auto_seam(context):
     for ob in export_obs:
         set_active_object(ob)
         ob.select_set(True)
-        if ob.nwo.export_this and ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam":
+        if (
+            ob.nwo.export_this
+            and ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
+        ):
             seam_obs.append(ob)
-        if ob.nwo.export_this and ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+        if (
+            ob.nwo.export_this
+            and ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+        ):
             structure_obs.append(ob)
 
         ob.select_set(False)
@@ -75,10 +82,7 @@ def auto_seam(context):
                         break
 
             # check if at least 3 verts match (i.e. we can make a face out of them)
-            if (
-                len(matching_verts) > 2
-                and matching_verts not in ignore_verts
-            ):
+            if len(matching_verts) > 2 and matching_verts not in ignore_verts:
                 # remove these verts from the pool obs are allowed to check from
                 ignore_verts.append(matching_verts)
                 # set 3D cursor to bsp median point
@@ -118,9 +122,7 @@ def auto_seam(context):
                 context.scene.collection.objects.link(seam)
                 set_active_object(seam)
                 seam.select_set(True)
-                bpy.ops.object.origin_set(
-                    type="ORIGIN_CURSOR", center="MEDIAN"
-                )
+                bpy.ops.object.origin_set(type="ORIGIN_CURSOR", center="MEDIAN")
                 bpy.ops.object.mode_set(mode="EDIT", toggle=False)
                 bpy.ops.mesh.select_all(action="SELECT")
                 bpy.ops.mesh.normals_make_consistent(inside=True)
@@ -146,4 +148,4 @@ def auto_seam(context):
                 # flipped_seam_data.update()
                 # bm.free()
 
-    return {'FINISHED'}
+    return {"FINISHED"}
