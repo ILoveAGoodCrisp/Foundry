@@ -179,9 +179,9 @@ class NWO_FoundryPanelProps(Panel):
         unit_scale = scene.unit_settings.scale_length
 
         if unit_scale == 1.0:
-            row.operator("nwo.set_unit_scale", text="Set Halo Scale").scale = 0.03048
+            row.operator("nwo.set_unit_scale", text="Set Halo Scale", icon_value=get_icon_id("halo_scale")).scale = 0.03048
         else:
-            row.operator("nwo.set_unit_scale", text="Set Default Scale").scale = 1.0
+            row.operator("nwo.set_unit_scale", text="Set Default Scale", icon="BLENDER").scale = 1.0
 
     def draw_asset_editor(self):
         box = self.box.box()
