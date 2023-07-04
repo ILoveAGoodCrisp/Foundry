@@ -95,9 +95,11 @@ class NWO_FoundryPanelProps(Panel):
         col1 = row.column(align=True)
         col2 = row.column(align=True)
 
+        box = col1.box()
+
         for p in PANELS_PROPS:
             col1.separator()
-            row_icon = col1.row(align=True)
+            row_icon = box.row(align=True)
             panel_active = getattr(nwo, f"{p}_active")
             row_icon.scale_x = 1.2
             row_icon.scale_y = 1.2
@@ -4250,48 +4252,52 @@ class NWO_ShaderPropertiesGroup(PropertyGroup):
 
 def foundry_toolbar(self, context):
     layout = self.layout
-    layout.label(text="                 ")
+    layout.label(text=" ")
     row = layout.row()
-    icons_only = True
+    icons_only = False
     row.scale_x = 1
-    sub0 = row.row(align=True)
-    sub0.operator(
-        "nwo.export_quick",
-        text="" if icons_only else "Tag Export",
-        icon_value=get_icon_id("quick_export"),
-    )
-    sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
-    sub1 = row.row(align=True)
-    sub1.operator(
-        "nwo.launch_sapien",
-        text="" if icons_only else "Sapien",
-        icon_value=get_icon_id("sapien"),
-    )
-    sub1.operator(
-        "nwo.launch_tagtest",
-        text="" if icons_only else "Tag Test",
-        icon_value=get_icon_id("tag_test"),
-    )
-    sub1.popover(panel="NWO_PT_HaloLauncherGameSettings", text="")
-    sub2 = row.row(align=True)
-    sub2.operator(
-        "nwo.launch_foundation",
-        text="" if icons_only else "Tag Editor",
-        icon_value=get_icon_id("foundation"),
-    )
-    sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
-    sub3 = row.row(align=True)
-    sub3.operator(
-        "nwo.launch_data",
-        text="" if icons_only else "Data",
-        icon_value=get_icon_id("data"),
-    )
-    sub3.operator(
-        "nwo.launch_tags",
-        text="" if icons_only else "Tags",
-        icon_value=get_icon_id("tags"),
-    )
-    sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
+    nwo_scene = context.scene.nwo
+    sub_foundry = row.row(align=True)
+    sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+    if nwo_scene.toolbar_expanded:
+        sub0 = row.row(align=True)
+        sub0.operator(
+            "nwo.export_quick",
+            text="" if icons_only else "Tag Export",
+            icon_value=get_icon_id("quick_export"),
+        )
+        sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
+        sub1 = row.row(align=True)
+        sub1.operator(
+            "nwo.launch_sapien",
+            text="" if icons_only else "Sapien",
+            icon_value=get_icon_id("sapien"),
+        )
+        sub1.operator(
+            "nwo.launch_tagtest",
+            text="" if icons_only else "Tag Test",
+            icon_value=get_icon_id("tag_test"),
+        )
+        sub1.popover(panel="NWO_PT_HaloLauncherGameSettings", text="")
+        sub2 = row.row(align=True)
+        sub2.operator(
+            "nwo.launch_foundation",
+            text="" if icons_only else "Tag Editor",
+            icon_value=get_icon_id("foundation"),
+        )
+        sub2.popover(panel="NWO_PT_HaloLauncherFoundationSettings", text="")
+        sub3 = row.row(align=True)
+        sub3.operator(
+            "nwo.launch_data",
+            text="" if icons_only else "Data",
+            icon_value=get_icon_id("data"),
+        )
+        sub3.operator(
+            "nwo.launch_tags",
+            text="" if icons_only else "Tags",
+            icon_value=get_icon_id("tags"),
+        )
+        sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
 
 
 classeshalo = (
