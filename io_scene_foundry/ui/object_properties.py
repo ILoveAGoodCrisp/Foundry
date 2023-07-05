@@ -719,7 +719,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                         "Environment Effect",
                         "Marker which loops the specified effect",
                         get_icon_id("environment_effect"),
-                        32,
+                        2,
                     )
                 )
                 items.append(
