@@ -31,7 +31,6 @@ from math import degrees
 from ..utils.nwo_utils import (
     dot_partition,
     not_bungie_game,
-    object_type,
     color_3p_str,
     color_4p_str,
     bool_str,

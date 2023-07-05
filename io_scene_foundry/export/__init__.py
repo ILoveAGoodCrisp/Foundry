@@ -36,10 +36,6 @@ bl_info = {
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
 }
 
-from io import StringIO
-import subprocess
-import sys
-import uuid
 import bpy
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty
@@ -59,9 +55,7 @@ from .process_scene import ProcessScene
 from io_scene_foundry.utils.nwo_utils import (
     check_path,
     bpy_enum,
-    disable_prints,
     dot_partition,
-    enable_prints,
     formalise_game_version,
     get_data_path,
     get_asset_info,

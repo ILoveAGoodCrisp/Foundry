@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2022 Generalkidd & Crisp
+# Copyright (c) 2023 Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -478,7 +478,6 @@ blender_object_types_mesh = (
 
 def is_linked(ob):
     return ob.data.users > 1
-
 
 def get_ek_path():
     scene = bpy.context.scene
