@@ -381,7 +381,11 @@ def register():
 
 
 def unregister():
-    bpy.app.timers.unregister(fix_icons)
+    try:
+        bpy.app.timers.unregister(fix_icons)
+    except:
+        pass
+    
     bpy.app.handlers.load_post.remove(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
     bpy.app.handlers.undo_post.remove(get_temp_settings)

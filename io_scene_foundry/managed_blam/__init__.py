@@ -177,7 +177,7 @@ class ManagedBlam_Close(Operator):
     bl_options = {"REGISTER"}
     bl_description = "Closes Managed Blam"
 
-    def execute(self, context, tag):
+    def execute(self, context):
         Bungie = get_bungie(self.report)
         Bungie.ManagedBlamSystem.Stop()
         return {"FINISHED"}

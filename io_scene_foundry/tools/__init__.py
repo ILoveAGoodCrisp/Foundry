@@ -951,13 +951,13 @@ class NWO_FoundryPanelProps(Panel):
                 #             row.label(text='*')
                 #             break
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if nwo.mesh_type_ui in (
+            if (nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
                 "_connected_geometry_mesh_type_poop",
                 "_connected_geometry_mesh_type_poop_collision",
                 "_connected_geometry_mesh_type_structure",
-            ):
+            ) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure")):
                 row = col.row()
                 row.prop(
                     nwo,
@@ -976,10 +976,12 @@ class NWO_FoundryPanelProps(Panel):
                 #             break
 
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if nwo.mesh_type_ui in (
+            if (nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_render",
                 "_connected_geometry_mesh_type_poop",
                 "_connected_geometry_mesh_type_structure",
+                )
+                and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure")
             ):
                 col2 = col.column()
                 flow2 = col2.grid_flow()
@@ -998,7 +1000,7 @@ class NWO_FoundryPanelProps(Panel):
             flow4 = col4.grid_flow()
             flow4.prop(nwo, "face_two_sided_ui")
 
-        if poll_ui(("SCENARIO", "PREFAB")):
+        if poll_ui(("SCENARIO", "PREFAB")) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
             if nwo.face_mode_active:
                 row = col.row()
                 row.prop(nwo, "face_mode_ui")
@@ -1206,7 +1208,7 @@ class NWO_FoundryPanelProps(Panel):
 
             col.menu(NWO_MeshPropAddMenu.bl_idname, text="", icon="PLUS")
 
-        if not has_face_props(ob):
+        if not has_face_props(ob) or not (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
             return
 
         flow = box.grid_flow(
@@ -1900,6 +1902,8 @@ class NWO_OT_PanelUnpin(Operator):
     bl_idname = "nwo.panel_unpin"
     bl_label = ""
 
+    bl_options = {"REGISTER", "UNDO"}
+
     panel_str : StringProperty()
 
     def execute(self, context: Context):
@@ -1916,7 +1920,7 @@ class NWO_OT_PanelSet(Operator):
 
     bl_idname = "nwo.panel_set"
     bl_label = ""
-    bl_options = {"REGISTER"}
+    bl_options = {"REGISTER", "UNDO"}
 
     panel_str : StringProperty()
     keep_enabled : BoolProperty()
@@ -1964,7 +1968,7 @@ class NWO_OT_PanelExpand(Operator):
 
     bl_idname = "nwo.panel_expand"
     bl_label = ""
-    bl_options = {"REGISTER"}
+    bl_options = {"REGISTER", "UNDO"}
     bl_description = "Expand a panel"
 
     panel_str: StringProperty()
