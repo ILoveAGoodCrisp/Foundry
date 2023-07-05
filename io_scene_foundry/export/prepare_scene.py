@@ -929,6 +929,9 @@ class PrepareScene:
 
     def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario):
         mesh_obs_full = [ob for ob in export_obs if ob.type == "MESH"]
+        if not mesh_obs_full:
+            return
+        
         meshes_full = {ob.data for ob in mesh_obs_full}
         me_ob_dict_full = {}
         for me in meshes_full:
@@ -958,6 +961,9 @@ class PrepareScene:
             )
         ]
         meshes = {ob.data for ob in mesh_obs}
+        if not meshes:
+            return
+        
         me_ob_dict = {}
         for me in meshes:
             for ob in mesh_obs:
@@ -973,7 +979,6 @@ class PrepareScene:
 
         # make invalid obs seperate mesh data
         if me_ob_dict[me] != me_ob_dict_full[me]:
-            print("HIT!!!")
             new_data = me.copy()
             for ob in me_ob_dict_full[me]:
                 if ob not in me_ob_dict[me]:
