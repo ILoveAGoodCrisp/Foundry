@@ -41,7 +41,7 @@ def scan_tree(shaders_dir, shaders):
     return shaders
 
 
-def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False):
+def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False, set_non_export=False):
     materials = [
         mat for mat in materials_all if mat.nwo.rendered and not mat.grease_pencil
     ]
@@ -74,9 +74,11 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
                             mat.nwo.shader_path = r"shaders\missing.material"
                         else:
                             mat.nwo.shader_path = r"shaders\invalid.shader"
+                    elif set_non_export:
+                        mat.nwo.rendered = False
 
     if report is not None:
-        if no_path_materials:
+        if no_path_materials and not set_non_export:
             report({"WARNING"}, "Missing material paths:")
             for m in no_path_materials:
                 report({"ERROR"}, m)
@@ -94,6 +96,12 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
                 {"WARNING"},
                 f"Updated {update_count} material paths, but couldn't find paths for {len(no_path_materials)} materials. Click here for details",
             )
+        elif no_path_materials and set_non_export:
+            report(
+                {"INFO"},
+                f"Updated {update_count} material paths, and disabled export property for {len(no_path_materials)} materials",
+            )
+                
         else:
             report({"INFO"}, f"Updated {update_count} material paths")
 

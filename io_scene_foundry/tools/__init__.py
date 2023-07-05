@@ -1781,7 +1781,8 @@ class NWO_FoundryPanelProps(Panel):
             col.label(text=f"Asset {shader_type}s")
             # col.separator()
             col.label(
-                text=f"{count} {shader_type} paths found out of {total} materials"
+                text=f"{count} tag paths found out of {total} materials",
+                icon='CHECKMARK' if total == count else 'ERROR'
             )
             row = col.row(align=True)
             col1 = row.column(align=True)
@@ -3050,6 +3051,11 @@ class NWO_ShaderFinder(Panel):
             "overwrite_existing",
             text="Overwrite Existing Paths",
         )
+        col.prop(
+            scene_nwo_shader_finder,
+            "set_non_export",
+            text="Disable export if no tag path found",
+        )
 
 
 
@@ -3071,6 +3077,7 @@ class NWO_ShaderFinder_Find(Operator):
             self.report,
             scene_nwo_shader_finder.shaders_dir,
             scene_nwo_shader_finder.overwrite_existing,
+            scene_nwo_shader_finder.set_non_export,
         )
 
     @classmethod
@@ -3094,6 +3101,7 @@ class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
             self.report,
             scene_nwo_shader_finder.shaders_dir,
             True,
+            False,
         )
 
 class NWO_HaloShaderFinderPropertiesGroup(PropertyGroup):
@@ -3106,6 +3114,12 @@ class NWO_HaloShaderFinderPropertiesGroup(PropertyGroup):
         name="Overwrite Shader Paths",
         options=set(),
         description="Overwrite material shader paths even if they're not blank",
+        default=False,
+    )
+    set_non_export: BoolProperty(
+        name="Set Non Export",
+        options=set(),
+        description="Disables the export property for materials that Foundry could not find a tag path for",
         default=False,
     )
 
