@@ -135,7 +135,7 @@ class ManagedBlam_Init(Operator):
                 return {"FINISHED"}
             
 
-class ManagedBlam(Operator):
+class ManagedBlamNewTag(Operator):
     bl_options = {"REGISTER"}
 
     path : StringProperty()
@@ -143,30 +143,40 @@ class ManagedBlam(Operator):
     def get_path(self): # stub
         return ""
 
-    def execute(self, context): # stub
-        return {'FINISHED'}
+    def tag_edit(self, context, tag): # stub
+        pass
 
-    def invoke(self, context, event):
+    def execute(self, context):
         if not self.path:
             self.path = self.get_path()
         self.Bungie = get_bungie(self.report)
-        return self.execute(context)
+        self.tag, self.tag_path = get_tag_and_path(self.Bungie, self.path)
+        tag = self.tag
+        try:
+            tag.New(self.tag_path)
+            self.tag_edit(context, tag)
+            tag.Save()
+
+        finally:
+            tag.Dispose()
+
+        return {'FINISHED'}
 
 
-class ManagedBlam_Close(ManagedBlam):
+class ManagedBlam_Close(Operator):
     """Closes Managed Blam"""
     bl_idname = "managed_blam.close"
     bl_label = "Managed Blam Close"
     bl_options = {"REGISTER"}
-    bl_description = "Initialises Managed Blam and locks the currently selected game"
+    bl_description = "Closes Managed Blam"
 
-    def execute(self, context):
-        self.Bungie.ManagedBlamSystem.Stop()
+    def execute(self, context, tag):
+        Bungie = get_bungie(self.report)
+        Bungie.ManagedBlamSystem.Stop()
         return {"FINISHED"}
 
 
-class ManagedBlam_NewShader(ManagedBlam):
-    """Runs a ManagedBlam Operation"""
+class ManagedBlam_NewShader(ManagedBlamNewTag):
     bl_idname = "managed_blam.new_shader"
     bl_label = "ManagedBlam"
     bl_options = {"REGISTER", "UNDO"}
@@ -185,37 +195,28 @@ class ManagedBlam_NewShader(ManagedBlam):
 
         return shader_path
 
-    def execute(self, context):
-        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
-        try:
-            tag.New(tag_path)
+    def tag_edit(self, context, tag):
 
-            # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
-            # parameters = field
-            # for index, p in enumerate(self.parameters):
-            #     parameters.AddElement()
+        # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
+        # parameters = field
+        # for index, p in enumerate(self.parameters):
+        #     parameters.AddElement()
 
-            #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/StringId:parameter name")
-            #     name = field
-            #     type.SetStringData(p.name)
+        #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/StringId:parameter name")
+        #     name = field
+        #     type.SetStringData(p.name)
 
-            #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/LongEnum:parameter type")
-            #     type = field
-            #     type.SetStringData(p.name)
+        #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/LongEnum:parameter type")
+        #     type = field
+        #     type.SetStringData(p.name)
 
-            #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/Reference:bitmap")
-            #     bitmap = field
-            #     bitmap.Reference.Path = get_tag_and_path(Bungie, p.bitmap)
-
-            tag.Save()
-
-        finally:
-            tag.Dispose()
-
-        return {"FINISHED"}
+        #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/Reference:bitmap")
+        #     bitmap = field
+        #     bitmap.Reference.Path = get_tag_and_path(Bungie, p.bitmap)
+        pass
 
 
-class ManagedBlam_NewMaterial(ManagedBlam):
+class ManagedBlam_NewMaterial(ManagedBlamNewTag):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_material"
@@ -236,20 +237,11 @@ class ManagedBlam_NewMaterial(ManagedBlam):
 
         return shader_path
 
-    def execute(self, context):
-        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
-        print(self.path)
-        try:
-            tag.New(tag_path)
-            tag.Save()
-
-        finally:
-            tag.Dispose()
-
-        return {"FINISHED"}
+    def tag_edit(self, context, tag):
+        pass
 
 
-class ManagedBlam_NewBitmap(ManagedBlam):
+class ManagedBlam_NewBitmap(ManagedBlamNewTag):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_bitmap"
@@ -274,23 +266,13 @@ class ManagedBlam_NewBitmap(ManagedBlam):
 
         return bitmap_path
 
-    def execute(self, context):
-        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
-        try:
-            tag.New(tag_path)
-
-            # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
-            # bitmap_type = field
-            # # type.SetStringData(p.name)
-
-            tag.Save()
-
-        finally:
-            tag.Dispose()
-
-        return {"FINISHED"}
+    def tag_edit(self, context, tag):
+        pass
+        # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
+        # bitmap_type = field
+        # # type.SetStringData(p.name)
     
-class ManagedBlam_ModelOverride(ManagedBlam):
+class ManagedBlam_ModelOverride(ManagedBlamNewTag):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_model_override"
@@ -307,21 +289,11 @@ class ManagedBlam_ModelOverride(ManagedBlam):
 
         return bitmap_path
 
-    def execute(self, context):
-        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
-        try:
-            tag.New(tag_path)
-
-            # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
-            # bitmap_type = field
-            # type.SetStringData(p.name)
-
-            tag.Save()
-
-        finally:
-            tag.Dispose()
-
-        return {"FINISHED"}
+    def tag_edit(self, context, tag):
+        pass
+        # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
+        # bitmap_type = field
+        # type.SetStringData(p.name)
 
 
 classeshalo = (
@@ -332,7 +304,6 @@ classeshalo = (
     ManagedBlam_NewBitmap,
 )
 
-
 def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
@@ -341,7 +312,6 @@ def register():
 def unregister():
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
-
 
 if __name__ == "__main__":
     register()

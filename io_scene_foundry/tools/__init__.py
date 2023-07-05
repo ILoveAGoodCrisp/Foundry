@@ -2163,11 +2163,9 @@ def add_halo_armature_buttons(self, context):
 
 
 def create_halo_collection(self, context):
-    self.layout.operator("nwo.collection_create", text="", icon_value=get_icon_id("collection_creator"))
-
+    self.layout.operator("nwo.collection_create" , text="", icon_value=get_icon_id("collection_creator"))
 
 from .halo_join import NWO_JoinHalo
-
 
 def add_halo_join(self, context):
     self.layout.operator(NWO_JoinHalo.bl_idname, text="Halo Join")
@@ -3716,11 +3714,10 @@ class NWO_CollectionManager(Panel):
 
 
 class NWO_CollectionManager_Create(Operator):
-    """Creates a special collection with the specified name and adds all currently selected objects to it"""
-
     bl_idname = "nwo.collection_create"
     bl_label = "New Halo Collection"
     bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Creates a Halo collection with the specified name and type"
 
     def collection_type_items(self, context):
         items = []
@@ -3760,7 +3757,16 @@ class NWO_CollectionManager_Create(Operator):
         layout = self.layout
         layout.prop(self, "type", text="Type")
         layout.prop(self, "name", text="Name")
+        
+class NWO_CollectionManager_CreateMove(NWO_CollectionManager_Create):
+    bl_idname = "nwo.collection_create_move"
+    bl_label = "Move to Halo Collection"
+    bl_description = "Creates a Halo collection with the specified name and type. Adds all currently selected objects to it"
 
+class NWO_MT_CollectionManager(Operator):
+
+    def draw(self, context):
+        pass
 
 class NWO_ArmatureCreator(Panel):
     bl_label = "Rig Creator"
@@ -4410,6 +4416,7 @@ classeshalo = (
     NWO_HaloLauncherPropertiesGroup,
     # NWO_PropertiesManager,
     # NWO_CollectionManager,
+    NWO_CollectionManager_CreateMove,
     NWO_CollectionManager_Create,
     # NWO_CopyHaloProps,
     # NWO_CopyHaloProps_Copy, #unregistered until this operator is fixed
