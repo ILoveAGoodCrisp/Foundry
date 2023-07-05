@@ -485,6 +485,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     tools_pinned: BoolProperty()
     tools_expanded : BoolProperty(default=True)
 
+    help_active : BoolProperty()
+    help_pinned: BoolProperty()
+    help_expanded : BoolProperty(default=True)
+
     sets_viewer_active: BoolProperty()
     sets_viewer_pinned: BoolProperty()
     sets_viewer_expanded: BoolProperty(default=True)

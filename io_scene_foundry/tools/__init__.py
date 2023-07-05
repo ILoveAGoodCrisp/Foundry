@@ -28,6 +28,7 @@ import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
 import os
+import webbrowser
 
 from bpy.types import Context, OperatorProperties, Panel, Operator, PropertyGroup
 
@@ -61,6 +62,21 @@ from bpy_extras.object_utils import AddObjectHelper
 
 is_blender_startup = True
 
+FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/tools/foundry"
+FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
+
+BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Development-Toolset/releases"
+AMF_ADDON = r"https://www.mediafire.com/file/zh55pb2p3yc4e7v/Blender_AMF2.py/file"
+RECLAIMER = r"https://www.mediafire.com/file/bwnfg09iy0tbm09/Reclaimer.Setup-v1.7.309.msi/file"
+ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
+
+HOTKEYS = [
+    ("apply_mesh_type", "SHIFT+F"),
+    ("apply_marker_type", "CTRL+F"),
+    ("halo_join", "ALT+J"),
+    ("move_to_halo_collection", "ALT+M"),
+]
+
 PANELS_PROPS = [
     "scene_properties",
     "asset_editor",
@@ -68,6 +84,8 @@ PANELS_PROPS = [
     "material_properties",
     "animation_properties",
     "tools",
+    "help",
+
 ]
 PANELS_TOOLS = ["sets_viewer"]
 
@@ -1794,6 +1812,87 @@ class NWO_FoundryPanelProps(Panel):
                 icon_value=get_icon_id("material_finder"),
             )
             col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
+
+
+    def draw_help(self):
+        box = self.box.box()
+        box_websites = box.box()
+        box_websites.label(text="Foundry Documentation")
+        col = box_websites.column()
+        col.operator("nwo.open_url", text="Getting Started", icon_value=get_icon_id("c20_reclaimers")).url = FOUNDRY_DOCS
+        col.operator("nwo.open_url", text="Github", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
+
+        box_hotkeys = box.box()
+        box_hotkeys.label(text="Keyboard Shortcuts")
+        col = box_hotkeys.column()
+        col.direction
+        for shortcut in HOTKEYS:
+            col.operator("nwo.describe_hotkey", emboss=False, text=shortcut[0].replace("_", " ").title() + " : " + shortcut[1]).hotkey = shortcut[0]
+
+        box_downloads = box.box()
+        box_downloads.label(text="Other Resources")
+        col = box_downloads.column()
+        col.operator("nwo.open_url", text="Halo Blender Toolset", icon="URL").url = BLENDER_TOOLSET
+        col.operator("nwo.open_url", text="AMF Importer", icon="URL").url = AMF_ADDON
+        col.operator("nwo.open_url", text="Reclaimer", icon="URL").url = RECLAIMER
+        col.operator("nwo.open_url", text="Animation Repository", icon="URL").url = ANIMATION_REPO
+
+
+class NWO_HotkeyDescription(Operator):
+    bl_label = "Keyboard Shortcut Description"
+    bl_idname = "nwo.describe_hotkey"
+    bl_options = {'REGISTER'}
+    bl_description = "Provides a description of this keyboard shortcut"
+
+    hotkey : StringProperty()
+
+    def execute(self, context: Context):
+        return {'FINISHED'}
+    
+    @classmethod
+    def description(cls, context: Context, properties: OperatorProperties) -> str:
+        match properties.hotkey:
+            case "apply_mesh_type":
+                return "Opens a pie menu with a set of possible mesh types to apply to selected mesh objects. Applying a type through this menu will apply special materials if the type selected is not one that supports textures in game"
+            case "apply_marker_type":
+                return "Opens a pie menu with a set of possible marker types to apply to selected mesh and empty objects"
+            case "halo_join":
+                return "Joins two or more mesh objects and merges Halo Face Properties"
+            case "move_to_halo_collection":
+                return "Opens a dialog to specify a new halo collection to create, and then moves the selected objects into this collection"
+                
+
+    @staticmethod
+    def hotkey_info(self, context):
+        layout = self.layout
+        layout.label(text=NWO_HotkeyDescription.description(context, self.hotkey))
+
+class NWO_OpenURL(Operator):
+    bl_label = "Open URL"
+    bl_idname = "nwo.open_url"
+    bl_options = {'REGISTER'}
+    bl_description = "Opens a URL"
+
+    url : StringProperty()
+
+    def execute(self, context):
+        webbrowser.open_new_tab(self.url)
+        return {'FINISHED'}
+    
+    @classmethod
+    def description(cls, context, properties) -> str:
+        if properties.url == FOUNDRY_DOCS:
+            return "Opens documentation for Foundry on the c20 Reclaimers site in a new tab"
+        elif properties.url == FOUNDRY_GITHUB:
+            return "Opens the github page for Foundry in a new tab"
+        elif properties.url == BLENDER_TOOLSET:
+            return "Opens the github releases page for the Halo Blender Development Toolset, a blender addon supporting H1/H2/H3/ODST. Opens in a new tab"
+        elif properties.url == AMF_ADDON:
+            return "Opens the download page for the AMF importer blender addon. This addon allows blender to import AMF files extracted from the Halo Tool - Reclaimer."
+        elif properties.url == RECLAIMER:
+            return "Opens the download page for Reclaimer, a tool for extracting render models, BSPs, and textures for Halo games"
+        elif properties.url == ANIMATION_REPO:
+            return "Opens the github page for a repository containing a collection of Halo animations stored in the legacy Halo animation format"
 
 
 class NWO_FoundryPanelSetsViewer(Panel):
@@ -3776,8 +3875,11 @@ class NWO_CollectionManager_Create(Operator):
     
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "type", text="Type")
-        layout.prop(self, "name", text="Name")
+        row = layout.row()
+        row.prop(self, "type", text="Type")
+        row = layout.row()
+        row.activate_init = True
+        row.prop(self, "name", text="Name")
         
 class NWO_CollectionManager_CreateMove(NWO_CollectionManager_Create):
     bl_idname = "nwo.collection_create_move"
@@ -4426,6 +4528,8 @@ def foundry_toolbar(layout, context):
 
 
 classeshalo = (
+    NWO_HotkeyDescription,
+    NWO_OpenURL,
     NWO_OT_PanelExpand,
     NWO_OT_PanelSet,
     NWO_OT_PanelUnpin,
