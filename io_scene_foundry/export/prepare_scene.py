@@ -216,6 +216,13 @@ class PrepareScene:
             is_mesh = ob_type == "MESH"
             is_mesh_loose = ob_type in (
                 "MESH",
+                "CURVE",
+                "META",
+                "SURFACE",
+                "FONT",
+            )  
+            is_valid_object_type = ob_type in (
+                "MESH",
                 "EMPTY",
                 "CURVE",
                 "META",
@@ -246,9 +253,11 @@ class PrepareScene:
             # if not_bungie_game():
             #     self.apply_namespaces(ob, asset)
 
-            self.set_object_type(ob, ob_type, nwo, is_mesh_loose)
+            self.set_object_type(ob, ob_type, nwo, is_valid_object_type)
 
             self.apply_object_mesh_marker_properties(ob, sidecar_type, not h4, nwo)
+
+            is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and self.has_halo_materials(nwo, h4)
 
             # add region/global_mat to sets
             uses_global_mat = (
@@ -287,12 +296,12 @@ class PrepareScene:
                         uv_layers.new(name="UVMap_0")
 
                     # print("uv fix")
-
+                if is_mesh_loose:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
                     self.fix_materials(
-                        ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4
+                        ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render
                     )
-                    # print("fix_materials")
+                # print("fix_materials")
 
             ob.select_set(False)
 
@@ -1718,7 +1727,7 @@ class PrepareScene:
 
         ob.name = ob.name.strip(" _")
 
-    def set_object_type(self, ob, ob_type, nwo, is_mesh_loose):
+    def set_object_type(self, ob, ob_type, nwo, is_valid_object_type):
         if ob_type == "LIGHT":
             nwo.object_type = "_connected_geometry_object_type_light"
         elif ob_type == "CAMERA":
@@ -1736,7 +1745,7 @@ class PrepareScene:
             else:
                 nwo.object_type = "_connected_geometry_object_type_marker"
 
-        elif is_mesh_loose:
+        elif is_valid_object_type:
             nwo.object_type = nwo.object_type_ui
         else:
             # Mesh invalid, don't export
@@ -2325,9 +2334,8 @@ class PrepareScene:
         return child_ob_set
 
     def fix_materials(
-        self, ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4
+        self, ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render
     ):
-        # fix multi user materials
         if h4:
             render_mesh_types = (
                 "_connected_geometry_mesh_type_poop",
@@ -2339,18 +2347,20 @@ class PrepareScene:
                 "_connected_geometry_mesh_type_poop",
                 "_connected_geometry_mesh_type_decorator",
             )
+        # fix multi user materials
         slots = ob.material_slots
         materials = me.materials
         mats = dict.fromkeys(slots)
         slots_to_remove = []
         for idx, slot in enumerate(slots):
             slot_mat = slot.material
-            self.used_materials.add(slot_mat)
+            if is_halo_render:
+                self.used_materials.add(slot_mat)
             if slot_mat:
                 s_name = slot_mat.name
                 if s_name not in mats.keys():
                     mats[s_name] = idx
-                else:
+                elif ob.type == 'MESH':
                     bpy.ops.object.mode_set(mode="EDIT", toggle=False)
                     ob.active_material_index = idx
                     slots_to_remove.append(idx)
@@ -2596,6 +2606,24 @@ class PrepareScene:
         # scene_coll.link(copy)
 
 
+    def has_halo_materials(self, nwo, h4):
+        if h4:
+            render_mesh_types = (
+                "_connected_geometry_mesh_type_poop",
+                "_connected_geometry_mesh_type_decorator",
+                "_connected_geometry_mesh_type_water_surface"
+            )
+        else:
+            render_mesh_types = (
+                "_connected_geometry_mesh_type_default",
+                "_connected_geometry_mesh_type_poop",
+                "_connected_geometry_mesh_type_decorator",
+                "_connected_geometry_mesh_type_water_surface"
+            )
+        
+        return nwo.mesh_type in render_mesh_types
+
+
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
@@ -2607,3 +2635,4 @@ def set_marker_sphere_size(ob, nwo):
         nwo.marker_sphere_radius = jstr(ob.empty_display_size * max_abs_scale)
     else:
         nwo.marker_sphere_radius = jstr(max(ob.dimensions * max_abs_scale / 2))
+        
