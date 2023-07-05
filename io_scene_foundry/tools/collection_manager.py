@@ -26,19 +26,23 @@
 import bpy
 
 
-def create_collections(context, ops, data, coll_type, coll_name):
+def create_collections(context, ops, data, coll_type, coll_name, move_objects):
     # iterates through the selected objects and applies the chosen collection type
     full_name = get_full_name(coll_type, coll_name)
     collection_index = get_coll_if_exists(data, full_name)
-    if collection_index == -1:
-        ops.object.move_to_collection(
-            collection_index=0, is_new=True, new_collection_name=full_name
-        )
+    if move_objects:
+        if collection_index == -1:
+            ops.object.move_to_collection(
+                collection_index=0, is_new=True, new_collection_name=full_name
+            )
+        else:
+            for ob in context.selected_objects:
+                for coll in ob.users_collection:
+                    coll.objects.unlink(ob)
+                data.collections[collection_index].objects.link(ob)
     else:
-        for ob in context.selected_objects:
-            for coll in ob.users_collection:
-                coll.objects.unlink(ob)
-            data.collections[collection_index].objects.link(ob)
+        ops.outliner.collection_new()
+        data.collections[-1].name = full_name
 
     return {"FINISHED"}
 

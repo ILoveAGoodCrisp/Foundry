@@ -3747,6 +3747,7 @@ class NWO_CollectionManager_Create(Operator):
             bpy.data,
             self.type,
             self.name,
+            False
         )
     
     def invoke(self, context, event):
@@ -3763,8 +3764,19 @@ class NWO_CollectionManager_CreateMove(NWO_CollectionManager_Create):
     bl_label = "Move to Halo Collection"
     bl_description = "Creates a Halo collection with the specified name and type. Adds all currently selected objects to it"
 
-class NWO_MT_CollectionManager(Operator):
+    def execute(self, context):
+        from .collection_manager import create_collections
 
+        return create_collections(
+            context,
+            bpy.ops,
+            bpy.data,
+            self.type,
+            self.name,
+            True,
+        )
+
+class NWO_MT_CollectionManager(Operator):
     def draw(self, context):
         pass
 

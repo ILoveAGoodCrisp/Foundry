@@ -67,7 +67,7 @@ def register():
     keys.append((km, kmi))
 
     kmi = km.keymap_items.new(
-        idname="nwo.collection_create",
+        idname="nwo.collection_create_move",
         type="M",
         value="PRESS",
         alt=True,
@@ -79,7 +79,7 @@ def register():
     km = kc.keymaps.new(name="Outliner", space_type="OUTLINER")
 
     kmi = km.keymap_items.new(
-        idname="nwo.collection_create",
+        idname="nwo.collection_create_move",
         type="M",
         value="PRESS",
         alt=True,
