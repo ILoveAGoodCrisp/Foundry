@@ -3235,6 +3235,7 @@ class NWO_HaloExportSettingsFlags(Panel):
         scene_nwo_export = scene.nwo_export
         h4 = scene_nwo.game_version != "reach"
         scenario = scene_nwo.asset_type == "SCENARIO"
+        prefab = scene_nwo.asset_type == "PREFAB"
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -3247,17 +3248,18 @@ class NWO_HaloExportSettingsFlags(Panel):
         col = flow.column()
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
-            if scenario:
-                col.prop(
-                    scene_nwo_export,
-                    "import_seam_debug",
-                    text="Show more seam debugging info",
-                )
-                col.prop(
-                    scene_nwo_export,
-                    "import_skip_instances",
-                    text="Skip importing instances",
-                )
+            if scenario or prefab:
+                if scenario:
+                    col.prop(
+                        scene_nwo_export,
+                        "import_seam_debug",
+                        text="Show more seam debugging info",
+                    )
+                    col.prop(
+                        scene_nwo_export,
+                        "import_skip_instances",
+                        text="Skip importing instances",
+                    )
                 col.prop(
                     scene_nwo_export,
                     "import_meta_only",
