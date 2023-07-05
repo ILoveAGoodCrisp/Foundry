@@ -490,6 +490,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     sets_viewer_expanded: BoolProperty(default=True)
 
     toolbar_expanded : BoolProperty(
-        name="Expand Foundry Toolbar",
+        name="Toggle Foundry Toolbar",
         default=True,
     )
