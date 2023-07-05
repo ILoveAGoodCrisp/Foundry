@@ -27,6 +27,7 @@
 from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_tag_and_path
 from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
+    get_tags_path,
     get_valid_shader_name,
     print_warning,
 )
@@ -135,7 +136,7 @@ class ManagedBlam_Init(Operator):
                 return {"FINISHED"}
             
 
-class ManagedBlamNewTag(Operator):
+class ManagedBlamTag(Operator):
     bl_options = {"REGISTER"}
 
     path : StringProperty()
@@ -147,13 +148,19 @@ class ManagedBlamNewTag(Operator):
         pass
 
     def execute(self, context):
+        self.system_path = None
         if not self.path:
             self.path = self.get_path()
+        else:
+            self.system_path = get_tags_path() + self.path
+
         self.Bungie = get_bungie(self.report)
         self.tag, self.tag_path = get_tag_and_path(self.Bungie, self.path)
         tag = self.tag
         try:
-            tag.New(self.tag_path)
+            if not os.path.exists(self.system_path):
+                tag.New(self.tag_path)
+
             self.tag_edit(context, tag)
             tag.Save()
 
@@ -176,7 +183,7 @@ class ManagedBlam_Close(Operator):
         return {"FINISHED"}
 
 
-class ManagedBlam_NewShader(ManagedBlamNewTag):
+class ManagedBlam_NewShader(ManagedBlamTag):
     bl_idname = "managed_blam.new_shader"
     bl_label = "ManagedBlam"
     bl_options = {"REGISTER", "UNDO"}
@@ -216,7 +223,7 @@ class ManagedBlam_NewShader(ManagedBlamNewTag):
         pass
 
 
-class ManagedBlam_NewMaterial(ManagedBlamNewTag):
+class ManagedBlam_NewMaterial(ManagedBlamTag):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_material"
@@ -241,7 +248,7 @@ class ManagedBlam_NewMaterial(ManagedBlamNewTag):
         pass
 
 
-class ManagedBlam_NewBitmap(ManagedBlamNewTag):
+class ManagedBlam_NewBitmap(ManagedBlamTag):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_bitmap"
@@ -272,7 +279,7 @@ class ManagedBlam_NewBitmap(ManagedBlamNewTag):
         # bitmap_type = field
         # # type.SetStringData(p.name)
     
-class ManagedBlam_ModelOverride(ManagedBlamNewTag):
+class ManagedBlam_ModelOverride(ManagedBlamTag):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_model_override"
