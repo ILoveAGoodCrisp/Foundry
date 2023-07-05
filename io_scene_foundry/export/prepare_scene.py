@@ -24,16 +24,12 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import os
-import subprocess
-import uuid
 import bmesh
 import bpy
 from os import path
 import csv
 from math import radians
 from mathutils import Matrix, Vector
-import time
 
 from io_scene_foundry.tools.shader_finder import find_shaders
 from ..utils.nwo_utils import (
@@ -59,7 +55,6 @@ from ..utils.nwo_utils import (
     true_permutation,
     update_job,
     update_progress,
-    valid_animation_types,
     vector_str,
 )
 

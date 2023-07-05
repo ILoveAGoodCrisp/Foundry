@@ -3644,7 +3644,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     )
     import_disable_hulls: BoolProperty(
         name="Disable Hulls",
-        description="Disables the contruction of conves hulls for instance physics and collision",
+        description="Disables the contruction of convex hulls for instance physics and collision",
         default=False,
     )
     import_disable_collision: BoolProperty(

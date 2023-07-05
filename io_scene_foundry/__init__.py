@@ -43,12 +43,12 @@ from io_scene_foundry.utils.nwo_utils import (
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
-    "version": (1, 0, 0),
+    "version": (0, 9, 0),
     "blender": (3, 6, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",
     "warning": "",
-    # "wiki_url": "",
+    "wiki_url": "https://c20.reclaimers.net/general/tools/foundry",
     "support": "COMMUNITY",
     "category": "Export",
 }
@@ -365,7 +365,6 @@ def get_temp_settings(dummy):
 
 def fix_icons():
     icons.icons_activate()
-
 
 def register():
     bpy.utils.register_class(ToolkitLocationPreferences)

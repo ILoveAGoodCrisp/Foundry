@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2022 Generalkidd & Crisp
+# Copyright (c) 2023 Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,15 +31,12 @@ import os
 import json
 import multiprocessing
 import threading
-import random
 from .format_json import NWOJSON
 from ..utils.nwo_utils import (
     data_relative,
     disable_prints,
-    dot_partition,
     enable_prints,
     get_data_path,
-    get_tags_path,
     jstr,
     print_warning,
     run_tool,
