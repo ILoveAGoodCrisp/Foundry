@@ -1664,6 +1664,10 @@ def sort_alphanum(var_list):
 
 
 def closest_bsp_object(ob):
+    """
+    Returns the closest bsp to the specified object
+     (that is different from the current objects bsp)
+    """
     closest_bsp = None
     distance = -1
 
@@ -1711,12 +1715,13 @@ def closest_bsp_object(ob):
 
 
 def object_median_point(ob):
+    """Returns the median point of a blender object"""
     me = ob.data
     verts = [v.co for v in me.vertices]
     return ob.matrix_world @ sum(verts, Vector()) / len(verts)
 
 
-def layer_face_count(bm, face_layer):
+def layer_face_count(bm, face_layer) -> int:
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
     if face_layer:
         return len([face for face in bm.faces if face[face_layer]])
@@ -1725,11 +1730,12 @@ def layer_face_count(bm, face_layer):
 
 
 def layer_faces(bm, face_layer):
-    """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
+    """Returns the faces in a bmesh that have an face int custom_layer with a value greater than 0"""
     return [face for face in bm.faces if face[face_layer]]
 
 
-def random_color(max_hue=True):
+def random_color(max_hue=True) -> list:
+    """Returns a random color. Selects one of R,G,B and sets maximum hue"""
     rgb = [random.random() for i in range(3)]
     if max_hue:
         rand_idx = random.randint(0, 2)
@@ -1737,7 +1743,8 @@ def random_color(max_hue=True):
     return rgb
 
 
-def nwo_enum(enum_name, display_name, description, icon="", index=-1, custom_icon=True):
+def nwo_enum(enum_name, display_name, description, icon="", index=-1, custom_icon=True) -> tuple:
+    """Returns a single enum entry for use with bpy EnumPropertys"""
     full_enum = icon != "" or index != -1
     if full_enum:
         if custom_icon:
@@ -1764,6 +1771,7 @@ def area_redraw(context):
 
 
 def delete_object_list(context, object_list):
+    """Deletes the given object list from the blend scene"""
     override = context.copy()
     override["selected_objects"] = object_list
     with context.temp_override(**override):
@@ -1771,14 +1779,20 @@ def delete_object_list(context, object_list):
 
 
 def disable_prints():
+    """Disables console prints"""
     sys.stdout = open(os.devnull, "w")
 
 
 def enable_prints():
+    """Enables console prints"""
     sys.stdout = sys.__stdout__
 
 
-def data_relative(path):
+def data_relative(path: str) -> str:
+    """
+    Takes a full system path to a location within
+    the data folder and returns the data relative path
+    """
     return path.replace(get_data_path(), "")
 
 
@@ -1820,14 +1834,14 @@ def update_job_count(message, spinner, completed, total):
     sys.stdout.flush()
 
 
-def poll_ui(selected_types):
+def poll_ui(selected_types) -> bool:
     scene_nwo = bpy.context.scene.nwo
     asset_type = scene_nwo.asset_type
 
     return asset_type in selected_types
 
 
-def is_halo_object(ob):
+def is_halo_object(ob) -> bool:
     return (
         ob
         and ob.type not in ("LATTICE", "LIGHT_PROBE", "SPEAKER", "CAMERA")
@@ -1845,7 +1859,7 @@ def is_halo_object(ob):
     )
 
 
-def has_mesh_props(ob):
+def has_mesh_props(ob) -> bool:
     valid_mesh_types = (
         "_connected_geometry_mesh_type_collision",
         "_connected_geometry_mesh_type_physics",
@@ -1862,7 +1876,7 @@ def has_mesh_props(ob):
     )
 
 
-def has_face_props(ob):
+def has_face_props(ob) -> bool:
     valid_mesh_types = (
         "_connected_geometry_mesh_type_collision",
         "_connected_geometry_mesh_type_structure",
@@ -1878,7 +1892,7 @@ def has_face_props(ob):
     )
 
 
-def get_halo_material_count():
+def get_halo_material_count() -> tuple:
     count = 0
     total = 0
     for mat in bpy.data.materials:
