@@ -438,7 +438,7 @@ class PrepareScene:
 
         if export_gr2_files:
             # Convert mesh markers to empty objects
-            self.markerify(export_obs, scene_coll, context)
+            self.markerify(export_obs, scene_coll)
             # print("markifiy")
 
             # get new export_obs from deleted markers
@@ -2385,7 +2385,7 @@ class PrepareScene:
             # append the new material to the object
             me.materials.append(override_mat)
 
-    def markerify(self, export_obs, scene_coll, context):
+    def markerify(self, export_obs, scene_coll):
         # get a list of meshes which are nodes
         mesh_markers = [
             ob

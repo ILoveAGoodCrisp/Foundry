@@ -1906,3 +1906,16 @@ def get_halo_material_count() -> tuple:
         total += 1
 
     return count, total
+
+
+def validate_ek(game) -> str | None:
+    """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
+    ek = get_ek_path()
+    if not os.path.exists(ek):
+        return f"{formalise_game_version(game)} Editing Kit path invalid"
+    elif not os.path.exists(os.path.join(ek, get_tool_type() + ".exe")):
+        return f"Tool not found, please check that you have tool.exe within your {formalise_game_version(game)} Editing Kit directory"
+    elif not os.path.exists(os.path.join(ek, "data")):
+        return f"Editing Kit data folder not found. Please ensure your {formalise_game_version(game)} Editing Kit directory has a 'data' folder"
+    elif not os.path.exists(os.path.join(ek, "bin", "ManagedBlam.dll")):
+        return f"ManagedBlam not found in your {formalise_game_version(game)} Editing Kit bin folder, please ensure this exists"

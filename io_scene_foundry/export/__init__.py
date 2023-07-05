@@ -65,6 +65,7 @@ from io_scene_foundry.utils.nwo_utils import (
     managed_blam_active,
     print_error,
     print_warning,
+    validate_ek,
 )
 
 # lightmapper_run_once = False
@@ -77,6 +78,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
     bl_idname = "export_scene.nwo"
     bl_label = "Export Asset"
     bl_options = {"UNDO", "PRESET"}
+
+    @classmethod
+    def poll(cls, context):
+        return not validate_ek(context.scene.nwo.game_version)
 
     filename_ext = ".fbx"
 

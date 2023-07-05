@@ -57,6 +57,7 @@ from io_scene_foundry.utils.nwo_utils import (
     nwo_asset_type,
     valid_nwo_asset,
     poll_ui,
+    validate_ek,
 )
 from bpy_extras.object_utils import AddObjectHelper
 
@@ -85,8 +86,9 @@ PANELS_PROPS = [
     "animation_properties",
     "tools",
     "help",
-
+    # "settings"
 ]
+
 PANELS_TOOLS = ["sets_viewer"]
 
 #######################################
@@ -115,9 +117,10 @@ class NWO_FoundryPanelProps(Panel):
         col2 = row.column(align=True)
 
         box = col1.box()
-
         for p in PANELS_PROPS:
-            col1.separator()
+            if p == "help":
+                box = col1.box()
+            
             row_icon = box.row(align=True)
             panel_active = getattr(nwo, f"{p}_active")
             panel_pinned = getattr(nwo, f"{p}_pinned")
@@ -777,7 +780,8 @@ class NWO_FoundryPanelProps(Panel):
                     if h4:
                         col.prop(nwo, "marker_game_instance_run_scripts_ui")
 
-            elif nwo.marker_type_ui == "_connected_geometry_marker_type_hint":
+            if nwo.marker_type_ui == "_connected_geometry_marker_type_hint":
+                print("Here")
                 row = col.row(align=True)
                 row.prop(nwo, "marker_hint_type")
                 if nwo.marker_hint_type == "corner":
@@ -1067,12 +1071,6 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator(
                     "nwo.remove_mesh_property", text="", icon="X"
                 ).options = "no_shadow"
-            if nwo.precise_position_active:
-                row = col.row()
-                row.prop(nwo, "precise_position_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "precise_position"
             if nwo.no_lightmap_active:
                 row = col.row()
                 row.prop(nwo, "no_lightmap_ui")
@@ -1409,12 +1407,6 @@ class NWO_FoundryPanelProps(Panel):
                     row.operator(
                         "nwo.face_prop_remove", text="", icon="X"
                     ).options = "no_shadow"
-                if item.precise_position_override:
-                    row = col.row()
-                    row.prop(item, "precise_position_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "precise_position"
                 if item.no_lightmap_override:
                     row = col.row()
                     row.prop(item, "no_lightmap_ui")
@@ -4480,6 +4472,14 @@ def foundry_toolbar(layout, context):
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if nwo_scene.toolbar_expanded:
+        error = validate_ek(context.scene.nwo.game_version)
+        if error is not None:
+            sub_error = row.row()
+            sub_error.label(text=error, icon="ERROR")
+            sub_foundry = row.row(align=True)
+            sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+            return
+
         if not valid_nwo_asset(context):
             sub_asset = row.row()
             sub_asset.operator("nwo.make_asset", text="New Halo Asset", icon_value=get_icon_id("halo_asset"))
