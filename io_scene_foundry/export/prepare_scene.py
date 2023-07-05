@@ -461,6 +461,10 @@ class PrepareScene:
 
             # remove meshes with zero faces
             self.cull_zero_face_meshes(export_obs)
+
+            context.view_layer.update()
+            export_obs = context.view_layer.objects[:]
+
             # print("cull_zero_face")
         # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
         regions = [region for region in self.regions if region]
@@ -480,7 +484,7 @@ class PrepareScene:
 
         # get all objects that we plan to export later
         self.halo_objects_init()
-        self.halo_objects(sidecar_type, export_obs, scene_coll, h4)
+        self.halo_objects(sidecar_type, export_obs, h4)
         # print("halo_objects")
 
         context.view_layer.update()
@@ -2500,8 +2504,8 @@ class PrepareScene:
         self.structure_perms = set()
         self.structure_bsps = set()
 
-    def halo_objects(self, asset_type, export_obs, scene_coll, h4):
-        render_asset = asset_type != "SCENARIO"
+    def halo_objects(self, asset_type, export_obs, h4):
+        render_asset = asset_type not in ("SCENARIO", "PREFAB")
 
         for ob in export_obs:
             nwo = ob.nwo
@@ -2548,18 +2552,20 @@ class PrepareScene:
                 elif object_type == "_connected_geometry_object_type_marker":
                     self.markers.append(ob)
                 else:
-                    scene_coll.unlink(ob)
+                    self.unlink(ob)
 
             else:
                 bsp = nwo.bsp_name
                 if design:
                     self.design.append(ob)
                     self.design_perms.add(permutation)
-                    self.design_bsps.add(bsp)
+                    if asset_type == 'SCENARIO':
+                        self.design_bsps.add(bsp)
                 else:
                     self.structure.append(ob)
                     self.structure_perms.add(permutation)
-                    self.structure_bsps.add(bsp)
+                    if asset_type == 'SCENARIO':
+                        self.structure_bsps.add(bsp)
 
     def create_bsp_box(self, scene_coll):
         me = bpy.data.meshes.new("bsp_box")

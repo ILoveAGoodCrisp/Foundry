@@ -133,25 +133,40 @@ class ManagedBlam_Init(Operator):
                     blam_txt.write(mb_path)
 
                 return {"FINISHED"}
+            
+
+class ManagedBlam(Operator):
+    bl_options = {"REGISTER"}
+
+    path : StringProperty()
+
+    def get_path(self): # stub
+        return ""
+
+    def execute(self, context): # stub
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        if not self.path:
+            self.path = self.get_path()
+        self.Bungie = get_bungie(self.report)
+        return self.execute(context)
 
 
-class ManagedBlam_Close(Operator):
+class ManagedBlam_Close(ManagedBlam):
     """Closes Managed Blam"""
-
     bl_idname = "managed_blam.close"
     bl_label = "Managed Blam Close"
     bl_options = {"REGISTER"}
     bl_description = "Initialises Managed Blam and locks the currently selected game"
 
     def execute(self, context):
-        Bungie = get_bungie(self.report)
-        Bungie.ManagedBlamSystem.Stop()
+        self.Bungie.ManagedBlamSystem.Stop()
         return {"FINISHED"}
 
 
-class ManagedBlam_NewShader(Operator):
+class ManagedBlam_NewShader(ManagedBlam):
     """Runs a ManagedBlam Operation"""
-
     bl_idname = "managed_blam.new_shader"
     bl_label = "ManagedBlam"
     bl_options = {"REGISTER", "UNDO"}
@@ -170,16 +185,8 @@ class ManagedBlam_NewShader(Operator):
 
         return shader_path
 
-    path: StringProperty(
-        default="",
-        get=get_path,
-        name="Tag Path",
-    )
-
     def execute(self, context):
-        Bungie = get_bungie(self.report)
-        tag, tag_path = get_tag_and_path(Bungie, self.path)
-        print(self.path)
+        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
         try:
             tag.New(tag_path)
 
@@ -208,7 +215,7 @@ class ManagedBlam_NewShader(Operator):
         return {"FINISHED"}
 
 
-class ManagedBlam_NewMaterial(Operator):
+class ManagedBlam_NewMaterial(ManagedBlam):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_material"
@@ -229,15 +236,8 @@ class ManagedBlam_NewMaterial(Operator):
 
         return shader_path
 
-    path: StringProperty(
-        default="",
-        get=get_path,
-        name="Tag Path",
-    )
-
     def execute(self, context):
-        Bungie = get_bungie(self.report)
-        tag, tag_path = get_tag_and_path(Bungie, self.path)
+        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
         print(self.path)
         try:
             tag.New(tag_path)
@@ -249,7 +249,7 @@ class ManagedBlam_NewMaterial(Operator):
         return {"FINISHED"}
 
 
-class ManagedBlam_NewBitmap(Operator):
+class ManagedBlam_NewBitmap(ManagedBlam):
     """Runs a ManagedBlam Operation"""
 
     bl_idname = "managed_blam.new_bitmap"
@@ -274,22 +274,47 @@ class ManagedBlam_NewBitmap(Operator):
 
         return bitmap_path
 
-    path: StringProperty(
-        default="",
-        get=get_path,
-        name="Tag Path",
-    )
-
     def execute(self, context):
-        Bungie = get_bungie(self.report)
-        tag, tag_path = get_tag_and_path(Bungie, self.path)
-        print(self.path)
+        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
         try:
             tag.New(tag_path)
 
             # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
             # bitmap_type = field
             # # type.SetStringData(p.name)
+
+            tag.Save()
+
+        finally:
+            tag.Dispose()
+
+        return {"FINISHED"}
+    
+class ManagedBlam_ModelOverride(ManagedBlam):
+    """Runs a ManagedBlam Operation"""
+
+    bl_idname = "managed_blam.new_model_override"
+    bl_label = "ManagedBlam"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Runs a ManagedBlam Operation"
+
+    type: StringProperty()
+
+    def get_path(self):
+        asset_path = get_asset_path()
+        bitmaps_dir = os.path.join(asset_path, "bitmaps")
+        bitmap_path = os.path.join(bitmaps_dir, self.bitmap_name + ".bitmap")
+
+        return bitmap_path
+
+    def execute(self, context):
+        tag, tag_path = get_tag_and_path(self.Bungie, self.path)
+        try:
+            tag.New(tag_path)
+
+            # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
+            # bitmap_type = field
+            # type.SetStringData(p.name)
 
             tag.Save()
 

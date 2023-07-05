@@ -124,6 +124,12 @@ class NWO_FoundryPanelProps(Panel):
                     icon="TRIA_DOWN" if panel_expanded else "TRIA_RIGHT",
                     emboss=False,
                 ).panel_str = p
+                row_header.operator(
+                    "nwo.panel_unpin",
+                    text="",
+                    icon="PINNED" if panel_pinned else "UNPINNED",
+                    emboss=False,
+                ).panel_str = p
 
                 if panel_expanded:
                     draw_panel = getattr(self, f"draw_{p}")
@@ -133,7 +139,6 @@ class NWO_FoundryPanelProps(Panel):
         box = self.box.box()
         mb_active = managed_blam_active()
         nwo = self.scene.nwo
-        context = self.context
         scene = self.scene
 
         col = box.column()
@@ -144,17 +149,12 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(nwo, "game_version", text="")
         col = box.column()
         col.use_property_split = True
-        # col.prop(nwo, "asset_type", text="Asset Type")
         col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
         if nwo.asset_type in ("MODEL", "FP ANIMATION"):
             col.prop(nwo, "forward_direction", text="Model Forward")
 
         col.separator()
         row = col.row()
-
-        row.scale_y = 1.1
-        # if not valid_nwo_asset(context):
-        #     row.operator("nwo.make_asset")
 
         if mb_active or nwo.mb_startup:
             row = col.row()
@@ -164,12 +164,12 @@ class NWO_FoundryPanelProps(Panel):
             col2.use_property_split = False
             col1.alignment = 'LEFT'
             col2.alignment = 'RIGHT'
-            col1.prop(nwo, "mb_startup")
-            col2.label(text="ManagedBlam Active")
+            col1.label(icon_value=get_icon_id("managed_blam_on"), text="ManagedBlam Active")
+            col2.prop(nwo, "mb_startup", text="Run on startup")
         elif os.path.exists(os.path.join(bpy.app.tempdir, "blam_new.txt")):
             row.label(text="Blender Restart Required for ManagedBlam")
         else:
-            row.operator("managed_blam.init", text="Initialize ManagedBlam")
+            row.operator("managed_blam.init", text="Initialize ManagedBlam", icon_value=get_icon_id("managed_blam_off"))
 
         row = col.row()
         row.scale_y = 1.1
@@ -1896,6 +1896,20 @@ class NWO_FoundryPanelSetsViewer(Panel):
         row.scale_y = 1.5
         row.operator("nwo.armature_create", text="Create Rig")
 
+class NWO_OT_PanelUnpin(Operator):
+    bl_idname = "nwo.panel_unpin"
+    bl_label = ""
+
+    panel_str : StringProperty()
+
+    def execute(self, context: Context):
+        nwo = context.scene.nwo
+        prop_pin = f"{self.panel_str}_pinned"
+        setattr(nwo, prop_pin, not getattr(nwo, prop_pin))
+
+        return {"FINISHED"}
+
+
 
 class NWO_OT_PanelSet(Operator):
     """Toggles a Foundry panel on/off"""
@@ -1904,7 +1918,7 @@ class NWO_OT_PanelSet(Operator):
     bl_label = ""
     bl_options = {"REGISTER"}
 
-    panel_str: StringProperty()
+    panel_str : StringProperty()
     keep_enabled : BoolProperty()
     pin : BoolProperty()
 
@@ -1912,12 +1926,15 @@ class NWO_OT_PanelSet(Operator):
         nwo = context.scene.nwo
         prop = f"{self.panel_str}_active"
         prop_pin = f"{self.panel_str}_pinned"
-        if self.pin:
+        pinned = getattr(nwo, prop_pin)
+        if self.pin and not pinned:
             setattr(nwo, prop_pin, True)
-        else:
+            setattr(nwo, prop, True)
+        elif self.pin and pinned:
             setattr(nwo, prop_pin, False)
-
-        setattr(nwo, prop, True)
+            setattr(nwo, prop, False)
+        else:
+            setattr(nwo, prop, True)
 
         # toggle all others off
         if not self.keep_enabled:
@@ -3297,11 +3314,10 @@ class NWO_HaloExportSettingsFlags(Panel):
 
 
 class NWO_HaloExport(Operator):
-    """Runs the GR2 exporter immediately, using the settings definied in quick export settings"""
-
     bl_idname = "nwo.export_quick"
     bl_label = "Quick Export"
     bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Exports the current Halo asset and creates tags"
 
     def execute(self, context):
         from .halo_export import export_quick, export
@@ -4317,12 +4333,15 @@ def foundry_toolbar(layout, context):
     icons_only = False
     row.scale_x = 1
     nwo_scene = context.scene.nwo
+    box = row.box()
+    box.scale_x = 0.3
+    box.label(text="")
     if not nwo_scene.toolbar_expanded:
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if nwo_scene.toolbar_expanded:
         if not valid_nwo_asset(context):
-            sub_asset = row.row(align=True)
+            sub_asset = row.row()
             sub_asset.operator("nwo.make_asset", text="New Halo Asset", icon_value=get_icon_id("halo_asset"))
         sub0 = row.row(align=True)
         sub0.operator(
@@ -4371,6 +4390,7 @@ def foundry_toolbar(layout, context):
 classeshalo = (
     NWO_OT_PanelExpand,
     NWO_OT_PanelSet,
+    NWO_OT_PanelUnpin,
     NWO_FoundryPanelProps,
     # NWO_FoundryPanelSetsViewer,
     NWO_HaloExport,
