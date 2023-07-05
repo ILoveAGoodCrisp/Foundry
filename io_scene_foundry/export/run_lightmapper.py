@@ -28,7 +28,6 @@ import os
 from io_scene_foundry.utils.nwo_utils import (
     formalise_string,
     get_asset_path,
-    print_box,
     print_warning,
     run_tool,
 )
