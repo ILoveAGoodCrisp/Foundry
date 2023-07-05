@@ -102,8 +102,8 @@ from .object_ui import (
     NWO_BSPListSeam,
     NWO_MasterInstance,
     NWO_BoneProps,
-    NWO_LightProps,
-    NWO_LightPropsCycles,
+    # NWO_LightProps,
+    # NWO_LightPropsCycles,
 )
 
 from .materials_ui import NWO_ShaderProps, NWO_MaterialOpenTag
@@ -413,7 +413,7 @@ classes_nwo = (
     # NWO_List_Remove_Shared_Asset,
     # NWO_UL_SceneProps_SharedAssets,
     # NWO_SceneProps_SharedAssets,
-    NWO_LightPropsCycles,
+    # NWO_LightPropsCycles,
     # NWO_SceneProps,
     NWO_SetUnitScale,
     NWO_AssetMaker,
@@ -447,7 +447,7 @@ classes_nwo = (
     NWO_LightPropertiesGroup,
     NWO_MaterialPropertiesGroup,
     NWO_MeshPropertiesGroup,
-    NWO_LightProps,
+    # NWO_LightProps,
     NWO_BoneProps,
     NWO_BonePropertiesGroup,
     # NWO_ActionProps,

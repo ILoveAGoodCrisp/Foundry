@@ -108,7 +108,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     "_connected_geometry_object_type_mesh",
                     "Mesh",
                     "Mesh",
-                    get_icon_id("render_geometry"),
+                    get_icon_id("mesh"),
                     0,
                 )
             )

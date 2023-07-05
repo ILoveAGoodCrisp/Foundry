@@ -308,16 +308,16 @@ class NWOLight(NWOObject):
     # --------------------------------
 
     def light_type(self):
-        if self.not_bungie_game:
-            light_type = self.data.type
-            if light_type == "SUN":
-                return "_connected_geometry_light_type_directional"
-            elif light_type == "POINT":
+        light_type = self.data.type
+        if light_type == "SUN":
+            return "_connected_geometry_light_type_directional"
+        elif light_type == "POINT":
+            if self.not_bungie_game:
                 return "_connected_geometry_light_type_point"
             else:
-                return "_connected_geometry_light_type_spot"
+                return "_connected_geometry_light_type_omni"
         else:
-            return self.data.nwo.light_type_override
+            return "_connected_geometry_light_type_spot"
 
     def is_uber_light(self):
         return bool_str(
@@ -338,13 +338,15 @@ class NWOLight(NWOObject):
 
     def light_intensity(self):
         if self.not_bungie_game:
-            return jstr(
-                (self.ob.data.energy / 0.03048**-2) / 10
-                if self.ob.data.type != "SUN"
-                else self.ob.data.energy
-            )
+            div = 10
         else:
-            return jstr(self.data.nwo.light_intensity)
+            div = 300
+
+        return jstr(
+            (self.ob.data.energy / 0.03048**-2) / div
+            if self.ob.data.type != "SUN"
+            else self.ob.data.energy
+        )
 
     def light_far_attenuation_start(self):
         if self.not_bungie_game:

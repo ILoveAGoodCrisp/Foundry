@@ -342,16 +342,6 @@ class NWO_FoundryPanelProps(Panel):
             box.label(text="This object contains the skeleton for this asset")
             return
 
-        flow = box.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-
-        col = flow.column()
-
         row = box.grid_flow(
             row_major=True,
             columns=0,
@@ -359,20 +349,19 @@ class NWO_FoundryPanelProps(Panel):
             even_rows=False,
             align=True,
         )
-        row.scale_x = 1.3
+        row.scale_x = 0.5
         row.scale_y = 1.3
+        data = ob.data
 
-        row.prop(nwo, "object_type_ui", text="", expand=True)
+        halo_light = nwo.object_type_ui == "_connected_geometry_object_type_light"
 
-        if nwo.object_type_ui == "_connected_geometry_object_type_light":
-            flow = box.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=False,
-                align=False,
-            )
-            col = flow.column()
+        if halo_light:
+            row.prop(data, "type", expand=True)
+        else:
+            row.prop(nwo, "object_type_ui", expand=True)
+
+        if halo_light:
+            col = box.column()
             col.use_property_split = True
             if poll_ui("SCENARIO"):
                 row = col.row()
@@ -405,9 +394,229 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.separator()
 
-            col.label(
-                text="See the Object Data Properties panel for Halo Light Properties"
+            flow = col.grid_flow(
+                row_major=True,
+                columns=0,
+                even_columns=True,
+                even_rows=False,
+                align=False,
             )
+
+            scene = context.scene
+            scene_nwo = scene.nwo
+            nwo = data.nwo
+            col = flow.column()
+
+            col.prop(data, "color")
+            col.prop(data, "energy")
+
+            if data.type == 'SPOT' and h4:
+                col.separator()
+                col.prop(data, "spot_size", text="Cone Size")
+                col.prop(data, "spot_blend", text="Cone Blend", slider=True)
+                col.prop(data, "show_cone")
+            elif data.type == 'AREA':
+                col.label(text="Area lights not currently supported", icon="ERROR")
+                return
+
+            col.separator()
+            if scene_nwo.game_version in ("h4", "h2a"):
+                # col.prop(ob_nwo, 'Light_Color', text='Color')
+                row = col.row()
+                row.prop(nwo, "light_mode", expand=True)
+                row = col.row()
+                row.prop(nwo, "light_lighting_mode", expand=True)
+                # col.prop(nwo, 'light_type_h4')
+                if data.type == "SPOT":
+                    col.separator()
+                    row = col.row()
+                    row.prop(nwo, "light_cone_projection_shape", expand=True)
+                    # col.prop(nwo, 'light_inner_cone_angle')
+                    # col.prop(nwo, 'light_outer_cone_angle')
+
+                col.separator()
+                # col.prop(nwo, 'Light_IntensityH4')
+                if (
+                    nwo.light_lighting_mode
+                    == "_connected_geometry_lighting_mode_artistic"
+                ):
+                    col.prop(nwo, "light_near_attenuation_starth4")
+                    col.prop(nwo, "light_near_attenuation_endh4")
+
+                col.separator()
+
+                if nwo.light_mode == "_connected_geometry_light_mode_dynamic":
+                    col.prop(nwo, "light_far_attenuation_starth4")
+                    col.prop(nwo, "light_far_attenuation_endh4")
+
+                    col.separator()
+
+                    row = col.row()
+                    row.prop(nwo, "light_cinema", expand=True)
+                    col.prop(nwo, "light_destroy_after")
+
+                    col.separator()
+
+                    col.prop(nwo, "light_shadows")
+                    if nwo.light_shadows:
+                        col.prop(nwo, "light_shadow_color")
+                        row = col.row()
+                        row.prop(nwo, "light_dynamic_shadow_quality", expand=True)
+                        col.prop(nwo, "light_shadow_near_clipplane")
+                        col.prop(nwo, "light_shadow_far_clipplane")
+                        col.prop(nwo, "light_shadow_bias_offset")
+                    col.prop(nwo, "light_cinema_objects_only")
+                    col.prop(nwo, "light_specular_contribution")
+                    col.prop(nwo, "light_diffuse_contribution")
+                    col.prop(nwo, "light_ignore_dynamic_objects")
+                    col.prop(nwo, "light_screenspace")
+                    if nwo.light_screenspace:
+                        col.prop(nwo, "light_specular_power")
+                        col.prop(nwo, "light_specular_intensity")
+
+                    # col = layout.column(heading="Flags")
+                    # sub = col.column(align=True)
+                else:
+                    row = col.row()
+                    row.prop(nwo, "light_jitter_quality", expand=True)
+                    col.prop(nwo, "light_jitter_angle")
+                    col.prop(nwo, "light_jitter_sphere_radius")
+
+                    col.separator()
+
+                    col.prop(nwo, "light_amplification_factor")
+
+                    col.separator()
+                    # col.prop(nwo, 'light_attenuation_near_radius')
+                    # col.prop(nwo, 'light_attenuation_far_radius')
+                    # col.prop(nwo, 'light_attenuation_power')
+                    # col.prop(nwo, 'light_tag_name')
+                    col.prop(nwo, "light_indirect_only")
+                    col.prop(nwo, "light_static_analytic")
+
+                # col.prop(nwo, 'light_intensity_off', text='Light Intensity Set Via Tag')
+                # if nwo.light_lighting_mode == '_connected_geometry_lighting_mode_artistic':
+                #     col.prop(nwo, 'near_attenuation_end_off', text='Near Attenuation Set Via Tag')
+                # if nwo.light_type_h4 == '_connected_geometry_light_type_spot':
+                #     col.prop(nwo, 'outer_cone_angle_off', text='Outer Cone Angle Set Via Tag')
+
+                # col.prop(nwo, 'Light_Fade_Start_Distance')
+                # col.prop(nwo, 'Light_Fade_End_Distance')
+                
+
+            else:
+                # col.prop(nwo, "light_type_override", text="Type")
+
+                col.prop(nwo, "light_game_type", text="Game Type")
+                col.prop(nwo, "light_shape", text="Shape")
+                # col.prop(nwo, 'Light_Color', text='Color')
+                # col.prop(nwo, "light_intensity", text="Intensity")
+
+                col.separator()
+
+                col.prop(
+                    nwo,
+                    "light_fade_start_distance",
+                    text="Fade Out Start Distance",
+                )
+                col.prop(nwo, "light_fade_end_distance", text="Fade Out End Distance")
+
+                col.separator()
+
+                col.prop(nwo, "light_hotspot_size", text="Hotspot Size")
+                col.prop(nwo, "light_hotspot_falloff", text="Hotspot Falloff")
+                col.prop(nwo, "light_falloff_shape", text="Falloff Shape")
+                col.prop(nwo, "light_aspect", text="Light Aspect")
+
+                col.separator()
+
+                col.prop(nwo, "light_frustum_width", text="Frustum Width")
+                col.prop(nwo, "light_frustum_height", text="Frustum Height")
+
+                col.separator()
+
+                col.prop(nwo, "light_volume_distance", text="Light Volume Distance")
+                col.prop(nwo, "light_volume_intensity", text="Light Volume Intensity")
+
+                col.separator()
+
+                col.prop(nwo, "light_bounce_ratio", text="Light Bounce Ratio")
+
+                col.separator()
+
+                col = col.column(heading="Flags")
+                sub = col.column(align=True)
+
+                sub.prop(
+                    nwo,
+                    "light_ignore_bsp_visibility",
+                    text="Ignore BSP Visibility",
+                )
+                sub.prop(
+                    nwo,
+                    "light_dynamic_has_bounce",
+                    text="Light Has Dynamic Bounce",
+                )
+                if (
+                    nwo.light_sub_type
+                    == "_connected_geometry_lighting_sub_type_screenspace"
+                ):
+                    sub.prop(
+                        nwo,
+                        "light_screenspace_has_specular",
+                        text="Screenspace Light Has Specular",
+                    )
+
+                col = flow.column()
+
+                col.prop(
+                    nwo,
+                    "light_near_attenuation_start",
+                    text="Near Attenuation Start",
+                )
+                col.prop(
+                    nwo,
+                    "light_near_attenuation_end",
+                    text="Near Attenuation End",
+                )
+
+                col.separator()
+
+                col.prop(
+                    nwo,
+                    "light_far_attenuation_start",
+                    text="Far Attenuation Start",
+                )
+                col.prop(nwo, "light_far_attenuation_end", text="Far Attenuation End")
+
+                col.separator()
+                row = col.row()
+                row.prop(nwo, "light_tag_override", text="Light Tag Override")
+                row.operator("nwo.light_tag_path")
+                row = col.row()
+                row.prop(nwo, "light_shader_reference", text="Shader Tag Reference")
+                row.operator("nwo.light_shader_path")
+                row = col.row()
+                row.prop(nwo, "light_gel_reference", text="Gel Tag Reference")
+                row.operator("nwo.light_gel_path")
+                row = col.row()
+                row.prop(
+                    nwo,
+                    "light_lens_flare_reference",
+                    text="Lens Flare Tag Reference",
+                )
+                row.operator("nwo.lens_flare_path")
+
+                # col.separator() # commenting out light clipping for now.
+
+                # col.prop(nwo, 'Light_Clipping_Size_X_Pos', text='Clipping Size X Forward')
+                # col.prop(nwo, 'Light_Clipping_Size_Y_Pos', text='Clipping Size Y Forward')
+                # col.prop(nwo, 'Light_Clipping_Size_Z_Pos', text='Clipping Size Z Forward')
+                # col.prop(nwo, 'Light_Clipping_Size_X_Neg', text='Clipping Size X Backward')
+                # col.prop(nwo, 'Light_Clipping_Size_Y_Neg', text='Clipping Size Y Backward')
+                # col.prop(nwo, 'Light_Clipping_Size_Z_Neg', text='Clipping Size Z Backward')
+
+            
 
         elif nwo.object_type_ui == "_connected_geometry_object_type_mesh":
             # SPECIFIC MESH PROPS
