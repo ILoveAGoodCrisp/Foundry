@@ -228,7 +228,7 @@ class NWO_FoundryPanelProps(Panel):
                 even_rows=True,
                 align=True,
             )
-            row.scale_x = 0.8
+            row.scale_x = 0.65
             row.scale_y = 1.3
 
             row.prop(
@@ -246,33 +246,33 @@ class NWO_FoundryPanelProps(Panel):
             row.prop(
                 nwo,
                 "output_effect_scenery",
-                # text="",
+                text="Effect",
                 icon_value=get_icon_id("effect_scenery"),
             )
 
             row.prop(
                 nwo,
                 "output_device_control",
-                # text="",
+                text="Control",
                 icon_value=get_icon_id("device_control"),
             )
             row.prop(
                 nwo,
                 "output_device_machine",
-                # text="",
+                text="Machine",
                 icon_value=get_icon_id("device_machine"),
             )
             row.prop(
                 nwo,
                 "output_device_terminal",
-                # text="",
+                text="Terminal",
                 icon_value=get_icon_id("device_terminal"),
             )
             if context.scene.nwo.game_version in ("h4", "h2a"):
                 row.prop(
                     nwo,
                     "output_device_dispenser",
-                    # text="",
+                    text="Dispenser",
                     icon_value=get_icon_id("device_dispenser"),
                 )
 

@@ -31,6 +31,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     formalise_game_version,
     get_data_path,
+    get_tags_path,
     managed_blam_active,
     valid_nwo_asset,
 )
@@ -352,105 +353,103 @@ class NWO_AssetMaker(NWO_Op):
         col.prop(self, "managed_blam", text="Enable ManagedBlam")
         if nwo_asset.asset_type == "MODEL":
             col.separator()
-            col.label(text="Model Output Tags")
+            col.label(text="Output Tags")
             flow = col.grid_flow(
                 row_major=True,
-                columns=3,
+                columns=0,
                 even_columns=True,
                 even_rows=False,
                 align=True,
             )
-            flow.scale_x = 1.25
+            flow.scale_x = 1
             flow.scale_y = 1.25
             flow.prop(
                 nwo_asset,
                 "output_crate",
-                text="",
+                # text="",
                 icon_value=get_icon_id("crate"),
             )
             flow.prop(
                 nwo_asset,
                 "output_scenery",
-                text="",
+                # text="",
                 icon_value=get_icon_id("scenery"),
             )
             flow.prop(
                 nwo_asset,
                 "output_effect_scenery",
-                text="",
+                text="Effect",
                 icon_value=get_icon_id("effect_scenery"),
             )
 
             flow.prop(
                 nwo_asset,
                 "output_device_control",
-                text="",
+                text="Control",
                 icon_value=get_icon_id("device_control"),
             )
             flow.prop(
                 nwo_asset,
                 "output_device_machine",
-                text="",
+                text="Machine",
                 icon_value=get_icon_id("device_machine"),
             )
             flow.prop(
                 nwo_asset,
                 "output_device_terminal",
-                text="",
+                text="Terminal",
                 icon_value=get_icon_id("device_terminal"),
             )
             if context.scene.nwo.game_version in ("h4", "h2a"):
                 flow.prop(
                     nwo_asset,
                     "output_device_dispenser",
-                    text="",
+                    text="Dispenser",
                     icon_value=get_icon_id("device_dispenser"),
                 )
 
             flow.prop(
                 nwo_asset,
                 "output_biped",
-                text="",
+                # text="",
                 icon_value=get_icon_id("biped"),
             )
             flow.prop(
                 nwo_asset,
                 "output_creature",
-                text="",
+                # text="",
                 icon_value=get_icon_id("creature"),
             )
             flow.prop(
                 nwo_asset,
                 "output_giant",
-                text="",
+                # text="",
                 icon_value=get_icon_id("giant"),
             )
 
             flow.prop(
                 nwo_asset,
                 "output_vehicle",
-                text="",
+                # text="",
                 icon_value=get_icon_id("vehicle"),
             )
             flow.prop(
                 nwo_asset,
                 "output_weapon",
-                text="",
+                # text="",
                 icon_value=get_icon_id("weapon"),
             )
             flow.prop(
                 nwo_asset,
                 "output_equipment",
-                text="",
+                # text="",
                 icon_value=get_icon_id("equipment"),
             )
 
     def invoke(self, context, event):
         self.filepath = get_data_path() + self.asset_name
         context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
+        return {'RUNNING_MODAL'}
 
 class NWO_UL_SceneProps_SharedAssets(UIList):
     use_name_reverse: bpy.props.BoolProperty(
