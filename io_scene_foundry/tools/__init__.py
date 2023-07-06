@@ -181,7 +181,8 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(nwo, "game_version", text="")
         col = box.column()
         col.use_property_split = True
-        col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
+        if nwo.asset_type in ("MODEL", "SCENARIO", "PREFAB"):
+            col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
         if nwo.asset_type in ("MODEL", "FP ANIMATION"):
             col.prop(nwo, "forward_direction", text="Model Forward")
 
