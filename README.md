@@ -1,4 +1,4 @@
-<div align="center"> <img src="https://raw.githubusercontent.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/master/readme_banner.png"> </div>
+<div align="center"> <img src="img/readme_banner.png"> </div>
 
 # [Download](https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/releases)
 
@@ -19,6 +19,14 @@ Foundry can:
 
 To install the afformentioned editing kits, you must own the respective MCC title on Steam. Full details are shown [below](#supported-titles).
 
+## Supported Titles
+| Games | Version | Editing Kit | Platform |
+| --- | --- | --- | --- |
+| [Halo Reach](https://store.steampowered.com/app/1064220/Halo_Reach/) | MCC | [HREK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/) | PC |
+| [Halo 4](https://store.steampowered.com/app/1064273/Halo_4/) | MCC | [H4EK](https://store.steampowered.com/app/1695792/Halo_4_Mod_Tools__MCC/) | PC |
+| [Halo 2: Anniversary (Multiplayer)](https://store.steampowered.com/app/1064270/Halo_2_Anniversary/) | MCC | [H2AMPEK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/) | PC |
+
+
 ## Installation
 - Go to the [releases page](https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/releases) and download the latest release's zip file
 
@@ -37,15 +45,7 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 ![](img/foundry_panel.png)
 
 - Under Scene Properties, select *Initialize ManagedBlam*. This will ask you if you wish to install pythonnet. This is a python module not bundled with Blender but is required to use Halo's tag API. After installing pythonnet you will need to restart Blender. You're now set up and ready to start using Foundry
-- To create your first Asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to the Halo Editing Kit. 
-
-## Supported Titles
-| Games | Version | Editing Kit | Platform |
-| --- | --- | --- | --- |
-| [Halo Reach](https://store.steampowered.com/app/1064220/Halo_Reach/) | MCC | [HREK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/) | PC |
-| [Halo 4](https://store.steampowered.com/app/1064273/Halo_4/) | MCC | [H4EK](https://store.steampowered.com/app/1695792/Halo_4_Mod_Tools__MCC/) | PC |
-| [Halo 2: Anniversary (Multiplayer)](https://store.steampowered.com/app/1064270/Halo_2_Anniversary/) | MCC | [H2AMPEK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/) | PC |
-
+- To create your first Asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to the Halo Editing Kit.
 
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
