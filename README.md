@@ -22,9 +22,9 @@ Foundry, a Halo Blender Creation Kit is a Blender addon developed in python to a
 Testing and reporting bugs:
 - [SpacedZed](https://github.com/SpacedZed)
 - [Ryan | Stryking](https://github.com/stryking)
+- Pepperman
 - [ChunkierBean](https://github.com/TheChunkierBean)
 - [Enash](https://github.com/EnashMods)
 - [lolhalolol1](https://github.com/lolhalolol1)
-- Pepperman
 - ivanovitch
-- Gashnor
+- [Gashnor](https://github.com/Gashnor)
