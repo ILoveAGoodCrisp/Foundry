@@ -30,11 +30,10 @@ def build_resources_zip() -> io.BytesIO:
     print("Done building resources")
     return data
 
-def build_release_zip(name: str, include_resources: bool):
-    print(f"Building release type name: {name}, include_resources={include_resources}")
+def build_release_zip(name: str):
+    print(f"Building release type name: {name}")
 
-    if include_resources:
-        resources = build_resources_zip()
+    resources = build_resources_zip()
 
     # grab the version from git
     git_version = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
@@ -79,15 +78,11 @@ def build_release_zip(name: str, include_resources: bool):
             fs_path = os.path.join(dir, file)
             zip.write(fs_path)
     init_file = Path('io_scene_foundry/__init__.py').read_text()
-    # I hate this code but blender requires it
-    init_file = init_file.replace("(117, 343, 65521)", f'(1, {version_minor}, 0)')
     init_file = init_file.replace('BUILD_VERSION_STR', version_string)
     zip.writestr('io_scene_foundry/__init__.py', init_file)
-    if include_resources:
-        zip.writestr('io_scene_foundry/resources.zip', resources.getbuffer())
+    zip.writestr('io_scene_foundry/resources.zip', resources.getbuffer())
     zip.printdir()
     zip.close()
 
-build_release_zip(name="foundry-halo-blender-creation-kit", include_resources=True)
-# build_release_zip(name="foundry-halo-blender-creation-kit-lite", include_resources=False)
+build_release_zip(name="foundry")
 print("done!")
