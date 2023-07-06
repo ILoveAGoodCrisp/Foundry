@@ -7,7 +7,7 @@ Foundry integrates with the Halo Editing Kits to provide a seamless asset pipeli
 
 Foundry can:
 - Export Blender scenes and build tags in a single click. No intermediary steps required
-- Create Halo Models, Animations, Scenarios, Skies, Decorators, Particle Models, Prefabs
+- Create Halo Models, Animations, Scenarios, Skies, Decorators, Particle Models, & Prefabs
 - Lightmap Halo Scenarios and Models
 - Integrate with the Halo tag editing API "ManagedBlam" to allow tag editing and creation directly from Blender
 
@@ -44,13 +44,13 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 
 ![](img/foundry_panel.png)
 
-- Under Scene Properties, select *Initialize ManagedBlam*. This will ask if you wish to install pythonnet. Pythonnet a python module not bundled with Blender but is required to use Halo's tag API. After installing pythonnet you will need to restart Blender. You're now set up and ready to start using Foundry
-- To create your first Asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to the Halo Editing Kit.
+- Under Scene Properties, select *Initialize ManagedBlam*. This will ask if you wish to install pythonnet. Pythonnet is a python module not bundled with Blender but is required to use Halo's tag API. After installing pythonnet you will need to restart Blender. You're now set up and ready to start using Foundry
+- To create your first Asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to your preferred Halo Editing Kit.
 
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
 - [Alexis Jonsson | WyvernZu](https://github.com/AlexisJonsson) - UI/UX/Icon Design
-- [General Heed](https://github.com/Generalkidd) - Scale model work
+- [General Heed](https://github.com/Generalkidd) - Scale models
 
 
 ## Special Thanks
