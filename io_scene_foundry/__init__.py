@@ -75,7 +75,7 @@ class HREKLocationPath(Operator):
     """Set the path to your Halo Reach Editing Kit"""
 
     bl_idname = "nwo.hrek_path"
-    bl_label = "Find"
+    bl_label = "Select Folder"
     bl_options = {"REGISTER"}
 
     filter_folder: BoolProperty(
@@ -105,7 +105,7 @@ class H4EKLocationPath(Operator):
     """Set the path to your Halo 4 Editing Kit"""
 
     bl_idname = "nwo.h4ek_path"
-    bl_label = "Find"
+    bl_label = "Select Folder"
     bl_options = {"REGISTER"}
 
     filter_folder: BoolProperty(
@@ -135,7 +135,7 @@ class H2AMPEKLocationPath(Operator):
     """Set the path to your Halo 2 Anniversary Multiplayer Editing Kit"""
 
     bl_idname = "nwo.h2aek_path"
-    bl_label = "Find"
+    bl_label = "Select Folder"
     bl_options = {"REGISTER"}
 
     filter_folder: BoolProperty(
@@ -203,27 +203,24 @@ class ToolkitLocationPreferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        row = layout.row()
+        row = layout.row(align=True)
         row.label(text="Halo Reach Editing Kit Path")
-        row = layout.row()
-        row.prop(self, "hrek_path", text="", icon='FILE_FOLDER')
-        row.scale_x = 0.25
-        row.operator("nwo.hrek_path")
-        row = layout.row()
+        row = layout.row(align=True)
+        row.prop(self, "hrek_path", text="")
+        row.operator("nwo.hrek_path", text="", icon='FILE_FOLDER')
+        row = layout.row(align=True)
         row.label(text="Halo 4 Editing Kit Path")
-        row = layout.row()
-        row.prop(self, "h4ek_path", text="", icon='FILE_FOLDER')
-        row.scale_x = 0.25
-        row.operator("nwo.h4ek_path")
-        row = layout.row()
+        row = layout.row(align=True)
+        row.prop(self, "h4ek_path", text="")
+        row.operator("nwo.h4ek_path", text="", icon='FILE_FOLDER')
+        row = layout.row(align=True)
         row.label(text="Halo 2 Anniversary Multiplayer Editing Kit Path")
-        row = layout.row()
-        row.prop(self, "h2aek_path", text="", icon='FILE_FOLDER')
-        row.scale_x = 0.25
-        row.operator("nwo.h2aek_path")
-        row = layout.row()
+        row = layout.row(align=True)
+        row.prop(self, "h2aek_path", text="")
+        row.operator("nwo.h2aek_path", text="", icon='FILE_FOLDER')
+        row = layout.row(align=True)
         row.label(text="Tool Version")
-        row = layout.row()
+        row = layout.row(align=True)
         row.prop(self, "tool_type", expand=True)
 
 
