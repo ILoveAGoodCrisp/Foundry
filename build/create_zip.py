@@ -41,14 +41,12 @@ def build_release_zip(name: str):
 
     # grab version from arguments if any
     CI_version = os.getenv('GITHUB_RUN_NUMBER')
-    version_minor = 0
     if CI_version is None:
         print("Local build")
         version_string = "v@" + git_version
     else:
         print(f"CI build {CI_version}")
         version_string = f"v{CI_version}@{git_version}"
-        version_minor = int(CI_version)
     print(f"version: {version_string}")
 
     # create the output directory
