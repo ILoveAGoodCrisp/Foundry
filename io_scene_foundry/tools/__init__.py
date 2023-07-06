@@ -314,6 +314,19 @@ class NWO_FoundryPanelProps(Panel):
                 icon_value=get_icon_id("equipment"),
             )
 
+            box = box.box()
+            box.label(text="Model Tag Reference Overrides")
+            col = box.column()
+            #col.label(text="Render Model")
+            col.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
+            #col.label(text="Collision Model")
+            col.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
+            #col.label(text="Animation Graph")
+            col.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
+            #col.label(text="Physics Model")
+            col.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
+
+
     def draw_object_properties(self):
         box = self.box.box()
         row = box.row()

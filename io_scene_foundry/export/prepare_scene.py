@@ -24,12 +24,14 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 import bmesh
 import bpy
 from os import path
 import csv
 from math import radians
 from mathutils import Matrix, Vector
+import xml.etree.ElementTree as ET
 
 from io_scene_foundry.tools.shader_finder import find_shaders
 from ..utils.nwo_utils import (
@@ -41,10 +43,13 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
+    get_ek_path,
+    get_prefix,
     jstr,
     layer_face_count,
     layer_faces,
     print_warning,
+    run_tool,
     set_active_object,
     is_shader,
     get_tags_path,
@@ -56,6 +61,7 @@ from ..utils.nwo_utils import (
     update_job,
     update_progress,
     vector_str,
+    frame_prefixes,
 )
 
 
@@ -533,6 +539,14 @@ class PrepareScene:
                 # set bone names equal to their name overrides (if not blank)
                 if export_gr2_files:
                     self.set_bone_names(self.model_armature.data.bones)
+
+                    graph_override = context.scene.nwo.animation_graph_path
+                    if graph_override and graph_override.endswith(".model_animation_graph"):
+                        if os.path.exists(get_tags_path() + graph_override):
+                            set_frame_ids(context, graph_override, self.model_armature)
+                        else:
+                            print_warning("Model Animation Graph override supplied but tag path does not exist")
+                            self.warning_hit = True
 
                 self.skeleton_bones = self.get_bone_list(
                     self.model_armature, h4
@@ -2636,3 +2650,134 @@ def set_marker_sphere_size(ob, nwo):
     else:
         nwo.marker_sphere_radius = jstr(max(ob.dimensions * max_abs_scale / 2))
         
+######
+# FRAME ID
+
+def set_frame_ids(context, tag_path, model_armature):
+    frame_count = 0
+    if model_armature != None:
+        try:
+            framelist = import_tag_xml(context, tag_path)
+            if not framelist == None:
+                tag_bone_names = clean_bone_names(framelist)
+                blend_bone_names = clean_bones(model_armature.data.bones)
+                blend_bones = model_armature.data.bones
+
+                for blend_bone in blend_bone_names:
+                    for tag_bone in tag_bone_names:
+                        if blend_bone == tag_bone:
+                            apply_frame_ids(blend_bone, blend_bones, framelist)
+                            frame_count += 1
+
+        except:
+            pass
+
+    return {"FINISHED"}
+
+
+def apply_frame_ids(bone_name, bone_names_list, framelist):
+    for b in bone_names_list:
+        if clean_bone(b) == bone_name:
+            b.nwo.frame_id1 = get_id(1, bone_name, framelist)
+            b.nwo.frame_id2 = get_id(2, bone_name, framelist)
+
+
+def get_id(ID, name, framelist):
+    frame = ""
+    for x in framelist:
+        b_name = clean_bone_name(x[0])
+        if b_name == name:
+            frame = x[ID]
+    return frame
+
+
+def clean_bone_names(bones):
+    cleanlist = []
+    for b in bones:
+        prefix = get_prefix(b[0], frame_prefixes)
+        cleaned_bone = b[0].removeprefix(prefix)
+        cleanlist.append(cleaned_bone)
+
+    return cleanlist
+
+
+def clean_bones(bones):
+    cleanlist = []
+    for b in bones:
+        prefix = get_prefix(b.name, frame_prefixes)
+        cleaned_bone = b.name.removeprefix(prefix)
+        cleanlist.append(cleaned_bone)
+
+    return cleanlist
+
+
+def clean_bone(bone):
+    prefix = get_prefix(bone.name, frame_prefixes)
+    cleaned_bone = bone.name.removeprefix(prefix)
+
+    return cleaned_bone
+
+
+def clean_bone_name(bone):
+    prefix = get_prefix(bone, frame_prefixes)
+    cleaned_bone = bone.removeprefix(prefix)
+
+    return cleaned_bone
+
+
+def import_tag_xml(context, tag_path):
+    xml_path = get_tags_path() + "temp.xml"
+    # print(os.path.join(get_ek_path(), tag_path))
+    if not os.path.exists(os.path.join(get_ek_path(), tag_path)):
+        return
+    os.chdir(get_ek_path())
+    run_tool(["export-tag-to-xml", f"\\{tag_path}", xml_path])
+    if not os.path.exists(xml_path):
+        return
+    bonelist = parse_xml(xml_path, context)
+    os.remove(xml_path)
+    return bonelist
+
+
+def parse_xml(xmlPath, context):
+    parent = []
+    scene = context.scene
+    scene_nwo = scene.nwo
+
+    if scene_nwo.game_version in ("h4", "h2a"):
+        tree = ET.parse(xmlPath, parser=ET.XMLParser(encoding="iso-8859-5"))
+        root = tree.getroot()
+        for b in root.findall("block"):
+            for e in b.findall("element"):
+                name = ""
+                frameID1 = ""
+                frameID2 = ""
+                for f in e.findall("field"):
+                    attributes = f.attrib
+                    if attributes.get("name") == "frame_ID1":
+                        name = e.get("name")
+                        frameID1 = attributes.get("value")
+                    elif attributes.get("name") == "frame_ID2":
+                        frameID2 = attributes.get("value")
+                if not name == "":
+                    temp = [name, frameID1, frameID2]
+                    parent.append(temp)
+    else:
+        tree = ET.parse(xmlPath)
+        root = tree.getroot()
+        for e in root.findall("element"):
+            name = ""
+            frameID1 = ""
+            frameID2 = ""
+            for f in e.findall("field"):
+                attributes = f.attrib
+                if attributes.get("name") == "frame_ID1":
+                    name = e.get("name")
+                    frameID1 = attributes.get("value")
+                elif attributes.get("name") == "frame_ID2":
+                    frameID2 = attributes.get("value")
+            if not name == "":
+                temp = [name, frameID1, frameID2]
+                parent.append(temp)
+
+    return parent
