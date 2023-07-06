@@ -291,28 +291,16 @@ def launch_game(is_sapien, settings, filepath):
     os.chdir(get_ek_path())
     # Write the init file
     init = ""
-    if is_sapien:
-        if os.path.exists("editor_init.txt"):
-            try:
-                if os.path.exists("editor_init_old.txt"):
-                    os.remove("editor_init_old.txt")
-                os.rename("editor_init.txt", "editor_init_old.txt")
-                init = "editor_init.txt"
-            except:
-                print("Unable to replace editor_init.txt. It is currently read only")
-        else:
-            init = "editor_init.txt"
-    else:
-        if os.path.exists("bonobo_init.txt"):
-            try:
-                if os.path.exists("bonobo_init_old.txt"):
-                    os.remove("bonobo_init_old.txt")
-                os.rename("bonobo_init.txt", "bonobo_init_old.txt")
-                init = "bonobo_init.txt"
-            except:
-                print("Unable to replace bonobo_init.txt. It is currently read only")
-        else:
+    if os.path.exists("bonobo_init.txt"):
+        try:
+            if os.path.exists("bonobo_init_old.txt"):
+                os.remove("bonobo_init_old.txt")
+            os.rename("bonobo_init.txt", "bonobo_init_old.txt")
             init = "bonobo_init.txt"
+        except:
+            print("Unable to replace bonobo_init.txt. It is currently read only")
+    else:
+        init = "bonobo_init.txt"
 
     if init != "":
         h4_plus = not_bungie_game()
