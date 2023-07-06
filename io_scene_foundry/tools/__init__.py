@@ -2317,8 +2317,6 @@ class NWO_OT_PanelExpand(Operator):
 
 
 class NWO_ScaleModels_Add(Operator, AddObjectHelper):
-    """Create a new Halo Scale Model Object"""
-
     bl_idname = "mesh.add_halo_scale_model"
     bl_label = "Halo Scale Model"
     bl_options = {"REGISTER", "UNDO"}
@@ -2330,7 +2328,7 @@ class NWO_ScaleModels_Add(Operator, AddObjectHelper):
         items=[
             ("reach", "Halo Reach", ""),
             ("h4", "Halo 4", ""),
-            ("h2a", "Halo 2AMP", ""),
+            #("h2a", "Halo 2AMP", ""),
         ],
     )
 
@@ -2445,13 +2443,6 @@ class NWO_ScaleModels_Add(Operator, AddObjectHelper):
 
         add_scale_model(self, context)
         return {"FINISHED"}
-
-    # def invoke(self, context, event):
-    #     wm = context.window_manager
-    #     return wm.invoke_props_dialog(self)
-
-    def Check(self, context):
-        return True
 
     def draw(self, context):
         layout = self.layout
