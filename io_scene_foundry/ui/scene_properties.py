@@ -502,6 +502,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=True,
     )
 
+    toolbar_icons_only : BoolProperty(name="Toolbar Icons Only", description="Toggle whether the Foundry Toolbar should only show icons")
+
     def render_clean_tag_path(self, context):
         self["render_model_path"] = clean_tag_path(
             self["render_model_path"],

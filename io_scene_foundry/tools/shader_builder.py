@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 import bpy
 import os
+from io_scene_foundry.managed_blam import ManagedBlam, ManagedBlamNewShader
 from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
     get_asset_path_full,
@@ -47,7 +48,7 @@ def is_tag_candidate(shader_path, update_existing, mat):
     return False
 
 
-def build_shaders(context, material_selection, update_existing=False):
+def build_shaders(context, material_selection, report, update_existing=False):
     # get blender materials to be added
     shader_materials = []
     material_names = []
@@ -75,9 +76,14 @@ def build_shaders(context, material_selection, update_existing=False):
         if mat_name not in material_names:
             material_names.append(mat_name)
             print(f"Bulding shader for {mat.name}")
+            
             if not_bungie_game():
-                bpy.ops.managed_blam.new_material(blender_material=mat.name)
+                tag = ManagedBlamNewShader(mat.name, False)
+                mat.nwo.shader_path = tag.path
+                report({'INFO'}, f"Created Material Tag for {mat.name}")
             else:
-                bpy.ops.managed_blam.new_shader(blender_material=mat.name)
+                tag = ManagedBlamNewShader(mat.name, True)
+                mat.nwo.shader_path = tag.path
+                report({'INFO'}, f"Created Shader Tag for {mat.name}")
 
     return {"FINISHED"}

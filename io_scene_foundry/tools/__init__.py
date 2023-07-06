@@ -55,6 +55,7 @@ from io_scene_foundry.utils.nwo_utils import (
     managed_blam_active,
     not_bungie_game,
     nwo_asset_type,
+    protected_material_name,
     valid_nwo_asset,
     poll_ui,
     validate_ek,
@@ -86,7 +87,7 @@ PANELS_PROPS = [
     "animation_properties",
     "tools",
     "help",
-    # "settings"
+    "settings"
 ]
 
 PANELS_TOOLS = ["sets_viewer"]
@@ -96,7 +97,7 @@ PANELS_TOOLS = ["sets_viewer"]
 
 
 class NWO_FoundryPanelProps(Panel):
-    bl_label = "Halo Properties"
+    bl_label = "Foundry Panel"
     bl_idname = "NWO_PT_FoundryPanelProps"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -135,7 +136,7 @@ class NWO_FoundryPanelProps(Panel):
             ).panel_str = p
 
             if panel_active:
-                panel_display_name = f"Halo {p.replace('_', ' ').title()}"
+                panel_display_name = f"{p.replace('_', ' ').title()}"
                 panel_expanded = getattr(nwo, f"{p}_expanded")
                 self.box = col2.box()
                 row_header = self.box.row(align=True)
@@ -216,9 +217,16 @@ class NWO_FoundryPanelProps(Panel):
         asset_name = scene.nwo_halo_launcher.sidecar_path.rpartition("\\")[2].replace(
             ".sidecar.xml", ""
         )
+        
+        row = col.row()
         if asset_name:
-            col.label(text=f"Asset Name: {asset_name}")
-            col.separator()
+            row.label(text=f"Asset Name: {asset_name}")
+            row.operator("nwo.make_asset", text="Copy Asset", icon_value=get_icon_id("halo_asset")) 
+            
+        else:
+            row.operator("nwo.make_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
+
+        col.separator()
         if nwo.asset_type == "MODEL":
             col.label(text="Output Tags")
             row = col.grid_flow(
@@ -1831,11 +1839,15 @@ class NWO_FoundryPanelProps(Panel):
                 ext = nwo.shader_path.rpartition(".")[2]
                 if ext != nwo.shader_path and (ext == "material" or "shader" in ext):
                     row = box.row()
-                    row.scale_y = 1.5
+                    # row.scale_y = 1.5
                     row.operator(
                         "nwo.open_halo_material",
                         icon_value=get_icon_id("foundation"),
                     )
+                else:
+                    row = box.row()
+                    tag_type = "Material" if h4 else "Shader"
+                    row.operator("nwo.build_shader_single", text=f"Generate {tag_type} Tag", icon_value=get_icon_id("material_exporter"))
 
             else:
                 if self.bl_idname == "NWO_PT_MaterialPanel":
@@ -2053,6 +2065,12 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.open_url", text="AMF Importer", icon_value=get_icon_id("amf")).url = AMF_ADDON
         col.operator("nwo.open_url", text="Reclaimer", icon_value=get_icon_id("marathon")).url = RECLAIMER
         col.operator("nwo.open_url", text="Animation Repository", icon_value=get_icon_id("github")).url = ANIMATION_REPO
+
+    def draw_settings(self):
+        nwo = self.scene.nwo
+        box = self.box.box()
+        col = box.column()
+        col.prop(nwo, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
 
 
 class NWO_HotkeyDescription(Operator):
@@ -4624,6 +4642,32 @@ class NWO_Material(NWO_Shader):
     def poll(cls, context):
         return not_bungie_game()
 
+class NWO_Shader_BuildSingle(Operator):
+    bl_idname = "nwo.build_shader_single"
+    bl_label = ""
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = ""
+
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
+    
+    def execute(self, context):
+        from .shader_builder import build_shaders
+
+        return build_shaders(context,
+            context.object.active_material,
+            self.report,
+            True,
+        )
+    
+    @classmethod
+    def description(cls, context, properties) -> str:
+        if context.scene.nwo.game_version == 'reach':
+            return "Creates an empty shader tag for this material"
+        else:
+            return "Creates an empty material tag for this material"
+
 
 class NWO_Shader_Build(Operator):
     """Makes a shader"""
@@ -4655,6 +4699,7 @@ class NWO_Shader_Build(Operator):
         return build_shaders(
             context,
             nwo_shader_build.material_selection,
+            self.report,
             nwo_shader_build.update,
         )
 
@@ -4687,9 +4732,9 @@ def draw_foundry_toolbar(self, context):
 def foundry_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
-    icons_only = False
-    row.scale_x = 1
     nwo_scene = context.scene.nwo
+    icons_only = nwo_scene.toolbar_icons_only
+    row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
@@ -4705,9 +4750,6 @@ def foundry_toolbar(layout, context):
             sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
             return
 
-        if not valid_nwo_asset(context):
-            sub_asset = row.row()
-            sub_asset.operator("nwo.make_asset", text="New Halo Asset", icon_value=get_icon_id("halo_asset"))
         sub0 = row.row(align=True)
         sub0.operator(
             "nwo.export_quick",
@@ -4807,6 +4849,7 @@ classeshalo = (
     # NWO_Material,
     # NWO_Shader,
     NWO_Shader_Build,
+    NWO_Shader_BuildSingle,
     NWO_ShaderPropertiesGroup,
     NWO_ScaleModels_Add,
     NWO_JoinHalo,

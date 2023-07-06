@@ -29,6 +29,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
     get_tags_path,
     get_valid_shader_name,
+    managed_blam_active,
     print_warning,
 )
 import bpy
@@ -45,6 +46,43 @@ import ctypes
 
 #     from tag_shader import TagShader
 #     tag = TagShader()
+
+
+
+
+class ManagedBlam():
+    def __init__(self):
+        if not managed_blam_active():
+            bpy.ops.managed_blam.init()
+
+        self.path = ""
+
+    def get_path(self): # stub
+        return ""
+
+    def tag_edit(self, tag): # stub
+        pass
+
+    def tag_helper(self):
+        if not self.path:
+            self.path = self.get_path()
+
+        self.system_path = get_tags_path() + self.path
+
+        self.Bungie = get_bungie()
+        self.tag, self.tag_path = get_tag_and_path(self.Bungie, self.path)
+        tag = self.tag
+        try:
+            if os.path.exists(self.system_path):
+                tag.Load(self.tag_path)
+            else:
+                tag.New(self.tag_path)
+
+            self.tag_edit(tag)
+            tag.Save()
+
+        finally:
+            tag.Dispose()
 
 
 class ManagedBlam_Init(Operator):
@@ -170,7 +208,6 @@ class ManagedBlamTag(Operator):
 
         return {'FINISHED'}
 
-
 class ManagedBlam_Close(Operator):
     """Closes Managed Blam"""
     bl_idname = "managed_blam.close"
@@ -184,26 +221,22 @@ class ManagedBlam_Close(Operator):
         return {"FINISHED"}
 
 
-class ManagedBlam_NewShader(ManagedBlamTag):
-    bl_idname = "managed_blam.new_shader"
-    bl_label = "ManagedBlam"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Runs a ManagedBlam Operation"
-
-    blender_material: StringProperty(
-        default="Material",
-        name="Blender Material",
-    )
+class ManagedBlamNewShader(ManagedBlam):
+    def __init__(self, blender_material, is_reach):
+        super().__init__()
+        self.blender_material = blender_material
+        self.is_reach = is_reach
+        self.tag_helper()
 
     def get_path(self):
         asset_path = get_asset_path()
-        shaders_dir = os.path.join(asset_path, "shaders")
+        shaders_dir = os.path.join(asset_path, "shaders" if self.is_reach else "materials")
         shader_name = get_valid_shader_name(self.blender_material)
-        shader_path = os.path.join(shaders_dir, shader_name + ".shader")
+        shader_path = os.path.join(shaders_dir, shader_name + ".shader" if self.is_reach else ".material")
 
         return shader_path
 
-    def tag_edit(self, context, tag):
+    def tag_edit(self, tag):
 
         # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
         # parameters = field
@@ -354,8 +387,8 @@ class ManagedBlam_RenderStructureMeta(ManagedBlamTag):
 classeshalo = (
     ManagedBlam_Init,
     ManagedBlam_Close,
-    ManagedBlam_NewShader,
-    ManagedBlam_NewMaterial,
+    # ManagedBlam_NewShader,
+    # ManagedBlam_NewMaterial,
     ManagedBlam_NewBitmap,
     ManagedBlam_ModelOverride,
     ManagedBlam_RenderStructureMeta,
