@@ -882,7 +882,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             or nwo.animation_graph_path
         ):
             print("\nApplying Model Overrides")
-            # disable_prints()
+            disable_prints()
             if not managed_blam_active():
                 bpy.ops.managed_blam.init()
             

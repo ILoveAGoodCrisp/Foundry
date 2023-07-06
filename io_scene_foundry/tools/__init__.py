@@ -317,14 +317,18 @@ class NWO_FoundryPanelProps(Panel):
             box = box.box()
             box.label(text="Model Tag Reference Overrides")
             col = box.column()
-            #col.label(text="Render Model")
-            col.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
-            #col.label(text="Collision Model")
-            col.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
-            #col.label(text="Animation Graph")
-            col.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
-            #col.label(text="Physics Model")
-            col.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
+            row = col.row(align=True)
+            row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
+            row.operator("nwo.render_path", text="", icon="FILE_FOLDER")
+            row = col.row(align=True)
+            row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
+            row.operator("nwo.collision_path", text="", icon="FILE_FOLDER")
+            row = col.row(align=True)
+            row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
+            row.operator("nwo.animation_path", text="", icon="FILE_FOLDER")
+            row = col.row(align=True)
+            row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
+            row.operator("nwo.physics_path", text="", icon="FILE_FOLDER")
 
 
     def draw_object_properties(self):
@@ -2029,27 +2033,26 @@ class NWO_FoundryPanelProps(Panel):
 
 
     def draw_help(self):
-        box = self.box.box()
-        box_websites = box.box()
+        box_websites = self.box.box()
         box_websites.label(text="Foundry Documentation")
         col = box_websites.column()
         col.operator("nwo.open_url", text="Getting Started", icon_value=get_icon_id("c20_reclaimers")).url = FOUNDRY_DOCS
         col.operator("nwo.open_url", text="Github", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
 
-        box_hotkeys = box.box()
+        box_hotkeys = self.box.box()
         box_hotkeys.label(text="Keyboard Shortcuts")
         col = box_hotkeys.column()
         col.direction
         for shortcut in HOTKEYS:
             col.operator("nwo.describe_hotkey", emboss=False, text=shortcut[0].replace("_", " ").title() + " : " + shortcut[1]).hotkey = shortcut[0]
 
-        box_downloads = box.box()
+        box_downloads = self.box.box()
         box_downloads.label(text="Other Resources")
         col = box_downloads.column()
-        col.operator("nwo.open_url", text="Halo Blender Toolset", icon="URL").url = BLENDER_TOOLSET
-        col.operator("nwo.open_url", text="AMF Importer", icon="URL").url = AMF_ADDON
-        col.operator("nwo.open_url", text="Reclaimer", icon="URL").url = RECLAIMER
-        col.operator("nwo.open_url", text="Animation Repository", icon="URL").url = ANIMATION_REPO
+        col.operator("nwo.open_url", text="Halo Blender Toolset", icon="BLENDER").url = BLENDER_TOOLSET
+        col.operator("nwo.open_url", text="AMF Importer", icon_value=get_icon_id("amf")).url = AMF_ADDON
+        col.operator("nwo.open_url", text="Reclaimer", icon_value=get_icon_id("marathon")).url = RECLAIMER
+        col.operator("nwo.open_url", text="Animation Repository", icon_value=get_icon_id("github")).url = ANIMATION_REPO
 
 
 class NWO_HotkeyDescription(Operator):

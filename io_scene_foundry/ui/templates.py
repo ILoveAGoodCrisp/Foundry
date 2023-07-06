@@ -52,7 +52,7 @@ class NWO_Op_Path(NWO_Op):
     bl_label = "Select Tag"
 
     filter_glob: StringProperty(
-        default="",
+        default="*",
         options={"HIDDEN"},
     )
 
