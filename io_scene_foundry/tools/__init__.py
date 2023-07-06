@@ -220,7 +220,7 @@ class NWO_FoundryPanelProps(Panel):
             col.label(text=f"Asset Name: {asset_name}")
             col.separator()
         if nwo.asset_type == "MODEL":
-            col.label(text="Model Tags")
+            col.label(text="Output Tags")
             row = col.grid_flow(
                 row_major=True,
                 columns=0,
@@ -228,89 +228,89 @@ class NWO_FoundryPanelProps(Panel):
                 even_rows=True,
                 align=True,
             )
-            row.scale_x = 1.3
+            row.scale_x = 0.8
             row.scale_y = 1.3
 
             row.prop(
                 nwo,
                 "output_crate",
-                text="",
+                # text="",
                 icon_value=get_icon_id("crate"),
             )
             row.prop(
                 nwo,
                 "output_scenery",
-                text="",
+                # text="",
                 icon_value=get_icon_id("scenery"),
             )
             row.prop(
                 nwo,
                 "output_effect_scenery",
-                text="",
+                # text="",
                 icon_value=get_icon_id("effect_scenery"),
             )
 
             row.prop(
                 nwo,
                 "output_device_control",
-                text="",
+                # text="",
                 icon_value=get_icon_id("device_control"),
             )
             row.prop(
                 nwo,
                 "output_device_machine",
-                text="",
+                # text="",
                 icon_value=get_icon_id("device_machine"),
             )
             row.prop(
                 nwo,
                 "output_device_terminal",
-                text="",
+                # text="",
                 icon_value=get_icon_id("device_terminal"),
             )
             if context.scene.nwo.game_version in ("h4", "h2a"):
                 row.prop(
                     nwo,
                     "output_device_dispenser",
-                    text="",
+                    # text="",
                     icon_value=get_icon_id("device_dispenser"),
                 )
 
             row.prop(
                 nwo,
                 "output_biped",
-                text="",
+                # text="",
                 icon_value=get_icon_id("biped"),
             )
             row.prop(
                 nwo,
                 "output_creature",
-                text="",
+                # text="",
                 icon_value=get_icon_id("creature"),
             )
             row.prop(
                 nwo,
                 "output_giant",
-                text="",
+                # text="",
                 icon_value=get_icon_id("giant"),
             )
 
             row.prop(
                 nwo,
                 "output_vehicle",
-                text="",
+                # text="",
                 icon_value=get_icon_id("vehicle"),
             )
             row.prop(
                 nwo,
                 "output_weapon",
-                text="",
+                # text="",
                 icon_value=get_icon_id("weapon"),
             )
             row.prop(
                 nwo,
                 "output_equipment",
-                text="",
+                # text="",
                 icon_value=get_icon_id("equipment"),
             )
 

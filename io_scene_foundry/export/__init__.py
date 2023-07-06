@@ -38,9 +38,8 @@ bl_info = {
 
 import bpy
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty, FloatProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty
 from bpy.types import Operator
-from addon_utils import check, module_bl_info
 from os.path import exists as file_exists
 from os import path
 import time
@@ -55,9 +54,7 @@ from .process_scene import ProcessScene
 from io_scene_foundry.utils.nwo_utils import (
     check_path,
     bpy_enum,
-    disable_prints,
     dot_partition,
-    enable_prints,
     formalise_game_version,
     get_data_path,
     get_asset_info,
@@ -732,7 +729,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     "-----------------------------------------------------------------------\n"
                 )
             else:
-                self.managed_blam_tasks(context)
                 final_report = "Export Complete"
                 report_type = "INFO"
                 print(
@@ -869,30 +865,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 temp_file.write(f"{report_type}")
         elif export_report and report_type:
             self.report({report_type}, export_report)
-
-    def managed_blam_tasks(self, context):
-        nwo = context.scene.nwo
-        if self.sidecar_type != 'MODEL':
-            return
-        
-        if (
-            nwo.render_model_path
-            or nwo.collision_model_path
-            or nwo.physics_model_path
-            or nwo.animation_graph_path
-        ):
-            print("\nApplying Model Overrides")
-            disable_prints()
-            if not managed_blam_active():
-                bpy.ops.managed_blam.init()
-            
-            bpy.ops.managed_blam.new_model_override(
-                render_model=nwo.render_model_path,
-                collision_model=nwo.collision_model_path,
-                physics_model=nwo.physics_model_path,
-                model_animation_graph=nwo.animation_graph_path,
-                )
-            enable_prints()
 
     def draw(self, context):
         layout = self.layout

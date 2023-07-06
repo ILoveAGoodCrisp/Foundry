@@ -301,31 +301,54 @@ class ManagedBlam_ModelOverride(ManagedBlamTag):
         return model_path
 
     def tag_edit(self, context, tag):
-        if self.render_model and os.path.exists(os.path.join(get_tags_path(), self.render_model)):
+        if self.render_model and os.path.exists(os.path.join(get_tags_path() + self.render_model)):
             _, new_tag_ref = get_tag_and_path(self.Bungie, self.render_model)
             field = tag.SelectField("Reference:render model")
             render_model = field
             render_model.Path = new_tag_ref
 
-        if self.collision_model and os.path.exists(os.path.join(get_tags_path(), self.collision_model)):
+        if self.collision_model and os.path.exists(os.path.join(get_tags_path() + self.collision_model)):
             _, new_tag_ref = get_tag_and_path(self.Bungie, self.collision_model)
             field = tag.SelectField("Reference:collision model")
             collision_model = field
             collision_model.Path = new_tag_ref
 
-        if self.model_animation_graph and os.path.exists(os.path.join(get_tags_path(), self.model_animation_graph)):
+        if self.model_animation_graph and os.path.exists(os.path.join(get_tags_path() + self.model_animation_graph)):
             _, new_tag_ref = get_tag_and_path(self.Bungie, self.model_animation_graph)
             field = tag.SelectField("Reference:animation")
             model_animation_graph = field
             model_animation_graph.Path = new_tag_ref
             
-        if self.physics_model and os.path.exists(os.path.join(get_tags_path(), self.physics_model)):
+        if self.physics_model and os.path.exists(os.path.join(get_tags_path() + self.physics_model)):
             _, new_tag_ref = get_tag_and_path(self.Bungie, self.physics_model)
             field = tag.SelectField("Reference:physics_model")
             physics_model = field
             physics_model.Path = new_tag_ref
 
+class ManagedBlam_RenderStructureMeta(ManagedBlamTag):
+    """Runs a ManagedBlam Operation"""
 
+    bl_idname = "managed_blam.render_structure_meta"
+    bl_label = "ManagedBlam"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Runs a ManagedBlam Operation"
+
+    structure_meta: StringProperty()
+
+    def get_path(self):
+        asset_path = get_asset_path()
+        asset_name = asset_path.rpartition(os.sep)[2]
+        model_path = os.path.join(asset_path, asset_name + ".render_model")
+
+        return model_path
+
+    def tag_edit(self, context, tag):
+        print(self.path)
+        if self.structure_meta and os.path.exists(os.path.join(get_tags_path() + self.structure_meta)):
+            _, new_tag_ref = get_tag_and_path(self.Bungie, self.structure_meta)
+            field = tag.SelectField("Reference:structure meta data")
+            structure_meta = field
+            structure_meta.Path = new_tag_ref
 
 
 classeshalo = (
@@ -335,6 +358,7 @@ classeshalo = (
     ManagedBlam_NewMaterial,
     ManagedBlam_NewBitmap,
     ManagedBlam_ModelOverride,
+    ManagedBlam_RenderStructureMeta,
 )
 
 def register():

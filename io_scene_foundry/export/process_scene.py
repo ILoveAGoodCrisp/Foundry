@@ -38,6 +38,7 @@ from ..utils.nwo_utils import (
     enable_prints,
     get_data_path,
     jstr,
+    managed_blam_active,
     print_warning,
     run_tool,
     update_job,
@@ -788,6 +789,7 @@ class ProcessScene:
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
+                    self.managed_blam_tasks(context, nwo_scene, game_version, sidecar_type, asset_path.replace(get_data_path(), ""), asset)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -1110,6 +1112,63 @@ class ProcessScene:
         bpy.ops.object.select_all(action="SELECT")
         nwo_scene.model_armature.select_set(False)
         bpy.ops.object.delete()
+
+    #####################################################################################
+    #####################################################################################
+    # MANAGEDBLAM
+
+    def managed_blam_tasks(self, context, nwo_scene, game_version, sidecar_type, asset_path, asset_name):
+        nwo = context.scene.nwo
+        model_sky = sidecar_type in ('MODEL', 'SKY')
+        model = sidecar_type == 'MODEL'
+        h4_model_lighting = (nwo_scene.lighting and game_version != 'reach' and model_sky)
+        model_override = (
+            (nwo.render_model_path and model)
+            or (nwo.collision_model_path and model)
+            or (nwo.physics_model_path and model)
+            or (nwo.animation_graph_path and model)
+        )
+        mb_justified =  (
+            h4_model_lighting
+            or model_override
+        )
+        if not mb_justified:
+            return
+        
+        print("\nManagedBlam Tasks")
+        print(
+            "-----------------------------------------------------------------------\n"
+        )
+        
+        if not managed_blam_active():
+            bpy.ops.managed_blam.init()
+            print("Intialising ManagedBlam DONE\n")
+        
+        if h4_model_lighting:
+            job = "Adding Structure Meta Reference to Render Model"
+            meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
+            update_job(job, 0)
+            disable_prints()
+            bpy.ops.managed_blam.render_structure_meta(structure_meta=meta_path)
+            enable_prints()
+            update_job(job, 1)
+
+        
+        if model_override:
+            job = "Applying Model Overrides"
+            update_job(job, 0)
+            disable_prints()
+            if not managed_blam_active():
+                bpy.ops.managed_blam.init()
+            
+            bpy.ops.managed_blam.new_model_override(
+                render_model=nwo.render_model_path,
+                collision_model=nwo.collision_model_path,
+                physics_model=nwo.physics_model_path,
+                model_animation_graph=nwo.animation_graph_path,
+                )
+            enable_prints()
+            update_job(job, 1)
 
     #####################################################################################
     #####################################################################################
