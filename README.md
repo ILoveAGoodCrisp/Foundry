@@ -26,5 +26,5 @@ Testing and reporting bugs:
 - [ChunkierBean](https://github.com/TheChunkierBean)
 - [Enash](https://github.com/EnashMods)
 - [lolhalolol1](https://github.com/lolhalolol1)
-- ivanovitch
+- [ivanovitch](https://github.com/ivanivanovitch)
 - [Gashnor](https://github.com/Gashnor)
