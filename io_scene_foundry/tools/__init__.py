@@ -1957,6 +1957,7 @@ class NWO_FoundryPanelProps(Panel):
                         align=False,
                     )
                     col = flow.column()
+                    col.use_property_split = True
                     row = col.row()
                     row.prop(item, "multi_frame", expand=True)
                     col.prop(item, "frame_frame")
