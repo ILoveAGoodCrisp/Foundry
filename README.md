@@ -32,10 +32,10 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 
 - Open Blender and navigate to Edit > Preferences. Switch to the Add-ons tab and click Install in the top right. Select the Foundry Addon zip file using the file browser dialog
 
-- Activate the addon and follow the [guide](#quick-start-guide) below to get started with using Foundry.
+- Activate the addon and follow the [guide](#quick-start-guide) below to get started with using Foundry
 
 ## Quick Start Guide
-- Open Foundry Preferences and input the paths to your Editing Kits. You can either paste the paths or use the folder icon to open a folder browser dialog.
+- Open Foundry Preferences and input the paths to your Editing Kits. You can either paste the paths or use the folder icon to open a folder browser dialog
 
 ![](img/preferences.png)
 
@@ -45,7 +45,7 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 ![](img/foundry_panel.png)
 
 - Under Scene Properties, select *Initialize ManagedBlam*. This will ask if you wish to install pythonnet. Pythonnet is a python module not bundled with Blender but is required to use Halo's tag API. After installing pythonnet you will need to restart Blender. You're now set up and ready to start using Foundry
-- To create your first Asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to your preferred Halo Editing Kit.
+- To create your first Halo asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your Blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to your preferred Halo Editing Kit
 
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
