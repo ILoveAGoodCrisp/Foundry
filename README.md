@@ -1,3 +1,5 @@
+<div align="center"> <img src="https://raw.githubusercontent.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/master/readme_banner.png"> </div>
+
 #  Foundry - Halo Blender Creation Kit
 
 ## Addon Description
