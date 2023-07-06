@@ -225,7 +225,7 @@ class Sidecar:
             self.write_sky_contents(metadata, sidecar_paths, asset_name)
 
         elif sidecar_type == "DECORATOR SET":
-            self.write_decorator_contents(metadata, sidecar_paths, asset_name)
+            self.write_decorator_contents(metadata, sidecar_paths, asset_name, nwo_scene.lods)
 
         elif sidecar_type == "PARTICLE MODEL":
             self.write_particle_contents(metadata, sidecar_paths, asset_name)
@@ -715,27 +715,27 @@ class Sidecar:
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
 
-    def write_decorator_contents(self, metadata, sidecar_paths, asset_name):
+    def write_decorator_contents(self, metadata, sidecar_paths, asset_name, lods):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(
             contents, "Content", Name=asset_name, Type="decorator_set"
         )
 
-        decorator_paths = sidecar_paths.get("decorator")
-        for idx, path in enumerate(decorator_paths):
-            lod = str(idx + 1)
+        decorator_path = sidecar_paths.get("decorator")[0]
+        for lod in lods:
+            lod_str = str(lod)
             object = ET.SubElement(
                 content,
                 "ContentObject",
-                Name=lod,
+                Name=lod_str,
                 Type="render_model",
-                LOD=lod,
+                LOD=lod_str,
             )
             network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
 
             ET.SubElement(network, "InputFile").text = self.relative_blend
             # ET.SubElement(network, "ComponentFile").text = path[1]
-            ET.SubElement(network, "IntermediateFile").text = path[2]
+            ET.SubElement(network, "IntermediateFile").text = decorator_path[2]
 
             output = ET.SubElement(object, "OutputTagCollection")
             ET.SubElement(

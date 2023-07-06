@@ -737,7 +737,7 @@ class NWO_FoundryPanelProps(Panel):
             # col.separator()
 
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
-                col.prop(nwo, "decorator_lod_ui")
+                col.prop(nwo, "decorator_lod_ui", text="Level of Detail")
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
@@ -2469,15 +2469,15 @@ class NWO_ScaleModels_Add(Operator, AddObjectHelper):
                 col.prop(self, "biped_model_reach")
             elif self.game == "h4":
                 col.prop(self, "biped_model_h4")
-            else:
-                col.prop(self, "biped_model_h2a")
+            # else:
+            #     col.prop(self, "biped_model_h2a")
         else:
             if self.game == "reach":
                 col.prop(self, "vehicle_model_reach")
             elif self.game == "h4":
                 col.prop(self, "vehicle_model_h4")
-            else:
-                col.prop(self, "vehicle_model_h2a")
+            # else:
+            #     col.prop(self, "vehicle_model_h2a")
 
 
 def add_halo_scale_model_button(self, context):

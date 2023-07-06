@@ -575,9 +575,7 @@ class PrepareScene:
         self.set_animation_overrides(self.model_armature)
 
         # get the max LOD count in the scene if we're exporting a decorator
-        self.lod_count = self.get_decorator_lod_count(
-            self.halo_objects, sidecar_type == "DECORATOR SET"
-        )
+        self.lods = self.get_decorator_lods(sidecar_type == "DECORATOR SET")
 
         if self.warning_hit:
             print_warning(
@@ -1918,15 +1916,14 @@ class PrepareScene:
             )
             ob.matrix_world = M @ ob.matrix_world
 
-    def get_decorator_lod_count(self, halo_objects, asset_is_decorator):
-        lod_count = 0
+    def get_decorator_lods(self, asset_is_decorator):
+        lods = set()
         if asset_is_decorator:
-            for ob in halo_objects.decorators:
-                ob_lod = ob.nwo.decorator_lod_ui
-                if ob_lod > lod_count:
-                    lod_count = ob_lod
+            for ob in self.render:
+                ob_lod = int(ob.nwo.decorator_lod)
+                lods.add(ob_lod)
 
-        return lod_count
+        return lods
 
     def disable_excluded_collections(self, context):
         child_coll = context.view_layer.layer_collection.children
