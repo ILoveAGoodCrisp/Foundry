@@ -32,10 +32,10 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 
 - Open Blender and navigate to Edit > Preferences. Switch to the Add-ons tab and click Install in the top right. From here select the zip you downloaded to install.
 
-- Activate the addon to start using Foundry.
+- Activate the addon and follow the [guide](#quick-start-guide) below to get started with using Foundry.
 
-# Quick Start Guide
-- The first step is to input paths to your Editing Kits. You can either paste paths or use the folder icon to open a folder browser.
+## Quick Start Guide
+- Open Foundry Preferences and input the paths to your Editing Kits. You can either paste the paths or use the folder icon to open a folder browser dialog.
 
 ![](img/preferences.png)
 
