@@ -4093,7 +4093,7 @@ class NWO_CollectionManager_Create(Operator):
     def draw(self, context):
         layout = self.layout
         row = layout.row()
-        row.prop(self, "type", text="Type")
+        row.prop(self, "type", text="Type", expand=True)
         row = layout.row()
         row.activate_init = True
         row.prop(self, "name", text="Name")
