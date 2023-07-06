@@ -148,17 +148,19 @@ class ManagedBlamTag(Operator):
         pass
 
     def execute(self, context):
-        self.system_path = None
         if not self.path:
             self.path = self.get_path()
-        else:
-            self.system_path = get_tags_path() + self.path
+
+        self.system_path = get_tags_path() + self.path
 
         self.Bungie = get_bungie(self.report)
         self.tag, self.tag_path = get_tag_and_path(self.Bungie, self.path)
+        print(self.tag)
         tag = self.tag
         try:
-            if not os.path.exists(self.system_path):
+            if os.path.exists(self.system_path):
+                tag.Load(self.tag_path)
+            else:
                 tag.New(self.tag_path)
 
             self.tag_edit(context, tag)
@@ -287,20 +289,42 @@ class ManagedBlam_ModelOverride(ManagedBlamTag):
     bl_options = {"REGISTER", "UNDO"}
     bl_description = "Runs a ManagedBlam Operation"
 
-    type: StringProperty()
+    render_model: StringProperty()
+    collision_model: StringProperty()
+    physics_model: StringProperty()
+    model_animation_graph: StringProperty()
 
     def get_path(self):
         asset_path = get_asset_path()
-        bitmaps_dir = os.path.join(asset_path, "bitmaps")
-        bitmap_path = os.path.join(bitmaps_dir, self.bitmap_name + ".bitmap")
+        asset_name = asset_path.rpartition(os.sep)[2]
+        model_path = os.path.join(asset_path, asset_name + ".model")
 
-        return bitmap_path
+        return model_path
 
     def tag_edit(self, context, tag):
-        pass
-        # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
-        # bitmap_type = field
-        # type.SetStringData(p.name)
+        if self.render_model:
+            _, new_tag_ref = get_tag_and_path(self.Bungie, self.render_model)
+            field = tag.SelectField("Reference:render model")
+            render_model = field
+            render_model.Path = new_tag_ref
+
+        if self.collision_model:
+            _, new_tag_ref = get_tag_and_path(self.Bungie, self.pcollision_modelath)
+            field = tag.SelectField("Reference:collision model")
+            collision_model = field
+            collision_model.Path = new_tag_ref
+
+        if self.physics_model:
+            _, new_tag_ref = get_tag_and_path(self.Bungie, self.physics_model)
+            field = tag.SelectField("Reference:physics_model")
+            physics_model = field
+            physics_model.Path = new_tag_ref
+
+        if self.model_animation_graph:
+            _, new_tag_ref = get_tag_and_path(self.Bungie, self.model_animation_graph)
+            field = tag.SelectField("Reference:animation")
+            model_animation_graph = field
+            model_animation_graph.Path = new_tag_ref
 
 
 classeshalo = (
@@ -309,6 +333,7 @@ classeshalo = (
     ManagedBlam_NewShader,
     ManagedBlam_NewMaterial,
     ManagedBlam_NewBitmap,
+    ManagedBlam_ModelOverride,
 )
 
 def register():
