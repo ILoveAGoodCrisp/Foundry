@@ -208,17 +208,17 @@ class ToolkitLocationPreferences(AddonPreferences):
         row = layout.row()
         row.prop(self, "hrek_path", text="")
         row.scale_x = 0.25
-        row.operator("nwo.hrek_path")
+        row.operator("nwo.hrek_path", icon='FILE_FOLDER')
         row = layout.row()
         row.label(text="Halo 4 Editing Kit Path")
         row = layout.row()
-        row.prop(self, "h4ek_path", text="")
+        row.prop(self, "h4ek_path", text="", icon='FILE_FOLDER')
         row.scale_x = 0.25
         row.operator("nwo.h4ek_path")
         row = layout.row()
         row.label(text="Halo 2 Anniversary Multiplayer Editing Kit Path")
         row = layout.row()
-        row.prop(self, "h2aek_path", text="")
+        row.prop(self, "h2aek_path", text="", icon='FILE_FOLDER')
         row.scale_x = 0.25
         row.operator("nwo.h2aek_path")
         row = layout.row()

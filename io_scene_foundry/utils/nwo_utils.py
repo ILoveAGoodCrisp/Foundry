@@ -33,7 +33,9 @@ from os.path import exists as file_exists
 from subprocess import Popen, check_call, DEVNULL, PIPE
 import shutil
 import random
+
 from ..icons import get_icon_id
+import requests
 
 ###########
 ##GLOBALS##
@@ -1919,3 +1921,19 @@ def validate_ek(game) -> str | None:
         return f"Editing Kit data folder not found. Please ensure your {formalise_game_version(game)} Editing Kit directory has a 'data' folder"
     elif not os.path.exists(os.path.join(ek, "bin", "ManagedBlam.dll")):
         return f"ManagedBlam not found in your {formalise_game_version(game)} Editing Kit bin folder, please ensure this exists"
+    
+def foundry_update_check(current_version):
+    update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
+    try:
+        response = requests.get(update_url, timeout=6)
+        releases = response.json()
+        latest_release = releases[0]
+        print(latest_release)
+        latest_version = latest_release['tag_name']
+        print(latest_release)
+        if current_version < latest_version:
+            return f"New Foundry version available: {latest_version}", True
+    except:
+        pass
+
+    return "Foundry is up to date", False

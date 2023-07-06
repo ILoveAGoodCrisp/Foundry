@@ -46,7 +46,9 @@ from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAd
 from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
     clean_tag_path,
+    deselect_all_objects,
     dot_partition,
+    foundry_update_check,
     get_halo_material_count,
     get_tags_path,
     has_face_props,
@@ -56,6 +58,7 @@ from io_scene_foundry.utils.nwo_utils import (
     not_bungie_game,
     nwo_asset_type,
     protected_material_name,
+    set_active_object,
     valid_nwo_asset,
     poll_ui,
     validate_ek,
@@ -71,6 +74,10 @@ BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Developmen
 AMF_ADDON = r"https://www.mediafire.com/file/zh55pb2p3yc4e7v/Blender_AMF2.py/file"
 RECLAIMER = r"https://www.mediafire.com/file/bwnfg09iy0tbm09/Reclaimer.Setup-v1.7.309.msi/file"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
+
+CURRENT_VERSION = "0.9.0"
+
+update_str, update_needed = foundry_update_check(CURRENT_VERSION)
 
 HOTKEYS = [
     ("apply_mesh_type", "SHIFT+F"),
@@ -121,6 +128,9 @@ class NWO_FoundryPanelProps(Panel):
         for p in PANELS_PROPS:
             if p == "help":
                 box = col1.box()
+            elif p == "animation_properties":
+                if nwo.asset_type not in ('MODEL', 'FP ANIMATION'):
+                    continue
             
             row_icon = box.row(align=True)
             panel_active = getattr(nwo, f"{p}_active")
@@ -224,6 +234,7 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("nwo.make_asset", text="Copy Asset", icon_value=get_icon_id("halo_asset")) 
             
         else:
+            row.scale_y = 1.5
             row.operator("nwo.make_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
 
         col.separator()
@@ -1770,6 +1781,7 @@ class NWO_FoundryPanelProps(Panel):
         ob = context.object
         h4 = self.h4
         if not ob:
+            row.label(text="No active object")
             return
         ob_type = ob.type
         if ob_type not in ("MESH", "CURVE", "SURFACE", "META", "FONT"):
@@ -1865,6 +1877,9 @@ class NWO_FoundryPanelProps(Panel):
                 row.label(text="Halo Animations are only supported for Armatures")
             else:
                 row.label(text="No active object")
+
+            row = box.row()
+            row.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')
             return
 
         animation_data = ob.animation_data
@@ -2024,25 +2039,25 @@ class NWO_FoundryPanelProps(Panel):
         h4 = self.h4
         count, total = get_halo_material_count()
         shader_type = "Material" if h4 else "Shader"
-        if total:
-            row = box.row()
-            col = row.column()
-            col.label(text=f"Asset {shader_type}s")
-            # col.separator()
-            col.label(
-                text=f"{count} tag paths found out of {total} materials",
-                icon='CHECKMARK' if total == count else 'ERROR'
-            )
-            row = col.row(align=True)
-            col1 = row.column(align=True)
-            col2 = row.column(align=True)
-            col2.alignment = "RIGHT"
-            col1.operator(
-                "nwo.shader_finder",
-                text=f"Find Missing {shader_type}s",
-                icon_value=get_icon_id("material_finder"),
-            )
-            col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
+        # if total:
+        row = box.row()
+        col = row.column()
+        col.label(text=f"Asset {shader_type}s")
+        # col.separator()
+        col.label(
+            text=f"{count} tag paths found out of {total} materials",
+            icon='CHECKMARK' if total == count else 'ERROR'
+        )
+        row = col.row(align=True)
+        col1 = row.column(align=True)
+        col2 = row.column(align=True)
+        col2.alignment = "RIGHT"
+        col1.operator(
+            "nwo.shader_finder",
+            text=f"Find Missing {shader_type}s",
+            icon_value=get_icon_id("material_finder"),
+        )
+        col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
 
 
     def draw_help(self):
@@ -2069,6 +2084,10 @@ class NWO_FoundryPanelProps(Panel):
 
     def draw_settings(self):
         nwo = self.scene.nwo
+        box = self.box.box()
+        box.label(text=update_str, icon_value=get_icon_id("foundry"))
+        if update_needed:
+            box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
         box = self.box.box()
         col = box.column()
         col.prop(nwo, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
@@ -2129,6 +2148,29 @@ class NWO_OpenURL(Operator):
             return "Opens the download page for Reclaimer, a tool for extracting render models, BSPs, and textures for Halo games"
         elif properties.url == ANIMATION_REPO:
             return "Opens the github page for a repository containing a collection of Halo animations stored in the legacy Halo animation format"
+        
+class NWO_SelectArmature(Operator):
+    bl_label = "Select Armature"
+    bl_idname = "nwo.select_armature"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_description = "Sets the first armature encountered as the active object"
+
+    def execute(self, context):
+        objects = context.view_layer.objects
+        for ob in objects:
+            if ob.type == 'ARMATURE':
+                deselect_all_objects()
+                ob.hide_set(False)
+                ob.hide_select = False
+                ob.select_set(True)
+                set_active_object(ob)
+                self.report({'INFO'}, F"Selected {ob.name}")
+                break
+        else:
+            self.report({'WARNING'}, "No Armature Found")
+
+        return {'FINISHED'}
+
 
 
 class NWO_FoundryPanelSetsViewer(Panel):
@@ -4787,6 +4829,7 @@ def foundry_toolbar(layout, context):
 
 
 classeshalo = (
+    NWO_SelectArmature,
     NWO_HotkeyDescription,
     NWO_OpenURL,
     NWO_OT_PanelExpand,
