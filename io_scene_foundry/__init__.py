@@ -206,9 +206,9 @@ class ToolkitLocationPreferences(AddonPreferences):
         row = layout.row()
         row.label(text="Halo Reach Editing Kit Path")
         row = layout.row()
-        row.prop(self, "hrek_path", text="")
+        row.prop(self, "hrek_path", text="", icon='FILE_FOLDER')
         row.scale_x = 0.25
-        row.operator("nwo.hrek_path", icon='FILE_FOLDER')
+        row.operator("nwo.hrek_path")
         row = layout.row()
         row.label(text="Halo 4 Editing Kit Path")
         row = layout.row()
@@ -222,7 +222,8 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.scale_x = 0.25
         row.operator("nwo.h2aek_path")
         row = layout.row()
-        row.label(text="Tool Type")
+        row.label(text="Tool Version")
+        row = layout.row()
         row.prop(self, "tool_type", expand=True)
 
 

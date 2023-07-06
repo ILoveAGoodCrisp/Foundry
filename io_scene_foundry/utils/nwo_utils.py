@@ -1924,16 +1924,17 @@ def validate_ek(game) -> str | None:
     
 def foundry_update_check(current_version):
     update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
-    try:
-        response = requests.get(update_url, timeout=6)
-        releases = response.json()
-        latest_release = releases[0]
-        print(latest_release)
-        latest_version = latest_release['tag_name']
-        print(latest_release)
-        if current_version < latest_version:
-            return f"New Foundry version available: {latest_version}", True
-    except:
-        pass
+    if not bpy.app.background:
+        try:
+            response = requests.get(update_url, timeout=2)
+            releases = response.json()
+            latest_release = releases[0]
+            print(latest_release)
+            latest_version = latest_release['tag_name']
+            print(latest_release)
+            if current_version < latest_version:
+                return f"New Foundry version available: {latest_version}", True
+        except:
+            pass
 
     return "Foundry is up to date", False
