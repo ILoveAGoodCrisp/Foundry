@@ -1221,7 +1221,9 @@ def is_error_line(line):
     words = line.split()
     if words:
         first_word = words[0]
-        second_word = words[1]
+        second_word = ""
+        if len(words) > 1:
+            second_word = words[1]
         return (
             first_word.isupper()
             or first_word == "content:"
@@ -1913,7 +1915,6 @@ def get_halo_material_count() -> tuple:
 
 
 def validate_ek(game) -> str | None:
-    global clr_installed
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
     ek = get_ek_path()
     if not os.path.exists(ek):
