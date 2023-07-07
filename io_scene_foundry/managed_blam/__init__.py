@@ -153,6 +153,8 @@ class ManagedBlam_Init(Operator):
                 print("Failed to install pythonnet")
                 return {"CANCELLED"}
             else:
+                if self.install_only:
+                    self.report({'INFO'}, "ManagedBlam Setup Complete")
                 return {"FINISHED"}
 
         else:
