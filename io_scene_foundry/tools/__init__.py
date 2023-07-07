@@ -75,7 +75,7 @@ AMF_ADDON = r"https://www.mediafire.com/file/zh55pb2p3yc4e7v/Blender_AMF2.py/fil
 RECLAIMER = r"https://www.mediafire.com/file/bwnfg09iy0tbm09/Reclaimer.Setup-v1.7.309.msi/file"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 
-CURRENT_VERSION = "0.9.0"
+CURRENT_VERSION = "0.9.1"
 
 update_str, update_needed = foundry_update_check(CURRENT_VERSION)
 
