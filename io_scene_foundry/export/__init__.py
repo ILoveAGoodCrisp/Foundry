@@ -70,17 +70,21 @@ from io_scene_foundry.utils.nwo_utils import (
 # lightmapper_run_once = False
 sidecar_read = False
 
-
 class NWO_Export_Scene(Operator, ExportHelper):
-    """Exports a Reach+ Asset for use in your Halo Editing Kit"""
-
     bl_idname = "export_scene.nwo"
     bl_label = "Export Asset"
     bl_options = {"UNDO", "PRESET"}
+    bl_description = "Exports Tags for use with a Reach/H4/H2AMP Halo Editing Kit"
 
     @classmethod
     def poll(cls, context):
         return not validate_ek(context.scene.nwo.game_version)
+    
+    @classmethod
+    def description(cls, context, properties):
+        d = validate_ek(context.scene.nwo.game_version)
+        if d is not None:
+            return "Export Unavaliable: " + d
 
     filename_ext = ".fbx"
 

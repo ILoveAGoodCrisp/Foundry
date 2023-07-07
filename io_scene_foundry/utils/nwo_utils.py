@@ -34,6 +34,8 @@ from subprocess import Popen, check_call, DEVNULL, PIPE
 import shutil
 import random
 
+from io_scene_foundry.utils import nwo_globals
+
 from ..icons import get_icon_id
 import requests
 
@@ -1911,6 +1913,7 @@ def get_halo_material_count() -> tuple:
 
 
 def validate_ek(game) -> str | None:
+    global clr_installed
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
     ek = get_ek_path()
     if not os.path.exists(ek):
@@ -1921,17 +1924,17 @@ def validate_ek(game) -> str | None:
         return f"Editing Kit data folder not found. Please ensure your {formalise_game_version(game)} Editing Kit directory has a 'data' folder"
     elif not os.path.exists(os.path.join(ek, "bin", "ManagedBlam.dll")):
         return f"ManagedBlam not found in your {formalise_game_version(game)} Editing Kit bin folder, please ensure this exists"
+    elif not nwo_globals.clr_installed:
+        return 'ManagedBlam dependancy not installed. Please install this from Foundry preferences or use "Initialize ManagedBlam" in the Foundry Panel'
     
 def foundry_update_check(current_version):
     update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
     if not bpy.app.background:
         try:
-            response = requests.get(update_url, timeout=2)
+            response = requests.get(update_url, timeout=6)
             releases = response.json()
             latest_release = releases[0]
-            print(latest_release)
             latest_version = latest_release['tag_name']
-            print(latest_release)
             if current_version < latest_version:
                 return f"New Foundry version available: {latest_version}", True
         except:
