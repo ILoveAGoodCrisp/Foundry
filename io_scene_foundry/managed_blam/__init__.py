@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_tag_and_path
 from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
@@ -34,21 +35,12 @@ from io_scene_foundry.utils.nwo_utils import (
 )
 import bpy
 import os
-from bpy.types import Operator
+from bpy.types import Context, Operator, OperatorProperties
 from bpy.props import StringProperty
 from io_scene_foundry.utils.nwo_utils import get_ek_path
 import sys
 import subprocess
 import ctypes
-
-# def create_shader_tag(blender_material):
-#     # Check if bitmaps exist already, if not, create them
-
-#     from tag_shader import TagShader
-#     tag = TagShader()
-
-
-
 
 class ManagedBlam():
     def __init__(self):
@@ -93,6 +85,13 @@ class ManagedBlam_Init(Operator):
     bl_options = {"REGISTER"}
     bl_description = "Initialises Managed Blam and locks the currently selected game"
 
+    install_only : bpy.props.BoolProperty()
+
+    @classmethod
+    def description(cls, context: Context, properties: OperatorProperties) -> str:
+        if properties.install_only:
+            return "Installs pythonnet for Blender's python library. Pythonnet includes the clr module necessary for Foundry to be able to talk to the Halo tag API - Managedblam"
+
     def callback(self):
         pass
 
@@ -123,15 +122,16 @@ class ManagedBlam_Init(Operator):
                 print("Failed to add reference to ManagedBlam")
                 return {"CANCELLED"}
         except:
-            print("Couldn't find clr module, attempting pythonnet install")
-            install = ctypes.windll.user32.MessageBoxW(
-                0,
-                "ManagedBlam requires the pythonnet module to be installed for Blender.\n\nInstall pythonnet now?",
-                f"Pythonnet Install Required",
-                4,
-            )
-            if install != 6:
-                return {"CANCELLED"}
+            if not self.install_only:
+                print("Couldn't find clr module, attempting pythonnet install")
+                install = ctypes.windll.user32.MessageBoxW(
+                    0,
+                    "ManagedBlam requires the pythonnet module to be installed for Blender.\n\nInstall pythonnet now?",
+                    f"Pythonnet Install Required",
+                    4,
+                )
+                if install != 6:
+                    return {"CANCELLED"}
             try:
                 subprocess.check_call(
                     [sys.executable, "-m", "pip", "install", "pythonnet"]
@@ -158,22 +158,24 @@ class ManagedBlam_Init(Operator):
                 return {"FINISHED"}
 
         else:
-            # Initialise ManagedBlam
-            print("Initialising ManagedBlam...")
-            try:
-                startup_parameters = Bungie.ManagedBlamStartupParameters()
-                Bungie.ManagedBlamSystem.Start(
-                    get_ek_path(), self.callback(), startup_parameters
-                )
-            except:
-                print("ManagedBlam already intialised. Skipping")
-                return {"CANCELLED"}
-            else:
-                # print("Success!")
-                with open(os.path.join(bpy.app.tempdir, "blam.txt"), "x") as blam_txt:
-                    blam_txt.write(mb_path)
+            nwo_globals.clr_installed = True
+            if not self.install_only:
+                # Initialise ManagedBlam
+                print("Initialising ManagedBlam...")
+                try:
+                    startup_parameters = Bungie.ManagedBlamStartupParameters()
+                    Bungie.ManagedBlamSystem.Start(
+                        get_ek_path(), self.callback(), startup_parameters
+                    )
+                except:
+                    print("ManagedBlam already intialised. Skipping")
+                    return {"CANCELLED"}
+                else:
+                    # print("Success!")
+                    with open(os.path.join(bpy.app.tempdir, "blam.txt"), "x") as blam_txt:
+                        blam_txt.write(mb_path)
 
-                return {"FINISHED"}
+            return {"FINISHED"}
             
 
 class ManagedBlamTag(Operator):
@@ -378,7 +380,6 @@ class ManagedBlam_RenderStructureMeta(ManagedBlamTag):
         return model_path
 
     def tag_edit(self, context, tag):
-        print(self.path)
         if self.structure_meta and os.path.exists(os.path.join(get_tags_path() + self.structure_meta)):
             _, new_tag_ref = get_tag_and_path(self.Bungie, self.structure_meta)
             field = tag.SelectField("Reference:structure meta data")

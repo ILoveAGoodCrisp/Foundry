@@ -29,10 +29,16 @@
 
 import ctypes
 import bpy
-from bpy.types import AddonPreferences, Operator
-from bpy.props import StringProperty, EnumProperty, BoolProperty
 from bpy.app.handlers import persistent
 import os
+
+from io_scene_foundry.utils import nwo_globals
+
+try:
+    import clr
+    nwo_globals.clr_installed = True
+except:
+    nwo_globals.clr_installed = False
 
 from io_scene_foundry.utils.nwo_utils import (
     formalise_game_version,
@@ -43,7 +49,7 @@ from io_scene_foundry.utils.nwo_utils import (
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
-    "version": (0, 9, 0),
+    "version": (0, 9, 1),
     "blender": (3, 6, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",
@@ -52,6 +58,7 @@ bl_info = {
     "support": "COMMUNITY",
     "category": "Export",
 }
+
 
 from . import tools
 from . import ui
@@ -69,160 +76,6 @@ modules = [
     keymap,
     icons,
 ]
-
-
-class HREKLocationPath(Operator):
-    """Set the path to your Halo Reach Editing Kit"""
-
-    bl_idname = "nwo.hrek_path"
-    bl_label = "Select Folder"
-    bl_options = {"REGISTER"}
-
-    filter_folder: BoolProperty(
-        default=True,
-        options={"HIDDEN"},
-    )
-
-    directory: StringProperty(
-        name="hrek_path",
-        description="Set the path to your Halo Reach Editing Kit",
-    )
-
-    def execute(self, context):
-        context.preferences.addons[
-            __package__
-        ].preferences.hrek_path = self.directory.strip('"\\')
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class H4EKLocationPath(Operator):
-    """Set the path to your Halo 4 Editing Kit"""
-
-    bl_idname = "nwo.h4ek_path"
-    bl_label = "Select Folder"
-    bl_options = {"REGISTER"}
-
-    filter_folder: BoolProperty(
-        default=True,
-        options={"HIDDEN"},
-    )
-
-    directory: StringProperty(
-        name="h4ek_path",
-        description="Set the path to your Halo 4 Editing Kit",
-    )
-
-    def execute(self, context):
-        context.preferences.addons[
-            __package__
-        ].preferences.h4ek_path = self.directory.strip('"\\')
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class H2AMPEKLocationPath(Operator):
-    """Set the path to your Halo 2 Anniversary Multiplayer Editing Kit"""
-
-    bl_idname = "nwo.h2aek_path"
-    bl_label = "Select Folder"
-    bl_options = {"REGISTER"}
-
-    filter_folder: BoolProperty(
-        default=True,
-        options={"HIDDEN"},
-    )
-
-    directory: StringProperty(
-        name="h2aek_path",
-        description="Set the path to your Halo 2 Anniversary Multiplayer Editing Kit",
-    )
-
-    def execute(self, context):
-        context.preferences.addons[
-            __package__
-        ].preferences.h2aek_path = self.directory.strip('"\\')
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class ToolkitLocationPreferences(AddonPreferences):
-    bl_idname = __package__
-
-    def clean_hrek_path(self, context):
-        self["hrek_path"] = self["hrek_path"].strip('"\\')
-
-    hrek_path: StringProperty(
-        name="HREK Path",
-        description="Specify the path to your Halo Reach Editing Kit folder containing tool / tool_fast",
-        default="",
-        update=clean_hrek_path,
-    )
-
-    def clean_h4ek_path(self, context):
-        self["h4ek_path"] = self["h4ek_path"].strip('"\\')
-
-    h4ek_path: StringProperty(
-        name="H4EK Path",
-        description="Specify the path to your Halo 4 Editing Kit folder containing tool / tool_fast",
-        default="",
-        update=clean_h4ek_path,
-    )
-
-    def clean_h2aek_path(self, context):
-        self["h2aek_path"] = self["h2aek_path"].strip('"\\')
-
-    h2aek_path: StringProperty(
-        name="H2AMPEK Path",
-        description="Specify the path to your Halo 2 Anniversary MP Editing Kit folder containing tool / tool_fast",
-        default="",
-        update=clean_h2aek_path,
-    )
-
-    tool_type: EnumProperty(
-        name="Tool Type",
-        description="Specify whether the add on should use Tool or Tool Fast",
-        default="tool_fast",
-        items=[("tool_fast", "Tool Fast", ""), ("tool", "Tool", "")],
-    )
-
-    def draw(self, context):
-        layout = self.layout
-        row = layout.row(align=True)
-        row.label(text="Halo Reach Editing Kit Path")
-        row = layout.row(align=True)
-        row.prop(self, "hrek_path", text="")
-        row.operator("nwo.hrek_path", text="", icon='FILE_FOLDER')
-        row = layout.row(align=True)
-        row.label(text="Halo 4 Editing Kit Path")
-        row = layout.row(align=True)
-        row.prop(self, "h4ek_path", text="")
-        row.operator("nwo.h4ek_path", text="", icon='FILE_FOLDER')
-        row = layout.row(align=True)
-        row.label(text="Halo 2 Anniversary Multiplayer Editing Kit Path")
-        row = layout.row(align=True)
-        row.prop(self, "h2aek_path", text="")
-        row.operator("nwo.h2aek_path", text="", icon='FILE_FOLDER')
-        row = layout.row(align=True)
-        row.label(text="Tool Version")
-        row = layout.row(align=True)
-        row.prop(self, "tool_type", expand=True)
-
 
 def msgbus_callback(context):
     try:
@@ -365,10 +218,6 @@ def fix_icons():
     icons.icons_activate()
 
 def register():
-    bpy.utils.register_class(ToolkitLocationPreferences)
-    bpy.utils.register_class(HREKLocationPath)
-    bpy.utils.register_class(H4EKLocationPath)
-    bpy.utils.register_class(H2AMPEKLocationPath)
     bpy.app.handlers.load_post.append(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
     bpy.app.handlers.undo_post.append(get_temp_settings)
@@ -387,10 +236,6 @@ def unregister():
     bpy.app.handlers.load_post.remove(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
     bpy.app.handlers.undo_post.remove(get_temp_settings)
-    bpy.utils.unregister_class(ToolkitLocationPreferences)
-    bpy.utils.unregister_class(HREKLocationPath)
-    bpy.utils.unregister_class(H4EKLocationPath)
-    bpy.utils.unregister_class(H2AMPEKLocationPath)
     for module in reversed(modules):
         module.unregister()
 

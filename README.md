@@ -40,11 +40,12 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 ![](img/preferences.png)
 
 - If you see a asterisk next to *Save Preferences*, click this button before proceeding
+- Click *Install ManagedBlam Dependancy* to install the the python module necessary to allow Foundry to communicate with the Halo tag API.
+- Restart Blender
 - Navigate to the right hand side of the 3D View. If you cannot see the Foundry Panel, click the small arrow facing away from the outliner or press *N*. Now select *Foundry* from the Tools Panels
 
 ![](img/foundry_panel.png)
 
-- Under Scene Properties, select *Initialize ManagedBlam*. This will ask if you wish to install pythonnet. Pythonnet is a python module not bundled with Blender but is required to use Halo's tag API. After installing pythonnet you will need to restart Blender. You're now set up and ready to start using Foundry
 - To create your first Halo asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your Blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to your preferred Halo Editing Kit
 
 ## Credits
