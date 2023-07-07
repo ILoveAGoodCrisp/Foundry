@@ -29,15 +29,13 @@
 
 import ctypes
 import bpy
-from bpy.types import AddonPreferences, Operator
-from bpy.props import StringProperty, EnumProperty, BoolProperty
 from bpy.app.handlers import persistent
 import os
 
 from io_scene_foundry.utils import nwo_globals
 
 try:
-    import sefsese
+    import clr
     nwo_globals.clr_installed = True
 except:
     nwo_globals.clr_installed = False
@@ -51,7 +49,7 @@ from io_scene_foundry.utils.nwo_utils import (
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
-    "version": (0, 9, 0),
+    "version": (0, 9, 1),
     "blender": (3, 6, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",
