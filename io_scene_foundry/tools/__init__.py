@@ -2097,7 +2097,6 @@ class NWO_FoundryPanelProps(Panel):
 class NWO_HotkeyDescription(Operator):
     bl_label = "Keyboard Shortcut Description"
     bl_idname = "nwo.describe_hotkey"
-    bl_options = {'REGISTER'}
     bl_description = "Provides a description of this keyboard shortcut"
 
     hotkey : StringProperty()
@@ -2126,7 +2125,6 @@ class NWO_HotkeyDescription(Operator):
 class NWO_OpenURL(Operator):
     bl_label = "Open URL"
     bl_idname = "nwo.open_url"
-    bl_options = {'REGISTER'}
     bl_description = "Opens a URL"
 
     url : StringProperty()
@@ -2153,7 +2151,7 @@ class NWO_OpenURL(Operator):
 class NWO_SelectArmature(Operator):
     bl_label = "Select Armature"
     bl_idname = "nwo.select_armature"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'UNDO'}
     bl_description = "Sets the first armature encountered as the active object"
 
     def execute(self, context):
@@ -2281,7 +2279,7 @@ class NWO_OT_PanelUnpin(Operator):
     bl_idname = "nwo.panel_unpin"
     bl_label = ""
 
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
 
     panel_str : StringProperty()
 
@@ -2299,7 +2297,7 @@ class NWO_OT_PanelSet(Operator):
 
     bl_idname = "nwo.panel_set"
     bl_label = ""
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
 
     panel_str : StringProperty()
     keep_enabled : BoolProperty()
@@ -2347,7 +2345,7 @@ class NWO_OT_PanelExpand(Operator):
 
     bl_idname = "nwo.panel_expand"
     bl_label = ""
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
     bl_description = "Expand a panel"
 
     panel_str: StringProperty()
@@ -2926,7 +2924,6 @@ class NWO_HaloLauncher_Foundation(Operator):
 
     bl_idname = "nwo.launch_foundation"
     bl_label = "Foundation"
-    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         from .halo_launcher import LaunchFoundation
@@ -2939,7 +2936,6 @@ class NWO_HaloLauncher_Data(Operator):
 
     bl_idname = "nwo.launch_data"
     bl_label = "Data"
-    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         scene = context.scene
@@ -2959,7 +2955,6 @@ class NWO_HaloLauncher_Tags(Operator):
 
     bl_idname = "nwo.launch_tags"
     bl_label = "Tags"
-    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         scene = context.scene
@@ -2978,8 +2973,7 @@ class NWO_HaloLauncher_Sapien(Operator):
     """Opens Sapien"""
 
     bl_idname = "nwo.launch_sapien"
-    bl_label = "Sapien   "
-    bl_options = {"REGISTER", "UNDO"}
+    bl_label = "Sapien"
 
     filter_glob: StringProperty(
         default="*.scenario",
@@ -3020,7 +3014,6 @@ class NWO_HaloLauncher_TagTest(Operator):
 
     bl_idname = "nwo.launch_tagtest"
     bl_label = "Tag Test"
-    bl_options = {"REGISTER", "UNDO"}
 
     filter_glob: StringProperty(
         default="*.scenario",
@@ -3433,7 +3426,7 @@ class NWO_ShaderFinder_Find(Operator):
 
     bl_idname = "nwo.shader_finder"
     bl_label = ""
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
 
     def execute(self, context):
         scene = context.scene
@@ -3703,7 +3696,7 @@ class NWO_HaloExportSettingsFlags(Panel):
 class NWO_HaloExport(Operator):
     bl_idname = "nwo.export_quick"
     bl_label = "Quick Export"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
     bl_description = "Exports the current Halo asset and creates tags"
 
     def execute(self, context):
@@ -4680,7 +4673,7 @@ class NWO_Material(NWO_Shader):
 class NWO_Shader_BuildSingle(Operator):
     bl_idname = "nwo.build_shader_single"
     bl_label = ""
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
     bl_description = ""
 
     @classmethod
@@ -4709,7 +4702,7 @@ class NWO_Shader_Build(Operator):
 
     bl_idname = "nwo.build_shader"
     bl_label = "Build Shader"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
     bl_description = "Builds empty shader tags for blender materials. Requires ManagedBlam to be active"
 
     @classmethod

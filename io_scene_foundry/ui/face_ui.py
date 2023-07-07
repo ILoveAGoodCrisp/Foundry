@@ -24,8 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from mathutils import Matrix, Vector
-
 from ..utils.nwo_utils import (
     bpy_enum_list,
     closest_bsp_object,
@@ -595,7 +593,7 @@ class NWO_EditMode(NWO_Op):
 
     bl_idname = "nwo.edit_face_layers"
     bl_label = "Enter Edit Mode"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
 
     @classmethod
     def poll(cls, context):
@@ -785,7 +783,7 @@ class NWO_FaceLayerRemove(NWO_Op):
 
     bl_idname = "nwo.face_layer_remove"
     bl_label = "Remove"
-    bl_options = {"REGISTER", "UNDO_GROUPED"}
+    bl_options = {"UNDO"}
 
     @classmethod
     def poll(self, context):
@@ -1072,7 +1070,6 @@ def draw(self):
 
 class NWO_FaceLayerColorAll(NWO_Op):
     bl_idname = "nwo.face_layer_color_all"
-    bl_options = {"REGISTER"}
 
     enable_highlight: BoolProperty()
 
@@ -1101,7 +1098,6 @@ class NWO_FaceLayerColorAll(NWO_Op):
 
 class NWO_FaceLayerColor(NWO_Op):
     bl_idname = "nwo.face_layer_color"
-    bl_options = {"REGISTER"}
 
     layer_index: bpy.props.IntProperty()
     highlight: bpy.props.IntProperty()

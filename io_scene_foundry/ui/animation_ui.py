@@ -24,7 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from bpy.types import Context, Event
 from io_scene_foundry.icons import get_icon_id
 
 from io_scene_foundry.utils.nwo_utils import poll_ui

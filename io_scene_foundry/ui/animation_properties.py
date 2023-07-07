@@ -82,7 +82,7 @@ class NWO_List_Add_Animation_Event(Operator):
     bl_label = "Add"
     bl_description = "Add a new animation event to the list."
     filename_ext = ""
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
 
     @classmethod
     def poll(cls, context):
@@ -116,7 +116,7 @@ class NWO_List_Remove_Animation_Event(Operator):
     bl_idname = "animation_event.list_remove"
     bl_label = "Remove"
     bl_description = "Remove an animation event from the list."
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
 
     @classmethod
     def poll(cls, context):

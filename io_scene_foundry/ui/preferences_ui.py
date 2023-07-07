@@ -34,7 +34,6 @@ class HREKLocationPath(Operator):
 
     bl_idname = "nwo.hrek_path"
     bl_label = "Select Folder"
-    bl_options = {"REGISTER"}
 
     filter_folder: BoolProperty(
         default=True,
@@ -64,7 +63,6 @@ class H4EKLocationPath(Operator):
 
     bl_idname = "nwo.h4ek_path"
     bl_label = "Select Folder"
-    bl_options = {"REGISTER"}
 
     filter_folder: BoolProperty(
         default=True,
@@ -94,7 +92,6 @@ class H2AMPEKLocationPath(Operator):
 
     bl_idname = "nwo.h2aek_path"
     bl_label = "Select Folder"
-    bl_options = {"REGISTER"}
 
     filter_folder: BoolProperty(
         default=True,
