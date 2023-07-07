@@ -10,6 +10,8 @@ import os
 import subprocess
 from pathlib import Path
 
+VERSION = "0_9_1"
+
 def build_resources_zip() -> io.BytesIO:
     search_path = os.path.join("io_scene_foundry", "resources")
     print(f"Building resources zip (searching in {search_path})!")
@@ -43,7 +45,7 @@ def build_release_zip(name: str):
     CI_version = os.getenv('GITHUB_RUN_NUMBER')
     if CI_version is None:
         print("Local build")
-        version_string = "v0_9_0@" + git_version
+        version_string = f"v{VERSION}@" + git_version
     else:
         print(f"CI build {CI_version}")
         version_string = f"v{CI_version}@{git_version}"

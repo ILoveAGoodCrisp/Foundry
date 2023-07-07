@@ -139,6 +139,13 @@ from .viewport_ui import (
     NWO_PIE_ApplyTypeMarker,
 )
 
+from .preferences_ui import (
+    H2AMPEKLocationPath,
+    H4EKLocationPath,
+    HREKLocationPath,
+    ToolkitLocationPreferences,
+)
+
 mesh_type_items = [
     (
         "_connected_geometry_mesh_type_boundary_surface",
@@ -397,6 +404,10 @@ class NWO_OpenAssetFoundry(NWO_Op):
 
 
 classes_nwo = (
+    H2AMPEKLocationPath,
+    H4EKLocationPath,
+    HREKLocationPath,
+    ToolkitLocationPreferences,
     NWO_OpenAssetFoundry,
     NWO_List_Add_Animation_Rename,
     NWO_List_Remove_Animation_Rename,
