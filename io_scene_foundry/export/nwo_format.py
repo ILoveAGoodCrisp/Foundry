@@ -716,7 +716,7 @@ class NWOMarker(NWOObject):
 
             # scenario place fx
             elif self.bungie_marker_type == "_connected_geometry_marker_type_envfx":
-                self.bungie_marker_looping_effect = self.marker_looping_effect()
+                self.bungie_marker_looping_effect = self.halo.marker_looping_effect
 
             # airprobes
             elif self.bungie_marker_type == "_connected_geometry_marker_type_airprobe":
