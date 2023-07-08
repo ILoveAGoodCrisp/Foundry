@@ -262,8 +262,8 @@ class NWO_AssetMaker(NWO_Op):
     )
 
     managed_blam: BoolProperty(
-        description="When set asset will use ManagedBlam on startup",
-        default=True,
+        description="Blender Scene will initialize ManagedBlam on startup",
+        default=False,
     )
 
     def execute(self, context):

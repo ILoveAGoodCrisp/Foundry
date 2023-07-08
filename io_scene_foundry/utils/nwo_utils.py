@@ -1555,7 +1555,7 @@ def print_error(string="Error"):
 
 
 def managed_blam_active():
-    return os.path.exists(os.path.join(bpy.app.tempdir, "blam.txt"))
+    return nwo_globals.mb_active
 
 
 def get_valid_shader_name(string):

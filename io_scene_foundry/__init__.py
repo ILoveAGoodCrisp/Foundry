@@ -129,7 +129,7 @@ def load_handler(dummy):
                 game = formalise_game_version(context.scene.nwo.game_version)
                 result = ctypes.windll.user32.MessageBoxW(
                     0,
-                    f"{game} incompatible with loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?",
+                    f"{game} is incompatible with the loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?",
                     f"ManagedBlam / Game Mismatch",
                     4,
                 )

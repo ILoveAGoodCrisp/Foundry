@@ -136,8 +136,7 @@ class ManagedBlam_Init(Operator):
                 subprocess.check_call(
                     [sys.executable, "-m", "pip", "install", "pythonnet"]
                 )
-                with open(os.path.join(bpy.app.tempdir, "blam_new.txt"), "x") as _:
-                    print("Succesfully installed necessary modules")
+                print("Succesfully installed necessary modules")
 
                 shutdown = ctypes.windll.user32.MessageBoxW(
                     0,
@@ -172,8 +171,8 @@ class ManagedBlam_Init(Operator):
                     return {"CANCELLED"}
                 else:
                     # print("Success!")
-                    with open(os.path.join(bpy.app.tempdir, "blam.txt"), "x") as blam_txt:
-                        blam_txt.write(mb_path)
+                    nwo_globals.mb_active = True
+                    nwo_globals.mb_path = mb_path
 
             return {"FINISHED"}
             

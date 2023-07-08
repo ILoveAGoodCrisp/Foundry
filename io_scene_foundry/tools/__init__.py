@@ -201,7 +201,7 @@ class NWO_FoundryPanelProps(Panel):
             col2.alignment = 'RIGHT'
             col1.label(icon_value=get_icon_id("managed_blam_on"), text="ManagedBlam Active")
             col2.prop(nwo, "mb_startup", text="Run on startup")
-        elif os.path.exists(os.path.join(bpy.app.tempdir, "blam_new.txt")):
+        elif nwo_globals.mb_active:
             row.label(text="Blender Restart Required for ManagedBlam")
         else:
             row.operator("managed_blam.init", text="Initialize ManagedBlam", icon_value=get_icon_id("managed_blam_off"))

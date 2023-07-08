@@ -114,7 +114,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         items.append(
             (
                 "h2a",
-                "Halo 2AMP",
+                "Halo 2 Anniversary Multiplayer",
                 "Halo 2 Anniversary Multiplayer",
                 get_icon_id("halo_2amp"),
                 2,
