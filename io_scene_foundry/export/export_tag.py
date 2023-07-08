@@ -43,7 +43,7 @@ def import_sidecar(
     asset_name,
     import_check,
     import_force,
-    import_verbose,
+    # import_verbose,
     import_draft,
     import_seam_debug,
     import_skip_instances,
@@ -81,7 +81,7 @@ def import_sidecar(
             *get_import_flags(
                 import_check,
                 import_force,
-                import_verbose,
+                # import_verbose,
                 import_draft,
                 import_seam_debug,
                 import_skip_instances,
@@ -141,7 +141,7 @@ def cull_unused_tags(asset_path, asset_name):
 def get_import_flags(
     flag_import_check,
     flag_import_force,
-    flag_import_verbose,
+    # flag_import_verbose,
     flag_import_draft,
     flag_import_seam_debug,
     flag_import_skip_instances,
@@ -176,8 +176,8 @@ def get_import_flags(
     else:
         if flag_import_check:
             flags.append("check")
-        if flag_import_verbose:
-            flags.append("verbose")
+        # if flag_import_verbose:
+        #     flags.append("verbose")
         if flag_import_draft:
             flags.append("draft")
         if flag_import_seam_debug:

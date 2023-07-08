@@ -3667,7 +3667,7 @@ class NWO_HaloExportSettingsFlags(Panel):
                 )
         else:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
-            col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
+            # col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
             col.prop(
                 scene_nwo_export,
                 "import_surpress_errors",
@@ -3982,11 +3982,11 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         description="Force all files to import even if they haven't changed",
         default=False,
     )
-    import_verbose: BoolProperty(
-        name="Verbose",
-        description="Write additional import progress information to the console",
-        default=False,
-    )
+    # import_verbose: BoolProperty(
+    #     name="Verbose",
+    #     description="Write additional import progress information to the console",
+    #     default=False,
+    # )
     import_draft: BoolProperty(
         name="Draft",
         description="Skip generating PRT data. Faster speed, lower quality",

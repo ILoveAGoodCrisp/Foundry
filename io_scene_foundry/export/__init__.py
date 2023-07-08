@@ -270,11 +270,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
         description="Force all files to import even if they haven't changed",
         default=False,
     )
-    import_verbose: BoolProperty(
-        name="Verbose",
-        description="Write additional import progress information to the console",
-        default=False,
-    )
+    # import_verbose: BoolProperty(
+    #     name="Verbose",
+    #     description="Write additional import progress information to the console",
+    #     default=False,
+    # )
     import_draft: BoolProperty(
         name="Draft",
         description="Skip generating PRT data. Faster speed, lower quality",
@@ -497,7 +497,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.show_output = scene_nwo_export.show_output
 
             self.import_force = scene_nwo_export.import_force
-            self.import_verbose = scene_nwo_export.import_verbose
+            # self.import_verbose = scene_nwo_export.import_verbose
             self.import_draft = scene_nwo_export.import_draft
             self.import_seam_debug = scene_nwo_export.import_seam_debug
             self.import_skip_instances = scene_nwo_export.import_skip_instances
@@ -659,7 +659,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.game_version,
                     self.import_check,
                     self.import_force,
-                    self.import_verbose,
+                    # self.import_verbose,
                     self.import_draft,
                     self.import_seam_debug,
                     self.import_skip_instances,
@@ -849,7 +849,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             temp_file.write(f"{self.lightmap_specific_bsp}\n")
             temp_file.write(f"{self.lightmap_structure}\n")
             temp_file.write(f"{self.import_force}\n")
-            temp_file.write(f"{self.import_verbose}\n")
+            # temp_file.write(f"{self.import_verbose}\n")
             temp_file.write(f"{self.import_draft}\n")
             temp_file.write(f"{self.import_seam_debug}\n")
             temp_file.write(f"{self.import_skip_instances}\n")
@@ -985,7 +985,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     )
             else:
                 sub.prop(self, "import_force", text="Force full export")
-                sub.prop(self, "import_verbose", text="Verbose Output")
+                # sub.prop(self, "import_verbose", text="Verbose Output")
                 sub.prop(
                     self, "import_surpress_errors", text="Don't write errors to VRML"
                 )
