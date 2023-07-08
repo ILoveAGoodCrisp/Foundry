@@ -1171,7 +1171,7 @@ def run_tool_sidecar(tool_args: list, asset_path):
     failed = False
     os.chdir(get_ek_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
-    # print(command)
+    print(command)
     error = ""
     p = Popen(command, stderr=PIPE)
     error_log = os.path.join(asset_path, "error.log")

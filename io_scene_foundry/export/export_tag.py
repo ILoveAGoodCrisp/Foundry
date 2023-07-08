@@ -48,7 +48,7 @@ def import_sidecar(
     import_seam_debug,
     import_skip_instances,
     import_decompose_instances,
-    import_surpress_errors,
+    import_suppress_errors,
     import_lighting,
     import_meta_only,
     import_disable_hulls,
@@ -86,7 +86,7 @@ def import_sidecar(
                 import_seam_debug,
                 import_skip_instances,
                 import_decompose_instances,
-                import_surpress_errors,
+                import_suppress_errors,
                 import_lighting,
                 import_meta_only,
                 import_disable_hulls,
@@ -146,7 +146,7 @@ def get_import_flags(
     flag_import_seam_debug,
     flag_import_skip_instances,
     flag_import_decompose_instances,
-    flag_import_surpress_errors,
+    flag_import_suppress_errors,
     import_lighting,
     import_meta_only,
     import_disable_hulls,
@@ -184,7 +184,7 @@ def get_import_flags(
             flags.append("seam_debug")
         if flag_import_decompose_instances:
             flags.append("decompose_instances")
-        if flag_import_surpress_errors:
-            flags.append("surpress_errors_to_vrml")
+        if flag_import_suppress_errors:
+            flags.append("suppress_errors_to_vrml")
 
     return flags
