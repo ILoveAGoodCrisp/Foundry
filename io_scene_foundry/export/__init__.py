@@ -48,6 +48,8 @@ import ctypes
 import traceback
 import logging
 
+from io_scene_foundry.utils import nwo_globals
+
 from .prepare_scene import PrepareScene
 from .process_scene import ProcessScene
 
@@ -295,7 +297,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         description="Run convex decomposition for instanced geometry physics (very slow)",
         default=False,
     )
-    import_surpress_errors: BoolProperty(
+    import_suppress_errors: BoolProperty(
         name="Surpress Errors",
         description="Do not write errors to vrml files",
         default=False,
@@ -504,7 +506,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.import_decompose_instances = (
                 scene_nwo_export.import_decompose_instances
             )
-            self.import_surpress_errors = scene_nwo_export.import_surpress_errors
+            self.import_suppress_errors = scene_nwo_export.import_suppress_errors
             self.import_lighting = scene_nwo_export.import_lighting
             self.import_meta_only = scene_nwo_export.import_meta_only
             self.import_disable_hulls = scene_nwo_export.import_disable_hulls
@@ -664,7 +666,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.import_seam_debug,
                     self.import_skip_instances,
                     self.import_decompose_instances,
-                    self.import_surpress_errors,
+                    self.import_suppress_errors,
                     self.import_lighting,
                     self.import_meta_only,
                     self.import_disable_hulls,
@@ -821,54 +823,52 @@ class NWO_Export_Scene(Operator, ExportHelper):
         return False
 
     def write_temp_settings(
-        self, context, sidecar_path, export_report="", report_type=""
+        self, context, sidecar_path, report_text="", report_type=""
     ):
-        temp_file_path = path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
-        with open(temp_file_path, "w") as temp_file:
-            temp_file.write(f"{sidecar_path}\n")
-            temp_file.write(f"{self.game_version}\n")
-            temp_file.write(f"{self.sidecar_type}\n")
-            temp_file.write(f"{self.output_biped}\n")
-            temp_file.write(f"{self.output_crate}\n")
-            temp_file.write(f"{self.output_creature}\n")
-            temp_file.write(f"{self.output_device_control}\n")
-            temp_file.write(f"{self.output_device_dispenser}\n")
-            temp_file.write(f"{self.output_device_machine}\n")
-            temp_file.write(f"{self.output_device_terminal}\n")
-            temp_file.write(f"{self.output_effect_scenery}\n")
-            temp_file.write(f"{self.output_equipment}\n")
-            temp_file.write(f"{self.output_giant}\n")
-            temp_file.write(f"{self.output_scenery}\n")
-            temp_file.write(f"{self.output_vehicle}\n")
-            temp_file.write(f"{self.output_weapon}\n")
-            temp_file.write(f"{context.scene.nwo_export.show_output}\n")
-            temp_file.write(f"{self.lightmap_all_bsps}\n")
-            temp_file.write(f"{self.lightmap_quality}\n")
-            temp_file.write(f"{self.lightmap_quality_h4}\n")
-            temp_file.write(f"{self.lightmap_region}\n")
-            temp_file.write(f"{self.lightmap_specific_bsp}\n")
-            temp_file.write(f"{self.lightmap_structure}\n")
-            temp_file.write(f"{self.import_force}\n")
-            # temp_file.write(f"{self.import_verbose}\n")
-            temp_file.write(f"{self.import_draft}\n")
-            temp_file.write(f"{self.import_seam_debug}\n")
-            temp_file.write(f"{self.import_skip_instances}\n")
-            temp_file.write(f"{self.import_decompose_instances}\n")
-            temp_file.write(f"{self.import_surpress_errors}\n")
-            temp_file.write(f"{self.import_lighting}\n")
-            temp_file.write(f"{self.import_meta_only}\n")
-            temp_file.write(f"{self.import_disable_hulls}\n")
-            temp_file.write(f"{self.import_disable_collision}\n")
-            temp_file.write(f"{self.import_no_pca}\n")
-            temp_file.write(f"{self.import_force_animations}\n")
+        settings = nwo_globals.nwo_scene_settings
+        settings["sidecar_path"] = sidecar_path
+        settings["game_version"] = self.game_version
+        settings["asset_type"] = self.sidecar_type
+        settings["sidecar_type"] = self.sidecar_type
+        settings["output_biped"] = self.output_biped
+        settings["output_crate"] = self.output_crate
+        settings["output_creature"] = self.output_creature
+        settings["output_device_control"] = self.output_device_control
+        settings["output_device_dispenser"] = self.output_device_dispenser
+        settings["output_device_machine"] = self.output_device_machine
+        settings["output_device_machine"] = self.output_device_machine
+        settings["output_device_terminal"] = self.output_device_terminal
+        settings["output_effect_scenery"] = self.output_effect_scenery
+        settings["output_equipment"] = self.output_equipment
+        settings["output_giant"] = self.output_giant
+        settings["output_scenery"] = self.output_scenery
+        settings["output_vehicle"] = self.output_vehicle
+        settings["output_weapon"] = self.output_weapon
+        settings["show_output"] = context.scene.nwo_export.show_output
+        settings["lightmap_all_bsps"] = self.lightmap_all_bsps
+        settings["lightmap_quality"] = self.lightmap_quality
+        settings["lightmap_quality_h4"] = self.lightmap_quality_h4
+        settings["lightmap_region"] = self.lightmap_region
+        settings["lightmap_specific_bsp"] = self.lightmap_specific_bsp
+        settings["lightmap_structure"] = self.lightmap_structure
+        settings["import_force"] = self.import_force
+        settings["import_draft"] = self.import_draft
+        settings["import_seam_debug"] = self.import_seam_debug
+        settings["import_skip_instances"] = self.import_skip_instances
+        settings["import_decompose_instances"] = self.import_decompose_instances
+        settings["import_suppress_errors"] = self.import_suppress_errors
+        settings["import_lighting"] = self.import_lighting
+        settings["import_meta_only"] = self.import_meta_only
+        settings["import_disable_hulls"] = self.import_disable_hulls
+        settings["import_disable_collision"] = self.import_disable_collision
+        settings["import_no_pca"] = self.import_no_pca
+        settings["import_force_animations"] = self.import_force_animations
 
-        if self.quick_export and export_report and report_type:
-            temp_report_path = path.join(bpy.app.tempdir, "foundry_export_report.txt")
-            with open(temp_report_path, "w") as temp_file:
-                temp_file.write(f"{export_report}\n")
-                temp_file.write(f"{report_type}")
-        elif export_report and report_type:
-            self.report({report_type}, export_report)
+        if self.quick_export and report_text and report_type:
+            nwo_globals.export_report["report_text"] = report_text
+            nwo_globals.export_report["report_type"] = report_type
+        elif report_text and report_type:
+            self.report({report_type}, report_text)
 
     def draw(self, context):
         layout = self.layout
@@ -987,7 +987,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 sub.prop(self, "import_force", text="Force full export")
                 # sub.prop(self, "import_verbose", text="Verbose Output")
                 sub.prop(
-                    self, "import_surpress_errors", text="Don't write errors to VRML"
+                    self, "import_suppress_errors", text="Don't write errors to VRML"
                 )
                 if scenario:
                     sub.prop(

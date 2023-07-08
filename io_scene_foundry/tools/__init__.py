@@ -43,6 +43,8 @@ from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
 
+from io_scene_foundry.utils import nwo_globals
+
 from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
     clean_tag_path,
@@ -3670,7 +3672,7 @@ class NWO_HaloExportSettingsFlags(Panel):
             # col.prop(scene_nwo_export, "import_verbose", text="Verbose Output")
             col.prop(
                 scene_nwo_export,
-                "import_surpress_errors",
+                "import_suppress_errors",
                 text="Don't write errors to VRML",
             )
             if scenario:
@@ -3950,10 +3952,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     #     self["show_output"] = value
 
     def update_show_output(self, context):
-        file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
-        if file_exists(file_path):
-            with open(file_path, "w") as f:
-                f.write(str(self.show_output))
+        nwo_globals.foundry_output_state = self.show_output
 
     show_output: BoolProperty(
         name="Toggle Output",
@@ -4007,7 +4006,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         description="Run convex decomposition for instanced geometry physics (very slow)",
         default=False,
     )
-    import_surpress_errors: BoolProperty(
+    import_suppress_errors: BoolProperty(
         name="Surpress Errors",
         description="Do not write errors to vrml files",
         default=False,

@@ -866,8 +866,7 @@ class NWOMesh(NWOObject):
                     # This needs to be Reach only otherwise tool complains. However, the flag is still in use in the UI as it is instead used to set instanced collision type to none
                     if (
                         not self.not_bungie_game
-                        and self.halo.face_mode
-                        == "_connected_geometry_face_mode_render_only"
+                        and self.halo.poop_render_only
                     ):
                         self.bungie_mesh_poop_is_render_only = "1"
 

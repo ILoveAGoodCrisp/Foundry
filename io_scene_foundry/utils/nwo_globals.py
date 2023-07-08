@@ -32,5 +32,6 @@ mb_path = ""
 mb_active = False
 
 # set at export
-nwo_scene_settings = []
+nwo_scene_settings = {}
+export_report = {}
 foundry_output_state = True

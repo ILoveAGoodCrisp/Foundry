@@ -98,9 +98,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             )
 
         # store this value in a txt file so we can retrive it when changing scene
-        temp_file_path = os.path.join(bpy.app.tempdir, "game_version.txt")
-        with open(temp_file_path, "w") as temp_file:
-            temp_file.write(f"{self.game_version}")
+        self["game_version_set"] = True
 
         scene = context.scene
         nwo_asset = scene.nwo
@@ -132,47 +130,14 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         items=game_version_items,
     )
 
+    game_version_set : BoolProperty()
+
     mb_startup: BoolProperty(
         name="ManagedBlam on Startup",
         description="Runs ManagedBlam.dll on Blender startup, this will lock the selected game on startup. Disable and and restart blender if you wish to change the selected game.",
         options=set(),
     )
 
-    def get_temp_settings(self):
-        scene = bpy.context.scene
-        temp_file_path = os.path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
-        if os.path.exists(temp_file_path):
-            with open(temp_file_path, "r") as temp_file:
-                settings = temp_file.readlines()
-
-            settings = [line.strip() for line in settings]
-            scene.nwo_halo_launcher.sidecar_path = settings[0]
-            scene.nwo.game_version = settings[1]
-            scene.nwo.asset_type = settings[2]
-            scene.nwo.output_biped = True if settings[3] == "True" else False
-            scene.nwo.output_crate = True if settings[4] == "True" else False
-            scene.nwo.output_creature = True if settings[5] == "True" else False
-            scene.nwo.output_device_control = True if settings[6] == "True" else False
-            scene.nwo.output_device_dispenser = True if settings[7] == "True" else False
-            scene.nwo.output_device_machine = True if settings[8] == "True" else False
-            scene.nwo.output_device_terminal = True if settings[9] == "True" else False
-            scene.nwo.output_effect_scenery = True if settings[10] == "True" else False
-            scene.nwo.output_equipment = True if settings[11] == "True" else False
-            scene.nwo.output_giant = True if settings[12] == "True" else False
-            scene.nwo.output_scenery = True if settings[13] == "True" else False
-            scene.nwo.output_vehicle = True if settings[14] == "True" else False
-            scene.nwo.output_weapon = True if settings[15] == "True" else False
-            scene.nwo_export.show_output = True if settings[16] == "True" else False
-
-            os.remove(temp_file_path)
-
-        return False
-
-    temp_file_watcher: BoolProperty(
-        name="",
-        default=False,
-        get=get_temp_settings,
-    )
     shared_assets: CollectionProperty(
         type=NWO_Asset_ListItems,
     )

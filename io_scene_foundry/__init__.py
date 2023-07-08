@@ -103,17 +103,7 @@ def subscribe(owner):
 
 @persistent
 def load_set_output_state(dummy):
-    file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
-    if os.path.exists(file_path):
-        with open(file_path, "r") as f:
-            state = f.read()
-
-        if state == "True":
-            bpy.context.scene.nwo_export.show_output = True
-        else:
-            bpy.context.scene.nwo_export.show_output = False
-    else:
-        bpy.context.scene.nwo_export.show_output = True
+    bpy.context.scene.nwo_export.show_output = nwo_globals.foundry_output_state
 
 
 @persistent
@@ -121,11 +111,9 @@ def load_handler(dummy):
     if not bpy.app.background:
         # Set game version from file
         context = bpy.context
-        game_version_txt_path = os.path.join(bpy.app.tempdir, "game_version.txt")
-        # only do this if the scene is not an asset
-        if not valid_nwo_asset(context) and os.path.exists(game_version_txt_path):
-            with open(game_version_txt_path, "r") as temp_file:
-                context.scene.nwo.game_version = temp_file.read()
+        context.scene.nwo.game_version
+        if not (context.scene.nwo.game_version_set or valid_nwo_asset(context)):
+            context.scene.nwo.game_version = bpy.context.preferences.addons["io_scene_foundry"].preferences.default_game_version
 
         # set output to on
         # context.scene.nwo_export.show_output = True
@@ -135,10 +123,8 @@ def load_handler(dummy):
             bpy.ops.managed_blam.init()
 
         # create warning if current game_version is incompatible with loaded managedblam.dll
-        if os.path.exists(os.path.join(bpy.app.tempdir, "blam.txt")):
-            with open(os.path.join(bpy.app.tempdir, "blam.txt"), "r") as blam_txt:
-                mb_path = blam_txt.read()
-
+        mb_path = nwo_globals.mb_path
+        if mb_path:
             if not mb_path.startswith(get_ek_path()):
                 game = formalise_game_version(context.scene.nwo.game_version)
                 result = ctypes.windll.user32.MessageBoxW(
@@ -154,64 +140,51 @@ def load_handler(dummy):
         subscription_owner = object()
         subscribe(subscription_owner)
 
-        file_path = os.path.join(bpy.app.tempdir, "foundry_output.txt")
-        if not os.path.exists(file_path):
-            with open(file_path, "w") as f:
-                f.write("True")
-
-
 @persistent
 def get_temp_settings(dummy):
     """Restores settings that the user created on export. Necesssary due to the way the exporter undos changes made during scene export"""
     scene = bpy.context.scene
     nwo = scene.nwo
     nwo_export = scene.nwo_export
-    temp_file_path = os.path.join(bpy.app.tempdir, "nwo_scene_settings.txt")
-    if os.path.exists(temp_file_path):
-        with open(temp_file_path, "r") as temp_file:
-            settings = temp_file.readlines()
+    settings = nwo_globals.nwo_scene_settings
+    if settings:
+        scene.nwo_halo_launcher.sidecar_path = settings["sidecar_path"]
+        nwo.game_version = settings["game_version"]
+        nwo.asset_type = settings["asset_type"]
+        nwo.output_biped = settings["output_biped"]
+        nwo.output_crate = settings["output_crate"]
+        nwo.output_creature = settings["output_creature"]
+        nwo.output_device_control = settings["output_device_control"]
+        nwo.output_device_dispenser = settings["output_device_dispenser"]
+        nwo.output_device_machine = settings["output_device_machine"]
+        nwo.output_device_terminal = settings["output_device_terminal"]
+        nwo.output_effect_scenery = settings["output_effect_scenery"]
+        nwo.output_equipment = settings["output_equipment"]
+        nwo.output_giant = settings["output_giant"]
+        nwo.output_scenery = settings["output_scenery"]
+        nwo.output_vehicle = settings["output_vehicle"]
+        nwo.output_weapon = settings["output_weapon"]
+        nwo_export.show_output = settings["show_output"]
+        nwo_export.lightmap_all_bsps = settings["lightmap_all_bsps"]
+        nwo_export.lightmap_quality = settings["lightmap_quality"]
+        nwo_export.lightmap_quality_h4 = settings["lightmap_quality_h4"]
+        nwo_export.lightmap_region = settings["lightmap_region"]
+        nwo_export.lightmap_specific_bsp = settings["lightmap_specific_bsp"]
+        nwo_export.lightmap_structure = settings["lightmap_structure"]
+        nwo_export.import_force = settings["import_force"]
+        nwo_export.import_draft = settings["import_draft"]
+        nwo_export.import_seam_debug = settings["import_seam_debug"]
+        nwo_export.import_skip_instances = settings["import_skip_instances"]
+        nwo_export.import_decompose_instances = settings["import_decompose_instances"]
+        nwo_export.import_suppress_errors = settings["import_suppress_errors"]
+        nwo_export.import_lighting = settings["import_lighting"]
+        nwo_export.import_meta_only = settings["import_meta_only"]
+        nwo_export.import_disable_hulls = settings["import_disable_hulls"]
+        nwo_export.import_disable_collision = settings["import_disable_collision"]
+        nwo_export.import_no_pca = settings["import_no_pca"]
+        nwo_export.import_force_animations = settings["import_force_animations"]
 
-        settings = [line.strip() for line in settings]
-        scene.nwo_halo_launcher.sidecar_path = settings[0]
-        nwo.game_version = settings[1]
-        nwo.asset_type = settings[2]
-        nwo.output_biped = True if settings[3] == "True" else False
-        nwo.output_crate = True if settings[4] == "True" else False
-        nwo.output_creature = True if settings[5] == "True" else False
-        nwo.output_device_control = True if settings[6] == "True" else False
-        nwo.output_device_dispenser = True if settings[7] == "True" else False
-        nwo.output_device_machine = True if settings[8] == "True" else False
-        nwo.output_device_terminal = True if settings[9] == "True" else False
-        nwo.output_effect_scenery = True if settings[10] == "True" else False
-        nwo.output_equipment = True if settings[11] == "True" else False
-        nwo.output_giant = True if settings[12] == "True" else False
-        nwo.output_scenery = True if settings[13] == "True" else False
-        nwo.output_vehicle = True if settings[14] == "True" else False
-        nwo.output_weapon = True if settings[15] == "True" else False
-        nwo_export.show_output = True if settings[16] == "True" else False
-        nwo_export.lightmap_all_bsps = True if settings[17] == "True" else False
-        nwo_export.lightmap_quality = settings[18]
-        nwo_export.lightmap_quality_h4 = settings[19]
-        nwo_export.lightmap_region = settings[20]
-        nwo_export.lightmap_specific_bsp = settings[21]
-        nwo_export.lightmap_structure = True if settings[22] == "True" else False
-        nwo_export.import_force = True if settings[23] == "True" else False
-        # nwo_export.import_verbose = True if settings[24] == "True" else False
-        nwo_export.import_draft = True if settings[24] == "True" else False
-        nwo_export.import_seam_debug = True if settings[25] == "True" else False
-        nwo_export.import_skip_instances = True if settings[26] == "True" else False
-        nwo_export.import_decompose_instances = (
-            True if settings[27] == "True" else False
-        )
-        nwo_export.import_surpress_errors = True if settings[28] == "True" else False
-        nwo_export.import_lighting = True if settings[29] == "True" else False
-        nwo_export.import_meta_only = True if settings[30] == "True" else False
-        nwo_export.import_disable_hulls = True if settings[31] == "True" else False
-        nwo_export.import_disable_collision = True if settings[32] == "True" else False
-        nwo_export.import_no_pca = True if settings[33] == "True" else False
-        nwo_export.import_force_animations = True if settings[34] == "True" else False
-
-        os.remove(temp_file_path)
+        nwo_globals.nwo_scene_settings.clear()
 
 
 def fix_icons():

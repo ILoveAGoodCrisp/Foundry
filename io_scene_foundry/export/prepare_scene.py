@@ -726,6 +726,12 @@ class PrepareScene:
                 and not h4
             ):  # don't do this for h4 as collision can be open
                 # check for custom collision / physics
+                if ob.nwo.face_mode == "_connected_geometry_face_mode_render_only":
+                    ob.nwo.poop_render_only = True
+                else:
+                    ob.nwo.poop_render_only = False
+                    
+                ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                 if not ob.children:
                     collision_ob = ob.copy()
                     collision_ob.data = me.copy()
@@ -772,7 +778,7 @@ class PrepareScene:
                     if layer_face_count(
                         obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)
                     ):
-                        self.face_prop_to_mesh_prop(obj.nwo, layer, h4)
+                        self.face_prop_to_mesh_prop(obj.nwo, layer, h4, ob == obj)
                         if more_than_one_prop:
                             obj_name_suffix += ", "
                         else:
@@ -812,11 +818,11 @@ class PrepareScene:
 
         else:
             for layer in face_layers:
-                self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
+                self.face_prop_to_mesh_prop(ob.nwo, layer, h4, True)
 
             return context.selected_objects
 
-    def face_prop_to_mesh_prop(self, mesh_props, face_props, h4):
+    def face_prop_to_mesh_prop(self, mesh_props, face_props, h4, is_main_ob):
         # ignore unused face_prop items
         # run through each face prop and apply it to the mesh if override set
         # if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':
@@ -948,8 +954,6 @@ class PrepareScene:
             is_poop = mesh_props.mesh_type == "_connected_geometry_mesh_type_poop"
             if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
                 mesh_props.face_sides = "_connected_geometry_face_sides_two_sided"
-            # elif is_poop and ob != main_mesh:
-            #     mesh_props.poop_render_only = True
 
     def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario):
         mesh_obs_full = [ob for ob in export_obs if ob.type == "MESH"]

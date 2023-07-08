@@ -156,6 +156,13 @@ class ToolkitLocationPreferences(AddonPreferences):
         items=[("tool_fast", "Tool Fast", ""), ("tool", "Tool", "")],
     )
 
+    default_game_version: EnumProperty(
+        name="Default Game",
+        description="Specify the game Foundry should select by default on new scenes",
+        default="reach",
+        items=[("reach", "Halo Reach", ""), ("h4", "Halo 4", ""), ("h2a", "Halo 2 Anniversary Multiplayer", "")],
+    )
+
     def draw(self, context):
         layout = self.layout
         if not nwo_globals.clr_installed:
@@ -177,6 +184,10 @@ class ToolkitLocationPreferences(AddonPreferences):
         row = layout.row(align=True)
         row.prop(self, "h2aek_path", text="")
         row.operator("nwo.h2aek_path", text="", icon='FILE_FOLDER')
+        row = layout.row(align=True)
+        row.label(text="Default Game")
+        row = layout.row(align=True)
+        row.prop(self, "default_game_version", expand=True)
         row = layout.row(align=True)
         row.label(text="Tool Version")
         row = layout.row(align=True)

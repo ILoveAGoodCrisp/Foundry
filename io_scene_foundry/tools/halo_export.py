@@ -27,6 +27,7 @@
 import os
 import bpy
 
+from io_scene_foundry.utils import nwo_globals
 
 def export(export_op):
     export_op("INVOKE_DEFAULT")
@@ -78,14 +79,12 @@ def export_quick(
         export_design=export_design,
         quick_export=True,
     )
-    temp_report_path = os.path.join(bpy.app.tempdir, "foundry_export_report.txt")
-    if os.path.exists(temp_report_path):
-        with open(temp_report_path, "r") as temp_file:
-            lines = temp_file.readlines()
-            report_text = lines[0]
-            report_type = lines[1]
+    export_report = nwo_globals.export_report
+    if len(nwo_globals.export_report) > 1:
+        report_text = export_report["report_text"]
+        report_type = export_report["report_type"]
 
-        os.remove(temp_report_path)
+        nwo_globals.export_report.clear()
         report({report_type}, report_text)
 
     return {"FINISHED"}
