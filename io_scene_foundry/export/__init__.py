@@ -584,12 +584,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
         self.asset_path, self.asset = get_asset_info(self.filepath)
 
         self.set_scene_props(context)
-        
+
         sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml")
 
         sidecar_path = sidecar_path_full.replace(get_data_path(), "")
         
-
         # Check that we can export
         if self.export_invalid():
             self.report({"WARNING"}, "Export aborted")
@@ -598,7 +597,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Save the scene
         # bpy.ops.wm.save_mainfile()
 
-        #os.system("cls")
+        os.system("cls")
 
         if self.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
