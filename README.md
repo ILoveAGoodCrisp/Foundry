@@ -1,6 +1,6 @@
 <div align="center"> <img src="img/readme_banner.png"> </div>
 
-# [Download](https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/releases/download/0.9.1/foundry-v0_9_1@a3c7656.zip)
+# [Download](https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/releases/download/0.9.2/foundry-v0_9_2@07e2e7f.zip)
 
 **Foundry** is a Blender addon that supports a full 3D asset import pipeline for the Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer Editing Kits.
 Foundry integrates with the Halo Editing Kits to provide a seamless asset pipeline for turning your Blender creations into game ready Halo assets.
