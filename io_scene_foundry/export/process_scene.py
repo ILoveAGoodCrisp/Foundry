@@ -1142,7 +1142,7 @@ class ProcessScene:
         
         if not managed_blam_active():
             bpy.ops.managed_blam.init()
-            print("Intialising ManagedBlam DONE\n")
+            print("Initialising ManagedBlam DONE\n")
         
         if h4_model_lighting:
             job = "Adding Structure Meta Reference to Render Model"

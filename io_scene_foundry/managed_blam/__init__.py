@@ -167,7 +167,7 @@ class ManagedBlam_Init(Operator):
                         get_ek_path(), self.callback(), startup_parameters
                     )
                 except:
-                    print("ManagedBlam already intialised. Skipping")
+                    print("ManagedBlam already initialised. Skipping")
                     return {"CANCELLED"}
                 else:
                     # print("Success!")

@@ -556,8 +556,9 @@ class PrepareScene:
 
                     graph_override = context.scene.nwo.animation_graph_path
                     if graph_override and graph_override.endswith(".model_animation_graph"):
-                        if os.path.exists(get_tags_path() + graph_override):
-                            set_frame_ids(context, graph_override, self.model_armature)
+                        full_graph_path = get_tags_path() + graph_override
+                        if os.path.exists(full_graph_path):
+                            set_frame_ids(context, full_graph_path, self.model_armature)
                         else:
                             print_warning("Model Animation Graph override supplied but tag path does not exist")
                             self.warning_hit = True
@@ -2263,7 +2264,7 @@ class PrepareScene:
             index += 1
             boneslist.update(
                 {
-                    b.name: self.getBoneProperties(
+                    b.name: self.get_bone_properties(
                         FrameID1,
                         FrameID2,
                         b_nwo.object_space_node,
@@ -2288,7 +2289,7 @@ class PrepareScene:
 
         return node_props
 
-    def getBoneProperties(
+    def get_bone_properties(
         self,
         FrameID1,
         FrameID2,
@@ -2812,12 +2813,12 @@ def set_marker_sphere_size(ob, nwo):
 ######
 # FRAME ID
 
-def set_frame_ids(context, tag_path, model_armature):
+def set_frame_ids(context, full_graph_path, model_armature):
     frame_count = 0
-    if model_armature != None:
+    if model_armature is not None:
         try:
-            framelist = import_tag_xml(context, tag_path)
-            if not framelist == None:
+            framelist = import_tag_xml(context, full_graph_path)
+            if framelist is not None:
                 tag_bone_names = clean_bone_names(framelist)
                 blend_bone_names = clean_bones(model_armature.data.bones)
                 blend_bones = model_armature.data.bones
@@ -2884,15 +2885,12 @@ def clean_bone_name(bone):
     return cleaned_bone
 
 
-def import_tag_xml(context, tag_path):
+def import_tag_xml(context, full_graph_path):
     xml_path = get_tags_path() + "temp.xml"
-    # print(os.path.join(get_ek_path(), tag_path))
-    if not os.path.exists(os.path.join(get_ek_path(), tag_path)):
-        return
-    os.chdir(get_ek_path())
-    run_tool(["export-tag-to-xml", f"\\{tag_path}", xml_path])
+    run_tool(["export-tag-to-xml", full_graph_path, xml_path])
     if not os.path.exists(xml_path):
         return
+    
     bonelist = parse_xml(xml_path, context)
     os.remove(xml_path)
     return bonelist
