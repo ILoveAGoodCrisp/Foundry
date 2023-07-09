@@ -479,6 +479,10 @@ class PrepareScene:
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
 
+            #set Reach instanced_collision objects to poops
+            if not h4:
+                self.fix_reach_poop_collision(export_obs, scene_coll)
+
             # remove meshes with zero faces
             self.cull_zero_face_meshes(export_obs)
 
@@ -2276,6 +2280,19 @@ class PrepareScene:
                 break
 
         return predominant_shader
+    
+    def fix_reach_poop_collision(self, export_obs, scene_coll):
+        for ob in export_obs:
+            nwo = ob.nwo
+            if nwo.mesh_type == "_connected_geometry_mesh_type_poop_collision" and not poop_parent(ob):
+                nwo.mesh_type = "_connected_geometry_mesh_type_poop"
+                nwo.poop_lighting = "_connected_geometry_poop_lighting_per_pixel"
+                nwo.poop_pathfinding = "_connected_poop_instance_pathfinding_policy_cutout"
+                nwo.poop_imposter_policy = "_connected_poop_instance_imposter_policy_never"
+                if nwo.poop_collision_type in ("_connected_geometry_poop_collision_type_play_collision", "_connected_geometry_poop_collision_type_invisible_wall"):
+                    nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
+                else:
+                    nwo.face_mode = "_connected_geometry_face_mode_collision_only"
 
     def setup_poop_proxies(self, export_obs, h4):
         poops = [
@@ -2848,6 +2865,12 @@ def parse_xml(xmlPath, context):
 
     return parent
 
+
+def poop_parent(ob):
+    parent = ob.parent
+    if parent is None:
+        return False
+    return parent.nwo.mesh_type == '_connected_geometry_mesh_type_poop'
 
 # RESET PROPS
 
