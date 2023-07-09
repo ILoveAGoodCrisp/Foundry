@@ -472,12 +472,12 @@ class PrepareScene:
         export_obs = context.view_layer.objects[:]
         if export_gr2_files:
             # poop proxy madness
-            self.setup_poop_proxies(export_obs, h4)
+            # self.setup_poop_proxies(export_obs, h4)
             # print("poop_proxies") 
 
             # get new proxy export_obs
-            context.view_layer.update()
-            export_obs = context.view_layer.objects[:]
+            # context.view_layer.update()
+            # export_obs = context.view_layer.objects[:]
 
             #set Reach instanced_collision objects to poops
             if not h4:
@@ -820,9 +820,16 @@ class PrepareScene:
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
 
-            split_objects_messy = self.recursive_layer_split(
-                ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm
-            )
+            # check if we need to layer split here if this is a poop
+            # don't need to split if poop consists of only collision_only,
+            # sphere_collision_only, render_only, or two-sided
+            if is_poop and self.poop_split_override(face_layers):
+                split_objects_messy = [ob]
+            
+            else:
+                split_objects_messy = self.recursive_layer_split(
+                    ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm
+                )
 
             ori_ob_name = str(ob.name)
 
@@ -889,7 +896,7 @@ class PrepareScene:
                     if split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only") or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer":
                         coll_only_objects.append(split_ob)
                         self.unlink(split_ob)
-
+                        
                 # recreate split objects list
                 split_objects = [ob for ob in split_objects if ob not in coll_only_objects]
 
@@ -900,6 +907,46 @@ class PrepareScene:
                 self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
 
             return context.selected_objects
+        
+    def poop_split_override(self, face_layers):
+        for layer in face_layers:
+            if layer.face_type_override:
+                return False
+            if layer.face_mode_override and layer.face_mode_ui != '_connected_geometry_face_mode_render_only':
+                return False
+            if layer.face_global_material_override:
+                return False
+            if layer.ladder_override:
+                return False
+            if layer.slip_surface_override:
+                return False
+            if layer.decal_offset_override:
+                return False
+            if layer.group_transparents_by_plane_override:
+                return False
+            if layer.no_shadow_override:
+                return False
+            if layer.precise_position_override:
+                return False
+            if layer.no_lightmap_override:
+                return False
+            if layer.no_pvs_override:
+                return False
+            if layer.lightmap_additive_transparency_override:
+                return False
+            if layer.lightmap_resolution_scale_override:
+                return False
+            if layer.lightmap_type_override:
+                return False
+            if layer.lightmap_translucency_tint_color_override:
+                return False
+            if layer.lightmap_lighting_from_both_sides_override:
+                return False
+            if layer.emissive_override:
+                return False
+            
+        return True
+            
 
     def face_prop_to_mesh_prop(self, mesh_props, face_props, h4):
         # ignore unused face_prop items
@@ -1144,8 +1191,16 @@ class PrepareScene:
                     for linked_ob in linked_objects:
                         for split_ob in split_objects:
                             new_ob = split_ob.copy()
+
+
                             new_ob.matrix_world = linked_ob.matrix_world
                             scene_coll.link(new_ob)
+
+                            if split_ob.children:
+                                for child in split_ob.children:
+                                    new_child = child.copy()
+                                    scene_coll.link(new_child)
+                                    new_child.parent = new_ob
 
                         if ob.modifiers.get("HaloDataTransfer", 0):
                             mod = linked_ob.modifiers.new(
