@@ -48,7 +48,7 @@ from io_scene_foundry.utils.nwo_utils import (
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
-    "version": (nwo_globals.VERSION[0], nwo_globals.VERSION[2], nwo_globals.VERSION[4]),
+    "version": (343, 7, 343),
     "blender": (3, 6, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",

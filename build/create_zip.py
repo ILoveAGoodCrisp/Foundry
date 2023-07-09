@@ -10,7 +10,7 @@ import os
 import subprocess
 from pathlib import Path
 
-VERSION = "0.9.2"
+version = "0.9.2"
 
 def build_resources_zip() -> io.BytesIO:
     search_path = os.path.join("io_scene_foundry", "resources")
@@ -45,7 +45,7 @@ def build_release_zip(name: str):
     CI_version = os.getenv('GITHUB_RUN_NUMBER')
     if CI_version is None:
         print("Local build")
-        version_string = f"v{VERSION}@" + git_version
+        version_string = f"v{version}@" + git_version
     else:
         print(f"CI build {CI_version}")
         version_string = f"v{CI_version}@{git_version}"
@@ -77,7 +77,10 @@ def build_release_zip(name: str):
                 continue
             fs_path = os.path.join(dir, file)
             zip.write(fs_path)
+
+    blend_addon_version = version.replace(".",", ")
     init_file = Path('io_scene_foundry/__init__.py').read_text()
+    init_file = init_file.replace('(343, 7, 343)', f"({blend_addon_version})")
     init_file = init_file.replace('BUILD_VERSION_STR', version_string)
     zip.writestr('io_scene_foundry/__init__.py', init_file)
     zip.writestr('io_scene_foundry/resources.zip', resources.getbuffer())

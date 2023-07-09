@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 # VERSION
-CURRENT_VERSION = "0.9.2"
+version = "0.9.2"
 
 # set on blender load
 clr_installed = False
