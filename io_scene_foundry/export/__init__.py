@@ -583,11 +583,12 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # get the asset name and path to the asset folder
         self.asset_path, self.asset = get_asset_info(self.filepath)
 
+        self.set_scene_props(context)
+        
         sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml")
 
         sidecar_path = sidecar_path_full.replace(get_data_path(), "")
-
-        self.set_scene_props(context)
+        
 
         # Check that we can export
         if self.export_invalid():
@@ -597,7 +598,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Save the scene
         # bpy.ops.wm.save_mainfile()
 
-        os.system("cls")
+        #os.system("cls")
 
         if self.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -687,7 +688,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
             # validate that a sidecar file exists
             if not file_exists(sidecar_path_full):
-                sidecar_path = ""
+                context.scene.nwo_halo_launcher.sidecar_path = ""
 
             # write scene settings generated during export to temp file
 
