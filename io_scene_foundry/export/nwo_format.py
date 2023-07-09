@@ -864,10 +864,7 @@ class NWOMesh(NWOObject):
                     # self.bungie_mesh_poop_fade_range_end = self.mesh_poop_fade_range_end()
 
                     # This needs to be Reach only otherwise tool complains. However, the flag is still in use in the UI as it is instead used to set instanced collision type to none
-                    if (
-                        not self.not_bungie_game
-                        and self.halo.poop_render_only
-                    ):
+                    if self.halo.poop_render_only == "1":
                         self.bungie_mesh_poop_is_render_only = "1"
 
                     if self.halo.poop_chops_portals:

@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from re import split
 import bmesh
 import bpy
 from os import path
@@ -63,6 +64,12 @@ from ..utils.nwo_utils import (
     vector_str,
     frame_prefixes,
 )
+
+render_mesh_types_full = [
+    "_connected_geometry_mesh_type_default",
+    "_connected_geometry_mesh_type_poop",
+    "_connected_geometry_mesh_type_water_surface"
+]
 
 
 #####################################################################################
@@ -621,17 +628,30 @@ class PrepareScene:
 
         return False
 
-    def strip_render_only_faces(self, layer_faces_dict, bm):
+    def strip_nocoll_only_faces(self, layer_faces_dict, bm):
         """Removes faces from a mesh that have the render only property"""
         # loop through each face layer and select non collision faces
+        has_sphere_coll = False
         for layer, face_seq in layer_faces_dict.items():
             if (
                 layer.face_mode_override
-                and layer.face_mode_ui == "_connected_geometry_face_mode_render_only"
+                and layer.face_mode_ui != "_connected_geometry_face_mode_collision_only"
             ):
+                if layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only":
+                    has_sphere_coll = True
                 bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
-        return len(bm.faces)
+        return len(bm.faces), has_sphere_coll
+    
+    def strip_nophys_only_faces(self, layer_faces_dict, bm):
+        # loop through each face layer and select non phzsics faces
+        self.is_sphere_coll = False
+        for layer, face_seq in layer_faces_dict.items():
+            if (
+                layer.face_mode_override
+                and layer.face_mode_ui not in ("_connected_geometry_face_mode_sphere_collision_only",)
+            ):
+                bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
     def recursive_layer_split(
         self,
@@ -720,20 +740,19 @@ class PrepareScene:
 
         if self.justify_face_split(layer_faces_dict, poly_count):
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
+            render_mesh = ob.nwo.mesh_type in render_mesh_types_full
+            is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
             if (
-                ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
-                and not ob.nwo.poop_render_only
-                and not h4
+                is_poop and not h4
             ):  # don't do this for h4 as collision can be open
                 # check for custom collision / physics
                 if ob.nwo.face_mode == "_connected_geometry_face_mode_render_only":
-                    ob.nwo.poop_render_only = True
-                else:
-                    ob.nwo.poop_render_only = False
+                    ob.nwo.poop_render_only = "1"
                     
                 ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                 if not ob.children:
                     collision_ob = ob.copy()
+                    collision_ob.nwo.face_mode = ""
                     collision_ob.data = me.copy()
                     scene_coll.link(collision_ob)
                     # Remove render only property faces from coll mesh
@@ -745,17 +764,40 @@ class PrepareScene:
                         )
                         for layer in face_layers
                     }
-                    poly_count = self.strip_render_only_faces(
-                        coll_layer_faces_dict, coll_bm
-                    )
+                    poly_count, has_sphere_coll = self.strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
+
+                    coll_bm.to_mesh(collision_ob.data)
 
                     collision_ob.name = f"{ob.name}(collision)"
 
-                    collision_ob.parent = ob
-                    collision_ob.matrix_world = ob.matrix_world
+                    ori_matrix = ob.matrix_world
                     collision_ob.nwo.mesh_type = (
                         "_connected_geometry_mesh_type_poop_collision"
                     )
+
+                    if has_sphere_coll:
+                        physics_ob = ob.copy()
+                        physics_ob.nwo.face_mode = ""
+                        physics_ob.data = me.copy()
+                        scene_coll.link(physics_ob)
+                        phys_bm = bmesh.new()
+                        phys_bm.from_mesh(physics_ob.data)
+                        phys_layer_faces_dict = {
+                            layer: layer_faces(
+                                phys_bm, phys_bm.faces.layers.int.get(layer.layer_name)
+                            )
+                            for layer in face_layers
+                        }
+
+                        self.strip_nophys_only_faces(phys_layer_faces_dict, phys_bm)
+
+                        phys_bm.to_mesh(physics_ob.data)
+
+                        physics_ob.name = f"{ob.name}(physics)"
+
+                        physics_ob.nwo.mesh_type = (
+                            "_connected_geometry_mesh_type_poop_physics"
+                        )
 
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
@@ -769,16 +811,16 @@ class PrepareScene:
             # remove zero poly obs from split_objects_messy
             split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
 
-            for obj in split_objects:
+            for split_ob in split_objects:
                 more_than_one_prop = False
                 obj_bm = bmesh.new()
-                obj_bm.from_mesh(obj.data)
+                obj_bm.from_mesh(split_ob.data)
                 obj_name_suffix = ""
                 for layer in face_layers:
                     if layer_face_count(
                         obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)
                     ):
-                        self.face_prop_to_mesh_prop(obj.nwo, layer, h4, ob == obj)
+                        self.face_prop_to_mesh_prop(split_ob.nwo, layer, h4)
                         if more_than_one_prop:
                             obj_name_suffix += ", "
                         else:
@@ -787,42 +829,62 @@ class PrepareScene:
                         obj_name_suffix += layer.name
                 # obj_bm.free()
                 if obj_name_suffix:
-                    obj.name = f"{ori_ob_name}({obj_name_suffix})"
+                    split_ob.name = f"{ori_ob_name}({obj_name_suffix})"
                 else:
-                    obj.name = ori_ob_name
+                    split_ob.name = ori_ob_name
 
-            for split_ob in split_objects:
-                if split_ob.data.polygons:
-                    # TODO only do data transfer for rendered geo
+                if render_mesh:
                     # set up data transfer modifier to retain normals
                     mod = split_ob.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
                     mod.object = normals_ob
                     mod.use_object_transform = False
                     mod.use_loop_data = True
                     mod.data_types_loops = {"CUSTOM_NORMAL"}
-                    # if obj.data.face_props:
-                    #     obj.name = f'{dot_partition(obj.name)}({obj.face_maps[0].name})'
-                # make sure we're not parenting the collision to a zero face mesh
-                elif collision_ob is not None and collision_ob.parent == ob:
-                    collision_ob.parent = None
-                    # can't have a free floating coll mesh in Reach, so we make it a poop and make it invisible
-                    collision_ob_nwo = collision_ob.nwo
-                    collision_ob_nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-                    collision_ob_nwo.face_mode = (
-                        "_connected_geometry_face_mode_collision_only"
-                    )
-                    # collision_mesh.nwo.face_type = '_connected_geometry_face_type_seam_sealer'
-                    collision_ob.matrix_world = ob.matrix_world
+
+            #parent poop coll
+            if collision_ob is not None:
+                parent_ob = None
+                for split_ob in split_objects:
+                    if not (split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only") or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer"):
+                        parent_ob = split_ob
+                        break
+                else:
+                    # only way to make invisible collision...
+                    collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop"
+                    collision_ob.nwo.face_mode = "_connected_geometry_face_mode_collision_only"
+                    if has_sphere_coll:
+                        physics_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop"
+                        physics_ob.nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
+
+                if parent_ob is not None:
+                    collision_ob.parent = parent_ob
+                    if has_sphere_coll:
+                        physics_ob.parent = parent_ob
+
+                    
+                collision_ob.matrix_world = ori_matrix
+                if has_sphere_coll:
+                    physics_ob.matrix_world = ori_matrix
+
+                # remove coll only split objects, as this is already covered by the coll mesh
+                coll_only_objects = []
+                for split_ob in split_objects:
+                    if split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only") or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer":
+                        coll_only_objects.append(split_ob)
+                        self.unlink(split_ob)
+
+                # recreate split objects list
+                split_objects = [ob for ob in split_objects if ob not in coll_only_objects]
 
             return split_objects
 
         else:
             for layer in face_layers:
-                self.face_prop_to_mesh_prop(ob.nwo, layer, h4, True)
+                self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
 
             return context.selected_objects
 
-    def face_prop_to_mesh_prop(self, mesh_props, face_props, h4, is_main_ob):
+    def face_prop_to_mesh_prop(self, mesh_props, face_props, h4):
         # ignore unused face_prop items
         # run through each face prop and apply it to the mesh if override set
         # if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':

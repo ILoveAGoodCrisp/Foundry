@@ -197,15 +197,11 @@ def register():
     for module in modules:
         module.register()
 
-    bpy.app.timers.register(fix_icons, first_interval=0.04)
+    bpy.app.timers.register(fix_icons, first_interval=0.04, persistent=True)
 
 
 def unregister():
-    try:
-        bpy.app.timers.unregister(fix_icons)
-    except:
-        pass
-    
+    bpy.app.timers.unregister(fix_icons)
     bpy.app.handlers.load_post.remove(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
     bpy.app.handlers.undo_post.remove(get_temp_settings)
