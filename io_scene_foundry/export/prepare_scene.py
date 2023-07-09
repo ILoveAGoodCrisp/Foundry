@@ -473,7 +473,7 @@ class PrepareScene:
         if export_gr2_files:
             # poop proxy madness
             self.setup_poop_proxies(export_obs, h4)
-            # print("poop_proxies")
+            # print("poop_proxies") 
 
             # get new proxy export_obs
             context.view_layer.update()
@@ -741,6 +741,7 @@ class PrepareScene:
         }
 
         collision_ob = None
+        physics_ob = None
 
         if self.justify_face_split(layer_faces_dict, poly_count):
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
@@ -750,36 +751,49 @@ class PrepareScene:
                 is_poop and not h4
             ):  # don't do this for h4 as collision can be open
                 # check for custom collision / physics
+                poop_render_only = False
                 if ob.nwo.face_mode == "_connected_geometry_face_mode_render_only":
+                    poop_render_only = True
                     ob.nwo.poop_render_only = "1"
-                    
+                
                 ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
-                if not ob.children:
-                    collision_ob = ob.copy()
-                    collision_ob.nwo.face_mode = ""
-                    collision_ob.data = me.copy()
-                    scene_coll.link(collision_ob)
-                    # Remove render only property faces from coll mesh
-                    coll_bm = bmesh.new()
-                    coll_bm.from_mesh(collision_ob.data)
-                    coll_layer_faces_dict = {
-                        layer: layer_faces(
-                            coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)
+
+                has_coll_child = False
+                has_phys_child = False
+
+                for child in ob.children:
+                    if child.nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
+                        has_coll_child = True
+                    elif child.nwo.mesh_type == '_connected_geometry_mesh_type_poop_physics':
+                        has_phys_child = True
+
+                if not poop_render_only:
+                    if not has_coll_child:
+                        collision_ob = ob.copy()
+                        collision_ob.nwo.face_mode = ""
+                        collision_ob.data = me.copy()
+                        scene_coll.link(collision_ob)
+                        # Remove render only property faces from coll mesh
+                        coll_bm = bmesh.new()
+                        coll_bm.from_mesh(collision_ob.data)
+                        coll_layer_faces_dict = {
+                            layer: layer_faces(
+                                coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)
+                            )
+                            for layer in face_layers
+                        }
+                        poly_count, has_sphere_coll = self.strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
+
+                        coll_bm.to_mesh(collision_ob.data)
+
+                        collision_ob.name = f"{ob.name}(collision)"
+
+                        ori_matrix = ob.matrix_world
+                        collision_ob.nwo.mesh_type = (
+                            "_connected_geometry_mesh_type_poop_collision"
                         )
-                        for layer in face_layers
-                    }
-                    poly_count, has_sphere_coll = self.strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
 
-                    coll_bm.to_mesh(collision_ob.data)
-
-                    collision_ob.name = f"{ob.name}(collision)"
-
-                    ori_matrix = ob.matrix_world
-                    collision_ob.nwo.mesh_type = (
-                        "_connected_geometry_mesh_type_poop_collision"
-                    )
-
-                    if has_sphere_coll:
+                    if has_sphere_coll and not has_phys_child:
                         physics_ob = ob.copy()
                         physics_ob.nwo.face_mode = ""
                         physics_ob.data = me.copy()
@@ -854,21 +868,20 @@ class PrepareScene:
                         break
                 else:
                     # only way to make invisible collision...
-                    collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-                    collision_ob.nwo.face_mode = "_connected_geometry_face_mode_collision_only"
-                    if has_sphere_coll:
+                    if collision_ob is not None:
+                        collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop"
+                        collision_ob.nwo.face_mode = "_connected_geometry_face_mode_collision_only"
+                    if physics_ob is not None:
                         physics_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop"
                         physics_ob.nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
 
                 if parent_ob is not None:
-                    collision_ob.parent = parent_ob
-                    if has_sphere_coll:
+                    if collision_ob is not None:
+                        collision_ob.parent = parent_ob
+                        collision_ob.matrix_world = ori_matrix
+                    if physics_ob is not None:
                         physics_ob.parent = parent_ob
-
-                    
-                collision_ob.matrix_world = ori_matrix
-                if has_sphere_coll:
-                    physics_ob.matrix_world = ori_matrix
+                        physics_ob.matrix_world = ori_matrix
 
                 # remove coll only split objects, as this is already covered by the coll mesh
                 coll_only_objects = []
@@ -2309,7 +2322,10 @@ class PrepareScene:
             process = "Copying Instanced Geometry Proxy Meshes"
             update_progress(process, 0)
             meshes = set([ob.data for ob in poops])
+            #print(meshes)
             me_ob_dict = {me: ob for me in meshes for ob in poops if ob.data == me}
+            print(me_ob_dict)
+            print("\n\n\n")
             len_me_ob_dict = len(me_ob_dict)
 
             for idx, me in enumerate(me_ob_dict.keys()):
@@ -2317,8 +2333,13 @@ class PrepareScene:
                 linked_poops = me_ob_dict.get(me)
 
                 if type(linked_poops) is not list:
+                    for ob in linked_poops.children:
+                        nwo = ob.nwo
+                        if nwo.mesh_type == "_connected_geometry_mesh_type_poop_collision":
+                            if nwo.poop_collision_type == "_connected_geometry_poop_collision_type_play_collision":
+                                nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
                     continue
-
+                
                 for idx, ob in enumerate(linked_poops):
                     if ob.children:
                         child_ob_set = self.get_poop_children(ob, h4)
