@@ -30,7 +30,6 @@
 import ctypes
 import bpy
 from bpy.app.handlers import persistent
-import os
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -49,7 +48,7 @@ from io_scene_foundry.utils.nwo_utils import (
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
-    "version": (0, 9, 1),
+    "version": (nwo_globals.VERSION[0], nwo_globals.VERSION[2], nwo_globals.VERSION[4]),
     "blender": (3, 6, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",
