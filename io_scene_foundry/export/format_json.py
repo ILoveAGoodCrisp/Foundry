@@ -59,8 +59,7 @@ class NWOJSON(dict):
         self.regions_dict = regions_dict
         self.global_materials_dict = global_materials_dict
         self.string_table = self.build_string_table()
-        self.nodes_properties = self.build_nodes_properties()
-        self.meshes_properties = self.build_meshes_properties()
+        self.nodes_properties, self.meshes_properties = self.build_nodes_meshes_properties()
         self.material_properties = self.build_material_properties()
 
         self.json_dict = {}
@@ -116,8 +115,9 @@ class NWOJSON(dict):
 
         return regions_list
 
-    def build_nodes_properties(self):
+    def build_nodes_meshes_properties(self):
         node_properties = {}
+        mesh_properties = {}
         node_properties.update(self.bone_list)
         # build frame props
         for ob in self.objects:
@@ -186,27 +186,17 @@ class NWOJSON(dict):
                         self.asset_name,
                     )
                     node_properties.update({ob.name: props.__dict__})
+                case "_connected_geometry_object_type_mesh":
+                    props = NWOMesh(
+                        ob,
+                        self.sidecar_type,
+                        self.model_armature,
+                        self.world_frame,
+                        self.asset_name,
+                    )
+                    mesh_properties.update({ob.name: props.__dict__})
 
-        return node_properties
-
-    def build_meshes_properties(self):
-        mesh_properties = {}
-        # build mesh props
-        for ob in self.objects:
-            if (
-                CheckType.get(ob) == "_connected_geometry_object_type_mesh"
-                and ob.type in blender_object_types_mesh
-            ):
-                props = NWOMesh(
-                    ob,
-                    self.sidecar_type,
-                    self.model_armature,
-                    self.world_frame,
-                    self.asset_name,
-                )
-                mesh_properties.update({ob.name: props.__dict__})
-
-        return mesh_properties
+        return node_properties, mesh_properties
 
     def build_material_properties(self):
         # first, get all materials for the selected objects
