@@ -1467,7 +1467,7 @@ class NWO_FoundryPanelProps(Panel):
                     text="Emissive Per Unit",
                 )
 
-            col.menu(NWO_MeshPropAddMenu.bl_idname, text="", icon="PLUS")
+            col.menu(NWO_MeshPropAddMenu.bl_idname, text="Add Object Property", icon="PLUS")
 
         if not has_face_props(ob) or not (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
             return
@@ -1516,7 +1516,7 @@ class NWO_FoundryPanelProps(Panel):
 
             if context.mode == "EDIT_MESH":
                 col = row.column(align=True)
-                col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
+                col.menu(NWO_FaceLayerAddMenu.bl_idname, text="Add Face Property", icon="ADD")
                 col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
                 col.separator()
                 col.operator(
