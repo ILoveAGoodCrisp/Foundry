@@ -27,7 +27,6 @@
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
-import os
 import webbrowser
 
 from bpy.types import Context, OperatorProperties, Panel, Operator, PropertyGroup
@@ -2314,6 +2313,8 @@ class NWO_OT_PanelSet(Operator):
         elif self.pin and pinned:
             setattr(nwo, prop_pin, False)
             setattr(nwo, prop, False)
+        elif self.multi and getattr(nwo, prop):
+            setattr(nwo, prop, False)
         else:
             setattr(nwo, prop, True)
 
@@ -2329,6 +2330,7 @@ class NWO_OT_PanelSet(Operator):
     def invoke(self, context, event):
         self.keep_enabled = event.shift or event.ctrl
         self.pin = event.ctrl
+        self.multi = event.shift
         return self.execute(context)
         
     
