@@ -120,6 +120,10 @@ class PrepareScene:
         self.unhide_collections(context)
         # print("unhide_collections")
 
+        #rotate -90 if this is a Reach Scenario/Decorator/Particle Model
+        if not h4 and sidecar_type in ('SCENARIO', 'DECORATOR', 'PARTICLE MODEL'):
+            self.rotate_scene(context.view_layer.objects)
+
         # make objects linked to scene real and local
         # Context override selection does not work here
         disable_prints()
@@ -2006,19 +2010,17 @@ class PrepareScene:
                             override = {"area": area, "region": region}
                             bpy.ops.view3d.localview(override)
 
-    def RotateScene(self, scene_obs, model_armature):
-        deselect_all_objects()
+    def rotate_scene(self, objects):
         angle_z = radians(90)
         axis_z = (0, 0, 1)
         pivot = Vector((0.0, 0.0, 0.0))
-        for ob in scene_obs:
-            if ob != model_armature:
-                M = (
-                    Matrix.Translation(pivot)
-                    @ Matrix.Rotation(angle_z, 4, axis_z)
-                    @ Matrix.Translation(-pivot)
-                )
-                ob.matrix_world = M @ ob.matrix_world
+        for ob in objects:
+            M = (
+                Matrix.Translation(pivot)
+                @ Matrix.Rotation(angle_z, 4, axis_z)
+                @ Matrix.Translation(-pivot)
+            )
+            ob.matrix_world = M @ ob.matrix_world
 
     def unhide_collections(self, context):
         layer_collection = context.view_layer.layer_collection
