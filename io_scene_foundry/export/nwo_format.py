@@ -1115,7 +1115,7 @@ class NWOMesh(NWOObject):
         )
 
     def mesh_poop_collision_type(self):
-        if self.halo.face_mode == "_connected_geometry_face_mode_render_only":
+        if self.halo.face_mode in ("_connected_geometry_face_mode_render_only", "_connected_geometry_face_mode_lightmap_only", "_connected_geometry_face_mode_shadow_only"):
             return "_connected_geometry_poop_collision_type_none"
         elif (
             self.halo.face_mode == "_connected_geometry_face_mode_sphere_collision_only"
