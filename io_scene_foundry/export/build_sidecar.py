@@ -365,7 +365,7 @@ class Sidecar:
         elif type == "scenario":
             ET.SubElement(
                 tagcollection, "OutputTag", Type="scenario_lightmap"
-            ).text = f"{self.tag_path}_faux_lightmaps"
+            ).text = f"{self.tag_path}_faux_lightmap"
             ET.SubElement(
                 tagcollection, "OutputTag", Type="structure_seams"
             ).text = self.tag_path
