@@ -1836,7 +1836,7 @@ class PrepareScene:
                     nwo.material_lighting_emissive_focus = jstr(
                         nwo.material_lighting_emissive_focus_ui
                     )
-                    nwo.material_lighting_emissive_color = color_3p_str(
+                    nwo.material_lighting_emissive_color = color_4p_str(
                         nwo.material_lighting_emissive_color_ui
                     )
                     nwo.material_lighting_emissive_per_unit = bool_str(
