@@ -824,14 +824,12 @@ class PrepareScene:
             # check if we need to layer split here if this is a poop
             # don't need to split if poop consists of only collision_only,
             # sphere_collision_only, render_only, or two-sided
-            skip_this = is_poop and self.poop_split_override(face_layers)
-            if skip_this:
-                split_objects_messy = [ob]
-            
-            else:
-                split_objects_messy = self.recursive_layer_split(
-                    ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm
-                )
+            skip_this = False
+            #skip_this = is_poop and self.poop_split_override(face_layers)
+
+            split_objects_messy = self.recursive_layer_split(
+                ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm
+            )
 
             ori_ob_name = str(ob.name)
 
@@ -856,7 +854,7 @@ class PrepareScene:
                         obj_name_suffix += layer.name
                 # obj_bm.free()
 
-                if obj_name_suffix and not skip_this:
+                if obj_name_suffix:
                     split_ob.name = f"{ori_ob_name}({obj_name_suffix})"
                 else:
                     split_ob.name = ori_ob_name
@@ -870,8 +868,8 @@ class PrepareScene:
                     mod.data_types_loops = {"CUSTOM_NORMAL"}
 
             #parent poop coll
+            parent_ob = None
             if collision_ob is not None:
-                parent_ob = None
                 for split_ob in split_objects:
                     if not (split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only") or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer"):
                         parent_ob = split_ob
@@ -904,7 +902,7 @@ class PrepareScene:
                 # recreate split objects list
                 split_objects = [ob for ob in split_objects if ob not in coll_only_objects]
 
-            return split_objects, skip_this
+            return split_objects
 
         else:
             for layer in face_layers:
@@ -1172,41 +1170,37 @@ class PrepareScene:
                 for face in bm.faces:
                     face.hide_set(False)
 
-                split_objects, skip_this  = self.split_to_layers(
+                split_objects = self.split_to_layers(
                     context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm
                 )
                 # remove the original ob from this list if needed
                 # if ob in split_objects:
                 #     split_objects.remove(ob)
 
-                if not split_objects:
-                    continue
+                # if not split_objects:
+                #     continue
 
                 # Can skip the below for loop if linked_objects is not a list
                 if is_linked:
-                    print("Passed da vibe check")
                     # copy all new face split objects to all linked objects
                     linked_objects.remove(ob)
                     for linked_ob in linked_objects:
                         for split_ob in split_objects:
-                            if not skip_this:
+                            new_ob = linked_ob
+                            if split_ob != ob:
                                 new_ob = split_ob.copy()
                                 scene_coll.link(new_ob)
                                 new_ob.matrix_world = linked_ob.matrix_world
 
                             if split_ob.children:
+                                linked_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                                 for child in split_ob.children:
                                     new_child = child.copy()
                                     scene_coll.link(new_child)
                                     if not h4:
-                                        if skip_this:
-                                            new_child.parent = linked_ob
-                                        else:
-                                            new_child.parent = new_ob
-                                    if skip_this:
-                                        new_child.matrix_world = linked_ob.matrix_world
-                                    else:
-                                        new_child.matrix_world = new_ob.matrix_world
+                                        new_child.parent = new_ob
+                                    
+                                    new_child.matrix_world = new_ob.matrix_world
 
                         if ob.modifiers.get("HaloDataTransfer", 0):
                             mod = linked_ob.modifiers.new(
