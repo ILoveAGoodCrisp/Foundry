@@ -848,90 +848,91 @@ class ProcessScene:
         else:
             perms = ["default"]
 
-        for perm in perms:
+        for perm in obs_perms:
             fbx_path, json_path, gr2_path = self.get_path(
                 asset_path, asset, type, perm, None, None
             )
-            if model_armature:
-                if obs_perms:
-                    export_obs = [
-                        ob for ob in objects if ob.nwo.permutation_name == perm
-                    ]
-                    export_obs.append(model_armature)
-                else:
-                    export_obs = [ob for ob in objects]
-                    export_obs.append(model_armature)
-            else:
-                if obs_perms:
-                    export_obs = [
-                        ob for ob in objects if ob.nwo.permutation_name == perm
-                    ]
-                else:
-                    export_obs = [ob for ob in objects]
-
-            if type == "prefab":
-                print_text = f"prefab"
-            elif type == "particle_model":
-                print_text = f"particle Model"
-            elif type == "decorator":
-                print_text = f"decorator"
-            elif type == "sky":
-                print_text = f"sky"
-            elif type == "markers":
-                print_text = f"markers"
-            elif type == "lighting":
-                print_text = f"lighting"
-            elif perm == "default":
-                print_text = f"{type} model"
-            else:
-                print_text = f"{perm} {type} model"
-
-            if export_check:
-                override = context.copy()
-                area = [
-                    area for area in context.screen.areas if area.type == "VIEW_3D"
-                ][0]
-                override["area"] = area
-                override["region"] = area.regions[-1]
-                override["space_data"] = area.spaces.active
-                override["selected_objects"] = export_obs
-
-                with context.temp_override(**override):
-                    job = f"-- {print_text}"
-                    update_job(job, 0)
-                    if self.export_fbx(
-                        fbx_exporter,
-                        fbx_path,
-                    ):
-                        if self.export_json(
-                            json_path, export_obs, sidecar_type, asset, nwo_scene
-                        ):
-                            self.export_gr2(fbx_path, json_path, gr2_path)
-                        else:
-                            return f"Failed to export {perm} {type} model JSON: {json_path}"
+            if not sel_perms or perm in sel_perms:
+                if model_armature:
+                    if obs_perms:
+                        export_obs = [
+                            ob for ob in objects if ob.nwo.permutation_name == perm
+                        ]
+                        export_obs.append(model_armature)
                     else:
-                        return f"Failed to export {perm} {type} model FBX: {fbx_path}"
+                        export_obs = [ob for ob in objects]
+                        export_obs.append(model_armature)
+                else:
+                    if obs_perms:
+                        export_obs = [
+                            ob for ob in objects if ob.nwo.permutation_name == perm
+                        ]
+                    else:
+                        export_obs = [ob for ob in objects]
 
-                    update_job(job, 1)
+                if type == "prefab":
+                    print_text = f"prefab"
+                elif type == "particle_model":
+                    print_text = f"particle Model"
+                elif type == "decorator":
+                    print_text = f"decorator"
+                elif type == "sky":
+                    print_text = f"sky"
+                elif type == "markers":
+                    print_text = f"markers"
+                elif type == "lighting":
+                    print_text = f"lighting"
+                elif perm == "default":
+                    print_text = f"{type} model"
+                else:
+                    print_text = f"{perm} {type} model"
 
-            if type in self.sidecar_paths.keys():
-                self.sidecar_paths[type].append(
-                    [
-                        data_relative(fbx_path),
-                        data_relative(json_path),
-                        data_relative(gr2_path),
-                        perm,
+                if export_check:
+                    override = context.copy()
+                    area = [
+                        area for area in context.screen.areas if area.type == "VIEW_3D"
+                    ][0]
+                    override["area"] = area
+                    override["region"] = area.regions[-1]
+                    override["space_data"] = area.spaces.active
+                    override["selected_objects"] = export_obs
+
+                    with context.temp_override(**override):
+                        job = f"-- {print_text}"
+                        update_job(job, 0)
+                        if self.export_fbx(
+                            fbx_exporter,
+                            fbx_path,
+                        ):
+                            if self.export_json(
+                                json_path, export_obs, sidecar_type, asset, nwo_scene
+                            ):
+                                self.export_gr2(fbx_path, json_path, gr2_path)
+                            else:
+                                return f"Failed to export {perm} {type} model JSON: {json_path}"
+                        else:
+                            return f"Failed to export {perm} {type} model FBX: {fbx_path}"
+
+                        update_job(job, 1)
+
+                if type in self.sidecar_paths.keys():
+                    self.sidecar_paths[type].append(
+                        [
+                            data_relative(fbx_path),
+                            data_relative(json_path),
+                            data_relative(gr2_path),
+                            perm,
+                        ]
+                    )
+                else:
+                    self.sidecar_paths[type] = [
+                        [
+                            data_relative(fbx_path),
+                            data_relative(json_path),
+                            data_relative(gr2_path),
+                            perm,
+                        ]
                     ]
-                )
-            else:
-                self.sidecar_paths[type] = [
-                    [
-                        data_relative(fbx_path),
-                        data_relative(json_path),
-                        data_relative(gr2_path),
-                        perm,
-                    ]
-                ]
 
     def export_bsp(
         self,
@@ -949,68 +950,59 @@ class ProcessScene:
         nwo_scene,
         export_check,
     ):
-        if sel_bsps:
-            bsps = [b for b in obs_bsps if b in sel_bsps]
-        else:
-            bsps = obs_bsps
-
-        for bsp in bsps:
-            if sel_perms:
-                perms = [p for p in obs_perms if p in sel_perms]
-            else:
-                perms = obs_perms
-
-            for perm in perms:
-                export_obs = [
-                    ob
-                    for ob in objects
-                    if ob.nwo.permutation_name == perm and (ob.nwo.bsp_name == bsp)
-                ]
-
-                if not export_obs:
-                    continue
-
+        for bsp in obs_bsps:
+            for perm in obs_perms:
                 fbx_path, json_path, gr2_path = self.get_path(
                     asset_path, asset, type, perm, bsp, None
                 )
-                if export_check and export_obs:
-                    override = context.copy()
-                    area = [
-                        area for area in context.screen.areas if area.type == "VIEW_3D"
-                    ][0]
-                    override["area"] = area
-                    override["region"] = area.regions[-1]
-                    override["space_data"] = area.spaces.active
-                    override["selected_objects"] = export_obs
+                if (not sel_bsps or bsp in sel_bsps) and (not sel_perms or perm in sel_perms):
+                    export_obs = [
+                        ob
+                        for ob in objects
+                        if ob.nwo.permutation_name == perm and (ob.nwo.bsp_name == bsp)
+                    ]
 
-                    with context.temp_override(**override):
-                        if perm == "default":
-                            print_text = f"{bsp} {type}"
-                        else:
-                            print_text = f"{bsp} {perm} {type}"
+                    if not export_obs:
+                        continue
 
-                        job = f"-- {print_text}"
-                        update_job(job, 0)
-                        if self.export_fbx(
-                            fbx_exporter,
-                            fbx_path,
-                        ):
-                            if self.export_json(
-                                json_path,
-                                export_obs,
-                                sidecar_type,
-                                asset,
-                                nwo_scene,
-                            ):
-                                self.export_gr2(fbx_path, json_path, gr2_path)
+                    if export_check and export_obs:
+                        override = context.copy()
+                        area = [
+                            area for area in context.screen.areas if area.type == "VIEW_3D"
+                        ][0]
+                        override["area"] = area
+                        override["region"] = area.regions[-1]
+                        override["space_data"] = area.spaces.active
+                        override["selected_objects"] = export_obs
+
+                        with context.temp_override(**override):
+                            if perm == "default":
+                                print_text = f"{bsp} {type}"
                             else:
-                                return f"Failed to export {perm} {type} model JSON: {json_path}"
-                        else:
-                            return (
-                                f"Failed to export {perm} {type} model FBX: {fbx_path}"
-                            )
+                                print_text = f"{bsp} {perm} {type}"
 
-                        update_job(job, 1)
+                            job = f"-- {print_text}"
+                            update_job(job, 0)
+                            if self.export_fbx(
+                                fbx_exporter,
+                                fbx_path,
+                            ):
+                                if self.export_json(
+                                    json_path,
+                                    export_obs,
+                                    sidecar_type,
+                                    asset,
+                                    nwo_scene,
+                                ):
+                                    self.export_gr2(fbx_path, json_path, gr2_path)
+                                else:
+                                    return f"Failed to export {perm} {type} model JSON: {json_path}"
+                            else:
+                                return (
+                                    f"Failed to export {perm} {type} model FBX: {fbx_path}"
+                                )
+
+                            update_job(job, 1)
 
                 if type == "design":
                     if bsp in self.sidecar_paths_design.keys():
