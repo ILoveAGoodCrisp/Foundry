@@ -1516,7 +1516,7 @@ class NWO_FoundryPanelProps(Panel):
 
             if context.mode == "EDIT_MESH":
                 col = row.column(align=True)
-                col.menu(NWO_FaceLayerAddMenu.bl_idname, text="Add Face Property", icon="ADD")
+                col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
                 col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
                 col.separator()
                 col.operator(
@@ -1772,7 +1772,7 @@ class NWO_FoundryPanelProps(Panel):
                         text="Emissive Per Unit",
                     )
 
-                col.menu(NWO_FacePropAddMenu.bl_idname, text="", icon="PLUS")
+                col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Property", icon="PLUS")
 
     def draw_material_properties(self):
         box = self.box.box()
