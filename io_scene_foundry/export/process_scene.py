@@ -249,7 +249,6 @@ class ProcessScene:
             self.gr2_processes = 0
             self.delay = 0
             self.running_check = 0
-            self.exported_files = []
             self.sidecar_paths = {}
             self.sidecar_paths_design = {}
             if export_gr2_files:
@@ -274,21 +273,19 @@ class ProcessScene:
                 ):  # Added FP animation to this. FP animation only exports the skeleton and animations
                     if sidecar_type == "MODEL":
                         if nwo_scene.render:
-                            self.exported_files.append(
-                                self.export_model(
-                                    context,
-                                    asset_path,
-                                    asset,
-                                    "render",
-                                    nwo_scene.render,
-                                    nwo_scene.render_perms,
-                                    nwo_scene.selected_perms,
-                                    nwo_scene.model_armature,
-                                    fbx_exporter,
-                                    sidecar_type,
-                                    nwo_scene,
-                                    export_render,
-                                )
+                            self.export_model(
+                                context,
+                                asset_path,
+                                asset,
+                                "render",
+                                nwo_scene.render,
+                                nwo_scene.render_perms,
+                                nwo_scene.selected_perms,
+                                nwo_scene.model_armature,
+                                fbx_exporter,
+                                sidecar_type,
+                                nwo_scene,
+                                export_render,
                             )
 
                         if nwo_scene.collision:
@@ -841,14 +838,11 @@ class ProcessScene:
         export_check,
     ):
         if obs_perms:
-            if sel_perms:
-                perms = [p for p in obs_perms if p in sel_perms]
-            else:
-                perms = obs_perms
+            perms = obs_perms
         else:
             perms = ["default"]
 
-        for perm in obs_perms:
+        for perm in perms:
             fbx_path, json_path, gr2_path = self.get_path(
                 asset_path, asset, type, perm, None, None
             )

@@ -824,7 +824,8 @@ class PrepareScene:
             # check if we need to layer split here if this is a poop
             # don't need to split if poop consists of only collision_only,
             # sphere_collision_only, render_only, or two-sided
-            if is_poop and self.poop_split_override(face_layers):
+            skip_this = is_poop and self.poop_split_override(face_layers)
+            if skip_this:
                 split_objects_messy = [ob]
             
             else:
@@ -854,7 +855,8 @@ class PrepareScene:
 
                         obj_name_suffix += layer.name
                 # obj_bm.free()
-                if obj_name_suffix:
+
+                if obj_name_suffix and not skip_this:
                     split_ob.name = f"{ori_ob_name}({obj_name_suffix})"
                 else:
                     split_ob.name = ori_ob_name
@@ -887,6 +889,7 @@ class PrepareScene:
                     if collision_ob is not None:
                         collision_ob.parent = parent_ob
                         collision_ob.matrix_world = ori_matrix
+                        
                     if physics_ob is not None:
                         physics_ob.parent = parent_ob
                         physics_ob.matrix_world = ori_matrix
@@ -901,13 +904,13 @@ class PrepareScene:
                 # recreate split objects list
                 split_objects = [ob for ob in split_objects if ob not in coll_only_objects]
 
-            return split_objects
+            return split_objects, skip_this
 
         else:
             for layer in face_layers:
                 self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
 
-            return context.selected_objects
+            return context.selected_objects, True
         
     def poop_split_override(self, face_layers):
         for layer in face_layers:
@@ -1137,7 +1140,6 @@ class PrepareScene:
             new_data = me.copy()
             for ob in me_ob_dict_full[me]:
                 if ob not in me_ob_dict[me]:
-                    print(ob.name)
                     ob.data = new_data
 
         for idx, me in enumerate(me_ob_dict.keys()):
@@ -1150,11 +1152,6 @@ class PrepareScene:
             is_linked = len(linked_objects) > 1
 
             ob = linked_objects[0]
-
-            # if is_linked:
-            #     ob = linked_objects[0]
-            # else:
-            #     ob = linked_objects
 
             me_nwo = me.nwo
             ob_nwo = ob.nwo
@@ -1175,33 +1172,41 @@ class PrepareScene:
                 for face in bm.faces:
                     face.hide_set(False)
 
-                split_objects = self.split_to_layers(
+                split_objects, skip_this  = self.split_to_layers(
                     context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm
                 )
                 # remove the original ob from this list if needed
-                if ob in split_objects:
-                    split_objects.remove(ob)
+                # if ob in split_objects:
+                #     split_objects.remove(ob)
 
                 if not split_objects:
                     continue
 
                 # Can skip the below for loop if linked_objects is not a list
                 if is_linked:
+                    print("Passed da vibe check")
                     # copy all new face split objects to all linked objects
                     linked_objects.remove(ob)
                     for linked_ob in linked_objects:
                         for split_ob in split_objects:
-                            new_ob = split_ob.copy()
-
-
-                            new_ob.matrix_world = linked_ob.matrix_world
-                            scene_coll.link(new_ob)
+                            if not skip_this:
+                                new_ob = split_ob.copy()
+                                scene_coll.link(new_ob)
+                                new_ob.matrix_world = linked_ob.matrix_world
 
                             if split_ob.children:
                                 for child in split_ob.children:
                                     new_child = child.copy()
                                     scene_coll.link(new_child)
-                                    new_child.parent = new_ob
+                                    if not h4:
+                                        if skip_this:
+                                            new_child.parent = linked_ob
+                                        else:
+                                            new_child.parent = new_ob
+                                    if skip_this:
+                                        new_child.matrix_world = linked_ob.matrix_world
+                                    else:
+                                        new_child.matrix_world = new_ob.matrix_world
 
                         if ob.modifiers.get("HaloDataTransfer", 0):
                             mod = linked_ob.modifiers.new(
