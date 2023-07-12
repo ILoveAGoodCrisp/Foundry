@@ -262,6 +262,8 @@ def LaunchFoundation(settings, context):
     ):  # check for h4/h2a as doesn't run properly in reach
         launch_args.append("/pluginset:matman")
 
+    # first, get and set the project so we can avoid the Foundation prompt
+    
     run_ek_cmd(launch_args, True)
     run_ek_cmd(["bin\\tools\\bonobo\\TagWatcher.exe"], True)
 
@@ -273,7 +275,9 @@ def launch_game(is_sapien, settings, filepath):
     using_filepath = filepath.endswith(".scenario")
     # get the program to launch
     if is_sapien:
-        args = ["sapien.exe"]
+        args = ["sapien"]
+        if settings.use_play:
+            args[0] += "_play"
         # Sapien needs the scenario in the launch args so adding this here
         if nwo_asset_type() == "SCENARIO" and settings.game_default == "asset":
             args.append(get_tag_if_exists(asset_path, asset_name, "scenario"))
@@ -281,12 +285,15 @@ def launch_game(is_sapien, settings, filepath):
             args.append(filepath)
     else:
         game_version = bpy.context.scene.nwo.game_version
+        game_version = bpy.context.scene.nwo_halo_launcher.game_version
         if game_version == "h4":
-            args = ["halo4_tag_test.exe"]
+            args = ["halo4_tag_test"]
         elif game_version == "h2a":
-            args = ["halo2a_tag_test.exe"]
+            args = ["halo2a_tag_test"]
         else:
-            args = ["reach_tag_test.exe"]
+            args = ["reach_tag_test"]
+        if settings.use_play:
+            args[0] = args[0].replace("_test", "_play")
 
     os.chdir(get_ek_path())
     # Write the init file

@@ -2704,6 +2704,8 @@ class NWO_HaloLauncherGameSettings(Panel):
         col = flow.column()
         row = col.row()
         row.prop(scene_nwo_halo_launcher, "game_default", expand=True)
+        row = col.row()
+        row.prop(scene_nwo_halo_launcher, "use_play")
         col.separator()
         col.prop(scene_nwo_halo_launcher, "insertion_point_index")
         col.prop(scene_nwo_halo_launcher, "initial_zone_set")
@@ -3168,6 +3170,11 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
     )
 
     ##### game launch #####
+
+    use_play : BoolProperty(
+        name="Use Play Variant",
+        description="Launches sapien_play / tag_play instead. These versions have less debug information and should load faster",
+    )
 
     run_game_scripts: BoolProperty(
         options=set(),
