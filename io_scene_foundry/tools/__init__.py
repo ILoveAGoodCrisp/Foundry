@@ -1004,7 +1004,33 @@ class NWO_FoundryPanelProps(Panel):
                             )
                         else:
                             col.prop(nwo, "region_name_ui", text="Region")
+                    
                     sub.prop(nwo, "marker_all_regions_ui", text="All Regions")
+                    # marker perm ui
+                    if not nwo.marker_all_regions_ui:
+                        rows = 3
+                        row = col.row()
+                        row.label(text="Marker Permutations")
+                        row = col.row()
+                        row.template_list(
+                            "NWO_UL_MarkerPermutations",
+                            "",
+                            nwo,
+                            "marker_permutations",
+                            nwo,
+                            "marker_permutations_index",
+                            rows=rows,
+                        )
+                        col_perm = row.column(align=True)
+                        col_perm.operator_menu_enum("nwo.marker_perm_add", "permutation",text="", icon="ADD")
+                        col_perm.operator("nwo.marker_perm_remove", icon="REMOVE", text="")
+                        row = col.row()
+                        row.use_property_split = False
+                        row.prop(nwo, "marker_permutation_type", expand=True)
+                        if nwo.marker_permutation_type == "include" and not nwo.marker_permutations:
+                            row = col.row()
+                            row.label(text="No permutations in include list", icon="ERROR")
+
 
             elif nwo.marker_type_ui == "_connected_geometry_marker_type_game_instance":
                 row = col.row()

@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from tokenize import String
 from .face_properties import NWO_FaceProperties_ListItems
 from bpy.props import (
     IntProperty,
@@ -71,13 +72,35 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     )
 
 
-# FACE PROPERTIES
+# MARKER PERM PROPERTIES
 # ----------------------------------------------------------
-
+class NWO_MarkerPermutationItems(PropertyGroup):
+    permutation: StringProperty(name="Permutation")
 
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
 class NWO_ObjectPropertiesGroup(PropertyGroup):
+    #### MARKER PERM
+    marker_permutations: CollectionProperty(
+        type=NWO_MarkerPermutationItems,
+    )
+
+    marker_permutations_index: IntProperty(
+        name="Index for Animation Event",
+        default=0,
+        min=0,
+    )
+
+    marker_permutation_type : EnumProperty(
+        name="Include/Exclude",
+        description="Toggle whether this marker should be included in, or excluded from the below list of permutations. If this is set to include and no permutations are defined, this property will be ignored at export",
+        items=[
+            ("exclude", "Exclude", ""),
+            ("include", "Include", ""),
+        ],
+        options=set(),
+    )
+    # MAIN
     proxy_instance: BoolProperty(
         name="Proxy Instance",
         description="Duplicates this structure mesh as instanced geometry at export",
@@ -2365,6 +2388,10 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #########
 
     toggle_face_defaults: BoolProperty()
+
+    # MARKER PERMS
+    marker_exclude_perms : StringProperty()
+    marker_include_perms : StringProperty()
 
 
 # LIGHT PROPERTIES

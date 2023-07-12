@@ -1531,6 +1531,18 @@ class PrepareScene:
                 nwo.marker_all_regions = bool_str(nwo.marker_all_regions_ui)
                 if nwo.marker_all_regions == "0":
                     nwo.region_name = true_region(nwo)
+                m_perms = nwo.marker_permutations
+                if m_perms:
+                    m_perm_set = set()
+                    for perm in m_perms:
+                        m_perm_set.add(perm.permutation)
+                    m_person_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
+                    if nwo.marker_permutation_type == "exclude":
+                        nwo.marker_exclude_perms = m_person_json_value
+                    else:
+                        nwo.marker_include_perms = m_person_json_value
+
+
                 if nwo.marker_type_ui == "_connected_geometry_marker_type_hint":
                     nwo.marker_type = "_connected_geometry_marker_type_hint"
                     if not reach:

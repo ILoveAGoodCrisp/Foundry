@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from io_scene_foundry.icons import get_icon_id
 from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel
 from ..utils.nwo_utils import (
     bpy_enum_list,
@@ -37,8 +38,9 @@ from ..utils.nwo_utils import (
     poll_ui,
 )
 
-from bpy.types import Menu, UIList
+from bpy.types import Menu, UIList, Operator
 from bpy.props import EnumProperty, StringProperty
+import bpy
 
 
 # FACE LEVEL FACE PROPS
@@ -1828,7 +1830,6 @@ class NWO_GlobalMaterialList(NWO_Op):
         context.object.nwo.face_global_material_ui = self.global_material
         return {"FINISHED"}
 
-
 class NWO_PermutationList(NWO_Op):
     bl_idname = "nwo.permutation_list"
     bl_label = "Permutation List"
@@ -2219,3 +2220,61 @@ class NWO_LightProps(NWO_PropPanel):
 class NWO_LightPropsCycles(NWO_LightProps):
     bl_idname = "NWO_PT_LightPanel_Cycles"
     bl_parent_id = "CYCLES_LIGHT_PT_light"
+
+## MARKER PERM UI LIST
+class NWO_UL_MarkerPermutations(UIList):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index,
+    ):
+        layout.prop(item, "permutation", text="", emboss=False, icon_value=get_icon_id("marker"))
+
+class NWO_List_Add_MarkerPermutation(NWO_PermutationList):
+    bl_idname = "nwo.marker_perm_add"
+    bl_label = "Add"
+    bl_description = "Add a new permutation"
+    bl_options = {"UNDO"}
+
+    def execute(self, context):
+        ob = context.object
+        nwo = ob.nwo
+        for perm in nwo.marker_permutations:
+            if perm.permutation == self.permutation:
+                return {"CANCELLED"}
+            
+        bpy.ops.uilist.entry_add(
+            list_path="object.nwo.marker_permutations",
+            active_index_path="object.nwo.marker_permutations_index",
+        )
+
+        nwo.marker_permutations[nwo.marker_permutations_index].permutation = self.permutation
+        context.area.tag_redraw()
+
+        return {"FINISHED"}
+
+
+class NWO_List_Remove_MarkerPermutation(Operator):
+    bl_idname = "nwo.marker_perm_remove"
+    bl_label = "Remove"
+    bl_description = "Remove a permutation from the list."
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return ob and ob.nwo.marker_permutations
+
+    def execute(self, context):
+        ob = context.object
+        nwo = ob.nwo
+        nwo.marker_permutations.remove(nwo.marker_permutations_index)
+        if nwo.marker_permutations_index > len(nwo.marker_permutations) - 1:
+            nwo.marker_permutations_index += -1
+        return {"FINISHED"}

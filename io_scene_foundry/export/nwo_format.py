@@ -597,6 +597,11 @@ class NWOMarker(NWOObject):
         # SHARED
         self.bungie_marker_type = self.halo.marker_type
         self.bungie_marker_model_group = self.marker_model_group()
+        if self.halo.marker_exclude_perms:
+            self.bungie_marker_exclude_from_permutations = self.halo.marker_exclude_perms
+        elif self.halo.marker_include_perms:
+            self.bungie_marker_include_in_permutations = self.halo.marker_include_perms
+
         # properties for model/sky assets only
         if self.sidecar_type in ("MODEL", "SKY"):
             if self.halo.marker_all_regions:
