@@ -285,7 +285,6 @@ def launch_game(is_sapien, settings, filepath):
             args.append(filepath)
     else:
         game_version = bpy.context.scene.nwo.game_version
-        game_version = bpy.context.scene.nwo_halo_launcher.game_version
         if game_version == "h4":
             args = ["halo4_tag_test"]
         elif game_version == "h2a":

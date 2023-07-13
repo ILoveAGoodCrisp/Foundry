@@ -34,6 +34,8 @@ from math import radians
 from mathutils import Matrix, Vector
 import xml.etree.ElementTree as ET
 
+from bpy_extras import anim_utils
+
 from io_scene_foundry.tools.shader_finder import find_shaders
 from ..utils.nwo_utils import (
     bool_str,
@@ -586,8 +588,7 @@ class PrepareScene:
                 context,
                 export_animations,
                 self.current_action,
-                self.timeline_start,
-                self.timeline_end,
+                export_obs,
             )
 
         # Set animation name overrides
@@ -1218,17 +1219,18 @@ class PrepareScene:
         if any_face_props:
             update_progress(process, 1)
 
-    def z_rotate_and_apply(self, ob, angle):
+    def z_rotate_and_apply(self, model_armature, angle):
         angle = radians(angle)
         axis = (0, 0, 1)
-        pivot = ob.location
+        pivot = model_armature.location
         M = (
             Matrix.Translation(pivot)
             @ Matrix.Rotation(angle, 4, axis)
             @ Matrix.Translation(-pivot)
         )
 
-        ob.matrix_world = M @ ob.matrix_world
+        model_armature.matrix_world = M @ model_armature.matrix_world
+
         bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 
     def bake_animations(
@@ -1236,38 +1238,22 @@ class PrepareScene:
         armature,
         export_animations,
         current_action,
-        timeline_start,
-        timeline_end,
-        context,
     ):
-        print("Baking animations...")
-        timeline = context.scene
-        for action in bpy.data.actions:
-            if export_animations == "ALL" or current_action == action:
+        job = "Baking Animations"
+        update_progress(job, 0)
+        export_actions = [a for a in bpy.data.actions if a.use_frame_range]
+        for idx, action in enumerate(export_actions):
+            if action.use_frame_range and (export_animations == "ALL" or current_action == action):
                 armature.animation_data.action = action
 
-                if action.use_frame_range:
-                    frame_start = int(action.frame_start)
-                    frame_end = int(action.frame_end)
-                else:
-                    frame_start = timeline_start
-                    frame_end = timeline_end
+                frame_start = int(action.frame_start)
+                frame_end = int(action.frame_end)
 
-                timeline.frame_start = timeline_start
-                timeline.frame_end = timeline_end
+                # anim_utils.bake_action(armature, action=action, frames=range(frame_start, frame_end), do_pose=True, do_visual_keying=True, do_constraint_clear=True)
+                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=idx + 1 == len(export_actions), use_current_action=True, bake_types={'POSE'})
+                update_progress(job, idx / len(export_actions))
 
-                bpy.ops.object.mode_set(mode="POSE", toggle=False)
-                bpy.ops.nla.bake(
-                    frame_start=frame_start,
-                    frame_end=frame_end,
-                    only_selected=False,
-                    visual_keying=True,
-                    clear_constraints=True,
-                    use_current_action=True,
-                    clean_curves=True,
-                    bake_types={"POSE"},
-                )
-                bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+        update_progress(job, 1)
 
     def fix_armature_rotation(
         self,
@@ -1276,23 +1262,21 @@ class PrepareScene:
         context,
         export_animations,
         current_action,
-        timeline_start,
-        timeline_end,
+        export_obs,
     ):
         forward = context.scene.nwo.forward_direction
         if forward != "x" and sidecar_type in ("MODEL", "FP ANIMATION"):
-            armature.select_set(True)
             # bake animation to avoid issues on armature rotation
-            if export_animations != "NONE" and 1 <= len(bpy.data.actions):
+            set_active_object(armature)
+            armature.select_set(True)
+            if export_animations != "NONE" and bpy.data.actions:
                 self.bake_animations(
                     armature,
                     export_animations,
                     current_action,
-                    timeline_start,
-                    timeline_end,
-                    context,
                 )
             # apply rotation based on selected forward direction
+            # context.scene.frame_current = 0
             if forward == "y":
                 self.z_rotate_and_apply(armature, -90)
             elif forward == "y-":
@@ -1300,7 +1284,7 @@ class PrepareScene:
             elif forward == "x-":
                 self.z_rotate_and_apply(armature, 180)
 
-            deselect_all_objects()
+            armature.select_set(False)
 
     def set_bone_names(self, bones):
         for bone in bones:
