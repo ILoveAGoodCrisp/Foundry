@@ -1008,9 +1008,12 @@ class NWO_FoundryPanelProps(Panel):
                     sub.prop(nwo, "marker_all_regions_ui", text="All Regions")
                     # marker perm ui
                     if not nwo.marker_all_regions_ui:
+                        col.separator()
                         rows = 3
                         row = col.row()
-                        row.label(text="Marker Permutations")
+                        row.use_property_split = True
+                        # row.label(text="Marker Permutations")
+                        row.prop(nwo, "marker_permutation_type", text="Marker Permutations", expand=True)
                         row = col.row()
                         row.template_list(
                             "NWO_UL_MarkerPermutations",
@@ -1024,9 +1027,6 @@ class NWO_FoundryPanelProps(Panel):
                         col_perm = row.column(align=True)
                         col_perm.operator_menu_enum("nwo.marker_perm_add", "permutation",text="", icon="ADD")
                         col_perm.operator("nwo.marker_perm_remove", icon="REMOVE", text="")
-                        row = col.row()
-                        row.use_property_split = False
-                        row.prop(nwo, "marker_permutation_type", expand=True)
                         if nwo.marker_permutation_type == "include" and not nwo.marker_permutations:
                             row = col.row()
                             row.label(text="No permutations in include list", icon="ERROR")
