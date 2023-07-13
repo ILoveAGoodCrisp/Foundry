@@ -235,7 +235,8 @@ class ManagedBlamNewShader(ManagedBlam):
         asset_path = get_asset_path()
         shaders_dir = os.path.join(asset_path, "shaders" if self.is_reach else "materials")
         shader_name = get_valid_shader_name(self.blender_material)
-        shader_path = os.path.join(shaders_dir, shader_name + ".shader" if self.is_reach else ".material")
+        tag_ext = ".shader" if self.is_reach else ".material"
+        shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
 
         return shader_path
 
