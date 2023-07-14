@@ -206,6 +206,33 @@ class PrepareScene:
         else:
             water_surface_mat = materials.get("water")
 
+        # add special reach materials
+        if not h4:
+            if "InvisibleSky" not in materials:
+                sky_mat = materials.new("InvisibleSky")
+            else:
+                sky_mat = materials.get("InvisibleSky")
+
+            sky_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_sky.override"
+            sky_mat.nwo.rendered = True # not actually rendered but this lets us use the special shader path input
+
+            if "SeamSealer" not in materials:
+                seam_sealer_mat = materials.new("SeamSealer")
+            else:
+                seam_sealer_mat = materials.get("SeamSealer")
+
+            seam_sealer_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_seam_sealer.override"
+            seam_sealer_mat.nwo.rendered = True
+
+            if "CollisionOnly" not in materials:
+                collision_only_mat = materials.new("CollisionOnly")
+            else:
+                collision_only_mat = materials.get("CollisionOnly")
+
+            collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_collision_only.override"
+            collision_only_mat.nwo.rendered = True
+
+
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
 
@@ -626,16 +653,64 @@ class PrepareScene:
 
     # FACEMAP SPLIT
 
-    def justify_face_split(self, layer_faces_dict, poly_count):
+    def justify_face_split(self, layer_faces_dict, poly_count, h4):
         """Checked whether we actually need to split this mesh up"""
         # check if face layers cover the whole mesh, if they do, we don't need to split the mesh
-        for face_seq in layer_faces_dict.values():
+        for layer, face_seq in layer_faces_dict.items():
             face_count = len(face_seq)
             if poly_count != face_count:
-                return True
+                if h4 or not self.is_material_property(layer):
+                    return True
 
         return False
+    
+    def is_material_property(self, layer):
+        if self.face_type_only(layer):
+            if layer.face_type_ui == "_connected_geometry_face_type_seam_sealer":
+                pass
+            else:
+                pass
 
+    def face_type_only(self, layer):
+        if layer.face_mode_override:
+            return False
+        elif layer.face_global_material_override:
+            return False
+        elif layer.region_name_override:
+            return False
+        elif layer.ladder_override:
+            return False
+        elif layer.slip_surface_override:
+            return False
+        elif layer.decal_offset_override:
+            return False
+        elif layer.group_transparents_by_plane_override:
+            return False
+        elif layer.no_shadow_override:
+            return False
+        elif layer.precise_position_override:
+            return False
+        elif layer.no_lightmap_override:
+            return False
+        elif layer.no_pvs_override:
+            return False
+        elif layer.lightmap_additive_transparency_override:
+            return False
+        elif layer.lightmap_resolution_scale_override:
+            return False
+        elif layer.lightmap_type_override:
+            return False
+        elif layer.lightmap_translucency_tint_color_override:
+            return False
+        elif layer.lightmap_lighting_from_both_sides_override:
+            return False
+        elif layer.emissive_override:
+            return False
+        elif layer.face_type_override:
+            return True
+        
+        return False
+            
     def strip_nocoll_only_faces(self, layer_faces_dict, bm):
         """Removes faces from a mesh that have the render only property"""
         # loop through each face layer and select non collision faces
