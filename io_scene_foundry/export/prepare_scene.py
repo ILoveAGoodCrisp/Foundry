@@ -34,8 +34,6 @@ from math import radians
 from mathutils import Matrix, Vector
 import xml.etree.ElementTree as ET
 
-from bpy_extras import anim_utils
-
 from io_scene_foundry.tools.shader_finder import find_shaders
 from ..utils.nwo_utils import (
     bool_str,
@@ -2554,7 +2552,12 @@ class PrepareScene:
 
         if not slots:
             # append the new material to the object
-            me.materials.append(override_mat)
+            if nwo.mesh_type in render_mesh_types:
+                me.materials.append(invalid_mat)
+            elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
+                me.materials.append(water_surface_mat)
+            else:
+                me.materials.append(override_mat)
 
     def markerify(self, export_obs, scene_coll):
         # get a list of meshes which are nodes
