@@ -71,6 +71,21 @@ render_mesh_types_full = [
     "_connected_geometry_mesh_type_water_surface"
 ]
 
+RENDER_ONLY_FACE_TYPES = (
+    "_connected_geometry_face_mode_render_only",
+    "_connected_geometry_face_mode_lightmap_only"
+    "_connected_geometry_face_mode_shadow_only"
+)
+
+# Reach special materials
+
+INVISIBLE_SKY = "InvisibleSky"
+SEAM_SEALER = "SeamSealer"
+COLLISION_ONLY = "CollisionOnly"
+SPHERE_COLLISION_ONLY = "SphereCollisionOnly"
+LIGHTMAP_ONLY = "LightmapOnly"
+SHADOW_ONLY = "ShadowOnly"
+
 
 #####################################################################################
 #####################################################################################
@@ -208,29 +223,53 @@ class PrepareScene:
 
         # add special reach materials
         if not h4:
-            if "InvisibleSky" not in materials:
-                sky_mat = materials.new("InvisibleSky")
+            if INVISIBLE_SKY not in materials:
+                sky_mat = materials.new(INVISIBLE_SKY)
             else:
-                sky_mat = materials.get("InvisibleSky")
+                sky_mat = materials.get(INVISIBLE_SKY)
 
             sky_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_sky.override"
             sky_mat.nwo.rendered = True # not actually rendered but this lets us use the special shader path input
 
-            if "SeamSealer" not in materials:
-                seam_sealer_mat = materials.new("SeamSealer")
+            if SEAM_SEALER not in materials:
+                seam_sealer_mat = materials.new(SEAM_SEALER)
             else:
-                seam_sealer_mat = materials.get("SeamSealer")
+                seam_sealer_mat = materials.get(SEAM_SEALER)
 
             seam_sealer_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_seam_sealer.override"
             seam_sealer_mat.nwo.rendered = True
 
-            if "CollisionOnly" not in materials:
-                collision_only_mat = materials.new("CollisionOnly")
+            if COLLISION_ONLY not in materials:
+                collision_only_mat = materials.new(COLLISION_ONLY)
             else:
-                collision_only_mat = materials.get("CollisionOnly")
+                collision_only_mat = materials.get(COLLISION_ONLY)
 
             collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_collision_only.override"
             collision_only_mat.nwo.rendered = True
+
+            if SPHERE_COLLISION_ONLY not in materials:
+                sphere_collision_only_mat = materials.new(SPHERE_COLLISION_ONLY)
+            else:
+                sphere_collision_only_mat = materials.get(SPHERE_COLLISION_ONLY)
+
+            sphere_collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_sphere_collision_only.override"
+            sphere_collision_only_mat.nwo.rendered = True
+
+            if LIGHTMAP_ONLY not in materials:
+                lightmap_only_mat = materials.new(LIGHTMAP_ONLY)
+            else:
+                lightmap_only_mat = materials.get(LIGHTMAP_ONLY)
+
+            lightmap_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_lightmap_only.override"
+            lightmap_only_mat.nwo.rendered = True
+
+            if SHADOW_ONLY not in materials:
+                shadow_only_mat = materials.new(SHADOW_ONLY)
+            else:
+                shadow_only_mat = materials.get(SHADOW_ONLY)
+
+            shadow_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_shadow_only.override"
+            shadow_only_mat.nwo.rendered = True
 
 
         context.view_layer.update()
@@ -653,25 +692,47 @@ class PrepareScene:
 
     # FACEMAP SPLIT
 
-    def justify_face_split(self, layer_faces_dict, poly_count, h4):
+    def justify_face_split(self, layer_faces_dict, poly_count, h4, ob):
         """Checked whether we actually need to split this mesh up"""
         # check if face layers cover the whole mesh, if they do, we don't need to split the mesh
         for layer, face_seq in layer_faces_dict.items():
             face_count = len(face_seq)
             if poly_count != face_count:
-                if h4 or not self.is_material_property(layer):
-                    return True
+                return False, True # temp
+                if h4 or not self.is_material_property(layer, face_seq, ob):
+                    return False, True
+                else:
+                    return False, False
 
-        return False
+        return False, True
+
+    def apply_reach_material(self, faces, mat_name, mat_slots, me):
+        mat_index = -1
+        for idx, slot in enumerate(mat_slots):
+            if slot.material.name == "mat_name":
+                mat_index = idx
+                break
+        else:
+            # Material doesn't exist on mesh, so create it
+            me.materials.append(bpy.data.materials[mat_name])
+
+        # Apply material to faces
+        for f in faces:
+            f.material_index = mat_index
+
     
-    def is_material_property(self, layer):
-        if self.face_type_only(layer):
+    def is_material_property(self, layer, face_seq, ob):
+        if self.prop_only("face_type_override", layer):
             if layer.face_type_ui == "_connected_geometry_face_type_seam_sealer":
-                pass
+                self.apply_reach_material(face_seq, SEAM_SEALER, ob.material_slots)
             else:
+                self.apply_reach_material(face_seq, INVISIBLE_SKY, ob.material_slots)
+                
+        elif self.prop_only("face_mode_override", layer):
+            if layer.face_mode_ui == "_connected_geometry_face_mode_collision_only":
                 pass
 
-    def face_type_only(self, layer):
+    def face_type_only(self, prop, layer):
         if layer.face_mode_override:
             return False
         elif layer.face_global_material_override:
@@ -706,10 +767,8 @@ class PrepareScene:
             return False
         elif layer.emissive_override:
             return False
-        elif layer.face_type_override:
-            return True
+        return getattr(layer, prop)
         
-        return False
             
     def strip_nocoll_only_faces(self, layer_faces_dict, bm):
         """Removes faces from a mesh that have the render only property"""
@@ -821,8 +880,9 @@ class PrepareScene:
 
         collision_ob = None
         physics_ob = None
+        justified, apply_to_mesh = self.justify_face_split(layer_faces_dict, poly_count, ob)
 
-        if self.justify_face_split(layer_faces_dict, poly_count):
+        if justified:
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
             render_mesh = ob.nwo.mesh_type in render_mesh_types_full
             is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
@@ -831,15 +891,21 @@ class PrepareScene:
             ):  # don't do this for h4 as collision can be open
                 # check for custom collision / physics
                 poop_render_only = False
-                if ob.nwo.face_mode == "_connected_geometry_face_mode_render_only":
+                if ob.nwo.face_mode in RENDER_ONLY_FACE_TYPES:
                     poop_render_only = True
                     ob.nwo.poop_render_only = "1"
                 
+                # Set this globally for the poop we're about to split
+                # We do this because a custom collison mesh is being built
+                # and without the render_only property, the mesh will still
+                # report open edges in game
                 ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
 
                 has_coll_child = False
                 has_phys_child = False
 
+                # Check if the poop already has child collision/physics
+                # We can skip building this from face properties if so
                 for child in ob.children:
                     if child.nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
                         has_coll_child = True
@@ -899,12 +965,7 @@ class PrepareScene:
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
 
-            # check if we need to layer split here if this is a poop
-            # don't need to split if poop consists of only collision_only,
-            # sphere_collision_only, render_only, or two-sided
-            skip_this = False
-            #skip_this = is_poop and self.poop_split_override(face_layers)
-
+            # Splits the mesh recursively until each new mesh only contains a single face layer
             split_objects_messy = self.recursive_layer_split(
                 ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm
             )
@@ -914,6 +975,7 @@ class PrepareScene:
             # remove zero poly obs from split_objects_messy
             split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
 
+            
             for split_ob in split_objects:
                 more_than_one_prop = False
                 obj_bm = bmesh.new()
@@ -982,9 +1044,12 @@ class PrepareScene:
 
             return split_objects
 
-        else:
+        elif apply_to_mesh:
             for layer in face_layers:
                 self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
+
+        else:
+            bm.to_mesh(me)
 
             return context.selected_objects, True
         
