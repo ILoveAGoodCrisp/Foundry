@@ -880,7 +880,7 @@ class PrepareScene:
 
         collision_ob = None
         physics_ob = None
-        justified, apply_to_mesh = self.justify_face_split(layer_faces_dict, poly_count, ob)
+        justified, apply_to_mesh = self.justify_face_split(layer_faces_dict, poly_count, h4, ob)
 
         if justified:
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
@@ -974,7 +974,6 @@ class PrepareScene:
 
             # remove zero poly obs from split_objects_messy
             split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
-
             
             for split_ob in split_objects:
                 more_than_one_prop = False
@@ -1048,10 +1047,12 @@ class PrepareScene:
             for layer in face_layers:
                 self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
 
+            return context.selected_objects
+
         else:
             bm.to_mesh(me)
 
-            return context.selected_objects, True
+            return context.selected_objects
         
     def poop_split_override(self, face_layers):
         for layer in face_layers:
