@@ -1651,7 +1651,7 @@ class PrepareScene:
 
             if asset_type == "DECORATOR SET":
                 nwo.mesh_type = "_connected_geometry_mesh_type_decorator"
-                nwo.decorator_lod = str(nwo.decorator_lod_ui)
+                nwo.decorator_lod = str(self.decorator_int(ob))
 
             if asset_type == "PARTICLE MODEL":
                 nwo.mesh_type = "_connected_geometry_mesh_type_default"
@@ -2214,19 +2214,20 @@ class PrepareScene:
         lods = set()
         if asset_is_decorator:
             for ob in self.render:
-                match ob.nwo.decorator_lod:
-                    case "high":
-                        ob_lod = 1
-                    case "medium":
-                        ob_lod = 2
-                    case "low":
-                        ob_lod = 3
-                    case _:
-                        ob_lod = 4
-
-                lods.add(ob_lod)
+                lods.add(self.decorator_int(ob))
 
         return lods
+    
+    def decorator_int(self, ob):
+        match ob.nwo.decorator_lod_ui:
+            case "high":
+                return 1
+            case "medium":
+                return 2
+            case "low":
+                return 3
+            case _:
+                return 4
 
     def disable_excluded_collections(self, context):
         child_coll = context.view_layer.layer_collection.children
