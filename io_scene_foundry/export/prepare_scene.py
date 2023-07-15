@@ -2294,6 +2294,7 @@ class PrepareScene:
         warn = False
         for ob in export_obs:
             nwo = ob.nwo
+            frame = nwo.object_type == "_connected_geometry_object_type_frame"
             marker = nwo.object_type == "_connected_geometry_object_type_marker"
             physics = nwo.mesh_type == "_connected_geometry_mesh_type_physics"
             if ob.parent is None:
@@ -2306,7 +2307,7 @@ class PrepareScene:
                     warn = True
                     ob.parent_type = "BONE"
                     ob.parent_bone = root_bone_name
-                    if ob.type != "EMPTY":
+                    if not (marker or frame):
                         ob.matrix_parent_inverse = root_bone.matrix_local.inverted()
                     if marker:
                         print_warning(
@@ -2332,9 +2333,8 @@ class PrepareScene:
             else:
                 # Ensure parent inverse matrix set
                 # If we don't do this, object can be offset in game
-                if ob.type != "EMPTY":
+                if not (marker or frame):
                     ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
-                pass
 
         # bones = model_armature.data.edit_bones
         # mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
