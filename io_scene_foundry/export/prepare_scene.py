@@ -727,13 +727,28 @@ class PrepareScene:
                 self.apply_reach_material(face_seq, SEAM_SEALER, ob.material_slots)
             else:
                 self.apply_reach_material(face_seq, INVISIBLE_SKY, ob.material_slots)
+
+            return True
                 
         elif self.prop_only("face_mode_override", layer):
             if layer.face_mode_ui == "_connected_geometry_face_mode_collision_only":
-                pass
+                self.apply_reach_material(face_seq, COLLISION_ONLY, ob.material_slots)
+            if layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only":
+                self.apply_reach_material(face_seq, SPHERE_COLLISION_ONLY, ob.material_slots)
+            if layer.face_mode_ui == "_connected_geometry_face_mode_lightmap_only":
+                self.apply_reach_material(face_seq, LIGHTMAP_ONLY, ob.material_slots)
+            if layer.face_mode_ui == "_connected_geometry_face_mode_shadow_only":
+                self.apply_reach_material(face_seq, SHADOW_ONLY, ob.material_slots)
+            
+            return True
 
-    def face_type_only(self, prop, layer):
-        if layer.face_mode_override:
+        return False
+        
+
+    def prop_only(self, prop, layer):
+        if prop != "face_mode_override" and layer.face_mode_override:
+            return False
+        elif prop != "face_type_override" and layer.face_type_override:
             return False
         elif layer.face_global_material_override:
             return False
@@ -767,6 +782,7 @@ class PrepareScene:
             return False
         elif layer.emissive_override:
             return False
+        
         return getattr(layer, prop)
         
             
