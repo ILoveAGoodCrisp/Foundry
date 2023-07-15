@@ -2191,6 +2191,7 @@ class PrepareScene:
 
         scene.frame_start = 0
         scene.frame_end = 0
+        scene.frame_current = 0
 
         return timeline_start, timeline_end
 
