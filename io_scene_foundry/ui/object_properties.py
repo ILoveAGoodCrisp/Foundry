@@ -2066,7 +2066,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     def get_region_from_collection(self):
-        region = get_prop_from_collection(self.id_data, ("+region",))
+        region = get_prop_from_collection(self.id_data, ("+region", "+set"))
         return region
 
     region_name_locked_ui: StringProperty(

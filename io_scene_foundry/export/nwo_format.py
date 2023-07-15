@@ -969,7 +969,7 @@ class NWOMesh(NWOObject):
 
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_decorator":
             self.bungie_mesh_decorator_lod = self.halo.decorator_lod
-            self.bungie_mesh_decorator_name = dot_partition(self.name)
+            self.bungie_mesh_decorator_name = self.halo.region_name
 
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_seam":
             self.bungie_mesh_seam_associated_bsp = (

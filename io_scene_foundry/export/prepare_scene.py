@@ -25,7 +25,6 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
-from re import split
 import bmesh
 import bpy
 from os import path
@@ -44,7 +43,6 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
-    get_ek_path,
     get_prefix,
     jstr,
     layer_face_count,
@@ -136,7 +134,7 @@ class PrepareScene:
         # print("unhide_collections")
 
         #rotate -90 if this is a Reach Scenario/Decorator/Particle Model
-        if not h4 and sidecar_type in ('SCENARIO', 'DECORATOR', 'PARTICLE MODEL'):
+        if not h4 and sidecar_type in ('SCENARIO', 'DECORATOR SET', 'PARTICLE MODEL'):
             self.rotate_scene(context.view_layer.objects)
 
         # make objects linked to scene real and local
@@ -1651,6 +1649,7 @@ class PrepareScene:
 
             if asset_type == "DECORATOR SET":
                 nwo.mesh_type = "_connected_geometry_mesh_type_decorator"
+                nwo.region_name = true_region(nwo)
                 nwo.decorator_lod = str(self.decorator_int(ob))
 
             if asset_type == "PARTICLE MODEL":

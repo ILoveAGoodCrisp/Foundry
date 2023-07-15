@@ -67,7 +67,10 @@ def get_full_name(coll_type, coll_name):
         case "BSP":
             prefix = "+bsp"
         case "REGION":
-            prefix = "+region"
+            if  bpy.context.scene.nwo.asset_type == 'DECORATOR SET':
+                prefix = "+set"
+            else:
+                prefix = "+region"
         case _:
             if bpy.context.scene.nwo.asset_type in ("SCENARIO", "PREFAB"):
                 prefix = "+group"

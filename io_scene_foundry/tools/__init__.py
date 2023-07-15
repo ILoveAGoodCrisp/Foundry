@@ -748,6 +748,15 @@ class NWO_FoundryPanelProps(Panel):
             # col.separator()
 
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
+                if nwo.region_name_locked_ui != "":
+                    col.prop(nwo, "region_name_locked_ui", text="Decorator Set")
+                else:
+                    row = col.row(align=True)
+                    row.prop(nwo, "region_name_ui", text="Decorator Set")
+                    row.operator_menu_enum(
+                        "nwo.region_list", "region", text="", icon="DOWNARROW_HLT"
+                    )
+
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
@@ -4144,6 +4153,8 @@ class NWO_CollectionManager_Create(Operator):
             items.append(("REGION", "Region", ""))
             if asset_type == "MODEL":
                 items.insert(0, ("PERMUTATION", "Permutation", ""))
+        elif asset_type == "DECORATOR SET":
+            items.append(("REGION", "Set", ""))
 
         items.append(("EXCLUDE", "Exclude", ""))
 
