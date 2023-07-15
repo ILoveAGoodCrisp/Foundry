@@ -723,7 +723,7 @@ class Sidecar:
 
         decorator_path = sidecar_paths.get("decorator")[0]
         for lod in lods:
-            lod_str = str(lod)
+            lod_str = str(lod - 1)
             object = ET.SubElement(
                 content,
                 "ContentObject",

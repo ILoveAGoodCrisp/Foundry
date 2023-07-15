@@ -1279,13 +1279,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     # DECORATOR PROPERTIES
-    decorator_lod_ui: IntProperty(
+    decorator_lod_ui: EnumProperty(
         name="Decorator Level of Detail",
         options=set(),
-        description="Level of detail objects to create expressed in an integer range of 1-4",
-        default=1,
-        min=1,
-        max=4,
+        description="Level of detail of this object. The game will switch to this LOD at the approriate range",
+        items=[
+            ("high", "High", ""),
+            ("medium", "Medium", ""),
+            ("low", "Low", ""),
+            ("very_low", "Very Low", ""),
+        ]
     )
 
     # WATER VOLUME PROPERTIES

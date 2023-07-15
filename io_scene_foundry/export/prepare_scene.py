@@ -2214,7 +2214,16 @@ class PrepareScene:
         lods = set()
         if asset_is_decorator:
             for ob in self.render:
-                ob_lod = int(ob.nwo.decorator_lod)
+                match ob.nwo.decorator_lod:
+                    case "high":
+                        ob_lod = 1
+                    case "medium":
+                        ob_lod = 2
+                    case "low":
+                        ob_lod = 3
+                    case _:
+                        ob_lod = 4
+
                 lods.add(ob_lod)
 
         return lods

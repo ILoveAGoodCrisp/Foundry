@@ -748,7 +748,7 @@ class NWO_FoundryPanelProps(Panel):
             # col.separator()
 
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
-                col.prop(nwo, "decorator_lod_ui", text="Level of Detail")
+                col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
