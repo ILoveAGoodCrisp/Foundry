@@ -618,7 +618,7 @@ class PrepareScene:
                     context.view_layer.update()
                     export_obs = context.view_layer.objects[:]
                     # NOTE skipping vertex group fixes for now until it's more stable
-                    self.fix_bad_parenting(self.model_armature, export_obs)
+                    self.fix_parenting(self.model_armature, export_obs)
 
                 # set bone names equal to their name overrides (if not blank)
                 if export_gr2_files:
@@ -2277,10 +2277,11 @@ class PrepareScene:
 
         return arm_ob
 
-    def fix_bad_parenting(self, model_armature, export_obs):
+    def fix_parenting(self, model_armature, export_obs):
         bones = model_armature.data.bones
         for b in bones:
             if b.use_deform:
+                root_bone = b
                 root_bone_name = b.name
                 break
         else:
@@ -2303,8 +2304,8 @@ class PrepareScene:
                         print("")
                     warn = True
                     ob.parent_type = "BONE"
-                    root_bone_name = bones[0].name
                     ob.parent_bone = root_bone_name
+                    ob.matrix_parent_inverse = root_bone.matrix_local.inverted()
                     if marker:
                         print_warning(
                             f"{ob.name} is a marker but is not parented to a bone. Binding to bone: {root_bone_name}"
@@ -2325,6 +2326,11 @@ class PrepareScene:
                     else:
                         arm_mod = ob.modifiers.new("Armature", "ARMATURE")
                         arm_mod.object = model_armature
+
+            else:
+                # Ensure parent inverse matrix set
+                # If we don't do this, object can be offset in game
+                ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
 
         # bones = model_armature.data.edit_bones
         # mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
