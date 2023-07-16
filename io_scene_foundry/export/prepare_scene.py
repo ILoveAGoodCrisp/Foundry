@@ -697,15 +697,16 @@ class PrepareScene:
         justified, is_just_render = False, True
         for layer, face_seq in layer_faces_dict.items():
             face_count = len(face_seq)
+            if not face_count:
+                continue
+
             if h4 or not self.is_material_property(layer, face_seq, ob, me):
                 if poly_count != face_count:
                     if not is_just_render or not (self.prop_only("face_mode_override", layer) and layer.face_mode_ui == "_connected_geometry_face_mode_render_only"):
                         is_just_render = False
                     justified = True
-                #return True, True # face split justified
-                #return False, False # face split not justified
 
-        return justified, is_just_render # face split not justified but we should apply current players to mesh
+        return justified, is_just_render
 
     def apply_reach_material(self, faces, mat_name, mat_slots, me):
         for idx, slot in enumerate(mat_slots):

@@ -98,6 +98,9 @@ PANELS_PROPS = [
 
 PANELS_TOOLS = ["sets_viewer"]
 
+# import Tool Operators
+from .instance_proxies import NWO_ProxyInstanceNew
+
 #######################################
 # NEW TOOL UI
 
@@ -4866,6 +4869,7 @@ def foundry_toolbar(layout, context):
 
 
 classeshalo = (
+    NWO_ProxyInstanceNew,
     NWO_SelectArmature,
     NWO_HotkeyDescription,
     NWO_OpenURL,

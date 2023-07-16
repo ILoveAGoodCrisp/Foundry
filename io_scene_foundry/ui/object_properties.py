@@ -53,7 +53,9 @@ from ..utils.nwo_utils import (
 
 
 class NWO_MeshPropertiesGroup(PropertyGroup):
-    master_instance: PointerProperty(type=Object)
+    proxy_parent: PointerProperty(type=bpy.types.Mesh)
+    proxy_template: PointerProperty(type=bpy.types.Mesh)
+    
 
     face_props: CollectionProperty(
         type=NWO_FaceProperties_ListItems, override={"USE_INSERTION"}

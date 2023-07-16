@@ -1942,3 +1942,13 @@ def foundry_update_check(current_version):
             pass
 
     return "Foundry is up to date", False
+
+def unlink(ob):
+    data_coll = bpy.data.collections
+    for collection in data_coll:
+        if collection in ob.users_collection:
+            collection.objects.unlink(ob)
+
+    scene_coll = bpy.context.scene.collection
+    if scene_coll in ob.users_collection:
+        scene_coll.objects.unlink(ob)
