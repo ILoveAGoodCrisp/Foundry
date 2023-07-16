@@ -221,13 +221,14 @@ class PrepareScene:
 
         # add special reach materials
         if not h4:
-            if INVISIBLE_SKY not in materials:
-                sky_mat = materials.new(INVISIBLE_SKY)
-            else:
-                sky_mat = materials.get(INVISIBLE_SKY)
+            # NOTE No longer setting Sky this way, as if we do, we cannot set sky permutation index
+            # if INVISIBLE_SKY not in materials:
+            #     sky_mat = materials.new(INVISIBLE_SKY)
+            # else:
+            #     sky_mat = materials.get(INVISIBLE_SKY)
 
-            sky_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_sky.override"
-            sky_mat.nwo.rendered = True # not actually rendered but this lets us use the special shader path input
+            # sky_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_sky.override"
+            # sky_mat.nwo.rendered = True # not actually rendered but this lets us use the special shader path input
 
             if SEAM_SEALER not in materials:
                 seam_sealer_mat = materials.new(SEAM_SEALER)
@@ -693,20 +694,18 @@ class PrepareScene:
     def justify_face_split(self, layer_faces_dict, poly_count, h4, ob, me):
         """Checked whether we actually need to split this mesh up"""
         # check if face layers cover the whole mesh, if they do, we don't need to split the mesh
-        justified, apply_to_mesh, is_just_render = False, True, True
+        justified, is_just_render = False, True
         for layer, face_seq in layer_faces_dict.items():
             face_count = len(face_seq)
             if h4 or not self.is_material_property(layer, face_seq, ob, me):
                 if poly_count != face_count:
                     if not is_just_render or not (self.prop_only("face_mode_override", layer) and layer.face_mode_ui == "_connected_geometry_face_mode_render_only"):
                         is_just_render = False
-                    justified, apply_to_mesh = True, True
+                    justified = True
                 #return True, True # face split justified
                 #return False, False # face split not justified
-            else:
-                justified, apply_to_mesh = False, False
 
-        return justified, apply_to_mesh, is_just_render # face split not justified but we should apply current players to mesh
+        return justified, is_just_render # face split not justified but we should apply current players to mesh
 
     def apply_reach_material(self, faces, mat_name, mat_slots, me):
         for idx, slot in enumerate(mat_slots):
@@ -729,8 +728,8 @@ class PrepareScene:
         if self.prop_only("face_type_override", layer):
             if layer.face_type_ui == "_connected_geometry_face_type_seam_sealer":
                 return self.apply_reach_material(face_seq, SEAM_SEALER, ob.material_slots, me)
-            else:
-                return self.apply_reach_material(face_seq, INVISIBLE_SKY, ob.material_slots, me)
+            # else:
+            #     return self.apply_reach_material(face_seq, INVISIBLE_SKY, ob.material_slots, me)
                 
         # elif self.prop_only("face_mode_override", layer):
         #     if layer.face_mode_ui == "_connected_geometry_face_mode_collision_only":
@@ -899,7 +898,8 @@ class PrepareScene:
         }
 
         collision_ob = None
-        justified, apply_to_mesh, is_just_render = self.justify_face_split(layer_faces_dict, poly_count, h4, ob, me)
+        justified, is_just_render = self.justify_face_split(layer_faces_dict, poly_count, h4, ob, me)
+        bm.to_mesh(me)
 
         if justified:
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
@@ -979,7 +979,7 @@ class PrepareScene:
                     if layer_face_count(
                         obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)
                     ):
-                        self.face_prop_to_mesh_prop(split_ob.nwo, layer, h4)
+                        self.face_prop_to_mesh_prop(split_ob.nwo, layer, h4, split_ob, scene_coll)
                         if more_than_one_prop:
                             obj_name_suffix += ", "
                         else:
@@ -1004,7 +1004,7 @@ class PrepareScene:
             #parent poop coll
             parent_ob = None
             if collision_ob is not None:
-                for split_ob in split_objects:
+                for split_ob in reversed(split_objects):
                     if not (split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only") or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer"):
                         parent_ob = split_ob
                         break
@@ -1031,14 +1031,9 @@ class PrepareScene:
 
             return split_objects
 
-        elif apply_to_mesh:
-            for layer in face_layers:
-                self.face_prop_to_mesh_prop(ob.nwo, layer, h4)
-
-            return context.selected_objects
-
         else:
-            bm.to_mesh(me)
+            for layer in face_layers:
+                self.face_prop_to_mesh_prop(ob.nwo, layer, h4, ob, scene_coll)
 
             return context.selected_objects
         
@@ -1082,7 +1077,7 @@ class PrepareScene:
         return True
             
 
-    def face_prop_to_mesh_prop(self, mesh_props, face_props, h4):
+    def face_prop_to_mesh_prop(self, mesh_props, face_props, h4, ob, scene_coll):
         # ignore unused face_prop items
         # run through each face prop and apply it to the mesh if override set
         # if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':
@@ -1094,8 +1089,11 @@ class PrepareScene:
 
         # set mesh props from face props
         if face_props.face_type_override:
-            mesh_props.face_type = face_props.face_type_ui
-            mesh_props.sky_permutation_index = str(face_props.sky_permutation_index_ui)
+            # Never setting seam sealer with mesh props in Reach. This is always handled with a special material
+            if h4 or face_props.face_type_ui == "_connected_geometry_face_type_sky":
+                mesh_props.face_type = face_props.face_type_ui
+                mesh_props.sky_permutation_index = str(face_props.sky_permutation_index_ui)
+
         if face_props.face_mode_override:
             mesh_props.face_mode = face_props.face_mode_ui
 
@@ -1213,7 +1211,12 @@ class PrepareScene:
         if not h4:
             is_poop = mesh_props.mesh_type == "_connected_geometry_mesh_type_poop"
             if is_poop and (mesh_props.ladder or mesh_props.slip_surface):
-                mesh_props.face_sides = "_connected_geometry_face_sides_two_sided"
+                special_ob = ob.copy()
+                scene_coll.link(special_ob)
+                mesh_props.ladder = ""
+                mesh_props.slip_surface = ""
+                special_ob.nwo.face_sides = "_connected_geometry_face_sides_two_sided"
+                special_ob.nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
 
     def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario):
         mesh_obs_full = [ob for ob in export_obs if ob.type == "MESH"]
