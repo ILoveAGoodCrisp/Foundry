@@ -237,37 +237,37 @@ class PrepareScene:
             seam_sealer_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_seam_sealer.override"
             seam_sealer_mat.nwo.rendered = True
 
-            if COLLISION_ONLY not in materials:
-                collision_only_mat = materials.new(COLLISION_ONLY)
-            else:
-                collision_only_mat = materials.get(COLLISION_ONLY)
+            # if COLLISION_ONLY not in materials:
+            #     collision_only_mat = materials.new(COLLISION_ONLY)
+            # else:
+            #     collision_only_mat = materials.get(COLLISION_ONLY)
 
-            collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_collision_only.override"
-            collision_only_mat.nwo.rendered = True
+            # collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_collision_only.override"
+            # collision_only_mat.nwo.rendered = True
 
-            if SPHERE_COLLISION_ONLY not in materials:
-                sphere_collision_only_mat = materials.new(SPHERE_COLLISION_ONLY)
-            else:
-                sphere_collision_only_mat = materials.get(SPHERE_COLLISION_ONLY)
+            # if SPHERE_COLLISION_ONLY not in materials:
+            #     sphere_collision_only_mat = materials.new(SPHERE_COLLISION_ONLY)
+            # else:
+            #     sphere_collision_only_mat = materials.get(SPHERE_COLLISION_ONLY)
 
-            sphere_collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_sphere_collision_only.override"
-            sphere_collision_only_mat.nwo.rendered = True
+            # sphere_collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_sphere_collision_only.override"
+            # sphere_collision_only_mat.nwo.rendered = True
 
-            if LIGHTMAP_ONLY not in materials:
-                lightmap_only_mat = materials.new(LIGHTMAP_ONLY)
-            else:
-                lightmap_only_mat = materials.get(LIGHTMAP_ONLY)
+            # if LIGHTMAP_ONLY not in materials:
+            #     lightmap_only_mat = materials.new(LIGHTMAP_ONLY)
+            # else:
+            #     lightmap_only_mat = materials.get(LIGHTMAP_ONLY)
 
-            lightmap_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_lightmap_only.override"
-            lightmap_only_mat.nwo.rendered = True
+            # lightmap_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_lightmap_only.override"
+            # lightmap_only_mat.nwo.rendered = True
 
-            if SHADOW_ONLY not in materials:
-                shadow_only_mat = materials.new(SHADOW_ONLY)
-            else:
-                shadow_only_mat = materials.get(SHADOW_ONLY)
+            # if SHADOW_ONLY not in materials:
+            #     shadow_only_mat = materials.new(SHADOW_ONLY)
+            # else:
+            #     shadow_only_mat = materials.get(SHADOW_ONLY)
 
-            shadow_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_shadow_only.override"
-            shadow_only_mat.nwo.rendered = True
+            # shadow_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_shadow_only.override"
+            # shadow_only_mat.nwo.rendered = True
 
 
         context.view_layer.update()
@@ -690,55 +690,57 @@ class PrepareScene:
 
     # FACEMAP SPLIT
 
-    def justify_face_split(self, layer_faces_dict, poly_count, h4, ob):
+    def justify_face_split(self, layer_faces_dict, poly_count, h4, ob, me):
         """Checked whether we actually need to split this mesh up"""
         # check if face layers cover the whole mesh, if they do, we don't need to split the mesh
+        justified, apply_to_mesh, is_just_render = False, True, True
         for layer, face_seq in layer_faces_dict.items():
             face_count = len(face_seq)
-            if poly_count != face_count:
-                return False, True # temp
-                if h4 or not self.is_material_property(layer, face_seq, ob):
-                    return False, True
-                else:
-                    return False, False
+            if h4 or not self.is_material_property(layer, face_seq, ob, me):
+                if poly_count != face_count:
+                    if not is_just_render or not (self.prop_only("face_mode_override", layer) and layer.face_mode_ui == "_connected_geometry_face_mode_render_only"):
+                        is_just_render = False
+                    justified, apply_to_mesh = True, True
+                #return True, True # face split justified
+                #return False, False # face split not justified
+            else:
+                justified, apply_to_mesh = False, False
 
-        return False, True
+        return justified, apply_to_mesh, is_just_render # face split not justified but we should apply current players to mesh
 
     def apply_reach_material(self, faces, mat_name, mat_slots, me):
-        mat_index = -1
         for idx, slot in enumerate(mat_slots):
-            if slot.material.name == "mat_name":
+            if slot.material.name == mat_name:
                 mat_index = idx
                 break
         else:
             # Material doesn't exist on mesh, so create it
             me.materials.append(bpy.data.materials[mat_name])
+            mat_index = len(me.materials) - 1
 
         # Apply material to faces
         for f in faces:
             f.material_index = mat_index
 
+        return True
+
     
-    def is_material_property(self, layer, face_seq, ob):
+    def is_material_property(self, layer, face_seq, ob, me):
         if self.prop_only("face_type_override", layer):
             if layer.face_type_ui == "_connected_geometry_face_type_seam_sealer":
-                self.apply_reach_material(face_seq, SEAM_SEALER, ob.material_slots)
+                return self.apply_reach_material(face_seq, SEAM_SEALER, ob.material_slots, me)
             else:
-                self.apply_reach_material(face_seq, INVISIBLE_SKY, ob.material_slots)
-
-            return True
+                return self.apply_reach_material(face_seq, INVISIBLE_SKY, ob.material_slots, me)
                 
-        elif self.prop_only("face_mode_override", layer):
-            if layer.face_mode_ui == "_connected_geometry_face_mode_collision_only":
-                self.apply_reach_material(face_seq, COLLISION_ONLY, ob.material_slots)
-            if layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only":
-                self.apply_reach_material(face_seq, SPHERE_COLLISION_ONLY, ob.material_slots)
-            if layer.face_mode_ui == "_connected_geometry_face_mode_lightmap_only":
-                self.apply_reach_material(face_seq, LIGHTMAP_ONLY, ob.material_slots)
-            if layer.face_mode_ui == "_connected_geometry_face_mode_shadow_only":
-                self.apply_reach_material(face_seq, SHADOW_ONLY, ob.material_slots)
-            
-            return True
+        # elif self.prop_only("face_mode_override", layer):
+        #     if layer.face_mode_ui == "_connected_geometry_face_mode_collision_only":
+        #         return self.apply_reach_material(face_seq, COLLISION_ONLY, ob.material_slots, me)
+        #     elif layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only":
+        #         return self.apply_reach_material(face_seq, SPHERE_COLLISION_ONLY, ob.material_slots, me)
+        #     elif layer.face_mode_ui == "_connected_geometry_face_mode_lightmap_only":
+        #         return self.apply_reach_material(face_seq, LIGHTMAP_ONLY, ob.material_slots, me)
+        #     elif layer.face_mode_ui == "_connected_geometry_face_mode_shadow_only":
+        #         return self.apply_reach_material(face_seq, SHADOW_ONLY, ob.material_slots, me)
 
         return False
         
@@ -793,21 +795,25 @@ class PrepareScene:
                 layer.face_mode_override
                 and layer.face_mode_ui != "_connected_geometry_face_mode_collision_only"
             ):
-                if layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only":
-                    has_sphere_coll = True
                 bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
         return len(bm.faces), has_sphere_coll
     
     def strip_nophys_only_faces(self, layer_faces_dict, bm):
-        # loop through each face layer and select non phzsics faces
+        # loop through each face layer and select non physics faces
         self.is_sphere_coll = False
+        for f in bm.faces:
+            f.select = True
         for layer, face_seq in layer_faces_dict.items():
             if (
                 layer.face_mode_override
-                and layer.face_mode_ui not in ("_connected_geometry_face_mode_sphere_collision_only",)
+                and layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only"
             ):
-                bmesh.ops.delete(bm, geom=face_seq, context="FACES")
+                for f in face_seq:
+                    f.select = False
+
+        selected_f = [f for f in bm.faces if f.select]
+        bmesh.ops.delete(bm, geom=selected_f, context="FACES")
 
     def recursive_layer_split(
         self,
@@ -893,8 +899,7 @@ class PrepareScene:
         }
 
         collision_ob = None
-        physics_ob = None
-        justified, apply_to_mesh = self.justify_face_split(layer_faces_dict, poly_count, h4, ob)
+        justified, apply_to_mesh, is_just_render = self.justify_face_split(layer_faces_dict, poly_count, h4, ob, me)
 
         if justified:
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
@@ -916,17 +921,14 @@ class PrepareScene:
                 ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
 
                 has_coll_child = False
-                has_phys_child = False
 
                 # Check if the poop already has child collision/physics
                 # We can skip building this from face properties if so
                 for child in ob.children:
                     if child.nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
                         has_coll_child = True
-                    elif child.nwo.mesh_type == '_connected_geometry_mesh_type_poop_physics':
-                        has_phys_child = True
 
-                if not poop_render_only:
+                if not (poop_render_only or is_just_render):
                     if not has_coll_child:
                         collision_ob = ob.copy()
                         collision_ob.nwo.face_mode = ""
@@ -941,7 +943,7 @@ class PrepareScene:
                             )
                             for layer in face_layers
                         }
-                        poly_count, has_sphere_coll = self.strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
+                        poly_count = self.strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
 
                         coll_bm.to_mesh(collision_ob.data)
 
@@ -952,29 +954,8 @@ class PrepareScene:
                             "_connected_geometry_mesh_type_poop_collision"
                         )
 
-                    if has_sphere_coll and not has_phys_child:
-                        physics_ob = ob.copy()
-                        physics_ob.nwo.face_mode = ""
-                        physics_ob.data = me.copy()
-                        scene_coll.link(physics_ob)
-                        phys_bm = bmesh.new()
-                        phys_bm.from_mesh(physics_ob.data)
-                        phys_layer_faces_dict = {
-                            layer: layer_faces(
-                                phys_bm, phys_bm.faces.layers.int.get(layer.layer_name)
-                            )
-                            for layer in face_layers
-                        }
-
-                        self.strip_nophys_only_faces(phys_layer_faces_dict, phys_bm)
-
-                        phys_bm.to_mesh(physics_ob.data)
-
-                        physics_ob.name = f"{ob.name}(physics)"
-
-                        physics_ob.nwo.mesh_type = (
-                            "_connected_geometry_mesh_type_poop_physics"
-                        )
+                elif is_just_render:
+                    ob.nwo.face_mode = ""
 
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
@@ -1032,23 +1013,16 @@ class PrepareScene:
                     if collision_ob is not None:
                         collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop"
                         collision_ob.nwo.face_mode = "_connected_geometry_face_mode_collision_only"
-                    if physics_ob is not None:
-                        physics_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-                        physics_ob.nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
 
                 if parent_ob is not None:
                     if collision_ob is not None:
                         collision_ob.parent = parent_ob
                         collision_ob.matrix_world = ori_matrix
                         
-                    if physics_ob is not None:
-                        physics_ob.parent = parent_ob
-                        physics_ob.matrix_world = ori_matrix
-
                 # remove coll only split objects, as this is already covered by the coll mesh
                 coll_only_objects = []
                 for split_ob in split_objects:
-                    if split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only") or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer":
+                    if split_ob.nwo.face_mode == "_connected_geometry_face_mode_collision_only" or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer":
                         coll_only_objects.append(split_ob)
                         self.unlink(split_ob)
                         

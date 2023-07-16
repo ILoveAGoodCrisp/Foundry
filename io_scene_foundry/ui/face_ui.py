@@ -666,7 +666,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             case "_connected_geometry_face_mode_collision_only":
                 self.fm_name = "Collision Only"
             case "_connected_geometry_face_mode_sphere_collision_only":
-                self.fm_name = "Sphere Collision Onlu"
+                self.fm_name = "Sphere Collision Only"
             case "_connected_geometry_face_mode_shadow_only":
                 self.fm_name = "Shadow Only"
             case "_connected_geometry_face_mode_lightmap_only":

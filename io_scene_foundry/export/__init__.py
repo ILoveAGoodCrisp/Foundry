@@ -753,8 +753,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.write_temp_settings(context, sidecar_path)
 
         # restore scene back to its pre export state
-        bpy.ops.ed.undo_push()
-        bpy.ops.ed.undo()
+        # bpy.ops.ed.undo_push()
+        # bpy.ops.ed.undo()
 
         return {"FINISHED"}
 

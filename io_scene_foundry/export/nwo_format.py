@@ -1163,7 +1163,7 @@ class NWOMaterial:
             return clean_tag_path(self.halo.shader_path, "")
 
     def shader_type(self):
-        if self.halo.shader_path == "":
+        if self.halo.shader_path == "" or self.halo.shader_path.endswith(".override"):
             return "override"
         elif not_bungie_game():
             return "material"
