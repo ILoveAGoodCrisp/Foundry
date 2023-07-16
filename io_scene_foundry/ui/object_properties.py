@@ -24,7 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from tokenize import String
 from .face_properties import NWO_FaceProperties_ListItems
 from bpy.props import (
     IntProperty,

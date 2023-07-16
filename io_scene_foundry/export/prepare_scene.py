@@ -2773,8 +2773,8 @@ class PrepareScene:
                     node.parent_bone = ob.parent_bone
 
             node.matrix_world = ob.matrix_world
-            node.matrix_local = ob.matrix_local
-            node.matrix_parent_inverse = ob.matrix_parent_inverse
+            # node.matrix_local = ob.matrix_local
+            # node.matrix_parent_inverse = ob.matrix_parent_inverse
             node.scale = ob.scale
             node_nwo = node.nwo
 
@@ -3238,3 +3238,5 @@ def reset_export_props(nwo):
     nwo.marker_light_cone_length = ""
     nwo.marker_light_cone_intensity = ""
     nwo.marker_light_cone_curve = ""
+    nwo.marker_exclude_perms = ""
+    nwo.marker_include_perms = ""
