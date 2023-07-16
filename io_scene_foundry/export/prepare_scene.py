@@ -2772,6 +2772,7 @@ class PrepareScene:
                 if node.parent_type == "BONE":
                     node.parent_bone = ob.parent_bone
 
+            node.matrix_world = ob.matrix_world
             node.matrix_local = ob.matrix_local
             node.matrix_parent_inverse = ob.matrix_parent_inverse
             node.scale = ob.scale
