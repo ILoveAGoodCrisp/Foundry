@@ -2307,8 +2307,10 @@ class PrepareScene:
                     warn = True
                     ob.parent_type = "BONE"
                     ob.parent_bone = root_bone_name
-                    if not (marker or frame):
-                        ob.matrix_parent_inverse = root_bone.matrix_local.inverted()
+                    # if not (marker or frame):
+                    world = ob.matrix_world.copy()
+                    ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
+                    ob.matrix_world = world
                     if marker:
                         print_warning(
                             f"{ob.name} is a marker but is not parented to a bone. Binding to bone: {root_bone_name}"
@@ -2333,8 +2335,10 @@ class PrepareScene:
             else:
                 # Ensure parent inverse matrix set
                 # If we don't do this, object can be offset in game
-                if not (marker or frame):
-                    ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
+                #if not (marker or frame):
+                world = ob.matrix_world.copy()
+                ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
+                ob.matrix_world = world
 
         # bones = model_armature.data.edit_bones
         # mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
@@ -2769,6 +2773,7 @@ class PrepareScene:
                     node.parent_bone = ob.parent_bone
 
             node.matrix_local = ob.matrix_local
+            node.matrix_parent_inverse = ob.matrix_parent_inverse
             node.scale = ob.scale
             node_nwo = node.nwo
 
