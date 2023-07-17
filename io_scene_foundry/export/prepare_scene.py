@@ -702,7 +702,7 @@ class PrepareScene:
 
             if h4 or not self.is_material_property(layer, face_seq, ob, me):
                 if poly_count != face_count:
-                    if not is_just_render or not (self.prop_only("face_mode_override", layer) and layer.face_mode_ui == "_connected_geometry_face_mode_render_only"):
+                    if not is_just_render or not (self.prop_only("face_mode_override", layer) and layer.face_mode_ui in RENDER_ONLY_FACE_TYPES):
                         is_just_render = False
                     justified = True
 
@@ -789,7 +789,6 @@ class PrepareScene:
     def strip_nocoll_only_faces(self, layer_faces_dict, bm):
         """Removes faces from a mesh that have the render only property"""
         # loop through each face layer and select non collision faces
-        has_sphere_coll = False
         for layer, face_seq in layer_faces_dict.items():
             if (
                 layer.face_mode_override
@@ -797,7 +796,7 @@ class PrepareScene:
             ):
                 bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
-        return len(bm.faces), has_sphere_coll
+        return len(bm.faces)
     
     def strip_nophys_only_faces(self, layer_faces_dict, bm):
         # loop through each face layer and select non physics faces
