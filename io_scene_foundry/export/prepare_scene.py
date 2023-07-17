@@ -540,7 +540,7 @@ class PrepareScene:
 
         # apply face layer properties
         self.apply_face_properties(
-            context, export_obs, scene_coll, h4, sidecar_type == "SCENARIO"
+            context, export_obs, scene_coll, h4, sidecar_type == "SCENARIO",  sidecar_type == "PREFAB"
         )
         # print("face_props_applied")
 
@@ -1226,7 +1226,7 @@ class PrepareScene:
                 special_ob.nwo.face_sides = "_connected_geometry_face_sides_two_sided"
                 special_ob.nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
 
-    def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario):
+    def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario, prefab):
         mesh_obs_full = [ob for ob in export_obs if ob.type == "MESH"]
         if not mesh_obs_full:
             return
@@ -1290,7 +1290,66 @@ class PrepareScene:
             if not linked_objects:
                 continue
 
+            # Running instance proxy stuff here because it makes the most sense
+            if scenario or prefab:
+                proxy_physics = me.nwo.proxy_physics
+                if proxy_physics is not None:
+                    proxy_physics.nwo.object_type = "_connected_geometry_object_type_mesh"
+                    if h4:
+                        proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
+                        proxy_physics.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_play_collision"
+                    else:
+                        proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
+
+                proxy_collision = me.nwo.proxy_collision
+                if proxy_collision is not None:
+                    proxy_collision.nwo.object_type = "_connected_geometry_object_type_mesh"
+                    proxy_collision.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
+                    if h4:
+                        if proxy_physics:
+                            proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_bullet_collision"
+                        else:
+                            proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_default"
+
+                proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
+                if proxy_cookie_cutter is not None:
+                    proxy_cookie_cutter.nwo.object_type = "_connected_geometry_object_type_mesh"
+                    proxy_cookie_cutter.nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
+
+                if proxy_physics is not None or proxy_collision is not None or proxy_cookie_cutter is not None:
+                    poops = [o for o in linked_objects if o.nwo.mesh_type == "_connected_geometry_mesh_type_poop"]
+                    for o in poops:
+                        if proxy_collision is not None:
+                            if o.nwo.face_mode not in RENDER_ONLY_FACE_TYPES:
+                                o.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                            o_collision = proxy_collision.copy()
+                            scene_coll.link(o_collision)
+                            o_collision.nwo.permutation_name = o.nwo.permutation_name
+                            o_collision.nwo.bsp_name = o.nwo.bsp_name
+                            if not h4:
+                                o_collision.parent = o
+                            o_collision.matrix_world = o.matrix_world
+
+                        if proxy_physics is not None:
+                            o_physics = proxy_physics.copy()
+                            scene_coll.link(o_physics)
+                            o_physics.nwo.permutation_name = o.nwo.permutation_name
+                            o_physics.nwo.bsp_name = o.nwo.bsp_name
+                            if not h4:
+                                o_physics.parent = o
+                            o_physics.matrix_world = o.matrix_world
+
+                        if proxy_cookie_cutter is not None:
+                            o_cookie_cutter = proxy_cookie_cutter.copy()
+                            scene_coll.link(o_cookie_cutter)
+                            o_cookie_cutter.nwo.permutation_name = o.nwo.permutation_name
+                            o_cookie_cutter.nwo.bsp_name = o.nwo.bsp_name
+                            if not h4:
+                                o_cookie_cutter.parent = o
+                            o_cookie_cutter.matrix_world = o.matrix_world
+
             is_linked = len(linked_objects) > 1
+
 
             ob = linked_objects[0]
 

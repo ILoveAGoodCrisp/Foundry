@@ -99,7 +99,7 @@ PANELS_PROPS = [
 PANELS_TOOLS = ["sets_viewer"]
 
 # import Tool Operators
-from .instance_proxies import NWO_ProxyInstanceNew
+from .instance_proxies import NWO_ProxyInstanceNew, NWO_ProxyInstanceCancel, NWO_ProxyInstanceEdit, NWO_ProxyInstanceDelete
 
 #######################################
 # NEW TOOL UI
@@ -122,6 +122,16 @@ class NWO_FoundryPanelProps(Panel):
         self.h4 = not_bungie_game()
         self.scene = context.scene
         nwo = self.scene.nwo
+        if context.scene.nwo.instance_proxy_running:    
+            box = layout.box()
+            if context.object:
+                row = box.row()
+                row.label(text=f"Editing: {context.object.name}")
+            row = box.row()
+            row.scale_y = 2
+            row.operator("nwo.proxy_instance_cancel", text="Exit Proxy Edit Mode")
+            return
+        
         row = layout.row(align=True)
         col1 = row.column(align=True)
         col2 = row.column(align=True)
@@ -1812,6 +1822,36 @@ class NWO_FoundryPanelProps(Panel):
                     )
 
                 col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Property", icon="PLUS")
+
+        # Instance Proxy Operators
+        if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop":
+            return
+        
+        col.separator()
+        collision = nwo.proxy_collision
+        physics = nwo.proxy_physics
+        cookie_cutter = nwo.proxy_cookie_cutter
+        
+        if not (collision and physics and cookie_cutter):
+            row = col.row()
+            row.operator("nwo.proxy_instance_new", text="New Instance Proxy")
+
+        if collision:
+            row = col.row()
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Collision").proxy = collision.name
+            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = collision.name
+
+        if physics:
+            row = col.row()
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics").proxy = physics.name
+            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = physics.name
+
+        if cookie_cutter:
+            row = col.row()
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter").proxy = cookie_cutter.name
+            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
+
+            
 
     def draw_material_properties(self):
         box = self.box.box()
@@ -4870,6 +4910,9 @@ def foundry_toolbar(layout, context):
 
 
 classeshalo = (
+    NWO_ProxyInstanceCancel,
+    NWO_ProxyInstanceDelete,
+    NWO_ProxyInstanceEdit,
     NWO_ProxyInstanceNew,
     NWO_SelectArmature,
     NWO_HotkeyDescription,

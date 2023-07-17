@@ -29,77 +29,59 @@
 import bmesh
 import bpy
 
-from io_scene_foundry.utils.nwo_utils import layer_faces, unlink
+from io_scene_foundry.utils.nwo_utils import deselect_all_objects, layer_faces, set_active_object, unlink
 
 class NWO_ProxyInstanceEdit(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_edit"
     bl_description = "Switches to Proxy instance edit mode"
     bl_label = "Instance Proxy Mode"
 
-    def __init__(self):
-        print("Proxy instance modal start")
-        bpy.context.scene.nwo.instance_proxy_running = True
-        if bpy.context.mode != 'EDIT_MESH':
-            bpy.ops.object.editmode_toggle()
+    proxy : bpy.props.StringProperty()
 
-    def __del__(self):
-        for ob in self.proxy_obs:
-            unlink(ob)
-            
-        print("Proxy instance modal end")
-        bpy.context.scene.nwo.instance_proxy_running = False
-        if bpy.context.mode == 'EDIT_MESH':
-            bpy.ops.object.editmode_toggle()
-
-    def get_proxy_objects(self, parent):
-        """Loops through all blend objects and checks if their instance parent matches the active object"""
-        proxy_obs = []
-        for ob in bpy.data.objects:
-            if ob.nwo.proxy_parent == parent:
-                proxy_obs.append(ob)
-        
-        return proxy_obs
-    
-    def toggle_proxy(self, context, toggle):
-        for ob in self.proxy_obs:
-            if toggle == "all" or toggle == ob.nwo.proxy_type:
-                if ob in context.view_layer.objects:
-                    unlink(ob)
-                else:
-                    self.scene_coll.link(ob)
+    _timer = None
 
     def execute(self, context):
-        parent = context.object
-        self.scene_coll = context.scene.collection
-        self.proxy_obs = self.get_proxy_objects(parent)
+        self.old_sel = context.selected_objects.copy()
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.1, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        context.scene.nwo.instance_proxy_running = True
+        self.parent = context.object
+        self.proxy_ob = bpy.data.objects[self.proxy]
+        self.scene_coll = context.scene.collection.objects
+        self.scene_coll.link(self.proxy_ob)
+        self.proxy_ob.matrix_world = self.parent.matrix_world
+        deselect_all_objects()
+        self.proxy_ob.select_set(True)
+        set_active_object(self.proxy_ob)
+        if bpy.context.mode != 'EDIT_MESH':
+            bpy.ops.object.editmode_toggle()
         
-        return {'FINISHED'}
+        return {'RUNNING_MODAL'}
     
     def modal(self, context, event):
         scene_nwo = context.scene.nwo
         active = scene_nwo.instance_proxy_running
         edit_mode = context.mode == 'EDIT_MESH'
-        toggle = scene_nwo.instance_proxy_toggle
-        new = scene_nwo.instance_proxy_new
         
-        if not (active or edit_mode):
+        if event.type == 'TIMER' and not (active and edit_mode):
+            if bpy.context.mode == 'EDIT_MESH':
+                bpy.ops.object.editmode_toggle()
+
+            self.proxy_ob.select_set(False)
+            unlink(self.proxy_ob)
+            for sel_ob in self.old_sel:
+                sel_ob.select_set(True)
+            set_active_object(self.parent)
+            scene_nwo.instance_proxy_running = False
             return {'FINISHED'}
         
-        if toggle:
-            self.toggle_proxy(context, toggle)
+        return {'PASS_THROUGH'}
 
-        if new:
-            self.new_proxy()
-
-        
-        return {'RUNNING MODAL'}
-    
-    def invoke(self, context, event):
-        self.execute(context)
-
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
-
+    def cancel(self, context):
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
+        context.scene.instance_proxy_running = False
 
 class NWO_ProxyInstanceNew(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_new"
@@ -210,7 +192,7 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
 
     def execute(self, context):
         self.parent = context.object
-        self.scene_coll = context.scene.collection.objects
+        # self.scene_coll = context.scene.collection.objects
         self.proxy_name = f"{self.parent.name}_proxy_{self.proxy_type}"
         if self.proxy_source == "bounding_box":
             ob = self.build_bounding_box()
@@ -219,9 +201,14 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         else:
             ob = self.copy_mesh()
 
-        self.scene_coll.link(ob)
-        ob.data.nwo.proxy_parent = self.parent.data
-        # bpy.ops.nwo.proxy_instance_edit()
+        # self.scene_coll.link(ob)
+        ob.nwo.proxy_parent = self.parent.data
+        ob.nwo.proxy_type = self.proxy_type
+
+        setattr(self.parent.data.nwo, f"proxy_{self.proxy_type}", ob)
+
+        if self.proxy_edit:
+            bpy.ops.nwo.proxy_instance_edit(proxy=ob.name)
             
         return {'FINISHED'}
     
@@ -239,14 +226,24 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
             col.prop_search(self, "proxy_copy", search_data=bpy.data, search_property="meshes")
         col.prop(self, "proxy_edit", text="Edit Proxy")
     
+class NWO_ProxyInstanceDelete(bpy.types.Operator):
+    bl_idname = "nwo.proxy_instance_delete"
+    bl_description = "Deletes a proxy object"
+    bl_label = "Instance Proxy Delete"
+
+    proxy : bpy.props.StringProperty()
+
+    def execute(self, context):
+        proxy_ob = bpy.data.objects[self.proxy]
+        bpy.data.objects.remove(proxy_ob)
+        return {'FINISHED'}
+    
 class NWO_ProxyInstanceCancel(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_cancel"
     bl_description = "Cancels Proxy Instance Edit"
     bl_label = "Instance Proxy Cancel"
 
-    @classmethod
-    def poll(self, context):
-        return context.scene.nwo.instance_proxy_running
+    proxy : bpy.props.StringProperty()
 
     def execute(self, context):
         context.scene.nwo.instance_proxy_running = False

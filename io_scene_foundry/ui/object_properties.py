@@ -53,9 +53,9 @@ from ..utils.nwo_utils import (
 
 
 class NWO_MeshPropertiesGroup(PropertyGroup):
-    proxy_parent: PointerProperty(type=bpy.types.Mesh)
-    proxy_template: PointerProperty(type=bpy.types.Mesh)
-    
+    proxy_collision: PointerProperty(type=bpy.types.Object)
+    proxy_physics: PointerProperty(type=bpy.types.Object)
+    proxy_cookie_cutter: PointerProperty(type=bpy.types.Object)
 
     face_props: CollectionProperty(
         type=NWO_FaceProperties_ListItems, override={"USE_INSERTION"}
@@ -81,6 +81,8 @@ class NWO_MarkerPermutationItems(PropertyGroup):
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
 class NWO_ObjectPropertiesGroup(PropertyGroup):
+    proxy_parent: PointerProperty(type=bpy.types.Mesh)
+    proxy_type : StringProperty()
     #### MARKER PERM
     marker_permutations: CollectionProperty(
         type=NWO_MarkerPermutationItems,
