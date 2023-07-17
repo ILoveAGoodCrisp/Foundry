@@ -319,6 +319,14 @@ class PrepareScene:
             ob.hide_set(False)
             ob.hide_select = False
 
+            # If this is a Reach light, fix it's rotation
+            # Blender lights emit in -z, while Halo emits light from +y
+            if not h4 and ob_type == "LIGHT":
+                blend_matrix = ob.matrix_world.copy()
+                halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
+                halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
+                ob.matrix_world = blend_matrix @ halo_x_rot @ halo_z_rot
+
             # fix empty group names
             bsp_ui = nwo.bsp_name_ui
             bsp_ui = "default" if bsp_ui == "" else bsp_ui
@@ -2170,22 +2178,6 @@ class PrepareScene:
         scene.frame_current = 0
 
         return timeline_start, timeline_end
-
-    def FixLightsRotations(self, lights_list):
-        deselect_all_objects()
-        angle_x = radians(90)
-        angle_z = radians(-90)
-        axis_x = (1, 0, 0)
-        axis_z = (0, 0, 1)
-        for ob in lights_list:
-            pivot = ob.location
-            M = (
-                Matrix.Translation(pivot)
-                @ Matrix.Rotation(angle_x, 4, axis_x)
-                @ Matrix.Rotation(angle_z, 4, axis_z)
-                @ Matrix.Translation(-pivot)
-            )
-            ob.matrix_world = M @ ob.matrix_world
 
     def get_decorator_lods(self, asset_is_decorator):
         lods = set()
