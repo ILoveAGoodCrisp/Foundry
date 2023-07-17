@@ -41,7 +41,7 @@ from ..utils.nwo_utils import clean_tag_path, get_ek_path, not_bungie_game, poll
 
 def game_version_warning(self, context):
     self.layout.label(
-        text=f"Please set your editing kit path for {context.scene.nwo.game_version.upper()} in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset]"
+        text=f"Please set your editing kit path for {context.scene.nwo.game_version.upper()} in add-on preferences [Edit > Preferences > Add-ons > Foundry]"
     )
 
 
