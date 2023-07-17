@@ -630,21 +630,22 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.separator()
                 row = col.row()
-                row.prop(nwo, "light_tag_override", text="Light Tag Override")
-                row.operator("nwo.light_tag_path")
+                row.prop(nwo, "light_tag_override", text="Light Tag Override", icon_value=get_icon_id("tags"))
+                row.operator("nwo.light_tag_path", text="", icon='FILE_FOLDER')
                 row = col.row()
-                row.prop(nwo, "light_shader_reference", text="Shader Tag Reference")
-                row.operator("nwo.light_shader_path")
+                row.prop(nwo, "light_shader_reference", text="Shader Tag Reference", icon_value=get_icon_id("tags"))
+                row.operator("nwo.light_shader_path", text="", icon='FILE_FOLDER')
                 row = col.row()
-                row.prop(nwo, "light_gel_reference", text="Gel Tag Reference")
-                row.operator("nwo.light_gel_path")
+                row.prop(nwo, "light_gel_reference", text="Gel Tag Reference", icon_value=get_icon_id("tags"))
+                row.operator("nwo.light_gel_path", text="", icon='FILE_FOLDER')
                 row = col.row()
                 row.prop(
                     nwo,
                     "light_lens_flare_reference",
                     text="Lens Flare Tag Reference",
+                    icon_value=get_icon_id("tags")
                 )
-                row.operator("nwo.lens_flare_path")
+                row.operator("nwo.lens_flare_path", text="", icon='FILE_FOLDER')
 
                 # col.separator() # commenting out light clipping for now.
 
