@@ -1805,6 +1805,7 @@ class NWO_FoundryPanelProps(Panel):
             return
         
         col.separator()
+        col = box.column()
         col.label(text="Instance Proxies")
         collision = nwo.proxy_collision
         physics = nwo.proxy_physics
@@ -1812,7 +1813,9 @@ class NWO_FoundryPanelProps(Panel):
         
         if not (collision and physics and cookie_cutter):
             row = col.row()
+            row.scale_y = 1.3
             row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
+            col.separator()
 
         if collision:
             row = col.row(align=True)

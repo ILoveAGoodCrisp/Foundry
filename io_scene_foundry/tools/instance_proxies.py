@@ -237,13 +237,16 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
     
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = True
-        col = layout.column()
-        col.prop(self, "proxy_type", text="Type")
-        col.prop(self, "proxy_source", text="Source")
+        layout.use_property_split = False
+        row = layout.row(heading="Type")
+        row.prop(self, "proxy_type", text="Type", expand=True)
+        row = layout.row(heading="Source")
+        row.prop(self, "proxy_source", text="Source", expand=True)
         if self.proxy_source == "existing":
-            col.prop_search(self, "proxy_copy", search_data=bpy.data, search_property="meshes")
-        col.prop(self, "proxy_edit", text="Edit Proxy")
+            row = layout.row()
+            row.prop_search(self, "proxy_copy", search_data=bpy.data, search_property="meshes")
+        row = layout.row()
+        row.prop(self, "proxy_edit", text="Edit Proxy")
     
 class NWO_ProxyInstanceDelete(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_delete"
