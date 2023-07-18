@@ -1994,21 +1994,21 @@ class PrepareScene:
                         nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
                 if nwo.face_mode_active:
                     nwo.face_mode = nwo.face_mode_ui
-                if nwo.ladder:
+                if nwo.ladder_ui:
                     nwo.ladder = "1"
-                if nwo.slip_surface:
+                if nwo.slip_surface_ui:
                     nwo.slip_surface = "1"
-                # NOTE Don't think this actually does anything in Reach+
+                # NOTE I don't think this actually does anything in Reach+
                 # if nwo.group_transparents_by_plane:
                 #     nwo.group_transparents_by_plane = bool_str(
                 #         nwo.group_transparents_by_plane_ui
                 #     )
-                if nwo.no_shadow:
+                if nwo.no_shadow_ui:
                     nwo.no_shadow = "1"
                 if not reach:
-                    if nwo.no_lightmap:
+                    if nwo.no_lightmap_ui:
                         nwo.no_lightmap = "1"
-                    if nwo.no_pvs:
+                    if nwo.no_pvs_ui:
                         nwo.no_pvs = "1"
                     if nwo.uvmirror_across_entire_model_active:
                         nwo.uvmirror_across_entire_model = bool_str(
