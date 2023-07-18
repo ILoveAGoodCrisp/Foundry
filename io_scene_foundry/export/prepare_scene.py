@@ -1994,24 +1994,26 @@ class PrepareScene:
                         nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
                 if nwo.face_mode_active:
                     nwo.face_mode = nwo.face_mode_ui
-                if nwo.ladder_active:
-                    nwo.ladder = bool_str(nwo.ladder_ui)
-                if nwo.slip_surface_active:
-                    nwo.slip_surface = bool_str(nwo.slip_surface_ui)
-                if nwo.group_transparents_by_plane_active:
-                    nwo.group_transparents_by_plane = bool_str(
-                        nwo.group_transparents_by_plane_ui
-                    )
-                if nwo.no_shadow_active:
-                    nwo.no_shadow = bool_str(nwo.no_shadow_ui)
-                if nwo.no_lightmap_active:
-                    nwo.no_lightmap = bool_str(nwo.no_lightmap_ui)
-                if nwo.no_pvs_active:
-                    nwo.no_pvs = bool_str(nwo.no_pvs_ui)
-                if nwo.uvmirror_across_entire_model_active:
-                    nwo.uvmirror_across_entire_model = bool_str(
-                        nwo.uvmirror_across_entire_model_ui
-                    )
+                if nwo.ladder:
+                    nwo.ladder = "1"
+                if nwo.slip_surface:
+                    nwo.slip_surface = "1"
+                # NOTE Don't think this actually does anything in Reach+
+                # if nwo.group_transparents_by_plane:
+                #     nwo.group_transparents_by_plane = bool_str(
+                #         nwo.group_transparents_by_plane_ui
+                #     )
+                if nwo.no_shadow:
+                    nwo.no_shadow = "1"
+                if not reach:
+                    if nwo.no_lightmap:
+                        nwo.no_lightmap = "1"
+                    if nwo.no_pvs:
+                        nwo.no_pvs = "1"
+                    if nwo.uvmirror_across_entire_model_active:
+                        nwo.uvmirror_across_entire_model = bool_str(
+                            nwo.uvmirror_across_entire_model_ui
+                        )
                 if nwo.lightmap_additive_transparency_active:
                     nwo.lightmap_additive_transparency = (
                         nwo.lightmap_additive_transparency_ui

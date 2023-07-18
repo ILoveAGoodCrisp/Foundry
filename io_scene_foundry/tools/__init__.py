@@ -865,7 +865,7 @@ class NWO_FoundryPanelProps(Panel):
                     )
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
-                col.prop(nwo, "poop_collision_type_ui")
+                col.prop(nwo, "poop_collision_type_ui", text="Collision Type")
 
             elif nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_poop",
@@ -1291,20 +1291,36 @@ class NWO_FoundryPanelProps(Panel):
                 #             row.label(text='*')
                 #             break
 
-        if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if (nwo.mesh_type_ui in (
-                "_connected_geometry_mesh_type_render",
-                "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_structure",
-                )
-                and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure")
-            ):
-                col2 = col.column()
-                flow2 = col2.grid_flow()
-                flow2.prop(nwo, "precise_position_ui", text="Uncompressed")
-                col3 = col.column()
-                flow3 = col3.grid_flow()
-                flow3.prop(nwo, "decal_offset_ui")
+        if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
+            col2 = col.column()
+            col2.separator()
+            col2.label(text="Flags")
+            col2.use_property_split = False
+            row = col2.grid_flow(
+                row_major=True,
+                columns=2,
+                even_columns=True,
+                even_rows=False,
+                align=False,
+            )
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
+                row.prop(nwo, "precise_position_ui", text="Uncompressed")
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision"):
+                row.prop(nwo, "face_two_sided_ui", text="Two Sided")
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
+                row.prop(nwo, "decal_offset_ui", text="Decal Offset")
+            if poll_ui(("SCENARIO", "PREFAB")):
+                if not h4:
+                    row.prop(nwo, "ladder_ui", text="Ladder")
+                row.prop(nwo, "slip_surface_ui", text="Slip Surface")
+                # row.prop(nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
+                if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
+                    row.prop(nwo, "no_shadow_ui", text="No Shadow")
+                    if h4:
+                        row.prop(nwo, "no_lightmap_ui", text="No Lightmap")
+                        row.prop(nwo, "no_pvs_ui", text="No PVS")
+
+            col2.separator()
 
         if nwo.mesh_type_ui in (
             "_connected_geometry_mesh_type_render",
@@ -1312,10 +1328,7 @@ class NWO_FoundryPanelProps(Panel):
             "_connected_geometry_mesh_type_poop_collision",
             "_connected_geometry_mesh_type_collision",
         ):
-            col4 = col.column()
-            flow4 = col4.grid_flow()
-            flow4.prop(nwo, "face_two_sided_ui")
-
+            pass
         if poll_ui(("SCENARIO", "PREFAB")) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
             if nwo.face_mode_active:
                 row = col.row()
@@ -1341,42 +1354,6 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator(
                     "nwo.remove_mesh_property", text="", icon="X"
                 ).options = "texcoord_usage"
-            if nwo.ladder_active:
-                row = col.row()
-                row.prop(nwo, "ladder_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "ladder"
-            if nwo.slip_surface_active:
-                row = col.row()
-                row.prop(nwo, "slip_surface_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "slip_surface"
-            if nwo.group_transparents_by_plane_active:
-                row = col.row()
-                row.prop(nwo, "group_transparents_by_plane_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "group_transparents_by_plane"
-            if nwo.no_shadow_active:
-                row = col.row()
-                row.prop(nwo, "no_shadow_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "no_shadow"
-            if nwo.no_lightmap_active:
-                row = col.row()
-                row.prop(nwo, "no_lightmap_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "no_lightmap"
-            if nwo.no_pvs_active:
-                row = col.row()
-                row.prop(nwo, "no_pvs_ui")
-                row.operator(
-                    "nwo.remove_mesh_property", text="", icon="X"
-                ).options = "no_pvs"
             # lightmap
             if nwo.lightmap_additive_transparency_active:
                 row = col.row()
@@ -1828,6 +1805,7 @@ class NWO_FoundryPanelProps(Panel):
             return
         
         col.separator()
+        col.label(text="Instance Proxies")
         collision = nwo.proxy_collision
         physics = nwo.proxy_physics
         cookie_cutter = nwo.proxy_cookie_cutter

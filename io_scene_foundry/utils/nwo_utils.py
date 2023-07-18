@@ -1872,6 +1872,7 @@ def has_mesh_props(ob) -> bool:
         "_connected_geometry_mesh_type_structure",
         "_connected_geometry_mesh_type_render",
         "_connected_geometry_mesh_type_poop",
+        "_connected_geometry_mesh_type_poop_collision",
     )
     nwo = ob.nwo
     return (
@@ -1888,6 +1889,7 @@ def has_face_props(ob) -> bool:
         "_connected_geometry_mesh_type_structure",
         "_connected_geometry_mesh_type_render",
         "_connected_geometry_mesh_type_poop",
+        "_connected_geometry_mesh_type_poop_collision",
     )
     return (
         ob

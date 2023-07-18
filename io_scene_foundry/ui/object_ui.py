@@ -668,6 +668,7 @@ class NWO_MeshPropAddMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
+        h4 = context.scene.nwo.game_version != "reach"
         # if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
         #     # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
         #     layout.operator_menu_enum("nwo.add_mesh_property_misc", property="options", text="Other")
@@ -681,16 +682,35 @@ class NWO_MeshPropAddMenu(Menu):
                 "nwo.add_mesh_property", text="Seam Sealer"
             ).options = "_connected_geometry_face_type_seam_sealer"
             layout.operator(
+                "nwo.add_mesh_property", text="Render Only"
+            ).options = "_connected_geometry_face_mode_render_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Collision Only"
+            ).options = "_connected_geometry_face_mode_collision_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Sphere Collision Only"
+            ).options = "_connected_geometry_face_mode_sphere_collision_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Shadow Only"
+            ).options = "_connected_geometry_face_mode_shadow_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Lightmap Only"
+            ).options = "_connected_geometry_face_mode_lightmap_only"
+            if not h4:
+                layout.operator(
+                    "nwo.add_mesh_property", text="Breakable"
+                ).options = "_connected_geometry_face_mode_breakable"
+            layout.operator(
                 "nwo.add_mesh_property", text="Emissive"
             ).options = "emissive"
-            layout.operator_menu_enum(
-                "nwo.add_mesh_property_face_mode",
-                property="options",
-                text="Mode",
-            )
-            layout.operator_menu_enum(
-                "nwo.add_mesh_property_flags", property="options", text="Flags"
-            )
+            # layout.operator_menu_enum(
+            #     "nwo.add_mesh_property_face_mode",
+            #     property="options",
+            #     text="Mode",
+            # )
+            # layout.operator_menu_enum(
+            #     "nwo.add_mesh_property_flags", property="options", text="Flags"
+            # )
             layout.operator_menu_enum(
                 "nwo.add_mesh_property_lightmap",
                 property="options",
@@ -713,6 +733,12 @@ class NWO_MeshPropAdd(NWO_Op):
             ("emissive", "Emissive", ""),
             ("_connected_geometry_face_type_sky", "Sky", ""),
             ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
+            ("_connected_geometry_face_mode_render_only", "Render Only", ""),
+            ("_connected_geometry_face_mode_collision_only", "Collision Only", ""),
+            ("_connected_geometry_face_mode_sphere_collision_only", "Sphere Collision Only", ""),
+            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
+            ("_connected_geometry_face_mode_lightmap_only", "Lightmap Only","",),
+            ("_connected_geometry_face_mode_breakable", "Breakable", ""),
         ]
     )
 

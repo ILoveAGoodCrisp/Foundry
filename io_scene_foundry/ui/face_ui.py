@@ -57,6 +57,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         layout = self.layout
         ob = context.object
         nwo = ob.nwo
+        h4 = context.scene.nwo.game_version != "reach"
         if poll_ui(("MODEL", "SKY")):
             layout.operator(self.op_prefix, text="Region").options = "region"
         # if (
@@ -100,12 +101,30 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             layout.operator(
                 self.op_prefix, text="Seam Sealer"
             ).options = "_connected_geometry_face_type_seam_sealer"
-            layout.operator(self.op_prefix, text="Emissive").options = "emissive"
-            layout.operator_menu_enum(
-                self.op_prefix + "_face_mode",
-                property="options",
-                text="Mode",
-            )
+            layout.operator(
+                "nwo.add_mesh_property", text="Render Only"
+            ).options = "_connected_geometry_face_mode_render_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Collision Only"
+            ).options = "_connected_geometry_face_mode_collision_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Sphere Collision Only"
+            ).options = "_connected_geometry_face_mode_sphere_collision_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Shadow Only"
+            ).options = "_connected_geometry_face_mode_shadow_only"
+            layout.operator(
+                "nwo.add_mesh_property", text="Lightmap Only"
+            ).options = "_connected_geometry_face_mode_lightmap_only"
+            if h4:
+                layout.operator(
+                    "nwo.add_mesh_property", text="Breakable"
+                ).options = "_connected_geometry_face_mode_breakable"
+            # layout.operator_menu_enum(
+            #     self.op_prefix + "_face_mode",
+            #     property="options",
+            #     text="Mode",
+            # )
             layout.operator_menu_enum(
                 self.op_prefix + "_flags",
                 property="options",
@@ -633,6 +652,24 @@ class NWO_FaceLayerAdd(NWO_Op):
             ("two_sided", "Two Sided", ""),
             ("_connected_geometry_face_type_sky", "Sky", ""),
             ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
+            ("_connected_geometry_face_mode_render_only", "Render Only", ""),
+            (
+                "_connected_geometry_face_mode_collision_only",
+                "Collision Only",
+                "",
+            ),
+            (
+                "_connected_geometry_face_mode_sphere_collision_only",
+                "Sphere Collision Only",
+                "",
+            ),
+            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
+            (
+                "_connected_geometry_face_mode_lightmap_only",
+                "Lightmap Only",
+                "",
+            ),
+            ("_connected_geometry_face_mode_breakable", "Breakable", ""),
         ],
     )
 
@@ -946,16 +983,22 @@ class NWO_FaceLayerAddFlags(NWO_FaceLayerAdd):
 
     bl_idname = "nwo.face_layer_add_flags"
 
+    def get_options(self, context):
+        items = []
+        items.append(("slip_surface", "Slip Surface", ""))
+        items.append(("decal_offset", "Decal Offset", ""))
+        items.append(("no_shadow", "No Shadow", ""))
+        if context.scene.nwo.game_version == "reach":
+            items.append(("ladder", "Ladder", ""))
+        else:
+            items.append(("no_shadow", "No Shadow", ""))
+            items.append(("no_lightmap", "No Lightmap", ""))
+            items.append(("no_pvs", "No PVS", ""))
+
+        return items
+
     options: EnumProperty(
-        items=[
-            ("ladder", "Ladder", ""),
-            ("slip_surface", "Slip Surface", ""),
-            ("decal_offset", "Decal Offset", ""),
-            ("group_transparents_by_plane", "Group Transparents by Plane", ""),
-            ("no_shadow", "No Shadow", ""),
-            ("no_lightmap", "No Lightmap", ""),
-            ("no_pvs", "No PVS", ""),
-        ]
+        items=get_options
     )
 
 
