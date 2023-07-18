@@ -53,6 +53,7 @@ from ..utils.nwo_utils import (
     is_shader,
     get_tags_path,
     not_bungie_game,
+    set_object_mode,
     sort_alphanum,
     true_region,
     true_bsp,
@@ -117,7 +118,7 @@ class PrepareScene:
 
         # Force set object mode
         context.view_layer.update()
-        self.set_object_mode(context)
+        set_object_mode(context)
         # print("set_object_mode")
 
         # Get the current set of selected objects. We need this so selected perms/bsps only functionality can be used
@@ -1095,15 +1096,26 @@ class PrepareScene:
         # reset mesh props
         # first set the persistent mesh props, followed by the optional
 
+
+        if face_props.face_mode_override:
+            mesh_props.face_mode = face_props.face_mode_ui
+
         # set mesh props from face props
         if face_props.face_type_override:
             # Never setting seam sealer with mesh props in Reach. This is always handled with a special material
             if h4 or face_props.face_type_ui == "_connected_geometry_face_type_sky":
-                mesh_props.face_type = face_props.face_type_ui
-                mesh_props.sky_permutation_index = str(face_props.sky_permutation_index_ui)
-
-        if face_props.face_mode_override:
-            mesh_props.face_mode = face_props.face_mode_ui
+                # enforces that only structure gets the sky property
+                if mesh_props.mesh_type == "_connected_geometry_mesh_type_default":
+                    mesh_props.face_type = face_props.face_type_ui
+                elif h4:
+                    # h4 seamsealer interacts with projectiles by default. We don't want this, so instead force it to poop wall collision
+                    mesh_props.mesh_type = "_connected_geometry_mesh_type_poop_collision"
+                    mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_invisible_wall"
+                else:
+                    mesh_props.face_type = "_connected_geometry_face_type_seam_sealer"
+                
+                if mesh_props.face_type == "_connected_geometry_face_type_sky":
+                    mesh_props.sky_permutation_index = str(face_props.sky_permutation_index_ui)
 
         if face_props.face_two_sided_override and face_props.face_two_sided_ui:
             mesh_props.face_sides = "_connected_geometry_face_sides_two_sided"
@@ -1326,8 +1338,8 @@ class PrepareScene:
                             scene_coll.link(o_collision)
                             o_collision.nwo.permutation_name = o.nwo.permutation_name
                             o_collision.nwo.bsp_name = o.nwo.bsp_name
-                            if not h4:
-                                o_collision.parent = o
+                            #if not h4:
+                            o_collision.parent = o
                             o_collision.matrix_world = o.matrix_world
 
                         if proxy_physics is not None:
@@ -1335,8 +1347,8 @@ class PrepareScene:
                             scene_coll.link(o_physics)
                             o_physics.nwo.permutation_name = o.nwo.permutation_name
                             o_physics.nwo.bsp_name = o.nwo.bsp_name
-                            if not h4:
-                                o_physics.parent = o
+                           #if not h4:
+                            o_physics.parent = o
                             o_physics.matrix_world = o.matrix_world
 
                         if proxy_cookie_cutter is not None:
@@ -1344,8 +1356,8 @@ class PrepareScene:
                             scene_coll.link(o_cookie_cutter)
                             o_cookie_cutter.nwo.permutation_name = o.nwo.permutation_name
                             o_cookie_cutter.nwo.bsp_name = o.nwo.bsp_name
-                            if not h4:
-                                o_cookie_cutter.parent = o
+                            #if not h4:
+                            o_cookie_cutter.parent = o
                             o_cookie_cutter.matrix_world = o.matrix_world
 
             is_linked = len(linked_objects) > 1
@@ -1964,7 +1976,20 @@ class PrepareScene:
                     if h4_structure:
                         nwo.face_type = "_connected_geometry_face_type_sky"
                     else:
-                        nwo.face_type = nwo.face_type_ui
+                        if not reach or nwo.face_type_ui == "_connected_geometry_face_type_sky":
+                            # enforces that only structure gets the sky property
+                            if nwo.mesh_type == "_connected_geometry_mesh_type_default":
+                                nwo.face_type = nwo.face_type_ui
+                            elif not reach:
+                                # h4 seamsealer interacts with projectiles by default. We don't want this, so instead force it to poop wall collision
+                                nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
+                                nwo.poop_collision_type = "_connected_geometry_poop_collision_type_invisible_wall"
+                            else:
+                                nwo.face_type = "_connected_geometry_face_type_seam_sealer"
+                                    
+                    if nwo.face_type == "_connected_geometry_face_type_sky":
+                            nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
+
                     if nwo.face_type == "_connected_geometry_face_type_sky":
                         nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
                 if nwo.face_mode_active:
@@ -2155,41 +2180,6 @@ class PrepareScene:
                 nwo = action.nwo
                 if not nwo.name_override:
                     nwo.name_override = action.name
-
-    def set_object_mode(self, context):
-        mode = context.mode
-
-        if mode == "OBJECT":
-            return
-
-        if mode.startswith("EDIT") and not mode.endswith("GPENCIL"):
-            bpy.ops.object.editmode_toggle()
-        else:
-            match mode:
-                case "POSE":
-                    bpy.ops.object.posemode_toggle()
-                case "SCULPT":
-                    bpy.ops.sculpt.sculptmode_toggle()
-                case "PAINT_WEIGHT":
-                    bpy.ops.paint.weight_paint_toggle()
-                case "PAINT_VERTEX":
-                    bpy.ops.paint.vertex_paint_toggle()
-                case "PAINT_TEXTURE":
-                    bpy.ops.paint.texture_paint_toggle()
-                case "PARTICLE":
-                    bpy.ops.particle.particle_edit_toggle()
-                case "PAINT_GPENCIL":
-                    bpy.ops.gpencil.paintmode_toggle()
-                case "EDIT_GPENCIL":
-                    bpy.ops.gpencil.editmode_toggle()
-                case "SCULPT_GPENCIL":
-                    bpy.ops.gpencil.sculptmode_toggle()
-                case "WEIGHT_GPENCIL":
-                    bpy.ops.gpencil.weightmode_toggle()
-                case "VERTEX_GPENCIL":
-                    bpy.ops.gpencil.vertexmode_toggle()
-                case "SCULPT_CURVES":
-                    bpy.ops.curves.sculptmode_toggle()
 
     def get_current_action(self, model_armature):
         return model_armature.animation_data.action

@@ -168,7 +168,7 @@ class ToolkitLocationPreferences(AddonPreferences):
         if not nwo_globals.clr_installed:
             row = layout.row(align=True)
             row.scale_y = 1.5
-            row.operator("managed_blam.init", text="Install ManagedBlam Dependancy", icon='IMPORT').install_only = True
+            row.operator("managed_blam.init", text="Install ManagedBlam Dependency", icon='IMPORT').install_only = True
         row = layout.row(align=True)
         row.label(text="Halo Reach Editing Kit Path")
         row = layout.row(align=True)

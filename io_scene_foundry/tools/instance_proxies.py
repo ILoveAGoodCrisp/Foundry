@@ -28,8 +28,9 @@
 
 import bmesh
 import bpy
+from io_scene_foundry.tools.property_apply import apply_props_material
 
-from io_scene_foundry.utils.nwo_utils import deselect_all_objects, layer_faces, set_active_object, unlink
+from io_scene_foundry.utils.nwo_utils import deselect_all_objects, layer_faces, set_active_object, set_object_mode, unlink
 
 class NWO_ProxyInstanceEdit(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_edit"
@@ -42,20 +43,31 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
 
     def execute(self, context):
         self.old_sel = context.selected_objects.copy()
+
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                view_3d = area.spaces.active
+                if view_3d.local_view:
+                    bpy.ops.view3d.localview()
+                    break
+
+        set_object_mode(context)
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.1, window=context.window)
         context.window_manager.modal_handler_add(self)
-        context.scene.nwo.instance_proxy_running = True
         self.parent = context.object
         self.proxy_ob = bpy.data.objects[self.proxy]
         self.scene_coll = context.scene.collection.objects
         self.scene_coll.link(self.proxy_ob)
+        self.proxy_ob.select_set(True)
         self.proxy_ob.matrix_world = self.parent.matrix_world
+
+        bpy.ops.view3d.localview()
         deselect_all_objects()
         self.proxy_ob.select_set(True)
         set_active_object(self.proxy_ob)
-        if bpy.context.mode != 'EDIT_MESH':
-            bpy.ops.object.editmode_toggle()
+        bpy.ops.object.editmode_toggle()
+        context.scene.nwo.instance_proxy_running = True
         
         return {'RUNNING_MODAL'}
     
@@ -65,9 +77,10 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         edit_mode = context.mode == 'EDIT_MESH'
         
         if event.type == 'TIMER' and not (active and edit_mode):
-            if bpy.context.mode == 'EDIT_MESH':
+            if context.mode == 'EDIT_MESH':
                 bpy.ops.object.editmode_toggle()
 
+            bpy.ops.view3d.localview()
             self.proxy_ob.select_set(False)
             unlink(self.proxy_ob)
             for sel_ob in self.old_sel:
@@ -206,6 +219,12 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         ob.nwo.proxy_type = self.proxy_type
 
         setattr(self.parent.data.nwo, f"proxy_{self.proxy_type}", ob)
+        if self.proxy_type == "collision":
+            apply_props_material(ob, "Collision")
+        elif self.proxy_type == "physics":
+            apply_props_material(ob, "Physics")
+        else:
+            apply_props_material(ob, "CookieCutter")
 
         if self.proxy_edit:
             bpy.ops.nwo.proxy_instance_edit(proxy=ob.name)

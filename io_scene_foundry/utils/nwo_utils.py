@@ -1952,3 +1952,38 @@ def unlink(ob):
     scene_coll = bpy.context.scene.collection
     if scene_coll in ob.users_collection:
         scene_coll.objects.unlink(ob)
+
+def set_object_mode(context):
+    mode = context.mode
+
+    if mode == "OBJECT":
+        return
+
+    if mode.startswith("EDIT") and not mode.endswith("GPENCIL"):
+        bpy.ops.object.editmode_toggle()
+    else:
+        match mode:
+            case "POSE":
+                bpy.ops.object.posemode_toggle()
+            case "SCULPT":
+                bpy.ops.sculpt.sculptmode_toggle()
+            case "PAINT_WEIGHT":
+                bpy.ops.paint.weight_paint_toggle()
+            case "PAINT_VERTEX":
+                bpy.ops.paint.vertex_paint_toggle()
+            case "PAINT_TEXTURE":
+                bpy.ops.paint.texture_paint_toggle()
+            case "PARTICLE":
+                bpy.ops.particle.particle_edit_toggle()
+            case "PAINT_GPENCIL":
+                bpy.ops.gpencil.paintmode_toggle()
+            case "EDIT_GPENCIL":
+                bpy.ops.gpencil.editmode_toggle()
+            case "SCULPT_GPENCIL":
+                bpy.ops.gpencil.sculptmode_toggle()
+            case "WEIGHT_GPENCIL":
+                bpy.ops.gpencil.weightmode_toggle()
+            case "VERTEX_GPENCIL":
+                bpy.ops.gpencil.vertexmode_toggle()
+            case "SCULPT_CURVES":
+                bpy.ops.curves.sculptmode_toggle()

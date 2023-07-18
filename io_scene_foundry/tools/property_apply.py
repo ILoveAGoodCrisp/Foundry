@@ -88,8 +88,8 @@ def halo_material(mat_name):
 
         case "Physics":
             halo_material_color(
-                new_material, (0.0, 1.0, 0.0, 0.2)
-            )  # green with 20% opacity
+                new_material, (0.0, 0.0, 1.0, 0.2)
+            )  # medium blue with 20% opacity
 
         case "Seam":
             halo_material_color(
@@ -103,8 +103,8 @@ def halo_material(mat_name):
 
         case "Collision":
             halo_material_color(
-                new_material, (0.0, 0.0, 1.0, 0.2)
-            )  # medium blue with 20% opacity
+                new_material, (0.0, 1.0, 0.0, 0.2)
+            )  # green with 20% opacity
 
         case "PlayCollision":
             halo_material_color(
@@ -123,8 +123,8 @@ def halo_material(mat_name):
 
         case "CookieCutter":
             halo_material_color(
-                new_material, (0.3, 0.3, 1.0, 0.2)
-            )  # purply-blue with 20% opacity
+                new_material, (1.0, 0.1, 0.9, 0.2)
+            )  # pink with 20% opacity
 
         case "Fog":
             halo_material_color(

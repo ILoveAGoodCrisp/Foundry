@@ -1837,17 +1837,17 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("nwo.proxy_instance_new", text="New Instance Proxy")
 
         if collision:
-            row = col.row()
+            row = col.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Collision").proxy = collision.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = collision.name
 
         if physics:
-            row = col.row()
+            row = col.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics").proxy = physics.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = physics.name
 
         if cookie_cutter:
-            row = col.row()
+            row = col.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter").proxy = cookie_cutter.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
 
