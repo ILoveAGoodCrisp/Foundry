@@ -1812,21 +1812,21 @@ class NWO_FoundryPanelProps(Panel):
         
         if not (collision and physics and cookie_cutter):
             row = col.row()
-            row.operator("nwo.proxy_instance_new", text="New Instance Proxy")
+            row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
 
         if collision:
             row = col.row(align=True)
-            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Collision").proxy = collision.name
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Collision", icon_value=get_icon_id("collider")).proxy = collision.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = collision.name
 
         if physics:
             row = col.row(align=True)
-            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics").proxy = physics.name
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics", icon_value=get_icon_id("physics")).proxy = physics.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = physics.name
 
         if cookie_cutter:
             row = col.row(align=True)
-            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter").proxy = cookie_cutter.name
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
 
             
