@@ -1311,14 +1311,20 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(nwo, "decal_offset_ui", text="Decal Offset")
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
-                    row.prop(nwo, "ladder_ui", text="Ladder")
-                row.prop(nwo, "slip_surface_ui", text="Slip Surface")
-                # row.prop(nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
-                if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
-                    row.prop(nwo, "no_shadow_ui", text="No Shadow")
-                    if h4:
-                        row.prop(nwo, "no_lightmap_ui", text="No Lightmap")
-                        row.prop(nwo, "no_pvs_ui", text="No PVS")
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision"):
+                        row.prop(nwo, "ladder_ui", text="Ladder")
+                        row.prop(nwo, "slip_surface_ui", text="Slip Surface")
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
+                        row.prop(nwo, "no_shadow_ui", text="No Shadow")
+                else:
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision"):
+                        row.prop(nwo, "slip_surface_ui", text="Slip Surface")
+                    # row.prop(nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
+                        row.prop(nwo, "no_shadow_ui", text="No Shadow")
+                        if h4:
+                            row.prop(nwo, "no_lightmap_ui", text="No Lightmap")
+                            row.prop(nwo, "no_pvs_ui", text="No PVS")
 
             col2.separator()
 
