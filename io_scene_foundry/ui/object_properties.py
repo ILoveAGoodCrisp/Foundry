@@ -860,8 +860,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 3,
             )
         )
-        if not_bungie_game():
-            items.append(("_connected_geometry_primitive_type_mopp", "MOPP", "", 4))
+        # if not_bungie_game():
+        #     items.append(("_connected_geometry_primitive_type_mopp", "MOPP", "", 4))
 
         return items
 
