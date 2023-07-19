@@ -1079,7 +1079,7 @@ class NWOMesh(NWOObject):
         return jstr(self.ob.dimensions.z)
 
     def mesh_primitive_pill_radius(self):
-        return radius_str(self.ob)
+        return radius_str(self.ob, True)
 
     def mesh_primitive_pill_height(self):
         return jstr(self.ob.dimensions.z)
