@@ -1309,11 +1309,12 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(nwo, "face_two_sided_ui", text="Two Sided")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
                 row.prop(nwo, "decal_offset_ui", text="Decal Offset")
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision", "_connected_geometry_mesh_type_collision"):
+                if not h4:
+                    row.prop(nwo, "ladder_ui", text="Ladder")
+                row.prop(nwo, "slip_surface_ui", text="Slip Surface")
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
-                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision"):
-                        row.prop(nwo, "ladder_ui", text="Ladder")
-                        row.prop(nwo, "slip_surface_ui", text="Slip Surface")
                     if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
                         row.prop(nwo, "no_shadow_ui", text="No Shadow")
                 else:
@@ -1333,7 +1334,7 @@ class NWO_FoundryPanelProps(Panel):
             "_connected_geometry_mesh_type_collision",
         ):
             if poll_ui(("SCENARIO", "PREFAB")) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
-                col2.separator()
+                
                 if nwo.face_mode_active:
                     row = col.row()
                     row.prop(nwo, "face_mode_ui")

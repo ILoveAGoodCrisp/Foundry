@@ -138,6 +138,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     property="options",
                     text="Lightmap",
                 )
+        if poll_ui(("SCENARIO", "PREFAB")) or nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision":
             layout.operator_menu_enum(
                 self.op_prefix + "_flags",
                 property="options",

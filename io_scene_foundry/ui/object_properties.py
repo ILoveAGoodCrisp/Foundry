@@ -2115,28 +2115,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         soft_max=10,
     )
 
-    def update_ladder_ui(self, context):
-        self.ladder_active = True
-
-    ladder_active: BoolProperty()
     ladder_ui: BoolProperty(
         name="Ladder",
         options=set(),
         description="Makes faces climbable",
-        default=True,
-        update=update_ladder_ui,
     )
 
-    def update_slip_surface_ui(self, context):
-        self.slip_surface_active = True
-
-    slip_surface_active: BoolProperty()
     slip_surface_ui: BoolProperty(
         name="Slip Surface",
         options=set(),
         description="Makes faces slippery for units",
-        default=True,
-        update=update_slip_surface_ui,
     )
 
 
@@ -2147,64 +2135,35 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=False,
     )
 
-    def update_group_transparents_by_plane_ui(self, context):
-        self.group_transparents_by_plane_active = True
-
-    group_transparents_by_plane_active: BoolProperty()
     group_transparents_by_plane_ui: BoolProperty(
         name="Group Transparents By Plane",
         options=set(),
         description="Enable to group transparent geometry by fitted planes",
         default=True,
-        update=update_group_transparents_by_plane_ui,
     )
 
-    def update_no_shadow_ui(self, context):
-        self.no_shadow_active = True
-
-    no_shadow_active: BoolProperty()
     no_shadow_ui: BoolProperty(
         name="No Shadow",
         options=set(),
         description="Enable to prevent faces from casting shadows",
-        default=True,
-        update=update_no_shadow_ui,
     )
 
-    def update_precise_position_ui(self, context):
-        self.precise_position_active = True
-
-    precise_position_active: BoolProperty()
     precise_position_ui: BoolProperty(
         name="Precise Position",
         options=set(),
         description="Enable to prevent faces from being altered during the import process",
-        default=False,
-        update=update_precise_position_ui,
     )
 
-    def update_no_lightmap_ui(self, context):
-        self.no_lightmap_active = True
-
-    no_lightmap_active: BoolProperty()
     no_lightmap_ui: BoolProperty(
         name="Exclude From Lightmap",
         options=set(),
         description="",
-        default=True,
-        update=update_no_lightmap_ui,
     )
 
-    def update_no_pvs_ui(self, context):
-        self.no_pvs_active = True
-
-    no_pvs_active: BoolProperty()
     no_pvs_ui: BoolProperty(
         name="Invisible To PVS",
         options=set(),
         description="",
-        default=True,
-        update=update_no_pvs_ui,
     )
 
     # EXPORT ONLY PROPS

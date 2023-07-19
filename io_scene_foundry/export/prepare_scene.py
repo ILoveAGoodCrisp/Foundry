@@ -1950,6 +1950,11 @@ class PrepareScene:
                 "_connected_geometry_mesh_type_physics",
             ):
                 nwo.face_global_material = nwo.face_global_material_ui
+                if nwo.mesh_type != "_connected_geometry_mesh_type_physics":
+                    if nwo.ladder_ui:
+                        nwo.ladder = "1"
+                    if nwo.slip_surface_ui:
+                        nwo.slip_surface = "1"
             if (
                 nwo.mesh_type != "_connected_geometry_mesh_type_physics"
                 and nwo.face_two_sided_ui
@@ -1994,10 +1999,6 @@ class PrepareScene:
                         nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
                 if nwo.face_mode_active:
                     nwo.face_mode = nwo.face_mode_ui
-                if nwo.ladder_ui:
-                    nwo.ladder = "1"
-                if nwo.slip_surface_ui:
-                    nwo.slip_surface = "1"
                 # NOTE I don't think this actually does anything in Reach+
                 # if nwo.group_transparents_by_plane:
                 #     nwo.group_transparents_by_plane = bool_str(
