@@ -12,7 +12,7 @@ Foundry can:
 - Integrate with the Halo tag editing API "ManagedBlam" to allow tag editing and creation directly from Blender
 
 ## Requirements
-- Blender 3.6 or above
+- Blender 3.6.1 or above
 - One or more of the following Halo Editing Kits: [HREK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/),
 [H4EK](https://store.steampowered.com/app/1695792/Halo_4_Mod_Tools__MCC/),
 [H2AMPEK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/)
