@@ -668,6 +668,7 @@ class NWO_MeshPropAddMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
+        nwo = context.object.nwo
         h4 = context.scene.nwo.game_version != "reach"
         # if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
         #     # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
@@ -675,34 +676,36 @@ class NWO_MeshPropAddMenu(Menu):
 
         if poll_ui(("SCENARIO", "PREFAB")):
             # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
-            layout.operator(
-                "nwo.add_mesh_property", text="Sky"
-            ).options = "_connected_geometry_face_type_sky"
-            layout.operator(
-                "nwo.add_mesh_property", text="Seam Sealer"
-            ).options = "_connected_geometry_face_type_seam_sealer"
-            layout.operator(
-                "nwo.add_mesh_property", text="Render Only"
-            ).options = "_connected_geometry_face_mode_render_only"
-            layout.operator(
-                "nwo.add_mesh_property", text="Collision Only"
-            ).options = "_connected_geometry_face_mode_collision_only"
-            layout.operator(
-                "nwo.add_mesh_property", text="Sphere Collision Only"
-            ).options = "_connected_geometry_face_mode_sphere_collision_only"
-            layout.operator(
-                "nwo.add_mesh_property", text="Shadow Only"
-            ).options = "_connected_geometry_face_mode_shadow_only"
-            layout.operator(
-                "nwo.add_mesh_property", text="Lightmap Only"
-            ).options = "_connected_geometry_face_mode_lightmap_only"
-            if not h4:
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
                 layout.operator(
-                    "nwo.add_mesh_property", text="Breakable"
-                ).options = "_connected_geometry_face_mode_breakable"
-            layout.operator(
-                "nwo.add_mesh_property", text="Emissive"
-            ).options = "emissive"
+                    "nwo.add_mesh_property", text="Sky"
+                ).options = "_connected_geometry_face_type_sky"
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
+                layout.operator(
+                    "nwo.add_mesh_property", text="Seam Sealer"
+                ).options = "_connected_geometry_face_type_seam_sealer"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Render Only"
+                ).options = "_connected_geometry_face_mode_render_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Collision Only"
+                ).options = "_connected_geometry_face_mode_collision_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Sphere Collision Only"
+                ).options = "_connected_geometry_face_mode_sphere_collision_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Shadow Only"
+                ).options = "_connected_geometry_face_mode_shadow_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Lightmap Only"
+                ).options = "_connected_geometry_face_mode_lightmap_only"
+                if not h4:
+                    layout.operator(
+                        "nwo.add_mesh_property", text="Breakable"
+                    ).options = "_connected_geometry_face_mode_breakable"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Emissive"
+                ).options = "emissive"
             # layout.operator_menu_enum(
             #     "nwo.add_mesh_property_face_mode",
             #     property="options",
@@ -711,11 +714,11 @@ class NWO_MeshPropAddMenu(Menu):
             # layout.operator_menu_enum(
             #     "nwo.add_mesh_property_flags", property="options", text="Flags"
             # )
-            layout.operator_menu_enum(
-                "nwo.add_mesh_property_lightmap",
-                property="options",
-                text="Lightmap",
-            )
+                layout.operator_menu_enum(
+                    "nwo.add_mesh_property_lightmap",
+                    property="options",
+                    text="Lightmap",
+                )
 
 
 class NWO_MeshPropAdd(NWO_Op):
