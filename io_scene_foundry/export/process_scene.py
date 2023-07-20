@@ -726,7 +726,7 @@ class ProcessScene:
                             not os.path.exists(gr2_file)
                             or os.stat(gr2_file).st_size == 0
                         ):
-                            print_warning(f"\n\nFailed to build GR2: {gr2_file}")
+                            print(f"\n\nFailed to build GR2: {gr2_file}")
                             print(f"Retrying export...")
                             fbx_file = data_path + path_set[0]
                             json_file = data_path + path_set[1]
