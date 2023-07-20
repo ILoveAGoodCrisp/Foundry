@@ -1206,30 +1206,17 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     # poop light channel flags. Not included for now
 
+    poop_collision_type_ui_help: IntProperty()
+
     def poop_collision_type_items(self, context):
         h4 = context.scene.nwo.game_version != "reach"
         items = []
-        items.append((
-            "_connected_geometry_poop_collision_type_default",
-            "Default",
-            "Collision mesh that interacts with the physics objects and with projectiles",
-        )),
-        items.append((
-            "_connected_geometry_poop_collision_type_play_collision",
-            "Player Collision",
-            "The collision mesh affects physics objects, but not projectiles",
-        )),
-        items.append((
-            "_connected_geometry_poop_collision_type_bullet_collision",
-            "Bullet Collision",
-            "The collision mesh only interacts with projectiles",
-        )),
+        items.append(("_connected_geometry_poop_collision_type_default", "Default", "Collision mesh that interacts with the physics objects and with projectiles"))
+        items.append(("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "The collision mesh affects physics objects, but not projectiles"))
+        items.append(("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "The collision mesh only interacts with projectiles"))
         if h4:
-            items.append((
-                "_connected_geometry_poop_collision_type_invisible_wall",
-                "Invisible Wall",
-                "Projectiles go through this but the physics objects can't. You cannot directly place objects on wall collision mesh in Sapien",
-            )),
+            items.append(("_connected_geometry_poop_collision_type_invisible_wall", "Invisible Wall", "Projectiles go through this but the physics objects can't. You cannot directly place objects on wall collision mesh in Sapien"))
+        
         return items
     
     def get_poop_collision_type_ui(self):
@@ -1246,35 +1233,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def update_poop_collision_type_ui(self, context):
         self.poop_collision_type_ui_help = self["poop_collision_type_ui"]
 
-    poop_collision_type_ui_help: IntProperty()
-
     poop_collision_type_ui: EnumProperty(
         name="Instanced Collision Type",
         options=set(),
         description="Set the instanced collision type. Only used when exporting a scenario",
-        default="_connected_geometry_poop_collision_type_default",
-        items=[
-            (
-                "_connected_geometry_poop_collision_type_default",
-                "Default",
-                "Collision mesh that interacts with the physics objects and with projectiles",
-            ),
-            (
-                "_connected_geometry_poop_collision_type_play_collision",
-                "Player Collision",
-                "The collision mesh affects physics objects, but not projectiles",
-            ),
-            (
-                "_connected_geometry_poop_collision_type_bullet_collision",
-                "Bullet Collision",
-                "The collision mesh only interacts with projectiles",
-            ),
-            (
-                "_connected_geometry_poop_collision_type_invisible_wall",
-                "Invisible Wall",
-                "Projectiles go through this but the physics objects can't. You cannot directly place objects on wall collision mesh in Sapien",
-            ),
-        ],
+        items=poop_collision_type_items,
+        get=get_poop_collision_type_ui,
+        set=set_poop_collision_type_ui,
+        update=update_poop_collision_type_ui,
     )
 
     # portal PROPERTIES
