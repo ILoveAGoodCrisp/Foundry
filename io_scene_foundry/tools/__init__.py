@@ -826,7 +826,7 @@ class NWO_FoundryPanelProps(Panel):
                 elif (
                     nwo.plane_type_ui == "_connected_geometry_plane_type_water_surface"
                 ):
-                    col.prop(nwo, "mesh_tessellation_density_ui")
+                    col.prop(nwo, "mesh_tessellation_density_ui", text="Tessellation Density")
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_volume":
                 row = col.row()
