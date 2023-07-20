@@ -39,15 +39,14 @@ from ..icons import get_icon_id
 from ..utils.nwo_utils import clean_tag_path, get_ek_path, not_bungie_game, poll_ui
 
 
+
 def game_version_warning(self, context):
     self.layout.label(
         text=f"Please set your editing kit path for {context.scene.nwo.game_version.upper()} in add-on preferences [Edit > Preferences > Add-ons > Foundry]"
     )
 
-
 def prefab_warning(self, context):
     self.layout.label(text=f"Halo Reach does not support prefab assets")
-
 
 class NWO_Asset_ListItems(PropertyGroup):
     def GetSharedAssetName(self):
