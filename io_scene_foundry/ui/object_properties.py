@@ -1936,44 +1936,67 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def update_face_mode_ui(self, context):
         self.face_mode_active = True
 
+    def face_mode_items(self, context):
+        h4 = context.scene.nwo.game_version != "reach"
+        items = []
+        items.append((
+            "_connected_geometry_face_mode_render_only",
+            "Render Only",
+            "Faces set to render only",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_collision_only",
+            "Collision Only",
+            "Faces set to collision only",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_sphere_collision_only",
+            "Sphere Collision Only",
+            "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_shadow_only",
+            "Shadow Only",
+            "Faces set to only cast shadows",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_lightmap_only",
+            "Lightmap Only",
+            "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
+        ))
+        if not h4:
+            items.append((
+            "_connected_geometry_face_mode_breakable",
+            "Breakable",
+            "Faces set to be breakable",
+            )),
+
+        return items
+    
+    def get_face_mode_ui(self):
+        max_int = 4
+        if not not_bungie_game():
+            max_int = 5
+        if self.face_mode_ui_help > max_int:
+            return 0
+        return self.face_mode_ui_help
+
+    def set_face_mode_ui(self, value):
+        self["face_mode_ui"] = value
+
+    def update_face_mode_ui(self, context):
+        self.face_mode_ui_help = self["face_mode_ui"]
+
+    face_mode_ui_help : IntProperty()
     face_mode_active: BoolProperty()
     face_mode_ui: EnumProperty(
         name="Face Mode",
         options=set(),
         update=update_face_mode_ui,
         description="Sets face mode for this mesh",
-        items=[
-            (
-                "_connected_geometry_face_mode_render_only",
-                "Render Only",
-                "Faces set to render only",
-            ),
-            (
-                "_connected_geometry_face_mode_collision_only",
-                "Collision Only",
-                "Faces set to collision only",
-            ),
-            (
-                "_connected_geometry_face_mode_sphere_collision_only",
-                "Sphere Collision Only",
-                "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
-            ),
-            (
-                "_connected_geometry_face_mode_shadow_only",
-                "Shadow Only",
-                "Faces set to only cast shadows",
-            ),
-            (
-                "_connected_geometry_face_mode_lightmap_only",
-                "Lightmap Only",
-                "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
-            ),
-            (
-                "_connected_geometry_face_mode_breakable",
-                "Breakable",
-                "Faces set to be breakable",
-            ),
-        ],
+        items=face_mode_items,
+        get=get_face_mode_ui,
+        set=set_face_mode_ui,
     )
 
     def update_face_sides_ui(self, context):
