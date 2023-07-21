@@ -1025,8 +1025,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     if not self.lightmap_all_bsps:
                         col.prop(self, "lightmap_specific_bsp")
                     col.prop(self, "lightmap_all_bsps")
-                    if not h4:
-                        col.prop(self, "lightmap_region")
+                    # if not h4:
+                    #     col.prop(self, "lightmap_region")
 
         # # SCENE SETTINGS #
         # box = layout.box()

@@ -96,6 +96,7 @@ class LightMapper:
 
     # HELPERS --------------------------
     def get_light_group(self, lightmap_region, misc_halo_objects, not_bungie_game):
+        return "all" # NOTE temp until lightmap regions are figured out
         if not not_bungie_game and lightmap_region != "" and lightmap_region != "all":
             for ob in misc_halo_objects:
                 if ob.name == lightmap_region:

@@ -1292,6 +1292,8 @@ class NWO_FoundryPanelProps(Panel):
                 #             break
 
         if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
+            if h4 and not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+                return
             col2 = col.column()
             col2.separator()
             col2.label(text="Flags")
@@ -3609,8 +3611,9 @@ class NWO_HaloExportSettings(Panel):
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
-                    if not h4:
-                        col.prop(scene_nwo_export, "lightmap_region")
+                    # if not h4:
+                    # NOTE light map regions don't appear to work
+                    #     col.prop(scene_nwo_export, "lightmap_region")
 
 
 class NWO_HaloExportSettingsScope(Panel):

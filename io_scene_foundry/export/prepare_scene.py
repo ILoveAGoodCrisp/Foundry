@@ -165,12 +165,14 @@ class PrepareScene:
         ]
         for ob in non_export_obs:
             self.unlink(ob)
-        # print("unlink_obs")
+
+        context.view_layer.update()
+        export_obs = context.view_layer.objects[:]
+        
         scenario_asset = sidecar_type == "SCENARIO"
 
         scene_coll = context.scene.collection.objects
 
-        export_obs = context.view_layer.objects[:]
 
         # build proxy instances from structure
         if h4:

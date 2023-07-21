@@ -24,7 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import os
 from bpy.props import (
     IntProperty,
     BoolProperty,
@@ -33,12 +32,9 @@ from bpy.props import (
     CollectionProperty,
 )
 from bpy.types import PropertyGroup
-import bpy
 
 from ..icons import get_icon_id
 from ..utils.nwo_utils import clean_tag_path, get_ek_path, not_bungie_game, poll_ui
-
-
 
 def game_version_warning(self, context):
     self.layout.label(

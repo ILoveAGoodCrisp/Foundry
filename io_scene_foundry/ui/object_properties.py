@@ -336,15 +336,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     1,
                 )
             )
-            items.append(
-                nwo_enum(
-                    "_connected_geometry_mesh_type_cookie_cutter",
-                    "Cookie Cutter",
-                    "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
-                    "cookie_cutter",
-                    2,
-                )
-            )
+            # NOTE cookie cutters for H4 will need support through managedblam
+            # items.append(
+            #     nwo_enum(
+            #         "_connected_geometry_mesh_type_cookie_cutter",
+            #         "Cookie Cutter",
+            #         "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
+            #         "cookie_cutter",
+            #         2,
+            #     )
+            #)
 
         return items
 
@@ -506,30 +507,39 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         )
         items.append(
             (
-                "_connected_geometry_volume_type_cookie_cutter",
-                "Cookie Cutter",
-                "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
-                get_icon_id("cookie_cutter"),
-                4,
-            )
-        )
-        items.append(
-            (
                 "_connected_geometry_volume_type_poop_rain_blocker",
                 "Rain Blocker",
                 "Blocks rain from rendering in the region this volume occupies",
                 get_icon_id("rain_sheet"),
-                5,
+                4,
             )
         )
-        if h4:
+        if not h4:
+            items.append(
+                (
+                    "_connected_geometry_volume_type_cookie_cutter",
+                    "Cookie Cutter",
+                    "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
+                    get_icon_id("cookie_cutter"),
+                    5,
+                )
+            )
+            # items.append(
+            #     (
+            #         "_connected_geometry_volume_type_lightmap_region",
+            #         "Lightmap Region",
+            #         "Restricts lightmapping to this area when specified during lightmapping",
+            #         get_icon_id("lightmap_region"),
+            #         6,
+            #     )
+        else:
             items.append(
                 (
                     "_connected_geometry_volume_type_lightmap_exclude",
                     "Lightmap Exclude",
                     "Defines a region that should not be lightmapped",
                     get_icon_id("lightmap_exclude"),
-                    6,
+                    5,
                 )
             )
             items.append(
@@ -540,16 +550,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                      By default the full space inside a zone set should be used when generating the streaming zone set. 
                      This is useful for performance if you have textures in areas of the map the player will not get close to""",
                     get_icon_id("streaming"),
-                    7,
-                )
-            )
-        else:
-            items.append(
-                (
-                    "_connected_geometry_volume_type_lightmap_region",
-                    "Lightmap Region",
-                    "Restricts lightmapping to this area when specified during lightmapping",
-                    get_icon_id("lightmap_region"),
                     6,
                 )
             )
@@ -557,9 +557,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         return items
 
     def get_volume_type_ui(self):
-        max_int = 6
+        max_int = 5
         if not_bungie_game():
-            max_int = 7
+            max_int = 6
         if self.volume_type_ui_help > max_int:
             return 0
         return self.volume_type_ui_help
