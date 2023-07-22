@@ -24,7 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.utils.nwo_utils import dot_partition
 import bpy
 
 special_materials = (
@@ -157,8 +156,8 @@ def halo_material(mat_name):
 
         case "SoftCeiling":
             halo_material_color(
-                new_material, (0.51, 0.02, 0.06, 0.9)
-            )  # blood red with 90% opacity
+                new_material, (0.51, 0.364, 0.118, 0.9)
+            )  # orange with 90% opacity
 
         case "SoftKill":
             halo_material_color(
@@ -167,8 +166,8 @@ def halo_material(mat_name):
 
         case "SlipSurface":
             halo_material_color(
-                new_material, (0.51, 0.02, 0.06, 0.9)
-            )  # blood red with 90% opacity
+                new_material, (0.317, 0.51, 0.226, 0.9)
+            )  # dull green with 90% opacity
 
     new_material.nwo.rendered = False
 

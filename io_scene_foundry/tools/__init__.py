@@ -41,6 +41,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
+from io_scene_foundry.ui.preferences_ui import ToolkitLocationPreferences
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -51,6 +52,7 @@ from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     foundry_update_check,
     get_halo_material_count,
+    get_prefs,
     get_tags_path,
     has_face_props,
     has_mesh_props,
@@ -2152,14 +2154,44 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.open_url", text="Animation Repository", icon_value=get_icon_id("github")).url = ANIMATION_REPO
 
     def draw_settings(self):
-        nwo = self.scene.nwo
+        prefs = get_prefs()
         box = self.box.box()
         box.label(text=update_str, icon_value=get_icon_id("foundry"))
         if update_needed:
             box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
+
+        if not nwo_globals.clr_installed:
+            box = self.box.box()
+            box.label(text="Install required to use Halo Tag API (ManagedBlam)")
+            row = box.row(align=True)
+            row.scale_y = 1.5
+            row.operator("managed_blam.init", text="Install ManagedBlam Dependency", icon='IMPORT').install_only = True
+
         box = self.box.box()
-        col = box.column()
-        col.prop(nwo, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
+        row = box.row(align=True)
+        row.label(text="Halo Reach Editing Kit Path")
+        row = box.row(align=True)
+        row.prop(prefs, "hrek_path", text="")
+        row.operator("nwo.hrek_path", text="", icon='FILE_FOLDER')
+        row = box.row(align=True)
+        row.label(text="Halo 4 Editing Kit Path")
+        row = box.row(align=True)
+        row.prop(prefs, "h4ek_path", text="")
+        row.operator("nwo.h4ek_path", text="", icon='FILE_FOLDER')
+        row = box.row(align=True)
+        row.label(text="Halo 2 Anniversary Multiplayer Editing Kit Path")
+        row = box.row(align=True)
+        row.prop(prefs, "h2aek_path", text="")
+        row.operator("nwo.h2aek_path", text="", icon='FILE_FOLDER')
+        box = self.box.box()
+        row = box.row(align=True, heading="Default Game")
+        row.prop(prefs, "default_game_version", expand=True)
+        row = box.row(align=True, heading="Tool Version")
+        row.prop(prefs, "tool_type", expand=True)
+        row = box.row(align=True)
+        row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
+        row = box.row(align=True)
+        row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
 
 
 class NWO_HotkeyDescription(Operator):
@@ -4839,7 +4871,7 @@ def foundry_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
     nwo_scene = context.scene.nwo
-    icons_only = nwo_scene.toolbar_icons_only
+    icons_only = context.preferences.addons["io_scene_foundry"].preferences.toolbar_icons_only
     row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3

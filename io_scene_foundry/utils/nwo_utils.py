@@ -1989,3 +1989,6 @@ def set_object_mode(context):
                 bpy.ops.gpencil.vertexmode_toggle()
             case "SCULPT_CURVES":
                 bpy.ops.curves.sculptmode_toggle()
+
+def get_prefs():
+    return bpy.context.preferences.addons["io_scene_foundry"].preferences

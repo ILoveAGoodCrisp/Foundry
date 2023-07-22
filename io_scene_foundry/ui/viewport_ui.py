@@ -27,7 +27,7 @@
 import bpy
 
 from io_scene_foundry.tools.property_apply import apply_props_material
-from io_scene_foundry.utils.nwo_utils import closest_bsp_object, nwo_enum, true_bsp
+from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, nwo_enum, true_bsp
 from .templates import NWO_Op
 
 
@@ -111,22 +111,13 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     1,
                 )
             ),
-            items.append(
-                nwo_enum(
-                    "cookie_cutter",
-                    "Cookie Cutter",
-                    "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
-                    "cookie_cutter",
-                    2,
-                )
-            ),
             if asset_type == "SCENARIO":
                 if not reach:
                     descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
                 else:
                     descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
                 items.append(
-                    nwo_enum("structure", "Structure", descrip, "structure", 3)
+                    nwo_enum("structure", "Structure", descrip, "structure", 2)
                 )
                 items.append(
                     nwo_enum(
@@ -134,7 +125,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Seam",
                         "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
                         "seam",
-                        4,
+                        3,
                     )
                 )
                 items.append(
@@ -143,7 +134,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Portal",
                         "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters.",
                         "portal",
-                        5,
+                        4,
                     )
                 )
                 items.append(
@@ -152,43 +143,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Water Surface",
                         "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
                         "water",
-                        6,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "fog",
-                        "Fog",
-                        "Defines an area in a cluster which renders fog defined in the scenario tag",
-                        "fog",
-                        7,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "soft_ceiling",
-                        "Soft Ceiling",
-                        "Soft barrier that blocks the player and player camera",
-                        "soft_ceiling",
-                        8,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "soft_kill",
-                        "Soft Kill",
-                        "Defines a region where the player will be killed... softly",
-                        "soft_kill",
-                        9,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "slip_surface",
-                        "Slip Surface",
-                        "Defines a region in which surfaces become slippery",
-                        "slip_surface",
-                        10,
+                        5,
                     )
                 )
                 items.append(
@@ -197,19 +152,64 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Water Physics",
                         "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
                         "water_physics",
-                        11,
+                        6,
+                    )
+                )
+                items.append(
+                    nwo_enum(
+                        "soft_ceiling",
+                        "Soft Ceiling",
+                        "Soft barrier that blocks the player and player camera",
+                        "soft_ceiling",
+                        7,
+                    )
+                )
+                items.append(
+                    nwo_enum(
+                        "soft_kill",
+                        "Soft Kill",
+                        "Defines a region where the player will be killed... softly",
+                        "soft_kill",
+                        8,
+                    )
+                )
+                items.append(
+                    nwo_enum(
+                        "slip_surface",
+                        "Slip Surface",
+                        "Defines a region in which surfaces become slippery",
+                        "slip_surface",
+                        9,
+                    )
+                )
+                items.append(
+                    nwo_enum(
+                        "fog",
+                        "Fog",
+                        "Defines an area in a cluster which renders fog defined in the scenario tag",
+                        "fog",
+                        10,
                     )
                 )
                 if reach:
                     items.append(
                         nwo_enum(
-                            "lightmap",
-                            "Lightmap Region",
-                            "Restricts lightmapping to this area when specified during lightmapping",
-                            "lightmap_region",
-                            12,
+                            "cookie_cutter",
+                            "Cookie Cutter",
+                            "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
+                            "cookie_cutter",
+                            11,
                         )
-                    )
+                    ),
+                    # items.append(
+                    #     nwo_enum(
+                    #         "lightmap",
+                    #         "Lightmap Region",
+                    #         "Restricts lightmapping to this area when specified during lightmapping",
+                    #         "lightmap_region",
+                    #         0,
+                    #     )
+                    # )
                 else:
                     items.append(
                         nwo_enum(
@@ -217,7 +217,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                             "Lightmap Exclusion",
                             "Defines a region that should not be lightmapped",
                             "lightmap_exclude",
-                            12,
+                            11,
                         )
                     )
 
@@ -227,7 +227,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Rain Blocker",
                         "Blocks rain from rendering in the region this volume occupies",
                         "rain_sheet",
-                        13,
+                        12,
                     )
                 )
                 if reach:
@@ -237,7 +237,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                             "Rain Sheet",
                             "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
                             "rain_sheet",
-                            14,
+                            13,
                         )
                     )
                 else:
@@ -258,6 +258,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
         self.layout.prop(self, "m_type", text="Mesh Type")
 
     def execute(self, context):
+        apply_materials = get_prefs().apply_materials
         mesh_type = ""
         sub_type = ""
         material = ""
@@ -367,7 +368,8 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 else:
                     nwo.plane_type_ui = sub_type
 
-            apply_props_material(ob, material)
+            if apply_materials:
+                apply_props_material(ob, material)
 
             if self.m_type == "seam":
                 closest_bsp = closest_bsp_object(ob)
