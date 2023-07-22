@@ -111,24 +111,19 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
 
 
 def find_shader_match(mat, shaders, tags_path):
-    material_name = mat.name
+    material_name = dot_partition(mat.name)
     material_parts = material_name.split(" ")
     # clean material name
     if len(material_parts) > 1:
         material_name = material_parts[1]
     else:
         material_name = material_parts[0]
-    # ignore if duplicate name
-    dot_partition(material_name)
     # ignore material suffixes
-    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['0")
-    # dot partition again in case a pesky dot remains
-    dot_partition(material_name)
+    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['") # NOTE removed '0' from this. This is the legacy suffic for slip surface but including it may not play nice with user shader tag conventions
     for s in shaders:
         # get just the shader name
-        shader_name = s.rpartition("\\")[2]
-        shader_name = shader_name.rpartition(".")[0]
+        shader_name = dot_partition(s.rpartition("\\")[2])
         if material_name.lower() == shader_name.lower():
-            return s.replace(tags_path, "")
+            return s
 
     return ""
