@@ -2728,9 +2728,9 @@ class PrepareScene:
         slots_to_remove = []
         for idx, slot in enumerate(slots):
             slot_mat = slot.material
-            if is_halo_render:
-                self.used_materials.add(slot_mat)
             if slot_mat:
+                if is_halo_render:
+                    self.used_materials.add(slot_mat)
                 s_name = slot_mat.name
                 if s_name not in mats.keys():
                     mats[s_name] = idx

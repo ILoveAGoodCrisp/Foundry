@@ -26,6 +26,8 @@
 
 import bpy
 
+from io_scene_foundry.utils.nwo_utils import not_bungie_game
+
 special_materials = (
     "InvisibleSky",
     "Physics",
@@ -173,6 +175,26 @@ def halo_material(mat_name):
 
     return new_material
 
+def cleanup_empty_slots(slots):
+    materials = bpy.data.materials
+    h4 = not_bungie_game()
+    for slot in slots:
+        slot_mat = slot.material
+        if slot_mat:
+            continue
+
+        if "invalid" not in materials:
+            invalid_mat = materials.new("invalid")
+            if h4:
+                invalid_mat.nwo.shader_path = r"shaders\invalid.material"
+            else:
+                invalid_mat.nwo.shader_path = r"shaders\invalid.shader"
+        else:
+            invalid_mat = materials.get("invalid")
+
+        slot.material = invalid_mat
+
+
 
 def apply_props_material(ob, mat_name):
     if mat_name != "":
@@ -180,3 +202,4 @@ def apply_props_material(ob, mat_name):
         ob.data.materials.append(halo_material(mat_name))
     else:
         clear_special_mats(ob.data.materials)
+        cleanup_empty_slots(ob.material_slots)

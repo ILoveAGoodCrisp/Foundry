@@ -104,7 +104,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             ),
             items.append(
                 nwo_enum(
-                    "poop",
+                    "instance",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
@@ -275,7 +275,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 material = "Physics"
             case "render":
                 mesh_type = "_connected_geometry_mesh_type_render"
-            case "poop":
+            case "instance":
                 mesh_type = "_connected_geometry_mesh_type_poop"
             case "structure":
                 mesh_type = "_connected_geometry_mesh_type_structure"
