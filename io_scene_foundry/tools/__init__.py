@@ -1257,6 +1257,8 @@ class NWO_FoundryPanelProps(Panel):
         if not has_mesh_props(ob):
             return
 
+        box = self.box.box()
+        box.label(text="Mesh Properties")
         flow = box.grid_flow(
             row_major=True,
             columns=0,
@@ -1309,7 +1311,7 @@ class NWO_FoundryPanelProps(Panel):
                 #             break
 
         if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
-            if h4 and not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+            if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure") or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 return
             col2 = col.column()
             col2.separator()
@@ -1518,46 +1520,47 @@ class NWO_FoundryPanelProps(Panel):
                     )
 
                 col_ob.separator()
-                col_ob.menu(NWO_MeshPropAddMenu.bl_idname, text="Add Object Property", icon="PLUS")
+                col_ob.menu(NWO_MeshPropAddMenu.bl_idname, text="Add Mesh Property", icon="PLUS")
 
         if not has_face_props(ob) or not (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
             return
 
-        self.draw_face_props(box, ob, context)
+        self.draw_face_props(self.box, ob, context)
         nwo = ob.data.nwo
         # Instance Proxy Operators
         if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop":
             return
         
         col.separator()
-        col = box.column()
-        col.label(text="Instance Proxies")
+        box = self.box.box()
+        box.label(text="Instance Proxies")
         collision = nwo.proxy_collision
         physics = nwo.proxy_physics
         cookie_cutter = nwo.proxy_cookie_cutter
         
         if not (collision and physics and (h4 or cookie_cutter)):
-            row = col.row()
+            row = box.row()
             row.scale_y = 1.3
             row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
             col.separator()
 
         if collision:
-            row = col.row(align=True)
+            row = box.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Collision", icon_value=get_icon_id("collider")).proxy = collision.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = collision.name
 
         if physics:
-            row = col.row(align=True)
+            row = box.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics", icon_value=get_icon_id("physics")).proxy = physics.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = physics.name
 
         if not h4 and cookie_cutter:
-            row = col.row(align=True)
+            row = box.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
 
     def draw_face_props(self, box, ob, context, is_proxy=False):
+        box = box.box()
         flow = box.grid_flow(
             row_major=True,
             columns=0,
@@ -1863,7 +1866,7 @@ class NWO_FoundryPanelProps(Panel):
                     )
                 if not is_proxy:
                     col.separator()
-                    col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Property", icon="PLUS")
+                    col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Layer Property", icon="PLUS")
 
             
 
