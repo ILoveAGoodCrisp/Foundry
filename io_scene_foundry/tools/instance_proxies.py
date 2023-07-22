@@ -241,7 +241,6 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
 
         setattr(self.parent.data.nwo, f"proxy_{proxy_type}", ob)
         if proxy_type == "collision":
-            print("???")
             apply_props_material(ob, "Collision")
         elif proxy_type == "physics":
             apply_props_material(ob, "Physics")

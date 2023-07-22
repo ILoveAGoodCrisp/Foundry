@@ -805,6 +805,7 @@ class NWO_FaceLayerAdd(NWO_Op):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
         row = layout.row()
         if self.options == "region":
             row.prop(self, "fm_name", text="Region")

@@ -41,7 +41,6 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
-from io_scene_foundry.ui.preferences_ui import ToolkitLocationPreferences
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -126,9 +125,25 @@ class NWO_FoundryPanelProps(Panel):
         nwo = self.scene.nwo
         if context.scene.nwo.instance_proxy_running:    
             box = layout.box()
-            if context.object:
+            ob = context.object
+            if ob:
                 row = box.row()
-                row.label(text=f"Editing: {context.object.name}")
+                row.label(text=f"Editing: {ob.name}")
+                proxy_nwo = ob.nwo
+                row = box.row()
+                row.use_property_split = True
+                row.prop(
+                    proxy_nwo,
+                    "face_global_material_ui",
+                    text="Collision Material",
+                )
+                row.menu(
+                    NWO_GlobalMaterialMenu.bl_idname,
+                    text="",
+                    icon="DOWNARROW_HLT",
+                )
+                # proxy face props
+                self.draw_face_props(box, ob, context, True)
             row = box.row()
             row.scale_y = 2
             row.operator("nwo.proxy_instance_cancel", text="Exit Proxy Edit Mode")
@@ -1507,7 +1522,42 @@ class NWO_FoundryPanelProps(Panel):
 
         if not has_face_props(ob) or not (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
             return
-    
+
+        self.draw_face_props(box, ob, context)
+        nwo = ob.data.nwo
+        # Instance Proxy Operators
+        if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop":
+            return
+        
+        col.separator()
+        col = box.column()
+        col.label(text="Instance Proxies")
+        collision = nwo.proxy_collision
+        physics = nwo.proxy_physics
+        cookie_cutter = nwo.proxy_cookie_cutter
+        
+        if not (collision and physics and (h4 or cookie_cutter)):
+            row = col.row()
+            row.scale_y = 1.3
+            row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
+            col.separator()
+
+        if collision:
+            row = col.row(align=True)
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Collision", icon_value=get_icon_id("collider")).proxy = collision.name
+            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = collision.name
+
+        if physics:
+            row = col.row(align=True)
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics", icon_value=get_icon_id("physics")).proxy = physics.name
+            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = physics.name
+
+        if not h4 and cookie_cutter:
+            row = col.row(align=True)
+            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
+            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
+
+    def draw_face_props(self, box, ob, context, is_proxy=False):
         flow = box.grid_flow(
             row_major=True,
             columns=0,
@@ -1552,7 +1602,10 @@ class NWO_FoundryPanelProps(Panel):
 
             if context.mode == "EDIT_MESH":
                 col = row.column(align=True)
-                col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
+                if is_proxy:
+                    col.operator("nwo.face_layer_add", text="", icon="ADD").options = "face_global_material"
+                else:
+                    col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
                 col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
                 col.separator()
                 col.operator(
@@ -1655,9 +1708,10 @@ class NWO_FoundryPanelProps(Panel):
                         text="",
                         icon="DOWNARROW_HLT",
                     )
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "face_global_material"
+                    if not is_proxy:
+                        row.operator(
+                            "nwo.face_prop_remove", text="", icon="X"
+                        ).options = "face_global_material"
                 if item.ladder_override:
                     row = col.row()
                     row.prop(item, "ladder_ui")
@@ -1807,40 +1861,9 @@ class NWO_FoundryPanelProps(Panel):
                         "material_lighting_emissive_per_unit_ui",
                         text="Emissive Per Unit",
                     )
-
-                col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Property", icon="PLUS")
-
-        # Instance Proxy Operators
-        if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop":
-            return
-        
-        col.separator()
-        col = box.column()
-        col.label(text="Instance Proxies")
-        collision = nwo.proxy_collision
-        physics = nwo.proxy_physics
-        cookie_cutter = nwo.proxy_cookie_cutter
-        
-        if not (collision and physics and (h4 or cookie_cutter)):
-            row = col.row()
-            row.scale_y = 1.3
-            row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
-            col.separator()
-
-        if collision:
-            row = col.row(align=True)
-            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Collision", icon_value=get_icon_id("collider")).proxy = collision.name
-            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = collision.name
-
-        if physics:
-            row = col.row(align=True)
-            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics", icon_value=get_icon_id("physics")).proxy = physics.name
-            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = physics.name
-
-        if not h4 and cookie_cutter:
-            row = col.row(align=True)
-            row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
-            row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
+                if not is_proxy:
+                    col.separator()
+                    col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Property", icon="PLUS")
 
             
 
