@@ -1503,7 +1503,7 @@ class PrepareScene:
         #     if override:
         #         bone.name = override
         for b in bones:
-            if not b.name.startswith("b_", "b ", "bip ", "bip_", "bone ", "bone_"):
+            if not b.name.startswith(("b_", "b ", "bip ", "bip_", "bone ", "bone_")):
                 b.name = f"b_{b.name}"
 
 
