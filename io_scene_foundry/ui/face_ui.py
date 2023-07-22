@@ -128,16 +128,13 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                 layout.operator(
                     self.op_prefix, text="Emissive"
                 ).options = "emissive"
+
                 layout.operator_menu_enum(
                     self.op_prefix + "_lightmap",
                     property="options",
                     text="Lightmap",
                 )
-                layout.operator_menu_enum(
-                    self.op_prefix + "_lightmap",
-                    property="options",
-                    text="Lightmap",
-                )
+
         if poll_ui(("SCENARIO", "PREFAB")) or nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision":
             layout.operator_menu_enum(
                 self.op_prefix + "_flags",
@@ -995,14 +992,13 @@ class NWO_FaceLayerAddFlags(NWO_FaceLayerAdd):
     def get_options(self, context):
         items = []
         render = context.object.nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop")
-        items.append(("slip_surface", "Slip Surface", ""))
         if render:
             items.append(("decal_offset", "Decal Offset", ""))
             items.append(("no_shadow", "No Shadow", ""))
         if context.scene.nwo.game_version == "reach":
             items.append(("ladder", "Ladder", ""))
+            items.append(("slip_surface", "Slip Surface", ""))
         elif render:
-            items.append(("no_shadow", "No Shadow", ""))
             items.append(("no_lightmap", "No Lightmap", ""))
             items.append(("no_pvs", "No PVS", ""))
 
@@ -1122,8 +1118,9 @@ def draw(self):
     gpu.state.face_culling_set("NONE")
 
 
-class NWO_FaceLayerColorAll(NWO_Op):
+class NWO_FaceLayerColorAll(bpy.types.Operator):
     bl_idname = "nwo.face_layer_color_all"
+    bl_label = "Highlight"
 
     enable_highlight: BoolProperty()
 
@@ -1150,8 +1147,10 @@ class NWO_FaceLayerColorAll(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_FaceLayerColor(NWO_Op):
+class NWO_FaceLayerColor(bpy.types.Operator):
     bl_idname = "nwo.face_layer_color"
+    bl_label = "Highlight"
+    bl_options = {'INTERNAL'}
 
     layer_index: bpy.props.IntProperty()
     highlight: bpy.props.IntProperty()
@@ -1267,7 +1266,7 @@ class NWO_FaceLayerColor(NWO_Op):
         return {"CANCELLED"}
 
 
-class NWO_RegionListFace(NWO_Op):
+class NWO_RegionListFace(bpy.types.Operator):
     bl_idname = "nwo.face_region_list"
     bl_label = "Region List"
     bl_description = "Applies a region to the selected face layer"
@@ -1316,7 +1315,7 @@ class NWO_GlobalMaterialRegionListFace(NWO_RegionListFace):
         return {"FINISHED"}
 
 
-class NWO_GlobalMaterialListFace(NWO_Op):
+class NWO_GlobalMaterialListFace(bpy.types.Operator):
     bl_idname = "nwo.face_global_material_list"
     bl_label = "Collision Material List"
     bl_description = "Applies a Collision Material to the selected face layer"

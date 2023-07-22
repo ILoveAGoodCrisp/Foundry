@@ -1952,7 +1952,7 @@ class PrepareScene:
                 "_connected_geometry_mesh_type_physics",
             ):
                 nwo.face_global_material = nwo.face_global_material_ui
-                if nwo.mesh_type != "_connected_geometry_mesh_type_physics":
+                if nwo.mesh_type != "_connected_geometry_mesh_type_physics" and reach:
                     if nwo.ladder_ui:
                         nwo.ladder = "1"
                     if nwo.slip_surface_ui:
