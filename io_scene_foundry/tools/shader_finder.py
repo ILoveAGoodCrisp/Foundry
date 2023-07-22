@@ -63,7 +63,7 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
         for mat in materials:
             no_path = not bool(mat.nwo.shader_path)
             if no_path or overwrite:
-                shader_path = find_shader_match(mat, shaders, tags_path)
+                shader_path = find_shader_match(mat, shaders)
                 if shader_path:
                     mat.nwo.shader_path = shader_path
                     update_count += 1
@@ -110,20 +110,23 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
     return no_path_materials
 
 
-def find_shader_match(mat, shaders, tags_path):
-    material_name = dot_partition(mat.name)
-    material_parts = material_name.split(" ")
+def find_shader_match(mat, shaders):
+    """Tries to find a shader match. Includes logic for filtering out legacy material name prefixes/suffixes"""
+    material_lower = mat.name.lower()
+    material_short = dot_partition(material_lower)
+    material_parts = material_short.split(" ")
     # clean material name
     if len(material_parts) > 1:
         material_name = material_parts[1]
     else:
         material_name = material_parts[0]
     # ignore material suffixes
-    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['") # NOTE removed '0' from this. This is the legacy suffic for slip surface but including it may not play nice with user shader tag conventions
+    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['0")
     for s in shaders:
         # get just the shader name
-        shader_name = dot_partition(s.rpartition("\\")[2])
-        if material_name.lower() == shader_name.lower():
+        shader_name = dot_partition(s.rpartition("\\")[2]).lower()
+        # changing this to check 3 versions, to ensure the correct material is picked
+        if shader_name in (material_lower, material_short, material_name):
             return s
 
     return ""
