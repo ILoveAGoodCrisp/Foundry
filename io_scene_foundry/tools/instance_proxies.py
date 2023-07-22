@@ -41,15 +41,18 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
 
     _timer = None
 
-    def execute(self, context):
-        self.old_sel = context.selected_objects.copy()
-
-        for area in bpy.context.screen.areas:
+    def exit_local_view(self, context):
+        for area in context.screen.areas:
             if area.type == 'VIEW_3D':
                 view_3d = area.spaces.active
                 if view_3d.local_view:
                     bpy.ops.view3d.localview()
                     break
+
+    def execute(self, context):
+        self.old_sel = context.selected_objects.copy()
+
+        self.exit_local_view(context)
 
         set_object_mode(context)
         wm = context.window_manager
@@ -61,7 +64,6 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         self.scene_coll.link(self.proxy_ob)
         self.proxy_ob.select_set(True)
         self.proxy_ob.matrix_world = self.parent.matrix_world
-
         bpy.ops.view3d.localview()
         deselect_all_objects()
         self.proxy_ob.select_set(True)
@@ -80,7 +82,7 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
             if context.mode == 'EDIT_MESH':
                 bpy.ops.object.editmode_toggle()
 
-            bpy.ops.view3d.localview()
+            self.exit_local_view(context)
             self.proxy_ob.select_set(False)
             unlink(self.proxy_ob)
             for sel_ob in self.old_sel:
@@ -100,22 +102,31 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_new"
     bl_description = "New Proxy Instance"
     bl_label = "Instance Proxy New"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def proxy_type_items(self, context):
+        items = []
+        nwo = context.object.data.nwo
+        if not nwo.proxy_collision:
+            items.append(("collision", "Collision", ""))
+        if not nwo.proxy_physics:
+            items.append(("physics", "Physics", ""))
+        if context.scene.nwo.game_version == "reach" and not nwo.proxy_cookie_cutter:
+            items.append(("cookie_cutter", "Cookie Cutter", ""))
+
+        return items
 
     proxy_type : bpy.props.EnumProperty(
         name="Type",
-        items=[
-            ("collision", "Collision", ""),
-            ("physics", "Physics", ""),
-            ("cookie_cutter", "Cookie Cutter", ""),
-        ]
+        items=proxy_type_items,
     )
 
     proxy_source : bpy.props.EnumProperty(
         name="Source",
         items=[
-            ("bounding_box", "Bounding Box", ""),
-            ("copy", "Copy", ""),
-            ("existing", "Scene Mesh", ""),
+            ("bounding_box", "Bounding Box", "Generates a bounding box based on this instance"),
+            ("copy", "Copy", "Copies this instance and removes any render only faces"),
+            ("existing", "Mesh", "Creates a proxy using the specified scene mesh object"),
         ]
     )
 
@@ -192,6 +203,9 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         return ob
     
     def copy_mesh(self):
+        if not self.proxy_copy:
+            return None
+        
         me = bpy.data.meshes.new(self.proxy_name)
         bm = bmesh.new()
         bm.from_mesh(bpy.data.meshes[self.proxy_copy])
@@ -205,8 +219,11 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
 
     def execute(self, context):
         self.parent = context.object
+        proxy_type = self.proxy_type
+        if proxy_type == "":
+            proxy_type = self.proxy_type_items(context)[0][0]
         # self.scene_coll = context.scene.collection.objects
-        self.proxy_name = f"{self.parent.name}_proxy_{self.proxy_type}"
+        self.proxy_name = f"{self.parent.name}_proxy_{proxy_type}"
         if self.proxy_source == "bounding_box":
             ob = self.build_bounding_box()
         elif self.proxy_source == "copy":
@@ -214,21 +231,26 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         else:
             ob = self.copy_mesh()
 
+        if ob is None:
+            self.report({'WARNING'}, "No Mesh specified")
+            return {'CANCELLED'}
+
         # self.scene_coll.link(ob)
         ob.nwo.proxy_parent = self.parent.data
-        ob.nwo.proxy_type = self.proxy_type
+        ob.nwo.proxy_type = proxy_type
 
-        setattr(self.parent.data.nwo, f"proxy_{self.proxy_type}", ob)
-        if self.proxy_type == "collision":
+        setattr(self.parent.data.nwo, f"proxy_{proxy_type}", ob)
+        if proxy_type == "collision":
+            print("???")
             apply_props_material(ob, "Collision")
-        elif self.proxy_type == "physics":
+        elif proxy_type == "physics":
             apply_props_material(ob, "Physics")
         else:
             apply_props_material(ob, "CookieCutter")
 
         if self.proxy_edit:
             bpy.ops.nwo.proxy_instance_edit(proxy=ob.name)
-            
+        
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -252,6 +274,7 @@ class NWO_ProxyInstanceDelete(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_delete"
     bl_description = "Deletes a proxy object"
     bl_label = "Instance Proxy Delete"
+    bl_options = {'UNDO'}
 
     proxy : bpy.props.StringProperty()
 

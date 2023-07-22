@@ -1821,7 +1821,7 @@ class NWO_FoundryPanelProps(Panel):
         physics = nwo.proxy_physics
         cookie_cutter = nwo.proxy_cookie_cutter
         
-        if not (collision and physics and cookie_cutter):
+        if not (collision and physics and (h4 or cookie_cutter)):
             row = col.row()
             row.scale_y = 1.3
             row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
@@ -1837,7 +1837,7 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Physics", icon_value=get_icon_id("physics")).proxy = physics.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = physics.name
 
-        if cookie_cutter:
+        if not h4 and cookie_cutter:
             row = col.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
