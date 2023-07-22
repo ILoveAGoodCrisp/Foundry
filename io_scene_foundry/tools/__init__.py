@@ -1314,7 +1314,6 @@ class NWO_FoundryPanelProps(Panel):
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision", "_connected_geometry_mesh_type_collision"):
                 if not h4:
                     row.prop(nwo, "ladder_ui", text="Ladder")
-                row.prop(nwo, "slip_surface_ui", text="Slip Surface")
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
                     if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
