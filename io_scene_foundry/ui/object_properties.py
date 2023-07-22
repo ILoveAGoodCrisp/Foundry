@@ -72,72 +72,6 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         name="Highlight",
     )
 
-    face_global_material_ui: StringProperty(
-        name="Collision Material",
-        default="",
-        description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
-    )
-
-    sky_permutation_index_ui: IntProperty(
-        name="Sky Permutation Index",
-        options=set(),
-        description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
-        min=0,
-        soft_max=10,
-    )
-
-    ladder_ui: BoolProperty(
-        name="Ladder",
-        options=set(),
-        description="Makes faces climbable",
-    )
-
-    slip_surface_ui: BoolProperty(
-        name="Slip Surface",
-        options=set(),
-        description="Makes faces slippery for units",
-    )
-
-
-    decal_offset_ui: BoolProperty(
-        name="Decal Offset",
-        options=set(),
-        description="Enable to offset these faces so that they appear to be layered on top of another face",
-        default=False,
-    )
-
-    group_transparents_by_plane_ui: BoolProperty(
-        name="Group Transparents By Plane",
-        options=set(),
-        description="Enable to group transparent geometry by fitted planes",
-        default=True,
-    )
-
-    no_shadow_ui: BoolProperty(
-        name="No Shadow",
-        options=set(),
-        description="Enable to prevent faces from casting shadows",
-    )
-
-    precise_position_ui: BoolProperty(
-        name="Precise Position",
-        options=set(),
-        description="Enable to prevent faces from being altered during the import process",
-    )
-
-    no_lightmap_ui: BoolProperty(
-        name="Exclude From Lightmap",
-        options=set(),
-        description="",
-    )
-
-    no_pvs_ui: BoolProperty(
-        name="Invisible To PVS",
-        options=set(),
-        description="",
-    )
-
-
 # MARKER PERM PROPERTIES
 # ----------------------------------------------------------
 class NWO_MarkerPermutationItems(PropertyGroup):
@@ -2195,6 +2129,71 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=False,
+    )
+
+face_global_material_ui: StringProperty(
+        name="Collision Material",
+        default="",
+        description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
+    )
+
+    sky_permutation_index_ui: IntProperty(
+        name="Sky Permutation Index",
+        options=set(),
+        description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
+        min=0,
+        soft_max=10,
+    )
+
+    ladder_ui: BoolProperty(
+        name="Ladder",
+        options=set(),
+        description="Makes faces climbable",
+    )
+
+    slip_surface_ui: BoolProperty(
+        name="Slip Surface",
+        options=set(),
+        description="Makes faces slippery for units",
+    )
+
+
+    decal_offset_ui: BoolProperty(
+        name="Decal Offset",
+        options=set(),
+        description="Enable to offset these faces so that they appear to be layered on top of another face",
+        default=False,
+    )
+
+    group_transparents_by_plane_ui: BoolProperty(
+        name="Group Transparents By Plane",
+        options=set(),
+        description="Enable to group transparent geometry by fitted planes",
+        default=True,
+    )
+
+    no_shadow_ui: BoolProperty(
+        name="No Shadow",
+        options=set(),
+        description="Enable to prevent faces from casting shadows",
+    )
+
+    precise_position_ui: BoolProperty(
+        name="Precise Position",
+        options=set(),
+        description="Enable to prevent faces from being altered during the import process",
+    )
+
+    no_lightmap_ui: BoolProperty(
+        name="Exclude From Lightmap",
+        options=set(),
+        description="",
+    )
+
+    no_pvs_ui: BoolProperty(
+        name="Invisible To PVS",
+        options=set(),
+        description="",
     )
 
     # EXPORT ONLY PROPS
