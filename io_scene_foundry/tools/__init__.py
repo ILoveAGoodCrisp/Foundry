@@ -143,7 +143,8 @@ class NWO_FoundryPanelProps(Panel):
                     icon="DOWNARROW_HLT",
                 )
                 # proxy face props
-                self.draw_face_props(box, ob, context, True)
+                if self.h4:
+                    self.draw_face_props(box, ob, context, True)
             row = box.row()
             row.scale_y = 2
             row.operator("nwo.proxy_instance_cancel", text="Exit Proxy Edit Mode")
@@ -1537,12 +1538,6 @@ class NWO_FoundryPanelProps(Panel):
         collision = nwo.proxy_collision
         physics = nwo.proxy_physics
         cookie_cutter = nwo.proxy_cookie_cutter
-        
-        if not (collision and physics and (h4 or cookie_cutter)):
-            row = box.row()
-            row.scale_y = 1.3
-            row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
-            col.separator()
 
         if collision:
             row = box.row(align=True)
@@ -1558,6 +1553,12 @@ class NWO_FoundryPanelProps(Panel):
             row = box.row(align=True)
             row.operator("nwo.proxy_instance_edit", text="Edit Proxy Cookie Cutter", icon_value=get_icon_id("cookie_cutter")).proxy = cookie_cutter.name
             row.operator("nwo.proxy_instance_delete", text="", icon="X").proxy = cookie_cutter.name
+
+        if not (collision and physics and (h4 or cookie_cutter)):
+            row = box.row()
+            row.scale_y = 1.3
+            row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
+            col.separator()
 
     def draw_face_props(self, box, ob, context, is_proxy=False):
         box = box.box()

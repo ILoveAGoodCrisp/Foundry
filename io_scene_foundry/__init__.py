@@ -31,6 +31,8 @@ import ctypes
 import bpy
 from bpy.app.handlers import persistent
 
+from io_scene_foundry.utils.nwo_utils import unlink
+
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
@@ -113,6 +115,15 @@ else:
         if not bpy.app.background:
             # Set game version from file
             context = bpy.context
+            proxy_left_active = context.scene.nwo.instance_proxy_running
+            if proxy_left_active:
+                for ob in context.view_layer.objects:
+                    if ob.nwo.proxy_parent:
+                        unlink(ob)
+
+                context.scene.nwo.instance_proxy_running = False
+
+            context.scene.nwo.instance_proxy_running = False
             context.scene.nwo.game_version
             if not (context.scene.nwo.game_version_set or valid_nwo_asset(context)):
                 context.scene.nwo.game_version = bpy.context.preferences.addons["io_scene_foundry"].preferences.default_game_version
@@ -185,6 +196,12 @@ else:
             nwo_export.import_disable_collision = settings["import_disable_collision"]
             nwo_export.import_no_pca = settings["import_no_pca"]
             nwo_export.import_force_animations = settings["import_force_animations"]
+
+            if nwo.instance_proxy_running:
+                nwo.instance_proxy_running = False
+                for ob in bpy.context.view_layer.objects:
+                    if ob.nwo.proxy_parent:
+                        unlink(ob)
 
             nwo_globals.nwo_scene_settings.clear()
 

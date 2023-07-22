@@ -83,11 +83,14 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
                 bpy.ops.object.editmode_toggle()
 
             self.exit_local_view(context)
-            self.proxy_ob.select_set(False)
-            unlink(self.proxy_ob)
-            for sel_ob in self.old_sel:
-                sel_ob.select_set(True)
-            set_active_object(self.parent)
+            try:
+                self.proxy_ob.select_set(False)
+                unlink(self.proxy_ob)
+                for sel_ob in self.old_sel:
+                    sel_ob.select_set(True)
+                set_active_object(self.parent)
+            except:
+                pass
             scene_nwo.instance_proxy_running = False
             return {'FINISHED'}
         

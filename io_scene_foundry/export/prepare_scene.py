@@ -835,6 +835,7 @@ class PrepareScene:
         scene_coll,
         split_objects,
         bm,
+        is_proxy,
     ):
         # faces_layer_dict = {faces: layer for layer, faces in layer_faces_dict.keys()}
         faces_layer_dict = {}
@@ -875,7 +876,8 @@ class PrepareScene:
 
                 split_bm.to_mesh(split_me)
 
-                scene_coll.link(split_ob)
+                if not is_proxy:
+                    scene_coll.link(split_ob)
 
                 new_layer_faces_dict = {
                     layer: layer_faces(
@@ -897,11 +899,12 @@ class PrepareScene:
                         scene_coll,
                         split_objects,
                         split_bm,
+                        is_proxy,
                     )
 
         return split_objects
 
-    def split_to_layers(self, context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm):
+    def split_to_layers(self, context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, is_proxy):
         poly_count = len(bm.faces)
         layer_faces_dict = {
             layer: layer_faces(bm, bm.faces.layers.int.get(layer.layer_name))
@@ -973,7 +976,7 @@ class PrepareScene:
 
             # Splits the mesh recursively until each new mesh only contains a single face layer
             split_objects_messy = self.recursive_layer_split(
-                ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm
+                ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm, is_proxy
             )
 
             ori_ob_name = str(ob.name)
@@ -1046,7 +1049,7 @@ class PrepareScene:
             for layer in face_layers:
                 self.face_prop_to_mesh_prop(ob.nwo, layer, h4, ob, scene_coll)
 
-            return context.selected_objects
+            return [ob]
         
     def poop_split_override(self, face_layers):
         for layer in face_layers:
@@ -1240,6 +1243,114 @@ class PrepareScene:
                 special_ob.nwo.face_sides = "_connected_geometry_face_sides_two_sided"
                 special_ob.nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
 
+
+    def proxy_face_split(self, ob, context, scene_coll, h4):
+        me = ob.data
+        me_nwo = me.nwo
+        ob_nwo = ob.nwo
+
+        face_layers = me_nwo.face_props
+
+        if face_layers:
+            bm = bmesh.new()
+            bm.from_mesh(me)
+
+            # must ensure all faces are visible
+            for face in bm.faces:
+                face.hide_set(False)
+
+            return self.split_to_layers(
+                context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, True
+            )
+
+        return [ob]
+
+    def setup_instance_proxies(self, scenario, prefab, me, h4, linked_objects, scene_coll, context):
+        if scenario or prefab:
+            proxy_physics = me.nwo.proxy_physics
+            if proxy_physics is not None:
+                proxy_physics.nwo.object_type = "_connected_geometry_object_type_mesh"
+                glob_mat_phys = proxy_physics.nwo.face_global_material_ui
+                if glob_mat_phys:
+                    proxy_physics.nwo.face_global_material = glob_mat_phys
+                    self.global_materials.add(glob_mat_phys)
+
+                if h4:
+                    proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
+                    proxy_physics.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_play_collision"
+                    split_physics = self.proxy_face_split(proxy_physics, context, scene_coll, h4)
+                else:
+                    proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
+
+            proxy_collision = me.nwo.proxy_collision
+            if proxy_collision is not None:
+                proxy_collision.nwo.object_type = "_connected_geometry_object_type_mesh"
+                proxy_collision.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
+                glob_mat_coll = proxy_collision.nwo.face_global_material_ui
+                if glob_mat_coll:
+                    proxy_collision.nwo.face_global_material = glob_mat_coll
+                    self.global_materials.add(glob_mat_coll)
+                if h4:
+                    if proxy_physics:
+                        proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_bullet_collision"
+                    else:
+                        proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_default"
+
+                    split_collision = self.proxy_face_split(proxy_collision, context, scene_coll, h4)
+
+            proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
+            if not h4 and proxy_cookie_cutter is not None:
+                proxy_cookie_cutter.nwo.object_type = "_connected_geometry_object_type_mesh"
+                proxy_cookie_cutter.nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
+
+            if proxy_physics is not None or proxy_collision is not None or proxy_cookie_cutter is not None:
+                poops = [o for o in linked_objects if o.nwo.mesh_type == "_connected_geometry_mesh_type_poop"]
+                for o in poops:
+                    if proxy_collision is not None:
+                        if o.nwo.face_mode not in RENDER_ONLY_FACE_TYPES:
+                            o.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                        if h4:
+                            for s_ob in split_collision:
+                                o_collision = s_ob.copy()
+                                scene_coll.link(o_collision)
+                                o_collision.nwo.permutation_name = o.nwo.permutation_name
+                                o_collision.nwo.bsp_name = o.nwo.bsp_name
+                                o_collision.parent = o
+                                o_collision.matrix_world = o.matrix_world
+                        else:
+                            o_collision = proxy_collision.copy()
+                            scene_coll.link(o_collision)
+                            o_collision.nwo.permutation_name = o.nwo.permutation_name
+                            o_collision.nwo.bsp_name = o.nwo.bsp_name
+                            o_collision.parent = o
+                            o_collision.matrix_world = o.matrix_world
+
+                    if proxy_physics is not None:
+                        if h4:
+                            for s_ob in split_physics:
+                                o_physics = s_ob.copy()
+                                scene_coll.link(o_physics)
+                                o_physics.nwo.permutation_name = o.nwo.permutation_name
+                                o_physics.nwo.bsp_name = o.nwo.bsp_name
+                                o_physics.parent = o
+                                o_physics.matrix_world = o.matrix_world
+
+                        else:
+                            o_physics = proxy_physics.copy()
+                            scene_coll.link(o_physics)
+                            o_physics.nwo.permutation_name = o.nwo.permutation_name
+                            o_physics.nwo.bsp_name = o.nwo.bsp_name
+                            o_physics.parent = o
+                            o_physics.matrix_world = o.matrix_world
+
+                    if not h4 and proxy_cookie_cutter is not None:
+                        o_cookie_cutter = proxy_cookie_cutter.copy()
+                        scene_coll.link(o_cookie_cutter)
+                        o_cookie_cutter.nwo.permutation_name = o.nwo.permutation_name
+                        o_cookie_cutter.nwo.bsp_name = o.nwo.bsp_name
+                        o_cookie_cutter.parent = o
+                        o_cookie_cutter.matrix_world = o.matrix_world
+
     def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario, prefab):
         mesh_obs_full = [ob for ob in export_obs if ob.type == "MESH"]
         if not mesh_obs_full:
@@ -1305,62 +1416,7 @@ class PrepareScene:
                 continue
 
             # Running instance proxy stuff here because it makes the most sense
-            if scenario or prefab:
-                proxy_physics = me.nwo.proxy_physics
-                if proxy_physics is not None:
-                    proxy_physics.nwo.object_type = "_connected_geometry_object_type_mesh"
-                    if h4:
-                        proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                        proxy_physics.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_play_collision"
-                    else:
-                        proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
-
-                proxy_collision = me.nwo.proxy_collision
-                if proxy_collision is not None:
-                    proxy_collision.nwo.object_type = "_connected_geometry_object_type_mesh"
-                    proxy_collision.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                    if h4:
-                        if proxy_physics:
-                            proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_bullet_collision"
-                        else:
-                            proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_default"
-
-                proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
-                if proxy_cookie_cutter is not None:
-                    proxy_cookie_cutter.nwo.object_type = "_connected_geometry_object_type_mesh"
-                    proxy_cookie_cutter.nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
-
-                if proxy_physics is not None or proxy_collision is not None or proxy_cookie_cutter is not None:
-                    poops = [o for o in linked_objects if o.nwo.mesh_type == "_connected_geometry_mesh_type_poop"]
-                    for o in poops:
-                        if proxy_collision is not None:
-                            if o.nwo.face_mode not in RENDER_ONLY_FACE_TYPES:
-                                o.nwo.face_mode = "_connected_geometry_face_mode_render_only"
-                            o_collision = proxy_collision.copy()
-                            scene_coll.link(o_collision)
-                            o_collision.nwo.permutation_name = o.nwo.permutation_name
-                            o_collision.nwo.bsp_name = o.nwo.bsp_name
-                            #if not h4:
-                            o_collision.parent = o
-                            o_collision.matrix_world = o.matrix_world
-
-                        if proxy_physics is not None:
-                            o_physics = proxy_physics.copy()
-                            scene_coll.link(o_physics)
-                            o_physics.nwo.permutation_name = o.nwo.permutation_name
-                            o_physics.nwo.bsp_name = o.nwo.bsp_name
-                           #if not h4:
-                            o_physics.parent = o
-                            o_physics.matrix_world = o.matrix_world
-
-                        if proxy_cookie_cutter is not None:
-                            o_cookie_cutter = proxy_cookie_cutter.copy()
-                            scene_coll.link(o_cookie_cutter)
-                            o_cookie_cutter.nwo.permutation_name = o.nwo.permutation_name
-                            o_cookie_cutter.nwo.bsp_name = o.nwo.bsp_name
-                            #if not h4:
-                            o_cookie_cutter.parent = o
-                            o_cookie_cutter.matrix_world = o.matrix_world
+            self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context)
 
             is_linked = len(linked_objects) > 1
 
@@ -1387,7 +1443,7 @@ class PrepareScene:
                     face.hide_set(False)
 
                 split_objects = self.split_to_layers(
-                    context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm
+                    context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, False
                 )
                 # remove the original ob from this list if needed
                 # if ob in split_objects:
