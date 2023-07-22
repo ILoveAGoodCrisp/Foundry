@@ -1503,8 +1503,7 @@ class PrepareScene:
         #     if override:
         #         bone.name = override
         for b in bones:
-            if not b.name.startswith(("b_", "b ", "bip ", "bip_", "bone ", "bone_")):
-                b.name = f"b_{b.name}"
+            set_bone_prefix(b)
 
 
     def apply_object_mesh_marker_properties(self, ob, asset_type, reach, nwo):
@@ -1815,6 +1814,9 @@ class PrepareScene:
                         nwo.physics_constraint_parent = (
                             nwo.physics_constraint_parent_bone_ui
                         )
+                        if not nwo.physics_constraint_parent.startswith("b_"):
+                            nwo.physics_constraint_parent = set_bone_prefix_str(nwo.physics_constraint_parent)
+
                     elif parent is not None:
                         nwo.physics_constraint_parent = str(
                             nwo.physics_constraint_parent_ui.name
@@ -1828,6 +1830,8 @@ class PrepareScene:
                         nwo.physics_constraint_child = (
                             nwo.physics_constraint_child_bone_ui
                         )
+                        if not nwo.physics_constraint_child.startswith("b_"):
+                            nwo.physics_constraint_child = set_bone_prefix_str(nwo.physics_constraint_child)
                     elif child is not None:
                         nwo.physics_constraint_child = str(
                             nwo.physics_constraint_child_ui.name
@@ -2087,30 +2091,32 @@ class PrepareScene:
                     )
 
     def strip_prefix(self, ob):
-        if ob.name.lower().startswith(("+soft_ceiling", "+slip_surface")):
-            ob.name = ob.name[14:]
-        if ob.name.lower().startswith(("+cookie", "+portal", "+flair", "+water")):
-            ob.name = ob.name[7:]
-        if ob.name.lower().startswith(("frame ", "frame_", "+flair", "+water")):
-            ob.name = ob.name[6:]
-        if ob.name.lower().startswith(("bone ", "bone_", "+seam")):
-            ob.name = ob.name[5:]
-        if ob.name.lower().startswith(("bip ", "bip_", "+fog")):
-            ob.name = ob.name[4:]
-        if ob.name.lower().startswith(("b ", "b_")):
-            ob.name = ob.name[2:]
-        if ob.name.lower().startswith(("#", "?", "@", "$", "'")):
-            ob.name = ob.name[1:]
-        if ob.name.lower().startswith(("%")):
-            ob.name = ob.name[1:]
-            if ob.name.lower().startswith(("?", "!", "+", "-", ">", "*")):
-                ob.name = ob.name[1:]
-                if ob.name.lower().startswith(("?", "!", "+", "-", ">", "*")):
-                    ob.name = ob.name[1:]
-                    if ob.name.lower().startswith(("?", "!", "+", "-", ">", "*")):
-                        ob.name = ob.name[1:]
+        name = ob.name.lower()
+        keep_stripping = True
+        while keep_stripping:
+            if name.startswith(("frame ", "frame_")):
+                name = name[6:]
+            elif name.startswith(("bone ", "bone_")):
+                name = name[5:]
+            elif name.startswith(("bip ", "bip_")):
+                name = name[4:]
+            elif name.startswith(("b ", "b_")):
+                name = name[2:]
+            elif name.startswith(("#", "?", "@", "$", "'")):
+                name = name[1:]
+            elif name.startswith(("%")):
+                name = name[1:]
+                if name.startswith(("?", "!", "+", "-", ">", "*")):
+                    name = name[1:]
+                    if name.startswith(("?", "!", "+", "-", ">", "*")):
+                        name = name[1:]
+                        if name.startswith(("?", "!", "+", "-", ">", "*")):
+                            name = name[1:]
 
-        ob.name = ob.name.strip(" _")
+            else:
+                keep_stripping = False
+
+        ob.name = name.strip(" _")
         if ob.name == "implied_root_node":
             ob.name = "pls_don't_break_my_exporter"
 
@@ -3158,6 +3164,40 @@ def poop_parent(ob):
     if parent is None:
         return False
     return parent.nwo.mesh_type == '_connected_geometry_mesh_type_poop'
+
+def set_bone_prefix(bone):
+    name = bone.name.lower()
+    keep_stripping = True
+    while keep_stripping:
+        if name.startswith(("frame ", "frame_")):
+            name = name[6:]
+        elif name.startswith(("bone ", "bone_")):
+            name = name[5:]
+        elif name.startswith(("bip ", "bip_")):
+            name = name[4:]
+        elif name.startswith(("b ", "b_")):
+            name = name[2:]
+        else:
+            keep_stripping = False
+
+    bone.name = f"b_{name.strip(' _')}"
+
+def set_bone_prefix_str(string):
+    name = string.lower()
+    keep_stripping = True
+    while keep_stripping:
+        if name.startswith(("frame ", "frame_")):
+            name = name[6:]
+        elif name.startswith(("bone ", "bone_")):
+            name = name[5:]
+        elif name.startswith(("bip ", "bip_")):
+            name = name[4:]
+        elif name.startswith(("b ", "b_")):
+            name = name[2:]
+        else:
+            keep_stripping = False
+
+    return f"b_{name.strip(' _')}"
 
 # RESET PROPS
 
