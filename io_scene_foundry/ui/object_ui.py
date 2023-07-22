@@ -2003,9 +2003,9 @@ class NWO_BoneProps(NWO_PropPanel):
         # layout.enabled = scene_nwo.expert_mode
 
         col = flow.column()
-        col.prop(bone_nwo, "name_override")
+        # col.prop(bone_nwo, "name_override")
 
-        col.separator()
+        # col.separator()
 
         col.prop(bone_nwo, "frame_id1", text="Frame ID 1")
         col.prop(bone_nwo, "frame_id2", text="Frame ID 2")

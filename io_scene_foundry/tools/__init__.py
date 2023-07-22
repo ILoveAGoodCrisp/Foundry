@@ -990,7 +990,7 @@ class NWO_FoundryPanelProps(Panel):
                 even_rows=False,
                 align=False,
             )
-            flow.use_property_split = True
+            flow.use_property_split = False
             col = flow.column()
 
             if poll_ui("SCENARIO"):

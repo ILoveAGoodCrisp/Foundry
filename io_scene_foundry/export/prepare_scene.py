@@ -1498,10 +1498,14 @@ class PrepareScene:
             armature.select_set(False)
 
     def set_bone_names(self, bones):
-        for bone in bones:
-            override = bone.nwo.name_override
-            if override:
-                bone.name = override
+        # for bone in bones:
+        #     override = bone.nwo.name_override
+        #     if override:
+        #         bone.name = override
+        for b in bones:
+            if not b.name.startswith("b_", "b ", "bip ", "bip_", "bone ", "bone_"):
+                b.name = f"b_{b.name}"
+
 
     def apply_object_mesh_marker_properties(self, ob, asset_type, reach, nwo):
         # Apply final properties so we can rename objects (and also avoid complex checking in later code)
@@ -2107,6 +2111,8 @@ class PrepareScene:
                         ob.name = ob.name[1:]
 
         ob.name = ob.name.strip(" _")
+        if ob.name == "implied_root_node":
+            ob.name = "pls_don't_break_my_exporter"
 
     def set_object_type(self, ob, ob_type, nwo, is_valid_object_type):
         if ob_type == "LIGHT":
