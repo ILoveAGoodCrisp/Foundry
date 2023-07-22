@@ -2131,7 +2131,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=False,
     )
 
-face_global_material_ui: StringProperty(
+    face_global_material_ui: StringProperty(
         name="Collision Material",
         default="",
         description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
