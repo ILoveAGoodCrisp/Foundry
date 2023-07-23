@@ -1599,7 +1599,7 @@ class PrepareScene:
                 else:
                     nwo.mesh_type = "_connected_geometry_mesh_type_default"
 
-            if asset_type == "SCENARIO":
+            if asset_type in ("SCENARIO", "PREFAB"):
                 if nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop":
                     nwo.mesh_type = "_connected_geometry_mesh_type_poop"
                     nwo.poop_lighting = nwo.poop_lighting_ui
@@ -1636,14 +1636,13 @@ class PrepareScene:
                             nwo.poop_remove_from_shadow_geometry = "1"
                         if nwo.poop_disallow_lighting_samples_ui:
                             nwo.poop_disallow_lighting_samples = "1"
-
                 elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
                     nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
                     nwo.poop_collision_type = nwo.poop_collision_type_ui
                     if reach:
                         nwo.reach_poop_collision = True
-
-                elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam":
+            if asset_type == "SCENARIO":
+                if nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam":
                     nwo.mesh_type = "_connected_geometry_mesh_type_seam"
                     self.seams.append(ob)
 
@@ -2032,11 +2031,13 @@ class PrepareScene:
             "_connected_geometry_mesh_type_physics",
             "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_poop",
+            "_connected_geometry_mesh_type_poop_collision",
         ):
             if asset_type in ("SCENARIO", "PREFAB") or nwo.mesh_type in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
-            ):
+            ) and not (reach and nwo.mesh_type in "_connected_geometry_mesh_type_poop"):
+                
                 nwo.face_global_material = nwo.face_global_material_ui
                 if nwo.mesh_type != "_connected_geometry_mesh_type_physics" and reach:
                     if nwo.ladder_ui:
