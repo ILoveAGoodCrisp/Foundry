@@ -25,10 +25,12 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.managed_blam import ManagedBlamGetGlobalMaterials
 from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel
 from ..utils.nwo_utils import (
     bpy_enum_list,
     export_objects_no_arm,
+    get_tags_path,
     is_linked,
     not_bungie_game,
     sort_alphanum,
@@ -1750,10 +1752,10 @@ class NWO_GlobalMaterialMenu(Menu):
                 for face_prop in ob.data.nwo.face_props:
                     if (
                         face_prop.face_global_material_override
-                        and face_prop.face_global_material != ""
-                        and face_prop.face_global_material not in global_materials
+                        and face_prop.face_global_material_ui != ""
+                        and face_prop.face_global_material_ui not in global_materials
                     ):
-                        global_materials.append(face_prop.face_global_material)
+                        global_materials.append(face_prop.face_global_material_ui)
 
         for g_mat in global_materials:
             layout.operator(
@@ -1765,6 +1767,13 @@ class NWO_GlobalMaterialMenu(Menu):
                 "nwo.global_material_regions_list",
                 property="region",
                 text="From Region",
+            )
+
+        if poll_ui(("SCENARIO", "PREFAB")):
+            layout.operator_menu_enum(
+                "nwo.global_material_globals",
+                property="material",
+                text="From Globals",
             )
 
 
@@ -1814,6 +1823,31 @@ class NWO_GlobalMaterialRegionList(NWO_RegionList):
 
     def execute(self, context):
         context.object.nwo.face_global_material_ui = self.region
+        return {"FINISHED"}
+    
+class NWO_GlobalMaterialGlobals(NWO_RegionList):
+    bl_idname = "nwo.global_material_globals"
+    bl_label = "Collision Material List"
+    bl_description = "Applies a global material to the selected object"
+
+    def get_materials(self, context):
+        items = []
+        global_materials = []
+        tag_global_materials = ManagedBlamGetGlobalMaterials()
+        for glob_mat in tag_global_materials.global_materials:
+            global_materials.append(glob_mat)
+
+        for mat in global_materials:
+            items.append((mat, mat, ""))
+
+        return items
+            
+    material : EnumProperty(
+        items=get_materials,
+    )
+
+    def execute(self, context):
+        context.object.nwo.face_global_material_ui = self.material
         return {"FINISHED"}
 
 

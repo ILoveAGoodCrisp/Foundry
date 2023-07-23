@@ -65,13 +65,13 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         #     and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
         # ):
         #     layout.operator(self.op_prefix, text="Seam").options = "seam"
-        if (
-            nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
+        if (h4 and
+            (nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision"
-            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
-        ):
+            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure")
+        ) or (not h4 and nwo.mesh_type_ui in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision")):
             layout.operator(
                 self.op_prefix, text="Collision Material"
             ).options = "face_global_material"

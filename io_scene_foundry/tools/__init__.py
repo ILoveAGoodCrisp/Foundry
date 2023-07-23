@@ -41,6 +41,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
+from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -4962,9 +4963,8 @@ def foundry_toolbar(layout, context):
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
 
-
-
 classeshalo = (
+    NWO_GetGlobalMaterials,
     NWO_ProxyInstanceCancel,
     NWO_ProxyInstanceDelete,
     NWO_ProxyInstanceEdit,

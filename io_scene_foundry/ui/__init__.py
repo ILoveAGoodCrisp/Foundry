@@ -71,6 +71,7 @@ from .object_properties import (
 )
 
 from .object_ui import (
+    NWO_GlobalMaterialGlobals,
     NWO_UL_MarkerPermutations,
     NWO_List_Add_MarkerPermutation,
     NWO_List_Remove_MarkerPermutation,
@@ -408,6 +409,7 @@ class NWO_OpenAssetFoundry(NWO_Op):
 
 
 classes_nwo = (
+    NWO_GlobalMaterialGlobals,
     H2AMPEKLocationPath,
     H4EKLocationPath,
     HREKLocationPath,
