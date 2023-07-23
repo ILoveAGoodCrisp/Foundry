@@ -36,6 +36,7 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_edit"
     bl_description = "Switches to Proxy instance edit mode"
     bl_label = "Instance Proxy Mode"
+    bl_options = {'UNDO'}
 
     proxy : bpy.props.StringProperty()
 
@@ -289,6 +290,7 @@ class NWO_ProxyInstanceCancel(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_cancel"
     bl_description = "Cancels Proxy Instance Edit"
     bl_label = "Instance Proxy Cancel"
+    bl_options = {'UNDO'}
 
     proxy : bpy.props.StringProperty()
 

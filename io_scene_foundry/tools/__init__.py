@@ -143,8 +143,8 @@ class NWO_FoundryPanelProps(Panel):
                     icon="DOWNARROW_HLT",
                 )
                 # proxy face props
-                if self.h4:
-                    self.draw_face_props(box, ob, context, True)
+                self.draw_face_props(box, ob, context, True)
+
             row = box.row()
             row.scale_y = 2
             row.operator("nwo.proxy_instance_cancel", text="Exit Proxy Edit Mode")
@@ -939,7 +939,7 @@ class NWO_FoundryPanelProps(Panel):
 
                     col = col.column(heading="Instance Flags")
 
-                    # col.prop(nwo, "poop_render_only_ui", text='Render Only')
+                    col.prop(nwo, "poop_render_only_ui", text='Render Only')
 
                     col.prop(
                         nwo,
@@ -1287,13 +1287,18 @@ class NWO_FoundryPanelProps(Panel):
                 #             row.label(text='*')
                 #             break
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if (nwo.mesh_type_ui in (
+            if (h4 and (nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
                 "_connected_geometry_mesh_type_poop",
                 "_connected_geometry_mesh_type_poop_collision",
                 "_connected_geometry_mesh_type_structure",
-            ) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure")):
+                )
+                and (nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"))) or (not h4 and nwo.mesh_type_ui in (
+                "_connected_geometry_mesh_type_collision",
+                "_connected_geometry_mesh_type_physics",
+                "_connected_geometry_mesh_type_poop_collision",
+                )):
                 row = col.row()
                 row.prop(
                     nwo,

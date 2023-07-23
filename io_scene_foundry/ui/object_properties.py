@@ -1116,7 +1116,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #     maxlen=1024,
     # )
 
-    poop_render_only_ui: BoolProperty(  # NOTE no longer being set directly. Implicit when the user sets a mesh to be render_only
+    poop_render_only_ui: BoolProperty(
         name="Render Only",
         options=set(),
         description="Instanced geometry set to render only",

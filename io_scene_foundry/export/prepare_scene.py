@@ -575,11 +575,11 @@ class PrepareScene:
         self.regions_dict = {region: str(idx) for idx, region in enumerate(regions)}
 
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
-        global_materials = [
-            global_material
-            for global_material in self.global_materials
-            if global_material
-        ]
+        global_materials = ["default"]
+        for glob_mat in self.global_materials:
+            if glob_mat != "default" and glob_mat:
+                global_materials.append(glob_mat)
+
         self.global_materials_dict = {
             global_material: str(idx)
             for idx, global_material in enumerate(global_materials)
@@ -923,10 +923,7 @@ class PrepareScene:
                 is_poop and not h4
             ):  # don't do this for h4 as collision can be open
                 # check for custom collision / physics
-                poop_render_only = False
-                if ob.nwo.face_mode in RENDER_ONLY_FACE_TYPES:
-                    poop_render_only = True
-                    ob.nwo.poop_render_only = "1"
+                poop_render_only = ob_nwo.poop_render_only == "1"
                 
                 # Set this globally for the poop we're about to split
                 # We do this because a custom collison mesh is being built
@@ -1265,7 +1262,7 @@ class PrepareScene:
 
         return [ob]
 
-    def setup_instance_proxies(self, scenario, prefab, me, h4, linked_objects, scene_coll, context):
+    def setup_instance_proxies(self, scenario, prefab, me, h4, linked_objects, scene_coll, context, ob):
         if scenario or prefab:
             proxy_physics = me.nwo.proxy_physics
             if proxy_physics is not None:
@@ -1304,7 +1301,7 @@ class PrepareScene:
                 proxy_cookie_cutter.nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
 
             if proxy_physics is not None or proxy_collision is not None or proxy_cookie_cutter is not None:
-                poops = [o for o in linked_objects if o.nwo.mesh_type == "_connected_geometry_mesh_type_poop"]
+                poops = [o for o in linked_objects if o.nwo.mesh_type == "_connected_geometry_mesh_type_poop" and o.nwo.poop_render_only != "1"]
                 for o in poops:
                     if proxy_collision is not None:
                         if o.nwo.face_mode not in RENDER_ONLY_FACE_TYPES:
@@ -1415,13 +1412,11 @@ class PrepareScene:
             if not linked_objects:
                 continue
 
-            # Running instance proxy stuff here because it makes the most sense
-            self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context)
-
             is_linked = len(linked_objects) > 1
-
-
             ob = linked_objects[0]
+
+            # Running instance proxy stuff here because it makes the most sense
+            self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context, ob)
 
             me_nwo = me.nwo
             ob_nwo = ob.nwo
@@ -1463,16 +1458,21 @@ class PrepareScene:
                                 new_ob = split_ob.copy()
                                 scene_coll.link(new_ob)
                                 new_ob.matrix_world = linked_ob.matrix_world
+                                # linked objects might have different group assignments, ensure their split objects match this
+                                new_ob.nwo.bsp_name = linked_ob.nwo.bsp_name
+                                new_ob.nwo.permutation_name = linked_ob.nwo.permutation_name
+                                new_ob.nwo.region_name = linked_ob.nwo.region_name
 
                             if split_ob.children:
                                 linked_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                                 for child in split_ob.children:
                                     new_child = child.copy()
                                     scene_coll.link(new_child)
-                                    if not h4:
-                                        new_child.parent = new_ob
-                                    
+                                    new_child.parent = new_ob
                                     new_child.matrix_world = new_ob.matrix_world
+                                    new_child.nwo.bsp_name = new_ob.nwo.bsp_name
+                                    new_child.nwo.permutation_name = new_ob.nwo.permutation_name
+                                    new_child.nwo.region_name = new_ob.nwo.region_name
 
                         if ob.modifiers.get("HaloDataTransfer", 0):
                             mod = linked_ob.modifiers.new(
@@ -1600,6 +1600,8 @@ class PrepareScene:
                                     nwo.poop_imposter_brightness_ui
                                 )
 
+                    if nwo.poop_render_only_ui:
+                        nwo.poop_render_only = "1"
                     if nwo.poop_chops_portals_ui:
                         nwo.poop_chops_portals = "1"
                     if nwo.poop_does_not_block_aoe_ui:
