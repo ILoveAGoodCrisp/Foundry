@@ -23,10 +23,11 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
+
 import bpy
 
-
 def create_collections(context, ops, data, coll_type, coll_name, move_objects):
+    selected_collection = context.collection
     # iterates through the selected objects and applies the chosen collection type
     full_name = get_full_name(coll_type, coll_name)
     collection_index = get_coll_if_exists(data, full_name)
@@ -42,7 +43,10 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
                 data.collections[collection_index].objects.link(ob)
     else:
         new_collection = bpy.data.collections.new(full_name)
-        context.scene.collection.children.link(new_collection)
+        if selected_collection:
+            selected_collection.children.link(new_collection)
+        else:
+            context.scene.collection.children.link(new_collection)
 
     return {"FINISHED"}
 
