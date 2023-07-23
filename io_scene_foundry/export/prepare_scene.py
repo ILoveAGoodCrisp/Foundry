@@ -846,6 +846,7 @@ class PrepareScene:
                 faces_layer_dict[fs].append(layer)
             elif face_seq:
                 faces_layer_dict[fs] = [layer]
+
         length_layer_dict = len(faces_layer_dict.keys())
         for idx, face_seq in enumerate(faces_layer_dict.keys()):
             if face_seq:
@@ -975,6 +976,17 @@ class PrepareScene:
 
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
+
+            # create new face layer for remaining faces
+            remaining_faces = []
+            for f in bm.faces:
+                for fseq in layer_faces_dict.values():
+                    if f in fseq:
+                        break
+                else:
+                    remaining_faces.append(f)
+
+            layer_faces_dict["|~~no_face_props~~|"] = remaining_faces
 
             # Splits the mesh recursively until each new mesh only contains a single face layer
             split_objects_messy = self.recursive_layer_split(
