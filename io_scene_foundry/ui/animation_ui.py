@@ -98,7 +98,6 @@ class NWO_UnlinkAnimation(NWO_Op):
         arm.data.pose_position = 'REST'
         return {"FINISHED"}
 
-
 class NWO_NewAnimation(NWO_Op):
     bl_label = "New Animation"
     bl_idname = "nwo.new_animation"

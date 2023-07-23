@@ -39,16 +39,16 @@ bl_info = {
     "version": (343, 7, 343),
     "blender": (3, 6, 1),
     "location": "File > Export",
-    "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Aniversary Multiplayer: BUILD_VERSION_STR",
+    "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer: BUILD_VERSION_STR",
     "warning": "",
     "wiki_url": "https://c20.reclaimers.net/general/tools/foundry",
     "support": "COMMUNITY",
     "category": "Export",
 }
 
-#check that version is 3.5.0 or greater
-if bpy.app.version < (3, 5, 0):
-    raise Warning("Blender version must be 3.5.0 or greater to use Foundry (3.6.1 or greater recommended)")
+#check that version is 3.6.1 or greater
+if bpy.app.version < (3, 6, 1):
+    raise Warning("Blender version must be 3.6.1 or greater to use Foundry")
 else:
     from io_scene_foundry.utils import nwo_globals
 
