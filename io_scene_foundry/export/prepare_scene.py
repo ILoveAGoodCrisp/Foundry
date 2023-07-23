@@ -836,6 +836,7 @@ class PrepareScene:
         split_objects,
         bm,
         is_proxy,
+        is_recursion=False
     ):
         # faces_layer_dict = {faces: layer for layer, faces in layer_faces_dict.keys()}
         faces_layer_dict = {}
@@ -845,66 +846,70 @@ class PrepareScene:
                 faces_layer_dict[fs].append(layer)
             elif face_seq:
                 faces_layer_dict[fs] = [layer]
-
-        for face_seq in faces_layer_dict.keys():
+        length_layer_dict = len(faces_layer_dict.keys())
+        for idx, face_seq in enumerate(faces_layer_dict.keys()):
             if face_seq:
-                # delete faces from new mesh
-                for face in bm.faces:
-                    face.select = True if face in face_seq else False
+                if not is_recursion and idx == length_layer_dict - 1:
+                    split_objects.append(ob)
+                else:
+                    # delete faces from new mesh
+                    for face in bm.faces:
+                        face.select = True if face in face_seq else False
 
-                split_bm = bm.copy()
-                # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
+                    split_bm = bm.copy()
+                    # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
 
-                bmesh.ops.delete(
-                    bm,
-                    geom=[face for face in bm.faces if not face.select],
-                    context="FACES",
-                )
-
-                split_ob = ob.copy()
-
-                split_ob.data = me.copy()
-                split_me = split_ob.data
-
-                bm.to_mesh(me)
-
-                bmesh.ops.delete(
-                    split_bm,
-                    geom=[face for face in split_bm.faces if face.select],
-                    context="FACES",
-                )
-
-                split_bm.to_mesh(split_me)
-
-                if not is_proxy:
-                    scene_coll.link(split_ob)
-
-                new_layer_faces_dict = {
-                    layer: layer_faces(
-                        split_bm,
-                        split_bm.faces.layers.int.get(layer.layer_name),
+                    bmesh.ops.delete(
+                        bm,
+                        geom=[face for face in bm.faces if not face.select],
+                        context="FACES",
                     )
-                    for layer in face_layers
-                }
 
-                split_objects.append(split_ob)
+                    split_ob = ob.copy()
 
-                if split_me.polygons:
-                    self.recursive_layer_split(
-                        split_ob,
-                        split_me,
-                        face_layers,
-                        new_layer_faces_dict,
-                        h4,
-                        scene_coll,
-                        split_objects,
+                    split_ob.data = me.copy()
+                    split_me = split_ob.data
+
+                    bm.to_mesh(me)
+
+                    bmesh.ops.delete(
                         split_bm,
-                        is_proxy,
+                        geom=[face for face in split_bm.faces if face.select],
+                        context="FACES",
                     )
+
+                    split_bm.to_mesh(split_me)
+
+                    if not is_proxy:
+                        scene_coll.link(split_ob)
+
+                    new_layer_faces_dict = {
+                        layer: layer_faces(
+                            split_bm,
+                            split_bm.faces.layers.int.get(layer.layer_name),
+                        )
+                        for layer in face_layers
+                    }
+
+                    split_objects.append(split_ob)
+
+                    if split_me.polygons:
+                        self.recursive_layer_split(
+                            split_ob,
+                            split_me,
+                            face_layers,
+                            new_layer_faces_dict,
+                            h4,
+                            scene_coll,
+                            split_objects,
+                            split_bm,
+                            is_proxy,
+                            True,
+                        )
 
         return split_objects
 
-    def split_to_layers(self, context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, is_proxy):
+    def split_to_layers(self, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, is_proxy):
         poly_count = len(bm.faces)
         layer_faces_dict = {
             layer: layer_faces(bm, bm.faces.layers.int.get(layer.layer_name))
@@ -977,9 +982,16 @@ class PrepareScene:
             )
 
             ori_ob_name = str(ob.name)
-
+                
             # remove zero poly obs from split_objects_messy
             split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
+            no_polys = [s_ob for s_ob in split_objects_messy if not s_ob.data.polygons]
+
+            # Ensure existing proxies aren't parented to zero face mesh
+            for s_ob in no_polys:
+                if s_ob.children:
+                    for child in s_ob.children:
+                        child.parent = split_objects[0]
             
             for split_ob in split_objects:
                 more_than_one_prop = False
@@ -1257,12 +1269,12 @@ class PrepareScene:
                 face.hide_set(False)
 
             return self.split_to_layers(
-                context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, True
+                ob, ob_nwo, me, face_layers, scene_coll, h4, bm, True
             )
 
         return [ob]
 
-    def setup_instance_proxies(self, scenario, prefab, me, h4, linked_objects, scene_coll, context, ob):
+    def setup_instance_proxies(self, scenario, prefab, me, h4, linked_objects, scene_coll, context):
         if scenario or prefab:
             proxy_physics = me.nwo.proxy_physics
             if proxy_physics is not None:
@@ -1421,7 +1433,7 @@ class PrepareScene:
             ob = linked_objects[0]
 
             # Running instance proxy stuff here because it makes the most sense
-            self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context, ob)
+            self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context)
 
             me_nwo = me.nwo
             ob_nwo = ob.nwo
@@ -1443,7 +1455,7 @@ class PrepareScene:
                     face.hide_set(False)
 
                 split_objects = self.split_to_layers(
-                    context, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, False
+                    ob, ob_nwo, me, face_layers, scene_coll, h4, bm, False
                 )
                 # remove the original ob from this list if needed
                 # if ob in split_objects:
@@ -1471,13 +1483,14 @@ class PrepareScene:
                             if split_ob.children:
                                 linked_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                                 for child in split_ob.children:
-                                    new_child = child.copy()
-                                    scene_coll.link(new_child)
-                                    new_child.parent = new_ob
-                                    new_child.matrix_world = new_ob.matrix_world
-                                    new_child.nwo.bsp_name = new_ob.nwo.bsp_name
-                                    new_child.nwo.permutation_name = new_ob.nwo.permutation_name
-                                    new_child.nwo.region_name = new_ob.nwo.region_name
+                                    if not child.nwo.proxy_parent:
+                                        new_child = child.copy()
+                                        scene_coll.link(new_child)
+                                        new_child.parent = new_ob
+                                        new_child.matrix_world = new_ob.matrix_world
+                                        new_child.nwo.bsp_name = new_ob.nwo.bsp_name
+                                        new_child.nwo.permutation_name = new_ob.nwo.permutation_name
+                                        new_child.nwo.region_name = new_ob.nwo.region_name
 
                         if ob.modifiers.get("HaloDataTransfer", 0):
                             mod = linked_ob.modifiers.new(
