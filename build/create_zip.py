@@ -10,7 +10,7 @@ import os
 import subprocess
 from pathlib import Path
 
-version = "0.9.2"
+version = "0.9.3"
 
 def build_resources_zip() -> io.BytesIO:
     search_path = os.path.join("io_scene_foundry", "resources")

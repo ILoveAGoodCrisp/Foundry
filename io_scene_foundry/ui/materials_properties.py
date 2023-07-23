@@ -51,7 +51,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
 
     shader_path: StringProperty(
         name="Shader Path",
-        description="Define the path to a shader. This can either be a relative path, or if you have added your Editing Kit Path to add on preferences, the full path. Including the file extension will automatically update the shader type",
+        description="Define the path to a shader. This can either be a relative path, or if you have added your Editing Kit Path to add on preferences, the full path. Include the file extension as this will set the shader/material type",
         update=update_shader,
     )
 

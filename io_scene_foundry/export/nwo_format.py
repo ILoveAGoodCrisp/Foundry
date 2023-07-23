@@ -597,6 +597,11 @@ class NWOMarker(NWOObject):
         # SHARED
         self.bungie_marker_type = self.halo.marker_type
         self.bungie_marker_model_group = self.marker_model_group()
+        if self.halo.marker_exclude_perms:
+            self.bungie_marker_exclude_from_permutations = self.halo.marker_exclude_perms
+        elif self.halo.marker_include_perms:
+            self.bungie_marker_include_in_permutations = self.halo.marker_include_perms
+
         # properties for model/sky assets only
         if self.sidecar_type in ("MODEL", "SKY"):
             if self.halo.marker_all_regions:
@@ -964,7 +969,7 @@ class NWOMesh(NWOObject):
 
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_decorator":
             self.bungie_mesh_decorator_lod = self.halo.decorator_lod
-            self.bungie_mesh_decorator_name = dot_partition(self.name)
+            self.bungie_mesh_decorator_name = self.halo.region_name
 
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_seam":
             self.bungie_mesh_seam_associated_bsp = (
@@ -1074,7 +1079,7 @@ class NWOMesh(NWOObject):
         return jstr(self.ob.dimensions.z)
 
     def mesh_primitive_pill_radius(self):
-        return radius_str(self.ob)
+        return radius_str(self.ob, True)
 
     def mesh_primitive_pill_height(self):
         return jstr(self.ob.dimensions.z)
@@ -1115,7 +1120,7 @@ class NWOMesh(NWOObject):
         )
 
     def mesh_poop_collision_type(self):
-        if self.halo.face_mode == "_connected_geometry_face_mode_render_only":
+        if self.halo.face_mode in ("_connected_geometry_face_mode_render_only", "_connected_geometry_face_mode_lightmap_only", "_connected_geometry_face_mode_shadow_only"):
             return "_connected_geometry_poop_collision_type_none"
         elif (
             self.halo.face_mode == "_connected_geometry_face_mode_sphere_collision_only"
@@ -1158,7 +1163,7 @@ class NWOMaterial:
             return clean_tag_path(self.halo.shader_path, "")
 
     def shader_type(self):
-        if self.halo.shader_path == "":
+        if self.halo.shader_path == "" or self.halo.shader_path.endswith(".override"):
             return "override"
         elif not_bungie_game():
             return "material"

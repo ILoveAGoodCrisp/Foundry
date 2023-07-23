@@ -24,10 +24,13 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.managed_blam import ManagedBlamGetGlobalMaterials
 from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel
 from ..utils.nwo_utils import (
     bpy_enum_list,
     export_objects_no_arm,
+    get_tags_path,
     is_linked,
     not_bungie_game,
     sort_alphanum,
@@ -37,8 +40,9 @@ from ..utils.nwo_utils import (
     poll_ui,
 )
 
-from bpy.types import Menu, UIList
+from bpy.types import Menu, UIList, Operator
 from bpy.props import EnumProperty, StringProperty
+import bpy
 
 
 # FACE LEVEL FACE PROPS
@@ -666,34 +670,57 @@ class NWO_MeshPropAddMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
+        nwo = context.object.nwo
+        h4 = context.scene.nwo.game_version != "reach"
         # if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
         #     # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
         #     layout.operator_menu_enum("nwo.add_mesh_property_misc", property="options", text="Other")
 
         if poll_ui(("SCENARIO", "PREFAB")):
             # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
-            layout.operator(
-                "nwo.add_mesh_property", text="Sky"
-            ).options = "_connected_geometry_face_type_sky"
-            layout.operator(
-                "nwo.add_mesh_property", text="Seam Sealer"
-            ).options = "_connected_geometry_face_type_seam_sealer"
-            layout.operator(
-                "nwo.add_mesh_property", text="Emissive"
-            ).options = "emissive"
-            layout.operator_menu_enum(
-                "nwo.add_mesh_property_face_mode",
-                property="options",
-                text="Mode",
-            )
-            layout.operator_menu_enum(
-                "nwo.add_mesh_property_flags", property="options", text="Flags"
-            )
-            layout.operator_menu_enum(
-                "nwo.add_mesh_property_lightmap",
-                property="options",
-                text="Lightmap",
-            )
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+                layout.operator(
+                    "nwo.add_mesh_property", text="Sky"
+                ).options = "_connected_geometry_face_type_sky"
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
+                layout.operator(
+                    "nwo.add_mesh_property", text="Seam Sealer"
+                ).options = "_connected_geometry_face_type_seam_sealer"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Render Only"
+                ).options = "_connected_geometry_face_mode_render_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Collision Only"
+                ).options = "_connected_geometry_face_mode_collision_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Sphere Collision Only"
+                ).options = "_connected_geometry_face_mode_sphere_collision_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Shadow Only"
+                ).options = "_connected_geometry_face_mode_shadow_only"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Lightmap Only"
+                ).options = "_connected_geometry_face_mode_lightmap_only"
+                if not h4:
+                    layout.operator(
+                        "nwo.add_mesh_property", text="Breakable"
+                    ).options = "_connected_geometry_face_mode_breakable"
+                layout.operator(
+                    "nwo.add_mesh_property", text="Emissive"
+                ).options = "emissive"
+            # layout.operator_menu_enum(
+            #     "nwo.add_mesh_property_face_mode",
+            #     property="options",
+            #     text="Mode",
+            # )
+            # layout.operator_menu_enum(
+            #     "nwo.add_mesh_property_flags", property="options", text="Flags"
+            # )
+                layout.operator_menu_enum(
+                    "nwo.add_mesh_property_lightmap",
+                    property="options",
+                    text="Lightmap",
+                )
 
 
 class NWO_MeshPropAdd(NWO_Op):
@@ -711,6 +738,12 @@ class NWO_MeshPropAdd(NWO_Op):
             ("emissive", "Emissive", ""),
             ("_connected_geometry_face_type_sky", "Sky", ""),
             ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
+            ("_connected_geometry_face_mode_render_only", "Render Only", ""),
+            ("_connected_geometry_face_mode_collision_only", "Collision Only", ""),
+            ("_connected_geometry_face_mode_sphere_collision_only", "Sphere Collision Only", ""),
+            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
+            ("_connected_geometry_face_mode_lightmap_only", "Lightmap Only","",),
+            ("_connected_geometry_face_mode_breakable", "Breakable", ""),
         ]
     )
 
@@ -1719,10 +1752,10 @@ class NWO_GlobalMaterialMenu(Menu):
                 for face_prop in ob.data.nwo.face_props:
                     if (
                         face_prop.face_global_material_override
-                        and face_prop.face_global_material != ""
-                        and face_prop.face_global_material not in global_materials
+                        and face_prop.face_global_material_ui != ""
+                        and face_prop.face_global_material_ui not in global_materials
                     ):
-                        global_materials.append(face_prop.face_global_material)
+                        global_materials.append(face_prop.face_global_material_ui)
 
         for g_mat in global_materials:
             layout.operator(
@@ -1734,6 +1767,13 @@ class NWO_GlobalMaterialMenu(Menu):
                 "nwo.global_material_regions_list",
                 property="region",
                 text="From Region",
+            )
+
+        if poll_ui(("SCENARIO", "PREFAB")):
+            layout.operator_menu_enum(
+                "nwo.global_material_globals",
+                property="material",
+                text="From Globals",
             )
 
 
@@ -1784,6 +1824,31 @@ class NWO_GlobalMaterialRegionList(NWO_RegionList):
     def execute(self, context):
         context.object.nwo.face_global_material_ui = self.region
         return {"FINISHED"}
+    
+class NWO_GlobalMaterialGlobals(NWO_RegionList):
+    bl_idname = "nwo.global_material_globals"
+    bl_label = "Collision Material List"
+    bl_description = "Applies a global material to the selected object"
+
+    def get_materials(self, context):
+        items = []
+        global_materials = []
+        tag_global_materials = ManagedBlamGetGlobalMaterials()
+        for glob_mat in tag_global_materials.global_materials:
+            global_materials.append(glob_mat)
+
+        for mat in global_materials:
+            items.append((mat, mat, ""))
+
+        return items
+            
+    material : EnumProperty(
+        items=get_materials,
+    )
+
+    def execute(self, context):
+        context.object.nwo.face_global_material_ui = self.material
+        return {"FINISHED"}
 
 
 class NWO_GlobalMaterialList(NWO_Op):
@@ -1827,7 +1892,6 @@ class NWO_GlobalMaterialList(NWO_Op):
     def execute(self, context):
         context.object.nwo.face_global_material_ui = self.global_material
         return {"FINISHED"}
-
 
 class NWO_PermutationList(NWO_Op):
     bl_idname = "nwo.permutation_list"
@@ -1973,9 +2037,9 @@ class NWO_BoneProps(NWO_PropPanel):
         # layout.enabled = scene_nwo.expert_mode
 
         col = flow.column()
-        col.prop(bone_nwo, "name_override")
+        # col.prop(bone_nwo, "name_override")
 
-        col.separator()
+        # col.separator()
 
         col.prop(bone_nwo, "frame_id1", text="Frame ID 1")
         col.prop(bone_nwo, "frame_id2", text="Frame ID 2")
@@ -2219,3 +2283,61 @@ class NWO_LightProps(NWO_PropPanel):
 class NWO_LightPropsCycles(NWO_LightProps):
     bl_idname = "NWO_PT_LightPanel_Cycles"
     bl_parent_id = "CYCLES_LIGHT_PT_light"
+
+## MARKER PERM UI LIST
+class NWO_UL_MarkerPermutations(UIList):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index,
+    ):
+        layout.prop(item, "permutation", text="", emboss=False, icon_value=get_icon_id("marker"))
+
+class NWO_List_Add_MarkerPermutation(NWO_PermutationList):
+    bl_idname = "nwo.marker_perm_add"
+    bl_label = "Add"
+    bl_description = "Add a new permutation"
+    bl_options = {"UNDO"}
+
+    def execute(self, context):
+        ob = context.object
+        nwo = ob.nwo
+        for perm in nwo.marker_permutations:
+            if perm.permutation == self.permutation:
+                return {"CANCELLED"}
+            
+        bpy.ops.uilist.entry_add(
+            list_path="object.nwo.marker_permutations",
+            active_index_path="object.nwo.marker_permutations_index",
+        )
+
+        nwo.marker_permutations[nwo.marker_permutations_index].permutation = self.permutation
+        context.area.tag_redraw()
+
+        return {"FINISHED"}
+
+
+class NWO_List_Remove_MarkerPermutation(Operator):
+    bl_idname = "nwo.marker_perm_remove"
+    bl_label = "Remove"
+    bl_description = "Remove a permutation from the list."
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return ob and ob.nwo.marker_permutations
+
+    def execute(self, context):
+        ob = context.object
+        nwo = ob.nwo
+        nwo.marker_permutations.remove(nwo.marker_permutations_index)
+        if nwo.marker_permutations_index > len(nwo.marker_permutations) - 1:
+            nwo.marker_permutations_index += -1
+        return {"FINISHED"}

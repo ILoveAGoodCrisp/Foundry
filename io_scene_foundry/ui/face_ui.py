@@ -57,6 +57,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         layout = self.layout
         ob = context.object
         nwo = ob.nwo
+        h4 = context.scene.nwo.game_version != "reach"
         if poll_ui(("MODEL", "SKY")):
             layout.operator(self.op_prefix, text="Region").options = "region"
         # if (
@@ -64,15 +65,13 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         #     and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
         # ):
         #     layout.operator(self.op_prefix, text="Seam").options = "seam"
-        if (
-            nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
+        if (h4 and
+            (nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop"
-            or (
-                nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
-                and poll_ui("SCENARIO")
-            )
-        ):
+            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision"
+            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure")
+        ) or (not h4 and nwo.mesh_type_ui in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision")):
             layout.operator(
                 self.op_prefix, text="Collision Material"
             ).options = "face_global_material"
@@ -94,27 +93,53 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                 ).options = "precise_position"
 
         if poll_ui(("SCENARIO", "PREFAB")):
-            layout.operator(
-                self.op_prefix, text="Sky"
-            ).options = "_connected_geometry_face_type_sky"
-            layout.operator(
-                self.op_prefix, text="Seam Sealer"
-            ).options = "_connected_geometry_face_type_seam_sealer"
-            layout.operator(self.op_prefix, text="Emissive").options = "emissive"
-            layout.operator_menu_enum(
-                self.op_prefix + "_face_mode",
-                property="options",
-                text="Mode",
-            )
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+                layout.operator(
+                    self.op_prefix, text="Sky"
+                ).options = "_connected_geometry_face_type_sky"
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
+                layout.operator(
+                    self.op_prefix, text="Seam Sealer"
+                ).options = "_connected_geometry_face_type_seam_sealer"
+                layout.operator(
+                    self.op_prefix, text="Render Only"
+                ).options = "_connected_geometry_face_mode_render_only"
+                layout.operator(
+                    self.op_prefix, text="Collision Only"
+                ).options = "_connected_geometry_face_mode_collision_only"
+                layout.operator(
+                    self.op_prefix, text="Sphere Collision Only"
+                ).options = "_connected_geometry_face_mode_sphere_collision_only"
+                layout.operator(
+                    self.op_prefix, text="Shadow Only"
+                ).options = "_connected_geometry_face_mode_shadow_only"
+                layout.operator(
+                    self.op_prefix, text="Lightmap Only"
+                ).options = "_connected_geometry_face_mode_lightmap_only"
+                if not h4:
+                    layout.operator(
+                        self.op_prefix, text="Breakable"
+                    ).options = "_connected_geometry_face_mode_breakable"
+            # layout.operator_menu_enum(
+            #     self.op_prefix + "_face_mode",
+            #     property="options",
+            #     text="Mode",
+            # )
+                layout.operator(
+                    self.op_prefix, text="Emissive"
+                ).options = "emissive"
+
+                layout.operator_menu_enum(
+                    self.op_prefix + "_lightmap",
+                    property="options",
+                    text="Lightmap",
+                )
+
+        if (poll_ui(("SCENARIO", "PREFAB")) and nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop_collision") or nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision":
             layout.operator_menu_enum(
                 self.op_prefix + "_flags",
                 property="options",
                 text="Flags",
-            )
-            layout.operator_menu_enum(
-                self.op_prefix + "_lightmap",
-                property="options",
-                text="Lightmap",
             )
 
 
@@ -633,6 +658,24 @@ class NWO_FaceLayerAdd(NWO_Op):
             ("two_sided", "Two Sided", ""),
             ("_connected_geometry_face_type_sky", "Sky", ""),
             ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
+            ("_connected_geometry_face_mode_render_only", "Render Only", ""),
+            (
+                "_connected_geometry_face_mode_collision_only",
+                "Collision Only",
+                "",
+            ),
+            (
+                "_connected_geometry_face_mode_sphere_collision_only",
+                "Sphere Collision Only",
+                "",
+            ),
+            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
+            (
+                "_connected_geometry_face_mode_lightmap_only",
+                "Lightmap Only",
+                "",
+            ),
+            ("_connected_geometry_face_mode_breakable", "Breakable", ""),
         ],
     )
 
@@ -666,7 +709,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             case "_connected_geometry_face_mode_collision_only":
                 self.fm_name = "Collision Only"
             case "_connected_geometry_face_mode_sphere_collision_only":
-                self.fm_name = "Sphere Collision Onlu"
+                self.fm_name = "Sphere Collision Only"
             case "_connected_geometry_face_mode_shadow_only":
                 self.fm_name = "Shadow Only"
             case "_connected_geometry_face_mode_lightmap_only":
@@ -762,6 +805,7 @@ class NWO_FaceLayerAdd(NWO_Op):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
         row = layout.row()
         if self.options == "region":
             row.prop(self, "fm_name", text="Region")
@@ -946,16 +990,23 @@ class NWO_FaceLayerAddFlags(NWO_FaceLayerAdd):
 
     bl_idname = "nwo.face_layer_add_flags"
 
+    def get_options(self, context):
+        items = []
+        render = context.object.nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop")
+        if render:
+            items.append(("decal_offset", "Decal Offset", ""))
+            items.append(("no_shadow", "No Shadow", ""))
+        if context.scene.nwo.game_version == "reach":
+            items.append(("ladder", "Ladder", ""))
+            items.append(("slip_surface", "Slip Surface", ""))
+        elif render:
+            items.append(("no_lightmap", "No Lightmap", ""))
+            items.append(("no_pvs", "No PVS", ""))
+
+        return items
+
     options: EnumProperty(
-        items=[
-            ("ladder", "Ladder", ""),
-            ("slip_surface", "Slip Surface", ""),
-            ("decal_offset", "Decal Offset", ""),
-            ("group_transparents_by_plane", "Group Transparents by Plane", ""),
-            ("no_shadow", "No Shadow", ""),
-            ("no_lightmap", "No Lightmap", ""),
-            ("no_pvs", "No PVS", ""),
-        ]
+        items=get_options
     )
 
 
@@ -1068,8 +1119,9 @@ def draw(self):
     gpu.state.face_culling_set("NONE")
 
 
-class NWO_FaceLayerColorAll(NWO_Op):
+class NWO_FaceLayerColorAll(bpy.types.Operator):
     bl_idname = "nwo.face_layer_color_all"
+    bl_label = "Highlight"
 
     enable_highlight: BoolProperty()
 
@@ -1096,8 +1148,10 @@ class NWO_FaceLayerColorAll(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_FaceLayerColor(NWO_Op):
+class NWO_FaceLayerColor(bpy.types.Operator):
     bl_idname = "nwo.face_layer_color"
+    bl_label = "Highlight"
+    bl_options = {'INTERNAL'}
 
     layer_index: bpy.props.IntProperty()
     highlight: bpy.props.IntProperty()
@@ -1213,7 +1267,7 @@ class NWO_FaceLayerColor(NWO_Op):
         return {"CANCELLED"}
 
 
-class NWO_RegionListFace(NWO_Op):
+class NWO_RegionListFace(bpy.types.Operator):
     bl_idname = "nwo.face_region_list"
     bl_label = "Region List"
     bl_description = "Applies a region to the selected face layer"
@@ -1262,7 +1316,7 @@ class NWO_GlobalMaterialRegionListFace(NWO_RegionListFace):
         return {"FINISHED"}
 
 
-class NWO_GlobalMaterialListFace(NWO_Op):
+class NWO_GlobalMaterialListFace(bpy.types.Operator):
     bl_idname = "nwo.face_global_material_list"
     bl_label = "Collision Material List"
     bl_description = "Applies a Collision Material to the selected face layer"

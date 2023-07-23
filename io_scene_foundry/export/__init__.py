@@ -30,7 +30,7 @@ bl_info = {
     "name": "Halo Tag Export",
     "author": "Crisp",
     "version": (1, 0, 0),
-    "blender": (3, 5, 1),
+    "blender": (3, 6, 1),
     "location": "File > Export",
     "category": "Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
@@ -1025,8 +1025,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     if not self.lightmap_all_bsps:
                         col.prop(self, "lightmap_specific_bsp")
                     col.prop(self, "lightmap_all_bsps")
-                    if not h4:
-                        col.prop(self, "lightmap_region")
+                    # if not h4:
+                    #     col.prop(self, "lightmap_region")
 
         # # SCENE SETTINGS #
         # box = layout.box()

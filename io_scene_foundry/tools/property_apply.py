@@ -24,8 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.utils.nwo_utils import dot_partition
 import bpy
+
+from io_scene_foundry.utils.nwo_utils import not_bungie_game
 
 special_materials = (
     "InvisibleSky",
@@ -88,8 +89,8 @@ def halo_material(mat_name):
 
         case "Physics":
             halo_material_color(
-                new_material, (0.0, 1.0, 0.0, 0.2)
-            )  # green with 20% opacity
+                new_material, (0.0, 0.0, 1.0, 0.2)
+            )  # medium blue with 20% opacity
 
         case "Seam":
             halo_material_color(
@@ -103,8 +104,8 @@ def halo_material(mat_name):
 
         case "Collision":
             halo_material_color(
-                new_material, (0.0, 0.0, 1.0, 0.2)
-            )  # medium blue with 20% opacity
+                new_material, (0.0, 1.0, 0.0, 0.2)
+            )  # green with 20% opacity
 
         case "PlayCollision":
             halo_material_color(
@@ -123,8 +124,8 @@ def halo_material(mat_name):
 
         case "CookieCutter":
             halo_material_color(
-                new_material, (0.3, 0.3, 1.0, 0.2)
-            )  # purply-blue with 20% opacity
+                new_material, (1.0, 0.1, 0.9, 0.2)
+            )  # pink with 20% opacity
 
         case "Fog":
             halo_material_color(
@@ -157,8 +158,8 @@ def halo_material(mat_name):
 
         case "SoftCeiling":
             halo_material_color(
-                new_material, (0.51, 0.02, 0.06, 0.9)
-            )  # blood red with 90% opacity
+                new_material, (0.51, 0.364, 0.118, 0.9)
+            )  # orange with 90% opacity
 
         case "SoftKill":
             halo_material_color(
@@ -167,12 +168,32 @@ def halo_material(mat_name):
 
         case "SlipSurface":
             halo_material_color(
-                new_material, (0.51, 0.02, 0.06, 0.9)
-            )  # blood red with 90% opacity
+                new_material, (0.317, 0.51, 0.226, 0.9)
+            )  # dull green with 90% opacity
 
     new_material.nwo.rendered = False
 
     return new_material
+
+def cleanup_empty_slots(slots):
+    materials = bpy.data.materials
+    h4 = not_bungie_game()
+    for slot in slots:
+        slot_mat = slot.material
+        if slot_mat:
+            continue
+
+        if "invalid" not in materials:
+            invalid_mat = materials.new("invalid")
+            if h4:
+                invalid_mat.nwo.shader_path = r"shaders\invalid.material"
+            else:
+                invalid_mat.nwo.shader_path = r"shaders\invalid.shader"
+        else:
+            invalid_mat = materials.get("invalid")
+
+        slot.material = invalid_mat
+
 
 
 def apply_props_material(ob, mat_name):
@@ -181,3 +202,4 @@ def apply_props_material(ob, mat_name):
         ob.data.materials.append(halo_material(mat_name))
     else:
         clear_special_mats(ob.data.materials)
+        cleanup_empty_slots(ob.material_slots)

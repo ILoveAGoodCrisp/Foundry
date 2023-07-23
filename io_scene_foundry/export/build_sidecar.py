@@ -207,7 +207,7 @@ class Sidecar:
         )
 
         if sidecar_type == "MODEL":
-            self.write_model_contents(metadata, sidecar_paths, asset_name)
+            self.write_model_contents(metadata, sidecar_paths, asset_name, asset_path)
 
         elif sidecar_type == "SCENARIO":
             self.write_scenario_contents(
@@ -365,7 +365,7 @@ class Sidecar:
         elif type == "scenario":
             ET.SubElement(
                 tagcollection, "OutputTag", Type="scenario_lightmap"
-            ).text = f"{self.tag_path}_faux_lightmaps"
+            ).text = f"{self.tag_path}_faux_lightmap"
             ET.SubElement(
                 tagcollection, "OutputTag", Type="structure_seams"
             ).text = self.tag_path
@@ -540,14 +540,26 @@ class Sidecar:
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
-    def write_model_contents(self, metadata, sidecar_paths, asset_name):
+    def write_model_contents(self, metadata, sidecar_paths, asset_name, asset_path):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=asset_name, Type="model")
         ##### RENDER #####
         object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
         render_paths = sidecar_paths.get("render")
-        for path in render_paths:
-            self.write_network_files(object, path)
+        if render_paths is None:
+            # NULL RENDER
+            self.add_null_render(asset_path)
+            network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
+            ET.SubElement(network, "InputFile").text = self.relative_blend
+            ET.SubElement(network, "IntermediateFile").text = os.path.join(
+                asset_path.replace(get_data_path(), ""),
+                "export",
+                "models",
+                "null_render.gr2",
+            )
+        else:
+            for path in render_paths:
+                self.write_network_files(object, path)
 
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
@@ -723,7 +735,7 @@ class Sidecar:
 
         decorator_path = sidecar_paths.get("decorator")[0]
         for lod in lods:
-            lod_str = str(lod)
+            lod_str = str(lod - 1)
             object = ET.SubElement(
                 content,
                 "ContentObject",
@@ -791,6 +803,7 @@ class Sidecar:
         object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
 
         network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
+        ET.SubElement(network, "InputFile").text = self.relative_blend
         ET.SubElement(network, "IntermediateFile").text = os.path.join(
             asset_path.replace(get_data_path(), ""),
             "export",

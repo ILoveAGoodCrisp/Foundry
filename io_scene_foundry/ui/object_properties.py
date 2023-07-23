@@ -53,7 +53,9 @@ from ..utils.nwo_utils import (
 
 
 class NWO_MeshPropertiesGroup(PropertyGroup):
-    master_instance: PointerProperty(type=Object)
+    proxy_collision: PointerProperty(type=bpy.types.Object)
+    proxy_physics: PointerProperty(type=bpy.types.Object)
+    proxy_cookie_cutter: PointerProperty(type=bpy.types.Object)
 
     face_props: CollectionProperty(
         type=NWO_FaceProperties_ListItems, override={"USE_INSERTION"}
@@ -70,14 +72,37 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         name="Highlight",
     )
 
-
-# FACE PROPERTIES
+# MARKER PERM PROPERTIES
 # ----------------------------------------------------------
-
+class NWO_MarkerPermutationItems(PropertyGroup):
+    permutation: StringProperty(name="Permutation")
 
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
 class NWO_ObjectPropertiesGroup(PropertyGroup):
+    proxy_parent: PointerProperty(type=bpy.types.Mesh)
+    proxy_type : StringProperty()
+    #### MARKER PERM
+    marker_permutations: CollectionProperty(
+        type=NWO_MarkerPermutationItems,
+    )
+
+    marker_permutations_index: IntProperty(
+        name="Index for Animation Event",
+        default=0,
+        min=0,
+    )
+
+    marker_permutation_type : EnumProperty(
+        name="Include/Exclude",
+        description="Toggle whether this marker should be included in, or excluded from the below list of permutations. If this is set to include and no permutations are defined, this property will be ignored at export",
+        items=[
+            ("exclude", "Exclude", ""),
+            ("include", "Include", ""),
+        ],
+        options=set(),
+    )
+    # MAIN
     proxy_instance: BoolProperty(
         name="Proxy Instance",
         description="Duplicates this structure mesh as instanced geometry at export",
@@ -310,15 +335,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     1,
                 )
             )
-            items.append(
-                nwo_enum(
-                    "_connected_geometry_mesh_type_cookie_cutter",
-                    "Cookie Cutter",
-                    "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
-                    "cookie_cutter",
-                    2,
-                )
-            )
+            # NOTE cookie cutters for H4 will need support through managedblam
+            # items.append(
+            #     nwo_enum(
+            #         "_connected_geometry_mesh_type_cookie_cutter",
+            #         "Cookie Cutter",
+            #         "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
+            #         "cookie_cutter",
+            #         2,
+            #     )
+            #)
 
         return items
 
@@ -480,30 +506,39 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         )
         items.append(
             (
-                "_connected_geometry_volume_type_cookie_cutter",
-                "Cookie Cutter",
-                "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
-                get_icon_id("cookie_cutter"),
-                4,
-            )
-        )
-        items.append(
-            (
                 "_connected_geometry_volume_type_poop_rain_blocker",
                 "Rain Blocker",
                 "Blocks rain from rendering in the region this volume occupies",
                 get_icon_id("rain_sheet"),
-                5,
+                4,
             )
         )
-        if h4:
+        if not h4:
+            items.append(
+                (
+                    "_connected_geometry_volume_type_cookie_cutter",
+                    "Cookie Cutter",
+                    "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
+                    get_icon_id("cookie_cutter"),
+                    5,
+                )
+            )
+            # items.append(
+            #     (
+            #         "_connected_geometry_volume_type_lightmap_region",
+            #         "Lightmap Region",
+            #         "Restricts lightmapping to this area when specified during lightmapping",
+            #         get_icon_id("lightmap_region"),
+            #         6,
+            #     )
+        else:
             items.append(
                 (
                     "_connected_geometry_volume_type_lightmap_exclude",
                     "Lightmap Exclude",
                     "Defines a region that should not be lightmapped",
                     get_icon_id("lightmap_exclude"),
-                    6,
+                    5,
                 )
             )
             items.append(
@@ -514,16 +549,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                      By default the full space inside a zone set should be used when generating the streaming zone set. 
                      This is useful for performance if you have textures in areas of the map the player will not get close to""",
                     get_icon_id("streaming"),
-                    7,
-                )
-            )
-        else:
-            items.append(
-                (
-                    "_connected_geometry_volume_type_lightmap_region",
-                    "Lightmap Region",
-                    "Restricts lightmapping to this area when specified during lightmapping",
-                    get_icon_id("lightmap_region"),
                     6,
                 )
             )
@@ -531,9 +556,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         return items
 
     def get_volume_type_ui(self):
-        max_int = 6
+        max_int = 5
         if not_bungie_game():
-            max_int = 7
+            max_int = 6
         if self.volume_type_ui_help > max_int:
             return 0
         return self.volume_type_ui_help
@@ -834,8 +859,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 3,
             )
         )
-        if not_bungie_game():
-            items.append(("_connected_geometry_primitive_type_mopp", "MOPP", "", 4))
+        # if not_bungie_game():
+        #     items.append(("_connected_geometry_primitive_type_mopp", "MOPP", "", 4))
 
         return items
 
@@ -1091,7 +1116,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #     maxlen=1024,
     # )
 
-    poop_render_only_ui: BoolProperty(  # NOTE no longer being set directly. Implicit when the user sets a mesh to be render_only
+    reach_poop_collision : BoolProperty() # INTERNAL
+
+    poop_render_only_ui: BoolProperty(
         name="Render Only",
         options=set(),
         description="Instanced geometry set to render only",
@@ -1180,33 +1207,41 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     # poop light channel flags. Not included for now
 
+    poop_collision_type_ui_help: IntProperty()
+
+    def poop_collision_type_items(self, context):
+        h4 = context.scene.nwo.game_version != "reach"
+        items = []
+        items.append(("_connected_geometry_poop_collision_type_default", "Default", "Collision mesh that interacts with the physics objects and with projectiles"))
+        items.append(("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "The collision mesh affects physics objects, but not projectiles"))
+        items.append(("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "The collision mesh only interacts with projectiles"))
+        if h4:
+            items.append(("_connected_geometry_poop_collision_type_invisible_wall", "Invisible Wall", "Projectiles go through this but the physics objects can't. You cannot directly place objects on wall collision mesh in Sapien"))
+        
+        return items
+    
+    def get_poop_collision_type_ui(self):
+        max_int = 2
+        if not_bungie_game():
+            max_int = 3
+        if self.poop_collision_type_ui_help > max_int:
+            return 0
+        return self.poop_collision_type_ui_help
+
+    def set_poop_collision_type_ui(self, value):
+        self["poop_collision_type_ui"] = value
+
+    def update_poop_collision_type_ui(self, context):
+        self.poop_collision_type_ui_help = self["poop_collision_type_ui"]
+
     poop_collision_type_ui: EnumProperty(
         name="Instanced Collision Type",
         options=set(),
         description="Set the instanced collision type. Only used when exporting a scenario",
-        default="_connected_geometry_poop_collision_type_default",
-        items=[
-            (
-                "_connected_geometry_poop_collision_type_default",
-                "Default",
-                "Collision mesh that interacts with the physics objects and with projectiles",
-            ),
-            (
-                "_connected_geometry_poop_collision_type_play_collision",
-                "Player Collision",
-                "The collision mesh affects physics objects, but not projectiles",
-            ),
-            (
-                "_connected_geometry_poop_collision_type_bullet_collision",
-                "Bullet Collision",
-                "The collision mesh only interacts with projectiles",
-            ),
-            (
-                "_connected_geometry_poop_collision_type_invisible_wall",
-                "Invisible Wall",
-                "Projectiles go through this but the physics objects can't. You cannot directly place objects on wall collision mesh in Sapien",
-            ),
-        ],
+        items=poop_collision_type_items,
+        get=get_poop_collision_type_ui,
+        set=set_poop_collision_type_ui,
+        update=update_poop_collision_type_ui,
     )
 
     # portal PROPERTIES
@@ -1256,13 +1291,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     # DECORATOR PROPERTIES
-    decorator_lod_ui: IntProperty(
+    decorator_lod_ui: EnumProperty(
         name="Decorator Level of Detail",
         options=set(),
-        description="Level of detail objects to create expressed in an integer range of 1-4",
-        default=1,
-        min=1,
-        max=4,
+        description="Level of detail of this object. The game will switch to this LOD at the approriate range",
+        items=[
+            ("high", "High", ""),
+            ("medium", "Medium", ""),
+            ("low", "Low", ""),
+            ("very_low", "Very Low", ""),
+        ]
     )
 
     # WATER VOLUME PROPERTIES
@@ -1334,7 +1372,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     lightmap_additive_transparency_ui: FloatVectorProperty(
         name="lightmap Additive Transparency",
         options=set(),
-        description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader.",
+        description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader",
         default=(1.0, 1.0, 1.0),
         subtype="COLOR",
         min=0.0,
@@ -1413,7 +1451,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default="_connected_material_lightmap_type_per_pixel",
         items=[
             ("_connected_material_lightmap_type_per_pixel", "Per Pixel", ""),
-            ("_connected_material_lightmap_type_per_vertex", "Per Vetex", ""),
+            ("_connected_material_lightmap_type_per_vertex", "Per Vertex", ""),
         ],
     )
 
@@ -1899,44 +1937,67 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def update_face_mode_ui(self, context):
         self.face_mode_active = True
 
+    def face_mode_items(self, context):
+        h4 = context.scene.nwo.game_version != "reach"
+        items = []
+        items.append((
+            "_connected_geometry_face_mode_render_only",
+            "Render Only",
+            "Faces set to render only",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_collision_only",
+            "Collision Only",
+            "Faces set to collision only",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_sphere_collision_only",
+            "Sphere Collision Only",
+            "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_shadow_only",
+            "Shadow Only",
+            "Faces set to only cast shadows",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_lightmap_only",
+            "Lightmap Only",
+            "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
+        ))
+        if not h4:
+            items.append((
+            "_connected_geometry_face_mode_breakable",
+            "Breakable",
+            "Faces set to be breakable",
+            )),
+
+        return items
+    
+    def get_face_mode_ui(self):
+        max_int = 4
+        if not not_bungie_game():
+            max_int = 5
+        if self.face_mode_ui_help > max_int:
+            return 0
+        return self.face_mode_ui_help
+
+    def set_face_mode_ui(self, value):
+        self["face_mode_ui"] = value
+
+    def update_face_mode_ui(self, context):
+        self.face_mode_ui_help = self["face_mode_ui"]
+
+    face_mode_ui_help : IntProperty()
     face_mode_active: BoolProperty()
     face_mode_ui: EnumProperty(
         name="Face Mode",
         options=set(),
         update=update_face_mode_ui,
         description="Sets face mode for this mesh",
-        items=[
-            (
-                "_connected_geometry_face_mode_render_only",
-                "Render Only",
-                "Faces set to render only",
-            ),
-            (
-                "_connected_geometry_face_mode_collision_only",
-                "Collision Only",
-                "Faces set to collision only",
-            ),
-            (
-                "_connected_geometry_face_mode_sphere_collision_only",
-                "Sphere Collision Only",
-                "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
-            ),
-            (
-                "_connected_geometry_face_mode_shadow_only",
-                "Shadow Only",
-                "Faces set to only cast shadows",
-            ),
-            (
-                "_connected_geometry_face_mode_lightmap_only",
-                "Lightmap Only",
-                "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
-            ),
-            (
-                "_connected_geometry_face_mode_breakable",
-                "Breakable",
-                "Faces set to be breakable",
-            ),
-        ],
+        items=face_mode_items,
+        get=get_face_mode_ui,
+        set=set_face_mode_ui,
     )
 
     def update_face_sides_ui(self, context):
@@ -2040,7 +2101,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     def get_region_from_collection(self):
-        region = get_prop_from_collection(self.id_data, ("+region",))
+        region = get_prop_from_collection(self.id_data, ("+region", "+set"))
         return region
 
     region_name_locked_ui: StringProperty(
@@ -2086,28 +2147,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         soft_max=10,
     )
 
-    def update_ladder_ui(self, context):
-        self.ladder_active = True
-
-    ladder_active: BoolProperty()
     ladder_ui: BoolProperty(
         name="Ladder",
         options=set(),
         description="Makes faces climbable",
-        default=True,
-        update=update_ladder_ui,
     )
 
-    def update_slip_surface_ui(self, context):
-        self.slip_surface_active = True
-
-    slip_surface_active: BoolProperty()
     slip_surface_ui: BoolProperty(
         name="Slip Surface",
         options=set(),
         description="Makes faces slippery for units",
-        default=True,
-        update=update_slip_surface_ui,
     )
 
 
@@ -2118,64 +2167,35 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=False,
     )
 
-    def update_group_transparents_by_plane_ui(self, context):
-        self.group_transparents_by_plane_active = True
-
-    group_transparents_by_plane_active: BoolProperty()
     group_transparents_by_plane_ui: BoolProperty(
         name="Group Transparents By Plane",
         options=set(),
         description="Enable to group transparent geometry by fitted planes",
         default=True,
-        update=update_group_transparents_by_plane_ui,
     )
 
-    def update_no_shadow_ui(self, context):
-        self.no_shadow_active = True
-
-    no_shadow_active: BoolProperty()
     no_shadow_ui: BoolProperty(
         name="No Shadow",
         options=set(),
         description="Enable to prevent faces from casting shadows",
-        default=True,
-        update=update_no_shadow_ui,
     )
 
-    def update_precise_position_ui(self, context):
-        self.precise_position_active = True
-
-    precise_position_active: BoolProperty()
     precise_position_ui: BoolProperty(
         name="Precise Position",
         options=set(),
         description="Enable to prevent faces from being altered during the import process",
-        default=False,
-        update=update_precise_position_ui,
     )
 
-    def update_no_lightmap_ui(self, context):
-        self.no_lightmap_active = True
-
-    no_lightmap_active: BoolProperty()
     no_lightmap_ui: BoolProperty(
         name="Exclude From Lightmap",
         options=set(),
         description="",
-        default=True,
-        update=update_no_lightmap_ui,
     )
 
-    def update_no_pvs_ui(self, context):
-        self.no_pvs_active = True
-
-    no_pvs_active: BoolProperty()
     no_pvs_ui: BoolProperty(
         name="Invisible To PVS",
         options=set(),
         description="",
-        default=True,
-        update=update_no_pvs_ui,
     )
 
     # EXPORT ONLY PROPS
@@ -2365,6 +2385,10 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #########
 
     toggle_face_defaults: BoolProperty()
+
+    # MARKER PERMS
+    marker_exclude_perms : StringProperty()
+    marker_include_perms : StringProperty()
 
 
 # LIGHT PROPERTIES
@@ -3126,11 +3150,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
 # BONE PROPS
 # ----------------------------------------------------------
 class NWO_BonePropertiesGroup(PropertyGroup):
-    name_override: StringProperty(
-        name="Name Override",
-        description="Set the Halo export name for this bone. Allowing you to use blender friendly naming conventions for bones while rigging/animating",
-        default="",
-    )
+    # name_override: StringProperty(
+    #     name="Name Override",
+    #     description="Set the Halo export name for this bone. Allowing you to use blender friendly naming conventions for bones while rigging/animating",
+    #     default="",
+    # )
     frame_id1: StringProperty(
         name="Frame ID 1",
         description="The Frame ID 1 for this bone. Leave blank for automatic assignment of a Frame ID. Can be manually edited when using expert mode, but don't do this unless you know what you're doing",

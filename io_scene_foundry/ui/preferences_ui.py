@@ -26,6 +26,11 @@
 
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty
+from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.utils.nwo_utils import foundry_update_check
+from io_scene_foundry.utils import nwo_globals
+FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
+update_str, update_needed = foundry_update_check(nwo_globals.version)
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -160,35 +165,54 @@ class ToolkitLocationPreferences(AddonPreferences):
         name="Default Game",
         description="Specify the game Foundry should select by default on new scenes",
         default="reach",
-        items=[("reach", "Halo Reach", ""), ("h4", "Halo 4", ""), ("h2a", "Halo 2 Anniversary Multiplayer", "")],
+        items=[("reach", "Reach", ""), ("h4", "Halo 4", ""), ("h2a", "Halo 2AMP", "")],
+    )
+
+    toolbar_icons_only : BoolProperty(name="Toolbar Icons Only", description="Toggle whether the Foundry Toolbar should only show icons")
+
+    apply_materials : BoolProperty(
+        name="Apply Types Operator sets materials",
+        description="Sets whether the apply types operator will apply special materials",
+        default=True,
     )
 
     def draw(self, context):
+        prefs = self
         layout = self.layout
+        box = layout.box()
+        box.label(text=update_str, icon_value=get_icon_id("foundry"))
+        if update_needed:
+            box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
+
         if not nwo_globals.clr_installed:
-            row = layout.row(align=True)
+            box = layout.box()
+            box.label(text="Install required to use Halo Tag API (ManagedBlam)")
+            row = box.row(align=True)
             row.scale_y = 1.5
-            row.operator("managed_blam.init", text="Install ManagedBlam Dependancy", icon='IMPORT').install_only = True
-        row = layout.row(align=True)
+            row.operator("managed_blam.init", text="Install ManagedBlam Dependency", icon='IMPORT').install_only = True
+        
+        box = layout.box()
+        row = box.row(align=True)
         row.label(text="Halo Reach Editing Kit Path")
-        row = layout.row(align=True)
-        row.prop(self, "hrek_path", text="")
+        row = box.row(align=True)
+        row.prop(prefs, "hrek_path", text="")
         row.operator("nwo.hrek_path", text="", icon='FILE_FOLDER')
-        row = layout.row(align=True)
+        row = box.row(align=True)
         row.label(text="Halo 4 Editing Kit Path")
-        row = layout.row(align=True)
-        row.prop(self, "h4ek_path", text="")
+        row = box.row(align=True)
+        row.prop(prefs, "h4ek_path", text="")
         row.operator("nwo.h4ek_path", text="", icon='FILE_FOLDER')
-        row = layout.row(align=True)
+        row = box.row(align=True)
         row.label(text="Halo 2 Anniversary Multiplayer Editing Kit Path")
-        row = layout.row(align=True)
-        row.prop(self, "h2aek_path", text="")
+        row = box.row(align=True)
+        row.prop(prefs, "h2aek_path", text="")
         row.operator("nwo.h2aek_path", text="", icon='FILE_FOLDER')
-        row = layout.row(align=True)
-        row.label(text="Default Game")
-        row = layout.row(align=True)
-        row.prop(self, "default_game_version", expand=True)
-        row = layout.row(align=True)
-        row.label(text="Tool Version")
-        row = layout.row(align=True)
-        row.prop(self, "tool_type", expand=True)
+        box = layout.box()
+        row = box.row(align=True, heading="Default Game")
+        row.prop(prefs, "default_game_version", expand=True)
+        row = box.row(align=True, heading="Tool Version")
+        row.prop(prefs, "tool_type", expand=True)
+        row = box.row(align=True)
+        row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
+        row = box.row(align=True)
+        row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")

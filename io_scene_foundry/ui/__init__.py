@@ -63,6 +63,7 @@ from .face_ui import (
 from .face_properties import NWO_FaceProperties_ListItems
 
 from .object_properties import (
+    NWO_MarkerPermutationItems,
     NWO_MeshPropertiesGroup,
     NWO_ObjectPropertiesGroup,
     NWO_LightPropertiesGroup,
@@ -70,6 +71,10 @@ from .object_properties import (
 )
 
 from .object_ui import (
+    NWO_GlobalMaterialGlobals,
+    NWO_UL_MarkerPermutations,
+    NWO_List_Add_MarkerPermutation,
+    NWO_List_Remove_MarkerPermutation,
     NWO_UL_FaceMapProps,
     NWO_FaceDefaultsToggle,
     NWO_MeshPropAddMenu,
@@ -121,6 +126,7 @@ from .animation_properties import (
 from .animation_ui import (
     NWO_NewAnimation,
     NWO_DeleteAnimation,
+    NWO_UnlinkAnimation,
     NWO_List_Add_Animation_Rename,
     NWO_UL_AnimationRename,
     NWO_List_Remove_Animation_Rename,
@@ -404,15 +410,20 @@ class NWO_OpenAssetFoundry(NWO_Op):
 
 
 classes_nwo = (
+    NWO_GlobalMaterialGlobals,
     H2AMPEKLocationPath,
     H4EKLocationPath,
     HREKLocationPath,
     ToolkitLocationPreferences,
     NWO_OpenAssetFoundry,
+    NWO_UL_MarkerPermutations,
+    NWO_List_Add_MarkerPermutation,
+    NWO_List_Remove_MarkerPermutation,
     NWO_List_Add_Animation_Rename,
     NWO_List_Remove_Animation_Rename,
     NWO_NewAnimation,
     NWO_DeleteAnimation,
+    NWO_UnlinkAnimation,
     NWO_Asset_ListItems,
     NWO_UL_AnimationRename,
     NWO_ScenePropertiesGroup,
@@ -453,6 +464,7 @@ classes_nwo = (
     # NWO_ShaderProps,
     NWO_MaterialOpenTag,
     NWO_UL_FaceMapProps,
+    NWO_MarkerPermutationItems,
     NWO_FaceProperties_ListItems,
     NWO_ObjectPropertiesGroup,
     NWO_LightPropertiesGroup,

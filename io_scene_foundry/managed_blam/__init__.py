@@ -48,6 +48,7 @@ class ManagedBlam():
             bpy.ops.managed_blam.init()
 
         self.path = ""
+        self.read_only = False
 
     def get_path(self): # stub
         return ""
@@ -67,11 +68,15 @@ class ManagedBlam():
         try:
             if os.path.exists(self.system_path):
                 tag.Load(self.tag_path)
-            else:
+            elif not self.read_only:
                 tag.New(self.tag_path)
-
-            self.tag_edit(tag)
-            tag.Save()
+            else:
+                print("Read only mode but tag path does not exist")
+            if self.read_only:
+                self.tag_read(tag)
+            else:
+                self.tag_edit(tag)
+                tag.Save()
 
         finally:
             tag.Dispose()
@@ -222,7 +227,25 @@ class ManagedBlam_Close(Operator):
         Bungie = get_bungie(self.report)
         Bungie.ManagedBlamSystem.Stop()
         return {"FINISHED"}
+    
+class ManagedBlamGetGlobalMaterials(ManagedBlam):
+    def __init__(self):
+        super().__init__()
+        self.read_only = True
+        self.tag_helper()
 
+    def get_path(self):
+        globals_path = os.path.join("globals", "globals.globals")
+        return globals_path
+    
+    def tag_read(self, tag):
+        global_materials = []
+        blocks = tag.SelectField("Block:materials")
+        for element in blocks:
+            field = element.SelectField("name")
+            global_materials.append(field.GetStringData())
+
+        self.global_materials = global_materials
 
 class ManagedBlamNewShader(ManagedBlam):
     def __init__(self, blender_material, is_reach):
@@ -235,7 +258,8 @@ class ManagedBlamNewShader(ManagedBlam):
         asset_path = get_asset_path()
         shaders_dir = os.path.join(asset_path, "shaders" if self.is_reach else "materials")
         shader_name = get_valid_shader_name(self.blender_material)
-        shader_path = os.path.join(shaders_dir, shader_name + ".shader" if self.is_reach else ".material")
+        tag_ext = ".shader" if self.is_reach else ".material"
+        shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
 
         return shader_path
 

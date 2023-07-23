@@ -24,17 +24,13 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-# VERSION
-version = "0.9.3"
+import bpy
+from io_scene_foundry.managed_blam import ManagedBlamGetGlobalMaterials
 
-# set on blender load
-clr_installed = False
+class NWO_GetGlobalMaterials(bpy.types.Operator):
+    bl_label = "Global Materials Get"
+    bl_idname = "nwo.get_global_materials"
 
-# set on managedblam init
-mb_path = ""
-mb_active = False
-
-# set at export
-nwo_scene_settings = {}
-export_report = {}
-foundry_output_state = True
+    def execute(self, context):
+        materials = ManagedBlamGetGlobalMaterials()
+        return {'FINISHED'}
