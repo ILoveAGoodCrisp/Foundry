@@ -1278,6 +1278,9 @@ class PrepareScene:
                     split_physics = self.proxy_face_split(proxy_physics, context, scene_coll, h4)
                 else:
                     proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
+                    if proxy_physics.nwo.face_global_material_ui:
+                        self.set_reach_coll_materials(proxy_physics.data, proxy_physics.nwo, bpy.data.materials)
+
 
             proxy_collision = me.nwo.proxy_collision
             if proxy_collision is not None:
@@ -1294,6 +1297,8 @@ class PrepareScene:
                         proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_default"
 
                     split_collision = self.proxy_face_split(proxy_collision, context, scene_coll, h4)
+                elif proxy_collision.nwo.face_global_material_ui:
+                    self.set_reach_coll_materials(proxy_collision.data, proxy_collision.nwo, bpy.data.materials)
 
             proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
             if not h4 and proxy_cookie_cutter is not None:
@@ -2798,31 +2803,64 @@ class PrepareScene:
         materials = me.materials
         scene_mats = bpy.data.materials
         mats = dict.fromkeys(slots)
-        print(f"reach_poop_collision = {nwo.reach_poop_collision}")
-        print(f"face_global_material = {nwo.face_global_material}")
-        if nwo.reach_poop_collision and nwo.face_global_material_ui:
-            # handle reach poop collision material assignment
-            me.materials.clear()
-            new_mat_name = f"global_material_{nwo.face_global_material_ui}"
-            if new_mat_name not in scene_mats:
-                coll_mat = scene_mats.new(new_mat_name)
-            else:
-                coll_mat = scene_mats.get(new_mat_name)
-
-            tag_path = f"levels\\reference\\sound\\shaders\\bsp_{nwo.face_global_material_ui}.shader"
-            full_tag_path = get_tags_path() + tag_path
-            if os.path.exists(full_tag_path):
-                coll_mat.nwo.rendered = True
-                coll_mat.nwo.shader_path = tag_path
-            else:
-                coll_mat.nwo.rendered = False
-                self.warning_hit = True
-                print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {nwo.face_global_material} prefixed with 'bsp_'")
-
-            me.materials.append(coll_mat)
-            
+        if nwo.reach_poop_collision and (nwo.face_global_material_ui or self.any_face_props()):
+            self.set_reach_coll_materials(me, nwo, scene_mats)
         else:
             self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me)
+
+    def set_reach_coll_materials(self, me, nwo, scene_mats):
+        # handle reach poop collision material assignment
+        me.materials.clear()
+        new_mat_name = f"global_material_{nwo.face_global_material_ui}"
+        if new_mat_name not in scene_mats:
+            coll_mat = scene_mats.new(new_mat_name)
+        else:
+            coll_mat = scene_mats.get(new_mat_name)
+
+        tag_path = f"levels\\reference\\sound\\shaders\\bsp_{nwo.face_global_material_ui}.shader"
+        full_tag_path = get_tags_path() + tag_path
+        if os.path.exists(full_tag_path):
+            coll_mat.nwo.rendered = True
+            coll_mat.nwo.shader_path = tag_path
+        else:
+            coll_mat.nwo.rendered = False
+            self.warning_hit = True
+            print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {nwo.face_global_material_ui} prefixed with 'bsp_'")
+
+        me.materials.append(coll_mat)
+        # set up the materials by face props
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        layers = me.nwo.face_props
+        for l in layers:
+            if not l.face_global_material_ui or l.face_global_material_ui == nwo.face_global_material_ui:
+                continue
+            faces = layer_faces(bm, bm.faces.layers.int.get(l.layer_name))
+            if not faces:
+                continue
+            new_mat_face_name = f"global_material_{l.face_global_material_ui}"
+            if new_mat_face_name not in scene_mats:
+                coll_face_mat = scene_mats.new(new_mat_face_name)
+            else:
+                coll_face_mat = scene_mats.get(new_mat_face_name)
+
+            tag_path = f"levels\\reference\\sound\\shaders\\bsp_{l.face_global_material_ui}.shader"
+            full_tag_path = get_tags_path() + tag_path
+            if os.path.exists(full_tag_path):
+                coll_face_mat.nwo.rendered = True
+                coll_face_mat.nwo.shader_path = tag_path
+                me.materials.append(coll_face_mat)
+                mat_dict = {mat: i for i, mat in enumerate(me.materials)}
+                for f in faces:
+                    f.material_index = mat_dict[coll_face_mat]
+
+            else:
+                coll_face_mat.nwo.rendered = False
+                self.warning_hit = True
+                print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {l.face_global_material_ui} prefixed with 'bsp_'")
+
+        bm.to_mesh(me)
+        bm.free()
 
     def loop_and_fix_slots(self, slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me):
         slots_to_remove = []

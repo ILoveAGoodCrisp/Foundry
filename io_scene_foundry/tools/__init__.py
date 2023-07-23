@@ -1325,11 +1325,12 @@ class NWO_FoundryPanelProps(Panel):
             col2.use_property_split = False
             row = col2.grid_flow(
                 row_major=True,
-                columns=2,
+                columns=0,
                 even_columns=True,
-                even_rows=False,
-                align=False,
+                even_rows=True,
+                align=True,
             )
+            row.scale_x = 1.2
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
                 row.prop(nwo, "precise_position_ui", text="Uncompressed")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision"):

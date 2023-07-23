@@ -41,8 +41,8 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
                     coll.objects.unlink(ob)
                 data.collections[collection_index].objects.link(ob)
     else:
-        ops.outliner.collection_new()
-        data.collections[-1].name = full_name
+        new_collection = bpy.data.collections.new(full_name)
+        context.scene.collection.children.link(new_collection)
 
     return {"FINISHED"}
 
