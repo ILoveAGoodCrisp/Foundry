@@ -79,10 +79,23 @@ class NWO_DeleteAnimation(NWO_Op):
     bl_description = "Deletes a Halo Animation from the blend file"
 
     def execute(self, context):
-        action = context.object.animation_data.action
+        arm = context.object
+        action = arm.animation_data.action
         name = str(action.name)
         bpy.data.actions.remove(action)
         self.report({"INFO"}, f"Deleted animation: {name}")
+        arm.data.pose_position = 'REST'
+        return {"FINISHED"}
+    
+class NWO_UnlinkAnimation(NWO_Op):
+    bl_label = "Unlink Animation"
+    bl_idname = "nwo.unlink_animation"
+    bl_description = "Unlinks a Halo Animation"
+
+    def execute(self, context):
+        arm = context.object
+        arm.animation_data.action = None
+        arm.data.pose_position = 'REST'
         return {"FINISHED"}
 
 

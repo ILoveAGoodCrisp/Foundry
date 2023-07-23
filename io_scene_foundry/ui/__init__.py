@@ -126,6 +126,7 @@ from .animation_properties import (
 from .animation_ui import (
     NWO_NewAnimation,
     NWO_DeleteAnimation,
+    NWO_UnlinkAnimation,
     NWO_List_Add_Animation_Rename,
     NWO_UL_AnimationRename,
     NWO_List_Remove_Animation_Rename,
@@ -422,6 +423,7 @@ classes_nwo = (
     NWO_List_Remove_Animation_Rename,
     NWO_NewAnimation,
     NWO_DeleteAnimation,
+    NWO_UnlinkAnimation,
     NWO_Asset_ListItems,
     NWO_UL_AnimationRename,
     NWO_ScenePropertiesGroup,

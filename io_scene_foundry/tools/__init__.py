@@ -1997,7 +1997,7 @@ class NWO_FoundryPanelProps(Panel):
             animation_data,
             "action",
             new="nwo.new_animation",
-            unlink="nwo.delete_animation",
+            unlink="nwo.unlink_animation"
         )
         action = animation_data.action
         if action:
@@ -2137,6 +2137,9 @@ class NWO_FoundryPanelProps(Panel):
                         == "_connected_geometry_animation_event_type_text"
                     ):
                         col.prop(item, "text")
+            col = box.column()
+            col.separator()
+            col.operator("nwo.delete_animation", text="DELETE ANIMATION", icon="CANCEL")
 
     def draw_tools(self):
         box = self.box.box()
