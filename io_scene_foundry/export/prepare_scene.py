@@ -1641,8 +1641,8 @@ class PrepareScene:
                     nwo.poop_collision_type = nwo.poop_collision_type_ui
                     if reach:
                         nwo.reach_poop_collision = True
-            if asset_type == "SCENARIO":
-                if nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam":
+                        
+                elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam":
                     nwo.mesh_type = "_connected_geometry_mesh_type_seam"
                     self.seams.append(ob)
 

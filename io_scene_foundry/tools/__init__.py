@@ -1256,7 +1256,7 @@ class NWO_FoundryPanelProps(Panel):
                     text="",
                 )
 
-        if not has_mesh_props(ob):
+        if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
             return
 
         box = self.box.box()
