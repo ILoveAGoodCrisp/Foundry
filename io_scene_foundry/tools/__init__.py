@@ -1611,7 +1611,7 @@ class NWO_FoundryPanelProps(Panel):
 
             if context.mode == "EDIT_MESH":
                 col = row.column(align=True)
-                if is_proxy:
+                if is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
                     col.operator("nwo.face_layer_add", text="", icon="ADD").options = "face_global_material"
                 else:
                     col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
@@ -1717,7 +1717,7 @@ class NWO_FoundryPanelProps(Panel):
                         text="",
                         icon="DOWNARROW_HLT",
                     )
-                    if not is_proxy:
+                    if not (is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision"):
                         row.operator(
                             "nwo.face_prop_remove", text="", icon="X"
                         ).options = "face_global_material"
@@ -1870,7 +1870,7 @@ class NWO_FoundryPanelProps(Panel):
                         "material_lighting_emissive_per_unit_ui",
                         text="Emissive Per Unit",
                     )
-                if not is_proxy:
+                if not (is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision"):
                     col.separator()
                     col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Layer Property", icon="PLUS")
 

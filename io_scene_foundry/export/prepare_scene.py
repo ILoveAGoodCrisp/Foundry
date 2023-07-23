@@ -2794,45 +2794,58 @@ class PrepareScene:
         # fix multi user materials
         slots = ob.material_slots
         materials = me.materials
+        scene_mats = bpy.data.materials
         mats = dict.fromkeys(slots)
         slots_to_remove = []
-        for idx, slot in enumerate(slots):
-            slot_mat = slot.material
-            if slot_mat:
-                if is_halo_render:
-                    self.used_materials.add(slot_mat)
-                s_name = slot_mat.name
-                if s_name not in mats.keys():
-                    mats[s_name] = idx
-                elif ob.type == 'MESH':
-                    bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-                    ob.active_material_index = idx
-                    slots_to_remove.append(idx)
-                    bpy.ops.object.material_slot_select()
-                    ob.active_material_index = mats[s_name]
-                    bpy.ops.object.material_slot_assign()
-                    bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-            else:
-                if nwo.mesh_type in render_mesh_types:
-                    slot.material = invalid_mat
-                elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-                    slot.material = water_surface_mat
+        if h4 or nwo.mesh_type != "_connected_geometry_poop_collision":
+            for idx, slot in enumerate(slots):
+                slot_mat = slot.material
+                if slot_mat:
+                    if is_halo_render:
+                        self.used_materials.add(slot_mat)
+                    s_name = slot_mat.name
+                    if s_name not in mats.keys():
+                        mats[s_name] = idx
+                    elif ob.type == 'MESH':
+                        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+                        ob.active_material_index = idx
+                        slots_to_remove.append(idx)
+                        bpy.ops.object.material_slot_select()
+                        ob.active_material_index = mats[s_name]
+                        bpy.ops.object.material_slot_assign()
+                        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
                 else:
-                    slot.material = override_mat
+                    if nwo.mesh_type in render_mesh_types:
+                        slot.material = invalid_mat
+                    elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
+                        slot.material = water_surface_mat
+                    else:
+                        slot.material = override_mat
 
-        while slots_to_remove:
-            materials.pop(index=slots_to_remove[0])
-            slots_to_remove.pop(0)
-            slots_to_remove = [idx - 1 for idx in slots_to_remove]
+            while slots_to_remove:
+                materials.pop(index=slots_to_remove[0])
+                slots_to_remove.pop(0)
+                slots_to_remove = [idx - 1 for idx in slots_to_remove]
 
-        if not slots:
-            # append the new material to the object
-            if nwo.mesh_type in render_mesh_types:
-                me.materials.append(invalid_mat)
-            elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-                me.materials.append(water_surface_mat)
-            else:
-                me.materials.append(override_mat)
+            if not slots:
+                # append the new material to the object
+                if nwo.mesh_type in render_mesh_types:
+                    me.materials.append(invalid_mat)
+                elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
+                    me.materials.append(water_surface_mat)
+                else:
+                    me.materials.append(override_mat)
+        else:
+            # handle reach poop collision material assignment
+            if nwo.face_global_material:
+                me.materials.clear()
+                if nwo.face_global_material not in materials:
+                    coll_mat = materials.new(nwo.face_global_material)
+                else:
+                    coll_mat = materials.get(nwo.face_global_material)
+
+                me.materials.append(coll_mat)
+
 
     def markerify(self, export_obs, scene_coll):
         # get a list of meshes which are nodes
