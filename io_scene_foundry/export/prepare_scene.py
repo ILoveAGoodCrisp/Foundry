@@ -1622,6 +1622,8 @@ class PrepareScene:
                 elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
                     nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
                     nwo.poop_collision_type = nwo.poop_collision_type_ui
+                    if reach:
+                        nwo.reach_poop_collision = True
 
                 elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam":
                     nwo.mesh_type = "_connected_geometry_mesh_type_seam"
@@ -2796,56 +2798,71 @@ class PrepareScene:
         materials = me.materials
         scene_mats = bpy.data.materials
         mats = dict.fromkeys(slots)
-        slots_to_remove = []
-        if h4 or nwo.mesh_type != "_connected_geometry_poop_collision":
-            for idx, slot in enumerate(slots):
-                slot_mat = slot.material
-                if slot_mat:
-                    if is_halo_render:
-                        self.used_materials.add(slot_mat)
-                    s_name = slot_mat.name
-                    if s_name not in mats.keys():
-                        mats[s_name] = idx
-                    elif ob.type == 'MESH':
-                        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-                        ob.active_material_index = idx
-                        slots_to_remove.append(idx)
-                        bpy.ops.object.material_slot_select()
-                        ob.active_material_index = mats[s_name]
-                        bpy.ops.object.material_slot_assign()
-                        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-                else:
-                    if nwo.mesh_type in render_mesh_types:
-                        slot.material = invalid_mat
-                    elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-                        slot.material = water_surface_mat
-                    else:
-                        slot.material = override_mat
-
-            while slots_to_remove:
-                materials.pop(index=slots_to_remove[0])
-                slots_to_remove.pop(0)
-                slots_to_remove = [idx - 1 for idx in slots_to_remove]
-
-            if not slots:
-                # append the new material to the object
-                if nwo.mesh_type in render_mesh_types:
-                    me.materials.append(invalid_mat)
-                elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-                    me.materials.append(water_surface_mat)
-                else:
-                    me.materials.append(override_mat)
-        else:
+        print(f"reach_poop_collision = {nwo.reach_poop_collision}")
+        print(f"face_global_material = {nwo.face_global_material}")
+        if nwo.reach_poop_collision and nwo.face_global_material_ui:
             # handle reach poop collision material assignment
-            if nwo.face_global_material:
-                me.materials.clear()
-                if nwo.face_global_material not in materials:
-                    coll_mat = materials.new(nwo.face_global_material)
+            me.materials.clear()
+            new_mat_name = f"global_material_{nwo.face_global_material_ui}"
+            if new_mat_name not in scene_mats:
+                coll_mat = scene_mats.new(new_mat_name)
+            else:
+                coll_mat = scene_mats.get(new_mat_name)
+
+            tag_path = f"levels\\reference\\sound\\shaders\\bsp_{nwo.face_global_material_ui}.shader"
+            full_tag_path = get_tags_path() + tag_path
+            if os.path.exists(full_tag_path):
+                coll_mat.nwo.rendered = True
+                coll_mat.nwo.shader_path = tag_path
+            else:
+                coll_mat.nwo.rendered = False
+                self.warning_hit = True
+                print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {nwo.face_global_material} prefixed with 'bsp_'")
+
+            me.materials.append(coll_mat)
+            
+        else:
+            self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me)
+
+    def loop_and_fix_slots(self, slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me):
+        slots_to_remove = []
+        for idx, slot in enumerate(slots):
+            slot_mat = slot.material
+            if slot_mat:
+                if is_halo_render:
+                    self.used_materials.add(slot_mat)
+                s_name = slot_mat.name
+                if s_name not in mats.keys():
+                    mats[s_name] = idx
+                elif ob.type == 'MESH':
+                    bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+                    ob.active_material_index = idx
+                    slots_to_remove.append(idx)
+                    bpy.ops.object.material_slot_select()
+                    ob.active_material_index = mats[s_name]
+                    bpy.ops.object.material_slot_assign()
+                    bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            else:
+                if nwo.mesh_type in render_mesh_types:
+                    slot.material = invalid_mat
+                elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
+                    slot.material = water_surface_mat
                 else:
-                    coll_mat = materials.get(nwo.face_global_material)
+                    slot.material = override_mat
 
-                me.materials.append(coll_mat)
+        while slots_to_remove:
+            materials.pop(index=slots_to_remove[0])
+            slots_to_remove.pop(0)
+            slots_to_remove = [idx - 1 for idx in slots_to_remove]
 
+        if not slots:
+            # append the new material to the object
+            if nwo.mesh_type in render_mesh_types:
+                me.materials.append(invalid_mat)
+            elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
+                me.materials.append(water_surface_mat)
+            else:
+                me.materials.append(override_mat)
 
     def markerify(self, export_obs, scene_coll):
         # get a list of meshes which are nodes
@@ -3380,3 +3397,4 @@ def reset_export_props(nwo):
     nwo.marker_light_cone_curve = ""
     nwo.marker_exclude_perms = ""
     nwo.marker_include_perms = ""
+    nwo.reach_poop_collision = False

@@ -1116,6 +1116,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     #     maxlen=1024,
     # )
 
+    reach_poop_collision : BoolProperty() # INTERNAL
+
     poop_render_only_ui: BoolProperty(
         name="Render Only",
         options=set(),
