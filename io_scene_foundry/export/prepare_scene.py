@@ -1010,7 +1010,7 @@ class PrepareScene:
                 obj_bm = bmesh.new()
                 obj_bm.from_mesh(split_ob.data)
                 obj_name_suffix = ""
-                for layer in face_layers:
+                for layer in split_ob.data.nwo.face_props:
                     if layer_face_count(
                         obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)
                     ):
@@ -1483,7 +1483,11 @@ class PrepareScene:
                     for linked_ob in linked_objects:
                         for split_ob in split_objects:
                             new_ob = linked_ob
-                            if split_ob != ob:
+                            if linked_ob.data == split_ob.data:
+                                new_ob.name = split_ob.name
+                                for layer in new_ob.data.nwo.face_props:
+                                    self.face_prop_to_mesh_prop(new_ob.nwo, layer, h4, new_ob, scene_coll)
+                            else:
                                 new_ob = split_ob.copy()
                                 scene_coll.link(new_ob)
                                 new_ob.matrix_world = linked_ob.matrix_world
