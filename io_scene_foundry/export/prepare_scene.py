@@ -385,15 +385,6 @@ class PrepareScene:
                 self.bsps.add(nwo.bsp_name)
 
             if export_gr2_files:
-                # Fix meshes with missing UV maps and align UV map names
-                if is_mesh:
-                    uv_layers = me.uv_layers
-                    if uv_layers:
-                        for idx, uv_map in enumerate(uv_layers):
-                            uv_map.name = f"UVMap{idx}"
-                    else:
-                        uv_layers.new(name="UVMap0")
-                
                 if is_mesh_loose:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
                     self.fix_materials(
@@ -1393,6 +1384,15 @@ class PrepareScene:
                         me_ob_dict_full[me] = []
 
                     me_ob_dict_full[me].append(ob)
+
+        # Fix meshes with missing UV maps and align UV map names
+        for dat in me_ob_dict_full.keys():
+            uv_layers = dat.uv_layers
+            if uv_layers:
+                for idx, uv_map in enumerate(uv_layers):
+                    uv_map.name = f"UVMap{idx}"
+            else:
+                uv_layers.new(name="UVMap0")
 
         valid_mesh_types = (
             "_connected_geometry_mesh_type_collision",
