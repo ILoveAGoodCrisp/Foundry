@@ -385,13 +385,15 @@ class PrepareScene:
                 self.bsps.add(nwo.bsp_name)
 
             if export_gr2_files:
-                # fix meshes with missing UV maps
+                # Fix meshes with missing UV maps and align UV map names
                 if is_mesh:
                     uv_layers = me.uv_layers
-                    if not uv_layers:
-                        uv_layers.new(name="UVMap_0")
-
-                    # print("uv fix")
+                    if uv_layers:
+                        for idx, uv_map in enumerate(uv_layers):
+                            uv_map.name = f"UVMap{idx}"
+                    else:
+                        uv_layers.new(name="UVMap0")
+                
                 if is_mesh_loose:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
                     self.fix_materials(
