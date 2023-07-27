@@ -80,6 +80,34 @@ class NWO_MarkerPermutationItems(PropertyGroup):
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
 class NWO_ObjectPropertiesGroup(PropertyGroup):
+    ### ARMATURE
+    node_usage_physics_control : StringProperty(name="Physics Control")
+    node_usage_camera_control : StringProperty(name="Camera Control")
+    node_usage_origin_marker : StringProperty(name="Origin Marker")
+    node_usage_left_clavicle : StringProperty(name="Left Clavicle")
+    node_usage_left_upperarm : StringProperty(name="Left Upperarm")
+    node_usage_pose_blend_pitch : StringProperty(name="Pose Blend Pitch")
+    node_usage_pose_blend_yaw : StringProperty(name="Pose Blend Yaw")
+    node_usage_pedestal : StringProperty(name="Pedestal")
+    node_usage_pelvis : StringProperty(name="Pelvis")
+    node_usage_left_foot : StringProperty(name="Left Foot")
+    node_usage_right_foot : StringProperty(name="Right Foot")
+    node_usage_damage_root_gut : StringProperty(name="Damage Root Gut")
+    node_usage_damage_root_chest : StringProperty(name="Damage Root Chest")
+    node_usage_damage_root_head : StringProperty(name="Damage Root Head")
+    node_usage_damage_root_left_shoulder : StringProperty(name="Damage RootLeft Shoulder")
+    node_usage_damage_root_left_arm : StringProperty(name="Damage Root Left Arm")
+    node_usage_damage_root_left_leg : StringProperty(name="Damage Root Left Leg")
+    node_usage_damage_root_left_foot : StringProperty(name="Damage Root Left Foot")
+    node_usage_damage_root_right_shoulder : StringProperty(name="Damage Root Right Shoulder")
+    node_usage_damage_root_right_arm : StringProperty(name="Damage Root Right Arm")
+    node_usage_damage_root_right_leg : StringProperty(name="Damage Root Right Leg")
+    node_usage_damage_root_right_foot : StringProperty(name="Damage Root Right Foot")
+    node_usage_left_hand : StringProperty(name="Left Hand")
+    node_usage_right_hand : StringProperty(name="Right Hand")
+    node_usage_weapon_ik : StringProperty(name="Weapon IK")
+    
+    ### PROXY
     proxy_parent: PointerProperty(type=bpy.types.Mesh)
     proxy_type : StringProperty()
     #### MARKER PERM

@@ -407,7 +407,35 @@ class NWO_FoundryPanelProps(Panel):
             return
 
         elif ob.type == "ARMATURE":
-            box.label(text="This object contains the skeleton for this asset")
+            # node usage
+            box.label(text="Node Usage Overrides")
+            col = box.column()
+            col.use_property_split = True
+            col.prop_search(nwo, "node_usage_pedestal", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_pose_blend_pitch", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_pose_blend_yaw", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_physics_control", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_camera_control", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_origin_marker", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_weapon_ik", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_pelvis", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_left_clavicle", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_left_upperarm", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_left_foot", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_left_hand", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_right_foot", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_right_hand", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_gut", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_chest", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_head", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_shoulder", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_arm", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_leg", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_foot", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_shoulder", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_arm", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_leg", ob.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_foot", ob.data, "bones")
             return
 
         row = box.grid_flow(

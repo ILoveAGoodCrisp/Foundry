@@ -31,6 +31,8 @@ import os
 import json
 import multiprocessing
 import threading
+
+from io_scene_foundry.managed_blam.node_usage import ManagedBlamNodeUsage
 from .format_json import NWOJSON
 from ..utils.nwo_utils import (
     data_relative,
@@ -251,6 +253,7 @@ class ProcessScene:
             self.running_check = 0
             self.sidecar_paths = {}
             self.sidecar_paths_design = {}
+            self.asset_has_animations = False
             if export_gr2_files:
                 self.p_queue = []
                 self.max_export = 0.5
@@ -438,6 +441,7 @@ class ProcessScene:
                             action_nwo = action.nwo
                             # only export animations that have manual frame range
                             if action.use_frame_range:
+                                self.asset_has_animations = True
                                 animation_name = action.nwo.name_override
                                 fbx_path, json_path, gr2_path = self.get_path(
                                     asset_path,
@@ -1108,6 +1112,7 @@ class ProcessScene:
         model_sky = sidecar_type in ('MODEL', 'SKY')
         model = sidecar_type == 'MODEL'
         h4_model_lighting = (nwo_scene.lighting and game_version != 'reach' and model_sky)
+        node_usage_set = self.asset_has_animations and self.any_node_usage_override(nwo_scene.model_armature.nwo)
         model_override = (
             (nwo.render_model_path and model)
             or (nwo.collision_model_path and model)
@@ -1117,6 +1122,7 @@ class ProcessScene:
         mb_justified =  (
             h4_model_lighting
             or model_override
+            or node_usage_set
         )
         if not mb_justified:
             return
@@ -1126,10 +1132,12 @@ class ProcessScene:
             "-----------------------------------------------------------------------\n"
         )
         
+        # Start ManagedBlam if it is not already running
         if not managed_blam_active():
             bpy.ops.managed_blam.init()
             print("Initialising ManagedBlam DONE\n")
         
+        # If this model has lighting, add a reference to the structure_meta tag in the render_model
         if h4_model_lighting:
             job = "Adding Structure Meta Reference to Render Model"
             meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
@@ -1139,7 +1147,7 @@ class ProcessScene:
             enable_prints()
             update_job(job, 1)
 
-        
+        # Apply model overrides if any
         if model_override:
             job = "Applying Model Overrides"
             update_job(job, 0)
@@ -1155,6 +1163,44 @@ class ProcessScene:
                 )
             enable_prints()
             update_job(job, 1)
+
+        # Update/ set up Node Usage block of the model_animation_graph
+        if node_usage_set:
+            job = "Setting Animation Node Usages"
+            update_job(job, 0)
+            #disable_prints()
+            ManagedBlamNodeUsage(nwo_scene.model_armature)
+            enable_prints()
+            update_job(job, 1)
+
+    def any_node_usage_override(self, nwo):
+        return (nwo.node_usage_physics_control
+                or nwo.node_usage_camera_control
+                or nwo.node_usage_origin_marker
+                or nwo.node_usage_left_clavicle
+                or nwo.node_usage_left_upperarm
+                or nwo.node_usage_pose_blend_pitch
+                or nwo.node_usage_pose_blend_yaw
+                or nwo.node_usage_pedestal
+                or nwo.node_usage_pelvis
+                or nwo.node_usage_left_foot
+                or nwo.node_usage_right_foot
+                or nwo.node_usage_damage_root_gut
+                or nwo.node_usage_damage_root_chest
+                or nwo.node_usage_damage_root_head
+                or nwo.node_usage_damage_root_left_shoulder
+                or nwo.node_usage_damage_root_left_arm
+                or nwo.node_usage_damage_root_left_leg
+                or nwo.node_usage_damage_root_left_foot
+                or nwo.node_usage_damage_root_right_shoulder
+                or nwo.node_usage_damage_root_right_arm
+                or nwo.node_usage_damage_root_right_leg
+                or nwo.node_usage_damage_root_right_foot
+                or nwo.node_usage_left_hand
+                or nwo.node_usage_right_hand
+                or nwo.node_usage_weapon_ik
+                )
+
 
     #####################################################################################
     #####################################################################################
