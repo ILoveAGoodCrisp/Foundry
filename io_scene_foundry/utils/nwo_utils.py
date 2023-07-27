@@ -1574,7 +1574,7 @@ def get_valid_material_name(material_name):
     # ignore if duplicate name
     dot_partition(material_name)
     # ignore material suffixes
-    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['0")
+    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['")
     # dot partition again in case a pesky dot remains
     return dot_partition(material_name).lower()
 

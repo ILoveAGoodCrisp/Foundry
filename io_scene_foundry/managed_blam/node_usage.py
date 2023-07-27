@@ -97,23 +97,22 @@ class ManagedBlamNodeUsage(ManagedBlam):
         graph_path = os.path.join(asset_path, asset_name + ".model_animation_graph")
         return graph_path
     
-    def get_node_index_list(self, struct):
+    def get_node_index_list(self, definition_block):
         """Loops through each element in the skeleton nodes block and returns a list of bone names"""
         node_index_list = []
-        block = struct.SelectField("Block:skeleton nodes")
+        block = definition_block.SelectField("Block:skeleton nodes")
         for element in block:
             field = element.SelectField("name")
             node_index_list.append(field.GetStringData())
 
         return node_index_list
 
-    
     def tag_edit(self, tag):
         definitions = tag.SelectField("Struct:definitions")
-        struct = definitions.Elements[0]
+        definition_block = definitions.Elements[0]
         # Establish a list of node indexes. These are needed when we write the node usage data
-        node_index_list = self.get_node_index_list(struct)
-        block = struct.SelectField("Block:node usage")
+        node_index_list = self.get_node_index_list(definition_block)
+        node_usages = definition_block.SelectField("Block:node usage")
         # loop through existing blocks, applying node indexes
         # for element in block:
         #     e_count += 1
@@ -131,14 +130,14 @@ class ManagedBlamNodeUsage(ManagedBlam):
         #                 break
 
         # If items remain in node_usage_dict, then we need to add new elements
-        block.RemoveAllElements()
+        node_usages.RemoveAllElements()
         element_index = -1
         for k, v in self.node_usage_dict.items():
             if v in node_index_list:
-                block.AddElement()
+                node_usages.AddElement()
                 element_index += 1
-                usage = block.Elements[element_index].SelectField("usage")
-                node = block.Elements[element_index].SelectField("node to use")
+                usage = node_usages.Elements[element_index].SelectField("usage")
+                node = node_usages.Elements[element_index].SelectField("node to use")
                 items = [i.EnumName for i in usage.Items]
                 usage.Value = items.index(k)
                 node.Value = node_index_list.index(v)
