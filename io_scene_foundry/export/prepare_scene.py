@@ -1568,7 +1568,7 @@ class PrepareScene:
         export_obs,
     ):
         forward = context.scene.nwo.forward_direction
-        if forward != "x" and sidecar_type in ("MODEL", "FP ANIMATION"):
+        if sidecar_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
             set_active_object(armature)
             armature.select_set(True)

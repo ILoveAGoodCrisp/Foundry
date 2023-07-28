@@ -95,6 +95,12 @@ class NWO_Export_Scene(Operator, ExportHelper):
         options={"HIDDEN"},
         maxlen=1024,
     )
+
+    fast_animation_export : BoolProperty(
+        name="Fast Animation Export",
+        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects"
+    )
+
     game_version: EnumProperty(
         name="Game Version",
         description="The game to export this asset for",

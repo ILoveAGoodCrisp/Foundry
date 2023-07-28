@@ -354,8 +354,8 @@ class ProcessScene:
                                 True,
                             )
 
-                    # if not self.skeleton_only:
-                    #     self.remove_all_but_armature(nwo_scene)
+                    if not self.skeleton_only:
+                        self.remove_all_but_armature(nwo_scene)
 
                     fbx_path, json_path, gr2_path = self.get_path(
                         asset_path, asset, "skeleton", None, None, None
@@ -421,8 +421,8 @@ class ProcessScene:
                         and nwo_scene.model_armature.animation_data
                     ):
                         if export_animations != "NONE":
-                            # if not self.skeleton_only: NOTE this speeds up export but can cause issues if user relies on other scene objects for parenting / constraints
-                            #     self.remove_all_but_armature(nwo_scene)
+                            if not self.skeleton_only: # NOTE this speeds up export but can cause issues if user relies on other scene objects for parenting / constraints
+                                self.remove_all_but_armature(nwo_scene)
 
                             timeline = context.scene
                             print("\n\nStarting Animations Export")

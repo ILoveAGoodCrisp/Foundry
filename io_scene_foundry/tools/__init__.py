@@ -3908,6 +3908,10 @@ class NWO_HaloExport(Operator):
 
 
 class NWO_HaloExportPropertiesGroup(PropertyGroup):
+    fast_animation_export : BoolProperty(
+        name="Fast Animation Export",
+        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects"
+    )
     export_gr2_files: BoolProperty(
         name="Export GR2 Files",
         default=True,
