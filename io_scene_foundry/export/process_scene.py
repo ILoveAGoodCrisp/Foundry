@@ -255,7 +255,7 @@ class ProcessScene:
             self.delay = 0
             self.running_check = 0
             self.sidecar_paths = {}
-            self.sidecar_paths_current = {}
+            self.export_paths = []
             self.sidecar_paths_design = {}
             self.asset_has_animations = False
             if export_gr2_files:
@@ -393,22 +393,6 @@ class ProcessScene:
                                     nwo_scene,
                                 ):
                                     self.export_gr2(fbx_path, json_path, gr2_path)
-                                    if "skeleton" in self.sidecar_paths_current.keys():
-                                        self.sidecar_paths_current["skeleton"].append(
-                                            [
-                                                data_relative(fbx_path),
-                                                data_relative(json_path),
-                                                data_relative(gr2_path),
-                                            ]
-                                        )
-                                    else:
-                                        self.sidecar_paths_current["skeleton"] = [
-                                            [
-                                                data_relative(fbx_path),
-                                                data_relative(json_path),
-                                                data_relative(gr2_path),
-                                            ]
-                                        ]
                                 else:
                                     return (
                                         f"Failed to export skeleton JSON: {json_path}"
@@ -523,22 +507,6 @@ class ProcessScene:
                                                         json_path,
                                                         gr2_path,
                                                     )
-                                                    if "animation" in self.sidecar_paths_current.keys():
-                                                        self.sidecar_paths_current["animation"].append(
-                                                            [
-                                                                data_relative(fbx_path),
-                                                                data_relative(json_path),
-                                                                data_relative(gr2_path),
-                                                            ]
-                                                        )
-                                                    else:
-                                                        self.sidecar_paths_current["animation"] = [
-                                                            [
-                                                                data_relative(fbx_path),
-                                                                data_relative(json_path),
-                                                                data_relative(gr2_path),
-                                                            ]
-                                                        ]
                                                 else:
                                                     return f"Failed to export skeleton JSON: {json_path}"
                                             else:
@@ -758,18 +726,17 @@ class ProcessScene:
                 update_job_count(job, "", total_p, total_p)
 
                 # check that gr2 files exist (since fbx-to-gr2 doesn't return a non zero code on faiL!)
-                data_path = get_data_path()
-                for lists in self.sidecar_paths_current.values():
+                for lists in self.export_paths:
                     for path_set in lists:
-                        gr2_file = data_path + path_set[2]
+                        gr2_file = path_set[2]
                         if (
                             not os.path.exists(gr2_file)
                             or os.stat(gr2_file).st_size == 0
                         ):
                             print(f"\n\nFailed to build GR2: {gr2_file}")
                             print(f"Retrying export...")
-                            fbx_file = data_path + path_set[0]
-                            json_file = data_path + path_set[1]
+                            fbx_file = path_set[0]
+                            json_file = path_set[1]
                             self.export_gr2_sync(fbx_file, json_file, gr2_file)
                             if (
                                 os.path.exists(gr2_file)
@@ -942,22 +909,6 @@ class ProcessScene:
                                 json_path, export_obs, sidecar_type, asset, nwo_scene
                             ):
                                 self.export_gr2(fbx_path, json_path, gr2_path)
-                                if type in self.sidecar_paths_current.keys():
-                                    self.sidecar_paths_current[type].append(
-                                        [
-                                            data_relative(fbx_path),
-                                            data_relative(json_path),
-                                            data_relative(gr2_path),
-                                        ]
-                                    )
-                                else:
-                                    self.sidecar_paths_current[type] = [
-                                        [
-                                            data_relative(fbx_path),
-                                            data_relative(json_path),
-                                            data_relative(gr2_path),
-                                        ]
-                                    ]
                             else:
                                 return f"Failed to export {perm} {type} model JSON: {json_path}"
                         else:
@@ -1045,22 +996,6 @@ class ProcessScene:
                                     nwo_scene,
                                 ):
                                     self.export_gr2(fbx_path, json_path, gr2_path)
-                                    if bsp in self.sidecar_paths_current.keys():
-                                        self.sidecar_paths_current[bsp].append(
-                                            [
-                                                data_relative(fbx_path),
-                                                data_relative(json_path),
-                                                data_relative(gr2_path),
-                                            ]
-                                        )
-                                    else:
-                                        self.sidecar_paths_current[bsp] = [
-                                            [
-                                                data_relative(fbx_path),
-                                                data_relative(json_path),
-                                                data_relative(gr2_path),
-                                            ]
-                                        ]
                                 else:
                                     return f"Failed to export {perm} {type} model JSON: {json_path}"
                             else:
@@ -1422,6 +1357,7 @@ class ProcessScene:
         )
 
     def export_gr2(self, fbx_path, json_path, gr2_path):
+        self.export_paths.append([fbx_path, json_path, gr2_path])
         # clear existing gr2, so we can test if export failed
         if os.path.exists(gr2_path):
             os.remove(gr2_path)
