@@ -108,6 +108,7 @@ class ProcessScene:
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
+        fast_animation_export,
     ):
         self.gr2_fail = False
         self.sidecar_import_failed = False
@@ -167,6 +168,7 @@ class ProcessScene:
             lightmap_all_bsps,
             lightmap_specific_bsp,
             lightmap_region,
+            fast_animation_export,
         )
 
     def process(
@@ -224,6 +226,7 @@ class ProcessScene:
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
+        fast_animation_export,
     ):
         if fbx_exporter == "better":
             print("Found Better FBX exporter")
@@ -354,7 +357,7 @@ class ProcessScene:
                                 True,
                             )
 
-                    if not self.skeleton_only:
+                    if fast_animation_export and not self.skeleton_only:
                         self.remove_all_but_armature(nwo_scene)
 
                     fbx_path, json_path, gr2_path = self.get_path(
@@ -421,7 +424,7 @@ class ProcessScene:
                         and nwo_scene.model_armature.animation_data
                     ):
                         if export_animations != "NONE":
-                            if not self.skeleton_only: # NOTE this speeds up export but can cause issues if user relies on other scene objects for parenting / constraints
+                            if fast_animation_export and not self.skeleton_only: # NOTE this speeds up export but can cause issues if user relies on other scene objects for parenting / constraints
                                 self.remove_all_but_armature(nwo_scene)
 
                             timeline = context.scene

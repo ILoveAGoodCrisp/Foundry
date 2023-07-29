@@ -98,7 +98,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
     fast_animation_export : BoolProperty(
         name="Fast Animation Export",
-        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects"
+        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects",
+        default=True,
     )
 
     game_version: EnumProperty(
@@ -519,6 +520,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.import_disable_collision = scene_nwo_export.import_disable_collision
             self.import_no_pca = scene_nwo_export.import_no_pca
             self.import_force_animations = scene_nwo_export.import_force_animations
+            self.fast_animation_export = scene_nwo_export.fast_animation_export
 
             # SIDECAR SETTINGS #
             scene_nwo = bpy.context.scene.nwo
@@ -684,6 +686,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.lightmap_all_bsps,
                     self.lightmap_specific_bsp,
                     self.lightmap_region,
+                    self.fast_animation_export,
                 )
 
             except Exception as e:
@@ -869,6 +872,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         settings["import_disable_collision"] = self.import_disable_collision
         settings["import_no_pca"] = self.import_no_pca
         settings["import_force_animations"] = self.import_force_animations
+        settings["fast_animation_export"] = self.fast_animation_export
 
         if self.quick_export and report_text and report_type:
             nwo_globals.export_report["report_text"] = report_text
@@ -955,6 +959,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if self.export_gr2_files:
             box = layout.box()
             sub = box.column(heading="Export Flags")
+            sub.prop(self, "fast_animation_export", text="Fast Animation Export")
             if h4:
                 sub.prop(self, "import_force", text="Force full export")
                 if scenario:

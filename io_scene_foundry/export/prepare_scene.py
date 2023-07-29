@@ -557,7 +557,7 @@ class PrepareScene:
                 self.fix_reach_poop_collision(export_obs, scene_coll)
 
             # remove meshes with zero faces
-            self.cull_zero_face_meshes(export_obs)
+            self.cull_zero_face_meshes(export_obs, context)
 
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
@@ -688,10 +688,23 @@ class PrepareScene:
         if scene_coll in ob.users_collection:
             scene_coll.objects.unlink(ob)
 
-    def cull_zero_face_meshes(self, export_obs):
+    def cull_zero_face_meshes(self, export_obs, context):
         for ob in export_obs:
             if ob.type == "MESH" and not ob.data.polygons:
-                self.unlink(ob)
+                # first apply all modifiers, in case these would result in the mesh having faces
+                if not ob.modifiers:
+                    self.unlink(ob)
+                    continue
+                
+                override = context.copy()
+                override['object'] = ob
+                with context.temp_override(**override):
+                    modifiers = ob.modifiers
+                    for mod in modifiers:
+                        bpy.ops.object.modifier_apply(modifier=mod.name)
+
+                if not ob.data.polygons:
+                    self.unlink(ob)
 
     # FACEMAP SPLIT
 
@@ -1568,7 +1581,7 @@ class PrepareScene:
         export_obs,
     ):
         forward = context.scene.nwo.forward_direction
-        if sidecar_type in ("MODEL", "FP ANIMATION"):
+        if forward != "x" and sidecar_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
             set_active_object(armature)
             armature.select_set(True)
