@@ -554,7 +554,7 @@ class PrepareScene:
 
             #set Reach instanced_collision objects to poops
             if not h4:
-                self.fix_reach_poop_collision(export_obs, scene_coll)
+                self.fix_reach_poop_collision(export_obs)
 
             # remove meshes with zero faces
             self.cull_zero_face_meshes(export_obs, context)
@@ -689,22 +689,32 @@ class PrepareScene:
             scene_coll.objects.unlink(ob)
 
     def cull_zero_face_meshes(self, export_obs, context):
+        disable_prints()
         for ob in export_obs:
-            if ob.type == "MESH" and not ob.data.polygons:
-                # first apply all modifiers, in case these would result in the mesh having faces
-                if not ob.modifiers:
-                    self.unlink(ob)
-                    continue
-                
+        # apply all modifiers so we get the objects true state at export
+            if ob.modifiers and False:
                 override = context.copy()
                 override['object'] = ob
                 with context.temp_override(**override):
                     modifiers = ob.modifiers
                     for mod in modifiers:
-                        bpy.ops.object.modifier_apply(modifier=mod.name)
+                        try:
+                            bpy.ops.object.modifier_apply(modifier=mod.name)
+                        except:
+                            pass
+                    
+            
+            # convert mesh-like objects to real meshes to properly assess them
+            if ob.type in ("CURVE", "SURFACE", "META", "FONT"):
+                override = context.copy()
+                override['object'] = ob
+                with context.temp_override(**override):
+                    bpy.ops.object.convert(target='MESH')
 
-                if not ob.data.polygons:
-                    self.unlink(ob)
+            if ob.type == "MESH" and not ob.data.polygons:
+                self.unlink(ob)
+
+        enable_prints()
 
     # FACEMAP SPLIT
 
@@ -1131,6 +1141,9 @@ class PrepareScene:
 
         if face_props.face_mode_override:
             mesh_props.face_mode = face_props.face_mode_ui
+            if h4 and mesh_props.mesh_type == "_connected_geometry_mesh_type_poop":
+                if mesh_props.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only"):
+                    mesh_props.mesh_type = "_connected_geometry_mesh_type_poop_collision"
 
         # set mesh props from face props
         if face_props.face_type_override:
@@ -2672,7 +2685,7 @@ class PrepareScene:
 
         return predominant_shader
     
-    def fix_reach_poop_collision(self, export_obs, scene_coll):
+    def fix_reach_poop_collision(self, export_obs):
         for ob in export_obs:
             nwo = ob.nwo
             if nwo.mesh_type == "_connected_geometry_mesh_type_poop_collision" and not poop_parent(ob):
