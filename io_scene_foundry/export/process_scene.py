@@ -726,40 +726,44 @@ class ProcessScene:
                 update_job_count(job, "", total_p, total_p)
 
                 # check that gr2 files exist (since fbx-to-gr2 doesn't return a non zero code on faiL!)
-                for lists in self.export_paths:
-                    for path_set in lists:
-                        gr2_file = path_set[2]
+                job = "Validating GR2 Files"
+                update_job(job, 0)
+                for path_set in self.export_paths:
+                    gr2_file = path_set[2]
+                    if (
+                        not os.path.exists(gr2_file)
+                        or os.stat(gr2_file).st_size == 0
+                    ):
+                        #print(f"\n\nFailed to build GR2: {gr2_file}")
+                        #print(f"Retrying export...")
+                        fbx_file = path_set[0]
+                        json_file = path_set[1]
+                        self.export_gr2_sync(fbx_file, json_file, gr2_file)
                         if (
-                            not os.path.exists(gr2_file)
-                            or os.stat(gr2_file).st_size == 0
+                            os.path.exists(gr2_file)
+                            and os.stat(gr2_file).st_size > 0
                         ):
-                            print(f"\n\nFailed to build GR2: {gr2_file}")
-                            print(f"Retrying export...")
-                            fbx_file = path_set[0]
-                            json_file = path_set[1]
+                            pass
+                            # print("Success!")
+                        else:
+                            print_warning(
+                                f"\nFailed to build GR2 File: {gr2_file}"
+                            )
+                            print_warning("Retrying...")
                             self.export_gr2_sync(fbx_file, json_file, gr2_file)
+                            time.sleep(2)
                             if (
                                 os.path.exists(gr2_file)
                                 and os.stat(gr2_file).st_size > 0
                             ):
-                                print("Success!")
+                                print("Success!!")
                             else:
-                                print_warning(
-                                    "Failed to build GR2 File on Second Attempt. Round 3..."
-                                )
-                                self.export_gr2_sync(fbx_file, json_file, gr2_file)
-                                time.sleep(2)
-                                if (
-                                    os.path.exists(gr2_file)
-                                    and os.stat(gr2_file).st_size > 0
-                                ):
-                                    print("Success!!")
-                                else:
-                                    self.gr2_fail = True
-                                    return "Failed to build GR2 File on Third Attempt, Giving Up"
+                                self.gr2_fail = True
+                                return "Failed to build GR2 File, Giving Up"
 
                 # for p in self.gr2_processes:
                 #     p.wait()
+                update_job(job, 1)
 
                 reports.append("Exported " + str(gr2_count) + " GR2 Files")
 
@@ -1224,7 +1228,7 @@ class ProcessScene:
             nwo.frame_start = jstr(frame_start + 0.4999)
             nwo.frame_end = jstr(frame_end + 0.4999)
             # add the user defined properties from the action
-            nwo.event_id = str(abs(event.event_id))
+            nwo.event_id = abs(event.event_id)
             nwo.event_type = event.event_type
             nwo.wrinkle_map_face_region = event.wrinkle_map_face_region
             nwo.wrinkle_map_effect = str(event.wrinkle_map_effect)
@@ -1243,7 +1247,7 @@ class ProcessScene:
             nwo.cinematic_effect_marker = event.cinematic_effect_marker
             nwo.object_function_name = event.object_function_name
             nwo.object_function_effect = str(event.object_function_effect)
-            nwo.frame_frame = str(event.frame_frame)
+            nwo.frame_frame = event.frame_frame
             nwo.frame_name = event.frame_name
             nwo.frame_trigger = "1" if event.frame_trigger else "0"
             nwo.import_frame = str(event.import_frame)
@@ -1256,16 +1260,17 @@ class ProcessScene:
             animation_events.append(event_ob)
             # duplicate for frame range
             if event.multi_frame == "range" and event.frame_range > 1:
-                for i in range(
+                for _ in range(
                     min(event.frame_range - 1, frame_end - event.frame_frame)
                 ):
                     event_ob_copy = event_ob.copy()
                     copy_nwo = event_ob_copy.nwo
                     copy_nwo.event_id += 1
                     copy_nwo.frame_frame += 1
-                    copy_nwo.name = f"event_{str(copy_nwo.event_id)}"
+                    event_ob_copy.name = f"event_{str(copy_nwo.event_id)}"
                     scene_coll.link(event_ob_copy)
                     animation_events.append(event_ob_copy)
+                    event_ob = event_ob_copy
 
         return animation_events
 

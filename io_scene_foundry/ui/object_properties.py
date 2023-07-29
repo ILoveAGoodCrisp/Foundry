@@ -2366,7 +2366,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     marker_light_cone_curve: StringProperty()
 
     # ANIMATION EVENTS
-    event_id: StringProperty()
+    event_id: IntProperty()
     event_type: StringProperty()
     frame_start: StringProperty()
     frame_end: StringProperty()
@@ -2387,7 +2387,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     cinematic_effect_marker: StringProperty()
     object_function_name: StringProperty()
     object_function_effect: StringProperty()
-    frame_frame: StringProperty()
+    frame_frame: IntProperty()
     frame_name: StringProperty()
     frame_trigger: StringProperty()
     import_frame: StringProperty()
