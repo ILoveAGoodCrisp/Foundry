@@ -690,10 +690,20 @@ class PrepareScene:
 
     def cull_zero_face_meshes(self, export_obs, context):
         disable_prints()
+        area = [
+            area
+            for area in context.screen.areas
+            if area.type == "VIEW_3D"
+        ][0]
+        area_region = area.regions[-1]
+        area_space = area.spaces.active
         for ob in export_obs:
         # apply all modifiers so we get the objects true state at export
             if ob.modifiers:
                 override = context.copy()
+                override["area"] = area
+                override["region"] = area_region
+                override["space_data"] = area_space
                 override['object'] = ob
                 with context.temp_override(**override):
                     modifiers = ob.modifiers
