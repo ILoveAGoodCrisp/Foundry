@@ -692,7 +692,7 @@ class PrepareScene:
         disable_prints()
         for ob in export_obs:
         # apply all modifiers so we get the objects true state at export
-            if ob.modifiers and False:
+            if ob.modifiers:
                 override = context.copy()
                 override['object'] = ob
                 with context.temp_override(**override):
