@@ -690,7 +690,7 @@ class PrepareScene:
             scene_coll.objects.unlink(ob)
 
     def cull_zero_face_meshes(self, export_obs, context):
-        disable_prints()
+        # disable_prints()
         area = [
             area
             for area in context.screen.areas
@@ -699,8 +699,8 @@ class PrepareScene:
         area_region = area.regions[-1]
         area_space = area.spaces.active
         for ob in export_obs:
-        # apply all modifiers so we get the objects true state at export
-            if ob.modifiers:
+            # apply all modifiers if mesh has no polys
+            if ob.type == "MESH" and not ob.data.polygons and ob.modifiers:
                 override = context.copy()
                 override["area"] = area
                 override["region"] = area_region
@@ -715,19 +715,23 @@ class PrepareScene:
                             bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
                         except:
                             pass
-                    
             
             # convert mesh-like objects to real meshes to properly assess them
             if ob.type in ("CURVE", "SURFACE", "META", "FONT"):
                 override = context.copy()
+                override["area"] = area
+                override["region"] = area_region
+                override["space_data"] = area_space
                 override['object'] = ob
                 with context.temp_override(**override):
                     bpy.ops.object.convert(target='MESH')
 
             if ob.type == "MESH" and not ob.data.polygons:
+                print_warning(f"Removed object: [{ob.name}] from export because it has no polygons")
+                self.warning_hit = True
                 self.unlink(ob)
 
-        enable_prints()
+        # enable_prints()
 
     # FACEMAP SPLIT
 
