@@ -633,13 +633,13 @@ class PrepareScene:
                         full_graph_path = get_tags_path() + graph_override
                         if os.path.exists(full_graph_path):
                             set_frame_ids(context, full_graph_path, self.model_armature)
+                            self.skeleton_bones = self.get_bone_list(
+                                self.model_armature, h4
+                            )
                         else:
                             print_warning("Model Animation Graph override supplied but tag path does not exist")
                             self.warning_hit = True
 
-                self.skeleton_bones = self.get_bone_list(
-                    self.model_armature, h4
-                )  # return a list of bones attached to the model armature, ignoring control / non-deform bones
                 if bpy.data.actions and self.model_armature.animation_data:
                     self.current_action = self.get_current_action(self.model_armature)
 
