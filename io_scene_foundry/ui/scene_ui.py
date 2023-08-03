@@ -677,3 +677,25 @@ class NWO_AnimationPath(NWO_Op_Path):
     def execute(self, context):
         context.scene.nwo.animation_graph_path = self.filepath
         return {"FINISHED"}
+    
+class NWO_FPModelPath(NWO_Op_Path):
+    bl_idname = "nwo.fp_model_path"
+    bl_description = "Set the path to the FP render model tag"
+
+    def __init__(self):
+        self.tag_path_field = bpy.context.scene.nwo.animation_graph_path
+
+    def execute(self, context):
+        context.scene.nwo.animation_graph_path = self.filepath
+        return {"FINISHED"}
+    
+class NWO_GunModelPath(NWO_Op_Path):
+    bl_idname = "nwo.gun_model_path"
+    bl_description = "Set the path to the Gun render model tag"
+
+    def __init__(self):
+        self.tag_path_field = bpy.context.scene.nwo.animation_graph_path
+
+    def execute(self, context):
+        context.scene.nwo.animation_graph_path = self.filepath
+        return {"FINISHED"}

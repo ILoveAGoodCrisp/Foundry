@@ -32,6 +32,7 @@ import csv
 from math import radians
 from mathutils import Matrix, Vector
 import xml.etree.ElementTree as ET
+from io_scene_foundry.managed_blam import ManagedBlamGetNodeOrder
 
 from io_scene_foundry.tools.shader_finder import find_shaders
 from ..utils.nwo_utils import (
@@ -626,18 +627,8 @@ class PrepareScene:
                 # set bone names equal to their name overrides (if not blank)
                 if export_gr2_files:
                     self.set_bone_names(self.model_armature.data.bones)
-
-                    graph_override = context.scene.nwo.animation_graph_path
-                    if graph_override and graph_override.endswith(".model_animation_graph"):
-                        full_graph_path = get_tags_path() + graph_override
-                        if os.path.exists(full_graph_path):
-                            set_frame_ids(context, full_graph_path, self.model_armature)
-                        else:
-                            print_warning("Model Animation Graph override supplied but tag path does not exist")
-                            self.warning_hit = True
-
                     self.skeleton_bones = self.get_bone_list(
-                        self.model_armature, h4
+                        self.model_armature, h4, context, sidecar_type
                     )
                 if bpy.data.actions and self.model_armature.animation_data:
                     self.current_action = self.get_current_action(self.model_armature)
@@ -2594,7 +2585,7 @@ class PrepareScene:
     #####################################################################################
     # BONE FUNCTIONS
 
-    def get_bone_list(self, model_armature, h4):
+    def get_bone_list(self, model_armature, h4, context, asset_type):
         boneslist = {}
         arm = model_armature.name
         boneslist.update({arm: self.get_armature_props(h4)})
@@ -2605,6 +2596,44 @@ class PrepareScene:
         f1 = frameIDs.keys()
         f2 = frameIDs.values()
         bone_list = [bone for bone in model_armature.data.bones if bone.use_deform]
+        # sort list
+        def sorting_key(value):
+            return nodes_order.get(value.name, len(nodes))
+        
+        graph_override = context.scene.nwo.animation_graph_path
+        fp_model = context.scene.nwo.fp_model_path
+        gun_model = context.scene.nwo.gun_model_path
+        if asset_type == 'MODEL' and graph_override and graph_override.endswith(".model_animation_graph"):
+            full_graph_path = get_tags_path() + graph_override
+            if os.path.exists(full_graph_path):
+                nodes = ManagedBlamGetNodeOrder(graph_override, True).nodes
+                nodes_order = {v: i for i, v in enumerate(nodes)}
+                bone_list = sorted(bone_list, key=sorting_key)
+            else:
+                print_warning("Model Animation Graph override supplied but tag path does not exist")
+                self.warning_hit = True
+        
+        elif asset_type == 'FP ANIMATION' and (fp_model or gun_model):
+            if gun_model:
+                full_gun_model_path = get_tags_path() + gun_model
+                if os.path.exists(full_gun_model_path):
+                    nodes = ManagedBlamGetNodeOrder(gun_model).nodes
+                    nodes_order = {v: i for i, v in enumerate(nodes)}
+                    bone_list = sorted(bone_list, key=sorting_key)
+                else:
+                    print_warning("Gun Render Model supplied but tag path does not exist")
+                    self.warning_hit = True
+            if fp_model:
+                full_fp_model_path = get_tags_path() + fp_model
+                if os.path.exists(full_fp_model_path):
+                    nodes = ManagedBlamGetNodeOrder(fp_model).nodes
+                    nodes_order = {v: i for i, v in enumerate(nodes)}
+                    bone_list = sorted(bone_list, key=sorting_key)
+                else:
+                    print_warning("FP Render Model supplied but tag path does not exist")
+                    self.warning_hit = True
+
+            
         for b in bone_list:
             b_nwo = b.nwo
             if b_nwo.frame_id1 == "":
@@ -3223,7 +3252,6 @@ class PrepareScene:
 #####################################################################################
 #####################################################################################
 # VARIOUS FUNCTIONS
-
 
 def set_marker_sphere_size(ob, nwo):
     max_abs_scale = max(abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z))

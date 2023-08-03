@@ -381,6 +381,17 @@ class NWO_FoundryPanelProps(Panel):
             row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
             row.operator("nwo.physics_path", text="", icon="FILE_FOLDER")
 
+        elif nwo.asset_type == "FP ANIMATION":
+            box = box.box()
+            box.label(text="Tag References")
+            col = box.column()
+            row = col.row(align=True)
+            row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
+            row.operator("nwo.fp_model_path", text="", icon="FILE_FOLDER")
+            row = col.row(align=True)
+            row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
+            row.operator("nwo.gun_model_path", text="", icon="FILE_FOLDER")
+
 
     def draw_object_properties(self):
         box = self.box.box()

@@ -247,6 +247,25 @@ class ManagedBlamGetGlobalMaterials(ManagedBlam):
 
         self.global_materials = global_materials
 
+class ManagedBlamGetNodeOrder(ManagedBlam):
+    def __init__(self, tag_path, is_animation_graph=False):
+        super().__init__()
+        self.read_only = True
+        self.path = tag_path
+        self.is_anim_graph = is_animation_graph
+        self.tag_helper()
+    
+    def tag_read(self, tag):
+        self.nodes = []
+        if self.is_anim_graph:
+            nodes_block = tag.SelectField("Struct:definitions[0]/Block:skeleton nodes")
+        else:
+            nodes_block = tag.SelectField("Block:nodes")
+
+        for element in nodes_block:
+            node_name = element.SelectField("name").GetStringData()
+            self.nodes.append(node_name)
+
 class ManagedBlamNewShader(ManagedBlam):
     def __init__(self, blender_material, is_reach):
         super().__init__()
