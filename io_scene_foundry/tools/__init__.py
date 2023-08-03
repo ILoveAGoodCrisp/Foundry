@@ -2720,113 +2720,8 @@ from .halo_join import NWO_JoinHalo
 def add_halo_join(self, context):
     self.layout.operator(NWO_JoinHalo.bl_idname, text="Halo Join")
 
-
-#######################################
-# FRAME IDS TOOL
-class NWO_SetFrameIDs(Panel):
-    bl_label = "Set Frame IDs"
-    bl_idname = "NWO_PT_SetFrameIDs"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_PropertiesManager"
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("frame_id"))
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo_frame_ids = scene.nwo_frame_ids
-
-        row = layout.row()
-        row.label(text="Animation Graph Path")
-        row = layout.row()
-        row.prop(scene_nwo_frame_ids, "anim_tag_path", text="")
-        row.scale_x = 0.25
-        row.operator("nwo.graph_path")
-        row = layout.row()
-        row.scale_y = 1.5
-        row.operator("nwo.set_frame_ids", text="Set Frame IDs")
-        row = layout.row()
-        row.scale_y = 1.5
-        row.operator("nwo.reset_frame_ids", text="Reset Frame IDs")
-
-
-class NWO_GraphPath(Operator):
-    """Set the path to a model animation graph tag"""
-
-    bl_idname = "nwo.graph_path"
-    bl_label = "Find"
-
-    filter_glob: StringProperty(
-        default="*.model_*",
-        options={"HIDDEN"},
-    )
-
-    filepath: StringProperty(
-        name="graph_path",
-        description="Set the path to the tag",
-        subtype="FILE_PATH",
-    )
-
-    def execute(self, context):
-        context.scene.nwo_frame_ids.anim_tag_path = self.filepath
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        self.filepath = get_tags_path()
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class NWO_SetFrameIDsOp(Operator):
-    """Set frame IDs using the specified animation graph path"""
-
-    bl_idname = "nwo.set_frame_ids"
-    bl_label = "Set Frame IDs"
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        return len(context.scene.nwo_frame_ids.anim_tag_path) > 0
-
-    def execute(self, context):
-        from .set_frame_ids import set_frame_ids
-
-        return set_frame_ids(context, self.report)
-
-
-class NWO_ResetFrameIDsOp(Operator):
-    """Resets the frame IDs to null values"""
-
-    bl_idname = "nwo.reset_frame_ids"
-    bl_label = "Reset Frame IDs"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        from .set_frame_ids import reset_frame_ids
-
-        return reset_frame_ids(context, self.report)
-
-
-class NWO_SetFrameIDsPropertiesGroup(PropertyGroup):
-    def graph_clean_tag_path(self, context):
-        self["anim_tag_path"] = clean_tag_path(self["anim_tag_path"]).strip('"')
-
-    anim_tag_path: StringProperty(
-        name="Path to Animation Tag",
-        description="Specify the full or relative path to a model animation graph",
-        default="",
-        update=graph_clean_tag_path,
-    )
-
-
 #######################################
 # HALO MANAGER TOOL
-
 
 class NWO_HaloLauncherExplorerSettings(Panel):
     bl_label = "Explorer Settings"
@@ -5053,11 +4948,6 @@ classeshalo = (
     NWO_ShaderFinder_FindSingle,
     NWO_ShaderFinder_Find,
     NWO_HaloShaderFinderPropertiesGroup,
-    NWO_GraphPath,
-    # NWO_SetFrameIDs,
-    NWO_SetFrameIDsOp,
-    NWO_ResetFrameIDsOp,
-    NWO_SetFrameIDsPropertiesGroup,
     # NWO_AMFHelper,
     NWO_AMFHelper_Assign,
     # NWO_JMSHelper,
@@ -5090,11 +4980,6 @@ def register():
     bpy.types.VIEW3D_MT_armature_add.append(add_halo_armature_buttons)
     bpy.types.OUTLINER_HT_header.append(create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(add_halo_join)
-    bpy.types.Scene.nwo_frame_ids = PointerProperty(
-        type=NWO_SetFrameIDsPropertiesGroup,
-        name="Halo Frame ID Getter",
-        description="Gets Frame IDs",
-    )
     bpy.types.Scene.nwo_halo_launcher = PointerProperty(
         type=NWO_HaloLauncherPropertiesGroup,
         name="Halo Launcher",
@@ -5131,7 +5016,6 @@ def unregister():
     bpy.types.VIEW3D_MT_armature_add.remove(add_halo_armature_buttons)
     bpy.types.VIEW3D_MT_object.remove(add_halo_join)
     bpy.types.OUTLINER_HT_header.remove(create_halo_collection)
-    del bpy.types.Scene.nwo_frame_ids
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_finder
     del bpy.types.Scene.nwo_export
