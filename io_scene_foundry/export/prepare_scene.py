@@ -32,8 +32,6 @@ import csv
 from math import radians
 from mathutils import Matrix, Vector
 import xml.etree.ElementTree as ET
-from io_scene_foundry import export
-import hashlib
 
 from io_scene_foundry.tools.shader_finder import find_shaders
 from ..utils.nwo_utils import (
@@ -2610,13 +2608,11 @@ class PrepareScene:
         for b in bone_list:
             b_nwo = b.nwo
             if b_nwo.frame_id1 == "":
-                # FrameID1 = list(f1)[index]
-                FrameID1 = frame_id_gen(b.name.replace("b_", "") + "_id1")
+                FrameID1 = list(f1)[index]
             else:
                 FrameID1 = b_nwo.frame_id1
             if b_nwo.frame_id2 == "":
-                # FrameID2 = list(f2)[index]
-                FrameID2 = frame_id_gen(b.name.replace("b_", "") + "_id2")
+                FrameID2 = list(f2)[index]
             else:
                 FrameID2 = b_nwo.frame_id2
             index += 1
@@ -3405,13 +3401,6 @@ def set_bone_prefix_str(string):
             keep_stripping = False
 
     return f"b_{name.strip(' _')}"
-
-def frame_id_gen(seed):
-    hash_object = hashlib.md5(seed.encode())
-    hash_digest = hash_object.hexdigest()
-    unique_int = int(hash_digest[:9], 16)
-
-    return str(unique_int)
 
 # RESET PROPS
 
