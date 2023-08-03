@@ -1585,6 +1585,9 @@ class PrepareScene:
         export_animations,
         current_action,
     ):
+        if armature.animation_data is None:
+            armature.animation_data_create()
+
         job = "Baking Animations"
         update_progress(job, 0)
         export_actions = [a for a in bpy.data.actions if a.use_frame_range]
