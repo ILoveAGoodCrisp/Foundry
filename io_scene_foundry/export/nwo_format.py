@@ -40,6 +40,7 @@ from ..utils.nwo_utils import (
     shader_exts,
 )
 
+P = "bungie_"
 
 # OBJECT LEVEL
 class NWOObject:
@@ -63,6 +64,10 @@ class NWOObject:
         # self.halo_export = '1'
         if self.bungie_object_type == "_connected_geometry_object_type_frame":
             self.bungie_object_animates = self.object_animates()
+
+    def sethalo(self, parameter, value):
+        setattr(self, f"{P}{parameter}", value)
+        # self.sethalo("object_type", self.object_type())
 
     def cleanup(self):
         del self.ob
