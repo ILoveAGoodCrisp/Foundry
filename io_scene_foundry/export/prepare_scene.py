@@ -32,6 +32,7 @@ import csv
 from math import radians
 from mathutils import Matrix, Vector
 import xml.etree.ElementTree as ET
+from io_scene_foundry import export
 
 from io_scene_foundry.tools.shader_finder import find_shaders
 from ..utils.nwo_utils import (
@@ -709,7 +710,9 @@ class PrepareScene:
                     modifiers = ob.modifiers
                     for mod in modifiers:
                         try:
-                            bpy.ops.object.modifier_apply(modifier=mod.name)
+                            mod.show_render = True
+                            mod.show_viewport = True
+                            bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
                         except:
                             pass
                     
