@@ -27,6 +27,7 @@
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_tag_and_path
 from io_scene_foundry.utils.nwo_utils import (
+    dot_partition,
     get_asset_path,
     get_tags_path,
     get_valid_shader_name,
@@ -265,6 +266,39 @@ class ManagedBlamGetNodeOrder(ManagedBlam):
         for element in nodes_block:
             node_name = element.SelectField("name").GetStringData()
             self.nodes.append(node_name)
+
+class ManagedBlamGetModelFromObject(ManagedBlam):
+    def __init__(self, tag_path):
+        super().__init__()
+        self.read_only = True
+        self.path = tag_path
+        self.tag_helper()
+    
+    def tag_read(self, tag):
+        # Find the object struct
+        first_struct = tag.Fields[0]
+        if first_struct.DisplayName == "object":
+            object_struct = first_struct
+        else:
+            object_struct = first_struct.Elements[0].Fields[0]
+
+        model_field = tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
+        self.model_tag_path = model_field.Path.RelativePathWithExtension
+
+class ManagedBlamGetModelVariants(ManagedBlam):
+    def __init__(self, tag_path):
+        super().__init__()
+        self.read_only = True
+        self.path = tag_path
+        self.tag_helper()
+    
+    def tag_read(self, tag):
+        self.variants = []
+        # Select the variants block
+        variants_block = tag.SelectField("Block:variants")
+        for element in variants_block:
+            var = element.SelectField("name").GetStringData()
+            self.variants.append(var)
 
 class ManagedBlamNewShader(ManagedBlam):
     def __init__(self, blender_material, is_reach):

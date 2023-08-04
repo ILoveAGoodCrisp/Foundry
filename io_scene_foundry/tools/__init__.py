@@ -42,6 +42,7 @@ from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
 from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
+from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -1035,7 +1036,8 @@ class NWO_FoundryPanelProps(Panel):
             col = flow.column()
 
             if poll_ui("SCENARIO"):
-                row = col.row()
+                col.use_property_split = True
+                row = col.row(align=True)
                 if nwo.permutation_name_locked_ui != "":
                     row.prop(
                         nwo,
@@ -1051,7 +1053,7 @@ class NWO_FoundryPanelProps(Panel):
                         icon="DOWNARROW_HLT",
                     )
 
-                row = col.row()
+                row = col.row(align=True)
                 if nwo.bsp_name_locked_ui != "":
                     row.prop(nwo, "bsp_name_locked_ui", text="BSP")
                 else:
@@ -1114,21 +1116,30 @@ class NWO_FoundryPanelProps(Panel):
 
 
             elif nwo.marker_type_ui == "_connected_geometry_marker_type_game_instance":
-                row = col.row()
+                row = col.row(align=True)
                 row.prop(
                     nwo,
                     "marker_game_instance_tag_name_ui",
                     text="Tag Path",
                 )
                 row.operator("nwo.game_instance_path", icon="FILE_FOLDER", text="")
-                if not nwo.marker_game_instance_tag_name_ui.endswith(
+                tag_name = nwo.marker_game_instance_tag_name_ui
+                if tag_name.endswith("decorator_set"):
+                    col.prop(
+                        nwo,
+                        "marker_game_instance_tag_variant_name_ui",
+                        text="Decorator Type",
+                    )
+                elif not tag_name.endswith(
                     (".prefab", ".cheap_light", ".light", ".leaf")
                 ):
-                    col.prop(
+                    row = col.row(align=True)
+                    row.prop(
                         nwo,
                         "marker_game_instance_tag_variant_name_ui",
                         text="Tag Variant",
                     )
+                    row.operator_menu_enum("nwo.get_model_variants", "variant", icon="DOWNARROW_HLT", text="")
                     if h4:
                         col.prop(nwo, "marker_game_instance_run_scripts_ui")
 
@@ -4908,6 +4919,7 @@ def foundry_toolbar(layout, context):
 
 classeshalo = (
     NWO_GetGlobalMaterials,
+    NWO_GetModelVariants,
     NWO_ProxyInstanceCancel,
     NWO_ProxyInstanceDelete,
     NWO_ProxyInstanceEdit,

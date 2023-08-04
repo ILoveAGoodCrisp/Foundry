@@ -751,6 +751,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 case "leaf":
                     name = "Leaf Tag"
                     icon = "decorator"
+                case "decorator_set":
+                    name = "Decorator Set Tag"
+                    icon = "decorator"
                 case _:
                     name = "Game Tag"
                     icon = "game_object"
