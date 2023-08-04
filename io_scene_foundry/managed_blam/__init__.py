@@ -283,7 +283,12 @@ class ManagedBlamGetModelFromObject(ManagedBlam):
             object_struct = first_struct.Elements[0].Fields[0]
 
         model_field = tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
-        self.model_tag_path = model_field.Path.RelativePathWithExtension
+        model_path = model_field.Path
+        if model_path:
+            self.model_tag_path = model_path.RelativePathWithExtension
+        else:
+            print(f"{self.path} has no model reference")
+            self.model_tag_path = None
 
 class ManagedBlamGetModelVariants(ManagedBlam):
     def __init__(self, tag_path):

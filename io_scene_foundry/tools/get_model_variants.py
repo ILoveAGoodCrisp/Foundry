@@ -40,7 +40,11 @@ class NWO_GetModelVariants(bpy.types.Operator):
     
     def variant_items(self, context):
         model_tag = ManagedBlamGetModelFromObject(context.object.nwo.marker_game_instance_tag_name_ui).model_tag_path
+        if model_tag is None:
+            return [("default", "default", "")]
         variants = ManagedBlamGetModelVariants(model_tag).variants
+        if not variants:
+            return [("default", "default", "")]
         items = []
         for v in variants:
             items.append((v, v, ""))

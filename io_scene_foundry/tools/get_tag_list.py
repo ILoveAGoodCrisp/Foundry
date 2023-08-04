@@ -43,7 +43,7 @@ class NWO_GetTagsList(bpy.types.Operator):
         ext_list = extensions_from_type(self.list_type)
         tags = walk_tags_dir(tags_dir, ext_list)
         for t in tags:
-            global_items.append((t, os_sep_partition(t, True), t))
+            global_items.append((t, os_sep_partition(t, True), ""))
 
         return global_items
 
