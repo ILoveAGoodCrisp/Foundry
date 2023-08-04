@@ -43,6 +43,7 @@ from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMen
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
 from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
+from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -1122,6 +1123,7 @@ class NWO_FoundryPanelProps(Panel):
                     "marker_game_instance_tag_name_ui",
                     text="Tag Path",
                 )
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "game_instance"
                 row.operator("nwo.game_instance_path", icon="FILE_FOLDER", text="")
                 tag_name = nwo.marker_game_instance_tag_name_ui
                 if tag_name.endswith("decorator_set"):
@@ -4920,6 +4922,7 @@ def foundry_toolbar(layout, context):
 classeshalo = (
     NWO_GetGlobalMaterials,
     NWO_GetModelVariants,
+    NWO_GetTagsList,
     NWO_ProxyInstanceCancel,
     NWO_ProxyInstanceDelete,
     NWO_ProxyInstanceEdit,
