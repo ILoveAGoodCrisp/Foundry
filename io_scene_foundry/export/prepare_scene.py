@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from uuid import uuid4
 import bmesh
 import bpy
 from os import path
@@ -174,6 +175,7 @@ class PrepareScene:
 
         scene_coll = context.scene.collection.objects
 
+        protected_names = self.get_bone_names(export_obs)
 
         # build proxy instances from structure
         if h4:
@@ -346,7 +348,7 @@ class PrepareScene:
             if scenario_asset:
                 nwo.bsp_name = true_bsp(nwo)
 
-            self.strip_prefix(ob)
+            self.strip_prefix(ob, protected_names)
             # if not_bungie_game():
             #     self.apply_namespaces(ob, asset)
 
@@ -626,7 +628,7 @@ class PrepareScene:
 
                 # set bone names equal to their name overrides (if not blank)
                 if export_gr2_files:
-                    self.set_bone_names(self.model_armature.data.bones)
+                    # self.set_bone_names(self.model_armature.data.bones) NOTE no longer renaming bones
                     self.skeleton_bones = self.get_bone_list(
                         self.model_armature, h4, context, sidecar_type
                     )
@@ -1945,8 +1947,6 @@ class PrepareScene:
                         nwo.physics_constraint_parent = (
                             nwo.physics_constraint_parent_bone_ui
                         )
-                        if not nwo.physics_constraint_parent.startswith("b_"):
-                            nwo.physics_constraint_parent = set_bone_prefix_str(nwo.physics_constraint_parent)
 
                     elif parent is not None:
                         nwo.physics_constraint_parent = str(
@@ -1961,8 +1961,7 @@ class PrepareScene:
                         nwo.physics_constraint_child = (
                             nwo.physics_constraint_child_bone_ui
                         )
-                        if not nwo.physics_constraint_child.startswith("b_"):
-                            nwo.physics_constraint_child = set_bone_prefix_str(nwo.physics_constraint_child)
+
                     elif child is not None:
                         nwo.physics_constraint_child = str(
                             nwo.physics_constraint_child_ui.name
@@ -2223,7 +2222,7 @@ class PrepareScene:
                         nwo.material_lighting_bounce_ratio_ui
                     )
 
-    def strip_prefix(self, ob):
+    def strip_prefix(self, ob, protected_names):
         name = ob.name.lower()
         keep_stripping = True
         while keep_stripping:
@@ -2250,8 +2249,10 @@ class PrepareScene:
                 keep_stripping = False
 
         ob.name = name.strip(" _")
-        if ob.name == "implied_root_node":
-            ob.name = "pls_don't_break_my_exporter"
+        while ob.name in protected_names:
+            if not ob.name.rpartition(".")[0]:
+                ob.name += "."
+            ob.name += "padding"
 
     def set_object_type(self, ob, ob_type, nwo, is_valid_object_type):
         if ob_type == "LIGHT":
@@ -2414,9 +2415,17 @@ class PrepareScene:
     def get_scene_armature(self, export_obs, asset, scene_coll):
         for ob in export_obs:
             if ob.type == "ARMATURE":
+                ob.name = f"{asset}_world"
                 return ob, False
 
         return self.add_temp_armature(export_obs, asset, scene_coll), True
+    
+    def get_bone_names(self, export_obs):
+        for ob in export_obs:
+            if ob.type == "ARMATURE":
+                return ob.data.bones
+            
+        return ["implied_root_node"]
 
     def add_temp_armature(self, export_obs, asset, scene_coll):
         arm_name = f"{asset}_world"
