@@ -152,6 +152,8 @@ from .preferences_ui import (
     ToolkitLocationPreferences,
 )
 
+from .image_properties import NWO_ImagePropertiesGroup
+
 mesh_type_items = [
     (
         "_connected_geometry_mesh_type_boundary_surface",
@@ -472,6 +474,7 @@ classes_nwo = (
     NWO_LightPropertiesGroup,
     NWO_MaterialPropertiesGroup,
     NWO_MeshPropertiesGroup,
+    NWO_ImagePropertiesGroup,
     # NWO_LightProps,
     NWO_BoneProps,
     NWO_BonePropertiesGroup,
@@ -564,7 +567,11 @@ def register():
         name="Halo Mesh Properties",
         description="Set Halo Properties",
     )
-
+    bpy.types.Image.nwo = PointerProperty(
+        type=NWO_ImagePropertiesGroup,
+        name="Halo Mesh Properties",
+        description="Set Halo Properties",
+    )
 
 def unregister():
     bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)

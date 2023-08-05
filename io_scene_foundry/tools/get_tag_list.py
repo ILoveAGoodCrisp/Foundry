@@ -34,6 +34,8 @@ class NWO_GetTagsList(bpy.types.Operator):
     bl_idname = "nwo.get_tags_list"
     bl_label = "Get Tags"
     bl_property = "tag_list"
+    bl_description = "Get a list of valid tags"
+    bl_options = {"REGISTER", "UNDO"}
 
     def tag_list_items(self, context):
         global global_items
@@ -63,7 +65,7 @@ class NWO_GetTagsList(bpy.types.Operator):
     def invoke(self, context, event):
         wm = context.window_manager
         wm.invoke_search_popup(self)
-        return {'FINISHED'}
+        return {"FINISHED"}
     
 def extensions_from_type(list_type):
     match list_type:

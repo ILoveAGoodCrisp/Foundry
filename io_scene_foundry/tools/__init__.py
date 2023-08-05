@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
@@ -39,11 +40,13 @@ from bpy.props import (
     PointerProperty,
 )
 from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmaps, NWO_ExportBitmapsSingle
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
 from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
 from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList
+from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -163,6 +166,9 @@ class NWO_FoundryPanelProps(Panel):
                 box = col1.box()
             elif p == "animation_properties":
                 if nwo.asset_type not in ('MODEL', 'FP ANIMATION'):
+                    continue
+            elif p in ("object_properties", "material_properties"):
+                if nwo.asset_type == 'FP ANIMATION':
                     continue
             
             row_icon = box.row(align=True)
@@ -2022,6 +2028,29 @@ class NWO_FoundryPanelProps(Panel):
                     row.label(text=f"Not a {txt}")
                 else:
                     row.label(text=f"Not a {txt}")
+
+            # TEXTURE PROPS
+            box = self.box.box()
+            box.use_property_split = True
+            box.label(text="Bitmap Properties")
+            col = box.column()
+            col.template_ID_preview(nwo, "active_image", new="image.new", open="image.open")
+            image = nwo.active_image
+            if not image:
+                return
+            bitmap = image.nwo
+            col.prop(bitmap, "export", text="Export")
+            col.prop(bitmap, "reexport_tiff", text="Re-export TIFF")
+            col.prop(bitmap, "bitmap_type", text="Type")
+            bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
+            col.separator()
+            if os.path.exists(get_tags_path() + bitmap_path):
+                if bitmap.export:
+                    col.operator("nwo.export_bitmaps_single", text="Update Bitmap", icon_value=get_icon_id("texture_export"))
+                col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
+            elif bitmap.export:
+                col.operator("nwo.export_bitmaps_single", text="Export Bitmap", icon_value=get_icon_id("texture_export"))
+
 
     def draw_animation_properties(self):
         box = self.box.box()
@@ -4652,75 +4681,6 @@ class NWO_BitmapExport(Panel):
         row.prop(scene_nwo_bitmap_export, "bitmaps_selection", expand=True)
         col.prop(scene_nwo_bitmap_export, "export_type")
 
-
-class NWO_BitmapExport_Export(Operator):
-    """Exports TIFFs for the active material and imports them into the game as bitmaps"""
-
-    bl_idname = "nwo.export_bitmaps"
-    bl_label = "Export Bitmaps"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Exports TIFFs for the active material and imports them into the game as bitmaps"
-
-    @classmethod
-    def poll(cls, context):
-        return managed_blam_active() and (
-            context.object.active_material
-            or context.scene.nwo_bitmap_export.bitmaps_selection == "all"
-        )
-
-    def execute(self, context):
-        scene = context.scene
-        scene_nwo_bitmap_export = scene.nwo_bitmap_export
-        from .export_bitmaps import export_bitmaps
-
-        return export_bitmaps(
-            self.report,
-            context,
-            context.object.active_material,
-            context.scene.nwo_halo_launcher.sidecar_path,
-            scene_nwo_bitmap_export.overwrite,
-            scene_nwo_bitmap_export.export_type,
-            scene_nwo_bitmap_export.bitmaps_selection,
-        )
-
-
-class NWO_BitmapExportPropertiesGroup(PropertyGroup):
-    overwrite: BoolProperty(
-        name="Overwrite TIFFs",
-        description="Enable to overwrite tiff files already saved to your asset bitmaps directory",
-        options=set(),
-    )
-    export_type: EnumProperty(
-        name="Actions",
-        default="both",
-        description="Choose whether to just export material image textures as tiffs, or just import the existing ones to the game, or both",
-        options=set(),
-        items=[
-            ("both", "Both", ""),
-            (
-                "export",
-                "Export TIFF",
-                "Export blender image textures to tiff only",
-            ),
-            (
-                "import",
-                "Make Tags",
-                "Import the tiff to the game as a bitmap tag only",
-            ),
-        ],
-    )
-    bitmaps_selection: EnumProperty(
-        name="Selection",
-        default="active",
-        description="Choose whether to only export textures attached to the active material, or all scene textures",
-        options=set(),
-        items=[
-            ("active", "Active", "Export the active material only"),
-            ("all", "All", "Export all blender textures"),
-        ],  # ('bake', 'Bake', 'Bakes textures for the currently selected objects and exports the results')]
-    )
-
-
 class NWO_Shader(Panel):
     bl_label = "Shader Exporter"
     bl_idname = "NWO_PT_Shader"
@@ -4777,7 +4737,7 @@ class NWO_Shader_BuildSingle(Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
+        return valid_nwo_asset(context) and context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
     
     def execute(self, context):
         from .shader_builder import build_shaders
@@ -4790,7 +4750,9 @@ class NWO_Shader_BuildSingle(Operator):
     
     @classmethod
     def description(cls, context, properties) -> str:
-        if context.scene.nwo.game_version == 'reach':
+        if not valid_nwo_asset(context):
+            return "Scene must be a valid Halo Asset before a tag can be generated"
+        elif context.scene.nwo.game_version == 'reach':
             return "Creates an empty shader tag for this material"
         else:
             return "Creates an empty material tag for this material"
@@ -4920,6 +4882,9 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
 
 classeshalo = (
+    NWO_OpenFoundationTag,
+    NWO_ExportBitmapsSingle,
+    NWO_ExportBitmaps,
     NWO_GetGlobalMaterials,
     NWO_GetModelVariants,
     NWO_GetTagsList,
@@ -4971,9 +4936,6 @@ classeshalo = (
     # NWO_ArmatureCreator,
     NWO_ArmatureCreator_Create,
     NWO_ArmatureCreatorPropertiesGroup,
-    # NWO_BitmapExport,
-    NWO_BitmapExport_Export,
-    NWO_BitmapExportPropertiesGroup,
     # NWO_Material,
     # NWO_Shader,
     NWO_Shader_Build,
@@ -5013,11 +4975,6 @@ def register():
         name="Halo Armature",
         description="",
     )
-    bpy.types.Scene.nwo_bitmap_export = PointerProperty(
-        type=NWO_BitmapExportPropertiesGroup,
-        name="Halo Bitmap Export",
-        description="",
-    )
     bpy.types.Scene.nwo_shader_build = PointerProperty(
         type=NWO_ShaderPropertiesGroup,
         name="Halo Shader Export",
@@ -5035,7 +4992,6 @@ def unregister():
     del bpy.types.Scene.nwo_shader_finder
     del bpy.types.Scene.nwo_export
     del bpy.types.Scene.nwo_armature_creator
-    del bpy.types.Scene.nwo_bitmap_export
     del bpy.types.Scene.nwo_shader_build
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)

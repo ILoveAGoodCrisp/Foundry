@@ -44,6 +44,8 @@ from bpy.types import Menu, UIList, Operator
 from bpy.props import EnumProperty, StringProperty
 import bpy
 
+global_mats_items = []
+
 
 # FACE LEVEL FACE PROPS
 
@@ -1769,11 +1771,11 @@ class NWO_GlobalMaterialMenu(Menu):
                 text="From Region",
             )
 
-        if poll_ui(("SCENARIO", "PREFAB")):
-            layout.operator_menu_enum(
+        if poll_ui(("SCENARIO", "PREFAB", "MODEL")):
+            layout.operator(
                 "nwo.global_material_globals",
-                property="material",
                 text="From Globals",
+                icon="VIEWZOOM",
             )
 
 
@@ -1829,18 +1831,23 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
     bl_idname = "nwo.global_material_globals"
     bl_label = "Collision Material List"
     bl_description = "Applies a global material to the selected object"
+    bl_property = "material"
 
     def get_materials(self, context):
-        items = []
+        global global_mats_items
+        if global_mats_items:
+            return global_mats_items
+        global_mats_items = []
         global_materials = []
         tag_global_materials = ManagedBlamGetGlobalMaterials()
         for glob_mat in tag_global_materials.global_materials:
             global_materials.append(glob_mat)
 
+        global_materials.sort()
         for mat in global_materials:
-            items.append((mat, mat, ""))
+            global_mats_items.append((mat, mat, ""))
 
-        return items
+        return global_mats_items
             
     material : EnumProperty(
         items=get_materials,
@@ -1848,6 +1855,11 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
 
     def execute(self, context):
         context.object.nwo.face_global_material_ui = self.material
+        return {"FINISHED"}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        wm.invoke_search_popup(self)
         return {"FINISHED"}
 
 

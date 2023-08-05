@@ -158,13 +158,16 @@ class PrepareScene:
         all_obs = context.view_layer.objects
 
         # unlink non export objects
-        non_export_obs = [
-            ob
-            for ob in all_obs
-            if not ob.nwo.export_this
-            or ob.type in ("LATTICE", "LIGHT_PROBE", "SPEAKER", "CAMERA")
-            or (ob.type == "EMPTY" and ob.empty_display_type == "IMAGE")
-        ]
+        if sidecar_type == "FP ANIMATION":
+            non_export_obs = [ob for ob in all_obs if ob.type != "ARMATURE"]
+        else:
+            non_export_obs = [
+                ob
+                for ob in all_obs
+                if not ob.nwo.export_this
+                or ob.type in ("LATTICE", "LIGHT_PROBE", "SPEAKER", "CAMERA")
+                or (ob.type == "EMPTY" and ob.empty_display_type == "IMAGE")
+            ]
         for ob in non_export_obs:
             self.unlink(ob)
 

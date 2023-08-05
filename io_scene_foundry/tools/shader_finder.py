@@ -92,10 +92,16 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
                     {"WARNING"},
                     "These materials should either be given paths to Halo shader tags, or specified as a Blender only material (by using the checkbox in Halo Shader Paths)",
                 )
-            report(
-                {"WARNING"},
-                f"Updated {update_count} material paths, but couldn't find paths for {len(no_path_materials)} materials. Click here for details",
-            )
+            if update_count:
+                report(
+                    {"WARNING"},
+                    f"Updated {update_count} material paths, but couldn't find paths for {len(no_path_materials)} materials. Click here for details",
+                )
+            else:
+                report(
+                    {"WARNING"},
+                    f"Couldn't find paths for {len(no_path_materials)} materials. Click here for details",
+                )
         elif no_path_materials and set_non_export:
             report(
                 {"INFO"},

@@ -26,113 +26,104 @@
 
 import os
 import bpy
+from io_scene_foundry.managed_blam import ManagedBlamNewBitmap
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_asset_info,
     get_data_path,
     not_bungie_game,
     run_tool,
+    valid_nwo_asset,
 )
 
+class NWO_ExportBitmapsSingle(bpy.types.Operator):
+    bl_idname = "nwo.export_bitmaps_single"
+    bl_label = "Export Bitmap"
 
-def save_image_as(image, path, name):
+    @classmethod
+    def poll(self, context):
+        return valid_nwo_asset(context)
+
+    def execute(self, context):
+        export_bitmaps(self.report, context.scene.nwo_halo_launcher.sidecar_path, context.object.active_material.nwo.active_image)
+        return {'FINISHED'}
+
+class NWO_ExportBitmaps(bpy.types.Operator):
+    bl_idname = "nwo.export_bitmaps"
+    bl_label = "Export All Bitmaps"
+
+    @classmethod
+    def poll(self, context):
+        return valid_nwo_asset(context)
+
+    def execute(self, context):
+        bitmaps = [i for i in bpy.data.images if i.nwo.export]
+        export_bitmaps(self.report, context.scene.nwo_halo_launcher.sidecar_path, bitmaps)
+        return {'FINISHED'}
+
+def save_image_as(image, path, tiff_name):
     scene = bpy.data.scenes.new("temp")
 
     settings = scene.render.image_settings
     settings.file_format = "TIFF"
     settings.color_mode = "RGBA"
     settings.color_depth = "16"
-    settings.tiff_codec = "NONE"
-
-    name_tiff = dot_partition(name) + ".tiff"
-    path = os.path.join(path, name_tiff)
+    settings.tiff_codec = "LZW"
+    path = os.path.join(path, tiff_name)
     image.save_render(filepath=path, scene=scene)
     bpy.data.scenes.remove(scene)
 
-
 def export_bitmaps(
     report,
-    context,
-    material,
     sidecar_path,
-    overwrite,
-    export_type,
-    bitmaps_selection,
+    bitmaps,
 ):
-    if context.scene.nwo_export.show_output:
-        bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-
-    context.scene.nwo_export.show_output = False
-
+    data_dir = get_data_path()
     asset_path, asset = get_asset_info(sidecar_path)
     # Create a bitmap folder in the asset directory
-    bitmaps_data_dir = os.path.join(get_data_path() + asset_path, "bitmaps")
+    bitmaps_data_dir = os.path.join(data_dir + asset_path, "bitmaps")
     if not os.path.exists(bitmaps_data_dir):
         os.mkdir(bitmaps_data_dir)
         # get a list of textures associated with this material
-    textures = []
     bitmap_count = 0
-    if bitmaps_selection == "active":
-        for node in material.node_tree.nodes:
-            if node.type == "TEX_IMAGE":
-                if node.image not in textures:
-                    textures.append(node.image)
-    else:
-        for image in bpy.data.images:
-            if image.name != "Render Result":
-                textures.append(image)
     # export each texture as a tiff to the asset bitmaps folder
-    bitmap_paths = []
-    texture_names = []
+    if type(bitmaps) == list:
+        textures = [b for b in bitmaps]
+    else:
+        textures = [bitmaps]
     for image in textures:
-        # avoid textures with duplicate names being exported
-        if image.name not in texture_names:
-            texture_names.append(image.name)
+        image.nwo.source_name = dot_partition(image.name) + ".tiff"
+        if image.nwo.reexport_tiff and image.filepath and image.file_format == 'TIFF' and image.filepath.startswith(data_dir):
+            image.nwo.filepath = image.filepath.replace(data_dir, "")
+            print("Using existing TIFF for bitmap import")
+        else:
             try:
-                tiff_name = dot_partition(image.name) + ".tiff"
-
-                if export_type != "import":
-                    if overwrite or not os.path.exists(
-                        os.path.join(bitmaps_data_dir, tiff_name)
-                    ):
-                        save_image_as(image, bitmaps_data_dir, image.name)
-                        print(f"Exported {image.name} as tiff")
-
-                    bitmap_count += 1
-
-                bitmap_paths.append(os.path.join(asset_path, "bitmaps", tiff_name))
+                save_image_as(image, bitmaps_data_dir, image.nwo.source_name)
+                print(f"Exported {image.name} as tiff")
+                bitmap_count += 1
+                image.nwo.filepath = os.path.join(asset_path, "bitmaps", image.nwo.source_name).replace(data_dir, "")
 
             except:
                 print(f"Failed to export {image.name}")
 
-        else:
-            print(
-                "\033[93m"
-                + f"{image.name} is a duplicate name, please make it unique. Export skipped"
-                + "\033[0m"
-            )
-
-    if bitmap_count == 0:
-        report({"WARNING"}, "No Bitmaps exported")
-    else:
+    if bitmap_count:
         report({"INFO"}, f"Exported {bitmap_count} bitmaps")
-    h4 = not_bungie_game()
-    if export_type != "export":
-        for path in bitmap_paths:
-            bm_name = dot_partition(path.rpartition("\\")[2])
-            bm_type = get_bitmap_type()
-            bpy.ops.managed_blam.new_bitmap(bitmap_name=bm_name, bitmap_type=bm_type)
-            path = dot_partition(path)
+    else:
+        report({"INFO"}, "No Bitmaps exported")
+    # Store processes
+    processes = []
+    for image in textures:
+        bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type)
+        path = dot_partition(image.nwo.filepath)
+        if not_bungie_game():
+            processes.append(run_tool(["reimport-bitmaps-single", path, "default"], True, False))
+        else:
+            processes.append(run_tool(["reimport-bitmaps-single", path], True, True))
 
-            if h4:
-                run_tool(["reimport-bitmaps-single", path, "default"])
-            else:
-                run_tool(["reimport-bitmaps-single", path])
+    if processes:
+        for p in processes:
+            p.wait()
 
-        report({"INFO"}, "Bitmaps Import Complete")
+    report({"INFO"}, "Bitmaps Import Complete")
 
     return {"FINISHED"}
-
-
-def get_bitmap_type():
-    return "diffuse"

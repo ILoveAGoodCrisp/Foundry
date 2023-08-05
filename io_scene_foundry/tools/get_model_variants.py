@@ -33,6 +33,7 @@ class NWO_GetModelVariants(bpy.types.Operator):
     bl_idname = "nwo.get_model_variants"
     bl_label = "Model Variants"
     bl_description = "Returns a list of model variants"
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(self, context):

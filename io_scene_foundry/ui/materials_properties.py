@@ -56,3 +56,5 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
     )
 
     rendered: BoolProperty(default=True)
+
+    active_image : bpy.props.PointerProperty(type=bpy.types.Image)

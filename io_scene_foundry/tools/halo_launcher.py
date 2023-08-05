@@ -39,6 +39,21 @@ from io_scene_foundry.utils.nwo_utils import (
     valid_nwo_asset,
 )
 
+class NWO_OpenFoundationTag(bpy.types.Operator):
+    bl_idname = "nwo.open_foundation_tag"
+    bl_label = "Open Tag in Foundation"
+    bl_description = "Opens the specified tag in Foundation"
+
+    tag_path : bpy.props.StringProperty()
+
+    def execute(self, context):
+        full_tag_path = get_tags_path() + self.tag_path
+        if os.path.exists(full_tag_path):
+            run_ek_cmd(["foundation", "/dontloadlastopenedwindows", full_tag_path], True)
+        else:
+            self.report({"WARNING"}, "Tag does not exist")
+        return {"FINISHED"}
+        
 
 def get_tag_if_exists(asset_path, asset_name, type, extra=""):
     tag = os.path.join(get_tags_path() + asset_path, f"{asset_name}.{type}")
@@ -46,7 +61,6 @@ def get_tag_if_exists(asset_path, asset_name, type, extra=""):
         return tag
     else:
         return ""
-
 
 def LaunchFoundation(settings, context):
     scene_nwo = context.scene.nwo

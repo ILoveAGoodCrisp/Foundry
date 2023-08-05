@@ -32,6 +32,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     get_valid_shader_name,
     managed_blam_active,
+    not_bungie_game,
     print_warning,
 )
 import bpy
@@ -58,6 +59,7 @@ class ManagedBlam():
         pass
 
     def tag_helper(self):
+        self.tag_is_new = False
         if not self.path:
             self.path = self.get_path()
 
@@ -70,6 +72,7 @@ class ManagedBlam():
             if os.path.exists(self.system_path):
                 tag.Load(self.tag_path)
             elif not self.read_only:
+                self.tag_is_new = True
                 tag.New(self.tag_path)
             else:
                 print("Read only mode but tag path does not exist")
@@ -341,6 +344,91 @@ class ManagedBlamNewShader(ManagedBlam):
         #     bitmap.Reference.Path = get_tag_and_path(Bungie, p.bitmap)
         pass
 
+class ManagedBlamNewBitmap(ManagedBlam):
+    def __init__(self, bitmap_name, bitmap_type):
+        super().__init__()
+        self.bitmap_name = bitmap_name
+        self.bitmap_type = bitmap_type
+        self.tag_helper()
+
+    def get_path(self):
+        asset_path = get_asset_path()
+        bitmaps_dir = os.path.join(asset_path, "bitmaps")
+        bitmap_path = os.path.join(bitmaps_dir, self.bitmap_name + ".bitmap")
+
+        return bitmap_path
+
+    def tag_edit(self, tag):
+        if self.bitmap_type == "default":
+            suffix = self.bitmap_name.rpartition("_")[2].lower()
+            print(suffix)
+            self.bitmap_type = "Diffuse Map"
+            if suffix and "_" in self.bitmap_name.strip("_"):
+                h4 = not_bungie_game()
+                if suffix.startswith(("orm", "mro", "mtr", "rmo", "control")):
+                    self.bitmap_type = "Material Map"
+                elif suffix.startswith("3d"):
+                    self.bitmap_type = "3D Texture"
+                elif suffix.startswith("blend"):
+                    self.bitmap_type = "Blend Map (linear for terrains)"
+                elif suffix.startswith("bump"):
+                    self.bitmap_type = "Bump Map (from Height Map)"
+                elif suffix.startswith(("cc", "change")):
+                    self.bitmap_type = "Change Color Map"
+                elif suffix.startswith("cube"):
+                    self.bitmap_type = "Cube Map (Reflection Map)"
+                elif suffix.startswith(("detailb", "detail_b")):
+                    self.bitmap_type = "Detail Bump Map (from Height Map - fades out)"
+                elif suffix.startswith("det"):
+                    self.bitmap_type = "Detail Map"
+                elif suffix.startswith("dsprite"):
+                    self.bitmap_type = "Sprite (Double Multiply, Gray Background)"
+                elif suffix.startswith("float"):
+                    self.bitmap_type = "Float Map (WARNING)"
+                elif suffix.startswith("height"):
+                    self.bitmap_type = "Height Map (for Parallax)"
+                elif suffix.startswith(("illum", "self")):
+                    self.bitmap_type = "Self-Illum Map"
+                elif suffix.startswith("msprite"):
+                    self.bitmap_type = "Sprite (Blend, White Background)"
+                elif suffix.startswith("spec"):
+                    self.bitmap_type = "Specular Map"
+                elif suffix.startswith("sprite"):
+                    self.bitmap_type = "Sprite (Additive, Black Background)"
+                elif suffix.startswith("ui"):
+                    self.bitmap_type = "Interface Bitmap"
+                elif suffix.startswith("vec"):
+                    self.bitmap_type = "Vector Map"
+                elif suffix.startswith("warp"):
+                    self.bitmap_type = "Warp Map (EMBM)"
+                elif suffix.startswith("zbump"):
+                    self.bitmap_type = "ZBrush Bump Map (from Bump Map)"
+                elif suffix.startswith("nor"):
+                    if h4:
+                        self.bitmap_type = "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"
+                    else:
+                        self.bitmap_type = "Normal Map (aka zbump)"
+
+
+        usage_enum = tag.SelectField("LongEnum:Usage")
+        usage_enum.SetValue(self.bitmap_type)
+        curve_mode = tag.SelectField("CharEnum:curve mode")
+        curve_mode.SetValue("force PRETTY")
+        override_block = tag.SelectField("Block:usage override")
+        # Check for existing usage override block so we don't overwrite
+        if not override_block.Elements.Count:
+            override_block.AddElement()
+        override_element = override_block.Elements[0]
+        reset = override_element.SelectField("reset usage override")
+        reset.RunCommand()
+        bitmap_curve = override_element.SelectField("bitmap curve")
+        if bitmap_curve.Value == 1: # 1 is xRGB
+            bitmap_curve.SetValue("sRGB (gamma 2.2)")
+        flags = override_element.SelectField("flags")
+        flags.SetBit("Ignore Curve Override", True)
+        # flags.SetBit("Dont Allow Size Optimization", True)
+        # dicer_flags = override_element.SelectField("dicer flags")
+        # dicer_flags.SetBit("Color Grading sRGB Correction", True)
 
 class ManagedBlam_NewMaterial(ManagedBlamTag):
     """Runs a ManagedBlam Operation"""
