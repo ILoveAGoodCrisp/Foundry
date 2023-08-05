@@ -379,6 +379,8 @@ class ManagedBlamNewBitmap(ManagedBlam):
                     self.bitmap_type = "Cube Map (Reflection Map)"
                 elif suffix.startswith(("detailb", "detail_b")):
                     self.bitmap_type = "Detail Bump Map (from Height Map - fades out)"
+                elif suffix.startswith(("detailn", "detail_n")):
+                    self.bitmap_type = "Detail Normal Map"
                 elif suffix.startswith("det"):
                     self.bitmap_type = "Detail Map"
                 elif suffix.startswith("dsprite"):
@@ -387,7 +389,7 @@ class ManagedBlamNewBitmap(ManagedBlam):
                     self.bitmap_type = "Float Map (WARNING)"
                 elif suffix.startswith("height"):
                     self.bitmap_type = "Height Map (for Parallax)"
-                elif suffix.startswith(("illum", "self")):
+                elif suffix.startswith(("illum", "self", "emm")):
                     self.bitmap_type = "Self-Illum Map"
                 elif suffix.startswith("msprite"):
                     self.bitmap_type = "Sprite (Blend, White Background)"
@@ -401,9 +403,9 @@ class ManagedBlamNewBitmap(ManagedBlam):
                     self.bitmap_type = "Vector Map"
                 elif suffix.startswith("warp"):
                     self.bitmap_type = "Warp Map (EMBM)"
-                elif suffix.startswith("zbump"):
+                elif suffix.startswith(("zbump", "dx_normal")):
                     self.bitmap_type = "ZBrush Bump Map (from Bump Map)"
-                elif suffix.startswith("nor"):
+                elif suffix.startswith(("nor", "nm")):
                     if h4:
                         self.bitmap_type = "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"
                     else:
