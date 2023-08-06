@@ -67,6 +67,7 @@ from io_scene_foundry.utils.nwo_utils import (
     nwo_asset_type,
     protected_material_name,
     set_active_object,
+    set_object_mode,
     valid_nwo_asset,
     poll_ui,
     validate_ek,
@@ -2372,6 +2373,7 @@ class NWO_SelectArmature(Operator):
     bl_description = "Sets the first armature encountered as the active object"
 
     def execute(self, context):
+        set_object_mode(context)
         objects = context.view_layer.objects
         for ob in objects:
             if ob.type == 'ARMATURE':

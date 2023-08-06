@@ -25,14 +25,12 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
-from uuid import uuid4
 import bmesh
 import bpy
 from os import path
 import csv
 from math import radians
-from mathutils import Matrix, Vector
-import xml.etree.ElementTree as ET
+from mathutils import Matrix, Quaternion, Vector
 from io_scene_foundry.managed_blam import ManagedBlamGetNodeOrder
 
 from io_scene_foundry.tools.shader_finder import find_shaders
@@ -45,12 +43,10 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
-    get_prefix,
     jstr,
     layer_face_count,
     layer_faces,
     print_warning,
-    run_tool,
     set_active_object,
     is_shader,
     get_tags_path,
@@ -63,7 +59,6 @@ from ..utils.nwo_utils import (
     update_job,
     update_progress,
     vector_str,
-    frame_prefixes,
 )
 
 render_mesh_types_full = [
@@ -86,6 +81,13 @@ COLLISION_ONLY = "CollisionOnly"
 SPHERE_COLLISION_ONLY = "SphereCollisionOnly"
 LIGHTMAP_ONLY = "LightmapOnly"
 SHADOW_ONLY = "ShadowOnly"
+
+# Bone matrix constants
+
+PEDESTAL_MATRIX = Matrix(((1.0, 0.0, 0.0, 0.0),
+                        (0.0, 1.0, 0.0, 0.0),
+                        (0.0, 0.0, 1.0, 0.0),
+                        (0.0, 0.0, 0.0, 1.0)))
 
 
 #####################################################################################
@@ -111,6 +113,9 @@ class PrepareScene:
         # NOTE skipping timing as export is really fast now
         # start = time.perf_counter()
         self.warning_hit = False
+        self.pedestal = None
+        self.aim_pitch = None
+        self.aim_yaw = None
 
         h4 = game_version != "reach"
 
@@ -610,6 +615,15 @@ class PrepareScene:
                 self.create_bsp_box(scene_coll)
 
             if self.model_armature:
+                if bpy.data.actions and self.model_armature.animation_data:
+                    self.current_action = self.get_current_action(self.model_armature)
+                    # unlink current action and reset pose transforms
+                    self.model_armature.animation_data.action = None
+                    for bone in self.model_armature.pose.bones:
+                        bone.matrix_basis = Matrix()
+
+                self.remove_relative_parenting(export_obs)
+
                 if not using_auto_armature or sidecar_type != "FP ANIMATION":
                     # unlink any unparented objects from the scene
                     warn = False
@@ -623,6 +637,7 @@ class PrepareScene:
                                 f"Ignoring {ob.name} because it is not parented to the scene armature"
                             )
                             self.unlink(ob)
+                            
 
                     context.view_layer.update()
                     export_obs = context.view_layer.objects[:]
@@ -635,12 +650,35 @@ class PrepareScene:
                     self.skeleton_bones = self.get_bone_list(
                         self.model_armature, h4, context, sidecar_type
                     )
-                if bpy.data.actions and self.model_armature.animation_data:
-                    self.current_action = self.get_current_action(self.model_armature)
-                    # unlink current action and reset pose transforms
-                    self.model_armature.animation_data.action = None
-                    for bone in self.model_armature.pose.bones:
-                        bone.matrix_basis = Matrix()
+
+                # Fix pedestal/pitch/yaw rotation if needed
+                set_active_object(self.model_armature)
+                self.model_armature.select_set(True)
+                bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+                edit_bones = self.model_armature.data.edit_bones
+                if self.pedestal:
+                    edit_pedestal = edit_bones[self.pedestal.name]
+                    if edit_pedestal.matrix != PEDESTAL_MATRIX:
+                        old_mat = edit_pedestal.matrix.copy()
+                        edit_pedestal.matrix = PEDESTAL_MATRIX
+                        self.counter_matrix(old_mat, PEDESTAL_MATRIX, edit_pedestal, export_obs)
+                if self.aim_pitch:
+                    edit_aim_pitch = edit_bones[self.aim_pitch.name]
+                    if edit_aim_pitch.matrix != PEDESTAL_MATRIX:
+                        old_mat = edit_aim_pitch.matrix.copy()
+                        edit_aim_pitch.matrix = PEDESTAL_MATRIX
+                        self.counter_matrix(old_mat, PEDESTAL_MATRIX, edit_aim_pitch, export_obs)
+                if self.aim_yaw:
+                    edit_aim_yaw = edit_bones[self.aim_yaw.name]
+                    if edit_aim_yaw.matrix != PEDESTAL_MATRIX:
+                        old_mat = edit_aim_yaw.matrix.copy()
+                        edit_aim_yaw.matrix = PEDESTAL_MATRIX
+                        self.counter_matrix(old_mat, PEDESTAL_MATRIX, edit_aim_yaw, export_obs)
+                bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+                self.model_armature.select_set(False)
+                # if restore_matrices:
+                #     for ob, mat in ob_mat_dict.items():
+                #         ob.matrix_basis = mat
 
         # print("armature")
 
@@ -2430,6 +2468,14 @@ class PrepareScene:
     def get_bone_names(self, export_obs):
         for ob in export_obs:
             if ob.type == "ARMATURE":
+                for b in ob.data.bones:
+                    if not self.aim_pitch and (b.name.endswith("aim_pitch") or ob.nwo.node_usage_pose_blend_pitch == b.name):
+                        self.aim_pitch = b
+                    elif not self.aim_yaw and (b.name.endswith("aim_yaw") or ob.nwo.node_usage_pose_blend_yaw == b.name):
+                        self.aim_yaw = b
+                    elif not self.pedestal and b.use_deform:
+                        self.pedestal = b
+
                 return ob.data.bones
             
         return ["implied_root_node"]
@@ -3263,7 +3309,37 @@ class PrepareScene:
             )
         
         return nwo.mesh_type in render_mesh_types
+    
+    def counter_matrix(self, mat_old, mat_new, bone, objects):
+        old_rot = mat_old.to_quaternion()
+        new_rot = mat_new.to_quaternion()
+        diff_rot = new_rot.rotation_difference(old_rot)
+        diff_rot_mat = diff_rot.to_matrix().to_4x4()
+        for ob in objects:
+            if ob.parent == self.model_armature and ob.parent_bone == bone.name:
+                ob.matrix_world = diff_rot_mat @ ob.matrix_world
 
+    def remove_relative_parenting(self, export_obs):
+        set_active_object(self.model_armature)
+        self.model_armature.select_set(True)
+        relative_bones = set()
+        for b in self.model_armature.data.bones:
+            if b.use_relative_parent:
+                relative_bones.add(b.name)
+
+        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+        for ob in export_obs:
+            if ob.parent == self.model_armature and ob.parent_bone in relative_bones:
+                bone = self.model_armature.data.edit_bones[ob.parent_bone]
+                ob.matrix_parent_inverse = (self.model_armature.matrix_world @ Matrix.Translation(bone.tail - bone.head) @ bone.matrix).inverted()
+
+        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+        for b in self.model_armature.data.bones:
+            if b.use_relative_parent:
+                b.use_relative_parent = False
+
+        self.model_armature.select_set(False)
+            
 
 #####################################################################################
 #####################################################################################
