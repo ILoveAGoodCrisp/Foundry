@@ -657,19 +657,19 @@ class PrepareScene:
                 bpy.ops.object.mode_set(mode="EDIT", toggle=False)
                 edit_bones = self.model_armature.data.edit_bones
                 if self.pedestal:
-                    edit_pedestal = edit_bones[self.pedestal.name]
+                    edit_pedestal = edit_bones[self.pedestal]
                     if edit_pedestal.matrix != PEDESTAL_MATRIX:
                         old_mat = edit_pedestal.matrix.copy()
                         edit_pedestal.matrix = PEDESTAL_MATRIX
                         self.counter_matrix(old_mat, PEDESTAL_MATRIX, edit_pedestal, export_obs)
                 if self.aim_pitch:
-                    edit_aim_pitch = edit_bones[self.aim_pitch.name]
+                    edit_aim_pitch = edit_bones[self.aim_pitch]
                     if edit_aim_pitch.matrix != PEDESTAL_MATRIX:
                         old_mat = edit_aim_pitch.matrix.copy()
                         edit_aim_pitch.matrix = PEDESTAL_MATRIX
                         self.counter_matrix(old_mat, PEDESTAL_MATRIX, edit_aim_pitch, export_obs)
                 if self.aim_yaw:
-                    edit_aim_yaw = edit_bones[self.aim_yaw.name]
+                    edit_aim_yaw = edit_bones[self.aim_yaw]
                     if edit_aim_yaw.matrix != PEDESTAL_MATRIX:
                         old_mat = edit_aim_yaw.matrix.copy()
                         edit_aim_yaw.matrix = PEDESTAL_MATRIX
@@ -693,7 +693,6 @@ class PrepareScene:
                 context,
                 export_animations,
                 self.current_action,
-                export_obs,
             )
 
         # Set animation name overrides
@@ -1628,17 +1627,19 @@ class PrepareScene:
         job = "Baking Animations"
         update_progress(job, 0)
         export_actions = [a for a in bpy.data.actions if a.use_frame_range]
+        bpy.ops.object.posemode_toggle()
         for idx, action in enumerate(export_actions):
-            if action.use_frame_range and (export_animations == "ALL" or current_action == action):
+            if export_animations == "ALL" or current_action == action:
                 armature.animation_data.action = action
 
                 frame_start = int(action.frame_start)
                 frame_end = int(action.frame_end)
 
                 # anim_utils.bake_action(armature, action=action, frames=range(frame_start, frame_end), do_pose=True, do_visual_keying=True, do_constraint_clear=True)
-                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=idx + 1 == len(export_actions), use_current_action=True, bake_types={'POSE'})
+                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=False, use_current_action=True, bake_types={'POSE'})
                 update_progress(job, idx / len(export_actions))
 
+        bpy.ops.object.posemode_toggle()
         update_progress(job, 1)
 
     def fix_armature_rotation(
@@ -1648,19 +1649,19 @@ class PrepareScene:
         context,
         export_animations,
         current_action,
-        export_obs,
     ):
         forward = context.scene.nwo.forward_direction
         if forward != "x" and sidecar_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
             set_active_object(armature)
             armature.select_set(True)
-            if export_animations != "NONE" and bpy.data.actions:
-                self.bake_animations(
-                    armature,
-                    export_animations,
-                    current_action,
-                )
+            self.apply_arm_mods(self.model_armature, context)
+            # if export_animations != "NONE" and bpy.data.actions:
+            #     self.bake_animations(
+            #         armature,
+            #         export_animations,
+            #         current_action,
+            #     )
             # apply rotation based on selected forward direction
             # context.scene.frame_current = 0
             if forward == "y":
@@ -2469,13 +2470,12 @@ class PrepareScene:
         for ob in export_obs:
             if ob.type == "ARMATURE":
                 for b in ob.data.bones:
-                    if not self.aim_pitch and (b.name.endswith("aim_pitch") or ob.nwo.node_usage_pose_blend_pitch == b.name):
-                        self.aim_pitch = b
-                    elif not self.aim_yaw and (b.name.endswith("aim_yaw") or ob.nwo.node_usage_pose_blend_yaw == b.name):
-                        self.aim_yaw = b
+                    if not self.aim_pitch and (ob.nwo.node_usage_pose_blend_pitch == b.name or b.name.endswith("aim_pitch")):
+                        self.aim_pitch = b.name
+                    elif not self.aim_yaw and (ob.nwo.node_usage_pose_blend_yaw == b.name or b.name.endswith("aim_yaw")):
+                        self.aim_yaw = b.name
                     elif not self.pedestal and b.use_deform:
-                        self.pedestal = b
-
+                        self.pedestal = b.name
                 return ob.data.bones
             
         return ["implied_root_node"]
@@ -3339,6 +3339,36 @@ class PrepareScene:
                 b.use_relative_parent = False
 
         self.model_armature.select_set(False)
+
+
+    def apply_arm_mods(self, arm, context):
+        area = [
+            area
+            for area in context.screen.areas
+            if area.type == "VIEW_3D"
+        ][0]
+        area_region = area.regions[-1]
+        area_space = area.spaces.active
+        bones = arm.pose.bones
+        for b in bones:
+            if not b.constraints:
+                continue
+            override = context.copy()
+            override["area"] = area
+            override["region"] = area_region
+            override["space_data"] = area_space
+            override['object'] = arm
+            override['active_bone'] = b
+            with context.temp_override(**override):
+                for c in b.constraints:
+                    try:
+                        c.enabled = True
+                        bpy.ops.constraint.apply(constraint=c.name, owner='BONE')
+                    except:
+                        pass
+
+
+
             
 
 #####################################################################################
