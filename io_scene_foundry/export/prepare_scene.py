@@ -3350,6 +3350,7 @@ class PrepareScene:
         area_region = area.regions[-1]
         area_space = area.spaces.active
         bones = arm.pose.bones
+        bpy.ops.object.posemode_toggle()
         for b in bones:
             if not b.constraints:
                 continue
@@ -3366,6 +3367,8 @@ class PrepareScene:
                         bpy.ops.constraint.apply(constraint=c.name, owner='BONE')
                     except:
                         pass
+
+        bpy.ops.object.posemode_toggle()
 
 
 
