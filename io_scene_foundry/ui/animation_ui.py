@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
 
 from io_scene_foundry.utils.nwo_utils import poll_ui
@@ -84,7 +85,8 @@ class NWO_DeleteAnimation(NWO_Op):
         name = str(action.name)
         bpy.data.actions.remove(action)
         self.report({"INFO"}, f"Deleted animation: {name}")
-        arm.data.pose_position = 'REST'
+        for bone in arm.pose.bones:
+            bone.matrix_basis = Matrix()
         return {"FINISHED"}
     
 class NWO_UnlinkAnimation(NWO_Op):
@@ -95,7 +97,8 @@ class NWO_UnlinkAnimation(NWO_Op):
     def execute(self, context):
         arm = context.object
         arm.animation_data.action = None
-        arm.data.pose_position = 'REST'
+        for bone in arm.pose.bones:
+            bone.matrix_basis = Matrix()
         return {"FINISHED"}
 
 class NWO_NewAnimation(NWO_Op):

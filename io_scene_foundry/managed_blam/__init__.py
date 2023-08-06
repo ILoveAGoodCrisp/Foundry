@@ -348,7 +348,7 @@ class ManagedBlamNewBitmap(ManagedBlam):
     def __init__(self, bitmap_name, bitmap_type):
         super().__init__()
         self.bitmap_name = bitmap_name
-        self.bitmap_type = bitmap_type
+        self.bitmap_type = bitmap_type if bitmap_type else "default"
         self.tag_helper()
 
     def get_path(self):
@@ -405,7 +405,7 @@ class ManagedBlamNewBitmap(ManagedBlam):
                     self.bitmap_type = "Warp Map (EMBM)"
                 elif suffix.startswith(("zbump", "dx_normal")):
                     self.bitmap_type = "ZBrush Bump Map (from Bump Map)"
-                elif suffix.startswith(("nor", "nm")):
+                elif suffix.startswith(("nor", "nm", "nrm")):
                     if h4:
                         self.bitmap_type = "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"
                     else:

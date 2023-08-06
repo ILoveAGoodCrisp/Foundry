@@ -637,6 +637,10 @@ class PrepareScene:
                     )
                 if bpy.data.actions and self.model_armature.animation_data:
                     self.current_action = self.get_current_action(self.model_armature)
+                    # unlink current action and reset pose transforms
+                    self.model_armature.animation_data.action = None
+                    for bone in self.model_armature.pose.bones:
+                        bone.matrix_basis = Matrix()
 
         # print("armature")
 
