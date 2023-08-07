@@ -588,7 +588,7 @@ class NWOFrame(NWOObject):
         return "378163771"
 
     def frame_world(self):
-        if self.ob == self.model_armature or self.ob == self.world_frame:
+        if self.ob.type == 'ARMATURE' or self.ob == self.world_frame:
             return "1"
         else:
             return "0"

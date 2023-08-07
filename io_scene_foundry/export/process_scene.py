@@ -43,6 +43,7 @@ from ..utils.nwo_utils import (
     managed_blam_active,
     print_warning,
     run_tool,
+    unlink,
     update_job,
     update_job_count,
 )
@@ -434,6 +435,7 @@ class ProcessScene:
                                 "-----------------------------------------------------------------------\n"
                             )
 
+                        # Handle swapping out armature
                         for action in bpy.data.actions:
                             # make animation dirs
                             animations_dir = os.path.join(asset_path, "animations")
@@ -463,9 +465,15 @@ class ProcessScene:
                                         job = f"-- {animation_name}"
                                         update_job(job, 0)
 
-                                        nwo_scene.model_armature.animation_data.action = (
-                                            action
-                                        )
+                                        # Handle swapping out armature
+                                        if nwo_scene.animation_arm:
+                                            arm = nwo_scene.animation_arm
+                                        else:
+                                            arm = nwo_scene.animation_armatures[action]
+                                        
+                                        arm.name = nwo_scene.arm_name
+
+                                        arm.animation_data.action = action
                                         timeline.frame_start = int(action.frame_start)
                                         timeline.frame_end = int(action.frame_end)
 
@@ -474,7 +482,7 @@ class ProcessScene:
                                         export_obs = self.create_event_nodes(
                                             context,
                                             action_nwo.animation_events,
-                                            nwo_scene.model_armature,
+                                            arm,
                                             timeline.frame_start,
                                             timeline.frame_end,
                                         )
@@ -1108,6 +1116,12 @@ class ProcessScene:
         self.skeleton_only = True
         bpy.ops.object.select_all(action="SELECT")
         nwo_scene.model_armature.select_set(False)
+        if nwo_scene.animation_arm:
+            nwo_scene.animation_arm.select_set(False)
+        if nwo_scene.animation_armatures:
+            for a in nwo_scene.animation_armatures.values():
+                a.select_set(False)
+
         bpy.ops.object.delete()
 
     #####################################################################################

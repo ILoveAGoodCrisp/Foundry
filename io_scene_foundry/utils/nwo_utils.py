@@ -1460,7 +1460,7 @@ def create_ob_matric_dict(objects_in_scope):
 
 
 def check_path(filePath):
-    return filePath.startswith(os.path.join(get_ek_path(), "data"))
+    return filePath.lower().startswith(os.path.join(get_ek_path().lower(), "data"))
 
 
 #################################

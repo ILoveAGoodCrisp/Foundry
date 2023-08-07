@@ -99,7 +99,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
     fast_animation_export : BoolProperty(
         name="Fast Animation Export",
         description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects",
-        default=True,
+        default=False,
     )
 
     game_version: EnumProperty(
@@ -762,8 +762,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.write_temp_settings(context, sidecar_path)
 
         # restore scene back to its pre export state
-        bpy.ops.ed.undo_push()
-        bpy.ops.ed.undo()
+        # bpy.ops.ed.undo_push()
+        # bpy.ops.ed.undo()
 
         return {"FINISHED"}
 
@@ -795,7 +795,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if (
             not check_path(self.filepath)
             or not file_exists(f"{get_tool_path()}.exe")
-            or self.asset_path + os.sep == get_data_path()
+            or self.asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
             game = formalise_game_version(self.game_version)
             if get_ek_path() is None or get_ek_path() == "":
@@ -812,7 +812,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     f"INVALID {game} TOOL PATH",
                     0,
                 )
-            elif self.asset_path + path.sep == get_data_path():
+            elif self.asset_path.lower() + path.sep == get_data_path().lower():
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder',

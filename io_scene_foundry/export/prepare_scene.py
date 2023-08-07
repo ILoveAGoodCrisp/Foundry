@@ -30,7 +30,7 @@ import bpy
 from os import path
 import csv
 from math import radians
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Matrix, Vector
 from io_scene_foundry.managed_blam import ManagedBlamGetNodeOrder
 
 from io_scene_foundry.tools.shader_finder import find_shaders
@@ -116,6 +116,9 @@ class PrepareScene:
         self.pedestal = None
         self.aim_pitch = None
         self.aim_yaw = None
+        self.animation_arm = None
+        self.animation_armatures = {}
+        self.arm_name = ""
 
         h4 = game_version != "reach"
 
@@ -695,6 +698,10 @@ class PrepareScene:
             # unlink current action and reset pose transforms
             if self.model_armature and self.model_armature.animation_data:
                 self.model_armature.animation_data.action = None
+                # clear constraints
+                if self.animation_arm:
+                    self.remove_constraints(self.model_armature)
+                # Clear pose matrix
                 for bone in self.model_armature.pose.bones:
                     bone.matrix_basis = Matrix()
 
@@ -1607,6 +1614,8 @@ class PrepareScene:
     def z_rotate_and_apply(self, model_armature, angle):
         set_active_object(model_armature)
         model_armature.select_set(True)
+        for a in self.animation_armatures.values():
+            a.select_set(True)
         angle = radians(angle)
         axis = (0, 0, 1)
         pivot = model_armature.location
@@ -1617,9 +1626,13 @@ class PrepareScene:
         )
 
         model_armature.matrix_world = M @ model_armature.matrix_world
+        for a in self.animation_armatures.values():
+            a.matrix_world = M @ a.matrix_world
 
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False, isolate_users=True)
         model_armature.select_set(False)
+        for a in self.animation_armatures.values():
+            a.select_set(False)
 
     def bake_animations(
         self,
@@ -1634,34 +1647,86 @@ class PrepareScene:
         job = "Baking Animations"
         update_progress(job, 0)
         export_actions = [a for a in bpy.data.actions if a.use_frame_range]
+        old_animations = [a for a in bpy.data.actions]
         for idx, action in enumerate(export_actions):
             if export_animations == "ALL" or current_action == action:
-                last = idx + 1 == len(export_actions) or current_action == action and export_animations != "ALL"
-                new_arm = None
-                if last:
-                    armature.select_set(True)
-                    set_active_object(armature)
-                    armature.animation_data.action = action
-                else:
-                    new_arm = armature.copy()
-                    new_arm.data = armature.data.copy()
-                    scene_coll.link(new_arm)
-                    new_arm.select_set(True)
-                    set_active_object(new_arm)
-                    new_arm.animation_data.action = action
+                new_arm = armature.copy()
+                new_arm.data = armature.data.copy()
+                scene_coll.link(new_arm)
+                new_arm.select_set(True)
+                set_active_object(new_arm)
+                new_arm.animation_data.action = action
                 bpy.ops.object.posemode_toggle()
 
                 frame_start = int(action.frame_start)
                 frame_end = int(action.frame_end)
 
-                # anim_utils.bake_action(armature, action=action, frames=range(frame_start, frame_end), do_pose=True, do_visual_keying=True, do_constraint_clear=True)
-                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=True, use_current_action=True, bake_types={'POSE'})
-                bpy.ops.object.posemode_toggle()
-                if new_arm:
-                    scene_coll.unlink(new_arm)
-                update_progress(job, idx / len(export_actions))
+                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=True, use_current_action=False, bake_types={'POSE'})
+                for ac in bpy.data.actions:
+                    if ac not in old_animations:
+                        new_animation = ac
+                        break
+                else:
+                    continue
 
+                new_animation.use_frame_range = True
+                new_animation.name = action.name
+                old_nwo = action.nwo
+                new_nwo = new_animation.nwo
+                new_nwo.animation_type = old_nwo.animation_type
+                new_nwo.name_override = old_nwo.name_override
+
+                old_renames = old_nwo.animation_renames
+                new_renames = new_nwo.animation_renames
+                for idx, r in enumerate(old_renames):
+                    new_renames.add()
+                    new_renames[idx].rename_name = r.rename_name
+
+                old_events = old_nwo.animation_events
+                new_events = new_nwo.animation_events
+                for idx, e in enumerate(old_events):
+                    new_events.add()
+                    new_events[idx].event_id = e.event_id
+                    new_events[idx].multi_frame = e.multi_frame
+                    new_events[idx].frame_range = e.frame_range
+                    new_events[idx].name = e.name
+                    new_events[idx].event_type = e.event_type
+                    new_events[idx].frame_start = e.frame_start
+                    new_events[idx].frame_end = e.frame_end
+                    new_events[idx].wrinkle_map_face_region = e.wrinkle_map_face_region
+                    new_events[idx].wrinkle_map_effect = e.wrinkle_map_effect
+                    new_events[idx].footstep_type = e.footstep_type
+                    new_events[idx].footstep_effect = e.footstep_effect
+                    new_events[idx].ik_chain = e.ik_chain
+                    new_events[idx].ik_active_tag = e.ik_active_tag
+                    new_events[idx].ik_target_tag = e.ik_target_tag
+                    new_events[idx].ik_target_marker = e.ik_target_marker
+                    new_events[idx].ik_target_usage = e.ik_target_usage
+                    new_events[idx].ik_proxy_target_id = e.ik_proxy_target_id
+                    new_events[idx].ik_pole_vector_id = e.ik_pole_vector_id
+                    new_events[idx].ik_effector_id = e.ik_effector_id
+                    new_events[idx].cinematic_effect_tag = e.cinematic_effect_tag
+                    new_events[idx].cinematic_effect_effect = e.cinematic_effect_effect
+                    new_events[idx].cinematic_effect_marker = e.cinematic_effect_marker
+                    new_events[idx].object_function_name = e.object_function_name
+                    new_events[idx].object_function_effect = e.object_function_effect
+                    new_events[idx].frame_frame = e.frame_frame
+                    new_events[idx].frame_name = e.frame_name
+                    new_events[idx].frame_trigger = e.frame_trigger
+                    new_events[idx].import_frame = e.import_frame
+                    new_events[idx].import_name = e.import_name
+                    new_events[idx].text = e.text
+
+                bpy.ops.object.posemode_toggle()
+                new_arm.select_set(False)
+                self.animation_armatures[new_animation] = new_arm
+                old_animations.append(new_animation)
+                # scene_coll.unlink(new_arm)
+                update_progress(job, idx / len(export_actions))
         update_progress(job, 1)
+
+        for action in export_actions:
+            action.use_frame_range = False
 
     def fix_armature_rotation(
         self,
@@ -1675,7 +1740,6 @@ class PrepareScene:
         forward = context.scene.nwo.forward_direction
         if forward != "x" and sidecar_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
-            # self.apply_arm_mods(self.model_armature, context)
             if export_animations != "NONE" and bpy.data.actions:
                 self.bake_animations(
                     armature,
@@ -1683,6 +1747,7 @@ class PrepareScene:
                     current_action,
                     scene_coll,
                 )
+            self.remove_constraints(self.model_armature)
             # apply rotation based on selected forward direction
             # context.scene.frame_current = 0
             if forward == "y":
@@ -1691,6 +1756,11 @@ class PrepareScene:
                 self.z_rotate_and_apply(armature, 90)
             elif forward == "x-":
                 self.z_rotate_and_apply(armature, 180)
+        else:
+            self.animation_arm = self.model_armature.copy()
+            self.animation_arm.data = self.model_armature.data.copy()
+            scene_coll.link(self.animation_arm)
+            
 
     def set_bone_names(self, bones):
         # for bone in bones:
@@ -2480,7 +2550,9 @@ class PrepareScene:
     def get_scene_armature(self, export_obs, asset, scene_coll):
         for ob in export_obs:
             if ob.type == "ARMATURE":
-                ob.name = f"{asset}_world"
+                arm_name = f"{asset}_world"
+                self.arm_name = arm_name
+                ob.name = arm_name
                 return ob, False
 
         return self.add_temp_armature(export_obs, asset, scene_coll), True
@@ -2501,6 +2573,7 @@ class PrepareScene:
 
     def add_temp_armature(self, export_obs, asset, scene_coll):
         arm_name = f"{asset}_world"
+        self.arm_name = arm_name
         arm = bpy.data.armatures.new(arm_name)
         arm_ob = bpy.data.objects.new(arm_name, arm)
         scene_coll.link(arm_ob)
@@ -3360,31 +3433,21 @@ class PrepareScene:
         self.model_armature.select_set(False)
 
 
-    def apply_arm_mods(self, arm, context):
-        area = [
-            area
-            for area in context.screen.areas
-            if area.type == "VIEW_3D"
-        ][0]
-        area_region = area.regions[-1]
-        area_space = area.spaces.active
-        bones = arm.pose.bones
-        bpy.ops.object.posemode_toggle()
-        for b in bones:
-            if not b.constraints:
-                continue
-            override = context.copy()
-            override["area"] = area
-            override["region"] = area_region
-            override["space_data"] = area_space
-            override['object'] = arm
-            override['active_bone'] = b
-            with context.temp_override(**override):
-                for c in b.constraints:
-                    c.enabled = True
-                    bpy.ops.constraint.apply(constraint=c.name, owner='BONE')
+    def remove_constraints(self, arm):
+        arm.select_set(True)
+        set_active_object(arm)
+        # arm_constraints = arm.constraints
+        # for c in arm_constraints:
+        #     arm_constraints.remove(c)
 
         bpy.ops.object.posemode_toggle()
+        bones = arm.pose.bones
+        for b in bones:
+            bone_constraints = b.constraints
+            for c in bone_constraints:
+                bone_constraints.remove(c)
+        bpy.ops.object.posemode_toggle()
+        arm.select_set(False)
 
 #####################################################################################
 #####################################################################################
