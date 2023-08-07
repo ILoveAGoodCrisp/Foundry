@@ -116,6 +116,7 @@ class PrepareScene:
         self.pedestal = None
         self.aim_pitch = None
         self.aim_yaw = None
+        self.gun = None
         self.animation_arm = None
         self.animation_armatures = {}
         self.arm_name = ""
@@ -673,6 +674,13 @@ class PrepareScene:
                         old_mat = edit_aim_yaw.matrix.copy()
                         edit_aim_yaw.matrix = PEDESTAL_MATRIX
                         self.counter_matrix(old_mat, PEDESTAL_MATRIX, edit_aim_yaw, export_obs)
+                if self.gun:
+                    edit_gun = edit_bones[self.gun]
+                    if edit_gun.matrix != PEDESTAL_MATRIX:
+                        old_mat = edit_gun.matrix.copy()
+                        edit_gun.matrix = PEDESTAL_MATRIX
+                        self.counter_matrix(old_mat, PEDESTAL_MATRIX, edit_gun, export_obs)
+
                 bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
                 self.model_armature.select_set(False)
                 # if restore_matrices:
@@ -2562,6 +2570,8 @@ class PrepareScene:
                         self.aim_pitch = b.name
                     elif not self.aim_yaw and (ob.nwo.node_usage_pose_blend_yaw == b.name or b.name.endswith("aim_yaw")):
                         self.aim_yaw = b.name
+                    elif not self.gun and b.name == ("b_gun_r"):
+                        self.gun = b.name
                     elif not self.pedestal and b.use_deform:
                         self.pedestal = b.name
                 return ob.data.bones
