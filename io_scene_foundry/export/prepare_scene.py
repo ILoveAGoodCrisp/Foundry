@@ -1914,19 +1914,12 @@ class PrepareScene:
                         nwo.water_volume_flow_velocity = jstr(
                             nwo.water_volume_flow_velocity_ui
                         )
-                        if reach:
-                            nwo.water_volume_fog_color = color_4p_str(
-                                nwo.water_volume_fog_color_ui
-                            )
-                        else:
-                            nwo.water_volume_fog_color = color_3p_str(
-                                nwo.water_volume_fog_color_ui
-                            )
-
+                        nwo.water_volume_fog_color = color_4p_str(
+                            nwo.water_volume_fog_color_ui
+                        )
                         nwo.water_volume_fog_murkiness = jstr(
                             nwo.water_volume_fog_murkiness_ui
                         )
-
                     elif (
                         nwo.volume_type_ui
                         == "_connected_geometry_volume_type_cookie_cutter"
