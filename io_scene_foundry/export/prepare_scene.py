@@ -1655,7 +1655,11 @@ class PrepareScene:
                 scene_coll.link(new_arm)
                 new_arm.select_set(True)
                 set_active_object(new_arm)
-                new_arm.animation_data.action = action
+
+                for ob in bpy.data.objects:
+                    if ob.animation_data:
+                        ob.animation_data.action = action
+
                 bpy.ops.object.posemode_toggle()
 
                 frame_start = int(action.frame_start)
