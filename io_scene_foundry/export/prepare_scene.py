@@ -617,10 +617,6 @@ class PrepareScene:
             if self.model_armature:
                 if bpy.data.actions and self.model_armature.animation_data:
                     self.current_action = self.get_current_action(self.model_armature)
-                    # unlink current action and reset pose transforms
-                    self.model_armature.animation_data.action = None
-                    for bone in self.model_armature.pose.bones:
-                        bone.matrix_basis = Matrix()
 
                 self.remove_relative_parenting(export_obs)
 
@@ -693,7 +689,14 @@ class PrepareScene:
                 context,
                 export_animations,
                 self.current_action,
+                scene_coll,
             )
+
+            # unlink current action and reset pose transforms
+            if self.model_armature and self.model_armature.animation_data:
+                self.model_armature.animation_data.action = None
+                for bone in self.model_armature.pose.bones:
+                    bone.matrix_basis = Matrix()
 
         # Set animation name overrides
         self.set_animation_overrides(self.model_armature)
@@ -1602,6 +1605,8 @@ class PrepareScene:
             update_progress(process, 1)
 
     def z_rotate_and_apply(self, model_armature, angle):
+        set_active_object(model_armature)
+        model_armature.select_set(True)
         angle = radians(angle)
         axis = (0, 0, 1)
         pivot = model_armature.location
@@ -1614,12 +1619,14 @@ class PrepareScene:
         model_armature.matrix_world = M @ model_armature.matrix_world
 
         bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+        model_armature.select_set(False)
 
     def bake_animations(
         self,
         armature,
         export_animations,
         current_action,
+        scene_coll,
     ):
         if armature.animation_data is None:
             armature.animation_data_create()
@@ -1627,19 +1634,33 @@ class PrepareScene:
         job = "Baking Animations"
         update_progress(job, 0)
         export_actions = [a for a in bpy.data.actions if a.use_frame_range]
-        bpy.ops.object.posemode_toggle()
         for idx, action in enumerate(export_actions):
             if export_animations == "ALL" or current_action == action:
-                armature.animation_data.action = action
+                last = idx + 1 == len(export_actions) or current_action == action and export_animations != "ALL"
+                new_arm = None
+                if last:
+                    armature.select_set(True)
+                    set_active_object(armature)
+                    armature.animation_data.action = action
+                else:
+                    new_arm = armature.copy()
+                    new_arm.data = armature.data.copy()
+                    scene_coll.link(new_arm)
+                    new_arm.select_set(True)
+                    set_active_object(new_arm)
+                    new_arm.animation_data.action = action
+                bpy.ops.object.posemode_toggle()
 
                 frame_start = int(action.frame_start)
                 frame_end = int(action.frame_end)
 
                 # anim_utils.bake_action(armature, action=action, frames=range(frame_start, frame_end), do_pose=True, do_visual_keying=True, do_constraint_clear=True)
-                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=False, use_current_action=True, bake_types={'POSE'})
+                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=True, use_current_action=True, bake_types={'POSE'})
+                bpy.ops.object.posemode_toggle()
+                if new_arm:
+                    scene_coll.unlink(new_arm)
                 update_progress(job, idx / len(export_actions))
 
-        bpy.ops.object.posemode_toggle()
         update_progress(job, 1)
 
     def fix_armature_rotation(
@@ -1649,19 +1670,19 @@ class PrepareScene:
         context,
         export_animations,
         current_action,
+        scene_coll,
     ):
         forward = context.scene.nwo.forward_direction
         if forward != "x" and sidecar_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
-            set_active_object(armature)
-            armature.select_set(True)
-            self.apply_arm_mods(self.model_armature, context)
-            # if export_animations != "NONE" and bpy.data.actions:
-            #     self.bake_animations(
-            #         armature,
-            #         export_animations,
-            #         current_action,
-            #     )
+            # self.apply_arm_mods(self.model_armature, context)
+            if export_animations != "NONE" and bpy.data.actions:
+                self.bake_animations(
+                    armature,
+                    export_animations,
+                    current_action,
+                    scene_coll,
+                )
             # apply rotation based on selected forward direction
             # context.scene.frame_current = 0
             if forward == "y":
@@ -1670,8 +1691,6 @@ class PrepareScene:
                 self.z_rotate_and_apply(armature, 90)
             elif forward == "x-":
                 self.z_rotate_and_apply(armature, 180)
-
-            armature.select_set(False)
 
     def set_bone_names(self, bones):
         # for bone in bones:
@@ -3362,17 +3381,10 @@ class PrepareScene:
             override['active_bone'] = b
             with context.temp_override(**override):
                 for c in b.constraints:
-                    try:
-                        c.enabled = True
-                        bpy.ops.constraint.apply(constraint=c.name, owner='BONE')
-                    except:
-                        pass
+                    c.enabled = True
+                    bpy.ops.constraint.apply(constraint=c.name, owner='BONE')
 
         bpy.ops.object.posemode_toggle()
-
-
-
-            
 
 #####################################################################################
 #####################################################################################
