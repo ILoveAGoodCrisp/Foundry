@@ -58,3 +58,8 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
     rendered: BoolProperty(default=True)
 
     active_image : bpy.props.PointerProperty(type=bpy.types.Image)
+
+    material_shader : StringProperty(
+        name="Material Shader",
+        default=r"shaders\material_shaders\materials\srf_ward.material_shader",
+    )

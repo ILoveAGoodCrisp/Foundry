@@ -531,9 +531,10 @@ def is_windows():
     return platform.system() == "Windows"
 
 
-def not_bungie_game():
-    return bpy.context.scene.nwo.game_version in ("h4", "h2a")
-
+def not_bungie_game(context=None):
+    if context is None:
+        context = bpy.context
+    return context.scene.nwo.game_version in ("h4", "h2a")
 
 def object_valid(ob, export_hidden, valid_perm="", evaluated_perm=""):
     return (

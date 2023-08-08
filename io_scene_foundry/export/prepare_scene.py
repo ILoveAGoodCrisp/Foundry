@@ -693,14 +693,15 @@ class PrepareScene:
 
         # rotate the model armature if needed
         if export_gr2_files:
-            self.fix_armature_rotation(
-                self.model_armature,
-                sidecar_type,
-                context,
-                export_animations,
-                self.current_action,
-                scene_coll,
-            )
+            if self.model_armature:
+                self.fix_armature_rotation(
+                    self.model_armature,
+                    sidecar_type,
+                    context,
+                    export_animations,
+                    self.current_action,
+                    scene_coll,
+                )
 
             # unlink current action and reset pose transforms
             if self.model_armature and self.model_armature.animation_data:

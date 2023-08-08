@@ -47,6 +47,7 @@ from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
 from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList
 from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
+from .shader_builder import NWO_ListMaterialShaders, build_shaders
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -65,6 +66,7 @@ from io_scene_foundry.utils.nwo_utils import (
     managed_blam_active,
     not_bungie_game,
     nwo_asset_type,
+    os_sep_partition,
     protected_material_name,
     set_active_object,
     set_object_mode,
@@ -127,7 +129,7 @@ class NWO_FoundryPanelProps(Panel):
     def draw(self, context):
         self.context = context
         layout = self.layout
-        self.h4 = not_bungie_game()
+        self.h4 = not_bungie_game(context)
         self.scene = context.scene
         nwo = self.scene.nwo
         if context.scene.nwo.instance_proxy_running:    
@@ -2023,6 +2025,10 @@ class NWO_FoundryPanelProps(Panel):
                     row = box.row()
                     tag_type = "Material" if h4 else "Shader"
                     row.operator("nwo.build_shader_single", text=f"Generate {tag_type} Tag", icon_value=get_icon_id("material_exporter"))
+                    if h4:
+                        row = box.row(align=True)
+                        row.prop(nwo, "material_shader", text="Material Shader")
+                        row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
 
             else:
                 if self.bl_idname == "NWO_PT_MaterialPanel":
@@ -4742,11 +4748,10 @@ class NWO_Shader_BuildSingle(Operator):
         return valid_nwo_asset(context) and context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
     
     def execute(self, context):
-        from .shader_builder import build_shaders
-
         return build_shaders(context,
             context.object.active_material,
             self.report,
+            context.object.active_material.nwo.material_shader if not_bungie_game(context) else ".shader",
             True,
         )
     
@@ -4940,6 +4945,7 @@ classeshalo = (
     NWO_ArmatureCreatorPropertiesGroup,
     # NWO_Material,
     # NWO_Shader,
+    NWO_ListMaterialShaders,
     NWO_Shader_Build,
     NWO_Shader_BuildSingle,
     NWO_ShaderPropertiesGroup,

@@ -25,10 +25,11 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_tag_and_path
+from io_scene_foundry.managed_blam.mb_utils import block_new_element_by_name, field_set_value_by_name, get_bungie, get_tag_and_path, get_tag_path
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_asset_path,
+    get_data_path,
     get_tags_path,
     get_valid_shader_name,
     managed_blam_active,
@@ -45,6 +46,7 @@ import subprocess
 import ctypes
 
 class ManagedBlam():
+    """Helper class for loading and saving tags"""
     def __init__(self):
         if not managed_blam_active():
             bpy.ops.managed_blam.init()
@@ -53,10 +55,14 @@ class ManagedBlam():
         self.read_only = False
 
     def get_path(self): # stub
+        print("get_path stub called")
         return ""
 
     def tag_edit(self, tag): # stub
-        pass
+        print("tag_edit stub called")
+
+    def tag_read(self, tag): # stub
+        print("tag_read stub called")
 
     def tag_helper(self):
         self.tag_is_new = False
@@ -309,23 +315,27 @@ class ManagedBlamGetModelVariants(ManagedBlam):
             self.variants.append(var)
 
 class ManagedBlamNewShader(ManagedBlam):
-    def __init__(self, blender_material, is_reach):
+    def __init__(self, blender_material, is_reach, shader_type):
         super().__init__()
         self.blender_material = blender_material
         self.is_reach = is_reach
+        self.shader_type = shader_type
         self.tag_helper()
 
     def get_path(self):
         asset_path = get_asset_path()
         shaders_dir = os.path.join(asset_path, "shaders" if self.is_reach else "materials")
         shader_name = get_valid_shader_name(self.blender_material)
-        tag_ext = ".shader" if self.is_reach else ".material"
+        tag_ext = self.shader_type if self.is_reach else ".material"
         shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
 
         return shader_path
 
     def tag_edit(self, tag):
-
+        if self.is_reach:
+            self.shader_tag_edit(tag)
+        else:
+            self.material_tag_edit(tag)
         # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
         # parameters = field
         # for index, p in enumerate(self.parameters):
@@ -343,6 +353,78 @@ class ManagedBlamNewShader(ManagedBlam):
         #     bitmap = field
         #     bitmap.Reference.Path = get_tag_and_path(Bungie, p.bitmap)
         pass
+
+    def material_tag_edit(self, tag):
+        reference_material_shader = tag.SelectField("Reference:material shader")
+        reference_material_shader.Reference.Path = get_tag_path(self.Bungie, self.shader_type)  # default = r"shaders\material_shaders\materials\srf_blinn.material_shader"
+        # Get diffuse input
+        node_tree = bpy.data.materials[self.blender_material].node_tree
+        shader_node = self.get_blender_shader(node_tree)
+        diffuse_map = self.get_diffuse_map(shader_node)
+        tag.SelectField("Block:material parameters").RemoveAllElements()
+        if diffuse_map:
+            new_element = block_new_element_by_name(tag, "Block:material parameters")
+            field_set_value_by_name(new_element, "parameter name", "color_map")
+            field_set_value_by_name(new_element, "parameter type", "bitmap")
+            field_set_value_by_name(new_element, "bitmap", diffuse_map)
+            # field_set_value_by_name(new_element, "bitmap path", r"shaders/default_bitmaps/bitmaps/default_diff.tif")
+            field_set_value_by_name(new_element, "bitmap flags", "1") # sets override
+            field_set_value_by_name(new_element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
+
+
+    def get_blender_shader(self, node_tree):
+        output = None
+        shaders = []
+        for node in node_tree.nodes:
+            if node.type == "OUTPUT_MATERIAL":
+                output = node
+            elif node.type.startswith("BSDF"):
+                shaders.append(node)
+        # Get the shader plugged into the output
+        if output is None:
+            print("Material has no output")
+            return
+        for s in shaders:
+            if s.outputs[0].links[0].to_node == output:
+                return s
+        else:
+            print("No shader found connected to output")
+            return
+
+
+    def get_diffuse_map(self, shader):
+        color_input = None
+        image_node = None
+        bitmap = None
+        for i in shader.inputs:
+            if i.name.lower().endswith("color"):
+                color_input = i
+                break
+        else:
+            return
+        
+        if color_input.links[0].from_node.type == 'TEX_IMAGE':
+            image_node = color_input.links[0].from_node
+        else:
+            return
+        
+        image = image_node.image
+        nwo = image.nwo
+        if nwo.filepath:
+            bitmap = dot_partition(nwo.filepath) + ".bitmap"
+        elif image.filepath:
+            bitmap = dot_partition(image.filepath.replace(get_data_path(), "")) + ".bitmap"
+        else:
+            print("No Tiff path")
+
+        if os.path.exists(get_tags_path() + bitmap):
+            return bitmap
+        
+        print("Bitmap does not exist")
+
+
+                
+
 
 class ManagedBlamNewBitmap(ManagedBlam):
     def __init__(self, bitmap_name, bitmap_type):
