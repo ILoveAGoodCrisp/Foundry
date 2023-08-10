@@ -115,6 +115,8 @@ class ManagedBlam():
         match field_type_str:
             case "StringId":
                 field.SetStringData(value)
+            case "ShortInteger":
+                field.SetStringData(value)
             case "LongEnum":
                 field.SetValue(value)
             case "Reference":
@@ -139,6 +141,11 @@ class ManagedBlam():
             return [i.EnumName for i in field.Items]
         else:
             return print("Given field is not an Enum")
+        
+    def clear_block_and_set_by_name(self, parent, block_name):
+        block = parent.SelectField(block_name)
+        block.RemoveAllElements()
+        return block.AddElement()
 
 class ManagedBlam_Init(Operator):
     """Initialises Managed Blam and locks the currently selected game"""

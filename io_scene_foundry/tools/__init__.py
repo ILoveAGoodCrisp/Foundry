@@ -4748,10 +4748,11 @@ class NWO_Shader_BuildSingle(Operator):
         return valid_nwo_asset(context) and context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
     
     def execute(self, context):
+        nwo = context.object.active_material.nwo
         return build_shaders(context,
             context.object.active_material,
             self.report,
-            context.object.active_material.nwo.material_shader if not_bungie_game(context) else ".shader",
+            nwo.material_shader if not_bungie_game(context) else nwo.shader_type,
             True,
         )
     

@@ -61,5 +61,29 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
 
     material_shader : StringProperty(
         name="Material Shader",
-        default=r"shaders\material_shaders\materials\srf_ward.material_shader",
+        description="Tag relative path to a material shader. Generated material tag will use this material shader"
+    )
+
+    shader_type_items = [
+        (".shader", "Default", ""),
+        (".shader_cortana", "Cortana", ""),
+        (".shader_custom", "Custom", ""),
+        (".shader_decal", "Decal", ""),
+        (".shader_foliage", "Foliage", ""),
+        (".shader_fur", "Fur", ""),
+        (".shader_fur_stencil", "Fur Stencil", ""),
+        (".shader_glass", "Glass", ""),
+        (".shader_halogram", "Halogram", ""),
+        (".shader_mux", "Mux", ""),
+        (".shader_mux_material", "Mux Material", ""),
+        (".shader_screen", "Screen", ""),
+        (".shader_skin", "Skin", ""),
+        (".shader_terrain", "Terrain", ""),
+        (".shader_water", "Water", ""),
+    ]
+
+    shader_type : bpy.props.EnumProperty(
+        name="Shader Type",
+        description="Type of shader to generate",
+        items=shader_type_items,
     )

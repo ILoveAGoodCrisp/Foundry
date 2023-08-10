@@ -48,27 +48,54 @@ class ManagedBlamNewShader(ManagedBlam):
         return shader_path
 
     def tag_edit(self, tag):
+        # Get diffuse input
+        self.set_maps()
         if self.is_reach:
             self.shader_tag_edit(tag)
         else:
             self.material_tag_edit(tag)
 
+    def shader_tag_edit(self, tag):
+        struct_render_method = tag.SelectField("Struct:render_method").Elements[0]
+        if self.shader_type == ".shader":
+            # Set up shader options
+            block_options = struct_render_method.SelectField("options")
+            # Set albedo to default
+            self.field_set_value_by_name(block_options.Elements[0], "short", "0")
+            # Set bump_mapping to standard
+            self.field_set_value_by_name(block_options.Elements[1], "short", "1")
+            # Set up shader parameters
+            block_parameters = struct_render_method.SelectField("parameters")
+            block_parameters.RemoveAllElements()
+            if self.diffuse_map:
+                new_element = block_parameters.AddElement()
+                self.field_set_value_by_name(new_element, "parameter name", "base_map")
+                self.field_set_value_by_name(new_element, "parameter type", "bitmap")
+                self.field_set_value_by_name(new_element, "bitmap", self.diffuse_map)
+                self.field_set_value_by_name(new_element, "bitmap flags", "1") # sets override
+                self.field_set_value_by_name(new_element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
+
+
     def material_tag_edit(self, tag):
+        if not self.shader_type:
+            self.shader_type = r"shaders\material_shaders\materials\srf_ward.material_shader"
         reference_material_shader = tag.SelectField("Reference:material shader")
-        reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type)  # default = r"shaders\material_shaders\materials\srf_blinn.material_shader"
-        # Get diffuse input
-        node_tree = bpy.data.materials[self.blender_material].node_tree
-        shader_node = self.get_blender_shader(node_tree)
-        diffuse_map = self.get_diffuse_map(shader_node)
-        tag.SelectField("Block:material parameters").RemoveAllElements()
-        if diffuse_map:
-            new_element = self.block_new_element_by_name(tag, "Block:material parameters")
+        reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type)
+        block_material_parameters = tag.SelectField("Block:material parameters")
+        block_material_parameters.RemoveAllElements()
+        if self.diffuse_map:
+            new_element = block_material_parameters.AddElement()
             self.field_set_value_by_name(new_element, "parameter name", "color_map")
             self.field_set_value_by_name(new_element, "parameter type", "bitmap")
-            self.field_set_value_by_name(new_element, "bitmap", diffuse_map)
+            self.field_set_value_by_name(new_element, "bitmap", self.diffuse_map)
             # field_set_value_by_name(new_element, "bitmap path", r"shaders/default_bitmaps/bitmaps/default_diff.tif")
             self.field_set_value_by_name(new_element, "bitmap flags", "1") # sets override
             self.field_set_value_by_name(new_element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
+
+    def set_maps(self):
+        node_tree = bpy.data.materials[self.blender_material].node_tree
+        shader_node = self.get_blender_shader(node_tree)
+        self.diffuse_map = self.get_diffuse_map(shader_node)
 
     def get_blender_shader(self, node_tree):
         output = None
@@ -96,7 +123,10 @@ class ManagedBlamNewShader(ManagedBlam):
         for i in shader.inputs:
             if i.name.lower().endswith("color"):
                 color_input = i
-                break
+                if color_input.links:
+                    break
+                else:
+                    return
         else:
             return
         
