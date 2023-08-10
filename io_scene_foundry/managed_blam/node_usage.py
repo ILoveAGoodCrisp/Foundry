@@ -134,9 +134,8 @@ class ManagedBlamNodeUsage(ManagedBlam):
         element_index = -1
         for k, v in self.node_usage_dict.items():
             if v in node_index_list:
-                node_usages.AddElement()
-                element_index += 1
-                usage = node_usages.Elements[element_index].SelectField("usage")
+                new_element = node_usages.AddElement()
+                usage = new_element.SelectField("usage")
                 node = node_usages.Elements[element_index].SelectField("node to use")
                 items = [i.EnumName for i in usage.Items]
                 usage.Value = items.index(k)

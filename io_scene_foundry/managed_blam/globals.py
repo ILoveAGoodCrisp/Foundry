@@ -24,13 +24,24 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import bpy
-from io_scene_foundry.managed_blam.globals import ManagedBlamGetGlobalMaterials
+from io_scene_foundry.managed_blam import ManagedBlam
+import os
 
-class NWO_GetGlobalMaterials(bpy.types.Operator):
-    bl_label = "Global Materials Get"
-    bl_idname = "nwo.get_global_materials"
+class ManagedBlamGetGlobalMaterials(ManagedBlam):
+    def __init__(self):
+        super().__init__()
+        self.read_only = True
+        self.tag_helper()
 
-    def execute(self, context):
-        materials = ManagedBlamGetGlobalMaterials()
-        return {'FINISHED'}
+    def get_path(self):
+        globals_path = os.path.join("globals", "globals.globals")
+        return globals_path
+    
+    def tag_read(self, tag):
+        global_materials = []
+        blocks = tag.SelectField("Block:materials")
+        for element in blocks:
+            field = element.SelectField("name")
+            global_materials.append(field.GetStringData())
+
+        self.global_materials = global_materials

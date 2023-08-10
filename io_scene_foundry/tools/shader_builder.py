@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 import bpy
 import os
-from io_scene_foundry.managed_blam import ManagedBlam, ManagedBlamNewShader
+from io_scene_foundry.managed_blam.shaders import ManagedBlamNewShader
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_asset_path,

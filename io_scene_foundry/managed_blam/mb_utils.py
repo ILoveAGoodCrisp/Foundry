@@ -41,52 +41,9 @@ def get_tag_and_path(Bungie, user_path):
 
     return tag, tag_path
 
-def get_tag_path(Bungie, user_path):
-    """Return the bungie tag path for tag creation"""
-    relative_path, tag_ext = get_path_and_ext(user_path)
-    tag_path = Bungie.Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
-
-    return tag_path
-
-
 def get_path_and_ext(user_path):
     """Splits a file path into path and extension"""
     return user_path.rpartition(".")[0], user_path.rpartition(".")[2]
-
-
-# ELMENTS
-
-def block_new_element(block):
-    """Create a new tag element in the given block and returns the element"""
-    block.AddElement()
-    index = len(block.Elements) - 1
-    return block[index]
-
-def block_new_element_by_name(parent, block_name):
-    """Create a new tag element in the given block and returns the element"""
-    block = parent.SelectField(block_name)
-    block.AddElement()
-    index = block.Elements.Count - 1
-    return block.Elements[index]
-
-# Set Values
-def field_set_value(field, value):
-    """Sets the string value of the given field - Supports StringIDs"""
-    return
-
-def field_set_value_by_name(element, field_name: str, value):
-    """Sets the string value of the given field - Supports StringIDs"""
-    field = element.SelectField(field_name)
-    field_type_str = str(field.FieldType)
-    match field_type_str:
-        case "StringId":
-            field.SetStringData(value)
-        case "LongEnum":
-            field.SetValue(value)
-        case "Reference":
-            field.Path = get_tag_path(get_bungie(), value)
-        case "WordInteger":
-            field.SetStringData(value)
 
 # Tag Field Types ENUMs
 # 0 String

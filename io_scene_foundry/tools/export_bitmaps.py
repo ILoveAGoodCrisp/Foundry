@@ -26,7 +26,7 @@
 
 import os
 import bpy
-from io_scene_foundry.managed_blam import ManagedBlamNewBitmap
+from io_scene_foundry.managed_blam.bitmaps import ManagedBlamNewBitmap
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_asset_info,
@@ -69,6 +69,7 @@ def save_image_as(image, path, tiff_name):
     settings.color_mode = "RGBA"
     settings.color_depth = "16"
     settings.tiff_codec = "LZW"
+    settings.color_management
     path = os.path.join(path, tiff_name)
     image.save_render(filepath=path, scene=scene)
     bpy.data.scenes.remove(scene)

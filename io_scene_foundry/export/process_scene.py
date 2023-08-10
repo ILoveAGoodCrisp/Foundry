@@ -33,6 +33,7 @@ import multiprocessing
 import threading
 
 from io_scene_foundry.managed_blam.node_usage import ManagedBlamNodeUsage
+from io_scene_foundry.managed_blam.objects import ManagedBlamModelOverride, ManagedBlamSetStructureMetaRef
 from .format_json import NWOJSON
 from ..utils.nwo_utils import (
     data_relative,
@@ -1153,18 +1154,13 @@ class ProcessScene:
             "-----------------------------------------------------------------------\n"
         )
         
-        # Start ManagedBlam if it is not already running
-        if not managed_blam_active():
-            bpy.ops.managed_blam.init()
-            print("Initialising ManagedBlam DONE\n")
-        
         # If this model has lighting, add a reference to the structure_meta tag in the render_model
         if h4_model_lighting:
             job = "Adding Structure Meta Reference to Render Model"
             meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
             update_job(job, 0)
             disable_prints()
-            bpy.ops.managed_blam.render_structure_meta(structure_meta=meta_path)
+            ManagedBlamSetStructureMetaRef(meta_path)
             enable_prints()
             update_job(job, 1)
 
@@ -1173,15 +1169,7 @@ class ProcessScene:
             job = "Applying Model Overrides"
             update_job(job, 0)
             disable_prints()
-            if not managed_blam_active():
-                bpy.ops.managed_blam.init()
-            
-            bpy.ops.managed_blam.new_model_override(
-                render_model=nwo.render_model_path,
-                collision_model=nwo.collision_model_path,
-                physics_model=nwo.physics_model_path,
-                model_animation_graph=nwo.animation_graph_path,
-                )
+            ManagedBlamModelOverride(nwo.render_model_pat, nwo.collision_model_path, nwo.physics_model_path, nwo.animation_graph_path)
             enable_prints()
             update_job(job, 1)
 
@@ -1189,7 +1177,7 @@ class ProcessScene:
         if node_usage_set:
             job = "Setting Animation Node Usages"
             update_job(job, 0)
-            #disable_prints()
+            disable_prints()
             ManagedBlamNodeUsage(nwo_scene.model_armature)
             enable_prints()
             update_job(job, 1)

@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 import bpy
 import os
-from io_scene_foundry.managed_blam import ManagedBlamGetModelFromObject, ManagedBlamGetModelVariants
+from io_scene_foundry.managed_blam.objects import ManagedBlamGetModelFromObject, ManagedBlamGetModelVariants
 
 from io_scene_foundry.utils.nwo_utils import get_tags_path
 

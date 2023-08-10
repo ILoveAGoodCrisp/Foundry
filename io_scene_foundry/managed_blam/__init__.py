@@ -24,14 +24,14 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from gc import enable
 from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.managed_blam.mb_utils import block_new_element_by_name, field_set_value_by_name, get_bungie, get_tag_and_path, get_tag_path
+from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_path_and_ext, get_tag_and_path
 from io_scene_foundry.utils.nwo_utils import (
-    dot_partition,
+    disable_prints,
     get_asset_path,
     get_data_path,
     get_tags_path,
-    get_valid_shader_name,
     managed_blam_active,
     not_bungie_game,
     print_warning,
@@ -51,8 +51,18 @@ class ManagedBlam():
         if not managed_blam_active():
             bpy.ops.managed_blam.init()
 
-        self.path = ""
-        self.read_only = False
+        # Asset Info
+        self.tags_dir = get_tags_path() # full path to tags dir + \
+        self.data_dir = get_data_path() # full path to data dir + \
+        self.asset_dir = get_asset_path() # the relative path to the asset directory
+        self.asset_name = self.asset_dir.rpartition(os.sep)[2] # the name of the asset (i.e the directory name)
+        self.asset_tag_dir = self.tags_dir + self.asset_dir # full path to the asset data directory
+        self.asset_data_dir = self.data_dir + self.asset_dir # full path to the asset tags directory
+        self.corinth = not_bungie_game() # bool to check whether the game is H4+
+        # Tag Info
+        self.path = "" # String to hold the tag relative path to the tag we're editing/reading
+        self.read_only = False # Bool to check whether tag should be opened in Read Only mode (i.e. never saved)
+        self.tag_is_new = False # Set to True when a tag needs to be created. Not set True if in read_only mode
 
     def get_path(self): # stub
         print("get_path stub called")
@@ -65,7 +75,6 @@ class ManagedBlam():
         print("tag_read stub called")
 
     def tag_helper(self):
-        self.tag_is_new = False
         if not self.path:
             self.path = self.get_path()
 
@@ -91,6 +100,45 @@ class ManagedBlam():
         finally:
             tag.Dispose()
 
+    
+    # TAG HELPER FUNCTIONS
+    #######################
+    def block_new_element_by_name(self, parent, block_name: str):
+        """Creates a new element in the named block and returns the element"""
+        block = parent.SelectField(block_name)
+        return block.AddElement()
+    
+    def field_set_value_by_name(self, element, field_name: str, value):
+        """Sets the value of the given field by name. Requires the tag element to be specified as the first arg. Returns the field"""
+        field = element.SelectField(field_name)
+        field_type_str = str(field.FieldType)
+        match field_type_str:
+            case "StringId":
+                field.SetStringData(value)
+            case "LongEnum":
+                field.SetValue(value)
+            case "Reference":
+                field.Path = self.TagPath_from_string(value)
+            case "WordInteger":
+                field.SetStringData(value)
+
+        return field
+    
+    def TagPath_from_string(self, relative_path: str):
+        """Returns a Bungie TagPath from the given tag relative filepath. Filepath must include file extension"""
+        relative_path, tag_ext = get_path_and_ext(relative_path)
+        return self.Bungie.Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
+    
+    def tag_exists(self, relative_path: str) -> bool:
+        """Returns if a tag given by the supplied relative path exists"""
+        return os.path.exists(self.tags_dir + relative_path)
+    
+    def EnumItems_by_name(self, element, field_name: str) -> list:
+        field = element.SelectField(field_name)
+        if str(field.Type).endswith("Enum"): 
+            return [i.EnumName for i in field.Items]
+        else:
+            return print("Given field is not an Enum")
 
 class ManagedBlam_Init(Operator):
     """Initialises Managed Blam and locks the currently selected game"""
@@ -190,41 +238,6 @@ class ManagedBlam_Init(Operator):
                     nwo_globals.mb_path = mb_path
 
             return {"FINISHED"}
-            
-
-class ManagedBlamTag(Operator):
-    bl_options = {"REGISTER"}
-
-    path : StringProperty()
-
-    def get_path(self): # stub
-        return ""
-
-    def tag_edit(self, context, tag): # stub
-        pass
-
-    def execute(self, context):
-        if not self.path:
-            self.path = self.get_path()
-
-        self.system_path = get_tags_path() + self.path
-
-        self.Bungie = get_bungie(self.report)
-        self.tag, self.tag_path = get_tag_and_path(self.Bungie, self.path)
-        tag = self.tag
-        try:
-            if os.path.exists(self.system_path):
-                tag.Load(self.tag_path)
-            else:
-                tag.New(self.tag_path)
-
-            self.tag_edit(context, tag)
-            tag.Save()
-
-        finally:
-            tag.Dispose()
-
-        return {'FINISHED'}
 
 class ManagedBlam_Close(Operator):
     """Closes Managed Blam"""
@@ -237,419 +250,10 @@ class ManagedBlam_Close(Operator):
         Bungie = get_bungie(self.report)
         Bungie.ManagedBlamSystem.Stop()
         return {"FINISHED"}
-    
-class ManagedBlamGetGlobalMaterials(ManagedBlam):
-    def __init__(self):
-        super().__init__()
-        self.read_only = True
-        self.tag_helper()
-
-    def get_path(self):
-        globals_path = os.path.join("globals", "globals.globals")
-        return globals_path
-    
-    def tag_read(self, tag):
-        global_materials = []
-        blocks = tag.SelectField("Block:materials")
-        for element in blocks:
-            field = element.SelectField("name")
-            global_materials.append(field.GetStringData())
-
-        self.global_materials = global_materials
-
-class ManagedBlamGetNodeOrder(ManagedBlam):
-    def __init__(self, tag_path, is_animation_graph=False):
-        super().__init__()
-        self.read_only = True
-        self.path = tag_path
-        self.is_anim_graph = is_animation_graph
-        self.tag_helper()
-    
-    def tag_read(self, tag):
-        self.nodes = []
-        if self.is_anim_graph:
-            nodes_block = tag.SelectField("Struct:definitions[0]/Block:skeleton nodes")
-        else:
-            nodes_block = tag.SelectField("Block:nodes")
-
-        for element in nodes_block:
-            node_name = element.SelectField("name").GetStringData()
-            self.nodes.append(node_name)
-
-class ManagedBlamGetModelFromObject(ManagedBlam):
-    def __init__(self, tag_path):
-        super().__init__()
-        self.read_only = True
-        self.path = tag_path
-        self.tag_helper()
-    
-    def tag_read(self, tag):
-        # Find the object struct
-        first_struct = tag.Fields[0]
-        if first_struct.DisplayName == "object":
-            object_struct = first_struct
-        else:
-            object_struct = first_struct.Elements[0].Fields[0]
-
-        model_field = tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
-        model_path = model_field.Path
-        if model_path:
-            self.model_tag_path = model_path.RelativePathWithExtension
-        else:
-            print(f"{self.path} has no model reference")
-            self.model_tag_path = None
-
-class ManagedBlamGetModelVariants(ManagedBlam):
-    def __init__(self, tag_path):
-        super().__init__()
-        self.read_only = True
-        self.path = tag_path
-        self.tag_helper()
-    
-    def tag_read(self, tag):
-        self.variants = []
-        # Select the variants block
-        variants_block = tag.SelectField("Block:variants")
-        for element in variants_block:
-            var = element.SelectField("name").GetStringData()
-            self.variants.append(var)
-
-class ManagedBlamNewShader(ManagedBlam):
-    def __init__(self, blender_material, is_reach, shader_type):
-        super().__init__()
-        self.blender_material = blender_material
-        self.is_reach = is_reach
-        self.shader_type = shader_type
-        self.tag_helper()
-
-    def get_path(self):
-        asset_path = get_asset_path()
-        shaders_dir = os.path.join(asset_path, "shaders" if self.is_reach else "materials")
-        shader_name = get_valid_shader_name(self.blender_material)
-        tag_ext = self.shader_type if self.is_reach else ".material"
-        shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
-
-        return shader_path
-
-    def tag_edit(self, tag):
-        if self.is_reach:
-            self.shader_tag_edit(tag)
-        else:
-            self.material_tag_edit(tag)
-        # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
-        # parameters = field
-        # for index, p in enumerate(self.parameters):
-        #     parameters.AddElement()
-
-        #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/StringId:parameter name")
-        #     name = field
-        #     type.SetStringData(p.name)
-
-        #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/LongEnum:parameter type")
-        #     type = field
-        #     type.SetStringData(p.name)
-
-        #     field = tag.SelectField(f"Struct:render_method[0]/Block:parameters[{index}]/Reference:bitmap")
-        #     bitmap = field
-        #     bitmap.Reference.Path = get_tag_and_path(Bungie, p.bitmap)
-        pass
-
-    def material_tag_edit(self, tag):
-        reference_material_shader = tag.SelectField("Reference:material shader")
-        reference_material_shader.Reference.Path = get_tag_path(self.Bungie, self.shader_type)  # default = r"shaders\material_shaders\materials\srf_blinn.material_shader"
-        # Get diffuse input
-        node_tree = bpy.data.materials[self.blender_material].node_tree
-        shader_node = self.get_blender_shader(node_tree)
-        diffuse_map = self.get_diffuse_map(shader_node)
-        tag.SelectField("Block:material parameters").RemoveAllElements()
-        if diffuse_map:
-            new_element = block_new_element_by_name(tag, "Block:material parameters")
-            field_set_value_by_name(new_element, "parameter name", "color_map")
-            field_set_value_by_name(new_element, "parameter type", "bitmap")
-            field_set_value_by_name(new_element, "bitmap", diffuse_map)
-            # field_set_value_by_name(new_element, "bitmap path", r"shaders/default_bitmaps/bitmaps/default_diff.tif")
-            field_set_value_by_name(new_element, "bitmap flags", "1") # sets override
-            field_set_value_by_name(new_element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
-
-
-    def get_blender_shader(self, node_tree):
-        output = None
-        shaders = []
-        for node in node_tree.nodes:
-            if node.type == "OUTPUT_MATERIAL":
-                output = node
-            elif node.type.startswith("BSDF"):
-                shaders.append(node)
-        # Get the shader plugged into the output
-        if output is None:
-            print("Material has no output")
-            return
-        for s in shaders:
-            if s.outputs[0].links[0].to_node == output:
-                return s
-        else:
-            print("No shader found connected to output")
-            return
-
-
-    def get_diffuse_map(self, shader):
-        color_input = None
-        image_node = None
-        bitmap = None
-        for i in shader.inputs:
-            if i.name.lower().endswith("color"):
-                color_input = i
-                break
-        else:
-            return
-        
-        if color_input.links[0].from_node.type == 'TEX_IMAGE':
-            image_node = color_input.links[0].from_node
-        else:
-            return
-        
-        image = image_node.image
-        nwo = image.nwo
-        if nwo.filepath:
-            bitmap = dot_partition(nwo.filepath) + ".bitmap"
-        elif image.filepath:
-            bitmap = dot_partition(image.filepath.replace(get_data_path(), "")) + ".bitmap"
-        else:
-            print("No Tiff path")
-
-        if os.path.exists(get_tags_path() + bitmap):
-            return bitmap
-        
-        print("Bitmap does not exist")
-
-
-                
-
-
-class ManagedBlamNewBitmap(ManagedBlam):
-    def __init__(self, bitmap_name, bitmap_type):
-        super().__init__()
-        self.bitmap_name = bitmap_name
-        self.bitmap_type = bitmap_type if bitmap_type else "default"
-        self.tag_helper()
-
-    def get_path(self):
-        asset_path = get_asset_path()
-        bitmaps_dir = os.path.join(asset_path, "bitmaps")
-        bitmap_path = os.path.join(bitmaps_dir, self.bitmap_name + ".bitmap")
-
-        return bitmap_path
-
-    def tag_edit(self, tag):
-        if self.bitmap_type == "default":
-            suffix = self.bitmap_name.rpartition("_")[2].lower()
-            print(suffix)
-            self.bitmap_type = "Diffuse Map"
-            if suffix and "_" in self.bitmap_name.strip("_"):
-                h4 = not_bungie_game()
-                if suffix.startswith(("orm", "mro", "mtr", "rmo", "control")):
-                    self.bitmap_type = "Material Map"
-                elif suffix.startswith("3d"):
-                    self.bitmap_type = "3D Texture"
-                elif suffix.startswith("blend"):
-                    self.bitmap_type = "Blend Map (linear for terrains)"
-                elif suffix.startswith("bump"):
-                    self.bitmap_type = "Bump Map (from Height Map)"
-                elif suffix.startswith(("cc", "change")):
-                    self.bitmap_type = "Change Color Map"
-                elif suffix.startswith("cube"):
-                    self.bitmap_type = "Cube Map (Reflection Map)"
-                elif suffix.startswith(("detailb", "detail_b")):
-                    self.bitmap_type = "Detail Bump Map (from Height Map - fades out)"
-                elif suffix.startswith(("detailn", "detail_n")):
-                    self.bitmap_type = "Detail Normal Map"
-                elif suffix.startswith("det"):
-                    self.bitmap_type = "Detail Map"
-                elif suffix.startswith("dsprite"):
-                    self.bitmap_type = "Sprite (Double Multiply, Gray Background)"
-                elif suffix.startswith("float"):
-                    self.bitmap_type = "Float Map (WARNING)"
-                elif suffix.startswith("height"):
-                    self.bitmap_type = "Height Map (for Parallax)"
-                elif suffix.startswith(("illum", "self", "emm")):
-                    self.bitmap_type = "Self-Illum Map"
-                elif suffix.startswith("msprite"):
-                    self.bitmap_type = "Sprite (Blend, White Background)"
-                elif suffix.startswith("spec"):
-                    self.bitmap_type = "Specular Map"
-                elif suffix.startswith("sprite"):
-                    self.bitmap_type = "Sprite (Additive, Black Background)"
-                elif suffix.startswith("ui"):
-                    self.bitmap_type = "Interface Bitmap"
-                elif suffix.startswith("vec"):
-                    self.bitmap_type = "Vector Map"
-                elif suffix.startswith("warp"):
-                    self.bitmap_type = "Warp Map (EMBM)"
-                elif suffix.startswith(("zbump", "dx_normal")):
-                    self.bitmap_type = "ZBrush Bump Map (from Bump Map)"
-                elif suffix.startswith(("nor", "nm", "nrm")):
-                    if h4:
-                        self.bitmap_type = "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"
-                    else:
-                        self.bitmap_type = "Normal Map (aka zbump)"
-
-
-        usage_enum = tag.SelectField("LongEnum:Usage")
-        usage_enum.SetValue(self.bitmap_type)
-        curve_mode = tag.SelectField("CharEnum:curve mode")
-        curve_mode.SetValue("force PRETTY")
-        override_block = tag.SelectField("Block:usage override")
-        # Check for existing usage override block so we don't overwrite
-        if not override_block.Elements.Count:
-            override_block.AddElement()
-        override_element = override_block.Elements[0]
-        reset = override_element.SelectField("reset usage override")
-        reset.RunCommand()
-        bitmap_curve = override_element.SelectField("bitmap curve")
-        if bitmap_curve.Value == 1: # 1 is xRGB
-            bitmap_curve.SetValue("sRGB (gamma 2.2)")
-        flags = override_element.SelectField("flags")
-        flags.SetBit("Ignore Curve Override", True)
-        if self.bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
-            field_set_value_by_name(override_element, "bitmap format", "DXT5 (Compressed Color + Compressed 8-bit Alpha)")
-        # flags.SetBit("Dont Allow Size Optimization", True)
-        # dicer_flags = override_element.SelectField("dicer flags")
-        # dicer_flags.SetBit("Color Grading sRGB Correction", True)
-
-class ManagedBlam_NewMaterial(ManagedBlamTag):
-    """Runs a ManagedBlam Operation"""
-
-    bl_idname = "managed_blam.new_material"
-    bl_label = "ManagedBlam"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Runs a ManagedBlam Operation"
-
-    blender_material: StringProperty(
-        default="Material",
-        name="Blender Material",
-    )
-
-    def get_path(self):
-        asset_path = get_asset_path()
-        shaders_dir = os.path.join(asset_path, "materials")
-        shader_name = get_valid_shader_name(self.blender_material)
-        shader_path = os.path.join(shaders_dir, shader_name + ".material")
-
-        return shader_path
-
-    def tag_edit(self, context, tag):
-        pass
-
-
-class ManagedBlam_NewBitmap(ManagedBlamTag):
-    """Runs a ManagedBlam Operation"""
-
-    bl_idname = "managed_blam.new_bitmap"
-    bl_label = "ManagedBlam"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Runs a ManagedBlam Operation"
-
-    bitmap_name: StringProperty(
-        default="bitmap",
-        name="Bitmap",
-    )
-
-    bitmap_type: StringProperty(
-        default="bitmap",
-        name="Bitmap",
-    )
-
-    def get_path(self):
-        asset_path = get_asset_path()
-        bitmaps_dir = os.path.join(asset_path, "bitmaps")
-        bitmap_path = os.path.join(bitmaps_dir, self.bitmap_name + ".bitmap")
-
-        return bitmap_path
-
-    def tag_edit(self, context, tag):
-        pass
-        # field = tag.SelectField("Struct:render_method[0]/Block:parameters")
-        # bitmap_type = field
-        # # type.SetStringData(p.name)
-    
-class ManagedBlam_ModelOverride(ManagedBlamTag):
-    """Runs a ManagedBlam Operation"""
-
-    bl_idname = "managed_blam.new_model_override"
-    bl_label = "ManagedBlam"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Runs a ManagedBlam Operation"
-
-    render_model: StringProperty()
-    collision_model: StringProperty()
-    physics_model: StringProperty()
-    model_animation_graph: StringProperty()
-
-    def get_path(self):
-        asset_path = get_asset_path()
-        asset_name = asset_path.rpartition(os.sep)[2]
-        model_path = os.path.join(asset_path, asset_name + ".model")
-
-        return model_path
-
-    def tag_edit(self, context, tag):
-        if self.render_model and os.path.exists(os.path.join(get_tags_path() + self.render_model)):
-            _, new_tag_ref = get_tag_and_path(self.Bungie, self.render_model)
-            field = tag.SelectField("Reference:render model")
-            render_model = field
-            render_model.Path = new_tag_ref
-
-        if self.collision_model and os.path.exists(os.path.join(get_tags_path() + self.collision_model)):
-            _, new_tag_ref = get_tag_and_path(self.Bungie, self.collision_model)
-            field = tag.SelectField("Reference:collision model")
-            collision_model = field
-            collision_model.Path = new_tag_ref
-
-        if self.model_animation_graph and os.path.exists(os.path.join(get_tags_path() + self.model_animation_graph)):
-            _, new_tag_ref = get_tag_and_path(self.Bungie, self.model_animation_graph)
-            field = tag.SelectField("Reference:animation")
-            model_animation_graph = field
-            model_animation_graph.Path = new_tag_ref
-            
-        if self.physics_model and os.path.exists(os.path.join(get_tags_path() + self.physics_model)):
-            _, new_tag_ref = get_tag_and_path(self.Bungie, self.physics_model)
-            field = tag.SelectField("Reference:physics_model")
-            physics_model = field
-            physics_model.Path = new_tag_ref
-
-class ManagedBlam_RenderStructureMeta(ManagedBlamTag):
-    """Runs a ManagedBlam Operation"""
-
-    bl_idname = "managed_blam.render_structure_meta"
-    bl_label = "ManagedBlam"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Runs a ManagedBlam Operation"
-
-    structure_meta: StringProperty()
-
-    def get_path(self):
-        asset_path = get_asset_path()
-        asset_name = asset_path.rpartition(os.sep)[2]
-        model_path = os.path.join(asset_path, asset_name + ".render_model")
-
-        return model_path
-
-    def tag_edit(self, context, tag):
-        if self.structure_meta and os.path.exists(os.path.join(get_tags_path() + self.structure_meta)):
-            _, new_tag_ref = get_tag_and_path(self.Bungie, self.structure_meta)
-            field = tag.SelectField("Reference:structure meta data")
-            structure_meta = field
-            structure_meta.Path = new_tag_ref
-
 
 classeshalo = (
     ManagedBlam_Init,
     ManagedBlam_Close,
-    # ManagedBlam_NewShader,
-    # ManagedBlam_NewMaterial,
-    ManagedBlam_NewBitmap,
-    ManagedBlam_ModelOverride,
-    ManagedBlam_RenderStructureMeta,
 )
 
 def register():

@@ -25,12 +25,11 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.managed_blam import ManagedBlamGetGlobalMaterials
+from io_scene_foundry.managed_blam.globals import ManagedBlamGetGlobalMaterials
 from .templates import NWO_Op, NWO_Op_Path, NWO_PropPanel
 from ..utils.nwo_utils import (
     bpy_enum_list,
     export_objects_no_arm,
-    get_tags_path,
     is_linked,
     not_bungie_game,
     sort_alphanum,

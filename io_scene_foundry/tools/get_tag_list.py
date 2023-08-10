@@ -26,7 +26,7 @@
 
 import bpy
 import os
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_ek_path, get_tags_path, not_bungie_game, os_sep_partition
+from io_scene_foundry.utils.nwo_utils import get_ek_path, get_tags_path, not_bungie_game, os_sep_partition
 
 global_items = []
 

@@ -38,3 +38,6 @@ mb_active = False
 nwo_scene_settings = {}
 export_report = {}
 foundry_output_state = True
+
+# Debugging
+debug = False
