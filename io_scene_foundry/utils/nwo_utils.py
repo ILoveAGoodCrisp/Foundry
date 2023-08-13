@@ -1999,3 +1999,13 @@ def set_object_mode(context):
 
 def get_prefs():
     return bpy.context.preferences.addons["io_scene_foundry"].preferences
+
+def is_halo_node(node: bpy.types.Node, valid_inputs: list) -> bool:
+    """Given a Node and a list of valid inputs (each a string), checks if the given Node has exactly the inputs supplied"""
+    inputs = node.inputs
+    if len(inputs) != len(valid_inputs):
+        return False
+    for i in node.inputs:
+        if i.name in valid_inputs: continue
+        return False
+    return True

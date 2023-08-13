@@ -24,78 +24,198 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.managed_blam import ManagedBlam
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_valid_shader_name
+from io_scene_foundry import managed_blam
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_valid_shader_name, is_halo_node
 import os
 import bpy
 
+HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 
-class ManagedBlamNewShader(ManagedBlam):
-    def __init__(self, blender_material, is_reach, shader_type):
+class ManagedBlamNewShader(managed_blam.ManagedBlam):
+    def __init__(self, blender_material, shader_type, linked_to_blender):
         super().__init__()
         self.blender_material = blender_material
-        self.is_reach = is_reach
         self.shader_type = shader_type
+        self.linked_to_blender = linked_to_blender
         self.tag_helper()
 
     def get_path(self):
         asset_path = get_asset_path()
-        shaders_dir = os.path.join(asset_path, "shaders" if self.is_reach else "materials")
+        shaders_dir = os.path.join(asset_path, "materials" if self.corinth else "shaders")
         shader_name = get_valid_shader_name(self.blender_material)
-        tag_ext = self.shader_type if self.is_reach else ".material"
+        tag_ext = ".material" if self.corinth else self.shader_type
         shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
 
         return shader_path
 
     def tag_edit(self, tag):
-        # Get diffuse input
-        self.set_maps()
-        if self.is_reach:
-            self.shader_tag_edit(tag)
-        else:
-            self.material_tag_edit(tag)
+        if self.linked_to_blender:
+            # Set up texture map dicts
+            maps = self.get_maps()
+            # Create and edit tags using dicts
+            if self.corinth:
+                self.material_tag_edit(tag, maps)
+            else:
+                self.shader_tag_edit(tag, maps)
 
-    def shader_tag_edit(self, tag):
+    def shader_tag_edit(self, tag, maps):
         struct_render_method = tag.SelectField("Struct:render_method").Elements[0]
         if self.shader_type == ".shader":
             # Set up shader options
             block_options = struct_render_method.SelectField("options")
             # Set albedo to default
-            self.field_set_value_by_name(block_options.Elements[0], "short", "0")
+            if hasattr(self, "has_diffuse"):
+                self.Element_set_field_value(block_options.Elements[0], "short", "0")
+            elif hasattr(self, "has_albedo"):
+                self.Element_set_field_value(block_options.Elements[0], "short", "2")
             # Set bump_mapping to standard
-            self.field_set_value_by_name(block_options.Elements[1], "short", "1")
+            if hasattr(self, "has_normal"):
+                self.Element_set_field_value(block_options.Elements[1], "short", "1")
+            else:
+                self.Element_set_field_value(block_options.Elements[1], "short", "0")
             # Set up shader parameters
             block_parameters = struct_render_method.SelectField("parameters")
-            block_parameters.RemoveAllElements()
-            if self.diffuse_map:
-                new_element = block_parameters.AddElement()
-                self.field_set_value_by_name(new_element, "parameter name", "base_map")
-                self.field_set_value_by_name(new_element, "parameter type", "bitmap")
-                self.field_set_value_by_name(new_element, "bitmap", self.diffuse_map)
-                self.field_set_value_by_name(new_element, "bitmap flags", "1") # sets override
-                self.field_set_value_by_name(new_element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
+            for m in maps:
+                element = self.Element_from_field_value(block_parameters, "parameter name", m['parameter name'])
+                if element is None:
+                    element = block_parameters.AddElement()
+                    if m['parameter type'] == "bitmap":
+                        self.Element_set_field_value(element, "bitmap flags", "1") # sets override
+                        self.Element_set_field_value(element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
 
+                self.Element_set_field_values(element, m)
 
-    def material_tag_edit(self, tag):
+                sub_map = m['animated parameters']
+                if not sub_map: continue
+                block_animated_parameters = element.SelectField("animated parameters")
+                for k, v in sub_map.items():
+                    new = False
+                    enum_index = self.EnumIntValue(block_animated_parameters, "type", k)
+                    if enum_index is None:
+                        sub_element = None
+                    else:
+                        sub_element = self.Element_from_field_value(block_animated_parameters, "type", enum_index)
+                        if sub_element and (v == 1 or v == 0):
+                            block_animated_parameters.RemoveElement(sub_element.ElementIndex)
+                            continue
+
+                    if sub_element is None:
+                        if v == 1 or v == 0: continue
+                        new = True
+                        sub_element = block_animated_parameters.AddElement()
+                        self.Element_set_field_value(sub_element, "type", k)
+
+                    field_animation_function = sub_element.SelectField("animation function")
+                    self.set_custom_function_values(field_animation_function, new, k, v)
+
+    def set_custom_function_values(self, element, new, k, v):
+        Value = element.Value
+        if k == 'color':
+            if new:
+                Value.ColorGraphType = managed_blam.Halo.Tags.FunctionEditorColorGraphType(2) # Sets 2-color
+            new_color = self.GameColor_from_RGB(*v)
+            Value.SetColor(0, new_color)
+            Value.SetColor(1, new_color)
+        else:
+            Value.ClampRangeMin = v
+        if new:
+            Value.MasterType = managed_blam.Halo.Tags.FunctionEditorMasterType(0) # basic type
+
+    def material_tag_edit(self, tag, maps):
         if not self.shader_type:
-            self.shader_type = r"shaders\material_shaders\materials\srf_ward.material_shader"
+            self.shader_type = self.find_best_material_shader()
         reference_material_shader = tag.SelectField("Reference:material shader")
         reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type)
         block_material_parameters = tag.SelectField("Block:material parameters")
-        block_material_parameters.RemoveAllElements()
-        if self.diffuse_map:
-            new_element = block_material_parameters.AddElement()
-            self.field_set_value_by_name(new_element, "parameter name", "color_map")
-            self.field_set_value_by_name(new_element, "parameter type", "bitmap")
-            self.field_set_value_by_name(new_element, "bitmap", self.diffuse_map)
-            # field_set_value_by_name(new_element, "bitmap path", r"shaders/default_bitmaps/bitmaps/default_diff.tif")
-            self.field_set_value_by_name(new_element, "bitmap flags", "1") # sets override
-            self.field_set_value_by_name(new_element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
+        # Set albedo to default
+        if not hasattr(self, "has_diffuse"):
+            diffuse_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'color_map')
+            if diffuse_element:
+                block_material_parameters.RemoveElement(diffuse_element.ElementIndex)
+        if not hasattr(self, "has_albedo"):
+            albedo_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'albedo_tint')
+            if albedo_element:
+                block_material_parameters.RemoveElement(albedo_element.ElementIndex)
+        # Set bump_mapping to standard
+        if not hasattr(self, "has_normal"):
+            normal_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'normal_map')
+            if normal_element:
+                block_material_parameters.RemoveElement(normal_element.ElementIndex)
+        for m in maps:
+            element = self.Element_from_field_value(block_material_parameters, "parameter name", m['parameter name'])
+            if element is None:
+                element = block_material_parameters.AddElement()
+                self.Element_set_field_value(element, "bitmap flags", "1") # sets override
+                self.Element_set_field_value(element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
 
-    def set_maps(self):
+            self.Element_set_field_values(element, m)
+
+            sub_map = m['function parameters']
+            if not sub_map: continue
+            block_function_parameters = element.SelectField("function parameters")
+            to_strip = []
+            for k, v in sub_map.items():
+                new = False
+                enum_index = self.EnumIntValue(block_function_parameters, "type", k)
+                if enum_index is None:
+                    sub_element = None
+                else:
+                    sub_element = self.Element_from_field_value(block_function_parameters, "type", enum_index)
+                    if sub_element and (v == 1 or v == 0):
+                        block_function_parameters.RemoveElement(sub_element.ElementIndex)
+                        continue
+
+                if sub_element is None:
+                    if v == 1 or v == 0: continue
+                    new = True
+                    sub_element = block_function_parameters.AddElement()
+                    self.Element_set_field_value(sub_element, "type", k)
+
+                field_animation_function = sub_element.SelectField("function")
+                self.set_custom_function_values(field_animation_function, new, k, v)
+
+                to_strip.append(k)
+
+            if k == 'color':
+                color_field = element.SelectField("color")
+                color_field.SetStringData(self.corinth_extra_mapping['color'])
+            else:
+                self.Element_set_field_values(element, self.corinth_extra_mapping)
+
+            # H4 is wierd. Function values get updated automatically when the real and vector values are set
+            # Key:
+            # real = scale u
+            # vector[0] = scale v
+            # vector[1] = offset u
+            # vector[2] = offset v
+
+            #field_animation_function = sub_element.SelectField("Custom:function")
+            #value = field_animation_function.Value
+            # Have to set the bitmap vector temporarily for some reason...
+            # self.Element_set_field_value(element, "real", str(v))
+            # self.Element_set_field_value(element, "vector", [str(v), str(v), str(v)])
+            # value.ClampRangeMin = v
+            # if new:
+            #     value.MasterType = self.Bungie.Tags.FunctionEditorMasterType(0) # basic type
+
+    def find_best_material_shader(self):
+        return r"shaders\material_shaders\materials\srf_ward.material_shader"
+
+    def get_maps(self):
+        maps = []
         node_tree = bpy.data.materials[self.blender_material].node_tree
         shader_node = self.get_blender_shader(node_tree)
-        self.diffuse_map = self.get_diffuse_map(shader_node)
+        diffuse_map = self.get_diffuse_map(shader_node)
+        if diffuse_map:
+            maps.append(diffuse_map)
+        normal_map = self.get_normal_map(shader_node)
+        if normal_map:
+            maps.append(normal_map)
+        albedo_tint = self.get_albedo_tint(shader_node)
+        if albedo_tint:
+            maps.append(albedo_tint)
+
+        return maps
 
     def get_blender_shader(self, node_tree):
         output = None
@@ -107,44 +227,148 @@ class ManagedBlamNewShader(ManagedBlam):
                 shaders.append(node)
         # Get the shader plugged into the output
         if output is None:
-            print("Material has no output")
+            #print("Material has no output")
             return
         for s in shaders:
             if s.outputs[0].links[0].to_node == output:
                 return s
         else:
-            print("No shader found connected to output")
+            #print("No shader found connected to output")
             return
 
     def get_diffuse_map(self, shader):
-        color_input = None
-        image_node = None
-        bitmap = None
+        diffuse_map = {}
+        diffuse_map['parameter name'] = 'color_map' if self.corinth else 'base_map'
+        diffuse_map['parameter type'] = "bitmap"
+        image_node = self.get_image_node(shader, "color")
+        if image_node is None:
+            return #print("Node is not image node")
+        
+        bitmap = self.get_bitmap(image_node)
+        if bitmap is None:
+            return #print("No bitmap found")
+
+        diffuse_map['bitmap'] = bitmap
+        # Check for mapping node
+        if self.corinth:
+            diffuse_map['function parameters'] = self.get_node_mapping(image_node)
+        else:
+            diffuse_map['animated parameters'] = self.get_node_mapping(image_node)
+        self.has_diffuse = True
+        return diffuse_map
+
+    def get_normal_map(self, shader):
+        normal_map = {}
+        normal_map['parameter name'] = 'normal_map' if self.corinth else 'bump_map'
+        normal_map['parameter type'] = "bitmap"
+        image_node = self.get_image_node(shader, "normal")
+        if image_node is None:
+            return #print("Node is not image node")
+        
+        bitmap = self.get_bitmap(image_node)
+        if bitmap is None:
+            return #print("No bitmap found")
+
+        normal_map['bitmap'] = bitmap
+        # Check for mapping node
+        if self.corinth:
+            normal_map['function parameters'] = self.get_node_mapping(image_node)
+        else:
+            normal_map['animated parameters'] = self.get_node_mapping(image_node)
+        self.has_normal = True
+        return normal_map
+    
+    def get_albedo_tint(self, shader):
+        albedo_tint = {}
+        albedo_tint['parameter name'] = 'albedo_tint' if self.corinth else 'albedo_color'
+        albedo_tint['parameter type'] = "color" if self.corinth else "argb color"
+        tint_parameters = {}
+        color = self.get_default_color(shader, "color")
+        if color is None: return
+        if self.corinth:
+            tint_parameters['color'] = color[:3]
+        else:
+            tint_parameters['color'] = color[:3]
+            tint_parameters['alpha'] = color[3]
+        if self.corinth:
+            albedo_tint['function parameters'] = tint_parameters
+        else:
+            albedo_tint['animated parameters'] = tint_parameters
+        if self.corinth:
+            self.corinth_extra_mapping = {}
+            self.corinth_extra_mapping['color'] = [str(color[3]), str(color[0]), str(color[1]), str(color[2])]
+        self.has_albedo = True
+        return albedo_tint
+
+
+    def get_default_color(self, shader, input_name):
         for i in shader.inputs:
-            if i.name.lower().endswith("color"):
-                color_input = i
-                if color_input.links:
+            if input_name in i.name.lower():
+                if not i.links:
+                    return i.default_value
+
+    def get_node_mapping(self, node):
+        bitmap_mapping = {}
+        self.corinth_extra_mapping = {}
+        links = node.inputs['Vector'].links
+        if not links: return
+        scale_node = links[0].from_node
+        if scale_node.type == 'MAPPING':
+            sca_x = scale_node.inputs['Scale'].default_value.x
+            sca_y = scale_node.inputs['Scale'].default_value.y
+            loc_x = scale_node.inputs['Location'].default_value.x #* self.unit_scale
+            loc_y = scale_node.inputs['Location'].default_value.y #* self.unit_scale
+            if self.corinth:
+                self.corinth_extra_mapping['real'] = str(sca_x)
+                self.corinth_extra_mapping['vector'] = [str(sca_y), str(loc_x), str(loc_y)]
+                bitmap_mapping['scale u'] = sca_x
+                bitmap_mapping['scale v'] = sca_y
+                bitmap_mapping['offset u'] = loc_x
+                bitmap_mapping['offset v'] = loc_y
+            else:
+                bitmap_mapping['scale x'] = sca_x
+                bitmap_mapping['scale y'] = sca_y
+                bitmap_mapping['translation x'] = loc_x
+                bitmap_mapping['translation y'] = loc_y
+        elif is_halo_node(scale_node, HALO_SCALE_NODE):
+            sca_x = scale_node.inputs['Scale X'].default_value
+            sca_y = scale_node.inputs['Scale Y'].default_value
+            if self.corinth:
+                self.corinth_extra_mapping['real'] = str(sca_x)
+                self.corinth_extra_mapping['vector'] = [str(sca_y), 0, 0]
+                bitmap_mapping['scale u'] = sca_x
+                bitmap_mapping['scale v'] = sca_y
+            else:
+                bitmap_mapping['scale uniform'] = scale_node.inputs['Scale Multiplier'].default_value
+                bitmap_mapping['scale x'] = sca_x
+                bitmap_mapping['scale y'] = sca_y
+
+        return bitmap_mapping
+
+    def get_bitmap(self, node):
+        image = node.image
+        nwo = image.nwo
+        if nwo.filepath:
+            bitmap = dot_partition(nwo.filepath) + ".bitmap"
+        elif image.filepath:
+            bitmap = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + ".bitmap"
+        else:
+            return #print("No Tiff path")
+        
+        if os.path.exists(self.tags_dir + bitmap):
+            return bitmap
+        
+    def get_image_node(self, shader, input_name):
+        for i in shader.inputs:
+            if input_name in i.name.lower():
+                if i.links:
+                    tex_input = i
                     break
                 else:
                     return
         else:
             return
         
-        if color_input.links[0].from_node.type == 'TEX_IMAGE':
-            image_node = color_input.links[0].from_node
-        else:
-            return
-        
-        image = image_node.image
-        nwo = image.nwo
-        if nwo.filepath:
-            bitmap = dot_partition(nwo.filepath) + ".bitmap"
-        elif image.filepath:
-            bitmap = dot_partition(image.filepath.replace(self.data_dir, "")) + ".bitmap"
-        else:
-            print("No Tiff path")
-
-        if os.path.exists(self.tags_dir + bitmap):
-            return bitmap
-        
-        print("Bitmap does not exist")
+        node = tex_input.links[0].from_node
+        if node.type == 'TEX_IMAGE':
+            return node

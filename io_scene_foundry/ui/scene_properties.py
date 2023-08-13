@@ -530,3 +530,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         )
     
     instance_proxy_running : BoolProperty()
+
+    shader_sync_active : BoolProperty(
+        name="Shader Sync",
+        description="Sync's the active material with the corresponding Halo Shader/Material tag. Only active when the material has been marked as linked to game",
+        options=set()
+    )

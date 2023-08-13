@@ -1,5 +1,6 @@
 import os
 import bpy
+from io_scene_foundry.managed_blam import Halo
 from io_scene_foundry.utils.nwo_utils import get_ek_path
 
 ##### UTIL FUNCTIONS
@@ -31,19 +32,6 @@ def get_bungie(report=None):
         )
 
     return Bungie
-
-
-def get_tag_and_path(Bungie, user_path):
-    """Return the tag and bungie tag path for tag creation"""
-    relative_path, tag_ext = get_path_and_ext(user_path)
-    tag = Bungie.Tags.TagFile()
-    tag_path = Bungie.Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
-
-    return tag, tag_path
-
-def get_path_and_ext(user_path):
-    """Splits a file path into path and extension"""
-    return user_path.rpartition(".")[0], user_path.rpartition(".")[2]
 
 # Tag Field Types ENUMs
 # 0 String

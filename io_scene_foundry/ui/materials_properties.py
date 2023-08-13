@@ -53,6 +53,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         name="Shader Path",
         description="Define the path to a shader. This can either be a relative path, or if you have added your Editing Kit Path to add on preferences, the full path. Include the file extension as this will set the shader/material type",
         update=update_shader,
+        options=set(),
     )
 
     rendered: BoolProperty(default=True)
@@ -61,7 +62,8 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
 
     material_shader : StringProperty(
         name="Material Shader",
-        description="Tag relative path to a material shader. Generated material tag will use this material shader"
+        description="Tag relative path to a material shader. Generated material tag will use this material shader",
+        options=set(),
     )
 
     shader_type_items = [
@@ -86,4 +88,11 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         name="Shader Type",
         description="Type of shader to generate",
         items=shader_type_items,
+        options=set(),
+    )
+
+    uses_blender_nodes : BoolProperty(
+        name="Uses Blender Nodes",
+        description="Allow tag to be updated from Blender Shader nodes",
+        options=set(),
     )

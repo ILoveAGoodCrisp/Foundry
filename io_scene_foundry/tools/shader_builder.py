@@ -53,7 +53,7 @@ def is_tag_candidate(shader_path, update_existing, mat):
     return False
 
 
-def build_shaders(context, material_selection, report, shader_info, update_existing=False):
+def build_shaders(context, material_selection, report, shader_info, update_existing=False, linked_to_blender=False):
     # get blender materials to be added
     shader_materials = []
     material_names = []
@@ -67,7 +67,7 @@ def build_shaders(context, material_selection, report, shader_info, update_exist
                     shader_materials.append(mat)
 
     else:
-        active_material = context.active_object.active_material
+        active_material = context.object.active_material
         if active_material.name != "":
             shader_path = active_material.nwo.shader_path
             if is_tag_candidate(shader_path, update_existing, active_material):
@@ -81,13 +81,13 @@ def build_shaders(context, material_selection, report, shader_info, update_exist
         if mat_name not in material_names:
             material_names.append(mat_name)
             print(f"Bulding shader for {mat.name}")
-            
+            nwo = mat.nwo
             if not_bungie_game(context):
-                tag = ManagedBlamNewShader(mat.name, False, context.object.active_material.nwo.material_shader)
+                tag = ManagedBlamNewShader(mat.name, nwo.material_shader, nwo.uses_blender_nodes)
                 mat.nwo.shader_path = tag.path
                 report({'INFO'}, f"Created Material Tag for {mat.name}")
             else:
-                tag = ManagedBlamNewShader(mat.name, True, ".shader")
+                tag = ManagedBlamNewShader(mat.name, nwo.shader_type, nwo.uses_blender_nodes)
                 mat.nwo.shader_path = tag.path
                 report({'INFO'}, f"Created Shader Tag for {mat.name}")
 

@@ -109,7 +109,7 @@ class ManagedBlamNewBitmap(ManagedBlam):
         flags = override_element.SelectField("flags")
         flags.SetBit("Ignore Curve Override", True)
         if self.bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
-            self.field_set_value_by_name(override_element, "bitmap format", "DXT5 (Compressed Color + Compressed 8-bit Alpha)")
+            self.Element_set_field_value(override_element, "bitmap format", "DXT5 (Compressed Color + Compressed 8-bit Alpha)")
         # flags.SetBit("Dont Allow Size Optimization", True)
         # dicer_flags = override_element.SelectField("dicer flags")
         # dicer_flags.SetBit("Color Grading sRGB Correction", True)

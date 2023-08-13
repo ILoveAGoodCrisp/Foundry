@@ -24,11 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from gc import enable
 from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.managed_blam.mb_utils import get_bungie, get_path_and_ext, get_tag_and_path
 from io_scene_foundry.utils.nwo_utils import (
-    disable_prints,
     get_asset_path,
     get_data_path,
     get_tags_path,
@@ -39,11 +36,14 @@ from io_scene_foundry.utils.nwo_utils import (
 import bpy
 import os
 from bpy.types import Context, Operator, OperatorProperties
-from bpy.props import StringProperty
 from io_scene_foundry.utils.nwo_utils import get_ek_path
 import sys
 import subprocess
 import ctypes
+
+last_saved_tag = None
+
+Halo = None
 
 class ManagedBlam():
     """Helper class for loading and saving tags"""
@@ -52,13 +52,15 @@ class ManagedBlam():
             bpy.ops.managed_blam.init()
 
         # Asset Info
+        context = bpy.context
         self.tags_dir = get_tags_path() # full path to tags dir + \
         self.data_dir = get_data_path() # full path to data dir + \
         self.asset_dir = get_asset_path() # the relative path to the asset directory
         self.asset_name = self.asset_dir.rpartition(os.sep)[2] # the name of the asset (i.e the directory name)
         self.asset_tag_dir = self.tags_dir + self.asset_dir # full path to the asset data directory
         self.asset_data_dir = self.data_dir + self.asset_dir # full path to the asset tags directory
-        self.corinth = not_bungie_game() # bool to check whether the game is H4+
+        self.corinth = not_bungie_game(context) # bool to check whether the game is H4+
+        self.unit_scale = context.scene.unit_settings.scale_length
         # Tag Info
         self.path = "" # String to hold the tag relative path to the tag we're editing/reading
         self.read_only = False # Bool to check whether tag should be opened in Read Only mode (i.e. never saved)
@@ -80,8 +82,7 @@ class ManagedBlam():
 
         self.system_path = get_tags_path() + self.path
 
-        self.Bungie = get_bungie()
-        self.tag, self.tag_path = get_tag_and_path(self.Bungie, self.path)
+        self.tag, self.tag_path = self.get_tag_and_path(self.path)
         tag = self.tag
         try:
             if os.path.exists(self.system_path):
@@ -95,7 +96,10 @@ class ManagedBlam():
                 self.tag_read(tag)
             else:
                 self.tag_edit(tag)
-                tag.Save()
+                global last_saved_tag
+                if last_saved_tag != tag:
+                    last_saved_tag = tag
+                    tag.Save()
 
         finally:
             tag.Dispose()
@@ -103,12 +107,25 @@ class ManagedBlam():
     
     # TAG HELPER FUNCTIONS
     #######################
-    def block_new_element_by_name(self, parent, block_name: str):
+
+    def get_tag_and_path(self, user_path):
+        """Return the tag and bungie tag path for tag creation"""
+        relative_path, tag_ext = self.get_path_and_ext(user_path)
+        tag = Halo.Tags.TagFile()
+        tag_path = Halo.Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
+
+        return tag, tag_path
+
+    def get_path_and_ext(self, user_path):
+        """Splits a file path into path and extension"""
+        return user_path.rpartition(".")[0], user_path.rpartition(".")[2]
+
+    def block_new_element(self, parent, block_name: str):
         """Creates a new element in the named block and returns the element"""
         block = parent.SelectField(block_name)
         return block.AddElement()
     
-    def field_set_value_by_name(self, element, field_name: str, value):
+    def Element_set_field_value(self, element, field_name: str, value):
         """Sets the value of the given field by name. Requires the tag element to be specified as the first arg. Returns the field"""
         field = element.SelectField(field_name)
         field_type_str = str(field.FieldType)
@@ -123,29 +140,89 @@ class ManagedBlam():
                 field.Path = self.TagPath_from_string(value)
             case "WordInteger":
                 field.SetStringData(value)
-
+            case "Real":
+                field.SetStringData(value)
+            case "RealVector3d":
+                field.SetStringData(value)
         return field
+    
+    def Element_set_field_values(self, element, field_value_dict):
+        """Sets the value of the given fields by the given dict. Requires the tag element to be specified as the first arg. Returns a list of the fields set"""
+        fields = []
+        for k, v in field_value_dict.items():
+            fields.append(self.Element_set_field_value(element, k, v))
+
+        return fields
+    
+    def Element_get_field_value(self, element, field_name: str, always_string=False):
+        """Gets the value of the given field by name. Requires the tag element to be specified as the first arg. Returns the fvalue of the given field. If the last arg is specified as True, always returns values as strings"""
+        field = element.SelectField(field_name)
+        field_type_str = str(field.FieldType)
+        value = None
+        match field_type_str:
+            case "StringId":
+                value = field.GetStringData()
+            case "ShortInteger":
+                value = field.GetStringData()
+            case "LongEnum":
+                value = field.Value
+            case "Reference":
+                value = field.Path
+            case "WordInteger":
+                value = field.GetStringData()
+
+        if always_string:
+            return str(value)
+        return value
     
     def TagPath_from_string(self, relative_path: str):
         """Returns a Bungie TagPath from the given tag relative filepath. Filepath must include file extension"""
-        relative_path, tag_ext = get_path_and_ext(relative_path)
-        return self.Bungie.Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
+        relative_path, tag_ext = self.get_path_and_ext(relative_path)
+        return Halo.Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
     
     def tag_exists(self, relative_path: str) -> bool:
         """Returns if a tag given by the supplied relative path exists"""
         return os.path.exists(self.tags_dir + relative_path)
     
-    def EnumItems_by_name(self, element, field_name: str) -> list:
+    def EnumItems(self, element, field_name: str) -> list:
         field = element.SelectField(field_name)
-        if str(field.Type).endswith("Enum"): 
+        if str(field.FieldType).endswith("Enum"): 
             return [i.EnumName for i in field.Items]
         else:
             return print("Given field is not an Enum")
         
-    def clear_block_and_set_by_name(self, parent, block_name):
+    def EnumIntValue(self, block, field_name, value):
+        elements = block.Elements
+        if not elements.Count:
+            return print(f"{block} has no elements")
+        items = self.EnumItems(elements[0], field_name)
+        for idx, item in enumerate(items):
+            if item == value:
+                return idx
+        return print("Value not found in items")
+        
+    def clear_block_and_set(self, parent, block_name):
         block = parent.SelectField(block_name)
         block.RemoveAllElements()
         return block.AddElement()
+    
+    def Element_from_field_value(self, block, field_name, value):
+        elements = block.Elements
+        if not elements.Count:
+            return print(f"{block} has no elements")
+        for e in elements:
+            field_value = self.Element_get_field_value(e, field_name)
+            if field_value == value:
+                return e
+            
+    def GameColor_from_RGB(self, r, g, b):
+        return Halo.Game.GameColor.FromRgb(r, g, b)
+    
+    def GameColor_from_ARGB(self, a, r, g, b):
+        print(a, r, g, b)
+        print(Halo.Game.GameColor.FromArgb(a, r, g, b))
+        return Halo.Game.GameColor.FromArgb(a, r, g, b)
+
 
 class ManagedBlam_Init(Operator):
     """Initialises Managed Blam and locks the currently selected game"""
@@ -161,9 +238,6 @@ class ManagedBlam_Init(Operator):
     def description(cls, context: Context, properties: OperatorProperties) -> str:
         if properties.install_only:
             return "Installs pythonnet for Blender's python library. Pythonnet includes the clr module necessary for Foundry to be able to talk to the Halo tag API - Managedblam"
-
-    def callback(self):
-        pass
 
     def execute(self, context):
         # append the blender python module path to the sys PATH
@@ -231,10 +305,13 @@ class ManagedBlam_Init(Operator):
             if not self.install_only:
                 # Initialise ManagedBlam
                 print("Initialising ManagedBlam...")
+                global Halo
+                Halo = Bungie
                 try:
-                    startup_parameters = Bungie.ManagedBlamStartupParameters()
-                    Bungie.ManagedBlamSystem.Start(
-                        get_ek_path(), self.callback(), startup_parameters
+                    callback = Halo.ManagedBlamCrashCallback(lambda info: Halo.ManagedBlamSystem.Stop())
+                    startup_parameters = Halo.ManagedBlamStartupParameters()
+                    Halo.ManagedBlamSystem.Start(
+                        get_ek_path(), callback, startup_parameters
                     )
                 except:
                     print("ManagedBlam already initialised. Skipping")
@@ -254,8 +331,7 @@ class ManagedBlam_Close(Operator):
     bl_description = "Closes Managed Blam"
 
     def execute(self, context):
-        Bungie = get_bungie(self.report)
-        Bungie.ManagedBlamSystem.Stop()
+        Halo.ManagedBlamSystem.Stop()
         return {"FINISHED"}
 
 classeshalo = (
@@ -266,7 +342,6 @@ classeshalo = (
 def register():
     for clshalo in classeshalo:
         bpy.utils.register_class(clshalo)
-
 
 def unregister():
     for clshalo in classeshalo:
