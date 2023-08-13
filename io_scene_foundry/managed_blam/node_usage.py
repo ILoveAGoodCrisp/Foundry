@@ -131,12 +131,11 @@ class ManagedBlamNodeUsage(ManagedBlam):
 
         # If items remain in node_usage_dict, then we need to add new elements
         node_usages.RemoveAllElements()
-        element_index = -1
         for k, v in self.node_usage_dict.items():
             if v in node_index_list:
                 new_element = node_usages.AddElement()
                 usage = new_element.SelectField("usage")
-                node = node_usages.Elements[element_index].SelectField("node to use")
+                node = new_element.SelectField("node to use")
                 items = [i.EnumName for i in usage.Items]
                 usage.Value = items.index(k)
                 node.Value = node_index_list.index(v)
