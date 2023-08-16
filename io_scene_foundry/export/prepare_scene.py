@@ -722,7 +722,7 @@ class PrepareScene:
                         # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
 
                 bpy.ops.object.editmode_toggle()
-                # self.model_armature.select_set(False)
+                self.model_armature.select_set(False)
                 # if restore_matrices:
                 #     for ob, mat in ob_mat_dict.items():
                 #         ob.matrix_basis = mat
@@ -1679,7 +1679,9 @@ class PrepareScene:
         for a in self.animation_armatures.values():
             a.matrix_world = M @ a.matrix_world
 
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False, isolate_users=True)
+        if model_armature.data.users > 1:
+            model_armature.data = model_armature.data.copy()
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
         model_armature.select_set(False)
         for a in self.animation_armatures.values():
             a.select_set(False)
@@ -1823,13 +1825,13 @@ class PrepareScene:
                 self.z_rotate_and_apply(armature, 180, export_obs)
 
         else:
-            if getattr(self, "old_pedestal_mat", 0):
+            if hasattr(self, "old_pedestal_mat"):
                 self.counter_matrix(self.old_pedestal_mat, self.pedestal_matrix, self.pedestal, export_obs)
-            if getattr(self, "old_aim_pitch_mat", 0):
+            if hasattr(self, "old_aim_pitch_mat"):
                 self.counter_matrix(self.old_aim_pitch_mat, self.pedestal_matrix, self.aim_pitch, export_obs)
-            if getattr(self, "old_aim_yaw_mat", 0):
+            if hasattr(self, "old_aim_yaw_mat"):
                 self.counter_matrix(self.old_aim_yaw_mat, self.pedestal_matrix, self.aim_yaw, export_obs)
-            if getattr(self, "old_gun_mat", 0):
+            if hasattr(self, "old_gun_mat"):
                 self.counter_matrix(self.old_gun_mat, self.pedestal_matrix, self.gun, export_obs)
             self.animation_arm = self.model_armature.copy()
             self.animation_arm.data = self.model_armature.data.copy()
@@ -3734,3 +3736,11 @@ def reset_export_props(nwo):
     nwo.marker_exclude_perms = ""
     nwo.marker_include_perms = ""
     nwo.reach_poop_collision = False
+
+
+def matrices_equal(mat_1, mat_2):
+    for i in range(4):
+        for j in range(4):
+            if abs(mat_1[i][j] - mat_2[i][j]) > 1e-6:
+                return False
+    return True

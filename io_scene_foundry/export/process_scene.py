@@ -1169,7 +1169,7 @@ class ProcessScene:
             job = "Applying Model Overrides"
             update_job(job, 0)
             disable_prints()
-            ManagedBlamModelOverride(nwo.render_model_pat, nwo.collision_model_path, nwo.physics_model_path, nwo.animation_graph_path)
+            ManagedBlamModelOverride(nwo.render_model_path, nwo.collision_model_path, nwo.physics_model_path, nwo.animation_graph_path)
             enable_prints()
             update_job(job, 1)
 
