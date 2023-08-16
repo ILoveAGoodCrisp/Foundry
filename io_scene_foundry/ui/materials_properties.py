@@ -58,7 +58,20 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
 
     rendered: BoolProperty(default=True)
 
-    active_image : bpy.props.PointerProperty(type=bpy.types.Image)
+    def poll_active_image(self, object):
+        mat = bpy.context.object.active_material
+        nodes = mat.node_tree.nodes
+        for n in nodes:
+            if hasattr(n, "image"):
+                if n.image == object:
+                    return True
+                
+        return False
+
+    active_image : bpy.props.PointerProperty(
+        type=bpy.types.Image,
+        poll=poll_active_image,
+        )
 
     material_shader : StringProperty(
         name="Material Shader",

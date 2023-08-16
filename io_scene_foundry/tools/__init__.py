@@ -2047,11 +2047,19 @@ class NWO_FoundryPanelProps(Panel):
                     row.label(text=f"Not a {txt}")
 
             # TEXTURE PROPS
+            # First validate if Material has images
+            nodes = mat.node_tree.nodes
+            for n in nodes:
+                if getattr(n, "image", 0):
+                    break
+            else:
+                return
+
             box = self.box.box()
             box.use_property_split = True
             box.label(text="Bitmap Properties")
             col = box.column()
-            col.template_ID_preview(nwo, "active_image", new="image.new", open="image.open")
+            col.template_ID_preview(nwo, "active_image")
             image = nwo.active_image
             if not image:
                 return
