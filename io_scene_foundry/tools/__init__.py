@@ -3795,7 +3795,9 @@ class NWO_HaloExportSettingsFlags(Panel):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
+        if scene_nwo.asset_type in ('MODEL', 'SKY', 'FP ANIMATION'):
+            col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations")
+            col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
@@ -4217,6 +4219,11 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         name="Force Animations",
         description="Force import of all animations that had errors during the last import",
         default=False,
+    )
+    fix_bone_rotations: BoolProperty(
+        name="Fix Bone Rotations",
+        description="Sets the rotation of the following bones to match Halo conventions: pedestal, aim_pitch, aim_yaw, gun",
+        default=True,
     )
 
 

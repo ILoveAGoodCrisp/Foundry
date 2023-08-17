@@ -200,6 +200,8 @@ else:
             nwo_export.import_disable_collision = settings["import_disable_collision"]
             nwo_export.import_no_pca = settings["import_no_pca"]
             nwo_export.import_force_animations = settings["import_force_animations"]
+            nwo_export.fast_animation_export = settings["fast_animation_export"]
+            nwo_export.fix_bone_rotations = settings["fix_bone_rotations"]
 
             if nwo.instance_proxy_running:
                 nwo.instance_proxy_running = False

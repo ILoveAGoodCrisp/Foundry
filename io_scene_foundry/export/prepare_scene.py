@@ -120,6 +120,7 @@ class PrepareScene:
         export_gr2_files,
         export_all_perms,
         export_all_bsps,
+        fix_bone_rotations,
     ):
         print("\nPreparing Export Scene")
         print(
@@ -691,41 +692,42 @@ class PrepareScene:
                     self.pedestal_matrix = PEDESTAL_MATRIX_Y_POSITIVE
                 else:
                     self.pedestal_matrix = PEDESTAL_MATRIX_Y_NEGATIVE
+                
+                if fix_bone_rotations:
+                    set_active_object(self.model_armature)
+                    self.model_armature.select_set(True)
+                    bpy.ops.object.editmode_toggle()
+                    edit_bones = self.model_armature.data.edit_bones
+                    if self.pedestal:
+                        edit_pedestal = edit_bones[self.pedestal]
+                        if edit_pedestal.matrix != self.pedestal_matrix:
+                            self.old_pedestal_mat = edit_pedestal.matrix.copy()
+                            edit_pedestal.matrix = self.pedestal_matrix
+                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_pedestal, export_obs)
+                    if self.aim_pitch:
+                        edit_aim_pitch = edit_bones[self.aim_pitch]
+                        if edit_aim_pitch.matrix != self.pedestal_matrix:
+                            self.old_aim_pitch_mat = edit_aim_pitch.matrix.copy()
+                            edit_aim_pitch.matrix = self.pedestal_matrix
+                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_pitch, export_obs)
+                    if self.aim_yaw:
+                        edit_aim_yaw = edit_bones[self.aim_yaw]
+                        if edit_aim_yaw.matrix != self.pedestal_matrix:
+                            self.old_aim_yaw_mat = edit_aim_yaw.matrix.copy()
+                            edit_aim_yaw.matrix = self.pedestal_matrix
+                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_yaw, export_obs)
+                    if self.gun:
+                        edit_gun = edit_bones[self.gun]
+                        if edit_gun.matrix != self.pedestal_matrix:
+                            self.old_gun_mat = edit_gun.matrix.copy()
+                            edit_gun.matrix = self.pedestal_matrix
+                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
 
-                set_active_object(self.model_armature)
-                self.model_armature.select_set(True)
-                bpy.ops.object.editmode_toggle()
-                edit_bones = self.model_armature.data.edit_bones
-                if self.pedestal:
-                    edit_pedestal = edit_bones[self.pedestal]
-                    if edit_pedestal.matrix != self.pedestal_matrix:
-                        self.old_pedestal_mat = edit_pedestal.matrix.copy()
-                        edit_pedestal.matrix = self.pedestal_matrix
-                        # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_pedestal, export_obs)
-                if self.aim_pitch:
-                    edit_aim_pitch = edit_bones[self.aim_pitch]
-                    if edit_aim_pitch.matrix != self.pedestal_matrix:
-                        self.old_aim_pitch_mat = edit_aim_pitch.matrix.copy()
-                        edit_aim_pitch.matrix = self.pedestal_matrix
-                        # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_pitch, export_obs)
-                if self.aim_yaw:
-                    edit_aim_yaw = edit_bones[self.aim_yaw]
-                    if edit_aim_yaw.matrix != self.pedestal_matrix:
-                        self.old_aim_yaw_mat = edit_aim_yaw.matrix.copy()
-                        edit_aim_yaw.matrix = self.pedestal_matrix
-                        # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_yaw, export_obs)
-                if self.gun:
-                    edit_gun = edit_bones[self.gun]
-                    if edit_gun.matrix != self.pedestal_matrix:
-                        self.old_gun_mat = edit_gun.matrix.copy()
-                        edit_gun.matrix = self.pedestal_matrix
-                        # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
-
-                bpy.ops.object.editmode_toggle()
-                self.model_armature.select_set(False)
-                # if restore_matrices:
-                #     for ob, mat in ob_mat_dict.items():
-                #         ob.matrix_basis = mat
+                    bpy.ops.object.editmode_toggle()
+                    self.model_armature.select_set(False)
+                    # if restore_matrices:
+                    #     for ob, mat in ob_mat_dict.items():
+                    #         ob.matrix_basis = mat
 
         # print("armature")
 

@@ -468,6 +468,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
         name="Export GR2 Files",
         default=True,
     )
+    fix_bone_rotations: BoolProperty(
+        name="Fix Bone Rotations",
+        description="Sets the rotation of the following bones to match Halo conventions: pedestal, aim_pitch, aim_yaw, gun",
+        default=True,
+    )
     # use_tspace: BoolProperty(
     #     name="use tspace",
     #     default=False,
@@ -521,6 +526,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.import_no_pca = scene_nwo_export.import_no_pca
             self.import_force_animations = scene_nwo_export.import_force_animations
             self.fast_animation_export = scene_nwo_export.fast_animation_export
+            self.fix_bone_rotations = scene_nwo_export.fix_bone_rotations
 
             # SIDECAR SETTINGS #
             scene_nwo = bpy.context.scene.nwo
@@ -630,6 +636,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.export_gr2_files,
                     self.export_all_perms,
                     self.export_all_bsps,
+                    self.fix_bone_rotations,
                 )
 
                 export = ProcessScene(
@@ -873,6 +880,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         settings["import_no_pca"] = self.import_no_pca
         settings["import_force_animations"] = self.import_force_animations
         settings["fast_animation_export"] = self.fast_animation_export
+        settings["fix_bone_rotations"] = self.fix_bone_rotations
 
         if self.quick_export and report_text and report_type:
             nwo_globals.export_report["report_text"] = report_text
@@ -959,6 +967,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if self.export_gr2_files:
             box = layout.box()
             sub = box.column(heading="Export Flags")
+            if self.sidecar_type in ('MODEL', 'SKY', 'FP ANIMATION'):
+                col.prop(self, "fix_bone_rotations", text="Fix Bone Rotations")
+                col.prop(self, "fast_animation_export", text="Fast Animation Export")
             sub.prop(self, "fast_animation_export", text="Fast Animation Export")
             if h4:
                 sub.prop(self, "import_force", text="Force full export")
