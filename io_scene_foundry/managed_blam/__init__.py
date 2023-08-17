@@ -80,6 +80,9 @@ class ManagedBlam():
         if not self.path:
             self.path = self.get_path()
 
+        if not self.path:
+            return
+
         self.system_path = get_tags_path() + self.path
 
         self.tag, self.tag_path = self.get_tag_and_path(self.path)
@@ -125,25 +128,30 @@ class ManagedBlam():
         block = parent.SelectField(block_name)
         return block.AddElement()
     
+    def Element_create_if_needed(self, block, field_name, value_name):
+        element = block.Elements
+        element = self.Element_from_field_value(block, field_name, value_name)
+        if element:
+            return element
+        return block.AddElement()
+            
+
+    
     def Element_set_field_value(self, element, field_name: str, value):
         """Sets the value of the given field by name. Requires the tag element to be specified as the first arg. Returns the field"""
         field = element.SelectField(field_name)
         field_type_str = str(field.FieldType)
         match field_type_str:
-            case "StringId":
-                field.SetStringData(value)
-            case "ShortInteger":
-                field.SetStringData(value)
             case "LongEnum":
-                field.SetValue(value)
+                if type(value) == str:
+                    field.SetValue(value)
+                else:
+                    field.Value = value
             case "Reference":
                 field.Path = self.TagPath_from_string(value)
-            case "WordInteger":
+            case _:
                 field.SetStringData(value)
-            case "Real":
-                field.SetStringData(value)
-            case "RealVector3d":
-                field.SetStringData(value)
+
         return field
     
     def Element_set_field_values(self, element, field_value_dict):
@@ -170,6 +178,8 @@ class ManagedBlam():
                 value = field.Path
             case "WordInteger":
                 value = field.GetStringData()
+            case "Data":
+                value = field.DataAsText
 
         if always_string:
             return str(value)
@@ -205,6 +215,10 @@ class ManagedBlam():
         block = parent.SelectField(block_name)
         block.RemoveAllElements()
         return block.AddElement()
+    
+    def clear_block(self, parent, block_name):
+        block = parent.SelectField(block_name)
+        block.RemoveAllElements()
     
     def Element_from_field_value(self, block, field_name, value):
         elements = block.Elements

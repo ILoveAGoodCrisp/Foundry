@@ -31,12 +31,44 @@ import bpy
 
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 
+class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
+    def __init__(self, group_node):
+        super().__init__()
+        self.read_only = True
+        self.group_node = group_node
+        self.parameters = {}
+        self.tag_helper()
+
+    def get_path(self):
+        material_shader_name = self.group_node.node_tree.name
+        # Check \shaders\ for the given material_shader
+        shaders_dir = os.path.join(self.tags_dir, "shaders")
+        for root, _, files in os.walk(shaders_dir):
+            for file in files:
+                if file.endswith("material_shader"):
+                    if dot_partition(file) == material_shader_name:
+                        return os.path.join(root, file).replace(self.tags_dir, "")
+        
+        return
+
+    def tag_read(self, tag):
+        block_material_parameters = tag.SelectField("Block:material parameters")
+        elements = block_material_parameters.Elements
+        for e in elements:
+            self.parameters[self.Element_get_field_value(e, "parameter name")] = [
+                self.Element_get_field_value(e, "display name"),
+                self.Element_get_field_value(e, "parameter type"),
+            ]
+
 class ManagedBlamNewShader(managed_blam.ManagedBlam):
     def __init__(self, blender_material, shader_type, linked_to_blender):
         super().__init__()
         self.blender_material = blender_material
         self.shader_type = shader_type
         self.linked_to_blender = linked_to_blender
+        self.group_node = self.blender_halo_material()
+        if linked_to_blender and self.group_node:
+            self.material_shader = ManagedBlamReadMaterialShader(self.group_node)
         self.tag_helper()
 
     def get_path(self):
@@ -47,19 +79,34 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
 
         return shader_path
+    
+    def blender_halo_material(self):
+        nodes = bpy.data.materials[self.blender_material].node_tree.nodes
+        for n in nodes:
+            if n.type != "OUTPUT_MATERIAL":
+                continue
+            links = n.inputs[0].links
+            if not links:
+                continue
+            from_node = links[0].from_node
+            if from_node.type != "GROUP":
+                continue
+            group_tree = from_node.node_tree
+            if group_tree:
+                return from_node
+        return None
 
     def tag_edit(self, tag):
-        if self.linked_to_blender:
-            # Set up texture map dicts
-            maps = self.get_maps()
-            # Create and edit tags using dicts
-            if self.corinth:
-                self.material_tag_edit(tag, maps)
-            else:
-                self.shader_tag_edit(tag, maps)
+        if self.corinth:
+            self.material_tag_edit(tag)
+        else:
+            self.shader_tag_edit(tag)
 
-    def shader_tag_edit(self, tag, maps):
+    def shader_tag_edit(self, tag):
+        if not self.linked_to_blender:
+            return
         struct_render_method = tag.SelectField("Struct:render_method").Elements[0]
+        maps = self.get_maps()
         if self.shader_type == ".shader":
             # Set up shader options
             block_options = struct_render_method.SelectField("options")
@@ -121,12 +168,114 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if new:
             Value.MasterType = managed_blam.Halo.Tags.FunctionEditorMasterType(0) # basic type
 
-    def material_tag_edit(self, tag, maps):
+    def material_tag_edit(self, tag):
         if not self.shader_type:
             self.shader_type = self.find_best_material_shader()
         reference_material_shader = tag.SelectField("Reference:material shader")
-        reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type)
+        reference_material_shader.Reference.Path = self.material_shader.tag_path if self.group_node else self.TagPath_from_string(self.shader_type)
+        if not self.linked_to_blender:
+            return
         block_material_parameters = tag.SelectField("Block:material parameters")
+        if self.group_node:
+            self.custom_material(block_material_parameters, self.group_node, self.material_shader.parameters)
+        else:
+            self.basic_material(block_material_parameters)
+
+            # H4 is wierd. Function values get updated automatically when the real and vector values are set
+            # Key:
+            # real = scale u
+            # vector[0] = scale v
+            # vector[1] = offset u
+            # vector[2] = offset v
+
+            #field_animation_function = sub_element.SelectField("Custom:function")
+            #value = field_animation_function.Value
+            # Have to set the bitmap vector temporarily for some reason...
+            # self.Element_set_field_value(element, "real", str(v))
+            # self.Element_set_field_value(element, "vector", [str(v), str(v), str(v)])
+            # value.ClampRangeMin = v
+            # if new:
+            #     value.MasterType = self.Bungie.Tags.FunctionEditorMasterType(0) # basic type
+
+    def custom_material(self, block_material_parameters, group_node, material_shader):
+        material_parameters = {}
+        input_parameter_pairings = {}
+        inputs = group_node.inputs
+        for i in inputs:
+            for parameter_name, value in material_shader.items():
+                display_name = value[0]
+                parameter_type = value[1]
+                if i.name == parameter_name or i.name == display_name:
+                    input_parameter_pairings[i] = [parameter_name, parameter_type]
+
+        for i, value in input_parameter_pairings.items():
+            name = value[0]
+            type = value[1]
+            material_parameters[name] = self.parameters_element_dict(i, name, type)
+
+        for name, element_dict in material_parameters.items():
+            element = self.Element_create_if_needed(block_material_parameters, "parameter name", name)
+            if hasattr(element_dict, "color"):
+                # Clearing the function block in this case, as this way the color value is taken from the material parameter color field
+                self.clear_block(element, "function parameters")
+
+            self.Element_set_field_values(element, element_dict)
+
+    def parameters_element_dict(self, input, name, type):
+        new_dict = {}
+        new_dict['parameter name'] = name
+        new_dict['parameter type'] = type
+        if type == 0: # bitmap
+            image_node = self.image_node_from_input(input)
+            if image_node:
+                new_dict['bitmap'] = self.get_bitmap(image_node)
+                mapping = self.get_mapping_as_corinth_dict(image_node)
+                if mapping:
+                    new_dict['real'] = mapping['scale u']
+                    new_dict['vector'] = mapping['scatran']
+            else:
+                new_dict['bitmap'] = ""
+        elif type == 1: # real
+            real = str(input.default_value)
+            new_dict['real'] = real
+        elif type == 2: # int
+            int_value = str(int(input.default_value))
+            new_dict['int/bool'] = int_value
+        elif type == 3: # bool
+            bool_value = str(int(bool(input.default_value,0)))
+            new_dict['int/bool'] = bool_value
+        elif type == 4: # color
+            r = input.default_value[0]
+            g = input.default_value[1]
+            b = input.default_value[2]
+            a = input.default_value[3]
+            # new_dict['color'] = self.GameColor_from_ARGB(a, r, g, b)
+            new_dict['color'] = [str(a), str(r), str(g), str(b)]
+
+        return new_dict
+
+    def image_node_from_input(self, input):
+        links = input.links
+        if not links:
+            return
+        node = links[0].from_node
+        if node.type == "TEX_IMAGE":
+            return node
+
+    def get_mapping_as_corinth_dict(self, image_node):
+        mapping = {}
+        links = image_node.inputs[0].links
+        if not links:
+            return
+        mapping_node = links[0].from_node
+        if mapping_node.type != 'MAPPING':
+            return
+        mapping['scale u'] = str(mapping_node.inputs[3].default_value[0])
+        mapping['scatran'] = [str(mapping_node.inputs[3].default_value[1]), str(mapping_node.inputs[2].default_value[0]), str(mapping_node.inputs[2].default_value[1])]
+        
+
+    def basic_material(self, block_material_parameters):
+        maps = self.get_maps()
         # Set albedo to default
         if not hasattr(self, "has_diffuse"):
             diffuse_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'color_map')
@@ -181,22 +330,6 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 color_field.SetStringData(self.corinth_extra_mapping['color'])
             else:
                 self.Element_set_field_values(element, self.corinth_extra_mapping)
-
-            # H4 is wierd. Function values get updated automatically when the real and vector values are set
-            # Key:
-            # real = scale u
-            # vector[0] = scale v
-            # vector[1] = offset u
-            # vector[2] = offset v
-
-            #field_animation_function = sub_element.SelectField("Custom:function")
-            #value = field_animation_function.Value
-            # Have to set the bitmap vector temporarily for some reason...
-            # self.Element_set_field_value(element, "real", str(v))
-            # self.Element_set_field_value(element, "vector", [str(v), str(v), str(v)])
-            # value.ClampRangeMin = v
-            # if new:
-            #     value.MasterType = self.Bungie.Tags.FunctionEditorMasterType(0) # basic type
 
     def find_best_material_shader(self):
         return r"shaders\material_shaders\materials\srf_ward.material_shader"
@@ -347,6 +480,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
     def get_bitmap(self, node):
         image = node.image
+        if not image:
+            return
         nwo = image.nwo
         if nwo.filepath:
             bitmap = dot_partition(nwo.filepath) + ".bitmap"
@@ -372,3 +507,30 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         node = tex_input.links[0].from_node
         if node.type == 'TEX_IMAGE':
             return node
+
+    def get_material_parameters(self, tag):
+        pass
+
+
+    def build_parameters(self, values, material_parameters):
+        for v in values:
+            element = self.Element_create_if_needed(material_parameters, "parameter name", v['parameter name'])
+            self.Element_set_field_values(element, v)
+            function_parameters = self.get_function_parameters(element)
+
+    def element_dict_from_input(self, input, dict_value):
+        """Returns a dict representing a Element using the given input"""
+        element_dict = {}
+        element_dict['parameter name'] = dict_value[0]
+        type = dict_value[1]
+        element_dict['parameter type'] = type
+        if len(dict_value) > 2:
+            value_method = dict_value[2]
+            return self.new_dict_from_special_method(value_method, dict_value)
+        
+        if type == 'bitmap':
+            element_dict['bitmap'] = self.bitmap_from_input(input)
+        elif type == 'color':
+            element_dict['color'] = self.GameColor_from_input(input)
+        elif type == 'real':
+            element_dict['real'] = self.Real_from_input(input)
