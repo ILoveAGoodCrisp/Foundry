@@ -150,7 +150,6 @@ class ManagedBlam():
             case "Reference":
                 field.Path = self.TagPath_from_string(value)
             case _:
-                print(field_name)
                 field.SetStringData(value)
 
         return field
