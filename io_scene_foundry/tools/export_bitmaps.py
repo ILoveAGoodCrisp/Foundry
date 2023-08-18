@@ -107,14 +107,14 @@ def export_bitmaps(
             except:
                 print(f"Failed to export {image.name}")
 
-    if bitmap_count:
+    if bitmap_count and report is not None:
         report({"INFO"}, f"Exported {bitmap_count} bitmaps")
-    else:
+    elif report is not None:
         report({"INFO"}, "No Bitmaps exported")
     # Store processes
     processes = []
     for image in textures:
-        bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type)
+        bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type).path
         path = dot_partition(image.nwo.filepath)
         if not_bungie_game():
             processes.append(run_tool(["reimport-bitmaps-single", path, "default"], True, False))
@@ -124,7 +124,9 @@ def export_bitmaps(
     if processes:
         for p in processes:
             p.wait()
-
-    report({"INFO"}, "Bitmaps Import Complete")
+    if report is None:
+        return bitmap
+    else:
+        report({"INFO"}, "Bitmaps Import Complete")
 
     return {"FINISHED"}

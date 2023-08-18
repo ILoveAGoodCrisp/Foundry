@@ -52,15 +52,15 @@ class ManagedBlam():
             bpy.ops.managed_blam.init()
 
         # Asset Info
-        context = bpy.context
+        self.context = bpy.context
         self.tags_dir = get_tags_path() # full path to tags dir + \
         self.data_dir = get_data_path() # full path to data dir + \
         self.asset_dir = get_asset_path() # the relative path to the asset directory
         self.asset_name = self.asset_dir.rpartition(os.sep)[2] # the name of the asset (i.e the directory name)
         self.asset_tag_dir = self.tags_dir + self.asset_dir # full path to the asset data directory
         self.asset_data_dir = self.data_dir + self.asset_dir # full path to the asset tags directory
-        self.corinth = not_bungie_game(context) # bool to check whether the game is H4+
-        self.unit_scale = context.scene.unit_settings.scale_length
+        self.corinth = not_bungie_game(self.context) # bool to check whether the game is H4+
+        self.unit_scale = self.context.scene.unit_settings.scale_length
         # Tag Info
         self.path = "" # String to hold the tag relative path to the tag we're editing/reading
         self.read_only = False # Bool to check whether tag should be opened in Read Only mode (i.e. never saved)

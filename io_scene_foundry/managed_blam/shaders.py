@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry import managed_blam
+from io_scene_foundry.tools.export_bitmaps import export_bitmaps
 from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_valid_shader_name, is_halo_node
 import os
 import bpy
@@ -491,7 +492,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         elif image.filepath:
             bitmap = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + ".bitmap"
         else:
-            return #print("No Tiff path")
+            bitmap = export_bitmaps(None, self.context.scene.nwo_halo_launcher.sidecar_path, [image])
         
         if os.path.exists(self.tags_dir + bitmap):
             return bitmap
