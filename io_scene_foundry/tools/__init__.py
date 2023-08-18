@@ -2014,9 +2014,8 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(nwo, "shader_path", text="", icon_value=get_icon_id("tags"))
                 row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
                 row.operator("nwo.shader_path", icon="FILE_FOLDER", text="")
-                ext = nwo.shader_path.rpartition(".")[2]
                 tag_type = "Material" if h4 else "Shader"
-                has_valid_path = ext != nwo.shader_path and (ext == "material" or "shader" in ext)
+                has_valid_path = nwo.shader_path and os.path.exists(get_tags_path() + nwo.shader_path)
                 if has_valid_path:
                     row = box.row()
                     # row.scale_y = 1.5
@@ -2035,10 +2034,15 @@ class NWO_FoundryPanelProps(Panel):
 
                 else:
                     row = box.row()
-                    row.operator("nwo.build_shader_single", text=f"Create Empty {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = False
-                    row = box.row(align=True)
-                    row.operator("nwo.build_shader_single", text=f"Generate Linked {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
-                    row.popover(panel=NWO_PT_ShaderGenProps.bl_idname, text="")
+                    if nwo.shader_path:
+                        row.label(text="Shader Tag Not Found", icon="ERROR")
+                    else:
+                        row.operator("nwo.build_shader_single", text=f"Create Empty {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = False
+                        row = box.row(align=True)
+                        row.operator("nwo.build_shader_single", text=f"Generate Linked {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
+                        row = row.row(align=True)
+                        row.scale_x = 0.3
+                        row.popover(panel=NWO_PT_ShaderGenProps.bl_idname, text="")
 
             else:
                 if self.bl_idname == "NWO_PT_MaterialPanel":

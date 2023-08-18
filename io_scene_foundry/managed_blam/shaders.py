@@ -62,21 +62,23 @@ class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
             ]
 
 class ManagedBlamNewShader(managed_blam.ManagedBlam):
-    def __init__(self, blender_material, shader_type, linked_to_blender):
+    def __init__(self, blender_material, shader_type, linked_to_blender, specified_path=""):
         super().__init__()
         self.blender_material = blender_material
         self.shader_type = shader_type
         self.linked_to_blender = linked_to_blender
         self.group_node = self.blender_halo_material()
         self.custom = False
+        self.specified_path = specified_path if specified_path and os.path.exists(self.tags_dir + specified_path) else None
         if linked_to_blender and self.group_node:
             self.material_shader = ManagedBlamReadMaterialShader(self.group_node)
             self.custom = bool(getattr(self.material_shader, "tag_path", 0))
         self.tag_helper()
 
     def get_path(self):
-        asset_path = get_asset_path()
-        shaders_dir = os.path.join(asset_path, "materials" if self.corinth else "shaders")
+        if self.specified_path:
+            return self.specified_path
+        shaders_dir = os.path.join(self.asset_dir, "materials" if self.corinth else "shaders")
         shader_name = get_valid_shader_name(self.blender_material)
         tag_ext = ".material" if self.corinth else self.shader_type
         shader_path = os.path.join(shaders_dir, shader_name + tag_ext)

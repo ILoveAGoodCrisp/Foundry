@@ -41,14 +41,13 @@ from io_scene_foundry.utils.nwo_utils import (
 global_material_shaders = []
 
 def is_tag_candidate(shader_path, update_existing, mat):
-    if shader_path == "" or shader_path.startswith(get_asset_path()):
-        if not protected_material_name(mat.name):
-            shader_name = get_valid_shader_name(mat.name)
-            if shader_name != "":
-                full_path = os.path.join(
-                    get_asset_path_full(True), "shaders", shader_name
-                )
-                return update_existing or not os.path.exists(full_path)
+    if not protected_material_name(mat.name):
+        shader_name = get_valid_shader_name(mat.name)
+        if shader_name != "":
+            full_path = os.path.join(
+                get_asset_path_full(True), "shaders", shader_name
+            )
+            return update_existing or not os.path.exists(full_path)
 
     return False
 
@@ -83,12 +82,12 @@ def build_shaders(context, material_selection, report, shader_info, update_exist
             print(f"Bulding shader for {mat.name}")
             nwo = mat.nwo
             if not_bungie_game(context):
-                tag = ManagedBlamNewShader(mat.name, nwo.material_shader, nwo.uses_blender_nodes)
-                mat.nwo.shader_path = tag.path
+                tag = ManagedBlamNewShader(mat.name, nwo.material_shader, nwo.uses_blender_nodes, nwo.shader_path)
+                nwo.shader_path = tag.path
                 report({'INFO'}, f"Created Material Tag for {mat.name}")
             else:
-                tag = ManagedBlamNewShader(mat.name, nwo.shader_type, nwo.uses_blender_nodes)
-                mat.nwo.shader_path = tag.path
+                tag = ManagedBlamNewShader(mat.name, nwo.shader_type, nwo.uses_blender_nodes, nwo.shader_path)
+                nwo.shader_path = tag.path
                 report({'INFO'}, f"Created Shader Tag for {mat.name}")
 
     return {"FINISHED"}
