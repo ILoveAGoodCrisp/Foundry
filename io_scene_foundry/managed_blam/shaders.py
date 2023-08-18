@@ -244,6 +244,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 bitmap = self.get_bitmap(image_node)
                 if bitmap:
                     new_dict['bitmap'] = bitmap
+                else:
+                    new_dict['bitmap'] = ""
                 mapping = self.get_mapping_as_corinth_dict(image_node)
                 if mapping:
                     new_dict['real'] = mapping['scale u']
@@ -286,7 +288,9 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if mapping_node.type != 'MAPPING':
             return
         mapping['scale u'] = str(mapping_node.inputs[3].default_value[0])
-        mapping['scatran'] = [str(mapping_node.inputs[3].default_value[1]), str(mapping_node.inputs[2].default_value[0]), str(mapping_node.inputs[2].default_value[1])]
+        mapping['scatran'] = [str(mapping_node.inputs[3].default_value[1]), str(mapping_node.inputs[1].default_value[0]), str(mapping_node.inputs[1].default_value[1])]
+
+        return mapping
         
 
     def basic_material(self, block_material_parameters):
@@ -508,7 +512,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             if os.path.exists(self.tags_dir + bitmap):
                 return bitmap
             
-        if image.filepath and os.path.exists(self.tags_dir + image.filepath):
+        if image.filepath and os.path.exists(image.filepath_from_user()):
             bitmap = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + ".bitmap"
             if os.path.exists(self.tags_dir + bitmap):
                 return bitmap

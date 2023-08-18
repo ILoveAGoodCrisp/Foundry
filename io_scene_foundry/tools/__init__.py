@@ -2031,7 +2031,7 @@ class NWO_FoundryPanelProps(Panel):
                         row.operator("nwo.build_shader_single", text=f"Update {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
                         row = box.row(align=True)
                         if h4:
-                            row.prop(nwo, "material_shader", text="Shader Override")
+                            row.prop(nwo, "material_shader", text="Default Shader")
                             row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
                         else:
                             row.prop(nwo, "shader_type", text="Shader Type")
@@ -2048,7 +2048,7 @@ class NWO_FoundryPanelProps(Panel):
                         row.prop(nwo, "shader_dir", text="Export Directory")
                         row = box.row(align=True)
                         if h4:
-                            row.prop(nwo, "material_shader", text="Material Shader")
+                            row.prop(nwo, "material_shader", text="Default Shader")
                             row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
                         else:
                             row.prop(nwo, "shader_type", text="Shader Type")
