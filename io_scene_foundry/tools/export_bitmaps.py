@@ -40,10 +40,6 @@ class NWO_ExportBitmapsSingle(bpy.types.Operator):
     bl_idname = "nwo.export_bitmaps_single"
     bl_label = "Export Bitmap"
 
-    @classmethod
-    def poll(self, context):
-        return valid_nwo_asset(context)
-
     def execute(self, context):
         export_bitmaps(self.report, context.scene.nwo_halo_launcher.sidecar_path, context.object.active_material.nwo.active_image)
         return {'FINISHED'}

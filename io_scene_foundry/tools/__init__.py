@@ -2007,57 +2007,59 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("object.material_slot_select", text="Select")
             row.operator("object.material_slot_deselect", text="Deselect")
         if mat:
-            row = box.row()
+            col = box.column()
             if nwo.rendered:
-                row.label(text=f"{txt} Path")
-                row = box.row(align=True)
+                col.label(text=f"{txt} Path")
+                row = col.row(align=True)
                 row.prop(nwo, "shader_path", text="", icon_value=get_icon_id("tags"))
                 row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
                 row.operator("nwo.shader_path", icon="FILE_FOLDER", text="")
                 tag_type = "Material" if h4 else "Shader"
                 has_valid_path = nwo.shader_path and os.path.exists(get_tags_path() + nwo.shader_path)
                 if has_valid_path:
-                    row = box.row()
+                    col.separator()
                     # row.scale_y = 1.5
-                    row.operator(
+                    col.operator(
                         "nwo.open_halo_material",
                         icon_value=get_icon_id("foundation"),
                         text="Open in Tag Editor"
                     )
-                    row = box.row()
-                    row.prop(nwo, "uses_blender_nodes", text=f"Link Tag to Nodes", icon='NODETREE')
+                    col.separator()
+                    col.prop(nwo, "uses_blender_nodes", text=f"Link Tag to Nodes", icon='NODETREE')
                     if nwo.uses_blender_nodes:
-                        row = box.row(align=True)
-                        row.operator("nwo.build_shader_single", text=f"Update {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
-                        row = box.row(align=True)
+                        col.operator("nwo.build_shader_single", text=f"Update {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
+                        col.separator()
                         if h4:
+                            row = col.row(align=True)
                             row.prop(nwo, "material_shader", text="Default Shader")
                             row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
                         else:
-                            row.prop(nwo, "shader_type", text="Shader Type")
+                            col.prop(nwo, "shader_type", text="Shader Type")
 
                 else:
-                    row = box.row()
                     if nwo.shader_path:
-                        row.label(text="Shader Tag Not Found", icon="ERROR")
+                        col.label(text="Shader Tag Not Found", icon="ERROR")
                     else:
-                        row.operator("nwo.build_shader_single", text=f"Create Empty {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = False
-                        row = box.row(align=True)
-                        row.operator("nwo.build_shader_single", text=f"Generate Linked {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
-                        row = box.row(align=True)
-                        row.prop(nwo, "shader_dir", text="Export Directory")
-                        row = box.row(align=True)
+                        col.separator()
+                        row = col.row()
+                        row.operator("nwo.build_shader_single", text=f"New Empty {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = False
+                        row.operator("nwo.build_shader_single", text=f"New Linked {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
+                        col.separator()
+                        col_props = col.column()
+                        col_props.use_property_split = True
+                        col_props.prop(nwo, "shader_dir", text=f"{tag_type} Directory")
                         if h4:
+                            row = col_props.row(align=True)
                             row.prop(nwo, "material_shader", text="Default Shader")
                             row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
                         else:
-                            row.prop(nwo, "shader_type", text="Shader Type")
+                            col_props.prop(nwo, "shader_type", text="Shader Type")
 
             else:
                 if self.bl_idname == "NWO_PT_MaterialPanel":
-                    row.label(text=f"Not a {txt}")
+                    col.label(text=f"Not a {txt}")
                 else:
-                    row.label(text=f"Not a {txt}")
+                    col.label(text=f"Not a {txt}")
 
             # TEXTURE PROPS
             # First validate if Material has images
@@ -2069,7 +2071,7 @@ class NWO_FoundryPanelProps(Panel):
                 return
 
             box = self.box.box()
-            box.use_property_split = True
+            box.use_property_split = False
             box.label(text="Bitmap Properties")
             col = box.column()
             col.template_ID_preview(nwo, "active_image")
@@ -2077,9 +2079,6 @@ class NWO_FoundryPanelProps(Panel):
             if not image:
                 return
             bitmap = image.nwo
-            col.prop(bitmap, "export", text="Export")
-            col.prop(bitmap, "reexport_tiff", text="Re-export TIFF")
-            col.prop(bitmap, "bitmap_type", text="Type")
             tags_dir = get_tags_path()
             data_dir = get_data_path()
             bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
@@ -2088,11 +2087,23 @@ class NWO_FoundryPanelProps(Panel):
             if not os.path.exists(tags_dir + bitmap_path):
                 col.separator()
                 col.operator("nwo.export_bitmaps_single", text="Export Bitmap", icon_value=get_icon_id("texture_export"))
+                col.separator()
+                col_props = col.column()
+                col_props.use_property_split = True
+                col_props.prop(bitmap, "bitmap_dir", text="Bitmap Directory")
+                col_props.prop(bitmap, "bitmap_type", text="Type")
                 return
             col.separator()
+            col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
+            col.separator()
+            col.prop(bitmap, "export", text="Link Tag to Blender Image", icon="TEXTURE")
             if bitmap.export:
                 col.operator("nwo.export_bitmaps_single", text="Update Bitmap", icon_value=get_icon_id("texture_export"))
-            col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
+                col.separator()
+                col_props = col.column()
+                col_props.use_property_split = True
+                col_props.prop(bitmap, "bitmap_type", text="Type")
+                col_props.prop(bitmap, "reexport_tiff", text="Always Export TIFF")
                 
 
 

@@ -111,24 +111,24 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         options=set(),
     )
     
-    def update_bitmap_dir(self, context):
-        self["bitmap_dir"] = clean_tag_path(self["bitmap_dir"]).strip('"')
+    def update_shader_dir(self, context):
+        self["shader_dir"] = clean_tag_path(self["shader_dir"]).strip('"')
 
-    def get_bitmap_dir(self):
+    def get_shader_dir(self):
         context = bpy.context
         is_asset = valid_nwo_asset(context)
         if is_asset:
-            return self.get("bitmap_dir", os.path.join(get_asset_path(), "materials" if not_bungie_game(context) else "shaders"))
-        return self.get("bitmap_dir", "")
+            return self.get("shader_dir", os.path.join(get_asset_path(), "materials" if not_bungie_game(context) else "shaders"))
+        return self.get("shader_dir", "")
     
-    def set_bitmap_dir(self, value):
-        self['bitmap_dir'] = value
+    def set_shader_dir(self, value):
+        self['shader_dir'] = value
 
     shader_dir : StringProperty(
         name="Export Directory",
         description="Specifies the directory to export this Material. Defaults to the asset materials/shaders folder",
         options=set(),
-        update=update_bitmap_dir,
-        get=get_bitmap_dir,
-        set=set_bitmap_dir,
+        update=update_shader_dir,
+        get=get_shader_dir,
+        set=set_shader_dir,
     )

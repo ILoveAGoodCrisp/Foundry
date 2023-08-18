@@ -507,7 +507,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if not image:
             return
         nwo = image.nwo
-        if nwo.filepath and os.path.exists(self.tags_dir + nwo.filepath):
+        if nwo.filepath:
             bitmap = dot_partition(nwo.filepath) + ".bitmap"
             if os.path.exists(self.tags_dir + bitmap):
                 return bitmap

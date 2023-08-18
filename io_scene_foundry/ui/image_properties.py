@@ -24,7 +24,10 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 import bpy
+
+from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, not_bungie_game, valid_nwo_asset
 
 class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
     bitmap_name: bpy.props.StringProperty(
@@ -109,3 +112,25 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
 
     filepath : bpy.props.StringProperty()
     source_name : bpy.props.StringProperty()
+
+    def update_bitmap_dir(self, context):
+
+        self["bitmap_dir"] = clean_tag_path(self["bitmap_dir"]).strip('"')
+
+    def get_bitmap_dir(self):
+        context = bpy.context
+        is_asset = valid_nwo_asset(context)
+        if is_asset:
+            return self.get("bitmap_dir", os.path.join(get_asset_path(), "bitmaps"))
+        return self.get("bitmap_dir", "")
+    
+    def set_bitmap_dir(self, value):
+        self['bitmap_dir'] = value
+
+    bitmap_dir : bpy.props.StringProperty(
+        name="Bitmap Directory",
+        description="Specifies where the exported bitmap (and tiff, if it does exist) should be saved. Defaults to the asset bitmaps folder",
+        update=update_bitmap_dir,
+        get=get_bitmap_dir,
+        set=set_bitmap_dir,
+    )
