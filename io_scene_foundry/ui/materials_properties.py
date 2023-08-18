@@ -24,10 +24,11 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 import bpy
 from bpy.types import PropertyGroup
 from bpy.props import StringProperty, BoolProperty
-from io_scene_foundry.utils.nwo_utils import clean_tag_path
+from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, not_bungie_game, valid_nwo_asset
 from .templates import NWO_Op_Path
 
 
@@ -108,4 +109,26 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         name="Uses Blender Nodes",
         description="Allow tag to be updated from Blender Shader nodes",
         options=set(),
+    )
+    
+    def update_bitmap_dir(self, context):
+        self["bitmap_dir"] = clean_tag_path(self["bitmap_dir"]).strip('"')
+
+    def get_bitmap_dir(self):
+        context = bpy.context
+        is_asset = valid_nwo_asset(context)
+        if is_asset:
+            return self.get("bitmap_dir", os.path.join(get_asset_path(), "materials" if not_bungie_game(context) else "shaders"))
+        return self.get("bitmap_dir", "")
+    
+    def set_bitmap_dir(self, value):
+        self['bitmap_dir'] = value
+
+    shader_dir : StringProperty(
+        name="Export Directory",
+        description="Specifies the directory to export this Material. Defaults to the asset materials/shaders folder",
+        options=set(),
+        update=update_bitmap_dir,
+        get=get_bitmap_dir,
+        set=set_bitmap_dir,
     )

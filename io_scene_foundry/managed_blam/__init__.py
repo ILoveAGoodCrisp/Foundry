@@ -81,7 +81,7 @@ class ManagedBlam():
             self.path = self.get_path()
 
         if not self.path:
-            return
+            return print("No path to tag found")
 
         self.system_path = get_tags_path() + self.path
 

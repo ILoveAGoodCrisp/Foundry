@@ -62,13 +62,14 @@ class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
             ]
 
 class ManagedBlamNewShader(managed_blam.ManagedBlam):
-    def __init__(self, blender_material, shader_type, linked_to_blender, specified_path=""):
+    def __init__(self, blender_material, shader_type, linked_to_blender, specified_path="", export_dir=""):
         super().__init__()
         self.blender_material = blender_material
         self.shader_type = shader_type
         self.linked_to_blender = linked_to_blender
         self.group_node = self.blender_halo_material()
         self.custom = False
+        self.export_dir = export_dir
         self.specified_path = specified_path if specified_path and os.path.exists(self.tags_dir + specified_path) else None
         if linked_to_blender and self.group_node:
             self.material_shader = ManagedBlamReadMaterialShader(self.group_node)
@@ -78,7 +79,10 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
     def get_path(self):
         if self.specified_path:
             return self.specified_path
-        shaders_dir = os.path.join(self.asset_dir, "materials" if self.corinth else "shaders")
+        if self.export_dir:
+            shaders_dir = self.export_dir
+        else:
+            shaders_dir = os.path.join(self.asset_dir, "materials" if self.corinth else "shaders")
         shader_name = get_valid_shader_name(self.blender_material)
         tag_ext = ".material" if self.corinth else self.shader_type
         shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
@@ -346,7 +350,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 self.Element_set_field_values(element, self.corinth_extra_mapping)
 
     def find_best_material_shader(self):
-        return r"shaders\material_shaders\materials\srf_ward.material_shader"
+        return r"shaders\material_shaders\materials\srf_blinn.material_shader"
 
     def get_maps(self):
         maps = []

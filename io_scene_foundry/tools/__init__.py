@@ -2022,15 +2022,19 @@ class NWO_FoundryPanelProps(Panel):
                     row.operator(
                         "nwo.open_halo_material",
                         icon_value=get_icon_id("foundation"),
+                        text="Open in Tag Editor"
                     )
                     row = box.row()
-                    row.prop(nwo, "uses_blender_nodes", text=f"Link {tag_type} to Blender Material Nodes")
+                    row.prop(nwo, "uses_blender_nodes", text=f"Link Tag to Nodes", icon='NODETREE')
                     if nwo.uses_blender_nodes:
                         row = box.row(align=True)
                         row.operator("nwo.build_shader_single", text=f"Update {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
-                        row = row.row(align=True)
-                        row.scale_x = 0.3
-                        row.popover(panel=NWO_PT_ShaderGenProps.bl_idname, text="")
+                        row = box.row(align=True)
+                        if h4:
+                            row.prop(nwo, "material_shader", text="Shader Override")
+                            row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
+                        else:
+                            row.prop(nwo, "shader_type", text="Shader Type")
 
                 else:
                     row = box.row()
@@ -2040,9 +2044,14 @@ class NWO_FoundryPanelProps(Panel):
                         row.operator("nwo.build_shader_single", text=f"Create Empty {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = False
                         row = box.row(align=True)
                         row.operator("nwo.build_shader_single", text=f"Generate Linked {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
-                        row = row.row(align=True)
-                        row.scale_x = 0.3
-                        row.popover(panel=NWO_PT_ShaderGenProps.bl_idname, text="")
+                        row = box.row(align=True)
+                        row.prop(nwo, "shader_dir", text="Export Directory")
+                        row = box.row(align=True)
+                        if h4:
+                            row.prop(nwo, "material_shader", text="Material Shader")
+                            row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
+                        else:
+                            row.prop(nwo, "shader_type", text="Shader Type")
 
             else:
                 if self.bl_idname == "NWO_PT_MaterialPanel":
@@ -2344,25 +2353,6 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
-
-class NWO_PT_ShaderGenProps(Panel):
-    bl_label = "Shader Builder Properties"
-    bl_idname = "NWO_PT_ShaderGenPanel"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "WINDOW"
-    bl_options = {"INSTANCED"}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        h4 = not_bungie_game(context)
-        nwo = context.object.active_material.nwo
-        row = layout.row(align=True)
-        if h4:
-            row.prop(nwo, "material_shader", text="Material Shader")
-            row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
-        else:
-            row.prop(nwo, "shader_type", text="Shader Type")
 
 class NWO_HotkeyDescription(Operator):
     bl_label = "Keyboard Shortcut Description"
@@ -4800,7 +4790,7 @@ class NWO_Shader_BuildSingle(Operator):
 
     @classmethod
     def poll(cls, context):
-        return valid_nwo_asset(context) and context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
+        return context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
     
     def execute(self, context):
         nwo = context.object.active_material.nwo
@@ -4815,12 +4805,11 @@ class NWO_Shader_BuildSingle(Operator):
     
     @classmethod
     def description(cls, context, properties) -> str:
-        if not valid_nwo_asset(context):
-            return "Scene must be a valid Halo Asset before a tag can be generated"
-        elif context.scene.nwo.game_version == 'reach':
-            return "Creates an empty shader tag for this material"
+        tag_type = 'material' if not_bungie_game(context) else 'shader'
+        if properties.linked_to_blender:
+            return f"Creates an empty {tag_type} tag for this material"
         else:
-            return "Creates an empty material tag for this material"
+            return f"Creates an linked {tag_type} tag for this material. The tag will populate using Blender Material Nodes"
 
 
 class NWO_Shader_Build(Operator):
@@ -4975,7 +4964,6 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
 
 classeshalo = (
-    NWO_PT_ShaderGenProps,
     NWO_OpenFoundationTag,
     NWO_ExportBitmapsSingle,
     NWO_ExportBitmaps,
