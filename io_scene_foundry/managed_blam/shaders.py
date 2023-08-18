@@ -50,7 +50,7 @@ class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
                     if dot_partition(file) == material_shader_name:
                         return os.path.join(root, file).replace(self.tags_dir, "")
         
-        return
+        return print(f"No material shader found in tags\shaders\... named {material_shader_name}")
 
     def tag_read(self, tag):
         block_material_parameters = tag.SelectField("Block:material parameters")
@@ -68,8 +68,10 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         self.shader_type = shader_type
         self.linked_to_blender = linked_to_blender
         self.group_node = self.blender_halo_material()
+        self.custom = False
         if linked_to_blender and self.group_node:
             self.material_shader = ManagedBlamReadMaterialShader(self.group_node)
+            self.custom = bool(getattr(self.material_shader, "tag_path", 0))
         self.tag_helper()
 
     def get_path(self):
@@ -108,6 +110,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             return
         struct_render_method = tag.SelectField("Struct:render_method").Elements[0]
         maps = self.get_maps()
+        if not maps:
+            return print("Cannot read Blender Material Nodes into tag. Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
         if self.shader_type == ".shader":
             # Set up shader options
             block_options = struct_render_method.SelectField("options")
@@ -175,11 +179,11 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if not self.shader_type:
             self.shader_type = self.find_best_material_shader()
         reference_material_shader = tag.SelectField("Reference:material shader")
-        reference_material_shader.Reference.Path = self.material_shader.tag_path if self.group_node else self.TagPath_from_string(self.shader_type)
+        reference_material_shader.Reference.Path = self.material_shader.tag_path if self.custom else self.TagPath_from_string(self.shader_type)
         if not self.linked_to_blender:
             return
         block_material_parameters = tag.SelectField("Block:material parameters")
-        if self.group_node:
+        if self.custom:
             self.custom_material(block_material_parameters, self.group_node, self.material_shader.parameters)
         else:
             self.basic_material(block_material_parameters)
@@ -231,7 +235,9 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if type == 0: # bitmap
             image_node = self.image_node_from_input(input)
             if image_node:
-                new_dict['bitmap'] = self.get_bitmap(image_node)
+                bitmap = self.get_bitmap(image_node)
+                if bitmap:
+                    new_dict['bitmap'] = bitmap
                 mapping = self.get_mapping_as_corinth_dict(image_node)
                 if mapping:
                     new_dict['real'] = mapping['scale u']
@@ -279,6 +285,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
     def basic_material(self, block_material_parameters):
         maps = self.get_maps()
+        if not maps:
+            return print("Cannot read Blender Material Nodes into tag, created empty tag instead. Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
         # Set albedo to default
         if not hasattr(self, "has_diffuse"):
             diffuse_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'color_map')
@@ -342,6 +350,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         maps = []
         node_tree = bpy.data.materials[self.blender_material].node_tree
         shader_node = self.get_blender_shader(node_tree)
+        if not shader_node:
+            return
         diffuse_map = self.get_diffuse_map(shader_node)
         if diffuse_map:
             maps.append(diffuse_map)
@@ -487,13 +497,17 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if not image:
             return
         nwo = image.nwo
-        if nwo.filepath:
+        if nwo.filepath and os.path.exists(self.tags_dir + nwo.filepath):
             bitmap = dot_partition(nwo.filepath) + ".bitmap"
-        elif image.filepath:
+            if os.path.exists(self.tags_dir + bitmap):
+                return bitmap
+            
+        if image.filepath and os.path.exists(self.tags_dir + image.filepath):
             bitmap = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + ".bitmap"
-        else:
-            bitmap = export_bitmaps(None, self.context.scene.nwo_halo_launcher.sidecar_path, [image])
-        
+            if os.path.exists(self.tags_dir + bitmap):
+                return bitmap
+
+        bitmap = export_bitmaps(None, self.context.scene.nwo_halo_launcher.sidecar_path, [image])
         if os.path.exists(self.tags_dir + bitmap):
             return bitmap
         
