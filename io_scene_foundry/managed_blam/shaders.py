@@ -123,6 +123,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             # Set up shader parameters
             block_parameters = struct_render_method.SelectField("parameters")
             for m in maps:
+                sub_map = m['animated parameters']
+                m.pop('animated parameters')
                 element = self.Element_from_field_value(block_parameters, "parameter name", m['parameter name'])
                 if element is None:
                     element = block_parameters.AddElement()
@@ -132,7 +134,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
                 self.Element_set_field_values(element, m)
 
-                sub_map = m['animated parameters']
+                
                 if not sub_map: continue
                 block_animated_parameters = element.SelectField("animated parameters")
                 for k, v in sub_map.items():
@@ -291,6 +293,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             if normal_element:
                 block_material_parameters.RemoveElement(normal_element.ElementIndex)
         for m in maps:
+            sub_map = m['function parameters']
+            m.pop('function parameters')
             element = self.Element_from_field_value(block_material_parameters, "parameter name", m['parameter name'])
             if element is None:
                 element = block_material_parameters.AddElement()
@@ -299,7 +303,6 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
             self.Element_set_field_values(element, m)
 
-            sub_map = m['function parameters']
             if not sub_map: continue
             block_function_parameters = element.SelectField("function parameters")
             to_strip = []
