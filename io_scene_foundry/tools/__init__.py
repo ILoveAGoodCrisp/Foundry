@@ -40,20 +40,20 @@ from bpy.props import (
     PointerProperty,
 )
 from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmaps, NWO_ExportBitmapsSingle
+from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
+from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
 from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
 from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList
 from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
-from .shader_builder import NWO_ListMaterialShaders, build_shaders
+from .shader_builder import NWO_ListMaterialShaders, build_shader
 
 from io_scene_foundry.utils import nwo_globals
 
 from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
-    clean_tag_path,
     deselect_all_objects,
     dot_partition,
     foundry_update_check,
@@ -67,7 +67,6 @@ from io_scene_foundry.utils.nwo_utils import (
     managed_blam_active,
     not_bungie_game,
     nwo_asset_type,
-    os_sep_partition,
     protected_material_name,
     set_active_object,
     set_object_mode,
@@ -2285,7 +2284,8 @@ class NWO_FoundryPanelProps(Panel):
         # if total:
         row = box.row()
         col = row.column()
-        col.label(text=f"Asset {shader_type}s")
+        col.label(text=f"Asset {shader_type}")
+        col.use_property_split = True
         # col.separator()
         col.label(
             text=f"{count} tag paths found out of {total} materials",
@@ -2301,6 +2301,10 @@ class NWO_FoundryPanelProps(Panel):
             icon_value=get_icon_id("material_finder"),
         )
         col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
+        col1.separator()
+        col2.separator()
+        col1.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
+        col2.popover(panel=NWO_ShaderFarmPopover.bl_idname, text="")
 
 
     def draw_help(self):
@@ -4806,12 +4810,10 @@ class NWO_Shader_BuildSingle(Operator):
     def execute(self, context):
         nwo = context.object.active_material.nwo
         nwo.uses_blender_nodes = self.linked_to_blender
-        return build_shaders(context,
+        return build_shader(context,
             context.object.active_material,
+            not_bungie_game(context),
             self.report,
-            nwo.material_shader if not_bungie_game(context) else nwo.shader_type,
-            True,
-            nwo.uses_blender_nodes,
         )
     
     @classmethod
@@ -4821,41 +4823,6 @@ class NWO_Shader_BuildSingle(Operator):
             return f"Creates an empty {tag_type} tag for this material"
         else:
             return f"Creates an linked {tag_type} tag for this material. The tag will populate using Blender Material Nodes"
-
-
-class NWO_Shader_Build(Operator):
-    """Makes a shader"""
-
-    bl_idname = "nwo.build_shader"
-    bl_label = "Build Shader"
-    bl_options = {"UNDO"}
-    bl_description = "Builds empty shader tags for blender materials. Requires ManagedBlam to be active"
-
-    @classmethod
-    def poll(cls, context):
-        scene = context.scene
-        nwo_shader_build = scene.nwo_shader_build
-        return (
-            context.object
-            and context.object.type == "MESH"
-            and managed_blam_active()
-            and (
-                nwo_shader_build.material_selection == "all"
-                or context.active_object.active_material
-            )
-        )
-
-    def execute(self, context):
-        scene = context.scene
-        nwo_shader_build = scene.nwo_shader_build
-        from .shader_builder import build_shaders
-
-        return build_shaders(
-            context,
-            nwo_shader_build.material_selection,
-            self.report,
-            nwo_shader_build.update,
-        )
 
 
 class NWO_ShaderPropertiesGroup(PropertyGroup):
@@ -4977,7 +4944,6 @@ def foundry_toolbar(layout, context):
 classeshalo = (
     NWO_OpenFoundationTag,
     NWO_ExportBitmapsSingle,
-    NWO_ExportBitmaps,
     NWO_GetGlobalMaterials,
     NWO_GetModelVariants,
     NWO_GetTagsList,
@@ -5032,11 +4998,12 @@ classeshalo = (
     # NWO_Material,
     # NWO_Shader,
     NWO_ListMaterialShaders,
-    NWO_Shader_Build,
     NWO_Shader_BuildSingle,
     NWO_ShaderPropertiesGroup,
     NWO_ScaleModels_Add,
     NWO_JoinHalo,
+    NWO_ShaderFarmPopover,
+    NWO_FarmShaders,
     # NWO_GunRigMaker,
     # NWO_GunRigMaker_Start,
 )

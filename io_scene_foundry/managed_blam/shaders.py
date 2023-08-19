@@ -25,8 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry import managed_blam
-from io_scene_foundry.tools.export_bitmaps import export_bitmaps
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_valid_shader_name, is_halo_node
+from io_scene_foundry.tools.export_bitmaps import export_bitmap
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_valid_shader_name, is_halo_node
 import os
 import bpy
 
@@ -79,7 +79,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
     def get_path(self):
         if self.specified_path:
             return self.specified_path
-        if self.export_dir:
+        elif self.export_dir:
             shaders_dir = self.export_dir
         else:
             shaders_dir = os.path.join(self.asset_dir, "materials" if self.corinth else "shaders")
@@ -517,7 +517,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             if os.path.exists(self.tags_dir + bitmap):
                 return bitmap
 
-        bitmap = export_bitmaps(None, self.context.scene.nwo_halo_launcher.sidecar_path, [image])
+        bitmap = export_bitmap(image)
         if os.path.exists(self.tags_dir + bitmap):
             return bitmap
         
@@ -536,15 +536,6 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if node.type == 'TEX_IMAGE':
             return node
 
-    def get_material_parameters(self, tag):
-        pass
-
-
-    def build_parameters(self, values, material_parameters):
-        for v in values:
-            element = self.Element_create_if_needed(material_parameters, "parameter name", v['parameter name'])
-            self.Element_set_field_values(element, v)
-            function_parameters = self.get_function_parameters(element)
 
     def element_dict_from_input(self, input, dict_value):
         """Returns a dict representing a Element using the given input"""

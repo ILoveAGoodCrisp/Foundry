@@ -204,7 +204,7 @@ class ManagedBlam():
     def EnumIntValue(self, block, field_name, value):
         elements = block.Elements
         if not elements.Count:
-            return print(f"{block} has no elements")
+            return #print(f"{block} has no elements")
         items = self.EnumItems(elements[0], field_name)
         for idx, item in enumerate(items):
             if item == value:
@@ -223,7 +223,7 @@ class ManagedBlam():
     def Element_from_field_value(self, block, field_name, value):
         elements = block.Elements
         if not elements.Count:
-            return print(f"{block} has no elements")
+            return #print(f"{block} has no elements")
         for e in elements:
             field_value = self.Element_get_field_value(e, field_name)
             if field_value == value:

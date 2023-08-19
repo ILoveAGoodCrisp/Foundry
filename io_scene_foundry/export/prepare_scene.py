@@ -1568,7 +1568,7 @@ class PrepareScene:
 
         process = "Creating Meshes From Face Properties"
         len_me_ob_dict = len(me_ob_dict)
-        any_face_props = False
+        self.any_face_props = False
 
         # make invalid obs seperate mesh data
         if me_ob_dict[me] != me_ob_dict_full[me]:
@@ -1598,7 +1598,7 @@ class PrepareScene:
             if face_layers:
                 update_progress(process, idx / len_me_ob_dict)
 
-                any_face_props = True
+                self.any_face_props = True
                 # must force on auto smooth to avoid Normals transfer errors
                 me.use_auto_smooth = True
 
@@ -1660,7 +1660,7 @@ class PrepareScene:
                             mod.use_loop_data = True
                             mod.data_types_loops = {"CUSTOM_NORMAL"}
 
-        if any_face_props:
+        if self.any_face_props:
             update_progress(process, 1)
 
     def z_rotate_and_apply(self, model_armature, angle, export_obs):
@@ -3142,7 +3142,7 @@ class PrepareScene:
         materials = me.materials
         scene_mats = bpy.data.materials
         mats = dict.fromkeys(slots)
-        if nwo.reach_poop_collision and (nwo.face_global_material_ui or self.any_face_props()):
+        if nwo.reach_poop_collision and (nwo.face_global_material_ui or self.any_face_props):
             self.set_reach_coll_materials(me, nwo, scene_mats)
         else:
             self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me)

@@ -27,22 +27,23 @@
 from io_scene_foundry.managed_blam import ManagedBlam
 import os
 
+from io_scene_foundry.utils.nwo_utils import dot_partition
+
 class ManagedBlamNewBitmap(ManagedBlam):
-    def __init__(self, bitmap_name, bitmap_type):
+    def __init__(self, bitmap_name, bitmap_type, tiff_path):
         super().__init__()
         self.bitmap_name = bitmap_name
         self.bitmap_type = bitmap_type if bitmap_type else "default"
+        self.tiff_path = tiff_path
         self.tag_helper()
 
     def get_path(self):
-        bitmaps_dir = os.path.join(self.asset_dir, "bitmaps")
-        bitmap_path = os.path.join(bitmaps_dir, self.bitmap_name + ".bitmap")
+        bitmap_path = dot_partition(self.tiff_path) + ".bitmap"
         return bitmap_path
 
     def tag_edit(self, tag):
         if self.bitmap_type == "default":
             suffix = self.bitmap_name.rpartition("_")[2].lower()
-            print(suffix)
             self.bitmap_type = "Diffuse Map"
             if suffix and "_" in self.bitmap_name.strip("_"):
                 if suffix.startswith(("orm", "mro", "mtr", "rmo", "control")):
@@ -110,6 +111,8 @@ class ManagedBlamNewBitmap(ManagedBlam):
         flags.SetBit("Ignore Curve Override", True)
         if self.bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
             self.Element_set_field_value(override_element, "bitmap format", "DXT5 (Compressed Color + Compressed 8-bit Alpha)")
+        elif self.bitmap_type in ("ZBrush Bump Map (from Bump Map)", "Normal Map (aka zbump)", "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"):
+            self.Element_set_field_value(override_element, "bitmap format", "DXN Compressed Normals (better)")
         # flags.SetBit("Dont Allow Size Optimization", True)
         # dicer_flags = override_element.SelectField("dicer flags")
         # dicer_flags.SetBit("Color Grading sRGB Correction", True)

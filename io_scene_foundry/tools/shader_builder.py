@@ -28,65 +28,39 @@ import os
 from io_scene_foundry.managed_blam.shaders import ManagedBlamNewShader
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
-    get_asset_path,
     get_asset_path_full,
     get_tags_path,
     get_valid_shader_name,
     not_bungie_game,
     os_sep_partition,
     protected_material_name,
-    valid_nwo_asset,
 )
 
 global_material_shaders = []
 
-def is_tag_candidate(update_existing, mat):
+def get_shader_name(mat):
     if not protected_material_name(mat.name):
         shader_name = get_valid_shader_name(mat.name)
         if shader_name != "":
-            full_path = os.path.join(
-                get_asset_path_full(True), "shaders", shader_name
-            )
-            return update_existing or not os.path.exists(full_path)
+            return shader_name
 
-    return False
+    return None
 
 
-def build_shaders(context, material_selection, report, shader_info, update_existing=False, linked_to_blender=False):
-    # get blender materials to be added
-    shader_materials = []
-    material_names = []
-    if material_selection == "all":
-        # get a list of all scene materials to be made into tags
-        for mat in bpy.data.materials:
-            if mat.name != "":
-                material_names.append(mat.name)
-                if is_tag_candidate(update_existing, mat):
-                    shader_materials.append(mat)
-
+def build_shader(material, corinth, folder="", report=None):
+    if not get_shader_name(material):
+        return 
+    nwo = material.nwo
+    if corinth:
+        tag = ManagedBlamNewShader(material.name, nwo.material_shader, nwo.uses_blender_nodes, nwo.shader_path, folder if folder else nwo.shader_dir)
+        nwo.shader_path = tag.path
+        if report is not None:
+            report({'INFO'}, f"Created Material Tag for {material.name}")
     else:
-        active_material = context.object.active_material
-        if active_material.name != "":
-            if is_tag_candidate(update_existing, active_material):
-                shader_materials.append(active_material)
-
-    # Pass to ManagedBlam Operator
-    for mat in shader_materials:
-        # need to check for duplicates
-        material_names = []
-        mat_name = get_valid_shader_name(mat.name)
-        if mat_name not in material_names:
-            material_names.append(mat_name)
-            print(f"Bulding shader for {mat.name}")
-            nwo = mat.nwo
-            if not_bungie_game(context):
-                tag = ManagedBlamNewShader(mat.name, nwo.material_shader, nwo.uses_blender_nodes, nwo.shader_path, nwo.shader_dir)
-                nwo.shader_path = tag.path
-                report({'INFO'}, f"Created Material Tag for {mat.name}")
-            else:
-                tag = ManagedBlamNewShader(mat.name, nwo.shader_type, nwo.uses_blender_nodes, nwo.shader_path, nwo.shader_dir)
-                nwo.shader_path = tag.path
-                report({'INFO'}, f"Created Shader Tag for {mat.name}")
+        tag = ManagedBlamNewShader(material.name, nwo.shader_type, nwo.uses_blender_nodes, nwo.shader_path, folder if folder else nwo.shader_dir)
+        nwo.shader_path = tag.path
+        if report is not None:
+            report({'INFO'}, f"Created Shader Tag for {material.name}")
 
     return {"FINISHED"}
 
@@ -109,7 +83,7 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
         shaders_dir = os.path.join(tags_dir + "shaders", "material_shaders")
         material_shaders = []
         # walk shaders dir and collect
-        for root, dirs, files in os.walk(shaders_dir):
+        for root, _, files in os.walk(shaders_dir):
             for file in files:
                 if file.endswith(".material_shader"):
                     material_shaders.append(os.path.join(root, file).replace(tags_dir, ""))

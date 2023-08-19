@@ -24,6 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
+import bpy
 from bpy.props import (
     IntProperty,
     BoolProperty,
@@ -34,7 +36,7 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_ek_path, not_bungie_game, poll_ui
+from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_ek_path, not_bungie_game, poll_ui, valid_nwo_asset
 
 def game_version_warning(self, context):
     self.layout.label(
@@ -535,4 +537,96 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Shader Sync",
         description="Sync's the active material with the corresponding Halo Shader/Material tag. Only active when the material has been marked as linked to game",
         options=set()
+    )
+
+    def update_shaders_dir(self, context):
+        self["shaders_dir"] = clean_tag_path(self["shaders_dir"]).strip('"')
+
+    def get_shaders_dir(self):
+        context = bpy.context
+        is_asset = valid_nwo_asset(context)
+        if is_asset:
+            return self.get("shaders_dir", os.path.join(get_asset_path(), "materials" if not_bungie_game(context) else "shaders"))
+        return self.get("shaders_dir", "")
+    
+    def set_shaders_dir(self, value):
+        self['shaders_dir'] = value
+
+    shaders_dir : StringProperty(
+        name="Shaders Directory",
+        description="Specifies the directory to export shaders/materials. Defaults to the asset materials/shaders folder",
+        options=set(),
+        update=update_shaders_dir,
+        get=get_shaders_dir,
+        set=set_shaders_dir,
+    )
+
+    def update_bitmaps_dir(self, context):
+        self["bitmaps_dir"] = clean_tag_path(self["bitmaps_dir"]).strip('"')
+
+    def get_bitmaps_dir(self):
+        context = bpy.context
+        is_asset = valid_nwo_asset(context)
+        if is_asset:
+            return self.get("bitmaps_dir", os.path.join(get_asset_path(), "bitmaps"))
+        return self.get("bitmaps_dir", "")
+    
+    def set_bitmaps_dir(self, value):
+        self['bitmaps_dir'] = value
+
+    bitmaps_dir : bpy.props.StringProperty(
+        name="Bitmaps Directory",
+        description="Specifies where the exported bitmaps (and tiffs, if they exist) should be saved. Defaults to the asset bitmaps folder",
+        update=update_bitmaps_dir,
+        get=get_bitmaps_dir,
+        set=set_bitmaps_dir,
+    )
+
+    def farm_type_items(self, context):
+        tag_type = "Materials" if not_bungie_game(context) else "Shaders"
+        items = [
+            ("both", f"{tag_type} & Bitmaps", ""),
+            ("shaders", f"{tag_type}", ""),
+            ("bitmaps", "Bitmaps", ""),
+        ]
+
+        return items
+
+    farm_type : EnumProperty(
+        name="Type",
+        items=farm_type_items,
+    )
+
+    shaders_scope : EnumProperty(
+        name="Shaders",
+        items=[
+            ("all", "All", ""),
+            ("new", "New Only", ""),
+            ("update", "Update Only", ""),
+        ]
+    )
+
+    bitmaps_scope : EnumProperty(
+        name="Bitmaps",
+        items=[
+            ("all", "All", ""),
+            ("new", "New Only", ""),
+            ("update", "Update Only", ""),
+        ]
+    )
+
+    link_shaders : BoolProperty(
+        name="Build Shaders from Blender Nodes",
+        description="Build Shader/Material tags using Blender Material nodes",
+        default=True,
+    )
+    link_bitmaps : BoolProperty(
+        name="Re-Export Existing TIFFs",
+        description="Build Shader/Material tags using Blender Material nodes",
+        default=False,
+    )
+
+    all_bitmaps : BoolProperty(
+        name="Include All Blender Scene Images",
+        description="Includes all blender scene images in scope even if they are not present in any material nodes"
     )
