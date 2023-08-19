@@ -182,17 +182,19 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             Value.MasterType = managed_blam.Halo.Tags.FunctionEditorMasterType(0) # basic type
 
     def material_tag_edit(self, tag):
-        if not self.shader_type:
-            self.shader_type = self.find_best_material_shader()
         reference_material_shader = tag.SelectField("Reference:material shader")
-        reference_material_shader.Reference.Path = self.material_shader.tag_path if self.custom else self.TagPath_from_string(self.shader_type)
         if not self.linked_to_blender:
+            if self.custom:
+                reference_material_shader.Reference.Path = self.material_shader.tag_path
+            else:
+                reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type) if self.shader_type else self.TagPath_from_string(self.find_best_material_shader())
             return
+        
         block_material_parameters = tag.SelectField("Block:material parameters")
         if self.custom:
             self.custom_material(block_material_parameters, self.group_node, self.material_shader.parameters)
         else:
-            self.basic_material(block_material_parameters)
+            self.basic_material(block_material_parameters, reference_material_shader.Reference)
 
             # H4 is wierd. Function values get updated automatically when the real and vector values are set
             # Key:
@@ -233,6 +235,9 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 self.clear_block(element, "function parameters")
 
             self.Element_set_field_values(element, element_dict)
+            if self.Element_get_field_value(element, "bitmap flags") == "0":
+                self.Element_set_field_value(element, "bitmap flags", "1") # sets override
+                self.Element_set_field_value(element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
 
     def parameters_element_dict(self, input, name, type):
         new_dict = {}
@@ -293,30 +298,37 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         return mapping
         
 
-    def basic_material(self, block_material_parameters):
+    def basic_material(self, block_material_parameters, material_shader_path):
         maps = self.get_maps()
         if not maps:
             return print("Cannot read Blender Material Nodes into tag, created empty tag instead. Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
+        if self.shader_type and os.path.exists(self.tags_dir + self.shader_type):
+            material_shader_path.Path = self.TagPath_from_string(self.shader_type)
+        else:
+            material_shader_path.Path = self.TagPath_from_string(self.find_best_material_shader())
         # Set albedo to default
-        if not hasattr(self, "has_diffuse"):
-            diffuse_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'color_map')
-            if diffuse_element:
-                block_material_parameters.RemoveElement(diffuse_element.ElementIndex)
-        if not hasattr(self, "has_albedo"):
-            albedo_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'albedo_tint')
-            if albedo_element:
-                block_material_parameters.RemoveElement(albedo_element.ElementIndex)
-        # Set bump_mapping to standard
-        if not hasattr(self, "has_normal"):
-            normal_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'normal_map')
-            if normal_element:
-                block_material_parameters.RemoveElement(normal_element.ElementIndex)
+        # if not hasattr(self, "has_diffuse"):
+        #     diffuse_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'color_map')
+        #     if diffuse_element:
+        #         block_material_parameters.RemoveElement(diffuse_element.ElementIndex)
+        # if not hasattr(self, "has_specular") and not hasattr(self, "specular_from_diff_alpha"):
+        #     specular_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'specular_map')
+        #     if specular_element:
+        #         block_material_parameters.RemoveElement(diffuse_element.ElementIndex)
+        # if not hasattr(self, "has_albedo"):
+        #     albedo_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'albedo_tint')
+        #     if albedo_element:
+        #         block_material_parameters.RemoveElement(albedo_element.ElementIndex)
+        # # Set bump_mapping to standard
+        # if not hasattr(self, "has_normal"):
+        #     normal_element = self.Element_from_field_value(block_material_parameters, "parameter name", 'normal_map')
+        #     if normal_element:
+        #         block_material_parameters.RemoveElement(normal_element.ElementIndex)
         for m in maps:
             sub_map = m['function parameters']
             m.pop('function parameters')
-            element = self.Element_from_field_value(block_material_parameters, "parameter name", m['parameter name'])
-            if element is None:
-                element = block_material_parameters.AddElement()
+            element = self.Element_create_if_needed(block_material_parameters, "parameter name", m['parameter name'])
+            if self.Element_get_field_value(element, "bitmap flags") == "0":
                 self.Element_set_field_value(element, "bitmap flags", "1") # sets override
                 self.Element_set_field_value(element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
 
@@ -354,6 +366,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 self.Element_set_field_values(element, self.corinth_extra_mapping)
 
     def find_best_material_shader(self):
+        if hasattr(self, "specular_from_diff_alpha"):
+            return r"shaders\material_shaders\materials\srf_ca_blinn_diffspec.material_shader"
         return r"shaders\material_shaders\materials\srf_blinn.material_shader"
 
     def get_maps(self):
@@ -365,6 +379,9 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         diffuse_map = self.get_diffuse_map(shader_node)
         if diffuse_map:
             maps.append(diffuse_map)
+        specular_map = self.get_specular_map(shader_node)
+        if specular_map and not hasattr(self, "specular_from_diff_alpha"):
+            maps.append(specular_map)
         normal_map = self.get_normal_map(shader_node)
         if normal_map:
             maps.append(normal_map)
@@ -413,6 +430,27 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             diffuse_map['animated parameters'] = self.get_node_mapping(image_node)
         self.has_diffuse = True
         return diffuse_map
+    
+    def get_specular_map(self, shader):
+        specular_map = {}
+        specular_map['parameter name'] = 'color_map' if self.corinth else 'base_map'
+        specular_map['parameter type'] = "bitmap"
+        image_node = self.get_image_node(shader, "specular")
+        if image_node is None:
+            return #print("Node is not image node")
+        
+        bitmap = self.get_bitmap(image_node)
+        if bitmap is None:
+            return #print("No bitmap found")
+
+        specular_map['bitmap'] = bitmap
+        # Check for mapping node
+        if self.corinth:
+            specular_map['function parameters'] = self.get_node_mapping(image_node)
+        else:
+            specular_map['animated parameters'] = self.get_node_mapping(image_node)
+        self.has_specular = True
+        return specular_map
 
     def get_normal_map(self, shader):
         normal_map = {}
@@ -532,9 +570,24 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         else:
             return
         
-        node = tex_input.links[0].from_node
+        node = self.find_image_node_in_chain(tex_input.links[0].from_node)
+        if node:
+            if input_name == "specular" and tex_input.links[0].from_socket.name == "Alpha":
+                self.specular_from_diff_alpha = True
+            return node
+        
+    def find_image_node_in_chain(self, node):
         if node.type == 'TEX_IMAGE':
             return node
+        
+        for input in node.inputs:
+            for link in input.links:
+                next_node = link.from_node
+                tex_image_node = self.find_image_node_in_chain(next_node)
+                if tex_image_node:
+                    return tex_image_node
+        
+        return None
 
 
     def element_dict_from_input(self, input, dict_value):

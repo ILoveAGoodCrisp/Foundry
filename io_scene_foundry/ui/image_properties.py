@@ -128,8 +128,8 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
         self['bitmap_dir'] = value
 
     bitmap_dir : bpy.props.StringProperty(
-        name="Bitmap Directory",
-        description="Specifies where the exported bitmap (and tiff, if it does exist) should be saved. Defaults to the asset bitmaps folder",
+        name="Tiff Directory",
+        description="Specifies where the exported tiff should be saved. Defaults to the asset bitmaps folder",
         update=update_bitmap_dir,
         get=get_bitmap_dir,
         set=set_bitmap_dir,

@@ -2089,7 +2089,7 @@ class NWO_FoundryPanelProps(Panel):
                 col.separator()
                 col_props = col.column()
                 col_props.use_property_split = True
-                col_props.prop(bitmap, "bitmap_dir", text="Bitmap Directory")
+                col_props.prop(bitmap, "bitmap_dir", text="Tiff Directory")
                 col_props.prop(bitmap, "bitmap_type", text="Type")
                 return
             col.separator()
