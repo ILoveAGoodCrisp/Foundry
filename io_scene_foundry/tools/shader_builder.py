@@ -28,7 +28,6 @@ import os
 from io_scene_foundry.managed_blam.shaders import ManagedBlamNewShader
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
-    get_asset_path_full,
     get_tags_path,
     get_valid_shader_name,
     not_bungie_game,
@@ -49,7 +48,7 @@ def get_shader_name(mat):
 
 def build_shader(material, corinth, folder="", report=None):
     if not get_shader_name(material):
-        return 
+        return {"FINISHED"}
     nwo = material.nwo
     if corinth:
         tag = ManagedBlamNewShader(material.name, nwo.material_shader, nwo.uses_blender_nodes, nwo.shader_path, folder if folder else nwo.shader_dir)

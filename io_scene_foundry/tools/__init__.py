@@ -2284,7 +2284,7 @@ class NWO_FoundryPanelProps(Panel):
         # if total:
         row = box.row()
         col = row.column()
-        col.label(text=f"Asset {shader_type}")
+        col.label(text=f"Asset {shader_type}s")
         col.use_property_split = True
         # col.separator()
         col.label(
@@ -4810,10 +4810,10 @@ class NWO_Shader_BuildSingle(Operator):
     def execute(self, context):
         nwo = context.object.active_material.nwo
         nwo.uses_blender_nodes = self.linked_to_blender
-        return build_shader(context,
+        return build_shader(
             context.object.active_material,
             not_bungie_game(context),
-            self.report,
+            report=self.report,
         )
     
     @classmethod
