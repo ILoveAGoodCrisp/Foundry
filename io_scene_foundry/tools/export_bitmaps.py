@@ -92,6 +92,9 @@ def export_bitmap(
                 save_image_as(image, full_filepath, is_full_path=True)
             except:
                 print(f"Failed to export {image.name}")
+                if report:
+                    report({"ERROR"}, f"Failed to save {image.name} as .tif")
+                return {'CANCELLED'}
 
     elif is_tiff and nwo_full_filepath.lower().endswith("tif") or nwo_full_filepath.lower().endswith("tiff") and os.path.exists(data_dir + nwo_full_filepath):
         if image.nwo.reexport_tiff:
@@ -99,6 +102,9 @@ def export_bitmap(
                 save_image_as(image, data_dir + nwo_full_filepath, is_full_path=True)
             except:
                 print(f"Failed to export {image.name}")
+                if report:
+                    report({"ERROR"}, f"Failed to save {image.name} as .tif")
+                return {'CANCELLED'}
     else:
         try:
             save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
@@ -106,6 +112,9 @@ def export_bitmap(
 
         except:
             print(f"Failed to export {image.name}")
+            if report:
+                report({"ERROR"}, f"Failed to save {image.name} as .tif")
+            return {'CANCELLED'}
 
     # Store processes
     bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
