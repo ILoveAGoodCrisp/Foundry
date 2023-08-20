@@ -41,21 +41,23 @@ class NWO_ExportBitmapsSingle(bpy.types.Operator):
     bl_label = "Export Bitmap"
 
     def execute(self, context):
-        export_bitmap(context.object.active_material.nwo.active_image, "", self.report)
+        image = context.object.active_material.nwo.active_image
+        nwo = image.nwo
+        export_bitmap(image, nwo.bitmap_dir, self.report)
         return {'FINISHED'}
 
-def save_image_as(image, path, tiff_name="", is_full_path=False):
-    scene = bpy.data.scenes.new("temp")
-    settings = scene.render.image_settings
+def save_image_as(image, dir, tiff_name="", is_full_path=False):
+    # ensure image settings
+    temp_scene = bpy.data.scenes.new("temp_tiff_export_scene")
+    settings = temp_scene.render.image_settings
     settings.file_format = "TIFF"
-    settings.color_mode = "RGBA"
-    settings.color_depth = "16"
+    settings.color_mode = "RGBA" if image.alpha_mode != "NONE" else "RGB"
+    settings.color_depth = "8" if image.depth < 16 else "16"
     settings.tiff_codec = "LZW"
-    settings.color_management
     if not is_full_path:
-        path = os.path.join(path, tiff_name)
-    image.save_render(filepath=path, scene=scene)
-    bpy.data.scenes.remove(scene)
+        full_path = os.path.join(dir, tiff_name)
+    image.save(filepath=full_path)
+    bpy.data.scenes.remove(temp_scene)
 
 def export_bitmap(
     image,
@@ -79,7 +81,7 @@ def export_bitmap(
         os.makedirs(bitmaps_data_dir, exist_ok=True)
         # get a list of textures associated with this material
     # export the texture as a tiff to the asset bitmaps folder
-    image.nwo.source_name = dot_partition(image.name) + ".tiff"
+    image.nwo.source_name = dot_partition(image.name) + ".tif"
     full_filepath = image.filepath_from_user()
     nwo_full_filepath = data_dir + image.nwo.filepath
     is_tiff = image.file_format == 'TIFF'
@@ -99,7 +101,7 @@ def export_bitmap(
                 print(f"Failed to export {image.name}")
     else:
         try:
-            save_image_as(image, folder, tiff_name=image.nwo.source_name)
+            save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
             image.nwo.filepath = os.path.join(asset_path, "bitmaps", image.nwo.source_name).replace(data_dir, "")
 
         except:
