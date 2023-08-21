@@ -2062,6 +2062,8 @@ class NWO_FoundryPanelProps(Panel):
 
             # TEXTURE PROPS
             # First validate if Material has images
+            if not mat.node_tree:
+                return
             nodes = mat.node_tree.nodes
             for n in nodes:
                 if getattr(n, "image", 0):
