@@ -195,8 +195,6 @@ class NWOJSON(dict):
                         self.world_frame,
                         self.asset_name,
                     )
-                    if not self.corinth:
-                        node_properties.update({ob.name: props.__dict__})
                     mesh_properties.update({ob.name: props.__dict__})
 
         return node_properties, mesh_properties

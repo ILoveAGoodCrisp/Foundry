@@ -163,7 +163,7 @@ class PrepareScene:
         # print("unhide_collections")
 
         #rotate -90 if this is a Reach Scenario/Decorator/Particle Model
-        if not h4:
+        if not h4 and self.get_scene_armature(context.view_layer.objects, asset) is None:
             self.rotate_scene(context.view_layer.objects)
 
         # make objects linked to scene real and local
@@ -630,7 +630,7 @@ class PrepareScene:
         if sidecar_type in ("MODEL", "SKY", "FP ANIMATION"):
             forward = context.scene.nwo.forward_direction
             self.model_armature = self.get_scene_armature(
-                export_obs, asset, scene_coll
+                export_obs, asset
             )
 
             if self.lighting:
@@ -2620,7 +2620,7 @@ class PrepareScene:
     #####################################################################################
     #####################################################################################
     # ARMATURE FUNCTIONS
-    def get_scene_armature(self, export_obs, asset, scene_coll):
+    def get_scene_armature(self, export_obs, asset):
         for ob in export_obs:
             if ob.type == "ARMATURE":
                 arm_name = f"{asset}_world"
@@ -2902,7 +2902,7 @@ class PrepareScene:
             node_props.update({"bungie_is_fik_anchor_node": "1"}),
 
         node_props.update({"bungie_object_animates": "1"}),
-        node_props.update({"halo_export": "1"}),
+        #node_props.update({"halo_export": "1"}),
 
         return node_props
 

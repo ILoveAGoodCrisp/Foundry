@@ -64,6 +64,12 @@ class NWOObject:
         # self.halo_export = '1'
         if self.bungie_object_type == "_connected_geometry_object_type_frame":
             self.bungie_object_animates = self.object_animates()
+        # else:
+            # self.bungie_parent_frame_ID1 = "698686589"
+            # self.bungie_parent_frame_ID2 = "-1386155752"
+            # self.parentage = ""
+            # if self.bungie_object_type == "_connected_geometry_object_type_marker":
+            #     self.bungie_local_space_matrix = "1.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 1.000000 540.962188720703125 -8.136127471923828 63.72357177734375"
 
     def sethalo(self, parameter, value):
         setattr(self, f"{P}{parameter}", value)

@@ -41,10 +41,9 @@ from ..utils.nwo_utils import (
     enable_prints,
     get_data_path,
     jstr,
-    managed_blam_active,
+    not_bungie_game,
     print_warning,
     run_tool,
-    unlink,
     update_job,
     update_job_count,
 )
