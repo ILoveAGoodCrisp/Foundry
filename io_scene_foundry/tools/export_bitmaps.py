@@ -119,13 +119,8 @@ def export_bitmap(
     # Store processes
     bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
     path = dot_partition(image.nwo.filepath)
-    if not_bungie_game():
-        process = run_tool(["reimport-bitmaps-single", path, "default"], True, True)
-    else:
-        process = run_tool(["reimport-bitmaps-single", path], True, True)
+    process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
 
-    if process and not folder:
-        process.wait()
     if report is None or folder:
         if folder:
             return process

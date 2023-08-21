@@ -207,7 +207,7 @@ class Sidecar:
         )
 
         if sidecar_type == "MODEL":
-            self.write_model_contents(metadata, sidecar_paths, asset_name, asset_path)
+            self.write_model_contents(metadata, sidecar_paths, asset_name, asset_path, bool(nwo_scene.model_armature))
 
         elif sidecar_type == "SCENARIO":
             self.write_scenario_contents(
@@ -540,7 +540,7 @@ class Sidecar:
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
-    def write_model_contents(self, metadata, sidecar_paths, asset_name, asset_path):
+    def write_model_contents(self, metadata, sidecar_paths, asset_name, asset_path, has_skeleton):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=asset_name, Type="model")
         ##### RENDER #####
@@ -594,7 +594,8 @@ class Sidecar:
             ).text = self.tag_path
 
         ##### SKELETON #####
-        self.write_skeleton_content(content, sidecar_paths)
+        if has_skeleton:
+            self.write_skeleton_content(content, sidecar_paths)
 
         ##### MARKERS #####
         if "markers" in sidecar_paths.keys():
@@ -610,7 +611,8 @@ class Sidecar:
             output = ET.SubElement(object, "OutputTagCollection")
 
         ##### ANIMATIONS #####
-        self.write_animation_content(content, sidecar_paths)
+        if has_skeleton:
+            self.write_animation_content(content, sidecar_paths)
 
     def write_network_files_bsp(self, object, path, asset_name, bsp):
         perm = path[3]

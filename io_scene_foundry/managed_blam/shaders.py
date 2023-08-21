@@ -183,11 +183,11 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
     def material_tag_edit(self, tag):
         reference_material_shader = tag.SelectField("Reference:material shader")
-        if not self.linked_to_blender:
+        if self.linked_to_blender:
             if self.custom:
                 reference_material_shader.Reference.Path = self.material_shader.tag_path
-            else:
-                reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type) if self.shader_type else self.TagPath_from_string(self.find_best_material_shader())
+        else:
+            reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type) if self.shader_type else self.TagPath_from_string(self.find_best_material_shader())
             return
         
         block_material_parameters = tag.SelectField("Block:material parameters")

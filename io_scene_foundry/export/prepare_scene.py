@@ -163,7 +163,7 @@ class PrepareScene:
         # print("unhide_collections")
 
         #rotate -90 if this is a Reach Scenario/Decorator/Particle Model
-        if not h4 and sidecar_type in ('SCENARIO', 'DECORATOR SET', 'PARTICLE MODEL'):
+        if not h4:
             self.rotate_scene(context.view_layer.objects)
 
         # make objects linked to scene real and local
@@ -629,7 +629,7 @@ class PrepareScene:
 
         if sidecar_type in ("MODEL", "SKY", "FP ANIMATION"):
             forward = context.scene.nwo.forward_direction
-            self.model_armature, using_auto_armature = self.get_scene_armature(
+            self.model_armature = self.get_scene_armature(
                 export_obs, asset, scene_coll
             )
 
@@ -642,7 +642,7 @@ class PrepareScene:
 
                 self.remove_relative_parenting(export_obs)
 
-                if not using_auto_armature or sidecar_type != "FP ANIMATION":
+                if self.model_armature and sidecar_type != "FP ANIMATION":
                     # unlink any unparented objects from the scene
                     warn = False
                     for ob in export_obs:
@@ -663,7 +663,7 @@ class PrepareScene:
                     self.fix_parenting(self.model_armature, export_obs)
 
                 # set bone names equal to their name overrides (if not blank)
-                if export_gr2_files:
+                if export_gr2_files and self.model_armature:
                     # self.set_bone_names(self.model_armature.data.bones) NOTE no longer renaming bones
                     self.skeleton_bones = self.get_bone_list(
                         self.model_armature, h4, context, sidecar_type
@@ -684,50 +684,51 @@ class PrepareScene:
                 # self.model_armature.select_set(False)
                 # enable_prints()
                 # Fix pedestal/pitch/yaw rotation if needed
-                if forward == "x":
-                    self.pedestal_matrix = PEDESTAL_MATRIX_X_POSITIVE
-                elif forward == "x-":
-                    self.pedestal_matrix = PEDESTAL_MATRIX_X_NEGATIVE
-                elif forward == "y":
-                    self.pedestal_matrix = PEDESTAL_MATRIX_Y_POSITIVE
-                else:
-                    self.pedestal_matrix = PEDESTAL_MATRIX_Y_NEGATIVE
-                
-                if fix_bone_rotations:
-                    set_active_object(self.model_armature)
-                    self.model_armature.select_set(True)
-                    bpy.ops.object.editmode_toggle()
-                    edit_bones = self.model_armature.data.edit_bones
-                    if self.pedestal:
-                        edit_pedestal = edit_bones[self.pedestal]
-                        if edit_pedestal.matrix != self.pedestal_matrix:
-                            self.old_pedestal_mat = edit_pedestal.matrix.copy()
-                            edit_pedestal.matrix = self.pedestal_matrix
-                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_pedestal, export_obs)
-                    if self.aim_pitch:
-                        edit_aim_pitch = edit_bones[self.aim_pitch]
-                        if edit_aim_pitch.matrix != self.pedestal_matrix:
-                            self.old_aim_pitch_mat = edit_aim_pitch.matrix.copy()
-                            edit_aim_pitch.matrix = self.pedestal_matrix
-                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_pitch, export_obs)
-                    if self.aim_yaw:
-                        edit_aim_yaw = edit_bones[self.aim_yaw]
-                        if edit_aim_yaw.matrix != self.pedestal_matrix:
-                            self.old_aim_yaw_mat = edit_aim_yaw.matrix.copy()
-                            edit_aim_yaw.matrix = self.pedestal_matrix
-                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_yaw, export_obs)
-                    if self.gun:
-                        edit_gun = edit_bones[self.gun]
-                        if edit_gun.matrix != self.pedestal_matrix:
-                            self.old_gun_mat = edit_gun.matrix.copy()
-                            edit_gun.matrix = self.pedestal_matrix
-                            # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
+                if self.model_armature:
+                    if forward == "x":
+                        self.pedestal_matrix = PEDESTAL_MATRIX_X_POSITIVE
+                    elif forward == "x-":
+                        self.pedestal_matrix = PEDESTAL_MATRIX_X_NEGATIVE
+                    elif forward == "y":
+                        self.pedestal_matrix = PEDESTAL_MATRIX_Y_POSITIVE
+                    else:
+                        self.pedestal_matrix = PEDESTAL_MATRIX_Y_NEGATIVE
+                    
+                    if fix_bone_rotations:
+                        set_active_object(self.model_armature)
+                        self.model_armature.select_set(True)
+                        bpy.ops.object.editmode_toggle()
+                        edit_bones = self.model_armature.data.edit_bones
+                        if self.pedestal:
+                            edit_pedestal = edit_bones[self.pedestal]
+                            if edit_pedestal.matrix != self.pedestal_matrix:
+                                self.old_pedestal_mat = edit_pedestal.matrix.copy()
+                                edit_pedestal.matrix = self.pedestal_matrix
+                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_pedestal, export_obs)
+                        if self.aim_pitch:
+                            edit_aim_pitch = edit_bones[self.aim_pitch]
+                            if edit_aim_pitch.matrix != self.pedestal_matrix:
+                                self.old_aim_pitch_mat = edit_aim_pitch.matrix.copy()
+                                edit_aim_pitch.matrix = self.pedestal_matrix
+                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_pitch, export_obs)
+                        if self.aim_yaw:
+                            edit_aim_yaw = edit_bones[self.aim_yaw]
+                            if edit_aim_yaw.matrix != self.pedestal_matrix:
+                                self.old_aim_yaw_mat = edit_aim_yaw.matrix.copy()
+                                edit_aim_yaw.matrix = self.pedestal_matrix
+                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_yaw, export_obs)
+                        if self.gun:
+                            edit_gun = edit_bones[self.gun]
+                            if edit_gun.matrix != self.pedestal_matrix:
+                                self.old_gun_mat = edit_gun.matrix.copy()
+                                edit_gun.matrix = self.pedestal_matrix
+                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
 
-                    bpy.ops.object.editmode_toggle()
-                    self.model_armature.select_set(False)
-                    # if restore_matrices:
-                    #     for ob, mat in ob_mat_dict.items():
-                    #         ob.matrix_basis = mat
+                        bpy.ops.object.editmode_toggle()
+                        self.model_armature.select_set(False)
+                        # if restore_matrices:
+                        #     for ob, mat in ob_mat_dict.items():
+                        #         ob.matrix_basis = mat
 
         # print("armature")
 
@@ -758,7 +759,8 @@ class PrepareScene:
                     bone.matrix_basis = Matrix()
 
         # Set animation name overrides
-        self.set_animation_overrides(self.model_armature)
+        if self.model_armature:
+            self.set_animation_overrides(self.model_armature)
 
         # get the max LOD count in the scene if we're exporting a decorator
         self.lods = self.get_decorator_lods(sidecar_type == "DECORATOR SET")
@@ -2624,9 +2626,7 @@ class PrepareScene:
                 arm_name = f"{asset}_world"
                 self.arm_name = arm_name
                 ob.name = arm_name
-                return ob, False
-
-        return self.add_temp_armature(export_obs, asset, scene_coll), True
+                return ob
     
     def get_bone_names(self, export_obs):
         for ob in export_obs:
@@ -2642,34 +2642,7 @@ class PrepareScene:
                         self.pedestal = b.name
                 return ob.data.bones
             
-        return ["implied_root_node"]
-
-    def add_temp_armature(self, export_obs, asset, scene_coll):
-        arm_name = f"{asset}_world"
-        self.arm_name = arm_name
-        arm = bpy.data.armatures.new(arm_name)
-        arm_ob = bpy.data.objects.new(arm_name, arm)
-        scene_coll.link(arm_ob)
-        set_active_object(arm_ob)
-        arm_ob.select_set(True)
-        bpy.ops.object.editmode_toggle()
-
-        bone_name = "implied_root_node"
-        bone = arm.edit_bones.new(bone_name)
-        bone.tail[1] = 1
-        bone.tail[2] = 0
-
-        bpy.ops.object.editmode_toggle()
-
-        arm_ob.select_set(False)
-
-        for ob in export_obs:
-            if not ob.parent:
-                ob.parent = arm_ob
-                ob.parent_bone = bone_name
-                ob.parent_type = "BONE"
-
-        return arm_ob
+        return []
 
     def fix_parenting(self, model_armature, export_obs):
         bones = model_armature.data.bones

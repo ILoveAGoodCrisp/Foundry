@@ -967,10 +967,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if self.export_gr2_files:
             box = layout.box()
             sub = box.column(heading="Export Flags")
-            if self.sidecar_type in ('MODEL', 'SKY', 'FP ANIMATION'):
+            if self.sidecar_type in (('MODEL', 'SKY', 'FP ANIMATION')):
                 col.prop(self, "fix_bone_rotations", text="Fix Bone Rotations")
                 col.prop(self, "fast_animation_export", text="Fast Animation Export")
-            sub.prop(self, "fast_animation_export", text="Fast Animation Export")
             if h4:
                 sub.prop(self, "import_force", text="Force full export")
                 if scenario:

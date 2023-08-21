@@ -360,14 +360,14 @@ class ProcessScene:
                                 True,
                             )
 
-                    if fast_animation_export and not self.skeleton_only:
+                    if nwo_scene.model_armature and fast_animation_export and not self.skeleton_only:
                         self.remove_all_but_armature(nwo_scene)
 
                     fbx_path, json_path, gr2_path = self.get_path(
                         asset_path, asset, "skeleton", None, None, None
                     )
 
-                    if export_skeleton:
+                    if nwo_scene.model_armature and export_skeleton:
                         export_obs = [nwo_scene.model_armature]
 
                         override = context.copy()
