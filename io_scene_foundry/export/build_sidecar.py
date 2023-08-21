@@ -335,6 +335,11 @@ class Sidecar:
             tags.append("vehicle")
         if output_weapon:
             tags.append("weapon")
+        elif len(tags) == 1:
+            # Must have high level tag, but we can delete this post export
+            tags.append("scenery")
+            self.no_top_level_tag = True
+
 
         return tags
 
