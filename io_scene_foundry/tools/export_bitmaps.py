@@ -32,7 +32,6 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
     get_data_path,
     get_tags_path,
-    not_bungie_game,
     run_tool,
 )
 
@@ -46,18 +45,22 @@ class NWO_ExportBitmapsSingle(bpy.types.Operator):
         export_bitmap(image, nwo.bitmap_dir, self.report)
         return {'FINISHED'}
 
-def save_image_as(image, dir, tiff_name="", is_full_path=False):
+def save_image_as(image, dir, tiff_name=""):
     # ensure image settings
+    data_dir = get_data_path()
     temp_scene = bpy.data.scenes.new("temp_tiff_export_scene")
     settings = temp_scene.render.image_settings
     settings.file_format = "TIFF"
     settings.color_mode = "RGBA" if image.alpha_mode != "NONE" else "RGB"
     settings.color_depth = "8" if image.depth < 16 else "16"
     settings.tiff_codec = "LZW"
-    if not is_full_path:
-        full_path = os.path.join(dir, tiff_name)
+    if not os.path.exists(dir):
+        os.makedirs(dir, exist_ok=True)
+    full_path = os.path.join(dir, tiff_name)
     image.save(filepath=full_path)
     bpy.data.scenes.remove(temp_scene)
+
+    return full_path.replace(data_dir, "")
 
 def export_bitmap(
     image,
@@ -89,7 +92,7 @@ def export_bitmap(
         image.nwo.filepath = full_filepath.replace(data_dir, "")
         if image.nwo.reexport_tiff:
             try:
-                save_image_as(image, full_filepath, is_full_path=True)
+                image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
             except:
                 print(f"Failed to export {image.name}")
                 if report:
@@ -99,7 +102,7 @@ def export_bitmap(
     elif is_tiff and nwo_full_filepath.lower().endswith("tif") or nwo_full_filepath.lower().endswith("tiff") and os.path.exists(data_dir + nwo_full_filepath):
         if image.nwo.reexport_tiff:
             try:
-                save_image_as(image, data_dir + nwo_full_filepath, is_full_path=True)
+                image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
             except:
                 print(f"Failed to export {image.name}")
                 if report:
@@ -107,9 +110,7 @@ def export_bitmap(
                 return {'CANCELLED'}
     else:
         try:
-            save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
-            image.nwo.filepath = os.path.join(asset_path, "bitmaps", image.nwo.source_name).replace(data_dir, "")
-
+            image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
         except:
             print(f"Failed to export {image.name}")
             if report:

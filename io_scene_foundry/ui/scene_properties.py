@@ -630,3 +630,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Include All Blender Scene Images",
         description="Includes all blender scene images in scope even if they are not present in any material nodes"
     )
+
+    def update_default_material_shader(self, context):
+        self["default_material_shader"] = clean_tag_path(self["default_material_shader"]).strip('"')
+
+    default_material_shader : StringProperty(
+        name="Material Shader",
+        description="Path to the material shader to use for all materials (does not overwrite custom node group defined material shaders)",
+        update=update_default_material_shader,
+    )

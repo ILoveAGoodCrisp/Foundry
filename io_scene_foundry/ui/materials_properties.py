@@ -73,11 +73,15 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         type=bpy.types.Image,
         poll=poll_active_image,
         )
+    
+    def update_material_shader(self, context):
+        self["material_shader"] = clean_tag_path(self["material_shader"]).strip('"')
 
     material_shader : StringProperty(
         name="Material Shader",
         description="Tag relative path to a material shader. Generated material tag will use this material shader",
         options=set(),
+        update=update_material_shader,
     )
 
     shader_type_items = [

@@ -69,9 +69,11 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
     bl_options = {"UNDO"}
     bl_property = "shader_info"
 
+    batch_panel : bpy.props.BoolProperty()
+
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.active_material and not protected_material_name(context.object.active_material.name) and not_bungie_game(context)
+        return context.object and context.object.active_material and not_bungie_game(context)
     
     def shader_info_items(self, context):
         global global_material_shaders
@@ -101,7 +103,10 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
     )
 
     def execute(self, context):
-        context.object.active_material.nwo.material_shader = self.shader_info
+        if self.batch_panel:
+            context.scene.nwo.default_material_shader = self.shader_info
+        else:
+            context.object.active_material.nwo.material_shader = self.shader_info
         return {"FINISHED"}
 
     def invoke(self, context, event):

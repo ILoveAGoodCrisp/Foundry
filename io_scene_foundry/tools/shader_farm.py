@@ -34,7 +34,9 @@ from io_scene_foundry.managed_blam.bitmaps import ManagedBlamNewBitmap
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_data_path, get_tags_path, managed_blam_active, not_bungie_game, run_tool, update_job, update_job_count, update_progress
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_data_path, get_tags_path, managed_blam_active, not_bungie_game, print_warning, run_tool, update_job, update_job_count, update_progress
+
+BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
 class NWO_ShaderFarmPopover(bpy.types.Panel):
     bl_label = "Shader Farm Settings"
@@ -55,6 +57,10 @@ class NWO_ShaderFarmPopover(bpy.types.Panel):
             col.label(text=f"{tag_type} Settings")
             col.prop(nwo, "shaders_scope", text="Scope")
             col.prop(nwo, "shaders_dir", text="Folder")
+            if not_bungie_game(context):
+                row = col.row(align=True)
+                row.prop(nwo, "default_material_shader", text="Shader")
+                row.operator("nwo.get_material_shaders", text="", icon="VIEWZOOM").batch_panel = True
             col.prop(nwo, "link_shaders", text="Build Shaders from Blender Nodes")
             col.separator()
         if nwo.farm_type in ("both", "bitmaps"):
@@ -121,8 +127,12 @@ class NWO_FarmShaders(bpy.types.Operator):
             valid_shaders = shaders['new']
         else:
             valid_shaders = shaders['update']
+        # create a list of non-duplicate bitmaps
 
         for image in bpy.data.images:
+            if dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
+                print_warning(f"{image.name} looks like a duplicate image, skipping")
+                continue
             if not settings.all_bitmaps and not self.image_in_valid_node(image, valid_shaders):
                 continue
             bitmap = image.nwo
@@ -157,7 +167,7 @@ class NWO_FarmShaders(bpy.types.Operator):
             print(f"{bitmap_count} bitmaps in scope")
             print(f"Bitmaps Directory = {bitmap_folder}\n")
             for idx, bitmap in enumerate(valid_bitmaps):
-                tiff_path = self.export_tiff_if_needed(bitmap, bitmap_folder, settings.link_bitmaps)
+                tiff_path = self.export_tiff_if_needed(bitmap, self.bitmaps_data_dir, settings.link_bitmaps)
                 self.thread_bitmap_export(bitmap, tiff_path)
             self.report({'INFO'}, f"Exported {bitmap_count} Bitmaps")
 
@@ -185,6 +195,8 @@ class NWO_FarmShaders(bpy.types.Operator):
             for idx, shader in enumerate(valid_shaders):
                 update_progress(job, idx / shader_count)
                 shader.nwo.uses_blender_nodes = settings.link_shaders
+                if settings.default_material_shader and os.path.exists(self.tags_dir + settings.default_material_shader):
+                    shader.nwo.material_shader = settings.default_material_shader
                 build_shader(shader, self.corinth, settings.shaders_dir)
             update_progress(job, 1)
             self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
@@ -205,39 +217,27 @@ class NWO_FarmShaders(bpy.types.Operator):
         return {'FINISHED'}
     
     def export_tiff_if_needed(self, image, folder, export_tiff):
-        image.nwo.source_name = dot_partition(image.name) + ".tiff"
+        image.nwo.source_name = dot_partition(image.name) + ".tif"
         job = f"-- Tiff Export: {image.nwo.source_name}"
         full_filepath = image.filepath_from_user()
         nwo_full_filepath = self.data_dir + image.nwo.filepath
         is_tiff = image.file_format == 'TIFF'
-        if is_tiff and full_filepath and full_filepath.startswith(self.data_dir) and os.path.exists(full_filepath):
+        reexport = image.nwo.reexport_tiff
+        if not reexport and is_tiff and full_filepath and full_filepath.startswith(self.data_dir) and os.path.exists(full_filepath):
             image.nwo.filepath = full_filepath.replace(self.data_dir, "")
             if export_tiff:
-                try:
-                    update_job(job, 0)
-                    save_image_as(image, full_filepath, is_full_path=True)
-                    update_job(job, 1)
-                except:
-                    print(f"Failed to export {image.name}")
-        elif is_tiff and nwo_full_filepath.lower().endswith(".tif") or nwo_full_filepath.lower().endswith(".tiff") and os.path.exists(self.data_dir + nwo_full_filepath):
-            if export_tiff:
-                try:
-                    update_job(job, 0)
-                    save_image_as(image, self.data_dir + nwo_full_filepath, is_full_path=True)
-                    update_job(job, 1)
-                except:
-                    print(f"Failed to export {image.name}")
-        else:
-            try:
-                if not os.path.exists(self.bitmaps_data_dir):
-                    os.makedirs(self.bitmaps_data_dir, exist_ok=True)
                 update_job(job, 0)
-                save_image_as(image, folder, tiff_name=image.nwo.source_name)
-                image.nwo.filepath = os.path.join(self.asset_path, "bitmaps", image.nwo.source_name).replace(self.data_dir, "")
+                image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
                 update_job(job, 1)
-
-            except:
-                print(f"Failed to export {image.name}")
+        if is_tiff and nwo_full_filepath.lower().endswith(".tif") or nwo_full_filepath.lower().endswith(".tiff") and os.path.exists(self.data_dir + nwo_full_filepath):
+            if export_tiff:
+                update_job(job, 0)
+                image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
+                update_job(job, 1)
+        else:
+            update_job(job, 0)
+            image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
+            update_job(job, 1)
         
         return image.nwo.filepath
     
