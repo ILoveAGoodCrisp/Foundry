@@ -134,6 +134,19 @@ class ManagedBlam():
         if element:
             return element
         return block.AddElement()
+    
+    def Element_remove_if_needed(self, block, field_name, value_name):
+        element = block.Elements
+        element = self.Element_from_field_value(block, field_name, value_name)
+        if element:
+            block.RemoveElement(element.ElementIndex)
+    
+    def Element_create_if_needed_and_confirm(self, block, field_name, value_name):
+        element = block.Elements
+        element = self.Element_from_field_value(block, field_name, value_name)
+        if element:
+            return element, False
+        return block.AddElement(), True
             
 
     
@@ -233,9 +246,8 @@ class ManagedBlam():
         return Halo.Game.GameColor.FromRgb(r, g, b)
     
     def GameColor_from_ARGB(self, a, r, g, b):
-        print(a, r, g, b)
-        print(Halo.Game.GameColor.FromArgb(a, r, g, b))
         return Halo.Game.GameColor.FromArgb(a, r, g, b)
+        
 
 
 class ManagedBlam_Init(Operator):

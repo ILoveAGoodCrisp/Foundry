@@ -230,14 +230,46 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
         for name, element_dict in material_parameters.items():
             element = self.Element_create_if_needed(block_material_parameters, "parameter name", name)
-            if hasattr(element_dict, "color"):
-                # Clearing the function block in this case, as this way the color value is taken from the material parameter color field
-                self.clear_block(element, "function parameters")
-
             self.Element_set_field_values(element, element_dict)
             if self.Element_get_field_value(element, "bitmap flags") == "0":
                 self.Element_set_field_value(element, "bitmap flags", "1") # sets override
                 self.Element_set_field_value(element, "bitmap filter mode", "6") # sets anisotropic (4) EXPENSIVE
+            # Handle function parameters
+            current_type = element_dict['parameter type']
+            func_block = element.SelectField("function parameters")
+            if current_type == 0:
+                if element_dict.get('real', 0):
+                    self.new_func_param(func_block, 3, float(element_dict['real']))
+                if element_dict.get('vector', 0):
+                    self.new_func_param(func_block, 4, float(element_dict['vector'][0]))
+                    self.new_func_param(func_block, 5, float(element_dict['vector'][1]))
+                    self.new_func_param(func_block, 6, float(element_dict['vector'][2]))
+            elif current_type == 4 and element_dict.get('color', 0):
+                a = float(element_dict['color'][0])
+                r = float(element_dict['color'][1])
+                g = float(element_dict['color'][2])
+                b = float(element_dict['color'][3])
+                self.new_func_param(func_block, 1, [a, r, g, b])
+
+
+    def new_func_param(self, func_block, type_int, value):
+        if value:
+            func_element, new = self.Element_create_if_needed_and_confirm(func_block, "type", type_int)
+            type_field = func_element.SelectField("type")
+            type_field.Value = type_int
+            func_field = func_element.SelectField("function")
+            if type_int == 1:
+                if new:
+                    func_field.Value.ColorGraphType = managed_blam.Halo.Tags.FunctionEditorColorGraphType(2) # Sets 2-color
+                func_field.Value.SetColor(0, self.GameColor_from_ARGB(*value))
+                func_field.Value.SetColor(1, self.GameColor_from_ARGB(*value))
+            else:
+                func_field.Value.ClampRangeMin = value
+            if new:
+                func_field.Value.MasterType = managed_blam.Halo.Tags.FunctionEditorMasterType(0)
+        else:
+            self.Element_remove_if_needed(func_block, "type", type_int)
+
 
     def parameters_element_dict(self, input, name, type):
         new_dict = {}
