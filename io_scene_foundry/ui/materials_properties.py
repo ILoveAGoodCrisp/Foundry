@@ -59,15 +59,20 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
 
     rendered: BoolProperty(default=True)
 
-    def poll_active_image(self, object):
-        mat = bpy.context.object.active_material
-        nodes = mat.node_tree.nodes
+    def recursive_image_search_object(self, tree_owner, object):
+        nodes = tree_owner.node_tree.nodes
         for n in nodes:
-            if hasattr(n, "image"):
+            if getattr(n, "image", 0):
                 if n.image == object:
                     return True
-                
-        return False
+            elif n.type == 'GROUP':
+                image_found = self.recursive_image_search_object(n, object)
+                if image_found:
+                    return True
+
+    def poll_active_image(self, object):
+        mat = bpy.context.object.active_material
+        return self.recursive_image_search_object(mat, object)
 
     active_image : bpy.props.PointerProperty(
         type=bpy.types.Image,

@@ -23,6 +23,7 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
+from email.mime import image
 import sys
 import bpy
 import platform
@@ -2010,3 +2011,13 @@ def is_halo_node(node: bpy.types.Node, valid_inputs: list) -> bool:
         if i.name in valid_inputs: continue
         return False
     return True
+
+def recursive_image_search(tree_owner):
+    nodes = tree_owner.node_tree.nodes
+    for n in nodes:
+        if getattr(n, "image", 0):
+            return True
+        elif n.type == 'GROUP':
+            image_found = recursive_image_search(n)
+            if image_found:
+                return True

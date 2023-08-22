@@ -70,6 +70,7 @@ from io_scene_foundry.utils.nwo_utils import (
     not_bungie_game,
     nwo_asset_type,
     protected_material_name,
+    recursive_image_search,
     set_active_object,
     set_object_mode,
     valid_nwo_asset,
@@ -2066,11 +2067,7 @@ class NWO_FoundryPanelProps(Panel):
             # First validate if Material has images
             if not mat.node_tree:
                 return
-            nodes = mat.node_tree.nodes
-            for n in nodes:
-                if getattr(n, "image", 0):
-                    break
-            else:
+            if not recursive_image_search(mat):
                 return
 
             box = self.box.box()
