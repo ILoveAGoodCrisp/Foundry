@@ -87,7 +87,6 @@ def export_bitmap(
     # export the texture as a tiff to the asset bitmaps folder
     image.nwo.source_name = dot_partition(image.name) + ".tif"
     full_filepath = image.filepath_from_user()
-    nwo_full_filepath = data_dir + image.nwo.filepath
     is_tiff = image.file_format == 'TIFF'
     if is_tiff and full_filepath and full_filepath.startswith(data_dir) and os.path.exists(full_filepath):
         image.nwo.filepath = full_filepath.replace(data_dir, "")
@@ -100,7 +99,7 @@ def export_bitmap(
                     report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
                     return {'CANCELLED'}
 
-    elif is_tiff and nwo_full_filepath.lower().endswith("tif") or nwo_full_filepath.lower().endswith("tiff") and os.path.exists(data_dir + nwo_full_filepath):
+    elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and os.path.exists(data_dir + image.nwo.filepath):
         if image.nwo.reexport_tiff:
             if image.has_data:
                 image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
@@ -123,11 +122,11 @@ def export_bitmap(
     path = dot_partition(image.nwo.filepath)
     process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
 
-    if report is None or folder:
+    if report is None:
         if folder:
             return process
         else:
             return bitmap
-    elif report:
+    else:
         report({"INFO"}, "Bitmap Export Complete")
         return {"FINISHED"}
