@@ -238,20 +238,21 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             current_type = element_dict['parameter type']
             func_block = element.SelectField("function parameters")
             if current_type == 0:
-                if element_dict.get('real', 0):
-                    self.new_func_param(func_block, 3, float(element_dict['real']))
-                if element_dict.get('vector', 0):
-                    self.new_func_param(func_block, 4, float(element_dict['vector'][0]))
-                    self.new_func_param(func_block, 5, float(element_dict['vector'][1]))
-                    self.new_func_param(func_block, 6, float(element_dict['vector'][2]))
-            elif current_type == 4 and element_dict.get('color', 0):
-                a = float(element_dict['color'][0])
-                r = float(element_dict['color'][1])
-                g = float(element_dict['color'][2])
-                b = float(element_dict['color'][3])
-                self.new_func_param(func_block, 1, [a, r, g, b])
-            elif current_type == 1 and element_dict.get('real', 0):
-                self.new_func_param(func_block, 0, float(element_dict['real']))
+                self.new_func_param(func_block, 3, float(element_dict.get('real', 0)))
+                self.new_func_param(func_block, 4, float(element_dict.get('vector', [0,0,0])[0]))
+                self.new_func_param(func_block, 5, float(element_dict.get('vector', [0,0,0])[1]))
+                self.new_func_param(func_block, 6, float(element_dict.get('vector', [0,0,0])[2]))
+            elif current_type == 4:
+                if element_dict.get('color', 0):
+                    a = float(element_dict['color'][0])
+                    r = float(element_dict['color'][1])
+                    g = float(element_dict['color'][2])
+                    b = float(element_dict['color'][3])
+                    self.new_func_param(func_block, 1, [a, r, g, b])
+                else:
+                    self.new_func_param(func_block, 1, 0)
+            elif current_type == 1:
+                self.new_func_param(func_block, 0, float(element_dict.get('real', 0)))
 
     def new_func_param(self, func_block, type_int, value):
         if value:

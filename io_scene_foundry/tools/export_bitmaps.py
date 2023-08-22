@@ -32,6 +32,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
     get_data_path,
     get_tags_path,
+    print_warning,
     run_tool,
 )
 
@@ -91,31 +92,31 @@ def export_bitmap(
     if is_tiff and full_filepath and full_filepath.startswith(data_dir) and os.path.exists(full_filepath):
         image.nwo.filepath = full_filepath.replace(data_dir, "")
         if image.nwo.reexport_tiff:
-            try:
+            if image.has_data:
                 image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
-            except:
-                print(f"Failed to export {image.name}")
+            else:
+                print_warning(f"{image.name} has no data. Cannot export Tif")
                 if report:
-                    report({"ERROR"}, f"Failed to save {image.name} as .tif")
-                return {'CANCELLED'}
+                    report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
+                    return {'CANCELLED'}
 
     elif is_tiff and nwo_full_filepath.lower().endswith("tif") or nwo_full_filepath.lower().endswith("tiff") and os.path.exists(data_dir + nwo_full_filepath):
         if image.nwo.reexport_tiff:
-            try:
+            if image.has_data:
                 image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
-            except:
-                print(f"Failed to export {image.name}")
+            else:
+                print_warning(f"{image.name} has no data. Cannot export Tif")
                 if report:
-                    report({"ERROR"}, f"Failed to save {image.name} as .tif")
-                return {'CANCELLED'}
+                    report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
+                    return {'CANCELLED'}
     else:
-        try:
+        if image.has_data:
             image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
-        except:
-            print(f"Failed to export {image.name}")
+        else:
+            print_warning(f"{image.name} has no data. Cannot export Tif")
             if report:
-                report({"ERROR"}, f"Failed to save {image.name} as .tif")
-            return {'CANCELLED'}
+                report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
+                return {'CANCELLED'}
 
     # Store processes
     bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
@@ -127,7 +128,6 @@ def export_bitmap(
             return process
         else:
             return bitmap
-    else:
+    elif report:
         report({"INFO"}, "Bitmap Export Complete")
-
-    return {"FINISHED"}
+        return {"FINISHED"}
