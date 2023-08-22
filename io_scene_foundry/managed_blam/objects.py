@@ -98,20 +98,16 @@ class ManagedBlamModelOverride(ManagedBlam):
 
     def tag_edit(self, tag):
         if self.render_model and self.tag_exists(self.render_model):
-            render_ref_override = self.TagPath_from_string(self.render_model)
-            self.field_set_value_by_name(tag, "Reference:render model", render_ref_override)
+            self.Element_set_field_value(tag, "Reference:render model", self.render_model)
 
         if self.collision_model and self.tag_exists(self.collision_model):
-            collision_ref_override = self.TagPath_from_string(self.collision_model)
-            self.field_set_value_by_name(tag, "Reference:collision model", collision_ref_override)
+            self.Element_set_field_value(tag, "Reference:collision model", self.collision_model)
 
         if self.model_animation_graph and self.tag_exists(self.model_animation_graph):
-            animation_ref_override = self.TagPath_from_string(self.model_animation_graph)
-            self.field_set_value_by_name(tag, "Reference:animation", animation_ref_override)
+            self.Element_set_field_value(tag, "Reference:animation", self.model_animation_graph)
 
         if self.physics_model and self.tag_exists(self.physics_model):
-            physics_ref_override = self.TagPath_from_string(self.physics_model)
-            self.field_set_value_by_name(tag, "Reference:physics_model", physics_ref_override)
+            self.Element_set_field_value(tag, "Reference:physics_model", self.physics_model)
 
 class ManagedBlamSetStructureMetaRef(ManagedBlam):
     """Sets the reference to the given structure meta tag for the asset render model"""
@@ -124,4 +120,4 @@ class ManagedBlamSetStructureMetaRef(ManagedBlam):
     def tag_edit(self, tag):
         if self.structure_meta and self.tag_exists(self.structure_meta):
             structure_meta_ref = self.TagPath_from_string(self.structure_meta)
-            self.field_set_value_by_name(tag, "Reference:structure meta data", structure_meta_ref)
+            self.Element_set_field_value(tag, "Reference:structure meta data", structure_meta_ref)
