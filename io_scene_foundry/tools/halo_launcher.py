@@ -272,11 +272,6 @@ def LaunchFoundation(settings, context):
                     get_tag_if_exists(asset_path, asset_name, "frame_event_list")
                 )
 
-    elif (
-        settings.foundation_default == "material" and not_bungie_game()
-    ):  # check for h4/h2a as doesn't run properly in reach
-        launch_args.append("/pluginset:matman")
-
     # first, get and set the project so we can avoid the Foundation prompt
     
     run_ek_cmd(launch_args, True)
@@ -539,3 +534,15 @@ def open_file_explorer(type, is_tags):
             return {"FINISHED"}
         
     return open_file_explorer_default(is_tags, tags_dir, data_dir)
+
+
+class NWO_MaterialGirl(bpy.types.Operator):
+    bl_label = "Material Viewer"
+    bl_idname = "nwo.open_matman"
+
+    def execute(self, context):
+        launch_args = [os.path.join(get_ek_path(), "Foundation.exe")]
+        launch_args.append("/pluginset:matman")
+        run_ek_cmd(launch_args, True)
+        run_ek_cmd(["bin\\tools\\bonobo\\TagWatcher.exe"], True)
+        return {'FINISHED'}

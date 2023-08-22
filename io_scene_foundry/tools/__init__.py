@@ -52,7 +52,7 @@ from .shader_builder import NWO_ListMaterialShaders, build_shader
 
 from io_scene_foundry.utils import nwo_globals
 
-from .halo_launcher import open_file_explorer
+from .halo_launcher import NWO_MaterialGirl, open_file_explorer
 
 from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
@@ -2309,6 +2309,9 @@ class NWO_FoundryPanelProps(Panel):
         col2.separator()
         col1.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
         col2.popover(panel=NWO_ShaderFarmPopover.bl_idname, text="")
+        if h4:
+            col1.separator()
+            col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=get_icon_id("foundation"))
 
 
     def draw_help(self):
@@ -3251,7 +3254,6 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
         items=[
             ("last", "Default", ""),
             ("asset", "Asset", ""),
-            ("material", "Materials", ""),
         ],
     )
 
@@ -4940,6 +4942,7 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
 
 classeshalo = (
+    NWO_MaterialGirl,
     NWO_OpenFoundationTag,
     NWO_ExportBitmapsSingle,
     NWO_GetGlobalMaterials,
