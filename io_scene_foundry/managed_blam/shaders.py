@@ -250,7 +250,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 g = float(element_dict['color'][2])
                 b = float(element_dict['color'][3])
                 self.new_func_param(func_block, 1, [a, r, g, b])
-
+            elif current_type == 1 and element_dict.get('real', 0):
+                self.new_func_param(func_block, 0, float(element_dict['real']))
 
     def new_func_param(self, func_block, type_int, value):
         if value:
