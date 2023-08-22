@@ -30,6 +30,7 @@ import glob
 from subprocess import Popen
 from io_scene_foundry.utils.nwo_utils import (
     get_asset_info,
+    get_asset_path,
     get_data_path,
     get_ek_path,
     get_tags_path,
@@ -490,22 +491,51 @@ def launch_game(is_sapien, settings, filepath):
 
     return {"FINISHED"}
 
-
-def open_file_explorer(sidecar_path, using_asset, is_tags):
-    os.chdir(get_ek_path())
-    if using_asset:
-        source_folder = sidecar_path.rpartition(os.sep)[0]
-        if is_tags:
-            source_folder = get_tags_path() + source_folder
-        else:
-            source_folder = get_data_path() + source_folder
-
-        os.startfile(source_folder)
-
+def open_file_explorer_default(is_tags, tags_dir, data_dir):
+    if is_tags:
+        os.startfile(tags_dir)
     else:
-        if is_tags:
-            os.startfile("tags")
-        else:
-            os.startfile("data")
+        os.startfile(data_dir)
 
     return {"FINISHED"}
+
+def open_file_explorer(type, is_tags):
+    tags_dir = get_tags_path()
+    data_dir = get_data_path()
+    if type == "asset":
+        asset_path = get_asset_path()
+        if valid_nwo_asset():
+            if is_tags:
+                os.startfile(tags_dir + asset_path)
+                return {"FINISHED"}
+            else:
+                os.startfile(data_dir + asset_path)
+                return {"FINISHED"}
+
+    if type == "asset" or type == "blend":
+        blend_folder = os.path.dirname(bpy.data.filepath)
+        if not blend_folder.startswith(data_dir):
+            return open_file_explorer_default(is_tags, tags_dir, data_dir)
+        
+        relative = blend_folder.replace(data_dir, "")
+        if is_tags:
+            folder_path = tags_dir + relative
+            folder_path2 = os.path.dirname(folder_path)
+            folder_path3 = os.path.dirname(folder_path2)
+            if os.path.exists(folder_path):
+                os.startfile(folder_path)
+                return {"FINISHED"}
+            elif os.path.exists(folder_path2):
+                os.startfile(folder_path2)
+                return {"FINISHED"}
+            elif os.path.exists(folder_path3):
+                os.startfile(folder_path3)
+                return {"FINISHED"}
+            else:
+                return open_file_explorer_default(is_tags, tags_dir, data_dir)
+        
+        elif os.path.exists(data_dir + relative):
+            os.startfile(data_dir + relative)
+            return {"FINISHED"}
+        
+    return open_file_explorer_default(is_tags, tags_dir, data_dir)

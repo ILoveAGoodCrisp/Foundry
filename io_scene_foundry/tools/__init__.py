@@ -52,6 +52,8 @@ from .shader_builder import NWO_ListMaterialShaders, build_shader
 
 from io_scene_foundry.utils import nwo_globals
 
+from .halo_launcher import open_file_explorer
+
 from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
     deselect_all_objects,
@@ -3118,12 +3120,9 @@ class NWO_HaloLauncher_Data(Operator):
     def execute(self, context):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
-        from .halo_launcher import open_file_explorer
 
         return open_file_explorer(
-            scene_nwo_halo_launcher.sidecar_path,
-            scene_nwo_halo_launcher.explorer_default == "asset"
-            and valid_nwo_asset(context),
+            scene_nwo_halo_launcher.explorer_default,
             False,
         )
 
@@ -3137,12 +3136,9 @@ class NWO_HaloLauncher_Tags(Operator):
     def execute(self, context):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
-        from .halo_launcher import open_file_explorer
 
         return open_file_explorer(
-            scene_nwo_halo_launcher.sidecar_path,
-            scene_nwo_halo_launcher.explorer_default == "asset"
-            and valid_nwo_asset(context),
+            scene_nwo_halo_launcher.explorer_default,
             True,
         )
 
@@ -3241,10 +3237,10 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
 
     explorer_default: EnumProperty(
         name="Folder",
-        description="Select whether to open the root data / tags folder or the one for your asset. When no asset is found, defaults to root",
+        description="Select whether to open the root data / tags folder, the blend folder, or the one for your asset. When no asset is found, defaults to root",
         default="asset",
         options=set(),
-        items=[("default", "Root", ""), ("asset", "Asset", "")],
+        items=[("default", "Root", ""), ("asset", "Asset", ""), ("blend", "Blend", "")],
     )
 
     foundation_default: EnumProperty(
