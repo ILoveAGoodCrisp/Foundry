@@ -58,7 +58,7 @@ def save_image_as(image, dir, tiff_name=""):
     if not os.path.exists(dir):
         os.makedirs(dir, exist_ok=True)
     full_path = os.path.join(dir, tiff_name)
-    image.save(filepath=full_path)
+    image.save_render(filepath=full_path, scene=temp_scene)
     bpy.data.scenes.remove(temp_scene)
 
     return full_path.replace(data_dir, "")
