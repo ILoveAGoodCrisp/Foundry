@@ -840,6 +840,8 @@ class PrepareScene:
         # check if face layers cover the whole mesh, if they do, we don't need to split the mesh
         justified, is_just_render = False, True
         for layer, face_seq in layer_faces_dict.items():
+            if not face_seq:
+                continue
             face_count = len(face_seq)
             if not face_count:
                 continue

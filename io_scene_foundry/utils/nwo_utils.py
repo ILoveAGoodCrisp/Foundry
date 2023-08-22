@@ -1738,13 +1738,12 @@ def layer_face_count(bm, face_layer) -> int:
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
     if face_layer:
         return len([face for face in bm.faces if face[face_layer]])
-    else:
-        return None
 
 
 def layer_faces(bm, face_layer):
     """Returns the faces in a bmesh that have an face int custom_layer with a value greater than 0"""
-    return [face for face in bm.faces if face[face_layer]]
+    if face_layer:
+        return [face for face in bm.faces if face[face_layer]]
 
 
 def random_color(max_hue=True) -> list:
