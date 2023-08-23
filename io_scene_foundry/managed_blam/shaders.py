@@ -317,7 +317,10 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         node = links[0].from_node
         if node.type == "TEX_IMAGE":
             return node
-        found_image_node = self.find_image_node_in_chain(node)
+        elif node.type == 'GROUP':
+            found_image_node = self.find_image_node_in_chain(node, links[0].from_socket.name)
+        else:
+            found_image_node = self.find_image_node_in_chain(node, input.name)
         if found_image_node:
             return found_image_node
 
@@ -613,7 +616,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 self.specular_from_diff_alpha = True
             return node
         
-    def find_image_node_in_chain(self, node):
+    def find_image_node_in_chain(self, node, group_output_input=None):
         if node.type == 'TEX_IMAGE':
             return node
         
@@ -621,15 +624,25 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             group_nodes = node.node_tree.nodes
             for n in group_nodes:
                 if n.type == 'GROUP_OUTPUT':
-                    group_image = self.find_image_node_in_chain(n)
-                    if group_image:
-                        return group_image
+                    for i in n.inputs:
+                        if i.name == group_output_input:
+                            links = i.links
+                            if links:
+                                for l in links:
+                                    new_node = l.from_node
+                                    group_image = self.find_image_node_in_chain(new_node, group_output_input)
+                                    if group_image:
+                                        return group_image
+                                    break
                     break
         
         for input in node.inputs:
             for link in input.links:
                 next_node = link.from_node
-                tex_image_node = self.find_image_node_in_chain(next_node)
+                if next_node.type == 'GROUP':
+                    tex_image_node = self.find_image_node_in_chain(next_node, link.from_socket.name)
+                else:
+                    tex_image_node = self.find_image_node_in_chain(next_node, group_output_input)
                 if tex_image_node:
                     return tex_image_node
         
