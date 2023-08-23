@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import ctypes
 import itertools
 import time
 import bpy
@@ -742,7 +743,7 @@ class ProcessScene:
                             f"\nFailed to build GR2 File: {gr2_file}"
                         )
                         print_warning("Retrying...")
-                        self.export_gr2_sync(fbx_file, json_file, gr2_file)
+                        self.export_gr2_sync(fbx_file, json_file, gr2_file, False)
                         time.sleep(2)
                         if (
                             os.path.exists(gr2_file)
@@ -753,8 +754,10 @@ class ProcessScene:
                             self.gr2_fail = True
                             return "Failed to build GR2 File, Giving Up"
 
-            # for p in self.gr2_processes:
-            #     p.wait()
+                # If Reach, apply GR2 patch. This prevents the importer from breaking object directions
+                if game_version == "reach" and os.path.exists(gr2_file):
+                    patch_granny(gr2_file)
+
             update_job(job, 1)
 
             reports.append("Exported " + str(gr2_count) + " GR2 Files")
@@ -1339,7 +1342,7 @@ class ProcessScene:
     #####################################################################################
     # GR2
 
-    def export_gr2_sync(self, fbx_path, json_path, gr2_path):
+    def export_gr2_sync(self, fbx_path, json_path, gr2_path, hide_output=True):
         run_tool(
             [
                 "fbx-to-gr2",
@@ -1348,7 +1351,7 @@ class ProcessScene:
                 data_relative(gr2_path),
             ],
             False,
-            True,
+            hide_output,
         )
 
     def export_gr2(self, fbx_path, json_path, gr2_path):
@@ -1379,3 +1382,18 @@ class ProcessScene:
             True,
         )
         self.running_check -= 1
+
+
+def patch_granny(gr2):
+    replacement_data = b'H'
+    header_size = 0x94
+    with open(gr2, 'r+b') as file:
+        file_data = bytearray(file.read())
+        pointer_offset = 0x7C
+        offset_bytes = file_data[pointer_offset:pointer_offset + 4]
+        offset_value = int.from_bytes(offset_bytes, byteorder='little') + header_size  # Assuming little-endian byte order
+        data_structure_offset = offset_value
+        file_data[data_structure_offset:data_structure_offset + len(replacement_data)] = replacement_data
+        file.seek(0)
+        file.write(file_data)
+

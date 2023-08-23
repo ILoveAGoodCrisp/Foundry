@@ -728,7 +728,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
-                print_error("Failed to export a GR2 File. Export cancelled")
+                print_error("Failed to export a GR2 File. Export cancelled\n")
+                print("GR2 conversion can crash due to Tool failing to parse exported FBX data. To fix, narrow down the problem object and adjust the geometry. Splitting meshes into seperate parts can help.")
 
                 print(
                     "-----------------------------------------------------------------------\n"

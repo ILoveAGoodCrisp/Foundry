@@ -163,8 +163,8 @@ class PrepareScene:
         # print("unhide_collections")
 
         #rotate -90 if this is a Reach Scenario/Decorator/Particle Model
-        if not h4 and self.get_scene_armature(context.view_layer.objects, asset) is None:
-            self.rotate_scene(context.view_layer.objects)
+        # if not h4 and self.get_scene_armature(context.view_layer.objects, asset) is None:
+        #     self.rotate_scene(context.view_layer.objects)
 
         # make objects linked to scene real and local
         # Context override selection does not work here
