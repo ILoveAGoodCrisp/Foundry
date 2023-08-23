@@ -2710,6 +2710,13 @@ class PrepareScene:
                 ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
                 ob.matrix_world = world
 
+            if ob.parent_type == "BONE":
+                if ob.modifiers:
+                    for mod in ob.modifiers:
+                        if mod.type == "ARMATURE":
+                            ob.modifiers.remove(mod)
+                            break
+
         # bones = model_armature.data.edit_bones
         # mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
         # meshes = set([ob.data for ob in mesh_obs])
