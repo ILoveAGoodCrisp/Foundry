@@ -242,6 +242,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 self.new_func_param(func_block, 4, float(element_dict.get('vector', [0,0,0])[0]))
                 self.new_func_param(func_block, 5, float(element_dict.get('vector', [0,0,0])[1]))
                 self.new_func_param(func_block, 6, float(element_dict.get('vector', [0,0,0])[2]))
+
             elif current_type == 4:
                 if element_dict.get('color', 0):
                     a = float(element_dict['color'][0])
@@ -287,10 +288,15 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                     new_dict['bitmap'] = ""
                 mapping = self.get_mapping_as_corinth_dict(image_node)
                 if mapping:
-                    new_dict['real'] = mapping['scale u']
-                    new_dict['vector'] = mapping['scatran']
+                    if mapping.get('scatran', 0):
+                        new_dict['real'] = mapping['scale u']
+                        new_dict['vector'] = mapping['scatran']
+                    else:
+                        new_dict['real'] = mapping['scale u']
+                        new_dict['vector'] = [mapping['scale v'], "0", "0"]
             else:
                 new_dict['bitmap'] = ""
+
         elif type == 1: # real
             real = str(input.default_value)
             new_dict['real'] = real
@@ -329,13 +335,52 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         links = image_node.inputs[0].links
         if not links:
             return
-        mapping_node = links[0].from_node
-        if mapping_node.type != 'MAPPING':
+        node = links[0].from_node
+        mapping_node = self.find_mapping_node_in_chain(node, links[0].from_socket)
+        if not mapping_node:
             return
-        mapping['scale u'] = str(mapping_node.inputs[3].default_value[0])
-        mapping['scatran'] = [str(mapping_node.inputs[3].default_value[1]), str(mapping_node.inputs[1].default_value[0]), str(mapping_node.inputs[1].default_value[1])]
+        
+        if mapping_node.type == 'MAPPING':
+            mapping['scale u'] = str(mapping_node.inputs[3].default_value[0])
+            mapping['scatran'] = [str(mapping_node.inputs[3].default_value[1]), str(mapping_node.inputs[1].default_value[0]), str(mapping_node.inputs[1].default_value[1])]
+        else:
+            mapping['scale u'] = str(mapping_node.inputs[1].default_value * mapping_node.inputs[0].default_value)
+            mapping['scale v'] = str(mapping_node.inputs[2].default_value * mapping_node.inputs[0].default_value)
 
         return mapping
+    
+    def find_mapping_node_in_chain(self, node, group_output_input):
+        if node.type == 'MAPPING':
+            return node
+        elif node.type == "GROUP":
+            if node.node_tree.name == "Texture Tiling":
+                return node
+            group_nodes = node.node_tree.nodes
+            for n in group_nodes:
+                if n.type == 'GROUP_OUTPUT':
+                    for i in n.inputs:
+                        if i.name == group_output_input:
+                            links = i.links
+                            if links:
+                                for l in links:
+                                    new_node = l.from_node
+                                    group_node = self.find_mapping_node_in_chain(new_node, group_output_input)
+                                    if group_node:
+                                        return group_node
+                                    break
+                    break
+            
+        for input in node.inputs:
+            for link in input.links:
+                next_node = link.from_node
+                if next_node.type == 'GROUP':
+                    new_node = self.find_mapping_node_in_chain(next_node, link.from_socket.name)
+                else:
+                    new_node = self.find_mapping_node_in_chain(next_node, group_output_input)
+                if new_node:
+                    return new_node
+                
+        return
         
 
     def basic_material(self, block_material_parameters, material_shader_path):
@@ -646,7 +691,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 if tex_image_node:
                     return tex_image_node
         
-        return None
+        return
 
 
     def element_dict_from_input(self, input, dict_value):
