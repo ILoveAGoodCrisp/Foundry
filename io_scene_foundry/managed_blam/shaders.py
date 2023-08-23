@@ -317,6 +317,9 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         node = links[0].from_node
         if node.type == "TEX_IMAGE":
             return node
+        found_image_node = self.find_image_node_in_chain(node)
+        if found_image_node:
+            return found_image_node
 
     def get_mapping_as_corinth_dict(self, image_node):
         mapping = {}
@@ -613,6 +616,15 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
     def find_image_node_in_chain(self, node):
         if node.type == 'TEX_IMAGE':
             return node
+        
+        elif node.type == 'GROUP':
+            group_nodes = node.node_tree.nodes
+            for n in group_nodes:
+                if n.type == 'GROUP_OUTPUT':
+                    group_image = self.find_image_node_in_chain(n)
+                    if group_image:
+                        return group_image
+                    break
         
         for input in node.inputs:
             for link in input.links:
