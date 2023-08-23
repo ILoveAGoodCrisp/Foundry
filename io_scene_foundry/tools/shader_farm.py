@@ -278,6 +278,9 @@ class NWO_FarmShaders(bpy.types.Operator):
         self.running_check += 1
         self.bitmap_processes += 1
         time.sleep(self.running_check / 10)
-        run_tool(["reimport-bitmaps-single", bitmap_path, "default"], False, True)
+        if self.corinth:
+            run_tool(["reimport-bitmaps-single", bitmap_path, "default"], False, False)
+        else:
+            run_tool(["reimport-bitmaps-single", bitmap_path], False, False)
         self.running_check -= 1
 

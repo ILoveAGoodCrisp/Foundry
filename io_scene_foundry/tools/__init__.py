@@ -69,6 +69,7 @@ from io_scene_foundry.utils.nwo_utils import (
     managed_blam_active,
     not_bungie_game,
     nwo_asset_type,
+    os_sep_partition,
     protected_material_name,
     recursive_image_search,
     set_active_object,
@@ -2079,6 +2080,27 @@ class NWO_FoundryPanelProps(Panel):
             if not image:
                 return
             bitmap = image.nwo
+            editor = context.preferences.filepaths.image_editor
+            if editor and image.filepath and os.path.exists(image.filepath_from_user()):
+                col.separator()
+                end_part = os_sep_partition(editor.lower(), True).strip("\"'")
+                if "photoshop" in end_part:
+                    editor_name = "Photoshop"
+                    editor_icon = "photoshop"
+                elif "gimp" in end_part:
+                    editor_name = "Gimp"
+                    editor_icon = "gimp"
+                elif "paint" in end_part:
+                    editor_name = "Paint"
+                    editor_icon = "paint"
+                elif "affinity" in end_part:
+                    editor_name = "Affinity"
+                    editor_icon = "affinity"
+                else:
+                    editor_name = "Image Editor"
+                    editor_icon = ""
+                col.operator("nwo.open_image_editor", text=f"Open in {editor_name}")
+
             tags_dir = get_tags_path()
             data_dir = get_data_path()
             bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
@@ -4843,6 +4865,32 @@ class NWO_ShaderPropertiesGroup(PropertyGroup):
         ],
     )
 
+
+class NWO_OpenImageEditor(Operator):
+    bl_label = "Open in Image Editor"
+    bl_idname = "nwo.open_image_editor"
+    bl_description = "Opens the current image in the image editor specified in Blender Preferences"
+
+    @classmethod
+    def poll(self, context):
+        ob = context.object
+        if not ob:
+            return
+        mat = ob.active_material
+        if not mat:
+            return
+        image = mat.nwo.active_image
+        if not image:
+            return
+        path = image.filepath
+        if not path:
+            return
+        return os.path.exists(image.filepath_from_user())
+
+    def execute(self, context):
+        bpy.ops.image.external_edit(filepath=context.object.active_material.nwo.active_image.filepath_from_user())
+        return {'FINISHED'}
+
 def draw_foundry_nodes_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
     foundry_nodes_toolbar(self.layout, context)
@@ -4939,6 +4987,7 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
 
 classeshalo = (
+    NWO_OpenImageEditor,
     NWO_MaterialGirl,
     NWO_OpenFoundationTag,
     NWO_ExportBitmapsSingle,

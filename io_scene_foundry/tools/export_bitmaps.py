@@ -32,6 +32,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
     get_data_path,
     get_tags_path,
+    not_bungie_game,
     print_warning,
     run_tool,
 )
@@ -120,7 +121,10 @@ def export_bitmap(
     # Store processes
     bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
     path = dot_partition(image.nwo.filepath)
-    process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
+    if not_bungie_game():
+        process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
+    else:
+        process = run_tool(["reimport-bitmaps-single", path], False, False)
 
     if report is None:
         if folder:
