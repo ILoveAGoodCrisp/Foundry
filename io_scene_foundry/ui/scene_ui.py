@@ -33,6 +33,7 @@ from ..utils.nwo_utils import (
     get_data_path,
     get_tags_path,
     managed_blam_active,
+    os_sep_partition,
     valid_nwo_asset,
 )
 from .templates import NWO_Op_Path, NWO_PropPanel, NWO_Op
@@ -249,6 +250,11 @@ class NWO_AssetMaker(NWO_Op):
 
     use_filter_folder: BoolProperty(default=True)
 
+    filename : StringProperty(
+        name="Asset Name",
+        description="Name of the asset. A folder with this name will be created and a copy of the current blend save inside. Leave blank to instead use the current folder",
+    )
+
     filepath: StringProperty(
         name="asset_path",
         description="Set the location of your asset",
@@ -270,7 +276,9 @@ class NWO_AssetMaker(NWO_Op):
         scene = context.scene
         nwo_scene = scene.nwo
         nwo_asset = scene.nwo
-        asset_name = self.filepath.rpartition(os.sep)[2]
+        if not self.filename:
+            self.filepath = os_sep_partition(self.filepath)
+        asset_name = os_sep_partition(self.filepath, True)
         asset_name_clean = dot_partition(asset_name)
         if asset_name_clean == "":
             asset_name_clean = "new_asset"

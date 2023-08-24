@@ -24,7 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import ctypes
 import itertools
 import time
 import bpy
@@ -43,7 +42,6 @@ from ..utils.nwo_utils import (
     get_data_path,
     get_tags_path,
     jstr,
-    not_bungie_game,
     print_warning,
     run_tool,
     update_job,
