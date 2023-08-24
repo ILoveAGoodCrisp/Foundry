@@ -26,7 +26,7 @@
 
 from io_scene_foundry import managed_blam
 from io_scene_foundry.tools.export_bitmaps import export_bitmap
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_valid_shader_name, is_halo_node
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_valid_shader_name, is_halo_node, remove_chars
 import os
 import bpy
 
@@ -47,7 +47,7 @@ class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
         for root, _, files in os.walk(shaders_dir):
             for file in files:
                 if file.endswith("material_shader"):
-                    if dot_partition(file) == material_shader_name:
+                    if remove_chars(dot_partition(file).lower(), list(" _-")) == remove_chars(material_shader_name.lower(), list(" _-")):
                         return os.path.join(root, file).replace(self.tags_dir, "")
         
         return print(f"No material shader found in tags\shaders\... named {material_shader_name}")
@@ -216,11 +216,14 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         material_parameters = {}
         input_parameter_pairings = {}
         inputs = group_node.inputs
+        cull_chars = list(" _-()'\"")
         for i in inputs:
             for parameter_name, value in material_shader.items():
-                display_name = value[0]
+                parameter_name_culled = remove_chars(parameter_name.lower(), cull_chars)
+                display_name = remove_chars(value[0].lower(), cull_chars)
+                input_name = remove_chars(i.name.lower(), cull_chars)
                 parameter_type = value[1]
-                if i.name == parameter_name or i.name == display_name:
+                if input_name == parameter_name_culled or input_name == display_name:
                     input_parameter_pairings[i] = [parameter_name, parameter_type]
 
         for i, value in input_parameter_pairings.items():
@@ -330,6 +333,51 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             found_image_node, group_node = self.find_image_node_in_chain(node, input.name)
         if found_image_node:
             return found_image_node, group_node
+        
+    # def default_value_node_from_input(self, input):
+    #     group_node = None
+    #     links = input.links
+    #     if not links:
+    #         return input.default_value, None
+    #     node = links[0].from_node
+    #     if node.type == 'GROUP':
+    #         found_node, group_node = self.find_default_value_in_chain(node, links[0].from_socket.name)
+    #     else:
+    #         found_node, group_node = self.find_default_value_in_chain(node, input.name)
+    #     if found_node:
+    #         return found_node, group_node
+        
+    # def find_default_value_in_chain(self, node, group_output_input=None, group_node=None):
+    #     if node.type == 'TEX_IMAGE':
+    #         return node, group_node
+        
+    #     elif node.type == 'GROUP':
+    #         group_nodes = node.node_tree.nodes
+    #         for n in group_nodes:
+    #             if n.type == 'GROUP_OUTPUT':
+    #                 for i in n.inputs:
+    #                     if i.name == group_output_input:
+    #                         links = i.links
+    #                         if links:
+    #                             for l in links:
+    #                                 new_node = l.from_node
+    #                                 group_image, group_node = self.find_image_node_in_chain(new_node, group_output_input, group_node=node)
+    #                                 if group_image:
+    #                                     return group_image, group_node
+    #                                 break
+    #                 break
+        
+    #     for input in node.inputs:
+    #         for link in input.links:
+    #             next_node = link.from_node
+    #             if next_node.type == 'GROUP':
+    #                 tex_image_node, group_node = self.find_image_node_in_chain(next_node, link.from_socket.name, group_node=node)
+    #             else:
+    #                 tex_image_node, group_node = self.find_image_node_in_chain(next_node, group_output_input)
+    #             if tex_image_node:
+    #                 return tex_image_node, group_node
+        
+    #     return None, None
 
     def get_mapping_as_corinth_dict(self, image_node, group_node):
         mapping = {}

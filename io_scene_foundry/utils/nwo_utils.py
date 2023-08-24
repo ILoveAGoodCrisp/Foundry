@@ -2021,3 +2021,10 @@ def recursive_image_search(tree_owner):
             image_found = recursive_image_search(n)
             if image_found:
                 return True
+            
+
+def remove_chars(string, chars):
+    for c in chars:
+        string = string.replace(c, "")
+
+    return string
