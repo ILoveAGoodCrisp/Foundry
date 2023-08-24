@@ -215,6 +215,9 @@ class PrepareScene:
                 and ob.nwo.proxy_instance
             ]
             for ob in proxy_owners:
+                struc_nwo = ob.nwo
+                struc_nwo.bsp_name_ui = true_bsp(struc_nwo)
+                struc_nwo.permutation_name_ui = true_permutation(struc_nwo)
                 proxy_instance = ob.copy()
                 proxy_instance.data = ob.data.copy()
                 proxy_instance.name = f"{ob.name}(instance)"
