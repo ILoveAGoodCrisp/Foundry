@@ -646,5 +646,5 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         min=0.1,
         default=0.5,
         max=3,
-        subtype='FACTOR',
+        subtype='TIME_ABSOLUTE',
     )
