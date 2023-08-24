@@ -279,14 +279,14 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         new_dict['parameter name'] = name
         new_dict['parameter type'] = type
         if type == 0: # bitmap
-            image_node = self.image_node_from_input(input)
+            image_node, group_node = self.image_node_from_input(input)
             if image_node:
                 bitmap = self.get_bitmap(image_node)
                 if bitmap:
                     new_dict['bitmap'] = bitmap
                 else:
                     new_dict['bitmap'] = ""
-                mapping = self.get_mapping_as_corinth_dict(image_node)
+                mapping = self.get_mapping_as_corinth_dict(image_node, group_node)
                 if mapping:
                     if mapping.get('scatran', 0):
                         new_dict['real'] = mapping['scale u']
@@ -317,26 +317,27 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         return new_dict
 
     def image_node_from_input(self, input):
+        group_node = None
         links = input.links
         if not links:
-            return
+            return None, None
         node = links[0].from_node
         if node.type == "TEX_IMAGE":
-            return node
+            return node, group_node
         elif node.type == 'GROUP':
-            found_image_node = self.find_image_node_in_chain(node, links[0].from_socket.name)
+            found_image_node, group_node = self.find_image_node_in_chain(node, links[0].from_socket.name)
         else:
-            found_image_node = self.find_image_node_in_chain(node, input.name)
+            found_image_node, group_node = self.find_image_node_in_chain(node, input.name)
         if found_image_node:
-            return found_image_node
+            return found_image_node, group_node
 
-    def get_mapping_as_corinth_dict(self, image_node):
+    def get_mapping_as_corinth_dict(self, image_node, group_node):
         mapping = {}
         links = image_node.inputs[0].links
         if not links:
             return
         node = links[0].from_node
-        mapping_node = self.find_mapping_node_in_chain(node, links[0].from_socket)
+        mapping_node = self.find_mapping_node_in_chain(node, links[0].from_socket, last_group_node=group_node, previous_node=image_node)
         if not mapping_node:
             return
         
@@ -349,34 +350,48 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
         return mapping
     
-    def find_mapping_node_in_chain(self, node, group_output_input):
-        if node.type == 'MAPPING':
-            return node
-        elif node.type == "GROUP":
-            if node.node_tree.name == "Texture Tiling":
+    def find_mapping_node_in_chain(self, node, group_output_input, last_group_node=None, previous_node=None, out_group_node=False):
+        if not out_group_node:
+            if node.type == 'MAPPING':
                 return node
-            group_nodes = node.node_tree.nodes
-            for n in group_nodes:
-                if n.type == 'GROUP_OUTPUT':
-                    for i in n.inputs:
-                        if i.name == group_output_input:
-                            links = i.links
-                            if links:
-                                for l in links:
-                                    new_node = l.from_node
-                                    group_node = self.find_mapping_node_in_chain(new_node, group_output_input)
-                                    if group_node:
-                                        return group_node
-                                    break
-                    break
+            elif node.type == "GROUP":
+                if node.node_tree.name == "Texture Tiling":
+                    return node
+                group_nodes = node.node_tree.nodes
+                for n in group_nodes:
+                    if n.type == 'GROUP_OUTPUT':
+                        for i in n.inputs:
+                            if i.name == group_output_input:
+                                links = i.links
+                                if links:
+                                    for l in links:
+                                        new_node = l.from_node
+                                        group_node = self.find_mapping_node_in_chain(new_node, group_output_input, last_group_node=node, previous_node=node)
+                                        if group_node:
+                                            return group_node
+                                        break
+                        break
+
+            elif node.type == "GROUP_INPUT":
+                for output in node.outputs:
+                    for link in output.links:
+                        if link.to_node == previous_node:
+                            mapping_node_maybe = self.find_mapping_node_in_chain(last_group_node, output, last_group_node=last_group_node, previous_node=previous_node, out_group_node=True)
+                            if mapping_node_maybe:
+                                return mapping_node_maybe
             
         for input in node.inputs:
+            if out_group_node:
+                if group_output_input.name != input.name:
+                    continue
             for link in input.links:
                 next_node = link.from_node
                 if next_node.type == 'GROUP':
-                    new_node = self.find_mapping_node_in_chain(next_node, link.from_socket.name)
+                    if next_node.node_tree.name == "Texture Tiling":
+                        return next_node
+                    new_node = self.find_mapping_node_in_chain(next_node, link.from_socket.name, last_group_node=node)
                 else:
-                    new_node = self.find_mapping_node_in_chain(next_node, group_output_input)
+                    new_node = self.find_mapping_node_in_chain(next_node, group_output_input, last_group_node=last_group_node, previous_node=node)
                 if new_node:
                     return new_node
                 
@@ -655,15 +670,15 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         else:
             return
         
-        node = self.find_image_node_in_chain(tex_input.links[0].from_node)
+        node, _ = self.find_image_node_in_chain(tex_input.links[0].from_node)
         if node:
             if input_name == "specular" and tex_input.links[0].from_socket.name == "Alpha":
                 self.specular_from_diff_alpha = True
             return node
         
-    def find_image_node_in_chain(self, node, group_output_input=None):
+    def find_image_node_in_chain(self, node, group_output_input=None, group_node=None):
         if node.type == 'TEX_IMAGE':
-            return node
+            return node, group_node
         
         elif node.type == 'GROUP':
             group_nodes = node.node_tree.nodes
@@ -675,9 +690,9 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                             if links:
                                 for l in links:
                                     new_node = l.from_node
-                                    group_image = self.find_image_node_in_chain(new_node, group_output_input)
+                                    group_image, group_node = self.find_image_node_in_chain(new_node, group_output_input, group_node=node)
                                     if group_image:
-                                        return group_image
+                                        return group_image, group_node
                                     break
                     break
         
@@ -685,13 +700,13 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             for link in input.links:
                 next_node = link.from_node
                 if next_node.type == 'GROUP':
-                    tex_image_node = self.find_image_node_in_chain(next_node, link.from_socket.name)
+                    tex_image_node, group_node = self.find_image_node_in_chain(next_node, link.from_socket.name, group_node=node)
                 else:
-                    tex_image_node = self.find_image_node_in_chain(next_node, group_output_input)
+                    tex_image_node, group_node = self.find_image_node_in_chain(next_node, group_output_input)
                 if tex_image_node:
-                    return tex_image_node
+                    return tex_image_node, group_node
         
-        return
+        return None, None
 
 
     def element_dict_from_input(self, input, dict_value):
