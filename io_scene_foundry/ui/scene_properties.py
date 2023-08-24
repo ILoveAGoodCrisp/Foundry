@@ -639,3 +639,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="Path to the material shader to use for all materials (does not overwrite custom node group defined material shaders)",
         update=update_default_material_shader,
     )
+    
+    material_sync_rate : bpy.props.FloatProperty(
+        name="Sync Rate",
+        description="How often Halo Material Sync should refresh",
+        min=0.1,
+        default=0.5,
+        max=3,
+        subtype='FACTOR',
+    )

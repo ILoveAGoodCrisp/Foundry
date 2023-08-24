@@ -30,11 +30,14 @@
 import ctypes
 import bpy
 from bpy.app.handlers import persistent
+import math
 
-from io_scene_foundry.utils.nwo_utils import not_bungie_game, unlink
+from io_scene_foundry.utils.nwo_utils import unlink
 
 old_snapshot = {}
 old_x = None
+
+old_node_dict = {}
 
 bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
@@ -93,9 +96,6 @@ else:
                     bpy.ops.nwo.face_layer_color_all(enable_highlight=highlight)
         except:
             pass
-
-    def msgbus_sync_shader(context):
-        bpy.ops.nwo.build_shader_single(linked_to_blender=True)
 
     def subscribe(owner):
         subscribe_to = bpy.types.Object, "mode"
@@ -215,26 +215,6 @@ else:
     def fix_icons():
         icons.icons_activate()
 
-    def sync_shaders():
-        context = bpy.context
-        shader_sync_active = context.scene.nwo.shader_sync_active
-        if not shader_sync_active: return 5
-        ob = bpy.context.object
-        if not ob: return 2
-        material = ob.active_material
-        if not material: return 1
-        if material.nwo.uses_blender_nodes:
-            try:
-                bpy.ops.nwo.build_shader_single(linked_to_blender=True)
-            except:
-                pass
-            # H4 materials update a lot slower than Reach. Material updates have to be spaced out :(
-            if not_bungie_game(context):
-                return 1
-            else:
-                return 1
-        return 1
-
     def register():
         bpy.app.handlers.load_post.append(load_handler)
         bpy.app.handlers.load_post.append(load_set_output_state)
@@ -243,10 +223,8 @@ else:
             module.register()
 
         bpy.app.timers.register(fix_icons, first_interval=0.04, persistent=True)
-        bpy.app.timers.register(sync_shaders, first_interval=2, persistent=True)
 
     def unregister():
-        bpy.app.timers.unregister(sync_shaders)
         bpy.app.handlers.load_post.remove(load_handler)
         bpy.app.handlers.load_post.append(load_set_output_state)
         bpy.app.handlers.undo_post.remove(get_temp_settings)

@@ -41,6 +41,7 @@ from bpy.props import (
 )
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
+from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
@@ -4917,7 +4918,17 @@ def foundry_nodes_toolbar(layout, context):
             return
 
         sub0 = row.row(align=True)
-        sub0.prop(nwo_scene, "shader_sync_active", text="" if icons_only else "Halo Material Sync", icon_value=get_icon_id("material_exporter"))
+        if context.scene.nwo.shader_sync_active:
+            sub0.enabled = False
+        else:
+            sub0.enabled = True
+        sub0.prop(nwo_scene, "material_sync_rate", text="Sync Rate")
+        sub1 = row.row(align=True)
+        if context.scene.nwo.shader_sync_active:
+            sub1.operator("nwo.material_sync_end", text="Halo Material Sync", icon="PAUSE", depress=True)
+        else:
+            sub1.operator("nwo.material_sync_start", text="Halo Material Sync", icon="PLAY")
+        # sub0.prop(nwo_scene, "shader_sync_active", text="" if icons_only else "Halo Material Sync", icon_value=get_icon_id("material_exporter"))
 
 def draw_foundry_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
@@ -5051,6 +5062,8 @@ classeshalo = (
     NWO_JoinHalo,
     NWO_ShaderFarmPopover,
     NWO_FarmShaders,
+    NWO_MaterialSyncStart,
+    NWO_MaterialSyncEnd,
     # NWO_GunRigMaker,
     # NWO_GunRigMaker_Start,
 )
