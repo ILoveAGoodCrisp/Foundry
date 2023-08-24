@@ -33,6 +33,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_data_path,
     get_tags_path,
     not_bungie_game,
+    print_error,
     print_warning,
     run_tool,
 )
@@ -119,12 +120,20 @@ def export_bitmap(
                 return {'CANCELLED'}
 
     # Store processes
-    bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
-    path = dot_partition(image.nwo.filepath)
-    if not_bungie_game():
-        process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
+    if image.nwo.filepath and os.path.exists(data_dir + image.nwo.filepath):
+        bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
+        path = dot_partition(image.nwo.filepath)
+        if not_bungie_game():
+            process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
+        else:
+            process = run_tool(["reimport-bitmaps-single", path], False, False)
     else:
-        process = run_tool(["reimport-bitmaps-single", path], False, False)
+        if report:
+            report({'ERROR'}, f"{image.name} has no data filepath. Cannot build bitmap")
+            print_error(f"{image.name} has no data filepath. Cannot build bitmap")
+            return {'CANCELLED'}
+        print_error(f"{image.name} has no data filepath. Cannot build bitmap")
+        return
 
     if report is None:
         if folder:

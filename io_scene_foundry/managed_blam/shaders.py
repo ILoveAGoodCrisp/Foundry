@@ -552,7 +552,13 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             #print("Material has no output")
             return
         for s in shaders:
-            if s.outputs[0].links[0].to_node == output:
+            outputs = s.outputs
+            if not outputs:
+                return
+            links = outputs[0].links
+            if not links:
+                return
+            if links[0].to_node == output:
                 return s
         else:
             #print("No shader found connected to output")
@@ -704,6 +710,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 return bitmap
 
         bitmap = export_bitmap(image)
+        if not bitmap:
+            return None
         if os.path.exists(self.tags_dir + bitmap):
             return bitmap
         
