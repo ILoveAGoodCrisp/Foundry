@@ -70,6 +70,10 @@ def export_bitmap(
     folder="",
     report=None,
 ):
+    if image.name != image.name_full:
+        print("Image is linked, skipping")
+        return
+
     data_dir = get_data_path()
     tags_dir = get_tags_path()
     asset_path = get_asset_path()
@@ -99,7 +103,7 @@ def export_bitmap(
                 print_warning(f"{image.name} has no data. Cannot export Tif")
                 if report:
                     report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
-                    return {'CANCELLED'}
+                    return
 
     elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and os.path.exists(data_dir + image.nwo.filepath):
         if image.nwo.reexport_tiff:
@@ -109,7 +113,7 @@ def export_bitmap(
                 print_warning(f"{image.name} has no data. Cannot export Tif")
                 if report:
                     report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
-                    return {'CANCELLED'}
+                    return
     else:
         if image.has_data:
             image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
@@ -117,7 +121,7 @@ def export_bitmap(
             print_warning(f"{image.name} has no data. Cannot export Tif")
             if report:
                 report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
-                return {'CANCELLED'}
+                return
 
     # Store processes
     if image.nwo.filepath and os.path.exists(data_dir + image.nwo.filepath):
@@ -131,7 +135,7 @@ def export_bitmap(
         if report:
             report({'ERROR'}, f"{image.name} has no data filepath. Cannot build bitmap")
             print_error(f"{image.name} has no data filepath. Cannot build bitmap")
-            return {'CANCELLED'}
+            return
         print_error(f"{image.name} has no data filepath. Cannot build bitmap")
         return
 
@@ -142,4 +146,3 @@ def export_bitmap(
             return bitmap
     else:
         report({"INFO"}, "Bitmap Export Complete")
-        return {"FINISHED"}

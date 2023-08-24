@@ -49,6 +49,9 @@ def get_shader_name(mat):
 def build_shader(material, corinth, folder="", report=None):
     if not get_shader_name(material):
         return {"FINISHED"}
+    if material.name != material.name_full:
+        print("Material is linked, skipping")
+        return {"FINISHED"}
     nwo = material.nwo
     if corinth:
         tag = ManagedBlamNewShader(material.name, nwo.material_shader, nwo.uses_blender_nodes, nwo.shader_path, folder if folder else nwo.shader_dir)

@@ -76,6 +76,8 @@ class NWO_FarmShaders(bpy.types.Operator):
 
     def image_in_valid_node(self, image, materials):
         for mat in materials:
+            if not mat.node_tree:
+                continue
             nodes = mat.node_tree.nodes
             for n in nodes:
                 if getattr(n, "image", 0) == image:
@@ -112,6 +114,8 @@ class NWO_FarmShaders(bpy.types.Operator):
         print(export_title)
 
         for mat in bpy.data.materials:
+            if mat.name != mat.name_full:
+                continue
             mat_nwo = mat.nwo
             if not mat_nwo.rendered or mat.is_grease_pencil:
                 continue
@@ -130,6 +134,8 @@ class NWO_FarmShaders(bpy.types.Operator):
         # create a list of non-duplicate bitmaps
 
         for image in bpy.data.images:
+            if image.name != image.name_full:
+                continue
             if dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
                 print_warning(f"{image.name} looks like a duplicate image, skipping")
                 continue
