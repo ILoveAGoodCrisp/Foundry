@@ -860,10 +860,11 @@ class NWOMesh(NWOObject):
 
                 if self.bungie_mesh_type == "_connected_geometry_mesh_type_poop":
                     self.bungie_mesh_poop_lighting = self.halo.poop_lighting
-                    if self.halo.lightmap_resolution_scale:
-                        self.bungie_mesh_poop_lightmap_resolution_scale = (
-                            self.halo.lightmap_resolution_scale
-                        )
+                    # NOTE commented this out as bungie_mesh_poop_lightmap_resolution_scale does not appear to set a value on the poop
+                    # if self.halo.lightmap_resolution_scale:
+                    #     self.bungie_mesh_poop_lightmap_resolution_scale = (
+                    #         self.halo.lightmap_resolution_scale
+                    #     )
                     self.bungie_mesh_poop_pathfinding = self.halo.poop_pathfinding
                     self.bungie_mesh_poop_imposter_policy = (
                         self.halo.poop_imposter_policy
@@ -1018,7 +1019,7 @@ class NWOMesh(NWOObject):
                 self.halo.lightmap_additive_transparency
             )
         if self.halo.lightmap_resolution_scale_active:
-            self.bungie_lightmap_ignore_default_resolution_scale = "1"
+            # self.bungie_lightmap_ignore_default_resolution_scale = "1"
             self.bungie_lightmap_resolution_scale = self.halo.lightmap_resolution_scale
         # self.bungie_lightmap_chart_group = self.lightmap_chart_group()
         # if self.not_bungie_game:
