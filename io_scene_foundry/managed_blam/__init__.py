@@ -63,18 +63,12 @@ class ManagedBlam():
         self.unit_scale = self.context.scene.unit_settings.scale_length
         # Tag Info
         self.path = "" # String to hold the tag relative path to the tag we're editing/reading
-        self.read_only = False # Bool to check whether tag should be opened in Read Only mode (i.e. never saved)
+        # self.read_only = False # Bool to check whether tag should be opened in Read Only mode (i.e. never saved)
         self.tag_is_new = False # Set to True when a tag needs to be created. Not set True if in read_only mode
 
     def get_path(self): # stub
         print("get_path stub called")
         return ""
-
-    def tag_edit(self, tag): # stub
-        print("tag_edit stub called")
-
-    def tag_read(self, tag): # stub
-        print("tag_read stub called")
 
     def tag_helper(self):
         if not self.path:
@@ -84,9 +78,13 @@ class ManagedBlam():
             return print("No path to tag found")
 
         self.system_path = get_tags_path() + self.path
-
-        self.tag, self.tag_path = self.get_tag_and_path(self.path)
+        
+        if type(self.path) == str:
+            self.tag, self.tag_path = self.get_tag_and_path(self.path)
+        else:
+            self.tag = self.path
         tag = self.tag
+        self.read_only = callable(getattr(self, "tag_read", None))
         try:
             if os.path.exists(self.system_path):
                 tag.Load(self.tag_path)
@@ -97,7 +95,7 @@ class ManagedBlam():
                 print("Read only mode but tag path does not exist")
             if self.read_only:
                 self.tag_read(tag)
-            else:
+            elif callable(getattr(self, "tag_edit", None)):
                 self.tag_edit(tag)
                 global last_saved_tag
                 if last_saved_tag != tag:

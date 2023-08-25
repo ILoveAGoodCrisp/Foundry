@@ -643,8 +643,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     material_sync_rate : bpy.props.FloatProperty(
         name="Sync Rate",
         description="How often Halo Material Sync should refresh",
-        min=0.1,
-        default=0.5,
+        min=0.001,
+        default=0.1,
         max=3,
         subtype='TIME_ABSOLUTE',
     )

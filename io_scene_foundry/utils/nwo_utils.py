@@ -1261,6 +1261,13 @@ def dot_partition(target_string, get_suffix=False):
     else:
         return shortest_string(target_string.rpartition(".")[0], target_string)
     
+def space_partition(target_string, get_suffix=False):
+    """Returns a string after partitioning it using space. If the returned string will be empty, the function will instead return the argument passed"""
+    if get_suffix:
+        return shortest_string(target_string.rpartition(" ")[2], target_string)
+    else:
+        return shortest_string(target_string.rpartition(" ")[0], target_string)
+    
 def os_sep_partition(target_string, get_suffix=False):
     """Returns a string after partitioning it using the OS seperator. If the returned string will be empty, the function will instead return the argument passed"""
     if get_suffix:

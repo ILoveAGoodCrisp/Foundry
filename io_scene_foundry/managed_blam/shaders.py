@@ -26,29 +26,35 @@
 
 from io_scene_foundry import managed_blam
 from io_scene_foundry.tools.export_bitmaps import export_bitmap
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_valid_shader_name, is_halo_node, remove_chars
+from io_scene_foundry.utils.nwo_utils import cull_invalid_chars, dot_partition, get_valid_shader_name, is_halo_node, os_sep_partition, print_warning, remove_chars, space_partition
 import os
 import bpy
 
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 
+all_material_shaders = []
+
 class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
     def __init__(self, group_node):
         super().__init__()
-        self.read_only = True
         self.group_node = group_node
         self.parameters = {}
         self.tag_helper()
 
     def get_path(self):
         material_shader_name = self.group_node.node_tree.name
-        # Check \shaders\ for the given material_shader
-        shaders_dir = os.path.join(self.tags_dir, "shaders")
-        for root, _, files in os.walk(shaders_dir):
-            for file in files:
-                if file.endswith("material_shader"):
-                    if remove_chars(dot_partition(file).lower(), list(" _-")) == remove_chars(material_shader_name.lower(), list(" _-")):
-                        return os.path.join(root, file).replace(self.tags_dir, "")
+        global all_material_shaders
+        if not all_material_shaders:
+            # Check \shaders\ for the given material_shader
+            shaders_dir = os.path.join(self.tags_dir, "shaders")
+            for root, _, files in os.walk(shaders_dir):
+                for file in files:
+                    if file.endswith(".material_shader"):
+                        all_material_shaders.append(os.path.join(root, file).replace(self.tags_dir, ""))
+
+        for mat_sha in all_material_shaders:
+            if remove_chars(dot_partition(os_sep_partition(mat_sha, True)).lower(), list(" _-")) == remove_chars(material_shader_name.lower(), list(" _-")):
+                return mat_sha
         
         return print(f"No material shader found in tags\shaders\... named {material_shader_name}")
 
@@ -61,6 +67,57 @@ class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
                 self.Element_get_field_value(e, "parameter type"),
             ]
 
+class ManagedBlamReadRenderMethodDefinition(managed_blam.ManagedBlam):
+    def __init__(self, group_node):
+        super().__init__()
+        self.group_node = group_node
+        self.categories = {}
+        self.tag_helper()
+
+    def get_path(self):
+        render_method_definition_name = space_partition(self.group_node.node_tree.name)
+        # Check \shaders\ for the given render_method_definition
+        shaders_dir = os.path.join(self.tags_dir, "shaders")
+        for root, _, files in os.walk(shaders_dir):
+            for file in files:
+                if file.endswith(".render_method_definition"):
+                    if remove_chars(dot_partition(file).lower(), list(" _-")) == remove_chars(render_method_definition_name.lower(), list(" _-")):
+                        return os.path.join(root, file).replace(self.tags_dir, "")
+        
+        return print(f"No render method definition found in tags\shaders\... named {render_method_definition_name}")
+
+    def tag_read(self, tag):
+        block_categories = tag.SelectField("Block:categories")
+        elements_cats = block_categories.Elements
+        self.categories = {}
+        for e_cat in elements_cats:
+            elements_options = e_cat.Elements
+            cat_name = e_cat.Fields[0].Value
+            options_dict = {}
+            for e_option in elements_options:
+                option_name = self.Element_get_field_value(e_option, "option name")
+                option_parameters = ManagedBlamReadRenderMethodOption(self.Element_get_field_value(e_option, "option")).parameters
+                options_dict[option_name] = option_parameters
+            
+            self.categories[cat_name] = options_dict
+
+class ManagedBlamReadRenderMethodOption(managed_blam.ManagedBlam):
+    def __init__(self, path):
+        super().__init__()
+        self.path = path
+        self.parameters = {}
+        self.tag_helper()
+
+    def tag_read(self, tag):
+        block_parameters = tag.SelectField("Block:parameters")
+        elements = block_parameters.Elements
+        for e in elements:
+            self.parameters[self.Element_get_field_value(e, "parameter name")] = [
+                self.Element_get_field_value(e, "parameter ui override name"),
+                self.Element_get_field_value(e, "parameter type"),
+            ]
+
+
 class ManagedBlamNewShader(managed_blam.ManagedBlam):
     def __init__(self, blender_material, shader_type, linked_to_blender, specified_path="", export_dir=""):
         super().__init__()
@@ -72,7 +129,10 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         self.export_dir = export_dir
         self.specified_path = specified_path if specified_path and os.path.exists(self.tags_dir + specified_path) else None
         if linked_to_blender and self.group_node:
-            self.material_shader = ManagedBlamReadMaterialShader(self.group_node)
+            if self.corinth:
+                self.material_shader = ManagedBlamReadMaterialShader(self.group_node)
+            else:
+                self.render_method_definition = ManagedBlamReadRenderMethodDefinition(self.group_node).categories
             self.custom = bool(getattr(self.material_shader, "tag_path", 0))
         self.tag_helper()
 
@@ -84,7 +144,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         else:
             shaders_dir = os.path.join(self.asset_dir, "materials" if self.corinth else "shaders")
         shader_name = get_valid_shader_name(self.blender_material)
-        tag_ext = ".material" if self.corinth else self.shader_type
+        tag_ext = ".material" if self.corinth else self.get_shader_type()
         shader_path = os.path.join(shaders_dir, shader_name + tag_ext)
 
         return shader_path
@@ -115,6 +175,79 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         if not self.linked_to_blender:
             return
         struct_render_method = tag.SelectField("Struct:render_method").Elements[0]
+        # if self.custom:
+        #     self.custom_shader(struct_render_method, self.group_node)
+        # else:
+        self.basic_shader(struct_render_method)
+
+    def setup_options_dicts(self, i, material_model_group_node, option_name):
+        from_node = i.links[0].from_node
+        option_name, option_value = from_node.node_tree.name.split(" ")[:2]
+        if not option_name == option_name:
+            print_warning(f"Incompatiable node plugged into {material_model_group_node} {option_name} input")
+            return
+        self.options_nodes[option_name] = from_node
+        self.options_dict[option_name] = getattr(globals(), f"enum_{option_name}_{option_value}")
+
+
+    def get_shader_type():
+        pass
+
+    def custom_shader(self, struct_render_method, material_model_group_node):
+        self.options_nodes = {}
+        self.options_dict = {}
+        material_parameters = {}
+        input_parameter_pairings = {}
+        inputs = material_model_group_node.inputs
+        cull_chars = list(" _-()'\"")
+        # Ensure options block has 12 elements
+        options_block = struct_render_method.SelectField("options")
+        # while options_block.ElementCount < 12:
+        #     new_element = options_block.AddElement()
+        #     new_element.SetStringData("-1")
+        # toggle off all options
+        for e in options_block:
+            e.Fields[0].value = -1
+        for i in inputs:
+            # CONSTANT INPUTS
+            if i.name == 'albedo' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'albedo')
+            if i.name == 'bump_mapping' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'bump_mapping')
+            if i.name == 'alpha_test' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'alpha_test')
+            if i.name == 'environment_mapping' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'environment_mapping')
+            if i.name == 'self_illumination' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'self_illumination')
+            if i.name == 'parallax' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'parallax')
+            if i.name == 'wetness' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'wetness')
+            if i.name == 'alpha_blend_source' and i.links:
+                self.setup_options_dicts(i, material_model_group_node, 'alpha_blend_source')
+            # MATERIAL MODELS
+            #################
+            # GENERAL
+        # Set up options
+        for option_name, option_type in self.options_dict.items():
+            op_element = options_block.Elements[getattr(globals(), f"enum_{option_name}")]
+            op_element.Fields[0].Value = option_type
+
+        # set up categories
+        for node in self.options_nodes:
+            for i in node.inputs:
+                parameters, animated_parameters = self.shader_parameters(i)
+
+
+    def shader_parameters(self, input):
+        parameters = {}
+        animated_parameters = {}
+
+        parameters['parameter name'] = input.name
+        parameters['parameter type'] = self.parameter_type_from_name(input.name)
+
+    def basic_shader(self, struct_render_method):
         maps = self.get_maps()
         if not maps:
             return print("Cannot read Blender Material Nodes into tag. Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
@@ -781,3 +914,115 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             element_dict['color'] = self.GameColor_from_input(input)
         elif type == 'real':
             element_dict['real'] = self.Real_from_input(input)
+
+
+# OPTIONS MAPPING
+#################
+
+# INDEXES
+enum_albedo = 0
+enum_bump_mapping = 1
+enum_alpha_test = 2
+enum_material_model = 3
+enum_environment_mapping = 4
+enum_self_illumination = 5
+enum_blend_mode = 6
+enum_parallax = 7
+enum_misc = 8
+enum_wetness = 9
+enum_alpha_blend_source = 10
+
+# ALBEDO
+enum_albedo_default = 0
+enum_albedo_detail_blend = 1
+enum_albedo_constant_color = 2
+enum_albedo_two_change_color = 3
+enum_albedo_four_change_color = 4
+enum_albedo_three_detail_blend = 5
+enum_albedo_two_detail_overlay = 6
+enum_albedo_two_detail = 7
+enum_albedo_color_mask = 8
+enum_albedo_two_detail_black_point = 9
+enum_albedo_four_change_color_applying_to_specular = 10
+enum_albedo_simple = 11
+
+# BUMP MAPPING
+enum_bump_mapping_off = 0
+enum_bump_mapping_standard = 1
+enum_bump_mapping_detail = 2
+enum_bump_mapping_detail_blend = 3
+enum_bump_mapping_three_detail_blend = 4
+enum_bump_mapping_standard_wrinkle = 5
+enum_bump_mapping_detail_wrinkle = 6
+
+# ALPHA TEST
+enum_alpha_test_none = 0
+enum_alpha_test_simple = 1
+
+# SPECULAR MASK
+enum_specular_mask_no_specular_mask = 0
+enum_specular_mask_specular_mask_from_diffuse = 1
+enum_specular_mask_specular_mask_mult_diffuse = 2
+enum_specular_mask_specular_mask_from_texture = 3
+
+# MATERIAL MODEL
+enum_material_model_diffuse_only = 0
+enum_material_model_cook_torrance = 1
+enum_material_model_two_lobe_phong = 2
+enum_material_model_foliage = 3
+enum_material_model_none = 4
+enum_material_model_organism = 5
+enum_material_model_hair = 6
+
+# ENVIRONMENT MAPPING
+enum_environment_mapping_none = 0
+enum_environment_mapping_per_pixel = 1
+enum_environment_mapping_dynamic = 2
+enum_environment_mapping_from_flat_texture = 3
+
+# SELF ILLUMINATION
+enum_self_illumination_off = 0
+enum_self_illumination_simple = 1
+enum_self_illumination_3_channel_self_illum = 2
+enum_self_illumination_plasma = 3
+enum_self_illumination_from_diffuse = 4
+enum_self_illumination_illum_detail = 5
+enum_self_illumination_meter = 6
+enum_self_illumination_self_illum_times_diffuse = 7
+enum_self_illumination_simple_with_alpha_mask = 8
+enum_self_illumination_multilayer_additive = 9
+enum_self_illumination_palettized_plasma = 10
+enum_self_illumination_change_color = 11
+enum_self_illumination_change_color_detail = 12
+
+# BLEND MODE
+enum_blend_mode_opaque = 0
+enum_blend_mode_additive = 1
+enum_blend_mode_multiply = 2
+enum_blend_mode_alpha_blend = 3
+enum_blend_mode_double_multiply = 4
+enum_blend_mode_pre_multiplied_alpha = 5
+
+# PARALLAX
+enum_parallax_off = 0
+enum_parallax_simple = 1
+enum_parallax_interpolated = 2
+enum_parallax_simple_detail = 3
+
+# MISC
+enum_misc_default = 0
+enum_misc_rotating_bitmaps_super_slow = 1
+
+# WETNESS
+enum_wetness_default = 0
+enum_wetness_flood = 0
+enum_wetness_proof = 0
+enum_wetness_simple = 0
+enum_wetness_ripples = 0
+
+# ALPHA BLEND SOURCE
+enum_alpha_blend_source_from_albedo_alpha_without_fresnel = 0
+enum_alpha_blend_source_from_albedo_alpha = 1
+enum_alpha_blend_source_from_opacity_map_alpha = 2
+enum_alpha_blend_source_from_opacity_map_rgb = 3
+enum_alpha_blend_source_from_opacity_map_alpha_and_albedo_alpha = 4
