@@ -1245,7 +1245,7 @@ class ProcessScene:
             nwo.import_name = event.import_name
             nwo.text = event.text
             # set event node name
-            event_ob.name = f"event_node_{str(nwo.event_id)}"
+            event_ob.name = f"event_export_node_frame{str(nwo.event_id)}"
             # add it to the list
             scene_coll.link(event_ob)
             animation_events.append(event_ob)

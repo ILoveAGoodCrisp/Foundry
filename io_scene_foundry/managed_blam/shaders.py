@@ -135,7 +135,9 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 if not global_material_shader or global_material_shader.group_node != self.group_node:
                     global_material_shader = ManagedBlamReadMaterialShader(self.group_node) 
             else:
-                self.render_method_definition = ManagedBlamReadRenderMethodDefinition(self.group_node).categories
+                global global_render_method_definition
+                if not global_render_method_definition or global_render_method_definition.group_node != self.group_node:
+                    global_render_method_definition = ManagedBlamReadRenderMethodDefinition(self.group_node).categories
             self.custom = bool(getattr(global_material_shader, "tag_path", 0))
         self.tag_helper()
 

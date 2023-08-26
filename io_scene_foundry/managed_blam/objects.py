@@ -31,7 +31,6 @@ from io_scene_foundry.managed_blam import ManagedBlam
 class ManagedBlamGetNodeOrder(ManagedBlam):
     def __init__(self, tag_path, is_animation_graph=False):
         super().__init__()
-        self.read_only = True
         self.path = tag_path
         self.is_anim_graph = is_animation_graph
         self.tag_helper()
@@ -50,7 +49,6 @@ class ManagedBlamGetNodeOrder(ManagedBlam):
 class ManagedBlamGetModelFromObject(ManagedBlam):
     def __init__(self, tag_path):
         super().__init__()
-        self.read_only = True
         self.path = tag_path
         self.tag_helper()
     
@@ -73,7 +71,6 @@ class ManagedBlamGetModelFromObject(ManagedBlam):
 class ManagedBlamGetModelVariants(ManagedBlam):
     def __init__(self, tag_path):
         super().__init__()
-        self.read_only = True
         self.path = tag_path
         self.tag_helper()
     
