@@ -1216,8 +1216,8 @@ class ProcessScene:
             # Set this node to be an animation event
             nwo.object_type = "_connected_geometry_object_type_animation_event"
             # Set up the event node with the action start and end frame and id
-            nwo.frame_start = jstr(frame_start + 0.4999)
-            nwo.frame_end = jstr(frame_end + 0.4999)
+            nwo.frame_start = jstr(frame_start)
+            nwo.frame_end = jstr(frame_end)
             # add the user defined properties from the action
             nwo.event_id = abs(event.event_id)
             nwo.event_type = event.event_type
@@ -1245,7 +1245,7 @@ class ProcessScene:
             nwo.import_name = event.import_name
             nwo.text = event.text
             # set event node name
-            event_ob.name = f"event_export_node_frame{str(nwo.event_id)}"
+            event_ob.name = f"event_export_node_frame_{str(nwo.event_id)}"
             # add it to the list
             scene_coll.link(event_ob)
             animation_events.append(event_ob)

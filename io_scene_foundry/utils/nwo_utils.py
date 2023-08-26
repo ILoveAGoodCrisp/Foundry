@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 from email.mime import image
+import subprocess
 import sys
 import bpy
 import platform
@@ -31,7 +32,7 @@ from math import radians
 from mathutils import Matrix, Vector
 import os
 from os.path import exists as file_exists
-from subprocess import Popen, check_call, DEVNULL, PIPE
+from subprocess import Popen, check_call
 import shutil
 import random
 
@@ -1154,13 +1155,13 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
     # print(command)
     if in_background:
         if null_output:
-            return Popen(command, stdout=DEVNULL, stderr=DEVNULL)
+            return Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             return Popen(command)  # ,stderr=PIPE)
     else:
         try:
             if null_output:
-                return check_call(command, stdout=DEVNULL, stderr=DEVNULL)
+                return check_call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
                 return check_call(command)  # ,stderr=PIPE)
 
@@ -1175,7 +1176,7 @@ def run_tool_sidecar(tool_args: list, asset_path):
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     error = ""
-    p = Popen(command, stderr=PIPE)
+    p = Popen(command, stderr=subprocess.PIPE)
     error_log = os.path.join(asset_path, "error.log")
     with open(error_log, "w") as f:
         # Read and print stderr contents while writing to the file
@@ -1184,24 +1185,31 @@ def run_tool_sidecar(tool_args: list, asset_path):
             if failed or is_error_line(line):
                 print_error(line)
                 failed = True
-            elif (
-                "(skipping tangent-space calculations)"
-                or "if it is a decorator," in line
-            ):
+            elif "(skipping tangent-space calculations)" in line or "if it is a decorator" in line:
                 # this really shouldn't be a warning, so don't print/write it
                 continue
             else:
-                print_warning(line)
+                # need to handle animation stuff. Most animation output is written to stderr...
+                if line.startswith("animation:import:"):
+                    warning_line = line.rpartition("animation:import: ")[2]
+                    if warning_line.startswith("Failed to extract"):
+                        print_warning(line)
+                    elif warning_line.startswith("Failed"):
+                        print_error(line)
+                    else:
+                        print(line)
+                else:
+                    print_warning(line)
             f.write(line)
 
     p.wait()
 
-    if failed:
-        # check for known errors, and return an explanation
-        error = get_export_error_explanation(error_log)
-    else:
-        # if there's no fatal error, remove the error log
-        os.remove(error_log)
+    # if failed:
+    #     # check for known errors, and return an explanation
+    #     error = get_export_error_explanation(error_log)
+    # else:
+    #     # if there's no fatal error, remove the error log
+    #     os.remove(error_log)
 
     return failed, error
 
