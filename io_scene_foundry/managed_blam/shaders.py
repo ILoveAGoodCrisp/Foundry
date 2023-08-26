@@ -33,6 +33,7 @@ import bpy
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 
 all_material_shaders = []
+global_material_shader = None
 
 class ManagedBlamReadMaterialShader(managed_blam.ManagedBlam):
     def __init__(self, group_node):
@@ -130,10 +131,12 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         self.specified_path = specified_path if specified_path and os.path.exists(self.tags_dir + specified_path) else None
         if linked_to_blender and self.group_node:
             if self.corinth:
-                self.material_shader = ManagedBlamReadMaterialShader(self.group_node)
+                global global_material_shader
+                if not global_material_shader or global_material_shader.group_node != self.group_node:
+                    global_material_shader = ManagedBlamReadMaterialShader(self.group_node) 
             else:
                 self.render_method_definition = ManagedBlamReadRenderMethodDefinition(self.group_node).categories
-            self.custom = bool(getattr(self.material_shader, "tag_path", 0))
+            self.custom = bool(getattr(global_material_shader, "tag_path", 0))
         self.tag_helper()
 
     def get_path(self):
@@ -318,14 +321,14 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         reference_material_shader = tag.SelectField("Reference:material shader")
         if self.linked_to_blender:
             if self.custom:
-                reference_material_shader.Reference.Path = self.material_shader.tag_path
+                reference_material_shader.Reference.Path = global_material_shader.tag_path
         else:
             reference_material_shader.Reference.Path = self.TagPath_from_string(self.shader_type) if self.shader_type else self.TagPath_from_string(self.find_best_material_shader())
             return
         
         block_material_parameters = tag.SelectField("Block:material parameters")
         if self.custom:
-            self.custom_material(block_material_parameters, self.group_node, self.material_shader.parameters)
+            self.custom_material(block_material_parameters, self.group_node, global_material_shader.parameters)
         else:
             self.basic_material(block_material_parameters, reference_material_shader.Reference)
 
