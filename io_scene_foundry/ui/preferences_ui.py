@@ -47,26 +47,23 @@ class NWO_Project_ListItems(bpy.types.PropertyGroup):
     project_image_path: StringProperty()
 
 class NWO_UL_Projects(bpy.types.UIList):
-
-    layout_type = StringProperty(default='GRID')
-
     def draw_item(
         self, context, layout, data, item, icon, active_data, active_propname
     ):
         if item:
             thumbnail = os.path.join(item.project_path, item.project_image_path)
             if os.path.exists(thumbnail):
-                layout.template_icon(icon_value=get_icon_id_in_directory(thumbnail))
+                icon_id = get_icon_id_in_directory(thumbnail)
             elif item.project_remote_server_name == "bngtoolsql":
-                layout.template_icon(icon_value=get_icon_id("halo_reach"))
+                icon_id = get_icon_id("halo_reach")
             elif item.project_remote_server_name == "metawins":
-                layout.template_icon(icon_value=get_icon_id("halo_4"))
+                icon_id = get_icon_id("halo_4")
             elif item.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
-                layout.template_icon(icon_value=get_icon_id("halo_2amp"))
+                icon_id = get_icon_id("halo_2amp")
             else:
-                layout.template_icon(icon_value=get_icon_id("tag_test"))
-            layout.prop(item, "project_display_name", text="", emboss=False)
-            layout.prop(item, "project_path", text="", emboss=False)
+                icon_id = get_icon_id("tag_test")
+            layout.label(text=item.project_display_name, icon_value=icon_id)
+            layout.label(text=item.project_path)
         else:
             layout.label(text="", translate=False, icon_value=icon)
 
