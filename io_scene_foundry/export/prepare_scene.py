@@ -2370,9 +2370,7 @@ class PrepareScene:
                             nwo.uvmirror_across_entire_model_ui
                         )
                 if nwo.lightmap_additive_transparency_active:
-                    nwo.lightmap_additive_transparency = (
-                        nwo.lightmap_additive_transparency_ui
-                    )
+                    nwo.lightmap_additive_transparency =  color_4p_str(nwo.lightmap_additive_transparency_ui)
                 if nwo.lightmap_resolution_scale_active:
                     nwo.lightmap_resolution_scale = jstr(
                         nwo.lightmap_resolution_scale_ui

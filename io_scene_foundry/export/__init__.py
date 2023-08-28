@@ -67,7 +67,6 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tool_path,
     is_corinth,
     managed_blam_active,
-    os_sep_partition,
     print_error,
     print_warning,
     validate_ek,
@@ -92,10 +91,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if d is not None:
             return "Export Unavaliable: " + d
 
-    filename_ext = ".fbx"
+    filename_ext = ".xml"
 
     filter_glob: StringProperty(
-        default="*.fbx",
+        default="*.xml",
         options={"HIDDEN"},
         maxlen=1024,
     )
@@ -475,7 +474,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
     def __init__(self):
         # SETUP #
         scene = bpy.context.scene
-
+        data_dir = get_data_path()
         self.game_path_not_set = False
 
         if os.path.exists(get_tool_path() + ".exe"):
@@ -541,16 +540,16 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.output_weapon = scene_nwo.output_weapon
             # get sidecar path from users EK data path + internal path
             sidecar_filepath = path.join(
-                get_data_path(), scene.nwo_halo_launcher.sidecar_path
+                data_dir, scene.nwo_halo_launcher.sidecar_path
             )
             if not sidecar_filepath.endswith(".sidecar.xml"):
                 sidecar_filepath = ""
-            if sidecar_filepath != "" and file_exists(sidecar_filepath):
+            if sidecar_filepath and file_exists(sidecar_filepath):
                 # export_settings = ExportSettingsFromSidecar(sidecar_filepath)
-                self.filepath = os_sep_partition(sidecar_filepath)
+                self.filepath = sidecar_filepath
             elif bpy.data.is_saved:
                 try:
-                    filepath_list = bpy.path.abspath("//").split("\\")
+                    filepath_list = bpy.data.filepath.split(os.sep)
                     del filepath_list[-1]
                     if filepath_list[-1] == "work" and filepath_list[-2] in (
                         "models",
@@ -563,14 +562,14 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     drive = filepath_list[0]
                     del filepath_list[0]
                     self.filepath = path.join(
-                        drive, path.sep, *filepath_list, "halo_export.fbx"
+                        drive, path.sep, *filepath_list, "halo_export"
                     )
                 except:
-                    if get_data_path() != "":
-                        self.filepath = path.join(get_data_path(), "halo_export.fbx")
+                    if data_dir != "":
+                        self.filepath = path.join(get_data_path(), "halo_export")
 
-            elif get_data_path() != "":
-                self.filepath = path.join(get_data_path(), "halo_export.fbx")
+            elif data_dir != "":
+                self.filepath = path.join(get_data_path(), "halo_export")
 
         else:
             self.game_path_not_set = True
@@ -602,7 +601,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Save the scene
         # bpy.ops.wm.save_mainfile()
 
-        os.system("cls")
+        # os.system("cls")
+
+        print(self.asset_path)
+        print(self.asset)
 
         if self.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -803,7 +805,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             or not file_exists(f"{get_tool_path()}.exe")
             or self.asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
-            game = bpy.contect.scene.nwo.scene_project
+            game = bpy.context.scene.nwo.scene_project
             if get_project_path() is None or get_project_path() == "":
                 ctypes.windll.user32.MessageBoxW(
                     0,
