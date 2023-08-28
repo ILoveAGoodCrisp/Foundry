@@ -118,7 +118,12 @@ else:
         # Add projects
         projects = setup_projects_list()
         if not context.scene.nwo.scene_project and projects:
-            context.scene.nwo.scene_project = projects[0].project_display_name
+            for p in projects:
+                if bpy.data.filepath.startswith(p.project_path):
+                    context.scene.nwo.scene_project = p.project_display_name
+                    break
+            else:
+                context.scene.nwo.scene_project = projects[0].project_display_name
         if not bpy.app.background:
             # Set game version from file
             proxy_left_active = context.scene.nwo.instance_proxy_running
