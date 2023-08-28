@@ -488,6 +488,8 @@ def is_linked(ob):
 
 def get_project_path():
     project = project_from_scene_project(bpy.context.scene.nwo.scene_project)
+    if project is None:
+        return ""
     return project.project_path
 
 
@@ -526,12 +528,16 @@ def is_corinth(context=None):
         context = bpy.context
 
     project = project_from_scene_project(context.scene.nwo.scene_project)
+    if project is None:
+        return False
     return project.project_corinth
 
 def project_from_scene_project(scene_project=None):
     if scene_project is None:
         scene_project = bpy.context.scene.nwo.scene_project
     prefs = get_prefs()
+    if not prefs.projects:
+        return
     if not scene_project:
         print_warning(f"No Scene project active, returning first project: {prefs.projects[0].project_display_name}")
     else:
