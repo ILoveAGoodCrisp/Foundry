@@ -2497,7 +2497,7 @@ class NWO_ProjectChooser(Operator):
     bl_label = "Select Project"
     bl_idname = "nwo.project_select"
     bl_description = "Select the project to use for this asset"
-    bl_property = "project"
+    bl_property = "project_name"
 
     @classmethod
     def poll(self, context):

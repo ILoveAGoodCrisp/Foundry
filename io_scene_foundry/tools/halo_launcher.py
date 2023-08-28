@@ -286,9 +286,8 @@ def LaunchFoundation(settings, context):
 def get_tag_test_name():
     project_dir = get_project_path()
     for file in os.listdir(project_dir):
-        if os.path.isfile(file) and file.endswith("tag_test.exe"):
-            return os_sep_partition(dot_partition(file), True)
-
+        if file.lower().endswith("tag_test.exe"):
+            return file
 
 def launch_game(is_sapien, settings, filepath):
     asset_path, asset_name = get_asset_info(settings.sidecar_path)
