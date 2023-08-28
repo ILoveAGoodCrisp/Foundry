@@ -2112,15 +2112,24 @@ class ProjectXML():
             if image is not None:
              self.image_path = image.text
 
-def setup_projects_list(skip_registry_check=False):
+def setup_projects_list(skip_registry_check=False, report=None):
     projects_list = read_projects_list()
     new_projects_list = []
     prefs = get_prefs()
     prefs.projects.clear()
+    display_names = []
     if projects_list is not None:
         for i in projects_list:
             xml = ProjectXML(i)
             if xml.name and xml.display_name and xml.remote_database_name and xml.project_xml:
+                if xml.display_name in display_names:
+                    warning = f"{xml.display_name} already exists. Ensure new project has a unique project display name. This can be changed by editing the displayName field in {os.path.join(i, 'project.xml')}"
+                    print_warning(warning)
+                    if report is not None:
+                        report({'WARNING'}, warning)
+                    continue
+
+                display_names.append(xml.display_name)
                 new_projects_list.append(i)
                 p = prefs.projects.add()
                 p.project_path = i
@@ -2148,7 +2157,7 @@ def setup_projects_list(skip_registry_check=False):
             project_root = os.path.dirname(bonobo_path)
             if os.path.exists(os.path.join(project_root, "project.xml")):
                 write_projects_list([project_root])
-                setup_projects_list(True)
+                setup_projects_list(True, report)
                     
         except:
             pass

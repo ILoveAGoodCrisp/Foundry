@@ -81,7 +81,7 @@ class NWO_ProjectAdd(Operator):
         options={"HIDDEN"},
     )
 
-    set_scene_project: BoolProperty()
+    set_scene_project: BoolProperty(options={"HIDDEN"})
 
     def execute(self, context):
         # validate new_project_path
@@ -103,7 +103,7 @@ class NWO_ProjectAdd(Operator):
         projects_list = list(dict.fromkeys(projects_list))
 
         write_projects_list(projects_list)
-        projects = setup_projects_list()
+        projects = setup_projects_list(report=self.report)
 
         if self.set_scene_project:
             nwo = context.scene.nwo
