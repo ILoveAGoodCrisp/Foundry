@@ -28,7 +28,7 @@
 import os
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import get_tags_path, not_bungie_game, run_ek_cmd
+from ..utils.nwo_utils import get_tags_path, is_corinth, run_ek_cmd
 from .templates import NWO_Op, NWO_PropPanel
 
 
@@ -94,7 +94,7 @@ class NWO_MaterialOpenTag(NWO_Op):
         if os.path.exists(tag_path):
             run_ek_cmd(["foundation", "/dontloadlastopenedwindows", tag_path], True)
         else:
-            if not_bungie_game():
+            if is_corinth():
                 self.report({"ERROR_INVALID_INPUT"}, "Material tag does not exist")
             else:
                 self.report({"ERROR_INVALID_INPUT"}, "Shader tag does not exist")

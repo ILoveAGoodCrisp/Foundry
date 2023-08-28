@@ -26,178 +26,20 @@
 
 import os
 
-from ..icons import get_icon_id
+from ..icons import get_icon_id, get_icon_id_in_directory
 from ..utils.nwo_utils import (
     dot_partition,
-    formalise_game_version,
     get_data_path,
-    get_tags_path,
-    managed_blam_active,
+    get_prefs,
+    get_project_path,
+    is_corinth,
     os_sep_partition,
-    valid_nwo_asset,
 )
 from .templates import NWO_Op_Path, NWO_PropPanel, NWO_Op
 import bpy
 from bpy.props import BoolProperty, StringProperty
-from bpy.types import UIList, Panel
+from bpy.types import UIList
 
-
-class NWO_SceneProps(Panel):
-    bl_label = "Halo Scene"
-    bl_idname = "NWO_PT_ScenePropertiesPanel"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_context = "scene"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo = scene.nwo
-        scene_nwo = context.scene.nwo
-        mb_active = managed_blam_active()
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        if mb_active:
-            flow.enabled = False
-        row = flow.row()
-        row.prop(scene_nwo, "game_version", text="")
-        row.scale_y = 1.5
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        if mb_active or scene_nwo.mb_startup:
-            col.prop(scene_nwo, "mb_startup")
-        col.separator()
-        col = col.row()
-        col.scale_y = 1.5
-        if not valid_nwo_asset(context):
-            col.operator("nwo.make_asset")
-        if mb_active:
-            col.label(text="ManagedBlam Active")
-        elif os.path.exists(os.path.join(bpy.app.tempdir, "blam_new.txt")):
-            col.label(text="Blender Restart Required for ManagedBlam")
-        else:
-            col.operator("managed_blam.init", text="Initialize ManagedBlam")
-
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column(heading="Asset Type")
-        col.scale_y = 1.5
-        col.prop(scene_nwo, "asset_type", text="")
-        col1 = col.column(heading="Default Mesh Type")
-        col1.prop(scene_nwo, "default_mesh_type_ui", text="")
-        col2 = col.column(heading="Model Forward")
-        if scene_nwo.asset_type in ("MODEL", "FP ANIMATION"):
-            col2.prop(scene_nwo, "forward_direction", text="")
-        if scene_nwo.asset_type == "MODEL":
-            col.label(text="Output Tags")
-            row = layout.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=True,
-                align=True,
-            )
-            row.scale_x = 1.3
-            row.scale_y = 1.3
-
-            row.prop(
-                scene_nwo,
-                "output_crate",
-                text="",
-                icon_value=get_icon_id("crate"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_scenery",
-                text="",
-                icon_value=get_icon_id("scenery"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_effect_scenery",
-                text="",
-                icon_value=get_icon_id("effect_scenery"),
-            )
-
-            row.prop(
-                scene_nwo,
-                "output_device_control",
-                text="",
-                icon_value=get_icon_id("device_control"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_device_machine",
-                text="",
-                icon_value=get_icon_id("device_machine"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_device_terminal",
-                text="",
-                icon_value=get_icon_id("device_terminal"),
-            )
-            if context.scene.nwo.game_version in ("h4", "h2a"):
-                row.prop(
-                    scene_nwo,
-                    "output_device_dispenser",
-                    text="",
-                    icon_value=get_icon_id("device_dispenser"),
-                )
-
-            row.prop(
-                scene_nwo,
-                "output_biped",
-                text="",
-                icon_value=get_icon_id("biped"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_creature",
-                text="",
-                icon_value=get_icon_id("creature"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_giant",
-                text="",
-                icon_value=get_icon_id("giant"),
-            )
-
-            row.prop(
-                scene_nwo,
-                "output_vehicle",
-                text="",
-                icon_value=get_icon_id("vehicle"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_weapon",
-                text="",
-                icon_value=get_icon_id("weapon"),
-            )
-            row.prop(
-                scene_nwo,
-                "output_equipment",
-                text="",
-                icon_value=get_icon_id("equipment"),
-            )
 
 
 class NWO_SetUnitScale(NWO_Op):
@@ -250,18 +92,11 @@ class NWO_AssetMaker(NWO_Op):
 
     use_filter_folder: BoolProperty(default=True)
 
-    filename : StringProperty(
-        name="Asset Name",
-        description="Name of the asset. A folder with this name will be created and a copy of the current blend save inside. Leave blank to instead use the current folder",
-    )
-
     filepath: StringProperty(
         name="asset_path",
         description="Set the location of your asset",
         subtype="FILE_PATH",
     )
-
-    asset_name: StringProperty(default="new_asset")
 
     work_dir: BoolProperty(
         description="Set whether blend file should be saved to a work directory within the asset folder"
@@ -272,77 +107,77 @@ class NWO_AssetMaker(NWO_Op):
         default=False,
     )
 
+    asset_name: StringProperty()
+    filename: StringProperty()
+
     def execute(self, context):
+        data_dir = get_data_path()
         scene = context.scene
         nwo_scene = scene.nwo
-        nwo_asset = scene.nwo
-        if not self.filename:
-            self.filepath = os_sep_partition(self.filepath)
-        asset_name = os_sep_partition(self.filepath, True)
-        asset_name_clean = dot_partition(asset_name)
-        if asset_name_clean == "":
-            asset_name_clean = "new_asset"
+        if self.filename:
+            asset_name = self.filename
+            asset_folder = self.filepath
+            if asset_name == os_sep_partition(os.path.dirname(self.filepath).strip(os.sep), True):
+                asset_folder = os.path.dirname(self.filepath)
+        elif self.filepath.startswith(data_dir) and self.filepath != data_dir:
+            asset_name = os_sep_partition(self.filepath.strip(os.sep), True)
+            asset_folder = self.filepath
+        else:
+            asset_name = "new_asset"
+            asset_folder = os.path.join(data_dir, "new_asset")
+
         # check folder location valid
-        if not self.filepath.startswith(get_data_path()):
+        if not asset_folder.startswith(data_dir):
             # try to fix it...
-            prefs = context.preferences.addons["io_scene_foundry"].preferences
-            if self.filepath.startswith(prefs.hrek_path):
-                self.filepath = self.filepath.replace(
-                    os.path.join(prefs.hrek_path, "data" + os.sep),
-                    get_data_path(),
-                )
-            elif self.filepath.startswith(prefs.h4ek_path):
-                self.filepath = self.filepath.replace(
-                    os.path.join(prefs.h4ek_path, "data" + os.sep),
-                    get_data_path(),
-                )
-            elif self.filepath.startswith(prefs.h2aek_path):
-                self.filepath = self.filepath.replace(
-                    os.path.join(prefs.h2aek_path, "data" + os.sep),
-                    get_data_path(),
-                )
+            # test if path equal to another project path
+            for p in get_prefs().projects:
+                path_data = os.path.join(p.project_path, "data" + os.sep)
+                if asset_folder.startswith(path_data):
+                    asset_folder = asset_folder.replace(path_data, data_dir)
+                    break
             else:
                 self.report(
-                    {"INFO"},
-                    f"Invalid asset location. Please ensure your file is saved to your data {formalise_game_version(nwo_scene.game_version)} directory",
+                    {"WARNING"},
+                    f"Invalid asset location. Please ensure your file is saved to your {nwo_scene.scene_project} data directory",
                 )
                 return {"CANCELLED"}
 
-        if not os.path.exists(self.filepath):
-            os.makedirs(self.filepath, True)
+        if not os.path.exists(asset_folder):
+            os.makedirs(asset_folder, True)
 
-        sidecar_path_full = os.path.join(
-            self.filepath, asset_name_clean + ".sidecar.xml"
-        )
-        open(sidecar_path_full, "x")
+        sidecar_path_full = os.path.join(asset_folder, asset_name + ".sidecar.xml")
+        if not os.path.exists(sidecar_path_full):
+            with open(sidecar_path_full, 'x') as _:
+                pass
+            
         scene.nwo_halo_launcher.sidecar_path = sidecar_path_full.replace(
-            get_data_path(), ""
+            data_dir, ""
         )
 
         if self.work_dir:
             blend_save_path = os.path.join(
-                self.filepath, "models", "work", asset_name_clean + ".blend"
+                asset_folder, "models", "work", asset_name + ".blend"
             )
             os.makedirs(os.path.dirname(blend_save_path), True)
         else:
-            blend_save_path = os.path.join(self.filepath, asset_name_clean + ".blend")
+            blend_save_path = os.path.join(asset_folder, asset_name + ".blend")
 
         bpy.ops.wm.save_as_mainfile(filepath=blend_save_path)
 
         if self.managed_blam:
-            bpy.ops.managed_blam.init()
             nwo_scene.mb_startup = True
+            bpy.ops.managed_blam.init()
 
         self.report(
             {"INFO"},
-            f"Created new {nwo_asset.asset_type.title()} asset for {formalise_game_version(nwo_scene.game_version)}",
+            f"Created new {nwo_scene.asset_type.title()} asset for {nwo_scene.scene_project}. Asset Name = {asset_name}",
         )
+        context.area.tag_redraw()
         return {"FINISHED"}
 
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        nwo_scene = scene.nwo
         nwo_asset = scene.nwo
         flow = layout.grid_flow(
             row_major=True,
@@ -351,8 +186,28 @@ class NWO_AssetMaker(NWO_Op):
             even_rows=False,
             align=True,
         )
-        col = flow.column(heading="Asset Settings")
-        col.prop(nwo_scene, "game_version", expand=True)
+        col = flow.column()
+        projects = get_prefs().projects
+        for p in projects:
+            if p.project_display_name == nwo_asset.scene_project:
+                thumbnail = os.path.join(p.project_path, p.project_image_path)
+                if os.path.exists(thumbnail):
+                    icon_id = get_icon_id_in_directory(thumbnail)
+                elif p.project_remote_server_name == "bngtoolsql":
+                    icon_id = get_icon_id("halo_reach")
+                elif p.project_remote_server_name == "metawins":
+                    icon_id = get_icon_id("halo_4")
+                elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
+                    icon_id = get_icon_id("halo_2amp")
+                else:
+                    icon_id = get_icon_id("tag_test")
+                col.menu("NWO_MT_ProjectChooserDisallowNew", text=nwo_asset.scene_project, icon_value=icon_id)
+                break
+        else:
+            if projects:
+                col.menu("NWO_MT_ProjectChooserDisallowNew", text="Choose Project", icon_value=get_icon_id("tag_test"))
+            else:
+                col.operator("nwo.project_add", text="Choose Project", icon_value=get_icon_id("tag_test")).set_scene_project = True
         col.separator()
         col.prop(nwo_asset, "asset_type", text="")
         col.scale_y = 1.25
@@ -408,7 +263,7 @@ class NWO_AssetMaker(NWO_Op):
                 text="Terminal",
                 icon_value=get_icon_id("device_terminal"),
             )
-            if context.scene.nwo.game_version in ("h4", "h2a"):
+            if is_corinth(context):
                 flow.prop(
                     nwo_asset,
                     "output_device_dispenser",

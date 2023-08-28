@@ -41,6 +41,7 @@ from ..utils.nwo_utils import (
     enable_prints,
     get_data_path,
     get_tags_path,
+    is_corinth,
     jstr,
     print_warning,
     run_tool,
@@ -89,7 +90,6 @@ class ProcessScene:
         lightmap_structure,
         import_to_game,
         export_gr2_files,
-        game_version,
         import_check,
         import_force,
         # import_verbose,
@@ -112,10 +112,12 @@ class ProcessScene:
         fast_animation_export,
     ):
         self.gr2_fail = False
+        self.lightmap_failed = False
+        self.lightmap_message = ""
         self.sidecar_import_failed = False
         self.sidecar_import_error = ""
         self.thread_max = multiprocessing.cpu_count()
-        self.export_report = self.process(
+        self.process(
             context,
             report,
             sidecar_path,
@@ -149,7 +151,6 @@ class ProcessScene:
             lightmap_structure,
             import_to_game,
             export_gr2_files,
-            game_version,
             import_check,
             import_force,
             # import_verbose,
@@ -207,7 +208,6 @@ class ProcessScene:
         lightmap_structure,
         import_to_game,
         export_gr2_files,
-        game_version,
         import_check,
         import_force,
         # import_verbose,
@@ -234,6 +234,7 @@ class ProcessScene:
 
         reports = []
         gr2_count = 0
+        h4 = is_corinth(context)
 
         self.gr2_processes = 0
         self.delay = 0
@@ -513,6 +514,7 @@ class ProcessScene:
                                         data_relative(gr2_path),
                                         animation_name,
                                         action_nwo.animation_type,
+                                        action_nwo.compression,
                                     ]
                                 )
                             else:
@@ -523,6 +525,7 @@ class ProcessScene:
                                         data_relative(gr2_path),
                                         animation_name,
                                         action_nwo.animation_type,
+                                        action_nwo.compression,
                                     ]
                                 ]
 
@@ -753,7 +756,7 @@ class ProcessScene:
                             return "Failed to build GR2 File, Giving Up"
 
                 # If Reach, apply GR2 patch. This prevents the importer from breaking object directions
-                if game_version == "reach" and os.path.exists(gr2_file):
+                if not h4 and os.path.exists(gr2_file):
                     patch_granny(gr2_file)
 
             update_job(job, 1)
@@ -794,42 +797,45 @@ class ProcessScene:
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_tasks(context, nwo_scene, game_version, sidecar_type, asset_path.replace(get_data_path(), ""), asset)
+                    self.managed_blam_tasks(context, nwo_scene, sidecar_type, asset_path.replace(get_data_path(), ""), asset)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
-            h4 = game_version != "reach"
-            should_lightmap = lightmap_structure and (
-                sidecar_type == "SCENARIO" or (h4 and sidecar_type in ("MODEL", "SKY"))
-            )
 
             if no_top_level_tag:
                 if os.path.exists(scenery_path):
                     os.remove(scenery_path)
-            elif should_lightmap:
-                from .run_lightmapper import run_lightmapper
 
-                reports.append(
-                    run_lightmapper(
-                        h4,
-                        nwo_scene.structure,
-                        asset,
-                        lightmap_quality,
-                        lightmap_quality_h4,
-                        lightmap_all_bsps,
-                        lightmap_specific_bsp,
-                        lightmap_region,
-                        sidecar_type in ("MODEL", "SKY") and h4,
-                    )
-                )
+        should_lightmap = lightmap_structure and (
+            sidecar_type == "SCENARIO" or (h4 and sidecar_type in ("MODEL", "SKY"))
+        )
 
-        final_report = ""
-        for idx, r in enumerate(reports):
-            final_report = final_report + str(r)
-            if idx + 1 < len(reports):
-                final_report = final_report + " | "
+        if should_lightmap:
+            from .run_lightmapper import run_lightmapper
 
-        return final_report
+            lightmap_results = run_lightmapper(
+                h4,
+                nwo_scene.structure,
+                asset,
+                lightmap_quality,
+                lightmap_quality_h4,
+                lightmap_all_bsps,
+                lightmap_specific_bsp,
+                lightmap_region,
+                sidecar_type in ("MODEL", "SKY") and h4)
+
+            self.lightmap_message = lightmap_results.lightmap_message
+
+            if lightmap_results.lightmap_failed:
+                self.lightmap_failed = True
+
+        # final_report = ""
+        # for idx, r in enumerate(reports):
+        #     final_report = final_report + str(r)
+        #     if idx + 1 < len(reports):
+        #         final_report = final_report + " | "
+
+        # return final_report
 
     def export_model(
         self,
@@ -1118,11 +1124,11 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_tasks(self, context, nwo_scene, game_version, sidecar_type, asset_path, asset_name):
+    def managed_blam_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name):
         nwo = context.scene.nwo
         model_sky = sidecar_type in ('MODEL', 'SKY')
         model = sidecar_type == 'MODEL'
-        h4_model_lighting = (nwo_scene.lighting and game_version != 'reach' and model_sky)
+        h4_model_lighting = (nwo_scene.lighting and is_corinth(context) and model_sky)
         node_usage_set = self.asset_has_animations and self.any_node_usage_override(nwo_scene.model_armature.nwo)
         model_override = (
             (nwo.render_model_path and model)

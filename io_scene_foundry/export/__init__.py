@@ -47,6 +47,8 @@ import os
 import ctypes
 import traceback
 import logging
+from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
+from io_scene_foundry.tools import NWO_ProjectChooserMenuDisallowNew
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -57,13 +59,15 @@ from io_scene_foundry.utils.nwo_utils import (
     check_path,
     bpy_enum,
     dot_partition,
-    formalise_game_version,
     get_data_path,
     get_asset_info,
-    get_ek_path,
+    get_prefs,
+    get_project_path,
     get_tags_path,
     get_tool_path,
+    is_corinth,
     managed_blam_active,
+    os_sep_partition,
     print_error,
     print_warning,
     validate_ek,
@@ -80,11 +84,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
     @classmethod
     def poll(cls, context):
-        return not validate_ek(context.scene.nwo.game_version)
+        return not validate_ek()
     
     @classmethod
     def description(cls, context, properties):
-        d = validate_ek(context.scene.nwo.game_version)
+        d = validate_ek()
         if d is not None:
             return "Export Unavaliable: " + d
 
@@ -102,16 +106,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         default=False,
     )
 
-    game_version: EnumProperty(
-        name="Game Version",
-        description="The game to export this asset for",
-        default="reach",
-        items=[
-            ("reach", "Halo Reach", "Export an asset intended for Halo Reach"),
-            ("h4", "Halo 4", "Export an asset intended for Halo 4"),
-            ("h2a", "Halo 2A MP", "Export an asset intended for Halo 2A MP"),
-        ],
-    )
     # keep_fbx: BoolProperty(
     #     name="FBX",
     #     description="Keep the source FBX file after GR2 conversion",
@@ -482,7 +476,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # SETUP #
         scene = bpy.context.scene
 
-        self.game_version = scene.nwo.game_version
         self.game_path_not_set = False
 
         if os.path.exists(get_tool_path() + ".exe"):
@@ -554,9 +547,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 sidecar_filepath = ""
             if sidecar_filepath != "" and file_exists(sidecar_filepath):
                 # export_settings = ExportSettingsFromSidecar(sidecar_filepath)
-                self.filepath = path.join(
-                    sidecar_filepath.rpartition("\\")[0], "halo_export.fbx"
-                )
+                self.filepath = os_sep_partition(sidecar_filepath)
             elif bpy.data.is_saved:
                 try:
                     filepath_list = bpy.path.abspath("//").split("\\")
@@ -588,7 +579,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if self.game_path_not_set:
             self.report(
                 {"WARNING"},
-                f"Unable to export. Your {formalise_game_version(self.game_version)} Editing Kit path must be set in preferences",
+                f"Unable to export. Your {context.scene.nwo.scene_project} path must be set in preferences",
             )
             return {"CANCELLED"}
 
@@ -631,7 +622,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     context,
                     self.asset,
                     self.sidecar_type,
-                    self.game_version,
                     self.export_animations,
                     self.export_gr2_files,
                     self.export_all_perms,
@@ -673,7 +663,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.lightmap_structure,
                     self.import_to_game,
                     self.export_gr2_files,
-                    self.game_version,
                     self.import_check,
                     self.import_force,
                     # self.import_verbose,
@@ -751,6 +740,18 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
+            elif export.lightmap_failed:
+                final_report = export.lightmap_message
+                report_type = "ERROR"
+                
+                print(
+                    "\n-----------------------------------------------------------------------"
+                )
+                print_error(export.lightmap_message)
+
+                print(
+                    "-----------------------------------------------------------------------\n"
+                )
             else:
                 final_report = "Export Complete"
                 report_type = "INFO"
@@ -778,9 +779,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
     def set_scene_props(self, context):
         scene_nwo = context.scene.nwo
 
-        # set Halo scene version to match game_version (we do this do ensure the code is checking the right toolset)
-        scene_nwo.game_version = self.game_version
-
         # Set the UI asset type to the export type
         scene_nwo.asset_type = self.sidecar_type
 
@@ -805,8 +803,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
             or not file_exists(f"{get_tool_path()}.exe")
             or self.asset_path.lower() + os.sep == get_data_path().lower()
         ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
-            game = formalise_game_version(self.game_version)
-            if get_ek_path() is None or get_ek_path() == "":
+            game = bpy.contect.scene.nwo.scene_project
+            if get_project_path() is None or get_project_path() == "":
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f"No {game} Editing Kit path found. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
@@ -844,7 +842,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
     ):
         settings = nwo_globals.nwo_scene_settings
         settings["sidecar_path"] = sidecar_path
-        settings["game_version"] = self.game_version
+        settings["scene_project"] = context.scene.nwo.scene_project
         settings["asset_type"] = self.sidecar_type
         settings["sidecar_type"] = self.sidecar_type
         settings["output_biped"] = self.output_biped
@@ -892,20 +890,38 @@ class NWO_Export_Scene(Operator, ExportHelper):
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        box = layout.box()
-        h4 = self.game_version in ("h4", "h2a")
-
+        # PROJECT
+        row = layout.row()
+        if managed_blam_active():
+            row.enabled = False
+        projects = get_prefs().projects
+        scene_nwo = context.scene.nwo
+        for p in projects:
+            if p.project_display_name == scene_nwo.scene_project:
+                thumbnail = os.path.join(p.project_path, p.project_image_path)
+                if os.path.exists(thumbnail):
+                    icon_id = get_icon_id_in_directory(thumbnail)
+                elif p.project_remote_server_name == "bngtoolsql":
+                    icon_id = get_icon_id("halo_reach")
+                elif p.project_remote_server_name == "metawins":
+                    icon_id = get_icon_id("halo_4")
+                elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
+                    icon_id = get_icon_id("halo_2amp")
+                else:
+                    icon_id = get_icon_id("tag_test")
+                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text=scene_nwo.scene_project, icon_value=icon_id)
+                break
+        else:
+            if projects:
+                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text="Choose Project", icon_value=get_icon_id("tag_test"))
         # SETTINGS #
+        box = layout.box()
         box.label(text="Settings")
 
-        h4 = self.game_version != "reach"
+        h4 = is_corinth(context)
         scenario = self.sidecar_type == "SCENARIO"
 
         col = box.column()
-        row = col.row()
-        if managed_blam_active():
-            row.enabled = False
-        row.prop(self, "game_version", text="Game")
         row = col.row()
         col.prop(self, "sidecar_type", text="Asset Type")
         col.prop(self, "show_output", text="Toggle Output")

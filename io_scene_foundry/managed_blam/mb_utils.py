@@ -1,24 +1,24 @@
 import os
 import bpy
 from io_scene_foundry.managed_blam import Halo
-from io_scene_foundry.utils.nwo_utils import get_ek_path
+from io_scene_foundry.utils.nwo_utils import get_project_path, is_corinth
 
 ##### UTIL FUNCTIONS
 
 
 def get_bungie(report=None):
     """Get a reference to Bungie"""
-    mb_path = os.path.join(get_ek_path(), "bin", "managedblam")
+    mb_path = os.path.join(get_project_path(), "bin", "managedblam")
     try:
         import clr
 
         try:
             clr.AddReference(mb_path)
             print(mb_path)
-            if bpy.context.scene.nwo.game_version == "reach":
-                import Bungie
-            else:
+            if is_corinth():
                 import Corinth as Bungie
+            else:
+                import Bungie
         except:
             print("Failed to add reference to ManagedBlam")
             # return({'CANCELLED'})

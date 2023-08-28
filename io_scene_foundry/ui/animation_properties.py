@@ -133,6 +133,8 @@ class NWO_List_Remove_Animation_Event(Operator):
         action_nwo = action.nwo
         index = action_nwo.animation_events_index
         action_nwo.animation_events.remove(index)
+        if action_nwo.animation_events_index > len(action_nwo.animation_events) - 1:
+            action_nwo.animation_events_index += -1
         return {"FINISHED"}
 
 
@@ -204,6 +206,50 @@ class NWO_Animation_ListItems(PropertyGroup):
             ("_connected_geometry_animation_event_type_import", "Import", ""),
         ],
     )
+    #     items=[
+    #         ("frame", "Frame", ""),
+    #         ("trigger", "Frame", ""),
+    #         ("navigation", "Frame", ""),
+    #         ("sync_action", "Frame", ""),
+    #         ("sound", "Frame", ""),
+    #         ("effect", "Frame", ""),
+    #         ("cinematic_effect", "Frame", ""),
+    #         ("object_function", "Frame", ""),
+    #         ("wrinkle_map", "Frame", ""),
+    #         ("ik_active", "Frame", ""),
+    #         ("ik_passive", "Frame", ""),
+    #     ]
+    # )
+
+    # TODO
+    # Revised event list = sound, effect, import, trigger, navigation, sync action, ik active, ik passive, wrinkle map, object function, cinematic effect
+
+    # non_sound_frame_types = ['primary keyframe', 
+    #                'secondary keyframe', 
+    #                'tertiary keyframe',                    
+    #                'allow interruption',                   
+    #                'blend range marker',
+    #                'stride expansion',
+    #                'stride contraction',
+    #                'ragdoll keyframe',
+    #                'drop weapon keyframe',
+    #                'match a',
+    #                'match b',
+    #                'match c',
+    #                'match d',
+    #                'right foot lock',
+    #                'right foot unlock',
+    #                'left foot lock',
+    #                'left foot unlock']
+    # sound_frame_types = ['left foot', 'right foot', 'both-feet shuffle', 'body impact']
+    # import_event_types = ['Wrapped Left', 'Wrapped Right']    
+    # frame_event_types = { 'Trigger Events':['primary keyframe', 'secondary keyframe', 'tertiary keyframe'],
+    #                       'Navigation Events':['match a', 'match b', 'match c', 'match d', 'stride expansion',
+    #                                            'stride contraction', 'right foot lock', 'right foot unlock', 'left foot lock',
+    #                                            'left foot unlock'],
+    #                       'Sync Action Events':['ragdoll keyframe', 'drop weapon keyframe', 'allow interruption', 'blend range marker'],
+    #                       'Sound Events':['left foot', 'right foot', 'body impact', 'both-feet shuffle'],
+    #                       'Import Events':['Wrapped Left', 'Wrapped Right']}
 
     frame_start: FloatProperty(
         name="Frame Start",
@@ -222,6 +268,8 @@ class NWO_Animation_ListItems(PropertyGroup):
         default="",
         options=set(),
     )
+    # TODO
+    # VALID WRINKLE MAP REGIONS = "Center Brow", "Upper Brow", "Right Squint", "Left Squint", "Right Smile", "Left Smile", "Right Sneer", "Left Sneer" 
 
     wrinkle_map_effect: IntProperty(
         name="Wrinkle Map Effect",
@@ -270,6 +318,9 @@ class NWO_Animation_ListItems(PropertyGroup):
         default="",
         options=set(),
     )
+
+    # TODO
+    # IK TARGET USAGE = "self", "parent", "primary_weapon", "secondary_weapon", "assassination"
 
     ik_proxy_target_id: IntProperty(
         name="IK Proxy Target ID",
@@ -378,6 +429,9 @@ class NWO_Animation_ListItems(PropertyGroup):
         options=set(),
     )
 
+    # TODO
+    # IMPORT NAMES: "Wrapped Left", "Wrapped Right"
+
     text: StringProperty(
         name="Text",
         default="",
@@ -420,6 +474,17 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         default=True,
         description="Controls whether this animation is exported or not",
         options=set(),
+    )
+
+    compression : EnumProperty(
+        name="Compression",
+        description="Level of compression to apply to animations",
+        items=[
+            ("Automatic", "Automatic", "Animation compression is determined by the importer"),
+            ("Uncompressed", "Uncompressed", "No compression"),
+            ("Medium", "Medium", "Medium compression"),
+            ("Rough", "Rough", "Highest level of compression"),
+        ],
     )
 
     def update_animation_type(self, context):

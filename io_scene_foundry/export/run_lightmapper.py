@@ -57,15 +57,12 @@ def run_lightmapper(
         asset,
         model_lightmap,
     )
-    try:
-        if not_bungie_game:
-            lightmap_message = lightmap.lightmap_h4()
-        else:
-            lightmap_message = lightmap.lightmap_reach()
-    except RuntimeError:
-        lightmap_message = "Lightmapper failed"
+    if not_bungie_game:
+        lightmap_results = lightmap.lightmap_h4()
+    else:
+        lightmap_results = lightmap.lightmap_reach()
 
-    return lightmap_message
+    return lightmap_results
 
 
 class LightMapper:
@@ -82,6 +79,8 @@ class LightMapper:
         model_lightmap,
     ):
         self.asset_name = asset
+        self.lightmap_message = "Lightmap Successful"
+        self.lightmap_failed = False
         self.model_lightmap = model_lightmap
         self.scenario = os.path.join(get_asset_path(), self.asset_name)
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
@@ -170,9 +169,10 @@ class LightMapper:
             for thread_index in range(self.thread_count)
         ]
         for p, log_filename in processes:
-            assert (
-                p.wait() == 0
-            ), f"Lightmapper fail. See error log for details: {log_filename}"
+            if p.wait() != 0:
+                self.lightmap_message = f"Lightmapper failed during {stage}. See error log for details: {log_filename}"
+                self.lightmap_failed = True
+                return False
 
         run_tool(
             [
@@ -181,6 +181,8 @@ class LightMapper:
                 str(self.thread_count),
             ]
         )
+
+        return True
 
     def lightmap_reach(self):
         self.blob_dir_name = "111"
@@ -218,22 +220,26 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
-        self.farm("dillum")
+        if not self.farm("dillum"):
+            return self
         print("\nCasting Photons")
         print(
             "-------------------------------------------------------------------------\n"
         )
-        self.farm("pcast")
+        if not self.farm("pcast"):
+            return self
         print("\nExtended Illumination")
         print(
             "-------------------------------------------------------------------------\n"
         )
-        self.farm("radest_extillum")
+        if not self.farm("radest_extillum"):
+            return self 
         print("\nFinal Gather")
         print(
             "-------------------------------------------------------------------------\n"
         )
-        self.farm("fgather")
+        if not self.farm("fgather"):
+            return self
 
         print("\nFaux Farm Process Finalise")
         print(
@@ -257,8 +263,8 @@ class LightMapper:
                 "true",
             ]
         )
-
-        return f"{formalise_string(self.quality)} Quality lightmap complete"
+        self.lightmap_message = f"{formalise_string(self.quality)} Quality lightmap complete"
+        return self
 
     def lightmap_h4(self):
         self.force_reatlas = "false"
@@ -314,4 +320,4 @@ class LightMapper:
                     ]
                 )
 
-        return f"Lightmap Complete"
+        return self

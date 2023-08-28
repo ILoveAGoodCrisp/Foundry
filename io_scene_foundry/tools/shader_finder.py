@@ -27,7 +27,7 @@ import os
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_tags_path,
-    not_bungie_game,
+    is_corinth,
     shader_exts,
 )
 
@@ -82,7 +82,7 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
             report({"WARNING"}, "Missing material paths:")
             for m in no_path_materials:
                 report({"ERROR"}, m)
-            if not_bungie_game():
+            if is_corinth():
                 report(
                     {"WARNING"},
                     "These materials should either be given paths to Halo material tags, or specified as a Blender only material (by using the checkbox in Halo Material Paths)",

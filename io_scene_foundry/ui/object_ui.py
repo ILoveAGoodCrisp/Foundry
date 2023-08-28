@@ -31,7 +31,7 @@ from ..utils.nwo_utils import (
     bpy_enum_list,
     export_objects_no_arm,
     is_linked,
-    not_bungie_game,
+    is_corinth,
     sort_alphanum,
     true_bsp,
     true_permutation,
@@ -672,7 +672,7 @@ class NWO_MeshPropAddMenu(Menu):
     def draw(self, context):
         layout = self.layout
         nwo = context.object.nwo
-        h4 = context.scene.nwo.game_version != "reach"
+        h4 = is_corinth(context)
         # if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
         #     # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
         #     layout.operator_menu_enum("nwo.add_mesh_property_misc", property="options", text="Other")
@@ -985,7 +985,7 @@ class NWO_ObjectProps(NWO_PropPanel):
         )
         ob = context.object
         ob_nwo = ob.nwo
-        h4 = not_bungie_game()
+        h4 = is_corinth()
 
         if not ob_nwo.export_this:
             layout.label(text="Object is excluded from export")
@@ -2026,9 +2026,7 @@ class NWO_BoneProps(NWO_PropPanel):
 
     @classmethod
     def poll(cls, context):
-        scene = context.scene
-        scene_nwo = scene.nwo
-        return scene_nwo.game_version in ("reach", "h4", "h2a") and context.bone
+        return context.bone
 
     def draw(self, context):
         layout = self.layout
@@ -2095,7 +2093,7 @@ class NWO_LightProps(NWO_PropPanel):
         scene = context.scene
         scene_nwo = scene.nwo
 
-        if scene_nwo.game_version in ("h4", "h2a"):
+        if is_corinth(context):
             # col.prop(ob_nwo, 'Light_Color', text='Color')
             row = col.row()
             row.prop(ob_nwo, "light_mode", expand=True)

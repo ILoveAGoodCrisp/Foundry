@@ -30,7 +30,7 @@ from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_tags_path,
     get_valid_shader_name,
-    not_bungie_game,
+    is_corinth,
     os_sep_partition,
     protected_material_name,
 )
@@ -76,7 +76,7 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.active_material and not_bungie_game(context)
+        return context.object and context.object.active_material and is_corinth(context)
     
     def shader_info_items(self, context):
         global global_material_shaders

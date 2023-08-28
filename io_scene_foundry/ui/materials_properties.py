@@ -28,7 +28,7 @@ import os
 import bpy
 from bpy.types import PropertyGroup
 from bpy.props import StringProperty, BoolProperty
-from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, not_bungie_game, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, is_corinth, valid_nwo_asset
 from .templates import NWO_Op_Path
 
 
@@ -127,7 +127,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         context = bpy.context
         is_asset = valid_nwo_asset(context)
         if is_asset:
-            return self.get("shader_dir", os.path.join(get_asset_path(), "materials" if not_bungie_game(context) else "shaders"))
+            return self.get("shader_dir", os.path.join(get_asset_path(), "materials" if is_corinth(context) else "shaders"))
         return self.get("shader_dir", "")
     
     def set_shader_dir(self, value):

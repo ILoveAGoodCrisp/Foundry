@@ -30,7 +30,7 @@ from math import degrees
 
 from ..utils.nwo_utils import (
     dot_partition,
-    not_bungie_game,
+    is_corinth,
     color_3p_str,
     color_4p_str,
     bool_str,
@@ -51,7 +51,7 @@ class NWOObject:
         self.name = ob.name
         self.halo = ob.nwo
         self.sidecar_type = sidecar_type
-        self.not_bungie_game = not_bungie_game()
+        self.not_bungie_game = is_corinth()
         self.model_armature = model_armature
         self.world_frame = world_frame
         self.asset_name = asset_name
@@ -1177,7 +1177,7 @@ class NWOMaterial:
     def shader_type(self):
         if self.halo.shader_path == "" or self.halo.shader_path.endswith(".override"):
             return "override"
-        elif not_bungie_game():
+        elif is_corinth():
             return "material"
         else:
             shader_type = self.halo.shader_path.rpartition(".")[2]

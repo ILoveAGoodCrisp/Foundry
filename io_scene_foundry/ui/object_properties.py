@@ -43,7 +43,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     get_prop_from_collection,
     mesh_object,
-    not_bungie_game,
+    is_corinth,
     nwo_enum,
     poll_ui,
 )
@@ -241,7 +241,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def items_mesh_type_ui(self, context):
         """Function to handle context for mesh enum lists"""
-        h4 = not_bungie_game()
+        h4 = is_corinth()
         items = []
 
         if poll_ui("DECORATOR SET"):
@@ -419,7 +419,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def items_plane_type_ui(self, context):
         """Function to handle context for plane enum lists"""
-        h4 = not_bungie_game()
+        h4 = is_corinth()
         items = []
 
         items.append(
@@ -464,7 +464,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def get_plane_type_ui(self):
         max_int = 2
-        if not not_bungie_game():
+        if not is_corinth():
             max_int = 3
         if self.plane_type_ui_help > max_int:
             return 0
@@ -493,7 +493,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def items_volume_type_ui(self, context):
         """Function to handle context for plane enum lists"""
-        h4 = not_bungie_game()
+        h4 = is_corinth()
         items = []
 
         items.append(
@@ -585,7 +585,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def get_volume_type_ui(self):
         max_int = 5
-        if not_bungie_game():
+        if is_corinth():
             max_int = 6
         if self.volume_type_ui_help > max_int:
             return 0
@@ -610,7 +610,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def items_marker_type_ui(self, context):
         """Function to handle context for marker enum lists"""
-        h4 = not_bungie_game()
+        h4 = is_corinth()
         items = []
 
         if poll_ui(("MODEL", "SKY")):
@@ -806,13 +806,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def get_marker_type_ui(self):
         max_int = 0
         if poll_ui("MODEL"):
-            if not_bungie_game():
+            if is_corinth():
                 max_int = 7
             else:
                 max_int = 6
         elif poll_ui("SCENARIO"):
             max_int = 4
-            if not not_bungie_game():
+            if not is_corinth():
                 max_int = 1
         if self.marker_type_ui_help > max_int:
             return 0
@@ -897,7 +897,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def get_mesh_primitive_type(self):
         max_int = 3
-        if not_bungie_game():
+        if is_corinth():
             max_int = 4
         if self.mesh_primitive_type_help > max_int:
             return 0
@@ -1241,7 +1241,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     poop_collision_type_ui_help: IntProperty()
 
     def poop_collision_type_items(self, context):
-        h4 = context.scene.nwo.game_version != "reach"
+        h4 = is_corinth(context)
         items = []
         items.append(("_connected_geometry_poop_collision_type_default", "Default", "Collision mesh that interacts with the physics objects and with projectiles"))
         items.append(("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "The collision mesh affects physics objects, but not projectiles"))
@@ -1253,7 +1253,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     
     def get_poop_collision_type_ui(self):
         max_int = 2
-        if not_bungie_game():
+        if is_corinth():
             max_int = 3
         if self.poop_collision_type_ui_help > max_int:
             return 0
@@ -1969,7 +1969,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         self.face_mode_active = True
 
     def face_mode_items(self, context):
-        h4 = context.scene.nwo.game_version != "reach"
+        h4 = is_corinth(context)
         items = []
         items.append((
             "_connected_geometry_face_mode_render_only",
@@ -2007,7 +2007,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     
     def get_face_mode_ui(self):
         max_int = 4
-        if not not_bungie_game():
+        if not is_corinth():
             max_int = 5
         if self.face_mode_ui_help > max_int:
             return 0

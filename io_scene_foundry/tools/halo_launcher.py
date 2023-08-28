@@ -29,13 +29,16 @@ import bpy
 import glob
 from subprocess import Popen
 from io_scene_foundry.utils.nwo_utils import (
+    dot_partition,
     get_asset_info,
     get_asset_path,
     get_data_path,
-    get_ek_path,
+    get_project_path,
     get_tags_path,
-    not_bungie_game,
+    is_corinth,
     nwo_asset_type,
+    os_sep_partition,
+    project_from_scene_project,
     run_ek_cmd,
     valid_nwo_asset,
 )
@@ -109,7 +112,7 @@ def LaunchFoundation(settings, context):
             if (
                 settings.open_device_dispenser
                 and scene_nwo.output_device_dispenser
-                and not_bungie_game()
+                and is_corinth()
             ):
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "device_dispenser")
@@ -280,6 +283,13 @@ def LaunchFoundation(settings, context):
     return {"FINISHED"}
 
 
+def get_tag_test_name():
+    project_dir = get_project_path()
+    for file in os.listdir(project_dir):
+        if os.path.isfile(file) and file.endswith("tag_test.exe"):
+            return os_sep_partition(dot_partition(file), True)
+
+
 def launch_game(is_sapien, settings, filepath):
     asset_path, asset_name = get_asset_info(settings.sidecar_path)
     using_filepath = filepath.endswith(".scenario")
@@ -294,17 +304,12 @@ def launch_game(is_sapien, settings, filepath):
         elif using_filepath:
             args.append(filepath)
     else:
-        game_version = bpy.context.scene.nwo.game_version
-        if game_version == "h4":
-            args = ["halo4_tag_test"]
-        elif game_version == "h2a":
-            args = ["halo2a_tag_test"]
-        else:
-            args = ["reach_tag_test"]
+        tag_test_name = get_tag_test_name()
+        args = [tag_test_name]
         if settings.use_play:
             args[0] = args[0].replace("_test", "_play")
 
-    os.chdir(get_ek_path())
+    os.chdir(get_project_path())
     # Write the init file
     init = ""
     if os.path.exists("bonobo_init.txt"):
@@ -319,7 +324,7 @@ def launch_game(is_sapien, settings, filepath):
         init = "bonobo_init.txt"
 
     if init != "":
-        h4_plus = not_bungie_game()
+        h4_plus = is_corinth()
         with open(init, "w") as file:
             if settings.prune_globals:
                 if h4_plus:
@@ -541,7 +546,7 @@ class NWO_MaterialGirl(bpy.types.Operator):
     bl_idname = "nwo.open_matman"
 
     def execute(self, context):
-        launch_args = [os.path.join(get_ek_path(), "Foundation.exe")]
+        launch_args = [os.path.join(get_project_path(), "Foundation.exe")]
         launch_args.append("/pluginset:matman")
         run_ek_cmd(launch_args, True)
         run_ek_cmd(["bin\\tools\\bonobo\\TagWatcher.exe"], True)

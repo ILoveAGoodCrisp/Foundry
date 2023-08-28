@@ -27,7 +27,7 @@
 import bpy
 
 from io_scene_foundry.tools.property_apply import apply_props_material
-from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, nwo_enum, true_bsp
+from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, true_bsp
 from .templates import NWO_Op
 
 
@@ -66,7 +66,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
         items = []
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
-        reach = nwo.game_version == "reach"
+        reach = not is_corinth(context)
         if asset_type == "MODEL":
             items.append(
                 nwo_enum(
@@ -323,10 +323,10 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 material = "Volume"
             case "lightmap":
                 mesh_type = "_connected_geometry_mesh_type_volume"
-                if context.scene.nwo.game_version == "reach":
-                    sub_type = "_connected_geometry_volume_type_lightmap_region"
-                else:
+                if is_corinth(context):
                     sub_type = "_connected_geometry_volume_type_lightmap_exclude"
+                else:
+                    sub_type = "_connected_geometry_volume_type_lightmap_region"
                 material = "Volume"
 
             case "cookie_cutter":
@@ -417,7 +417,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
         items = []
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
-        reach = nwo.game_version == "reach"
+        reach = not is_corinth(context)
         if asset_type in ("MODEL", "SKY"):
             items.append(nwo_enum("model", "Model Marker", "", "marker", 0)),
             items.append(nwo_enum("effects", "Effects", "", "effects", 1)),

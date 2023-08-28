@@ -27,14 +27,14 @@
 import os
 import bpy
 
-from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, not_bungie_game, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, is_corinth, valid_nwo_asset
 
 class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
     bitmap_name: bpy.props.StringProperty(
         name="Name",
     )
     def bitmap_type_items(self, context):
-        h4 = context.scene.nwo.game_version != "reach"
+        h4 = is_corinth(context)
         items = []
         items.append(("default", "Default", "Usage is defined by the suffix of the bitmap name"))
         items.append(("Diffuse Map", "Diffuse Map", ""))

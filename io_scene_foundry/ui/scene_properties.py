@@ -36,12 +36,7 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_ek_path, not_bungie_game, poll_ui, valid_nwo_asset
-
-def game_version_warning(self, context):
-    self.layout.label(
-        text=f"Please set your editing kit path for {context.scene.nwo.game_version.upper()} in add-on preferences [Edit > Preferences > Add-ons > Foundry]"
-    )
+from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_project_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
 
 def prefab_warning(self, context):
     self.layout.label(text=f"Halo Reach does not support prefab assets")
@@ -87,48 +82,6 @@ class NWO_Asset_ListItems(PropertyGroup):
 
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
-    def check_paths_update_scene(self, context):
-        ek_path = get_ek_path()
-        if ek_path is None or ek_path == "":
-            context.window_manager.popup_menu(
-                game_version_warning, title="Warning", icon="ERROR"
-            )
-
-        # store this value in a txt file so we can retrive it when changing scene
-        self["game_version_set"] = True
-
-        scene = context.scene
-        nwo_asset = scene.nwo
-        if nwo_asset.asset_type == "" and self.game_version == "reach":
-            nwo_asset.asset_type = "SCENARIO"
-
-    def game_version_items(self, context):
-        items = []
-        items.append(
-            ("reach", "Halo Reach", "Halo Reach", get_icon_id("halo_reach"), 0)
-        )
-        items.append(("h4", "Halo 4", "Halo 4", get_icon_id("halo_4"), 1))
-        items.append(
-            (
-                "h2a",
-                "Halo 2 Anniversary Multiplayer",
-                "Halo 2 Anniversary Multiplayer",
-                get_icon_id("halo_2amp"),
-                2,
-            )
-        )
-        return items
-
-    game_version: EnumProperty(
-        name="Game",
-        options=set(),
-        default=0,
-        update=check_paths_update_scene,
-        items=game_version_items,
-    )
-
-    game_version_set : BoolProperty()
-
     mb_startup: BoolProperty(
         name="ManagedBlam on Startup",
         description="Runs ManagedBlam.dll on Blender startup, this will lock the selected game on startup. Disable and and restart blender if you wish to change the selected game.",
@@ -147,7 +100,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
     def items_mesh_type_ui(self, context):
         """Function to handle context for mesh enum lists"""
-        h4 = not_bungie_game()
+        h4 = is_corinth()
         items = []
 
         if poll_ui("DECORATOR SET"):
@@ -315,7 +268,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 5,
             )
         )
-        if context.scene.nwo.game_version != "reach":
+        if is_corinth(context):
             items.append(("PREFAB", "Prefab", "", get_icon_id("prefab"), 6))
 
         return items
@@ -546,7 +499,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         context = bpy.context
         is_asset = valid_nwo_asset(context)
         if is_asset:
-            return self.get("shaders_dir", os.path.join(get_asset_path(), "materials" if not_bungie_game(context) else "shaders"))
+            return self.get("shaders_dir", os.path.join(get_asset_path(), "materials" if is_corinth(context) else "shaders"))
         return self.get("shaders_dir", "")
     
     def set_shaders_dir(self, value):
@@ -583,7 +536,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
 
     def farm_type_items(self, context):
-        tag_type = "Materials" if not_bungie_game(context) else "Shaders"
+        tag_type = "Materials" if is_corinth(context) else "Shaders"
         items = [
             ("both", f"{tag_type} & Bitmaps", ""),
             ("shaders", f"{tag_type}", ""),
@@ -647,4 +600,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=0.1,
         max=3,
         subtype='TIME_ABSOLUTE',
+    )
+
+
+    scene_project : StringProperty(
+        name="Project",
     )

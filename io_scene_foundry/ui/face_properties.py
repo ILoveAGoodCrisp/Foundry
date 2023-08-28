@@ -33,7 +33,7 @@ from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
 )
-from ..utils.nwo_utils import bpy_enum_seam, not_bungie_game, true_bsp
+from ..utils.nwo_utils import bpy_enum_seam, is_corinth, true_bsp
 
 
 class NWO_FaceProperties_ListItems(PropertyGroup):
@@ -129,7 +129,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     def face_mode_items(self, context):
-        h4 = context.scene.nwo.game_version != "reach"
+        h4 = is_corinth(context)
         items = []
         items.append((
             "_connected_geometry_face_mode_render_only",
@@ -167,7 +167,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     
     def get_face_mode_ui(self):
         max_int = 4
-        if not not_bungie_game():
+        if not is_corinth():
             max_int = 5
         if self.face_mode_ui_help > max_int:
             return 0

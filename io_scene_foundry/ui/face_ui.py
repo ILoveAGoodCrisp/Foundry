@@ -28,6 +28,7 @@ from ..utils.nwo_utils import (
     bpy_enum_list,
     closest_bsp_object,
     export_objects_no_arm,
+    is_corinth,
     layer_face_count,
     random_color,
     sort_alphanum,
@@ -57,7 +58,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         layout = self.layout
         ob = context.object
         nwo = ob.nwo
-        h4 = context.scene.nwo.game_version != "reach"
+        h4 = is_corinth(context)
         if poll_ui(("MODEL", "SKY")):
             layout.operator(self.op_prefix, text="Region").options = "region"
         # if (
@@ -996,7 +997,7 @@ class NWO_FaceLayerAddFlags(NWO_FaceLayerAdd):
         if render:
             items.append(("decal_offset", "Decal Offset", ""))
             items.append(("no_shadow", "No Shadow", ""))
-        if context.scene.nwo.game_version == "reach":
+        if not is_corinth(context):
             items.append(("ladder", "Ladder", ""))
             items.append(("slip_surface", "Slip Surface", ""))
         elif render:

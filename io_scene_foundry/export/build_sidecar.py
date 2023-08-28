@@ -35,7 +35,7 @@ import shutil
 from ..utils.nwo_utils import (
     data_relative,
     get_data_path,
-    not_bungie_game,
+    is_corinth,
 )
 
 
@@ -67,6 +67,9 @@ class Sidecar:
     ):
         self.tag_path = data_relative(os.path.join(asset_path, asset_name))
         self.relative_blend = bpy.data.filepath.replace(get_data_path(), "")
+        self.external_blend = False
+        if self.relative_blend == bpy.data.filepath:
+            self.external_blend = True
 
         self.build_sidecar(
             nwo_scene,
@@ -127,7 +130,7 @@ class Sidecar:
         m_standalone = "yes"
         metadata = ET.Element("Metadata")
         # set a boolean to check if game is h4+ or not
-        not_bungo_game = not_bungie_game()
+        not_bungo_game = is_corinth()
         self.write_header(metadata)
         if sidecar_type == "MODEL":
             self.get_object_output_types(
@@ -285,9 +288,7 @@ class Sidecar:
             datetime.today().strftime("%Y-%m-%d %H:%M:%S")
         )
         ET.SubElement(header, "By").text = getpass.getuser()
-        # ET.SubElement(header, "SourceFile").text = bpy.data.filepath.replace(
-        #     get_data_path(), ""
-        # )
+        ET.SubElement(header, "SourceBlend").text = self.relative_blend
         ET.SubElement(header, "DirectoryType").text = "TAE.Shared.NWOAssetDirectory"
         ET.SubElement(header, "Schema").text = "1"
 
@@ -541,7 +542,7 @@ class Sidecar:
 
     def write_network_files(self, object, path):
         network = ET.SubElement(object, "ContentNetwork", Name=path[3], Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -555,7 +556,7 @@ class Sidecar:
             # NULL RENDER
             self.add_null_render(asset_path)
             network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
-            ET.SubElement(network, "InputFile").text = self.relative_blend
+            ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
             ET.SubElement(network, "IntermediateFile").text = os.path.join(
                 asset_path.replace(get_data_path(), ""),
                 "export",
@@ -609,7 +610,7 @@ class Sidecar:
 
             path = sidecar_paths.get("markers")[0]
 
-            ET.SubElement(network, "InputFile").text = self.relative_blend
+            ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
             # ET.SubElement(network, "ComponentFile").text = path[1]
             ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -633,7 +634,7 @@ class Sidecar:
                 Type="",
             )
 
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -649,7 +650,7 @@ class Sidecar:
         lighting_path = sidecar_paths.get("lighting")[0]
         network = ET.SubElement(object, "ContentNetwork", Name=f"{asset_name}", Type="")
 
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else self.asset_path
         # ET.SubElement(network, "ComponentFile").text = lighting_path[1]
         ET.SubElement(network, "IntermediateFile").text = lighting_path[2]
 
@@ -727,7 +728,7 @@ class Sidecar:
         path = sidecar_paths.get("sky")[0]
 
         network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -752,7 +753,7 @@ class Sidecar:
             )
             network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
 
-            ET.SubElement(network, "InputFile").text = self.relative_blend
+            ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else self.asset_path
             # ET.SubElement(network, "ComponentFile").text = path[1]
             ET.SubElement(network, "IntermediateFile").text = decorator_path[2]
 
@@ -773,7 +774,7 @@ class Sidecar:
         path = sidecar_paths.get("particle_model")[0]
 
         network = ET.SubElement(object, "ContentNetwork", Name=asset_name, Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -789,7 +790,7 @@ class Sidecar:
         path = sidecar_paths.get("prefab")[0]
 
         network = ET.SubElement(object, "ContentNetwork", Name=asset_name, Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -810,7 +811,7 @@ class Sidecar:
         object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
 
         network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else os.path.join(asset_path, asset_name)    
         ET.SubElement(network, "IntermediateFile").text = os.path.join(
             asset_path.replace(get_data_path(), ""),
             "export",
@@ -833,7 +834,7 @@ class Sidecar:
 
         path = sidecar_paths.get("skeleton")[0]
 
-        ET.SubElement(network, "InputFile").text = self.relative_blend
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -846,85 +847,42 @@ class Sidecar:
             )
             animation_paths = sidecar_paths.get("animation")
             for path in animation_paths:
+                compression = path[5] if path[5] != "Automatic" else None
+                network_attribs = {"Name": path[3], "Type": "Base"}
                 match path[4]:
                     case "JMM":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Base",
-                            ModelAnimationMovementData="None",
-                        )
+                        network_attribs['ModelAnimationMovementData'] = "None"
                     case "JMA":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Base",
-                            ModelAnimationMovementData="XY",
-                        )
+                        network_attribs['ModelAnimationMovementData'] = "XY"
                     case "JMT":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Base",
-                            ModelAnimationMovementData="XYYaw",
-                        )
+                        network_attribs['ModelAnimationMovementData'] = "XYYaw"
                     case "JMZ":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Base",
-                            ModelAnimationMovementData="XYZYaw",
-                        )
+                        network_attribs['ModelAnimationMovementData'] = "XYZYaw"
                     case "JMV":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Base",
-                            ModelAnimationMovementData="XYZFullRotation",
-                        )
+                        network_attribs['ModelAnimationMovementData'] = "XYZFullRotation"
                     case "JMO":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Overlay",
-                            ModelAnimationOverlayType="Keyframe",
-                            ModelAnimationOverlayBlending="Additive",
-                        )
+                        network_attribs['Type'] = "Overlay"
+                        network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                        network_attribs['ModelAnimationOverlayBlending'] = "Additive"
                     case "JMOX":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Overlay",
-                            ModelAnimationOverlayType="Pose",
-                            ModelAnimationOverlayBlending="Additive",
-                        )
+                        network_attribs['Type'] = "Overlay"
+                        network_attribs['ModelAnimationOverlayType'] = "Pose"
+                        network_attribs['ModelAnimationOverlayBlending'] = "Additive"
                     case "JMR":
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Overlay",
-                            ModelAnimationOverlayType="Keyframe",
-                            ModelAnimationOverlayBlending="ReplacementObjectSpace",
-                        )
+                        network_attribs['Type'] = "Overlay"
+                        network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementObjectSpace"
                     case _:
-                        network = ET.SubElement(
-                            object,
-                            "ContentNetwork",
-                            Name=path[3],
-                            Type="Overlay",
-                            ModelAnimationOverlayType="Keyframe",
-                            ModelAnimationOverlayBlending="ReplacementLocalSpace",
-                        )
+                        network_attribs['Type'] = "Overlay"
+                        network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
+                    
+                if compression is not None:
+                    network_attribs['Compression'] = compression
 
-                ET.SubElement(network, "InputFile").text = self.relative_blend
+                network = ET.SubElement(object, "ContentNetwork", network_attribs)
+
+                ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
                 # ET.SubElement(network, "ComponentFile").text = path[1]
                 ET.SubElement(network, "IntermediateFile").text = path[2]
 
@@ -947,7 +905,7 @@ class Sidecar:
             ET.SubElement(
                 output, "OutputTag", Type="frame_event_list"
             ).text = self.tag_path
-            if not_bungie_game():
+            if is_corinth():
                 ET.SubElement(
                     output, "OutputTag", Type="pca_animation"
                 ).text = self.tag_path

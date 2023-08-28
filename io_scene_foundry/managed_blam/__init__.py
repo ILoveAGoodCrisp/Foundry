@@ -30,13 +30,13 @@ from io_scene_foundry.utils.nwo_utils import (
     get_data_path,
     get_tags_path,
     managed_blam_active,
-    not_bungie_game,
+    is_corinth,
     print_warning,
 )
 import bpy
 import os
 from bpy.types import Context, Operator, OperatorProperties
-from io_scene_foundry.utils.nwo_utils import get_ek_path
+from io_scene_foundry.utils.nwo_utils import get_project_path
 import sys
 import subprocess
 import ctypes
@@ -59,7 +59,7 @@ class ManagedBlam():
         self.asset_name = self.asset_dir.rpartition(os.sep)[2] # the name of the asset (i.e the directory name)
         self.asset_tag_dir = self.tags_dir + self.asset_dir # full path to the asset data directory
         self.asset_data_dir = self.data_dir + self.asset_dir # full path to the asset tags directory
-        self.corinth = not_bungie_game(self.context) # bool to check whether the game is H4+
+        self.corinth = is_corinth(self.context) # bool to check whether the game is H4+
         self.unit_scale = self.context.scene.unit_settings.scale_length
         # Tag Info
         self.path = "" # String to hold the tag relative path to the tag we're editing/reading
@@ -268,7 +268,7 @@ class ManagedBlam_Init(Operator):
         packages_path = os.path.join(sys.exec_prefix, "lib", "site-packages")
         sys.path.append(packages_path)
         # Get the reference to ManagedBlam.dll
-        mb_path = os.path.join(get_ek_path(), "bin", "managedblam")
+        mb_path = os.path.join(get_project_path(), "bin", "managedblam")
 
         # Check that a path to ManagedBlam actually exists
         if not os.path.exists(f"{mb_path}.dll"):
@@ -281,10 +281,10 @@ class ManagedBlam_Init(Operator):
 
             try:
                 clr.AddReference(mb_path)
-                if context.scene.nwo.game_version == "reach":
-                    import Bungie
-                else:
+                if is_corinth(context):
                     import Corinth as Bungie
+                else:
+                    import Bungie
 
             except:
                 print("Failed to add reference to ManagedBlam")
@@ -335,7 +335,7 @@ class ManagedBlam_Init(Operator):
                     callback = Halo.ManagedBlamCrashCallback(lambda info: Halo.ManagedBlamSystem.Stop())
                     startup_parameters = Halo.ManagedBlamStartupParameters()
                     Halo.ManagedBlamSystem.Start(
-                        get_ek_path(), callback, startup_parameters
+                        get_project_path(), callback, startup_parameters
                     )
                 except:
                     print("ManagedBlam already initialised. Skipping")

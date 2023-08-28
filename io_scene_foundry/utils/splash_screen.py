@@ -40,7 +40,6 @@ class FoundrySplashScreen(Menu):
 
         # Templates
         col1 = split.column()
-        # col1.prop(context.scene.nwo, "game_version", text="")
         col1.label(text="New Asset")
 
         # bpy.types.TOPBAR_MT_file_new.draw_ex(col1, context, use_splash=True)

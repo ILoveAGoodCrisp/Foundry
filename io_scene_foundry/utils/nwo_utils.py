@@ -23,9 +23,10 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
-from email.mime import image
+import json
 import subprocess
 import sys
+import winreg
 import bpy
 import platform
 from math import radians
@@ -35,11 +36,13 @@ from os.path import exists as file_exists
 from subprocess import Popen, check_call
 import shutil
 import random
+import xml.etree.ElementTree as ET
 
 from io_scene_foundry.utils import nwo_globals
 
 from ..icons import get_icon_id
 import requests
+
 
 ###########
 ##GLOBALS##
@@ -463,8 +466,6 @@ shader_exts = (
     ".material",
 )
 
-package = "io_scene_foundry"
-
 blender_object_types_mesh = (
     "MESH",
     "CURVE",
@@ -485,43 +486,31 @@ blender_object_types_mesh = (
 def is_linked(ob):
     return ob.data.users > 1
 
-def get_ek_path():
-    scene = bpy.context.scene
-    scene_nwo = scene.nwo
-    if scene_nwo.game_version == "h4":
-        EKPath = bpy.context.preferences.addons[package].preferences.h4ek_path
-    elif scene_nwo.game_version == "h2a":
-        EKPath = bpy.context.preferences.addons[package].preferences.h2aek_path
-    else:
-        EKPath = bpy.context.preferences.addons[package].preferences.hrek_path
-
-    EKPath = EKPath.replace('"', "")
-    EKPath = EKPath.strip("\\")
-
-    return EKPath
+def get_project_path():
+    project = project_from_scene_project(bpy.context.scene.nwo.scene_project)
+    return project.project_path
 
 
 def get_tool_path():
-    toolPath = os.path.join(get_ek_path(), get_tool_type())
+    toolPath = os.path.join(get_project_path(), get_tool_type())
 
     return toolPath
 
 
 def get_tags_path():
-    tagsPath = os.path.join(get_ek_path(), "tags" + os.sep)
+    tagsPath = os.path.join(get_project_path(), "tags" + os.sep)
 
     return tagsPath
 
 
 def get_data_path():
-    dataPath = os.path.join(get_ek_path(), "data" + os.sep)
+    dataPath = os.path.join(get_project_path(), "data" + os.sep)
 
     return dataPath
 
 
 def get_tool_type():
-    return bpy.context.preferences.addons[package].preferences.tool_type
-
+    return bpy.context.preferences.addons["io_scene_foundry"].preferences.tool_type
 
 def get_perm(
     ob,
@@ -532,11 +521,27 @@ def get_perm(
 def is_windows():
     return platform.system() == "Windows"
 
-
-def not_bungie_game(context=None):
+def is_corinth(context=None):
     if context is None:
         context = bpy.context
-    return context.scene.nwo.game_version in ("h4", "h2a")
+
+    project = project_from_scene_project(context.scene.nwo.scene_project)
+    return project.project_corinth
+
+def project_from_scene_project(scene_project=None):
+    if scene_project is None:
+        scene_project = bpy.context.scene.nwo.scene_project
+    prefs = get_prefs()
+    if not scene_project:
+        print_warning(f"No Scene project active, returning first project: {prefs.projects[0].project_display_name}")
+    else:
+        for p in prefs.projects:
+            if p.project_display_name == scene_project:
+                return p
+        else:
+            print_warning(f"Scene project active does not match any user projects. Returning {prefs.projects[0].project_display_name}")
+
+    return prefs.projects[0]
 
 def object_valid(ob, export_hidden, valid_perm="", evaluated_perm=""):
     return (
@@ -1136,7 +1141,7 @@ class CheckType:
 
     @staticmethod
     def override(material):
-        if not_bungie_game():
+        if is_corinth():
             return (
                 material.name.startswith("+")
                 or material.nwo.material_override_h4 != "none"
@@ -1150,7 +1155,7 @@ class CheckType:
 
 def run_tool(tool_args: list, in_background=False, null_output=False):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
-    os.chdir(get_ek_path())
+    os.chdir(get_project_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     if in_background:
@@ -1172,7 +1177,7 @@ def run_tool(tool_args: list, in_background=False, null_output=False):
 def run_tool_sidecar(tool_args: list, asset_path):
     """Runs Tool using the specified function and arguments. Do not include 'tool' in the args passed"""
     failed = False
-    os.chdir(get_ek_path())
+    os.chdir(get_project_path())
     command = f"""{get_tool_type()} {' '.join(f'"{arg}"' for arg in tool_args)}"""
     # print(command)
     error = ""
@@ -1246,7 +1251,7 @@ def is_error_line(line):
 
 def run_ek_cmd(args: list, in_background=False):
     """Executes a cmd line argument at the root editing kit directory"""
-    os.chdir(get_ek_path())
+    os.chdir(get_project_path())
     command = f"""{' '.join(f'"{arg}"' for arg in args)}"""
     # print(command)
     if in_background:
@@ -1477,7 +1482,7 @@ def create_ob_matric_dict(objects_in_scope):
 
 
 def check_path(filePath):
-    return filePath.lower().startswith(os.path.join(get_ek_path().lower(), "data"))
+    return filePath.lower().startswith(os.path.join(get_project_path().lower(), "data"))
 
 
 #################################
@@ -1645,16 +1650,6 @@ def bpy_enum_list(name, index):
 
 def bpy_enum_seam(name, index):
     return (name, name, "", get_icon_id("seam"), index)
-
-
-def formalise_game_version(game):
-    if game == "reach":
-        return "Halo Reach"
-    elif game == "h4":
-        return "Halo 4"
-    else:
-        return "Halo 2 Anniversary Multiplayer"
-
 
 def export_objects():
     context = bpy.context
@@ -1939,20 +1934,29 @@ def get_halo_material_count() -> tuple:
 
     return count, total
 
-
-def validate_ek(game) -> str | None:
+def validate_ek() -> str | None:
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
-    ek = get_ek_path()
+    ek = get_project_path()
+    scene_project = bpy.context.scene.nwo.scene_project
     if not os.path.exists(ek):
-        return f"{formalise_game_version(game)} Editing Kit path invalid"
+        return f"{scene_project} Editing Kit path invalid"
     elif not os.path.exists(os.path.join(ek, get_tool_type() + ".exe")):
-        return f"Tool not found, please check that you have tool.exe within your {formalise_game_version(game)} Editing Kit directory"
+        return f"Tool not found, please check that you have tool.exe within your {scene_project} directory"
     elif not os.path.exists(os.path.join(ek, "data")):
-        return f"Editing Kit data folder not found. Please ensure your {formalise_game_version(game)} Editing Kit directory has a 'data' folder"
+        return f"Editing Kit data folder not found. Please ensure your {scene_project} directory has a 'data' folder"
     elif not os.path.exists(os.path.join(ek, "bin", "ManagedBlam.dll")):
-        return f"ManagedBlam not found in your {formalise_game_version(game)} Editing Kit bin folder, please ensure this exists"
+        return f"ManagedBlam not found in your {scene_project} bin folder, please ensure this exists"
     elif not nwo_globals.clr_installed:
         return 'ManagedBlam dependancy not installed. Please install this from Foundry preferences or use "Initialize ManagedBlam" in the Foundry Panel'
+    else:
+        prefs = get_prefs()
+        projects = prefs.projects
+        for p in projects:
+            if p.project_display_name == scene_project:
+                if os.path.exists(p.project_path):
+                    return
+                return f'{p.project_display_name} project path does not exist'
+        return 'Please select a project in Foundry Scene Properties'
     
 def foundry_update_check(current_version):
     update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
@@ -2043,3 +2047,103 @@ def remove_chars(string, chars):
         string = string.replace(c, "")
 
     return string
+
+def write_projects_list(project_list):
+    appdata = os.getenv('APPDATA')
+    foundry_folder = os.path.join(appdata, "FoundryHBCK")
+
+    if not os.path.exists(foundry_folder):
+        os.makedirs(foundry_folder)
+
+    projects = os.path.join(foundry_folder, "projects.json")
+    with open(projects, 'w') as file:
+        json.dump(project_list, file, indent=4)
+
+def read_projects_list() -> list:
+    projects_list = []
+    appdata = os.getenv('APPDATA')
+    foundry_folder = os.path.join(appdata, "FoundryHBCK")
+
+    if not os.path.exists(foundry_folder):
+        return print("No Foundry Folder")
+
+    projects = os.path.join(foundry_folder, "projects.json")
+    if not os.path.exists(projects):
+        return print("No Foundry json")
+    
+    with open(projects, 'r') as file:
+        projects_list = json.load(file)
+
+    return projects_list
+
+class ProjectXML():
+    def __init__(self, project_root):
+        self.name = ""
+        self.display_name = ""
+        self.remote_database_name = ""
+        self.project_xml = ""
+        self.read_xml(project_root)
+
+    def read_xml(self, project_root):
+        self.project_xml = os.path.join(project_root, "project.xml")
+        if not os.path.exists(self.project_xml):
+            return print(f"{project_root} is not a path to a valid Halo project. Expected project root directory to contain project.xml")
+        with open(self.project_xml, 'r') as file:
+            xml = file.read()
+            root = ET.fromstring(xml)
+            self.name = root.get('name', 0)
+            if not self.name:
+                return print(f"Failed to parse XML: {self.project_xml}. Could not return Name")
+            self.display_name = root.get('displayName', 0)
+            if not self.display_name:
+                return print(f"Failed to parse XML: {self.project_xml}. Could not return displayName")
+            self.remote_database_name = root.find('./tagDatastore').get('remoteDatabaseName', 0)
+            if not self.remote_database_name:
+                return print(f"Failed to parse XML: {self.project_xml}. Could not return remoteDatabaseName")
+            # It's fine if these fail, they are only used to render icons
+            self.remote_server_name = root.find('./tagDatastore').get('remoteServerName', 0)
+            image = root.find('./imagePath')
+            if image is not None:
+             self.image_path = image.text
+
+def setup_projects_list(skip_registry_check=False):
+    projects_list = read_projects_list()
+    new_projects_list = []
+    prefs = get_prefs()
+    prefs.projects.clear()
+    if projects_list is not None:
+        for i in projects_list:
+            xml = ProjectXML(i)
+            if xml.name and xml.display_name and xml.remote_database_name and xml.project_xml:
+                new_projects_list.append(i)
+                p = prefs.projects.add()
+                p.project_path = i
+                p.project_xml = xml.project_xml
+                p.project_name = xml.name
+                p.project_display_name = xml.display_name
+                p.project_remote_server_name = xml.remote_server_name
+                p.project_image_path = xml.image_path
+                p.project_corinth = xml.remote_database_name == "tags"
+    
+    if new_projects_list:
+        # Write new file to ensure sync
+        write_projects_list(new_projects_list)
+        return prefs.projects
+    elif not skip_registry_check:
+        # Attempt to get the current project if no projects found
+        key_path = r"bonobo\shell\open\command"
+        try:
+            # Open the registry key
+            with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, key_path) as key:
+                # Read the default value (an empty string) of the key
+                value, _ = winreg.QueryValueEx(key, None)
+                
+            bonobo_path = value.rpartition('.exe"')[0].strip('"\' ')
+            project_root = os.path.dirname(bonobo_path)
+            if os.path.exists(os.path.join(project_root, "project.xml")):
+                write_projects_list([project_root])
+                setup_projects_list(True)
+                    
+        except:
+            pass
+

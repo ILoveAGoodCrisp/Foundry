@@ -39,7 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
-from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
@@ -68,7 +68,7 @@ from io_scene_foundry.utils.nwo_utils import (
     has_mesh_props,
     is_halo_object,
     managed_blam_active,
-    not_bungie_game,
+    is_corinth,
     nwo_asset_type,
     os_sep_partition,
     protected_material_name,
@@ -134,7 +134,7 @@ class NWO_FoundryPanelProps(Panel):
     def draw(self, context):
         self.context = context
         layout = self.layout
-        self.h4 = not_bungie_game(context)
+        self.h4 = is_corinth(context)
         self.scene = context.scene
         nwo = self.scene.nwo
         if context.scene.nwo.instance_proxy_running:    
@@ -225,7 +225,28 @@ class NWO_FoundryPanelProps(Panel):
             col.enabled = False
         row = col.row()
         row.scale_y = 1.5
-        row.prop(nwo, "game_version", text="")
+        prefs = get_prefs()
+        projects = prefs.projects
+        for p in projects:
+            if p.project_display_name == nwo.scene_project:
+                thumbnail = os.path.join(p.project_path, p.project_image_path)
+                if os.path.exists(thumbnail):
+                    icon_id = get_icon_id_in_directory(thumbnail)
+                elif p.project_remote_server_name == "bngtoolsql":
+                    icon_id = get_icon_id("halo_reach")
+                elif p.project_remote_server_name == "metawins":
+                    icon_id = get_icon_id("halo_4")
+                elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
+                    icon_id = get_icon_id("halo_2amp")
+                else:
+                    icon_id = get_icon_id("tag_test")
+                row.menu(NWO_ProjectChooserMenu.bl_idname, text=nwo.scene_project, icon_value=icon_id)
+                break
+        else:
+            if projects:
+                row.menu(NWO_ProjectChooserMenu.bl_idname, text="Choose Project", icon_value=get_icon_id("tag_test"))
+            else:
+                row.operator("nwo.project_add", text="Choose Project", icon_value=get_icon_id("tag_test")).set_scene_project = True
         col = box.column()
         col.use_property_split = True
         if nwo.asset_type in ("MODEL", "SCENARIO", "PREFAB"):
@@ -335,7 +356,7 @@ class NWO_FoundryPanelProps(Panel):
                 text="Terminal",
                 icon_value=get_icon_id("device_terminal"),
             )
-            if context.scene.nwo.game_version in ("h4", "h2a"):
+            if is_corinth(context):
                 row.prop(
                     nwo,
                     "output_device_dispenser",
@@ -488,6 +509,7 @@ class NWO_FoundryPanelProps(Panel):
 
         if halo_light:
             col = box.column()
+            col.oper
             col.use_property_split = True
             if poll_ui("SCENARIO"):
                 row = col.row()
@@ -546,7 +568,7 @@ class NWO_FoundryPanelProps(Panel):
                 return
 
             col.separator()
-            if scene_nwo.game_version in ("h4", "h2a"):
+            if is_corinth(context):
                 # col.prop(ob_nwo, 'Light_Color', text='Color')
                 row = col.row()
                 row.prop(nwo, "light_mode", expand=True)
@@ -1163,7 +1185,6 @@ class NWO_FoundryPanelProps(Panel):
                         col.prop(nwo, "marker_game_instance_run_scripts_ui")
 
             if nwo.marker_type_ui == "_connected_geometry_marker_type_hint":
-                print("Here")
                 row = col.row(align=True)
                 row.prop(nwo, "marker_hint_type")
                 if nwo.marker_hint_type == "corner":
@@ -2180,6 +2201,9 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(nwo, "animation_type")
                 row = box.row()
                 row.use_property_split = True
+                row.prop(nwo, "compression", text="Compression")
+                row = box.row()
+                row.use_property_split = True
                 row.prop(nwo, "name_override")
 
                 # ANIMATION RENAMES
@@ -2362,6 +2386,7 @@ class NWO_FoundryPanelProps(Panel):
     def draw_settings(self):
         prefs = get_prefs()
         box = self.box.box()
+        context = self.context
         box.label(text=update_str, icon_value=get_icon_id("foundry"))
         if update_needed:
             box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
@@ -2372,32 +2397,38 @@ class NWO_FoundryPanelProps(Panel):
             row = box.row(align=True)
             row.scale_y = 1.5
             row.operator("managed_blam.init", text="Install ManagedBlam Dependency", icon='IMPORT').install_only = True
-
+        
         box = self.box.box()
-        row = box.row(align=True)
-        row.label(text="Halo Reach Editing Kit Path")
-        row = box.row(align=True)
-        row.prop(prefs, "hrek_path", text="")
-        row.operator("nwo.hrek_path", text="", icon='FILE_FOLDER')
-        row = box.row(align=True)
-        row.label(text="Halo 4 Editing Kit Path")
-        row = box.row(align=True)
-        row.prop(prefs, "h4ek_path", text="")
-        row.operator("nwo.h4ek_path", text="", icon='FILE_FOLDER')
-        row = box.row(align=True)
-        row.label(text="Halo 2 Anniversary Multiplayer Editing Kit Path")
-        row = box.row(align=True)
-        row.prop(prefs, "h2aek_path", text="")
-        row.operator("nwo.h2aek_path", text="", icon='FILE_FOLDER')
-        box = self.box.box()
-        row = box.row(align=True, heading="Default Game")
-        row.prop(prefs, "default_game_version", expand=True)
+        row = box.row()
+        row.label(text="Projects")
+        row = box.row()
+        rows = 3
+        row.template_list(
+            "NWO_UL_Projects",
+            "",
+            prefs,
+            "projects",
+            prefs,
+            "current_project_index",
+            rows=rows,
+        )
+        col = row.column(align=True)
+        col.operator("nwo.project_add", text="", icon="ADD")
+        col.operator("nwo.project_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.project_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
         row = box.row(align=True, heading="Tool Version")
         row.prop(prefs, "tool_type", expand=True)
         row = box.row(align=True)
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
+        blend_prefs = context.preferences
+        if blend_prefs.use_preferences_save and (not bpy.app.use_userpref_skip_save_on_exit):
+            return
+        row = box.row()
+        row.operator("wm.save_userpref", text=("Save Foundry Settings") + (" *" if blend_prefs.is_dirty else ""))
 
 class NWO_HotkeyDescription(Operator):
     bl_label = "Keyboard Shortcut Description"
@@ -2426,6 +2457,59 @@ class NWO_HotkeyDescription(Operator):
     def hotkey_info(self, context):
         layout = self.layout
         layout.label(text=NWO_HotkeyDescription.description(context, self.hotkey))
+
+
+class NWO_ProjectChooserMenu(bpy.types.Menu):
+    bl_label = "Choose Project"
+    bl_idname = "NWO_MT_ProjectChooser"
+
+    @classmethod
+    def poll(self, context):
+        prefs = get_prefs()
+        return prefs.projects
+
+    def draw(self, context):
+        layout = self.layout
+        prefs = get_prefs()
+        projects = prefs.projects
+        for p in projects:
+            name = p.project_display_name
+            thumbnail = os.path.join(p.project_path, p.project_image_path)
+            if os.path.exists(thumbnail):
+                icon_id = get_icon_id_in_directory(thumbnail)
+            elif p.project_remote_server_name == "bngtoolsql":
+                icon_id = get_icon_id("halo_reach")
+            elif p.project_remote_server_name == "metawins":
+                icon_id = get_icon_id("halo_4")
+            elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
+                icon_id = get_icon_id("halo_2amp")
+            else:
+                icon_id = get_icon_id("tag_test")
+            layout.operator("nwo.project_select", text=name, icon_value=icon_id).project_name = name
+
+        if self.bl_idname == "NWO_MT_ProjectChooser":
+            layout.operator("nwo.project_add", text="New Project", icon="ADD").set_scene_project = True
+
+class NWO_ProjectChooserMenuDisallowNew(NWO_ProjectChooserMenu):
+    bl_idname = "NWO_MT_ProjectChooserDisallowNew"
+
+class NWO_ProjectChooser(Operator):
+    bl_label = "Select Project"
+    bl_idname = "nwo.project_select"
+    bl_description = "Select the project to use for this asset"
+    bl_property = "project"
+
+    @classmethod
+    def poll(self, context):
+        prefs = get_prefs()
+        return prefs.projects
+
+    project_name : StringProperty()
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        nwo.scene_project = self.project_name
+        return {'FINISHED'}
 
 class NWO_OpenURL(Operator):
     bl_label = "Open URL"
@@ -2489,7 +2573,7 @@ class NWO_FoundryPanelSetsViewer(Panel):
     def draw(self, context):
         self.context = context
         layout = self.layout
-        self.h4 = not_bungie_game()
+        self.h4 = is_corinth()
         self.scene = context.scene
         nwo = self.scene.nwo
         row = layout.row(align=True)
@@ -2911,12 +2995,12 @@ class NWO_HaloLauncherGameSettings(Panel):
         col.separator()
         col.prop(scene_nwo_halo_launcher, "insertion_point_index")
         col.prop(scene_nwo_halo_launcher, "initial_zone_set")
-        if not_bungie_game():
+        if is_corinth():
             col.prop(scene_nwo_halo_launcher, "initial_bsp")
         col.prop(scene_nwo_halo_launcher, "custom_functions")
 
         col.prop(scene_nwo_halo_launcher, "run_game_scripts")
-        if not_bungie_game():
+        if is_corinth():
             col.prop(scene_nwo_halo_launcher, "enable_firefight")
             if scene_nwo_halo_launcher.enable_firefight:
                 col.prop(scene_nwo_halo_launcher, "firefight_mission")
@@ -2946,7 +3030,7 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
         col = flow.column()
         col.prop(scene_nwo_halo_launcher, "prune_globals")
         col.prop(scene_nwo_halo_launcher, "prune_globals_keep_playable")
-        if not_bungie_game():
+        if is_corinth():
             col.prop(scene_nwo_halo_launcher, "prune_globals_use_empty")
             col.prop(
                 scene_nwo_halo_launcher,
@@ -2958,7 +3042,7 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
             )
         col.prop(scene_nwo_halo_launcher, "prune_scenario_all_lightmaps")
         col.prop(scene_nwo_halo_launcher, "prune_all_materials_use_gray_shader")
-        if not_bungie_game():
+        if is_corinth():
             col.prop(
                 scene_nwo_halo_launcher,
                 "prune_all_materials_use_default_textures",
@@ -2970,7 +3054,7 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
         col.prop(scene_nwo_halo_launcher, "prune_all_material_effects")
         col.prop(scene_nwo_halo_launcher, "prune_all_dialog_sounds")
         col.prop(scene_nwo_halo_launcher, "prune_all_error_geometry")
-        if not_bungie_game():
+        if is_corinth():
             col.prop(scene_nwo_halo_launcher, "prune_facial_animations")
             col.prop(scene_nwo_halo_launcher, "prune_first_person_animations")
             col.prop(scene_nwo_halo_launcher, "prune_low_quality_animations")
@@ -2997,7 +3081,7 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
                 scene_nwo_halo_launcher,
                 "prune_scenario_for_environment_editing_keep_scenery",
             )
-            if not_bungie_game():
+            if is_corinth():
                 col.prop(
                     scene_nwo_halo_launcher,
                     "prune_scenario_for_environment_editing_keep_decals",
@@ -3639,7 +3723,7 @@ class NWO_ShaderFinder_Find(Operator):
 
         return find_shaders(
             bpy.data.materials,
-            not_bungie_game(),
+            is_corinth(),
             self.report,
             scene_nwo_shader_finder.shaders_dir,
             scene_nwo_shader_finder.overwrite_existing,
@@ -3648,7 +3732,7 @@ class NWO_ShaderFinder_Find(Operator):
 
     @classmethod
     def description(cls, context: Context, properties: OperatorProperties) -> str:
-        if not_bungie_game():
+        if is_corinth():
             return "Update Halo Material path"
         else:
             return "Update Halo Shader Path"
@@ -3663,7 +3747,7 @@ class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
 
         return find_shaders(
             [context.object.active_material],
-            not_bungie_game(),
+            is_corinth(),
             self.report,
             scene_nwo_shader_finder.shaders_dir,
             True,
@@ -3704,7 +3788,7 @@ class NWO_HaloExportSettings(Panel):
         layout = self.layout
         scene = context.scene
         scene_nwo_export = scene.nwo_export
-        h4 = scene.nwo.game_version in ("h4", "h2a")
+        h4 = is_corinth(context)
         asset_type = scene.nwo.asset_type
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -3814,7 +3898,7 @@ class NWO_HaloExportSettingsFlags(Panel):
         scene = context.scene
         scene_nwo = scene.nwo
         scene_nwo_export = scene.nwo_export
-        h4 = scene_nwo.game_version != "reach"
+        h4 = is_corinth(context)
         scenario = scene_nwo.asset_type == "SCENARIO"
         prefab = scene_nwo.asset_type == "PREFAB"
 
@@ -4592,13 +4676,7 @@ class NWO_JMSHelper(Panel):
             align=False,
         )
         col = flow.column()
-        game_version = context.scene.nwo.game_version
-        if game_version == "reach":
-            col.operator("nwo.jms_assign", text="JMS -> Reach Asset")
-        elif game_version == "h4":
-            col.operator("nwo.jms_assign", text="JMS -> H4 Asset")
-        else:
-            col.operator("nwo.jms_assign", text="JMS -> H2AMP Asset")
+        col.operator("nwo.jms_assign", text="JMS -> Foundry")
 
 
 class NWO_JMSHelper_Assign(Operator):
@@ -4780,7 +4858,7 @@ class NWO_Shader(Panel):
 
     @classmethod
     def poll(cls, context):
-        return not not_bungie_game()
+        return not is_corinth()
 
     def draw_header(self, context):
         self.layout.label(text="", icon_value=get_icon_id("material_exporter"))
@@ -4799,7 +4877,7 @@ class NWO_Shader(Panel):
         )
         col = flow.column()
         col.scale_y = 1.5
-        if not_bungie_game():
+        if is_corinth():
             col.operator("nwo.build_shader", text="Build Materials")
         else:
             col.operator("nwo.build_shader", text="Build Shaders")
@@ -4816,7 +4894,7 @@ class NWO_Material(NWO_Shader):
 
     @classmethod
     def poll(cls, context):
-        return not_bungie_game(context)
+        return is_corinth(context)
 
 class NWO_Shader_BuildSingle(Operator):
     bl_idname = "nwo.build_shader_single"
@@ -4835,13 +4913,13 @@ class NWO_Shader_BuildSingle(Operator):
         nwo.uses_blender_nodes = self.linked_to_blender
         return build_shader(
             context.object.active_material,
-            not_bungie_game(context),
+            is_corinth(context),
             report=self.report,
         )
     
     @classmethod
     def description(cls, context, properties) -> str:
-        tag_type = 'material' if not_bungie_game(context) else 'shader'
+        tag_type = 'material' if is_corinth(context) else 'shader'
         if properties.linked_to_blender:
             return f"Creates an empty {tag_type} tag for this material"
         else:
@@ -4912,7 +4990,7 @@ def foundry_nodes_toolbar(layout, context):
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if nwo_scene.toolbar_expanded:
-        error = validate_ek(context.scene.nwo.game_version)
+        error = validate_ek()
         if error is not None:
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")
@@ -4950,7 +5028,7 @@ def foundry_toolbar(layout, context):
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if nwo_scene.toolbar_expanded:
-        error = validate_ek(context.scene.nwo.game_version)
+        error = validate_ek()
         if error is not None:
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")
@@ -5051,7 +5129,7 @@ classeshalo = (
     # NWO_AMFHelper,
     NWO_AMFHelper_Assign,
     # NWO_JMSHelper,
-    NWO_JMSHelper_Assign,
+    # NWO_JMSHelper_Assign,
     # NWO_AnimationTools,
     # NWO_ArmatureCreator,
     NWO_ArmatureCreator_Create,
@@ -5067,6 +5145,9 @@ classeshalo = (
     NWO_FarmShaders,
     NWO_MaterialSyncStart,
     NWO_MaterialSyncEnd,
+    NWO_ProjectChooser,
+    NWO_ProjectChooserMenuDisallowNew,
+    NWO_ProjectChooserMenu,
     # NWO_GunRigMaker,
     # NWO_GunRigMaker_Start,
 )

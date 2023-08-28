@@ -32,7 +32,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
     get_data_path,
     get_tags_path,
-    not_bungie_game,
+    is_corinth,
     print_error,
     print_warning,
     run_tool,
@@ -127,7 +127,7 @@ def export_bitmap(
     if image.nwo.filepath and os.path.exists(data_dir + image.nwo.filepath):
         bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
         path = dot_partition(image.nwo.filepath)
-        if not_bungie_game():
+        if is_corinth():
             process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
         else:
             process = run_tool(["reimport-bitmaps-single", path], False, False)

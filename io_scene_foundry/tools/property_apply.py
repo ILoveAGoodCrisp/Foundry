@@ -26,7 +26,7 @@
 
 import bpy
 
-from io_scene_foundry.utils.nwo_utils import not_bungie_game
+from io_scene_foundry.utils.nwo_utils import is_corinth
 
 special_materials = (
     "InvisibleSky",
@@ -177,7 +177,7 @@ def halo_material(mat_name):
 
 def cleanup_empty_slots(slots):
     materials = bpy.data.materials
-    h4 = not_bungie_game()
+    h4 = is_corinth()
     for slot in slots:
         slot_mat = slot.material
         if slot_mat:

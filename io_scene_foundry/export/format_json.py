@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from ..utils.nwo_utils import CheckType, blender_object_types_mesh, not_bungie_game
+from ..utils.nwo_utils import CheckType, blender_object_types_mesh, is_corinth
 from .nwo_format import (
     NWOFrame,
     NWOLight,
@@ -53,7 +53,7 @@ class NWOJSON(dict):
         self.objects = objects
         self.sidecar_type = sidecar_type
         self.model_armature = model_armature
-        self.corinth = not_bungie_game()
+        self.corinth = is_corinth()
         self.world_frame = world_frame
         self.asset_name = asset_name
         self.bone_list = bone_list

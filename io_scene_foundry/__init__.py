@@ -30,9 +30,8 @@
 import ctypes
 import bpy
 from bpy.app.handlers import persistent
-import math
 
-from io_scene_foundry.utils.nwo_utils import unlink
+from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink
 
 old_snapshot = {}
 old_x = None
@@ -65,8 +64,7 @@ else:
         nwo_globals.clr_installed = False
 
     from io_scene_foundry.utils.nwo_utils import (
-        formalise_game_version,
-        get_ek_path,
+        get_project_path,
         valid_nwo_asset,
     )
 
@@ -117,6 +115,10 @@ else:
     def load_handler(dummy):
         context = bpy.context
         context.scene.nwo.shader_sync_active = False
+        # Add projects
+        projects = setup_projects_list()
+        if not context.scene.nwo.scene_project and projects:
+            context.scene.nwo.scene_project = projects[0].project_display_name
         if not bpy.app.background:
             # Set game version from file
             proxy_left_active = context.scene.nwo.instance_proxy_running
@@ -128,10 +130,6 @@ else:
                 context.scene.nwo.instance_proxy_running = False
 
             context.scene.nwo.instance_proxy_running = False
-            context.scene.nwo.game_version
-            if not (context.scene.nwo.game_version_set or valid_nwo_asset(context)):
-                context.scene.nwo.game_version = bpy.context.preferences.addons["io_scene_foundry"].preferences.default_game_version
-
             # set output to on
             # context.scene.nwo_export.show_output = True
 
@@ -139,11 +137,11 @@ else:
             if context.scene.nwo.mb_startup:
                 bpy.ops.managed_blam.init()
 
-            # create warning if current game_version is incompatible with loaded managedblam.dll
+            # create warning if current project is incompatible with loaded managedblam.dll
             mb_path = nwo_globals.mb_path
             if mb_path:
-                if not mb_path.startswith(get_ek_path()):
-                    game = formalise_game_version(context.scene.nwo.game_version)
+                if not mb_path.startswith(get_project_path()):
+                    game = context.scene.nwo.scene_project
                     result = ctypes.windll.user32.MessageBoxW(
                         0,
                         f"{game} is incompatible with the loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?",
@@ -166,7 +164,7 @@ else:
         settings = nwo_globals.nwo_scene_settings
         if settings:
             scene.nwo_halo_launcher.sidecar_path = settings["sidecar_path"]
-            nwo.game_version = settings["game_version"]
+            nwo.scene_project = settings["scene_project"]
             nwo.asset_type = settings["asset_type"]
             nwo.output_biped = settings["output_biped"]
             nwo.output_crate = settings["output_crate"]

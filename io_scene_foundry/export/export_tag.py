@@ -29,7 +29,7 @@ import os
 from ..utils.nwo_utils import (
     get_data_path,
     get_tags_path,
-    not_bungie_game,
+    is_corinth,
     print_warning,
     run_tool,
     run_tool_sidecar,
@@ -159,7 +159,7 @@ def get_import_flags(
         flags.append("force")
     if flag_import_skip_instances:
         flags.append("skip_instances")
-    if not_bungie_game():
+    if is_corinth():
         flags.append("preserve_namespaces")
         if import_lighting:
             flags.append("lighting")

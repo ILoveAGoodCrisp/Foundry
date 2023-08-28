@@ -30,7 +30,7 @@ import bmesh
 import bpy
 from io_scene_foundry.tools.property_apply import apply_props_material
 
-from io_scene_foundry.utils.nwo_utils import deselect_all_objects, layer_faces, set_active_object, set_object_mode, unlink
+from io_scene_foundry.utils.nwo_utils import deselect_all_objects, is_corinth, layer_faces, set_active_object, set_object_mode, unlink
 
 class NWO_ProxyInstanceEdit(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_edit"
@@ -115,7 +115,7 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
             items.append(("collision", "Collision", ""))
         if not nwo.proxy_physics:
             items.append(("physics", "Physics", ""))
-        if context.scene.nwo.game_version == "reach" and not nwo.proxy_cookie_cutter:
+        if not is_corinth(context) and not nwo.proxy_cookie_cutter:
             items.append(("cookie_cutter", "Cookie Cutter", ""))
 
         return items

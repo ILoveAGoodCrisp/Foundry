@@ -34,7 +34,7 @@ from io_scene_foundry.managed_blam.bitmaps import ManagedBlamNewBitmap
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_data_path, get_tags_path, managed_blam_active, not_bungie_game, print_warning, run_tool, update_job, update_job_count, update_progress
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_data_path, get_tags_path, managed_blam_active, is_corinth, print_warning, run_tool, update_job, update_job_count, update_progress
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -49,7 +49,7 @@ class NWO_ShaderFarmPopover(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
         nwo = scene.nwo
-        tag_type = "Material" if not_bungie_game(context) else "Shader"
+        tag_type = "Material" if is_corinth(context) else "Shader"
         col = layout.column()
         col.prop(nwo, "farm_type", text="Type")
         col.separator()
@@ -57,7 +57,7 @@ class NWO_ShaderFarmPopover(bpy.types.Panel):
             col.label(text=f"{tag_type} Settings")
             col.prop(nwo, "shaders_scope", text="Scope")
             col.prop(nwo, "shaders_dir", text="Folder")
-            if not_bungie_game(context):
+            if is_corinth(context):
                 row = col.row(align=True)
                 row.prop(nwo, "default_material_shader", text="Shader")
                 row.operator("nwo.get_material_shaders", text="", icon="VIEWZOOM").batch_panel = True
@@ -85,7 +85,7 @@ class NWO_FarmShaders(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        self.corinth = not_bungie_game(context)
+        self.corinth = is_corinth(context)
         self.thread_max = multiprocessing.cpu_count()
         self.running_check = 0
         self.bitmap_processes = 0

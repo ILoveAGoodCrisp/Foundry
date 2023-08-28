@@ -51,7 +51,7 @@ from ..utils.nwo_utils import (
     set_active_object,
     is_shader,
     get_tags_path,
-    not_bungie_game,
+    is_corinth,
     set_object_mode,
     sort_alphanum,
     true_region,
@@ -115,7 +115,6 @@ class PrepareScene:
         context,
         asset,
         sidecar_type,
-        game_version,
         export_animations,
         export_gr2_files,
         export_all_perms,
@@ -138,7 +137,7 @@ class PrepareScene:
         self.animation_armatures = {}
         self.arm_name = ""
 
-        h4 = game_version != "reach"
+        h4 = is_corinth(context)
 
         # Exit local view. Must do this otherwise fbx export will fail.
         self.exit_local_view(context)
@@ -246,12 +245,12 @@ class PrepareScene:
 
         if "water" not in materials:
             water_surface_mat = materials.new("water")
-            if game_version == "h2a":
-                water_surface_mat.nwo.shader_path = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
-            elif h4:
-                water_surface_mat.nwo.shader_path = (
-                    r"environments\shared\materials\jungle\cave_water.material"
-                )
+            if h4:
+                h2a_water = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
+                if os.path.exists(get_tags_path() + h2a_water):
+                    water_surface_mat.nwo.shader_path = h2a_water
+                else:
+                    water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
             else:
                 water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
         else:
@@ -1869,7 +1868,7 @@ class PrepareScene:
                     nwo.mesh_primitive_type = nwo.mesh_primitive_type_ui
                 elif (
                     nwo.mesh_type_ui == "_connected_geometry_mesh_type_object_instance"
-                    and not not_bungie_game()
+                    and not is_corinth()
                 ):
                     nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
                 else:
@@ -2804,7 +2803,6 @@ class PrepareScene:
         nodes_order_fp = {}
         arm = model_armature.name
         boneslist.update({arm: self.get_armature_props(h4)})
-        index = 0
         frameIDs = (
             self.openCSV()
         )  # sample function call to get FrameIDs CSV values as dictionary
@@ -2852,17 +2850,10 @@ class PrepareScene:
             bone_list = sorted(bone_list, key=sorting_key)
 
             
-        for b in bone_list:
+        for idx, b in enumerate(bone_list):
             b_nwo = b.nwo
-            if b_nwo.frame_id1 == "":
-                FrameID1 = list(f1)[index]
-            else:
-                FrameID1 = b_nwo.frame_id1
-            if b_nwo.frame_id2 == "":
-                FrameID2 = list(f2)[index]
-            else:
-                FrameID2 = b_nwo.frame_id2
-            index += 1
+            FrameID1 = list(f1)[idx]
+            FrameID2 = list(f2)[idx]
             boneslist.update(
                 {
                     b.name: self.get_bone_properties(

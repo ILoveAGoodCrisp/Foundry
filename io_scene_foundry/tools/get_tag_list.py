@@ -26,7 +26,7 @@
 
 import bpy
 import os
-from io_scene_foundry.utils.nwo_utils import get_ek_path, get_tags_path, not_bungie_game, os_sep_partition
+from io_scene_foundry.utils.nwo_utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
 global_items = []
 
@@ -80,8 +80,8 @@ def walk_tags_dir(tags_dir, ext_list):
     tags_set = set()
     fav_tags = set()
     # Display the favorite tags first, so grab these
-    if not_bungie_game():
-        fav_tags_file = os.path.join(get_ek_path(), "FavoriteTags.txt")
+    if is_corinth():
+        fav_tags_file = os.path.join(get_project_path(), "FavoriteTags.txt")
         if os.path.exists(fav_tags_file):
             with open(fav_tags_file, "r") as file:
                 for line in file:

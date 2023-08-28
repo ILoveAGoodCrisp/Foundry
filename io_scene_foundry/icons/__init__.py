@@ -26,6 +26,20 @@ def get_icon_id(id):
             pass
     return 0
 
+def get_icon_id_in_directory(thumnail_path):
+    global icons_active
+    id = thumnail_path
+    if icons_active:
+        try:
+            if id in foundry_icons:
+                return foundry_icons[id].icon_id
+            return foundry_icons.load(
+                id, thumnail_path, "IMAGE"
+            ).icon_id
+        except:
+            pass
+    return 0
+
 
 def icons_activate():
     global icons_active
