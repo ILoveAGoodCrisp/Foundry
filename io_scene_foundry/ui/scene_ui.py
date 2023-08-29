@@ -172,7 +172,6 @@ class NWO_AssetMaker(NWO_Op):
             {"INFO"},
             f"Created new {nwo_scene.asset_type.title()} asset for {nwo_scene.scene_project}. Asset Name = {asset_name}",
         )
-        context.area.tag_redraw()
         return {"FINISHED"}
 
     def draw(self, context):
