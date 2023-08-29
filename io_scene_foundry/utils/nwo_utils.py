@@ -1215,12 +1215,12 @@ def run_tool_sidecar(tool_args: list, asset_path):
 
     p.wait()
 
-    # if failed:
-    #     # check for known errors, and return an explanation
-    #     error = get_export_error_explanation(error_log)
-    # else:
-    #     # if there's no fatal error, remove the error log
-    #     os.remove(error_log)
+    if failed:
+        # check for known errors, and return an explanation
+        error = get_export_error_explanation(error_log)
+    else:
+        # if there's no fatal error, remove the error log
+        os.remove(error_log)
 
     return failed, error
 

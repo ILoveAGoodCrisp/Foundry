@@ -2083,6 +2083,23 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
     )
 
+    face_transparent_ui: BoolProperty(
+        name="Transparent",
+        description="Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag",
+        options=set(),
+    )
+
+    face_two_sided_type_ui: EnumProperty(
+        name="Two Sided Policy",
+        description="Set how the game should render the opposite side of mesh faces",
+        options=set(),
+        items=[
+            ("two_sided", "Default", "No special properties"),
+            ("mirror", "Mirror", "Mirror backside normals from the frontside"),
+            ("keep", "Keep", "Keep the same normal on each face side"),
+        ]
+    )
+
     def update_face_draw_distance_ui(self, context):
         self.face_draw_distance_active = True
 

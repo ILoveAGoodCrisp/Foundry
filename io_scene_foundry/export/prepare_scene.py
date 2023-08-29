@@ -35,6 +35,7 @@ from mathutils import Matrix, Vector
 from io_scene_foundry.managed_blam.objects import ManagedBlamGetNodeOrder
 
 from io_scene_foundry.tools.shader_finder import find_shaders
+from io_scene_foundry.utils.nwo_constants import RENDER_MESH_TYPES
 from ..utils.nwo_utils import (
     bool_str,
     closest_bsp_object,
@@ -1283,8 +1284,24 @@ class PrepareScene:
                 if mesh_props.face_type == "_connected_geometry_face_type_sky":
                     mesh_props.sky_permutation_index = str(face_props.sky_permutation_index_ui)
 
+        # Handle face sides, game wants an enum but Foundry uses flags
+        face_sides_value = "_connected_geometry_face_sides_"
+        has_transparency = face_props.face_transparent_override and face_props.face_transparent_ui and mesh_props.mesh_type in RENDER_MESH_TYPES
         if face_props.face_two_sided_override and face_props.face_two_sided_ui:
-            mesh_props.face_sides = "_connected_geometry_face_sides_two_sided"
+            # Only h4+ support properties for the backside face
+            if h4 and mesh_props.mesh_type in RENDER_MESH_TYPES:
+                face_sides_value += face_props.face_two_sided_type_ui
+            else:
+                face_sides_value += "two_sided"
+            # Add transparency if set
+            if has_transparency:
+                face_sides_value += "_transparent"
+        elif has_transparency:
+            face_sides_value += "one_sided_transparent"
+        else:
+            face_sides_value = ""
+
+        mesh_props.face_sides = face_sides_value
 
         if face_props.face_draw_distance_override:
             mesh_props.face_draw_distance = face_props.face_draw_distance_ui
@@ -2309,11 +2326,26 @@ class PrepareScene:
                         nwo.ladder = "1"
                     if nwo.slip_surface_ui:
                         nwo.slip_surface = "1"
-            if (
-                nwo.mesh_type != "_connected_geometry_mesh_type_physics"
-                and nwo.face_two_sided_ui
-            ):
-                nwo.face_sides = "_connected_geometry_face_sides_two_sided"
+            if nwo.mesh_type != "_connected_geometry_mesh_type_physics":
+                # Handle face sides, game wants an enum but Foundry uses flags
+                face_sides_value = "_connected_geometry_face_sides_"
+                has_transparency = nwo.face_transparent_ui and nwo.mesh_type in RENDER_MESH_TYPES
+                if nwo.face_two_sided_ui:
+                    # Only h4+ support properties for the backside face
+                    if reach or nwo.mesh_type not in RENDER_MESH_TYPES:
+                        face_sides_value += "two_sided"
+                    else:
+                        face_sides_value += nwo.face_two_sided_type_ui
+                    # Add transparency if set
+                    if has_transparency:
+                        face_sides_value += "_transparent"
+                elif has_transparency:
+                    face_sides_value += "one_sided_transparent"
+                else:
+                    face_sides_value = ""
+
+                nwo.face_sides = face_sides_value
+
             if nwo.mesh_type in (
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_poop",

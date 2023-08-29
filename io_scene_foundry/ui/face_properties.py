@@ -51,6 +51,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     face_type_override: BoolProperty()
     face_mode_override: BoolProperty()
     face_two_sided_override: BoolProperty()
+    face_transparent_override: BoolProperty()
     face_draw_distance_override: BoolProperty()
     texcoord_usage_override: BoolProperty()
     region_name_override: BoolProperty()
@@ -229,6 +230,23 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name="Two Sided",
         description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
         options=set(),
+    )
+
+    face_transparent_ui: BoolProperty(
+        name="Transparent",
+        description="Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag",
+        options=set(),
+    )
+
+    face_two_sided_type_ui: EnumProperty(
+        name="Two Sided Policy",
+        description="Set how the game should render the opposite side of mesh faces",
+        options=set(),
+        items=[
+            ("two_sided", "Default", "No special properties"),
+            ("mirror", "Mirror", "Mirror backside normals from the frontside"),
+            ("keep", "Keep", "Keep the same normal on each face side"),
+        ]
     )
 
     face_draw_distance_ui: EnumProperty(

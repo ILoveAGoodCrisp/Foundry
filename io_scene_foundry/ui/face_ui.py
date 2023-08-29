@@ -83,6 +83,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             "_connected_geometry_mesh_type_collision",
         ):
             layout.operator(self.op_prefix, text="Two Sided").options = "two_sided"
+            layout.operator(self.op_prefix, text="Transparent").options = "transparent"
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
             if nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_render",
@@ -315,6 +316,12 @@ class NWO_FacePropPanel(NWO_PropPanel):
                     row.operator(
                         "nwo.face_prop_remove", text="", icon="X"
                     ).options = "two_sided"
+                if item.face_transparent_override:
+                    row = col.row()
+                    row.prop(item, "face_transparent_ui")
+                    row.operator(
+                        "nwo.face_prop_remove", text="", icon="X"
+                    ).options = "transparent"
                 if item.face_global_material_override:
                     row = col.row()
                     row.prop(item, "face_global_material_ui")
@@ -541,6 +548,9 @@ def toggle_override(context, option, bool_var):
         case "two_sided":
             item.face_two_sided_override = bool_var
             item.face_two_sided_ui = True
+        case "transparent":
+            item.face_transparent_override = bool_var
+            item.face_transparent_ui = True
         case "_connected_geometry_face_type_sky":
             item.face_type_override = bool_var
             item.face_type_ui = "_connected_geometry_face_type_sky"
@@ -657,6 +667,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             ("cookie_cutter", "Cookie Cutter", ""),
             ("seam", "Seam", ""),
             ("two_sided", "Two Sided", ""),
+            ("transparent", "Transparent", ""),
             ("_connected_geometry_face_type_sky", "Sky", ""),
             ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
             ("_connected_geometry_face_mode_render_only", "Render Only", ""),
@@ -719,6 +730,8 @@ class NWO_FaceLayerAdd(NWO_Op):
                 self.fm_name = "Breakable"
             case "two_sided":
                 self.fm_name = "Two Sided"
+            case "transparent":
+                self.fm_name = "Transparent"
             case "ladder":
                 self.fm_name = "Ladder"
             case "slip_surface":
@@ -1049,6 +1062,7 @@ class NWO_FacePropRemove(NWO_Op):
             ("face_global_material", "", ""),
             ("face_mode", "", ""),
             ("two_sided", "", ""),
+            ("transparent", "", ""),
             ("face_type", "", ""),
             ("texcoord_usage", "", ""),
             ("ladder", "Ladder", ""),

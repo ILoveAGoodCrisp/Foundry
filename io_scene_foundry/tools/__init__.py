@@ -49,6 +49,7 @@ from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
 from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList
 from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
+from io_scene_foundry.utils.nwo_constants import RENDER_MESH_TYPES, TWO_SIDED_MESH_TYPES
 from .shader_builder import NWO_ListMaterialShaders, build_shader
 
 from io_scene_foundry.utils import nwo_globals
@@ -1423,8 +1424,10 @@ class NWO_FoundryPanelProps(Panel):
             row.scale_x = 1.2
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
                 row.prop(nwo, "precise_position_ui", text="Uncompressed")
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision"):
+            if nwo.mesh_type_ui in TWO_SIDED_MESH_TYPES:
                 row.prop(nwo, "face_two_sided_ui", text="Two Sided")
+                if nwo.mesh_type_ui in RENDER_MESH_TYPES:
+                    row.prop(nwo, "face_transparent_ui", text="Transparent")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_poop"):
                 row.prop(nwo, "decal_offset_ui", text="Decal Offset")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision", "_connected_geometry_mesh_type_collision"):
@@ -1442,6 +1445,10 @@ class NWO_FoundryPanelProps(Panel):
                         if h4:
                             row.prop(nwo, "no_lightmap_ui", text="No Lightmap")
                             row.prop(nwo, "no_pvs_ui", text="No PVS")
+
+            if h4 and nwo.mesh_type_ui in RENDER_MESH_TYPES and nwo.face_two_sided_ui:
+                row = col2.row()
+                row.prop(nwo, "face_two_sided_type_ui", text="Backside Normals")
 
         if nwo.mesh_type_ui in (
             "_connected_geometry_mesh_type_render",
@@ -1794,11 +1801,31 @@ class NWO_FoundryPanelProps(Panel):
                         "nwo.face_prop_remove", text="", icon="X"
                     ).options = "face_mode"
                 if item.face_two_sided_override:
+                    if is_corinth(context):
+                        col.separator()
+                        box = col.box()
+                        row = box.row()
+                        row.label(text="Two Sided Properties")
+                        row.operator(
+                            "nwo.face_prop_remove", text="", icon="X"
+                        ).options = "two_sided"
+                        row = box.row()
+                        row.prop(item, "face_two_sided_ui")
+                        row = box.row()
+                        row.prop(item, "face_two_sided_type_ui", text="Backside Normals")
+                    else:
+                        row = col.row()
+                        row.prop(item, "face_two_sided_ui")
+                        row.operator(
+                            "nwo.face_prop_remove", text="", icon="X"
+                        ).options = "two_sided"
+
+                if item.face_transparent_override:
                     row = col.row()
-                    row.prop(item, "face_two_sided_ui")
+                    row.prop(item, "face_transparent_ui")
                     row.operator(
                         "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "two_sided"
+                    ).options = "transparent"
                 if item.face_global_material_override:
                     row = col.row()
                     row.prop(item, "face_global_material_ui")
@@ -1857,7 +1884,7 @@ class NWO_FoundryPanelProps(Panel):
                 # lightmap
                 if item.lightmap_additive_transparency_override:
                     row = col.row()
-                    row.prop(item, "lightmap_additive_transparency_ui")
+                    row.prop(item, "lightmap_additive_transparency_ui", text="Additive Transparency")
                     row.operator(
                         "nwo.face_prop_remove", text="", icon="X"
                     ).options = "lightmap_additive_transparency"
