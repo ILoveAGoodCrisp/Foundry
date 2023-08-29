@@ -1354,7 +1354,7 @@ class PrepareScene:
         #     mesh_props.lightmap_general_bounce_modifier = face_props.lightmap_general_bounce_modifier
         #     mesh_props.lightmap_general_bounce_modifier_active = True
         if face_props.lightmap_translucency_tint_color_override:
-            mesh_props.lightmap_translucency_tint_color = color_3p_str(
+            mesh_props.lightmap_translucency_tint_color = color_4p_str(
                 face_props.lightmap_translucency_tint_color_ui
             )
             mesh_props.lightmap_translucency_tint_color_active = True
@@ -2390,14 +2390,9 @@ class PrepareScene:
                         nwo.lightmap_general_bounce_modifier_ui
                     )
                 if nwo.lightmap_translucency_tint_color_active:
-                    if reach:
-                        nwo.lightmap_translucency_tint_color = color_4p_str(
-                            self.halo.lightmap_translucency_tint_color
-                        )
-                    else:
-                        nwo.lightmap_translucency_tint_color = color_3p_str(
-                            self.halo.lightmap_translucency_tint_color
-                        )
+                    nwo.lightmap_translucency_tint_color = color_4p_str(
+                        nwo.lightmap_translucency_tint_color_ui
+                    )
 
                 if nwo.lightmap_lighting_from_both_sides_active:
                     nwo.lightmap_lighting_from_both_sides = bool_str(
