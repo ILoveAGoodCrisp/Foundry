@@ -24,6 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import logging
+import traceback
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
@@ -31,6 +33,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     managed_blam_active,
     is_corinth,
+    print_error,
     print_warning,
 )
 import bpy
@@ -101,6 +104,10 @@ class ManagedBlam():
                 if last_saved_tag != tag:
                     last_saved_tag = tag
                     tag.Save()
+
+        except Exception as e:
+            print_error("\n ManagedBlam Exception hit:\n")
+            logging.error(traceback.format_exc())
 
         finally:
             tag.Dispose()
