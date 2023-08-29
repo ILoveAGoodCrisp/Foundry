@@ -278,7 +278,7 @@ def LaunchFoundation(settings, context):
     # first, get and set the project so we can avoid the Foundation prompt
     
     run_ek_cmd(launch_args, True)
-    run_ek_cmd(["bin\\tools\\bonobo\\TagWatcher.exe"], True)
+    run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 
     return {"FINISHED"}
 

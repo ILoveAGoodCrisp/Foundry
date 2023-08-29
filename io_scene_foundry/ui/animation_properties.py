@@ -38,7 +38,7 @@ import bpy
 
 from io_scene_foundry.icons import get_icon_id
 
-from ..utils.nwo_utils import dot_partition
+from ..utils.nwo_utils import dot_partition, is_corinth
 
 
 class NWO_UL_AnimProps_Events(UIList):
@@ -561,6 +561,24 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
             ),
         ],
     )
+
+    # def animation_type_items(self, context):
+    #     items = []
+    #     items.append(("Base", "Base", ""))
+    #     items.append(("Overlay", "Overlay", ""))
+    #     if is_corinth(context):
+    #         items.append(("World", "World", ""))
+        
+    #     return items
+
+    # animation_type: EnumProperty(
+    #     name="Type",
+    #     items= animation_type_items,
+    # )
+
+    # animation_movement_data: EnumProperty()
+    # animation_is_pose: BoolProperty()
+    # animation_space: EnumProperty()
 
     animation_events: CollectionProperty(
         type=NWO_Animation_ListItems,

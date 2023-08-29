@@ -509,7 +509,6 @@ class NWO_FoundryPanelProps(Panel):
 
         if halo_light:
             col = box.column()
-            col.oper
             col.use_property_split = True
             if poll_ui("SCENARIO"):
                 row = col.row()
