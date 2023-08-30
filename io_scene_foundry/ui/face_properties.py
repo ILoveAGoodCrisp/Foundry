@@ -393,10 +393,10 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         max=1.0,
     )
 
-    lightmap_resolution_scale_ui: IntProperty(
+    lightmap_resolution_scale_ui: FloatProperty(
         name="Resolution Scale",
         options=set(),
-        description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces.  The relationships can be tweaked in the .scenario tag",
+        description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
         default=3,
         min=0,
         max=7,

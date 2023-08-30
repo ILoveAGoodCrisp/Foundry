@@ -1490,7 +1490,7 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(
                         nwo,
                         "lightmap_additive_transparency_ui",
-                        text="Lightmap Additive Transparency",
+                        text="Additive Transparency",
                     )
                     row.operator(
                         "nwo.remove_mesh_property", text="", icon="X"

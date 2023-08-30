@@ -1012,8 +1012,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Lightmap Resolution Scale",
         options=set(),
         description="Sets lightmap resolutions scale for this instance",
-        default=1.0,
+        default=3.0,
         min=0.0,
+        max=7.0,
     )
 
     poop_pathfinding_items = [
@@ -1427,12 +1428,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         self.lightmap_resolution_scale_active = True
 
     lightmap_resolution_scale_active: BoolProperty()
-    lightmap_resolution_scale_ui: IntProperty(
-        name="Lightmap Resolution Scale",
+    lightmap_resolution_scale_ui: FloatProperty(
+        name="Resolution Scale",
         options=set(),
         description="",
-        default=3,
-        min=1,
+        default=3.0,
+        min=0.0,
+        max=7.0,
         update=update_lightmap_resolution_scale_ui,
     )
 
