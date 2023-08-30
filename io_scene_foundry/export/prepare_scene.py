@@ -1356,7 +1356,7 @@ class PrepareScene:
 
             mesh_props.lightmap_additive_transparency_active = True
         if face_props.lightmap_resolution_scale_override:
-            mesh_props.lightmap_resolution_scale = str(
+            mesh_props.lightmap_resolution_scale = jstr(
                 face_props.lightmap_resolution_scale_ui
             )
 
