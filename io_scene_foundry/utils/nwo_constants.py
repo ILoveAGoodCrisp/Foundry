@@ -24,7 +24,66 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+# MESH TYPE GROUPS
 # Mesh types which support render properties
 RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop")
 # Mesh types which support the two sided flag
 TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision")
+
+# MATERIALS
+# Protected material names, we never let the user set shader paths for these
+PROTECTED_MATERIALS = (
+    "+sky",
+    "+physics",
+    "+seam",
+    "+portal",
+    "+collision",
+    "+player_collision",
+    "+wall_collision",
+    "+bullet_collision",
+    "+cookie_cutter",
+    "+rain_blocker",
+    "+water_volume",
+    "+structure",
+    "+weatherpoly",
+    "+override",
+    "+slip_surface",
+    "+soft_ceiling",
+    "+soft_kill",
+    "InvisibleSky",
+    "Physics",
+    "Seam",
+    "Portal",
+    "Collision",
+    "PlayerCollision",
+    "WallCollision",
+    "BulletCollision",
+    "CookieCutter",
+    "RainBlocker",
+    "WaterVolume",
+    "Structure",
+    "WeatherPoly",
+    "Override",
+    "SeamSealer",
+    "SlipSurface",
+    "SoftCeiling",
+    "SoftKill",
+)
+
+# LEGACY PREFIXES
+# Objects
+LEGACY_BONE_PREFIXES = ("b ", "b_", "frame ", "frame_", "bip ","bip_", "bone ", "bone_",)
+LEGACY_MARKER_PREFIXES = ("#", "?", "$") # marker, game instance, constraint
+LEGACY_MESH_PREFIXES = ("@",  "%", "$", "'",) # collision, poop, physics, water surface
+
+# Animation
+LEGACY_ANIMATION_TYPES = (
+    "JMM",
+    "JMA",
+    "JMT",
+    "JMZ",
+    "JMV",
+    "JMO",
+    "JMR",
+    "JMRX",
+)

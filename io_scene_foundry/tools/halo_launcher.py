@@ -27,9 +27,7 @@
 import os
 import bpy
 import glob
-from subprocess import Popen
 from io_scene_foundry.utils.nwo_utils import (
-    dot_partition,
     get_asset_info,
     get_asset_path,
     get_data_path,
@@ -37,8 +35,6 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     is_corinth,
     nwo_asset_type,
-    os_sep_partition,
-    project_from_scene_project,
     run_ek_cmd,
     valid_nwo_asset,
 )

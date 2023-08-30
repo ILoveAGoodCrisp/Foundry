@@ -601,10 +601,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Save the scene
         # bpy.ops.wm.save_mainfile()
 
-        # os.system("cls")
-
-        print(self.asset_path)
-        print(self.asset)
+        os.system("cls")
 
         if self.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export

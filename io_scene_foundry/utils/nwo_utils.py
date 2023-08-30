@@ -39,6 +39,7 @@ import random
 import xml.etree.ElementTree as ET
 
 from io_scene_foundry.utils import nwo_globals
+from io_scene_foundry.utils.nwo_constants import PROTECTED_MATERIALS
 
 from ..icons import get_icon_id
 import requests
@@ -47,242 +48,6 @@ import requests
 ###########
 ##GLOBALS##
 ###########
-
-# Main Prefixes #
-frame_prefixes = (
-    "b ",
-    "b_",
-    "frame ",
-    "frame_",
-    "bip ",
-    "bip_",
-    "bone ",
-    "bone_",
-)
-marker_prefixes = ("#", "?")
-mesh_prefixes = (
-    "+soft_ceiling",
-    "+soft_kill",
-    "+slip_surface",
-    "@",
-    "+cookie",
-    "+decorator",
-    "+flair",
-    "%",
-    "$",
-    "+fog",
-    "+portal",
-    "+seam",
-    "+water",
-    "'",
-)
-special_prefixes = (
-    "b ",
-    "b_",
-    "frame ",
-    "frame_",
-    "bip ",
-    "bip_",
-    "bone ",
-    "bone_",
-    "#",
-    "?",
-    "+soft_ceiling",
-    "+soft_kill",
-    "+slip_surface",
-    "@",
-    "+cookie",
-    "+decorator",
-    "+flair",
-    "%",
-    "$",
-    "+fog",
-    "+portal",
-    "+seam",
-    "+water",
-    "'",
-)
-
-
-# Specific Mesh Prefixes #
-boundary_surface_prefixes = (
-    "+soft_ceiling",
-    "+soft_kill",
-    "+slip_surface",
-)  # boundary surface prefixes can take a name with +prefix:name e.g. +soft_ceiling:camera_ceiling_01
-cookie_cutter_prefixes = "+cookie"
-decorator_prefixes = (
-    "+decorator"  # decorators can take a name with +decorator:name (not implemented)
-)
-fog_volume_prefixes = (
-    "+fog"  # fog volumes can take a name with +fog:name (not implemented)
-)
-object_instance_prefixes = "+flair"  # self-reminder: Flairs need to have marker_regions written to them in the json, this should match the face region
-portal_prefixes = "+portal"  # portals can have properties automatically through the object name (once I get around to adding it)
-seam_prefixes = "+seam"  # seams can take a name with +seam:name
-water_volume_prefixes = "+water"
-
-no_perm_prefixes = (
-    frame_prefixes,
-    marker_prefixes,
-    boundary_surface_prefixes,
-    decorator_prefixes,
-    fog_volume_prefixes,
-    portal_prefixes,
-    seam_prefixes,
-    water_volume_prefixes,
-    cookie_cutter_prefixes,
-    "+water",
-    "'",
-)
-# Instanced Geo Prefixes #
-poop_lighting_prefixes = (
-    "%!",
-    "%-!",
-    "%+!",
-    "%*!",
-    "%-*!",
-    "%+*!",
-    "%*-!",
-    "%*+!",
-    "%?",
-    "%-?",
-    "%+?",
-    "%*?",
-    "%-*?",
-    "%+*?",
-    "%*-?",
-    "%*+?" "%>",
-    "%->",
-    "%+>",
-    "%*>",
-    "%-*>",
-    "%+*>",
-    "%*->",
-    "%*+>",
-)
-poop_pathfinding_prefixes = (
-    "%+",
-    "%!+",
-    "%?+",
-    "%>+",
-    "%*+",
-    "%!*+",
-    "%?*+",
-    "%>*+",
-    "%*!+",
-    "%*?+",
-    "%*>+",
-    "%-",
-    "%!-",
-    "%?-",
-    "%>-",
-    "%*-",
-    "%!*-",
-    "%?*-",
-    "%>*-",
-    "%*!-",
-    "%*?-",
-    "%*>-",
-)
-poop_render_only_prefixes = (
-    "%*",
-    "%!*",
-    "%?*",
-    "%>*",
-    "%-*",
-    "%+*",
-    "%!-*",
-    "%!+*",
-    "%?-*",
-    "%?+*",
-    "%>-*",
-    "%>+*",
-)
-
-all_prefixes = (
-    "+slip_surface",
-    "+soft_ceiling",
-    "+soft_kill",
-    "+decorator",
-    "+portal",
-    "+cookie",
-    "frame ",
-    "%*+?%>",
-    "+water",
-    "frame_",
-    "+flair",
-    "+seam",
-    "bone_",
-    "bone ",
-    "%>+*",
-    "%>-*",
-    "%?+*",
-    "%?-*",
-    "%!+*",
-    "%!-*",
-    "bip_",
-    "+fog",
-    "%*+>",
-    "%*->",
-    "%+*>",
-    "%-*>",
-    "%*>-",
-    "%*?-",
-    "%*!-",
-    "%>*-",
-    "%?*-",
-    "%!*-",
-    "%*+!",
-    "%*-!",
-    "%+*!",
-    "%*-?",
-    "%+*?",
-    "%*>+",
-    "%*?+",
-    "%*!+",
-    "%>*+",
-    "%?*+",
-    "%!*+",
-    "%-*?",
-    "%-*!",
-    "bip ",
-    "%+*",
-    "%-*",
-    "%>*",
-    "%?*",
-    "%!*",
-    "%-!",
-    "%*-",
-    "%>-",
-    "%?-",
-    "%!-",
-    "%*!",
-    "%*+",
-    "%>+",
-    "%?+",
-    "%!+",
-    "%+!",
-    "%*>",
-    "%+>",
-    "%->",
-    "%*?",
-    "%+?",
-    "%-?",
-    "%*",
-    "%-",
-    "%+",
-    "%?",
-    "%!",
-    "b_",
-    "b ",
-    "'",
-    "$",
-    "%",
-    "@",
-    "?",
-    "#",
-)
 
 # Material Prefixes #
 special_materials = (
@@ -311,43 +76,7 @@ special_materials_h4 = (
     "+water_volume",
     "+structure",
 )
-protected_materials = (
-    "+sky",
-    "+physics",
-    "+seam",
-    "+portal",
-    "+collision",
-    "+player_collision",
-    "+wall_collision",
-    "+bullet_collision",
-    "+cookie_cutter",
-    "+rain_blocker",
-    "+water_volume",
-    "+structure",
-    "+weatherpoly",
-    "+override",
-    "+slip_surface",
-    "+soft_ceiling",
-    "+soft_kill",
-    "InvisibleSky",
-    "Physics",
-    "Seam",
-    "Portal",
-    "Collision",
-    "PlayerCollision",
-    "WallCollision",
-    "BulletCollision",
-    "CookieCutter",
-    "RainBlocker",
-    "WaterVolume",
-    "Structure",
-    "WeatherPoly",
-    "Override",
-    "SeamSealer",
-    "SlipSurface",
-    "SoftCeiling",
-    "SoftKill",
-)
+
 # Enums #
 special_mesh_types = (
     "_connected_geometry_mesh_type_boundary_surface",
@@ -372,18 +101,6 @@ invalid_mesh_types = (
     "_connected_geometry_mesh_type_seam",
     "_connected_geometry_mesh_type_water_physics_volume",
     "_connected_geometry_mesh_type_obb_volume",
-)
-# animations #
-valid_animation_types = (
-    "JMM",
-    "JMA",
-    "JMT",
-    "JMZ",
-    "JMV",
-    "JMO",
-    "JMOX",
-    "JMR",
-    "JMRX",
 )
 
 # animation events #
@@ -1254,9 +971,26 @@ def is_error_line(line):
 
     return False
 
+def set_project_in_registry():
+    """Sets the current project in the users registry"""
+    key_path = r"SOFTWARE\Halo\Projects"
+    project_display_name = bpy.context.scene.nwo.scene_project
+    if not project_display_name:
+        return
+    # Get project name
+    project = project_from_scene_project(project_display_name)
+    project_name = project.project_name
+    try:
+        # Open the registry key
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE) as key:
+            winreg.SetValueEx(key, "Current", 0, winreg.REG_SZ, project_name)
+    except:
+        pass
 
 def run_ek_cmd(args: list, in_background=False):
     """Executes a cmd line argument at the root editing kit directory"""
+    # Set the current project in the users registry, this avoids the switch project prompt
+    set_project_in_registry()
     os.chdir(get_project_path())
     command = f"""{' '.join(f'"{arg}"' for arg in args)}"""
     # print(command)
@@ -1633,8 +1367,7 @@ def cull_invalid_chars(string):
 
 def protected_material_name(material_name):
     """Returns True if the passed material name is equal to a protected material"""
-    return material_name.startswith(protected_materials)
-
+    return material_name.startswith(PROTECTED_MATERIALS)
 
 ############ FOUNDRY UI UTILS
 def mesh_object(ob):
