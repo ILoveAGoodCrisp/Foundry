@@ -28,6 +28,8 @@
 
 import bpy
 
+from io_scene_foundry.ui.scene_properties import NWO_Regions_ListItems
+
 # REGIONS
 class NWO_RegionAdd(bpy.types.Operator):
     bl_label = "Add Region"
@@ -118,6 +120,81 @@ class NWO_RegionAssignSingle(bpy.types.Operator):
         nwo.region_name_ui = self.name
         return {'FINISHED'}
     
+class NWO_RegionAssign(bpy.types.Operator):
+    bl_label = "Assign Region to Selected Objects"
+    bl_idname = "nwo.region_assign"
+    bl_description = "Assigns the active Region to selected Objects"
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo.regions_table and context.selected_objects
+    
+    name: bpy.props.StringProperty(
+        name="Region",
+    )
+    
+    def execute(self, context):
+        sel_obs = context.selected_objects
+        for ob in sel_obs:
+            ob.nwo.region_name_ui = self.name
+        return {'FINISHED'}
+    
+class NWO_RegionSelect(bpy.types.Operator):
+    bl_label = "Select Region"
+    bl_idname = "nwo.region_select"
+    bl_description = "Selects/Deselects the active Region"
+    bl_options = {'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo.regions_table
+    
+    select: bpy.props.BoolProperty()
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        region = nwo.regions_table[nwo.regions_table_active_index]
+        scene_objects = context.scene.objects
+        region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == region.name]
+        [ob.select_set(self.select) for ob in region_objects]
+        return {'FINISHED'}
+    
+class NWO_RegionRename(bpy.types.Operator):
+    bl_label = "Rename Region"
+    bl_idname = "nwo.region_rename"
+    bl_description = "Renames the active Region and updates scene objects"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo.regions_table
+    
+    new_name: bpy.props.StringProperty(
+        name="New Name",
+        description="The name you want to give this region, duh",
+    )
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        region = nwo.regions_table[nwo.regions_table_active_index]
+        scene_objects = context.scene.objects
+        region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == region.name]
+        region.name = self.new_name
+        for ob in region_objects:
+            ob.nwo.region_name_ui = self.new_name
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.activate_init = True
+        layout.prop(self, "new_name", text="New Name")
+    
 class NWO_RegionHide(bpy.types.Operator):
     bl_label = "Hide Region"
     bl_idname = "nwo.region_hide"
@@ -128,19 +205,15 @@ class NWO_RegionHide(bpy.types.Operator):
     def poll(self, context):
         return context.scene.nwo.regions_table
     
-    region: bpy.props.StringProperty()
+    region_name: bpy.props.StringProperty()
     
     def execute(self, context):
-        for r in context.scene.nwo.regions_table:
-            if r.name == self.region:
-                r.hidden = not r.hidden
-                break
-        else:
-            self.report({'ERROR'}, "Somehow found no matching regions")
-            return {'CANCELLED'}
+        region = get_region(context, self.region_name)
+        should_hide = not region.hidden
+        region.hidden = should_hide
         scene_objects = context.scene.objects
-        region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == self.region]
-        [ob.hide_set(r.hidden) for ob in region_objects]
+        region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == self.region_name]
+        [ob.hide_set(should_hide) for ob in region_objects]
         return {'FINISHED'}
 
 # PERMUTATIONS
@@ -166,3 +239,9 @@ class NWO_UL_GlobalMaterials(bpy.types.UIList):
             layout.label(text=item.name)
         else:
             layout.label(text="", translate=False, icon_value=icon)
+
+
+def get_region(context, region_name):
+    for r in context.scene.nwo.regions_table:
+        if r.name == region_name:
+            return r

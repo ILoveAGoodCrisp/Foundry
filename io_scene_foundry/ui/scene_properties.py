@@ -38,14 +38,20 @@ from bpy.types import PropertyGroup
 from ..icons import get_icon_id
 from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_project_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
 
+class NWO_Permutations_ListItems(PropertyGroup):
+    name: StringProperty(name="Permutations Table")
+
 class NWO_Regions_ListItems(PropertyGroup):
     name: StringProperty(name="Name")
     hidden: BoolProperty(name="Hidden")
     hide_select: BoolProperty(name="Hide Select")
-    disabled: BoolProperty(name="Disabled")
-            
-class NWO_Permutations_ListItems(PropertyGroup):
-    name: StringProperty(name="Permutations Table")
+    permutations_table: CollectionProperty(type=NWO_Permutations_ListItems)
+    permutations_active_index: IntProperty()
+    active: BoolProperty(
+        name="Active",
+        description="If false, this region will not be active in the model tag except if added to a variant",
+        default=True,
+    )
 
 class NWO_BSP_ListItems(PropertyGroup):
     name: StringProperty(name="BSP Table")
@@ -626,8 +632,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
     regions_table: CollectionProperty(type=NWO_Regions_ListItems)
     regions_table_active_index: IntProperty()
-    permutations_table: CollectionProperty(type=NWO_Permutations_ListItems)
-    permutations_active_index: IntProperty()
     bsp_table: CollectionProperty(type=NWO_BSP_ListItems)
     bsp_active_index: IntProperty()
     global_material_table: CollectionProperty(type=NWO_GlobalMaterial_ListItems)

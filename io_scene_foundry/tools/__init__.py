@@ -42,7 +42,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
-from io_scene_foundry.tools.sets_manager import NWO_RegionAdd, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionMove, NWO_RegionRemove
+from io_scene_foundry.tools.sets_manager import NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
@@ -440,6 +440,7 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row()
         row.label(text="Regions Table")
         row = box.row()
+        region = nwo.regions_table[nwo.regions_table_active_index]
         rows = 3
         row.template_list(
             "NWO_UL_Regions",
@@ -457,6 +458,14 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.region_move", text="", icon="TRIA_UP").direction = 'up'
         col.operator("nwo.region_move", icon="TRIA_DOWN", text="").direction = 'down'
 
+        row = box.row()
+
+        sub = row.row(align=True)
+        sub.operator("nwo.region_assign", text="Assign").name = region.name
+
+        sub = row.row(align=True)
+        sub.operator("nwo.region_select", text="Select").select = True
+        sub.operator("nwo.region_select", text="Deselect").select = False
 
     def draw_object_properties(self):
         box = self.box.box()
@@ -5139,6 +5148,9 @@ classeshalo = (
     NWO_RegionRemove,
     NWO_RegionMove,
     NWO_RegionAssignSingle,
+    NWO_RegionAssign,
+    NWO_RegionSelect,
+    NWO_RegionRename,
     NWO_RegionHide,
     NWO_OpenImageEditor,
     NWO_MaterialGirl,

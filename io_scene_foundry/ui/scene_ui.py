@@ -36,18 +36,30 @@ from ..utils.nwo_utils import (
 from .templates import NWO_Op_Path, NWO_PropPanel, NWO_Op
 import bpy
 from bpy.props import BoolProperty, StringProperty
-from bpy.types import UIList
+from bpy.types import UIList, Menu
 
-class NWO_UL_Regions(bpy.types.UIList):
+class NWO_RegionsContextMenu(Menu):
+    bl_label = "Regions Context Menu"
+    bl_idname = "NWO_MT_RegionsContext"
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo.regions_table
+    
+    def draw(self, context):
+        pass
+
+class NWO_UL_Regions(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             row = layout.row()
-            row.prop(item, "name", text="", emboss=False)
+            row.alignment = 'LEFT'
+            row.operator("nwo.region_rename", text=item.name, emboss=False)
+            row.prop(item, "active", text="", icon='CHECKBOX_HLT' if item.active else 'CHECKBOX_DEHLT', emboss=False)
             row = layout.row(align=True)
             row.alignment = 'RIGHT'
-            row.operator("nwo.region_hide", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False, depress=False).region = item.name
+            row.operator("nwo.region_hide", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False).region_name = item.name
             row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
-            row.prop(item, "disabled", text="", icon='CHECKBOX_DEHLT' if item.disabled else 'CHECKBOX_HLT', emboss=False)
         else:
             layout.label(text="", translate=False, icon_value=icon)
 
