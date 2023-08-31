@@ -42,6 +42,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
+from io_scene_foundry.tools.sets_manager import NWO_RegionAdd, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionMove, NWO_RegionRemove
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
@@ -104,6 +105,7 @@ HOTKEYS = [
 PANELS_PROPS = [
     "scene_properties",
     "asset_editor",
+    "sets_manager",
     "object_properties",
     "material_properties",
     "animation_properties",
@@ -429,6 +431,31 @@ class NWO_FoundryPanelProps(Panel):
             row = col.row(align=True)
             row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
             row.operator("nwo.gun_model_path", text="", icon="FILE_FOLDER")
+
+    def draw_sets_manager(self):
+        box = self.box.box()
+        nwo = self.scene.nwo
+        context = self.context
+        scene = self.scene
+        row = box.row()
+        row.label(text="Regions Table")
+        row = box.row()
+        rows = 3
+        row.template_list(
+            "NWO_UL_Regions",
+            "",
+            nwo,
+            "regions_table",
+            nwo,
+            "regions_table_active_index",
+            rows=rows,
+        )
+        col = row.column(align=True)
+        col.operator("nwo.region_add", text="", icon="ADD").set_object_region = False
+        col.operator("nwo.region_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.region_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.region_move", icon="TRIA_DOWN", text="").direction = 'down'
 
 
     def draw_object_properties(self):
@@ -1368,10 +1395,13 @@ class NWO_FoundryPanelProps(Panel):
                 col.prop(nwo, "region_name_locked_ui", text="Region")
             else:
                 row = col.row(align=True)
-                row.prop(nwo, "region_name_ui", text="Region")
-                row.operator_menu_enum(
-                    "nwo.region_list", "region", text="", icon="DOWNARROW_HLT"
-                )
+                row.menu("NWO_MT_Regions", text=nwo.region_name_ui)
+                # row.operator(
+                #     "nwo.region_assign_single", text="", icon="DOWNARROW_HLT"
+                # )
+                # row.operator_menu_enum(
+                #     "nwo.region_list", "region", text="", icon="DOWNARROW_HLT"
+                # )
                 # if ob.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_render', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'):
                 #     for prop in ob.nwo.face_props:
                 #         if prop.region_name_override:
@@ -5105,6 +5135,11 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
 
 classeshalo = (
+    NWO_RegionAdd,
+    NWO_RegionRemove,
+    NWO_RegionMove,
+    NWO_RegionAssignSingle,
+    NWO_RegionHide,
     NWO_OpenImageEditor,
     NWO_MaterialGirl,
     NWO_OpenFoundationTag,

@@ -45,9 +45,24 @@ import bpy
 
 global_mats_items = []
 
+# SETS MENUS
+class NWO_RegionsMenu(Menu):
+    bl_label = "Add Mesh Property"
+    bl_idname = "NWO_MT_Regions"
+
+    @classmethod
+    def poll(self, context):
+        return context.object
+
+    def draw(self, context):
+        layout = self.layout
+        for region in context.scene.nwo.regions_table:
+            layout.operator("nwo.region_assign_single", text=region.name).name = region.name
+
+        layout.operator("nwo.region_add", text="New Region", icon='ADD').set_object_region = True
+
 
 # FACE LEVEL FACE PROPS
-
 
 class NWO_UL_FaceMapProps(UIList):
     def draw_item(

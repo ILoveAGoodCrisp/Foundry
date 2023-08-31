@@ -28,10 +28,8 @@ import os
 
 from ..icons import get_icon_id, get_icon_id_in_directory
 from ..utils.nwo_utils import (
-    dot_partition,
     get_data_path,
     get_prefs,
-    get_project_path,
     is_corinth,
     os_sep_partition,
 )
@@ -40,7 +38,18 @@ import bpy
 from bpy.props import BoolProperty, StringProperty
 from bpy.types import UIList
 
-
+class NWO_UL_Regions(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            row = layout.row()
+            row.prop(item, "name", text="", emboss=False)
+            row = layout.row(align=True)
+            row.alignment = 'RIGHT'
+            row.operator("nwo.region_hide", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False, depress=False).region = item.name
+            row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
+            row.prop(item, "disabled", text="", icon='CHECKBOX_DEHLT' if item.disabled else 'CHECKBOX_HLT', emboss=False)
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
 
 class NWO_SetUnitScale(NWO_Op):
     """Sets up the scene for Halo: Sets the unit scale to match Halo's and sets the frame rate to 30fps"""

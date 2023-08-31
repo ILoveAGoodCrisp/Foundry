@@ -38,6 +38,21 @@ from bpy.types import PropertyGroup
 from ..icons import get_icon_id
 from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_project_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
 
+class NWO_Regions_ListItems(PropertyGroup):
+    name: StringProperty(name="Name")
+    hidden: BoolProperty(name="Hidden")
+    hide_select: BoolProperty(name="Hide Select")
+    disabled: BoolProperty(name="Disabled")
+            
+class NWO_Permutations_ListItems(PropertyGroup):
+    name: StringProperty(name="Permutations Table")
+
+class NWO_BSP_ListItems(PropertyGroup):
+    name: StringProperty(name="BSP Table")
+
+class NWO_GlobalMaterial_ListItems(PropertyGroup):
+    name: StringProperty(name="Global Material Table")
+
 def prefab_warning(self, context):
     self.layout.label(text=f"Halo Reach does not support prefab assets")
 
@@ -396,6 +411,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     asset_editor_pinned: BoolProperty()
     asset_editor_expanded: BoolProperty(default=True)
 
+    sets_manager_active: BoolProperty()
+    sets_manager_pinned: BoolProperty()
+    sets_manager_expanded: BoolProperty(default=True)
+
     tools_active : BoolProperty()
     tools_pinned: BoolProperty()
     tools_expanded : BoolProperty(default=True)
@@ -407,10 +426,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     settings_active : BoolProperty()
     settings_pinned: BoolProperty()
     settings_expanded : BoolProperty(default=True)
-
-    sets_viewer_active: BoolProperty()
-    sets_viewer_pinned: BoolProperty()
-    sets_viewer_expanded: BoolProperty(default=True)
 
     toolbar_expanded : BoolProperty(
         name="Toggle Foundry Toolbar",
@@ -606,3 +621,14 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     scene_project : StringProperty(
         name="Project",
     )
+
+    # TABLES
+
+    regions_table: CollectionProperty(type=NWO_Regions_ListItems)
+    regions_table_active_index: IntProperty()
+    permutations_table: CollectionProperty(type=NWO_Permutations_ListItems)
+    permutations_active_index: IntProperty()
+    bsp_table: CollectionProperty(type=NWO_BSP_ListItems)
+    bsp_active_index: IntProperty()
+    global_material_table: CollectionProperty(type=NWO_GlobalMaterial_ListItems)
+    global_material_active_index: IntProperty()

@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from io_scene_foundry.ui.scene_properties import NWO_Regions_ListItems
 from .face_properties import NWO_FaceProperties_ListItems
 from bpy.props import (
     IntProperty,
@@ -2144,10 +2145,26 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ],
     )
 
+    def get_region_name_ui(self):
+        scene_nwo = bpy.context.scene.nwo
+        regions = scene_nwo.regions_table
+        name = self.get("region_name_ui", "")
+        if not regions:
+            return "default"
+        region_names = [r.name for r in regions]
+        if name not in region_names:
+            return scene_nwo.regions_table[0].name
+        return name
+
+    def set_region_name_ui(self, value):
+        self['region_name_ui'] = value
+
     region_name_ui: StringProperty(
         name="Face Region",
-        default="default",
+        default="",
         description="Define the name of the region these faces should be associated with",
+        get=get_region_name_ui,
+        set=set_region_name_ui,
     )
 
     def get_region_from_collection(self):

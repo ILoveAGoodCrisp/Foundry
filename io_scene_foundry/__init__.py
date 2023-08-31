@@ -124,6 +124,11 @@ else:
                     break
             else:
                 context.scene.nwo.scene_project = projects[0].project_display_name
+        # Add default sets
+        scene_nwo = context.scene.nwo
+        if not scene_nwo.regions_table:
+            default_region = scene_nwo.regions_table.add()
+            default_region.name = "default"
         if not bpy.app.background:
             # Set game version from file
             proxy_left_active = context.scene.nwo.instance_proxy_running
