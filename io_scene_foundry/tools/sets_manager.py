@@ -41,21 +41,26 @@ class NWO_RegionAdd(bpy.types.Operator):
     name: bpy.props.StringProperty(name="Name")
 
     def execute(self, context):
+        name = self.name.lower()
         # Cancel if name is null
-        if not self.name:
+        all_names = [r.name for r in context.scene.nwo.regions_table]
+        if not name:
             self.report({'WARNING'}, "Region name cannot be empty")
             return {'CANCELLED'}
-        elif len(self.name) > 128:
+        elif len(name) > 128:
             self.report({'WARNING'}, "Region name has a maximum of 128 characters")
+            return {'CANCELLED'}
+        elif name in all_names:
+            self.report({'WARNING'}, "Region name already exists")
             return {'CANCELLED'}
         nwo = context.scene.nwo
         region = nwo.regions_table.add()
-        region.name = self.name
+        region.name = name
         nwo.regions_table_active_index = len(nwo.regions_table) - 1
         if self.set_object_region:
             ob = context.object
             if ob:
-                ob.nwo.region_name_ui = self.name
+                ob.nwo.region_name_ui = name
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -80,7 +85,7 @@ class NWO_RegionRemove(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.scene.nwo
-        nwo.regions_table.remove(nwo.regions_table[nwo.regions_table_active_index])
+        nwo.regions_table.remove(nwo.regions_table_active_index)
         if nwo.regions_table_active_index > len(nwo.regions_table) - 1:
             nwo.regions_table_active_index += -1
         context.area.tag_redraw()
@@ -184,19 +189,24 @@ class NWO_RegionRename(bpy.types.Operator):
     )
     
     def execute(self, context):
-        if not self.new_name:
+        new_name = self.new_name.lower()
+        all_names = [r.name for r in context.scene.nwo.regions_table]
+        if not new_name:
             self.report({'WARNING'}, "Region name cannot be empty")
             return {'CANCELLED'}
-        elif len(self.new_name) > 128:
+        elif len(new_name) > 128:
             self.report({'WARNING'}, "Region name has a maximum of 128 characters")
+            return {'CANCELLED'}
+        elif new_name in all_names:
+            self.report({'WARNING'}, "Region name already exists")
             return {'CANCELLED'}
         nwo = context.scene.nwo
         region = nwo.regions_table[nwo.regions_table_active_index]
         scene_objects = context.scene.objects
         region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == region.name]
-        region.name = self.new_name
+        region.name = new_name
         for ob in region_objects:
-            ob.nwo.region_name_ui = self.new_name
+            ob.nwo.region_name_ui = new_name
         context.area.tag_redraw()
         return {'FINISHED'}
     
