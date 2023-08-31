@@ -41,6 +41,13 @@ class NWO_RegionAdd(bpy.types.Operator):
     name: bpy.props.StringProperty(name="Name")
 
     def execute(self, context):
+        # Cancel if name is null
+        if not self.name:
+            self.report({'WARNING'}, "Region name cannot be empty")
+            return {'CANCELLED'}
+        elif len(self.name) > 128:
+            self.report({'WARNING'}, "Region name has a maximum of 128 characters")
+            return {'CANCELLED'}
         nwo = context.scene.nwo
         region = nwo.regions_table.add()
         region.name = self.name
@@ -97,6 +104,7 @@ class NWO_RegionMove(bpy.types.Operator):
         current_index = nwo.regions_table_active_index
         to_index = (current_index + delta) % len(nwo.regions_table)
         nwo.regions_table.move(current_index, to_index)
+        nwo.regions_table_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -176,6 +184,12 @@ class NWO_RegionRename(bpy.types.Operator):
     )
     
     def execute(self, context):
+        if not self.new_name:
+            self.report({'WARNING'}, "Region name cannot be empty")
+            return {'CANCELLED'}
+        elif len(self.new_name) > 128:
+            self.report({'WARNING'}, "Region name has a maximum of 128 characters")
+            return {'CANCELLED'}
         nwo = context.scene.nwo
         region = nwo.regions_table[nwo.regions_table_active_index]
         scene_objects = context.scene.objects

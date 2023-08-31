@@ -2153,7 +2153,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             return "default"
         region_names = [r.name for r in regions]
         if name not in region_names:
-            return scene_nwo.regions_table[0].name
+            name = scene_nwo.regions_table[0].name
+        self['region_name_ui'] = name
         return name
 
     def set_region_name_ui(self, value):
@@ -2161,7 +2162,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     region_name_ui: StringProperty(
         name="Face Region",
-        default="",
         description="Define the name of the region these faces should be associated with",
         get=get_region_name_ui,
         set=set_region_name_ui,
