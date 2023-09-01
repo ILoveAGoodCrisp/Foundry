@@ -54,7 +54,7 @@ class NWO_UL_Regions(UIList):
         if item:
             row = layout.row()
             row.alignment = 'LEFT'
-            row.operator("nwo.region_rename", text=item.name, emboss=False)
+            row.operator("nwo.region_rename", text=item.name, emboss=False, icon_value=get_icon_id("region"))
             row = layout.row(align=True)
             row.alignment = 'RIGHT'
             row.operator("nwo.region_hide", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False).region_name = item.name

@@ -2179,7 +2179,7 @@ class NWO_FoundryPanelProps(Panel):
                     editor_icon = "photoshop"
                 elif "gimp" in end_part:
                     editor_name = "Gimp"
-                    editor_icon = "gimp"
+                    editor_icon = "paint" # gimp
                 elif "paint" in end_part:
                     editor_name = "Paint"
                     editor_icon = "paint"
@@ -2189,7 +2189,7 @@ class NWO_FoundryPanelProps(Panel):
                 else:
                     editor_name = "Image Editor"
                     editor_icon = ""
-                col.operator("nwo.open_image_editor", text=f"Open in {editor_name}")
+                col.operator("nwo.open_image_editor", text=f"Open in {editor_name}", icon_value=get_icon_id(editor_icon))
 
             tags_dir = get_tags_path()
             data_dir = get_data_path()
