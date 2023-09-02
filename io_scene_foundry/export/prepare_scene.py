@@ -319,7 +319,7 @@ class PrepareScene:
         has_regions = sidecar_type in ("MODEL", "SKY")
         has_global_mats = sidecar_type in ("MODEL", "SCENARIO", "PREFAB")
 
-        self.regions = set()
+        self.regions = {r.name for r in context.scene.nwo.regions_table}
         self.global_materials = {"default"}
         self.seams = []
 
@@ -823,8 +823,8 @@ class PrepareScene:
                     bpy.ops.object.convert(target='MESH')
 
             if ob.type == "MESH" and not ob.data.polygons:
-                print_warning(f"Removed object: [{ob.name}] from export because it has no polygons")
-                self.warning_hit = True
+                # print_warning(f"Removed object: [{ob.name}] from export because it has no polygons")
+                # self.warning_hit = True
                 self.unlink(ob)
 
         # enable_prints()
