@@ -782,6 +782,7 @@ class ProcessScene:
                     import_no_pca,
                     import_force_animations,
                     bool(nwo_scene.lighting),
+                    nwo_scene.selected_bsps,
                 )
                 if export_failed:
                     self.sidecar_import_failed = True

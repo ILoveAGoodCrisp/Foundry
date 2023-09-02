@@ -54,6 +54,7 @@ def import_sidecar(
     import_no_pca,
     import_force_animations,
     model_lighting,
+    selected_bsps,
 ):
     print("\n\nBuilding Tags")
     print("-----------------------------------------------------------------------\n")
@@ -77,6 +78,8 @@ def import_sidecar(
             "import",
             sidecar_path,
             *get_import_flags(
+                asset_name,
+                selected_bsps,
                 import_force,
                 import_draft,
                 import_seam_debug,
@@ -135,6 +138,8 @@ def cull_unused_tags(asset_path, asset_name):
 
 
 def get_import_flags(
+    asset_name,
+    selected_bsps,
     flag_import_force,
     flag_import_draft,
     flag_import_seam_debug,
@@ -176,5 +181,9 @@ def get_import_flags(
             flags.append("decompose_instances")
         if flag_import_suppress_errors:
             flags.append("suppress_errors_to_vrml")
+
+    if selected_bsps:
+        for bsp in selected_bsps:
+            flags.append(f"{asset_name}_{bsp}")
 
     return flags
