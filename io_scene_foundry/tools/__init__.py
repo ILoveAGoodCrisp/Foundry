@@ -42,7 +42,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
-from io_scene_foundry.tools.sets_manager import NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect
+from io_scene_foundry.tools.sets_manager import NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
@@ -5152,6 +5152,7 @@ classeshalo = (
     NWO_RegionSelect,
     NWO_RegionRename,
     NWO_RegionHide,
+    NWO_RegionHideSelect,
     NWO_OpenImageEditor,
     NWO_MaterialGirl,
     NWO_OpenFoundationTag,

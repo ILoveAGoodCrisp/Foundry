@@ -35,11 +35,6 @@ class TableEntryAdd(bpy.types.Operator):
     set_object_prop: bpy.props.BoolProperty()
     name: bpy.props.StringProperty(name="Name")
 
-    def __init__(self):
-        self.type_str = ""
-        self.table_str = ""
-        self.ob_prop_str = ""
-
     def execute(self, context):
         name = self.name.lower()
         nwo = context.scene.nwo
@@ -78,9 +73,6 @@ class TableEntryAdd(bpy.types.Operator):
 class TableEntryRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
-    def __init__(self):
-        self.table_str = ""
-    
     def execute(self, context):
         nwo = context.scene.nwo
         table = getattr(nwo, self.table_str)
@@ -95,9 +87,6 @@ class TableEntryRemove(bpy.types.Operator):
     
 class TableEntryMove(bpy.types.Operator):
     bl_options = {'UNDO'}
-
-    def __init__(self):
-        self.table_str = ""
     
     direction: bpy.props.StringProperty()
 
@@ -117,10 +106,6 @@ class TableEntryMove(bpy.types.Operator):
 
 class TableEntryAssignSingle(bpy.types.Operator):
     bl_options = {'UNDO'}
-
-    def __init__(self):
-        self.table_str = ""
-        self.ob_prop_str = ""
     
     name: bpy.props.StringProperty(
         name="Name",
@@ -133,10 +118,6 @@ class TableEntryAssignSingle(bpy.types.Operator):
     
 class TableEntryAssign(bpy.types.Operator):
     bl_options = {'UNDO'}
-
-    def __init__(self):
-        self.table_str = ""
-        self.ob_prop_str = ""
     
     name: bpy.props.StringProperty(
         name="Name",
@@ -150,10 +131,6 @@ class TableEntryAssign(bpy.types.Operator):
     
 class TableEntrySelect(bpy.types.Operator):
     bl_options = {'UNDO'}
-
-    def __init__(self):
-        self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
     
     select: bpy.props.BoolProperty()
     
@@ -170,11 +147,6 @@ class TableEntrySelect(bpy.types.Operator):
     
 class TableEntryRename(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
-
-    def __init__(self):
-        self.type_str = "Region"
-        self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
     
     new_name: bpy.props.StringProperty(
         name="New Name",
@@ -219,9 +191,6 @@ class TableEntryRename(bpy.types.Operator):
 
 class TableEntryHide(bpy.types.Operator):
     bl_options = {'UNDO'}
-
-    def __init__(self):
-        self.table_str = "regions_table"
     
     entry_name: bpy.props.StringProperty()
     
@@ -233,6 +202,22 @@ class TableEntryHide(bpy.types.Operator):
         scene_objects = context.scene.objects
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
         [ob.hide_set(should_hide) for ob in entry_objects]
+        return {'FINISHED'}
+    
+class TableEntryHideSelect(bpy.types.Operator):
+    bl_options = {'UNDO'}
+    
+    entry_name: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        table = getattr(nwo, self.table_str)
+        entry = get_entry(table, self.entry_name)
+        should_hide_select = entry.hide_select
+        scene_objects = context.scene.objects
+        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        for ob in entry_objects:
+            ob.hide_select = should_hide_select
         return {'FINISHED'}
 
 # REGIONS
@@ -327,6 +312,19 @@ class NWO_RegionHide(TableEntryHide):
     bl_label = "Hide Region"
     bl_idname = "nwo.region_hide"
     bl_description = "Hides/Unhides the active Region"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.regions_table
+
+    def __init__(self):
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
+
+class NWO_RegionHideSelect(TableEntryHideSelect):
+    bl_label = "Hide Region Selection"
+    bl_idname = "nwo.region_hide_select"
+    bl_description = "Disable selection of the active Region objects"
 
     @classmethod
     def poll(cls, context):

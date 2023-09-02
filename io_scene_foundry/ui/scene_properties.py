@@ -48,8 +48,12 @@ class NWO_Regions_ListItems(PropertyGroup):
         bpy.ops.nwo.region_hide(entry_name=self.name)
 
     hidden: BoolProperty(name="Hidden", update=update_hidden,)
-    
-    hide_select: BoolProperty(name="Hide Select")
+
+    def update_hide_select(self, context):
+        bpy.ops.nwo.region_hide_select(entry_name=self.name)
+
+    hide_select: BoolProperty(name="Hide Select", update=update_hide_select,)
+
     permutations_table: CollectionProperty(type=NWO_Permutations_ListItems)
     permutations_active_index: IntProperty()
     active: BoolProperty(
