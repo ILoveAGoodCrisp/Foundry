@@ -77,6 +77,8 @@ from io_scene_foundry.utils.nwo_utils import (
     recursive_image_search,
     set_active_object,
     set_object_mode,
+    true_permutation,
+    true_region,
     valid_nwo_asset,
     poll_ui,
     validate_ek,
@@ -871,26 +873,15 @@ class NWO_FoundryPanelProps(Panel):
                     perm_name = "Subgroup"
 
                 row = col.row()
-                if (
-                    poll_ui("MODEL")
-                    and nwo.mesh_type_ui
-                    == "_connected_geometry_mesh_type_object_instance"
-                ):
-                    pass
-                elif nwo.permutation_name_locked_ui != "":
-                    row.prop(
-                        nwo,
-                        "permutation_name_locked_ui",
-                        text=perm_name,
-                    )
-                else:
-                    split = row.split()
-                    col1 = split.column()
-                    col2 = split.column()
-                    col1.label(text="Region")
-                    col2.label(text="Permutation")
-                    col1.menu("NWO_MT_Regions", text=nwo.region_name_ui, icon_value=get_icon_id("region"))
-                    col2.menu("NWO_MT_Permutations", text=nwo.permutation_name_ui, icon_value=get_icon_id("permutation"))
+                split = row.split()
+                col1 = split.column()
+                col2 = split.column()
+                col1.enabled = not nwo.region_name_locked_ui
+                col2.enabled = not nwo.permutation_name_locked_ui
+                col1.label(text="Region", icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
+                col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
+                col1.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
+                col2.menu("NWO_MT_Permutations", text=true_permutation(nwo), icon_value=get_icon_id("permutation"))
 
             if poll_ui("SCENARIO"):
                 is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
@@ -931,15 +922,6 @@ class NWO_FoundryPanelProps(Panel):
             # col.separator()
 
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
-                if nwo.region_name_locked_ui != "":
-                    col.prop(nwo, "region_name_locked_ui", text="Decorator Set")
-                else:
-                    row = col.row(align=True)
-                    row.prop(nwo, "region_name_ui", text="Decorator Set")
-                    row.operator_menu_enum(
-                        "nwo.region_list", "region", text="", icon="DOWNARROW_HLT"
-                    )
-
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
@@ -1433,24 +1415,6 @@ class NWO_FoundryPanelProps(Panel):
 
         col = flow.column()
         row = col.row()
-        if poll_ui(("MODEL", "SKY", "DECORATOR SET")):
-            if nwo.region_name_locked_ui != "":
-                col.prop(nwo, "region_name_locked_ui", text="Region")
-            else:
-                pass
-                # row = col.row(align=True)
-                # row.menu("NWO_MT_Regions", text=f"Region: {nwo.region_name_ui}", icon_value=get_icon_id("region"))
-                # row.operator(
-                #     "nwo.region_assign_single", text="", icon="DOWNARROW_HLT"
-                # )
-                # row.operator_menu_enum(
-                #     "nwo.region_list", "region", text="", icon="DOWNARROW_HLT"
-                # )
-                # if ob.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_render', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_physics'):
-                #     for prop in ob.nwo.face_props:
-                #         if prop.region_name_override:
-                #             row.label(text='*')
-                #             break
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
             if (h4 and (nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_collision",

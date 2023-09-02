@@ -551,25 +551,24 @@ def jstr(number):
 
 
 def true_bsp(halo):
-    if halo.bsp_name_locked_ui != "":
+    if halo.bsp_name_locked_ui:
         return halo.bsp_name_locked_ui.lower()
     else:
         return halo.bsp_name_ui.lower()
 
 
 def true_region(halo):
-    if halo.region_name_locked_ui != "":
+    if halo.region_name_locked_ui:
         return halo.region_name_locked_ui.lower()
     else:
         return halo.region_name_ui.lower()
 
 
 def true_permutation(halo):
-    if halo.permutation_name_locked_ui != "":
+    if halo.permutation_name_locked_ui:
         return halo.permutation_name_locked_ui.lower()
     else:
         return halo.permutation_name_ui.lower()
-
 
 def clean_tag_path(path, file_ext=None):
     """Cleans a path and attempts to make it appropriate for reading by Tool. Can accept a file extension (without a period) to force the existing one if it exists to be replaced"""

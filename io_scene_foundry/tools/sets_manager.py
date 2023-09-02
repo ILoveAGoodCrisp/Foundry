@@ -28,6 +28,8 @@
 
 import bpy
 
+from io_scene_foundry.utils.nwo_utils import true_permutation, true_region
+
 # Parent Classes
 class TableEntryAdd(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
@@ -146,7 +148,7 @@ class TableEntrySelect(bpy.types.Operator):
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
         available_objects = context.view_layer.objects
-        entry_objects = [ob for ob in available_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
         [ob.select_set(self.select) for ob in entry_objects]
         return {'FINISHED'}
     
@@ -205,7 +207,7 @@ class TableEntryHide(bpy.types.Operator):
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
         available_objects = context.view_layer.objects
-        entry_objects = [ob for ob in available_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
         [ob.hide_set(should_hide) for ob in entry_objects]
         return {'FINISHED'}
     
@@ -220,7 +222,7 @@ class TableEntryHideSelect(bpy.types.Operator):
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
         available_objects = context.view_layer.objects
-        entry_objects = [ob for ob in available_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
         for ob in entry_objects:
             ob.hide_select = should_hide_select
         return {'FINISHED'}
@@ -462,3 +464,9 @@ def get_entry(table, entry_name):
     for entry in table:
         if entry.name == entry_name:
             return entry
+        
+def true_table_entry(nwo, ob_prop_str):
+    if ob_prop_str == "region_name_ui":
+        return true_region(nwo)
+    elif ob_prop_str == "permutation_name_ui":
+        return true_permutation(nwo)
