@@ -24,67 +24,11 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import os
-import bpy
-
-from io_scene_foundry.utils import nwo_globals
-
 def export(export_op):
     export_op("INVOKE_DEFAULT")
     return {"FINISHED"}
 
 
-def export_quick(
-    export_op,
-    report,
-    export_gr2_files,
-    export_all_bsps,
-    export_all_perms,
-    import_to_game,
-    import_draft,
-    lightmap_structure,
-    lightmap_quality_h4,
-    lightmap_region,
-    lightmap_quality,
-    lightmap_specific_bsp,
-    lightmap_all_bsps,
-    export_animations,
-    export_skeleton,
-    export_render,
-    export_collision,
-    export_physics,
-    export_markers,
-    export_structure,
-    export_design,
-):
-    export_op(
-        export_gr2_files=export_gr2_files,
-        export_all_bsps=export_all_bsps,
-        export_all_perms=export_all_perms,
-        import_to_game=import_to_game,
-        import_draft=import_draft,
-        lightmap_structure=lightmap_structure,
-        lightmap_quality_h4=lightmap_quality_h4,
-        lightmap_region=lightmap_region,
-        lightmap_quality=lightmap_quality,
-        lightmap_specific_bsp=lightmap_specific_bsp,
-        lightmap_all_bsps=lightmap_all_bsps,
-        export_animations=export_animations,
-        export_skeleton=export_skeleton,
-        export_render=export_render,
-        export_collision=export_collision,
-        export_physics=export_physics,
-        export_markers=export_markers,
-        export_structure=export_structure,
-        export_design=export_design,
-        quick_export=True,
-    )
-    export_report = nwo_globals.export_report
-    if len(nwo_globals.export_report) > 1:
-        report_text = export_report["report_text"]
-        report_type = export_report["report_type"]
-
-        nwo_globals.export_report.clear()
-        report({report_type}, report_text)
-
+def export_quick(export_op):
+    export_op()
     return {"FINISHED"}

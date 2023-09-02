@@ -256,13 +256,13 @@ def project_from_scene_project(scene_project=None):
     if not prefs.projects:
         return
     if not scene_project:
-        print_warning(f"No Scene project active, returning first project: {prefs.projects[0].project_display_name}")
+        print_warning(f"No Scene project active, returning first project: {prefs.projects[0].name}")
     else:
         for p in prefs.projects:
-            if p.project_display_name == scene_project:
+            if p.name == scene_project:
                 return p
         else:
-            print_warning(f"Scene project active does not match any user projects. Returning {prefs.projects[0].project_display_name}")
+            print_warning(f"Scene project active does not match any user projects. Returning {prefs.projects[0].name}")
 
     return prefs.projects[0]
 
@@ -973,11 +973,11 @@ def is_error_line(line):
 def set_project_in_registry():
     """Sets the current project in the users registry"""
     key_path = r"SOFTWARE\Halo\Projects"
-    project_display_name = bpy.context.scene.nwo.scene_project
-    if not project_display_name:
+    name = bpy.context.scene.nwo.scene_project
+    if not name:
         return
     # Get project name
-    project = project_from_scene_project(project_display_name)
+    project = project_from_scene_project(name)
     project_name = project.project_name
     try:
         # Open the registry key
@@ -1690,10 +1690,10 @@ def validate_ek() -> str | None:
         prefs = get_prefs()
         projects = prefs.projects
         for p in projects:
-            if p.project_display_name == scene_project:
+            if p.name == scene_project:
                 if os.path.exists(p.project_path):
                     return
-                return f'{p.project_display_name} project path does not exist'
+                return f'{p.name} project path does not exist'
         return 'Please select a project in Foundry Scene Properties'
     
 def foundry_update_check(current_version):
@@ -1867,7 +1867,7 @@ def setup_projects_list(skip_registry_check=False, report=None):
                 p.project_path = i
                 p.project_xml = xml.project_xml
                 p.project_name = xml.name
-                p.project_display_name = xml.display_name
+                p.name = xml.display_name
                 p.project_remote_server_name = xml.remote_server_name
                 p.project_image_path = xml.image_path
                 p.project_corinth = xml.remote_database_name == "tags"

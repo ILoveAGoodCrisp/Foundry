@@ -80,7 +80,6 @@ class NWOJSON(dict):
         if self.sidecar_type in ("MODEL", "SKY"):
             table.update({"regions_names": regions})
             table.update({"regions_values": [str(regions.index(region)) for region in regions]})
-            print(table["regions_values"])
 
         return table
 

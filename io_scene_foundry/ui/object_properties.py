@@ -389,10 +389,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             return 0
         if not self.mesh_type_ui_help_bool:
             self.mesh_type_ui_help_bool = True
-            try:
-                self.mesh_type_ui_help = bpy.context.scene.nwo["default_mesh_type_ui"]
-            except:
-                pass
+            self.mesh_type_ui_help = bpy.context.scene.nwo["default_mesh_type_ui"]
 
         return self.mesh_type_ui_help
 
@@ -411,8 +408,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     mesh_type_ui_help: IntProperty()
-
-    mesh_type_ui_help_bool: IntProperty()
+    mesh_type_ui_help_bool: BoolProperty()
 
     #########################################################################################################################
     # PLANE TYPE UI ####################################################################################################

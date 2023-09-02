@@ -49,6 +49,7 @@ import traceback
 import logging
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools import NWO_ProjectChooserMenuDisallowNew
+from io_scene_foundry.tools.halo_export import export
 
 from io_scene_foundry.utils import nwo_globals
 
@@ -72,13 +73,22 @@ from io_scene_foundry.utils.nwo_utils import (
     validate_ek,
 )
 
+# export keywords
+export_settings = {}
+
 # lightmapper_run_once = False
 sidecar_read = False
+
+def call_export():
+    bpy.ops.nwo.export(**export_settings)
+
+def toggle_output():
+    bpy.context.scene.nwo_export.show_output = False
 
 class NWO_Export_Scene(Operator, ExportHelper):
     bl_idname = "export_scene.nwo"
     bl_label = "Export Asset"
-    bl_options = {"UNDO", "PRESET"}
+    bl_options = {"PRESET", "UNDO"}
     bl_description = "Exports Tags for use with a Reach/H4/H2AMP Halo Editing Kit"
 
     @classmethod
@@ -99,378 +109,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         maxlen=1024,
     )
 
-    fast_animation_export : BoolProperty(
-        name="Fast Animation Export",
-        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects",
-        default=False,
-    )
-
-    # keep_fbx: BoolProperty(
-    #     name="FBX",
-    #     description="Keep the source FBX file after GR2 conversion",
-    #     default=True,
-    # )
-    # keep_json: BoolProperty(
-    #     name="JSON",
-    #     description="Keep the source JSON file after GR2 conversion",
-    #     default=True,
-    # )
-    # export_sidecar_xml: BoolProperty(
-    #     name="Build Sidecar",
-    #     description="",
-    #     default=True,
-    # )
-    sidecar_type: EnumProperty(
-        name="Asset Type",
-        description="",
-        default="MODEL",
-        items=[
-            ("MODEL", "Model", ""),
-            ("SCENARIO", "Scenario", ""),
-            ("SKY", "Sky", ""),
-            ("DECORATOR SET", "Decorator Set", ""),
-            ("PARTICLE MODEL", "Particle Model", ""),
-            ("PREFAB", "Prefab", ""),
-            ("FP ANIMATION", "First Person Animation", ""),
-        ],
-    )
-    export_animations: EnumProperty(
-        name="Animations",
-        description="",
-        default="ALL",
-        items=[
-            ("ALL", "All", ""),
-            ("ACTIVE", "Active", ""),
-            ("NONE", "None", ""),
-        ],
-    )
-    export_skeleton: BoolProperty(
-        name="Skeleton",
-        description="",
-        default=True,
-    )
-    export_render: BoolProperty(
-        name="Render Models",
-        description="",
-        default=True,
-    )
-    export_collision: BoolProperty(
-        name="Collision Models",
-        description="",
-        default=True,
-    )
-    export_physics: BoolProperty(
-        name="Physics Models",
-        description="",
-        default=True,
-    )
-    export_markers: BoolProperty(
-        name="Markers",
-        description="",
-        default=True,
-    )
-    export_structure: BoolProperty(
-        name="Structure",
-        description="",
-        default=True,
-    )
-    export_design: BoolProperty(
-        name="Structure Design",
-        description="",
-        default=True,
-    )
-    export_all_bsps: EnumProperty(
-        name="BSPs",
-        description="Specify whether to export all BSPs, or just those selected",
-        default="all",
-        items=[("all", "All", ""), ("selected", "Selected", "")],
-    )
-    export_all_perms: EnumProperty(
-        name="Permutations",
-        description="Specify whether to export all permutations, or just those selected",
-        default="all",
-        items=[("all", "All", ""), ("selected", "Selected", "")],
-    )
-    output_biped: BoolProperty(
-        name="Biped",
-        description="",
-        default=False,
-    )
-    output_crate: BoolProperty(
-        name="Crate",
-        description="",
-        default=False,
-    )
-    output_creature: BoolProperty(
-        name="Creature",
-        description="",
-        default=False,
-    )
-    output_device_control: BoolProperty(
-        name="Device Control",
-        description="",
-        default=False,
-    )
-    output_device_dispenser: BoolProperty(
-        name="Device Dispenser",
-        description="",
-        default=False,
-    )
-    output_device_machine: BoolProperty(
-        name="Device Machine",
-        description="",
-        default=False,
-    )
-    output_device_terminal: BoolProperty(
-        name="Device Terminal",
-        description="",
-        default=False,
-    )
-    output_effect_scenery: BoolProperty(
-        name="Effect Scenery",
-        description="",
-        default=False,
-    )
-    output_equipment: BoolProperty(
-        name="Equipment",
-        description="",
-        default=False,
-    )
-    output_giant: BoolProperty(
-        name="Giant",
-        description="",
-        default=False,
-    )
-    output_scenery: BoolProperty(
-        name="Scenery",
-        description="",
-        default=False,
-    )
-    output_vehicle: BoolProperty(
-        name="Vehicle",
-        description="",
-        default=False,
-    )
-    output_weapon: BoolProperty(
-        name="Weapon",
-        description="",
-        default=False,
-    )
-    import_to_game: BoolProperty(
-        name="Create Tags",
-        description="",
-        default=True,
-    )
-    show_output: BoolProperty(name="Show Output", description="", default=True)
-    import_check: BoolProperty(
-        name="Check",
-        description="Run the import process but produce no output files",
-        default=False,
-    )
-    import_force: BoolProperty(
-        name="Force",
-        description="Force all files to import even if they haven't changed",
-        default=False,
-    )
-    # import_verbose: BoolProperty(
-    #     name="Verbose",
-    #     description="Write additional import progress information to the console",
-    #     default=False,
-    # )
-    import_draft: BoolProperty(
-        name="Draft",
-        description="Skip generating PRT data. Faster speed, lower quality",
-        default=False,
-    )
-    import_seam_debug: BoolProperty(
-        name="Seam Debug",
-        description="Write extra seam debugging information to the console",
-        default=False,
-    )
-    import_skip_instances: BoolProperty(
-        name="Skip Instances",
-        description="Skip importing all instanced geometry",
-        default=False,
-    )
-    import_decompose_instances: BoolProperty(
-        name="Decompose Instances",
-        description="Run convex decomposition for instanced geometry physics (very slow)",
-        default=False,
-    )
-    import_suppress_errors: BoolProperty(
-        name="Surpress Errors",
-        description="Do not write errors to vrml files",
-        default=False,
-    )
-    import_lighting: BoolProperty(
-        name="Lighting Info Only",
-        description="Only build the scenario_structure_lighting_info tag",
-        default=False,
-    )
-    import_meta_only: BoolProperty(
-        name="Meta Only",
-        description="Import only the structure_meta tag",
-        default=False,
-    )
-    import_disable_hulls: BoolProperty(
-        name="Disable Hulls",
-        description="Disables the contruction of conves hulls for instance physics and collision",
-        default=False,
-    )
-    import_disable_collision: BoolProperty(
-        name="Disable Collision",
-        description="Do not generate complex collision",
-        default=False,
-    )
-    import_no_pca: BoolProperty(
-        name="No PCA",
-        description="Skips PCA calculations",
-        default=False,
-    )
-    import_force_animations: BoolProperty(
-        name="Force Animations",
-        description="Force import of all animations that had errors during the last import",
-        default=False,
-    )
-    # use_selection: BoolProperty(
-    #     name="selection",
-    #     description="",
-    #     default=True,
-    # )
-    bake_anim: BoolProperty(name="", description="", default=True)
-    # use_mesh_modifiers: BoolProperty(
-    #     name="Apply Modifiers",
-    #     description="",
-    #     default=True,
-    # )
-    # global_scale: FloatProperty(name="Scale", description="", default=1.0)
-    # use_armature_deform_only: BoolProperty(
-    #     name="Deform Bones Only",
-    #     description="Only export bones with the deform property ticked",
-    #     default=True,
-    # )
-
-    # meshes_to_empties: BoolProperty(
-    #     name="Markers as Empties",
-    #     description="Export all mesh Halo markers as empties. Helps save on export / import time and file size",
-    #     default=True,
-    # )
-
-    # export_hidden: BoolProperty(
-    #     name="Hidden",
-    #     description="Export visible objects only",
-    #     default=True,
-    # )
-    # import_in_background: BoolProperty(
-    #     name="Run In Background",
-    #     description="If enabled does not pause use of blender during the import process",
-    #     default=False,
-    # )
-    lightmap_structure: BoolProperty(
-        name="Run Lightmapper",
-        default=False,
-    )
-    lightmap_quality: EnumProperty(
-        name="Quality",
-        items=(
-            ("DIRECT", "Direct", ""),
-            ("DRAFT", "Draft", ""),
-            ("LOW", "Low", ""),
-            ("MEDIUM", "Medium", ""),
-            ("HIGH", "High", ""),
-            ("SUPER", "Super (very slow)", ""),
-        ),
-        default="DIRECT",
-        description="Define the lightmap quality you wish to use",
-    )
-
-    def item_lightmap_quality_h4(self, context):
-        items = []
-        items.append(
-            (
-                "asset",
-                "Asset",
-                "The user defined lightmap settings. Opens a settings dialog",
-                0,
-            )
-        )
-        lightmapper_globals_dir = path.join(
-            get_tags_path(), "globals", "lightmapper_settings"
-        )
-        if path.exists(lightmapper_globals_dir):
-            from os import listdir
-
-            index = 1
-            for file in listdir(lightmapper_globals_dir):
-                if file.endswith(".lightmapper_globals"):
-                    file_no_ext = dot_partition(file)
-                    items.append(bpy_enum(file_no_ext, index))
-                    index += 1
-
-        return items
-
-    lightmap_quality_h4: EnumProperty(
-        name="Quality",
-        items=item_lightmap_quality_h4,
-        description="Define the lightmap quality you wish to use",
-    )
-    lightmap_all_bsps: BoolProperty(
-        name="All BSPs",
-        default=True,
-    )
-    lightmap_specific_bsp: StringProperty(
-        name="Specific BSP",
-        default="",
-    )
-
-    lightmap_region: StringProperty(
-        name="Region",
-        description="Lightmap region to use for lightmapping",
-    )
-
-    # mesh_smooth_type_better: EnumProperty(
-    #     name="Smoothing",
-    #     items=(
-    #         ("None", "None", "Do not generate smoothing groups"),
-    #         ("Blender", "By Hard edges", ""),
-    #         ("FBXSDK", "By FBX SDK", ""),
-    #     ),
-    #     description="Determine how smoothing groups should be generated",
-    #     default="FBXSDK",
-    # )
-    # mesh_smooth_type: EnumProperty(
-    #     name="Smoothing",
-    #     items=(
-    #         (
-    #             "OFF",
-    #             "Normals Only",
-    #             "Export only normals instead of writing edge or face smoothing data",
-    #         ),
-    #         ("FACE", "Face", "Write face smoothing"),
-    #         ("EDGE", "Edge", "Write edge smoothing"),
-    #     ),
-    #     description="Export smoothing information "
-    #     "(prefer 'Normals Only' option if your target importer understand split normals)",
-    #     default="OFF",
-    # )
-    quick_export: BoolProperty(
-        name="",
-        default=False,
-    )
-    export_gr2_files: BoolProperty(
-        name="Export GR2 Files",
-        default=True,
-    )
-    fix_bone_rotations: BoolProperty(
-        name="Fix Bone Rotations",
-        description="Sets the rotation of the following bones to match Halo conventions: pedestal, aim_pitch, aim_yaw, gun",
-        default=True,
-    )
-    # use_tspace: BoolProperty(
-    #     name="use tspace",
-    #     default=False,
-    # )
-
     def __init__(self):
         # SETUP #
         scene = bpy.context.scene
@@ -478,66 +116,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
         self.game_path_not_set = False
 
         if os.path.exists(get_tool_path() + ".exe"):
-            # QUICK EXPORT SETTINGS #
-            scene_nwo_export = scene.nwo_export
-            self.export_gr2_files = scene_nwo_export.export_gr2_files
-            self.export_all_bsps = scene_nwo_export.export_all_bsps
-            self.export_all_perms = scene_nwo_export.export_all_perms
-            self.import_to_game = scene_nwo_export.import_to_game
-            self.import_draft = scene_nwo_export.import_draft
-            self.lightmap_structure = scene_nwo_export.lightmap_structure
-            self.lightmap_quality_h4 = scene_nwo_export.lightmap_quality_h4
-            self.lightmap_quality = scene_nwo_export.lightmap_quality
-            self.lightmap_quality = scene_nwo_export.lightmap_quality
-            self.lightmap_all_bsps = scene_nwo_export.lightmap_all_bsps
-
-            self.export_animations = scene_nwo_export.export_animations
-            self.export_skeleton = scene_nwo_export.export_skeleton
-            self.export_render = scene_nwo_export.export_render
-            self.export_collision = scene_nwo_export.export_collision
-            self.export_physics = scene_nwo_export.export_physics
-            self.export_markers = scene_nwo_export.export_markers
-            self.export_structure = scene_nwo_export.export_structure
-            self.export_design = scene_nwo_export.export_design
-
-            self.show_output = scene_nwo_export.show_output
-
-            self.import_force = scene_nwo_export.import_force
-            # self.import_verbose = scene_nwo_export.import_verbose
-            self.import_draft = scene_nwo_export.import_draft
-            self.import_seam_debug = scene_nwo_export.import_seam_debug
-            self.import_skip_instances = scene_nwo_export.import_skip_instances
-            self.import_decompose_instances = (
-                scene_nwo_export.import_decompose_instances
-            )
-            self.import_suppress_errors = scene_nwo_export.import_suppress_errors
-            self.import_lighting = scene_nwo_export.import_lighting
-            self.import_meta_only = scene_nwo_export.import_meta_only
-            self.import_disable_hulls = scene_nwo_export.import_disable_hulls
-            self.import_disable_collision = scene_nwo_export.import_disable_collision
-            self.import_no_pca = scene_nwo_export.import_no_pca
-            self.import_force_animations = scene_nwo_export.import_force_animations
-            self.fast_animation_export = scene_nwo_export.fast_animation_export
-            self.fix_bone_rotations = scene_nwo_export.fix_bone_rotations
-
-            # SIDECAR SETTINGS #
-            scene_nwo = bpy.context.scene.nwo
-
-            self.sidecar_type = scene_nwo.asset_type
-
-            self.output_biped = scene_nwo.output_biped
-            self.output_crate = scene_nwo.output_crate
-            self.output_creature = scene_nwo.output_creature
-            self.output_device_control = scene_nwo.output_device_control
-            self.output_device_dispenser = scene_nwo.output_device_dispenser
-            self.output_device_machine = scene_nwo.output_device_machine
-            self.output_device_terminal = scene_nwo.output_device_terminal
-            self.output_effect_scenery = scene_nwo.output_effect_scenery
-            self.output_equipment = scene_nwo.output_equipment
-            self.output_giant = scene_nwo.output_giant
-            self.output_scenery = scene_nwo.output_scenery
-            self.output_vehicle = scene_nwo.output_vehicle
-            self.output_weapon = scene_nwo.output_weapon
             # get sidecar path from users EK data path + internal path
             sidecar_filepath = path.join(
                 data_dir, scene.nwo_halo_launcher.sidecar_path
@@ -582,12 +160,268 @@ class NWO_Export_Scene(Operator, ExportHelper):
             )
             return {"CANCELLED"}
 
-        start = time.perf_counter()
+        # Save the scene
+        # bpy.ops.wm.save_mainfile()
+        # save settings to global
+        global export_settings
+        export_settings = self.as_keywords()
+        # start the actual export operator
+        bpy.app.timers.register(call_export)
+        return {'FINISHED'}
 
+    def export_invalid(self):
+        if (
+            not check_path(self.filepath)
+            or not file_exists(f"{get_tool_path()}.exe")
+            or self.asset_path.lower() + os.sep == get_data_path().lower()
+        ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
+            game = bpy.context.scene.nwo.scene_project
+            if get_project_path() is None or get_project_path() == "":
+                ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f"No {game} Editing Kit path found. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
+                    f"INVALID {game} EK PATH",
+                    0,
+                )
+            elif not file_exists(f"{get_tool_path()}.exe"):
+                ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f"{game} Tool not found. Could not find {game} tool or tool_fast. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
+                    f"INVALID {game} TOOL PATH",
+                    0,
+                )
+            elif self.asset_path.lower() + path.sep == get_data_path().lower():
+                ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder',
+                    f"ROOT DATA FOLDER EXPORT",
+                    0,
+                )
+            else:
+                ctypes.windll.user32.MessageBoxW(
+                    0,
+                    f"The selected export folder is outside of your {game} editing kit data directory, please ensure you are exporting to a directory within your {game} editing kit data folder.",
+                    f"INVALID {game} EXPORT PATH",
+                    0,
+                )
+
+            return True
+
+        return False
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        # PROJECT
+        row = layout.row()
+        if managed_blam_active():
+            row.enabled = False
+        projects = get_prefs().projects
+        scene = context.scene
+        scene_nwo_export = scene.nwo_export
+        scene_nwo = scene.nwo
+        for p in projects:
+            if p.project_display_name == scene_nwo.scene_project:
+                thumbnail = os.path.join(p.project_path, p.project_image_path)
+                if os.path.exists(thumbnail):
+                    icon_id = get_icon_id_in_directory(thumbnail)
+                elif p.project_remote_server_name == "bngtoolsql":
+                    icon_id = get_icon_id("halo_reach")
+                elif p.project_remote_server_name == "metawins":
+                    icon_id = get_icon_id("halo_4")
+                elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
+                    icon_id = get_icon_id("halo_2amp")
+                else:
+                    icon_id = get_icon_id("tag_test")
+                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text=scene_nwo.scene_project, icon_value=icon_id)
+                break
+        else:
+            if projects:
+                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text="Choose Project", icon_value=get_icon_id("tag_test"))
+        # SETTINGS #
+        box = layout.box()
+        box.label(text="Settings")
+
+        h4 = is_corinth(context)
+        scenario = scene_nwo.asset_type == "SCENARIO"
+
+        col = box.column()
+        row = col.row()
+        col.prop(scene_nwo, "asset_type", text="Asset Type")
+        col.prop(scene_nwo_export, "show_output", text="Toggle Output")
+        # NWO SETTINGS #
+        box = layout.box()
+        box.label(text="Export Scope")
+        col = box.column()
+        col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
+        if scene_nwo_export.export_gr2_files:
+            col.separator()
+            sub = col.column(heading="Export")
+            # sub.prop(self, "export_hidden")
+            if scene_nwo.asset_type == "MODEL":
+                sub.prop(scene_nwo_export, "export_render")
+                sub.prop(scene_nwo_export, "export_collision")
+                sub.prop(scene_nwo_export, "export_physics")
+                sub.prop(scene_nwo_export, "export_markers")
+                sub.prop(scene_nwo_export, "export_skeleton")
+                sub.prop(scene_nwo_export, "export_animations", expand=True)
+            elif scene_nwo.asset_type == "FP ANIMATION":
+                sub.prop(scene_nwo_export, "export_skeleton")
+                sub.prop(scene_nwo_export, "export_animations", expand=True)
+            elif scene_nwo.asset_type == "SCENARIO":
+                sub.prop(scene_nwo_export, "export_structure")
+                sub.prop(scene_nwo_export, "export_design")
+                sub.prop(scene_nwo_export, "export_all_bsps", expand=True)
+            elif scene_nwo.asset_type != "PREFAB":
+                sub.prop(scene_nwo_export, "export_render")
+            if scene_nwo.asset_type not in (
+                "DECORATOR SET",
+                "PARTICLE MODEL",
+                "PREFAB",
+            ):
+                sub.prop(scene_nwo_export, "export_all_perms", expand=True)
+        # SIDECAR SETTINGS #
+        if scene_nwo.asset_type == "MODEL" and scene_nwo_export.export_gr2_files:
+            box = layout.box()
+            box.label(text="Model Settings")
+            col = box.column()
+            # col.prop(self, "export_sidecar_xml")
+            # if self.export_sidecar_xml:
+            sub = box.column(heading="Output Tags")
+            if scene_nwo.asset_type == "MODEL":
+                sub.prop(scene_nwo, "output_biped")
+                sub.prop(scene_nwo, "output_crate")
+                sub.prop(scene_nwo, "output_creature")
+                sub.prop(scene_nwo, "output_device_control")
+                if h4:
+                    sub.prop(scene_nwo, "output_device_dispenser")
+                sub.prop(scene_nwo, "output_device_machine")
+                sub.prop(scene_nwo, "output_device_terminal")
+                sub.prop(scene_nwo, "output_effect_scenery")
+                sub.prop(scene_nwo, "output_equipment")
+                sub.prop(scene_nwo, "output_giant")
+                sub.prop(scene_nwo, "output_scenery")
+                sub.prop(scene_nwo, "output_vehicle")
+                sub.prop(scene_nwo, "output_weapon")
+
+        # IMPORT SETTINGS #
+        if scene_nwo_export.export_gr2_files:
+            box = layout.box()
+            sub = box.column(heading="Export Flags")
+            if scene_nwo.asset_type in (('MODEL', 'SKY', 'FP ANIMATION')):
+                col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations")
+                col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
+            if h4:
+                sub.prop(scene_nwo_export, "import_force", text="Force full export")
+                if scenario:
+                    sub.prop(
+                        scene_nwo_export, "import_seam_debug", text="Show more seam debugging info"
+                    )
+                    sub.prop(
+                        scene_nwo_export, "import_skip_instances", text="Skip importing instances"
+                    )
+                    sub.prop(
+                        scene_nwo_export, "import_meta_only", text="Only import structure_meta tag"
+                    )
+                    sub.prop(
+                        scene_nwo_export,
+                        "import_lighting",
+                        text="Only reimport lighting information",
+                    )
+                    sub.prop(
+                        scene_nwo_export,
+                        "import_disable_hulls",
+                        text="Skip instance convex hull decomp",
+                    )
+                    sub.prop(
+                        scene_nwo_export,
+                        "import_disable_collision",
+                        text="Don't generate complex collision",
+                    )
+                else:
+                    sub.prop(scene_nwo_export, "import_no_pca", text="Skip PCA calculations")
+                    sub.prop(
+                        scene_nwo_export,
+                        "import_force_animations",
+                        text="Force import error animations",
+                    )
+            else:
+                sub.prop(scene_nwo_export, "import_force", text="Force full export")
+                # sub.prop(self, "import_verbose", text="Verbose Output")
+                sub.prop(
+                    scene_nwo_export, "import_suppress_errors", text="Don't write errors to VRML"
+                )
+                if scenario:
+                    sub.prop(
+                        scene_nwo_export, "import_seam_debug", text="Show more seam debugging info"
+                    )
+                    sub.prop(
+                        scene_nwo_export, "import_skip_instances", text="Skip importing instances"
+                    )
+                    sub.prop(
+                        scene_nwo_export,
+                        "import_decompose_instances",
+                        text="Run convex physics decomposition",
+                    )
+                else:
+                    sub.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
+
+        # LIGHTMAP SETTINGS #
+        render = scene_nwo.asset_type in ("MODEL", "SKY")
+        if (h4 and render) or scenario:
+            box = layout.box()
+            box.label(text="Lightmap Settings")
+            col = box.column()
+            if scenario:
+                lighting_name = "Light Scenario"
+            else:
+                lighting_name = "Light Model"
+
+            col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
+            if scene_nwo_export.lightmap_structure:
+                if scenario:
+                    if h4:
+                        col.prop(scene_nwo_export, "lightmap_quality_h4")
+                    else:
+                        col.prop(scene_nwo_export, "lightmap_quality")
+                    if not scene_nwo_export.lightmap_all_bsps:
+                        col.prop(scene_nwo_export, "lightmap_specific_bsp")
+                    col.prop(scene_nwo_export, "lightmap_all_bsps")
+                    # if not h4:
+                    #     col.prop(self, "lightmap_region")
+
+        # # SCENE SETTINGS #
+        # box = layout.box()
+        # box.label(text="Scene Settings")
+        # col = box.column()
+        # col.prop(self, "use_mesh_modifiers")
+        # col.prop(self, "use_armature_deform_only")
+        # if fbx_exporter() == "better":
+        #     col.prop(self, "mesh_smooth_type_better")
+        # else:
+        #     col.prop(self, "mesh_smooth_type")
+        # col.separator()
+        # # col.prop(self, "global_scale")
+
+
+def menu_func_export(self, context):
+    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag")
+
+class NWO_Export(NWO_Export_Scene):
+    bl_idname = "nwo.export"
+    bl_label = "Export Asset (INTERNAL ONLY)"
+    bl_options = {"INTERNAL"}
+
+    def __init__(self):
+        pass
+
+    def execute(self, context):
+        scene = context.scene
+        scene_nwo_export = scene.nwo_export
+        scene_nwo = scene.nwo
+        start = time.perf_counter()
         # get the asset name and path to the asset folder
         self.asset_path, self.asset = get_asset_info(self.filepath)
-
-        self.set_scene_props(context)
 
         sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml")
 
@@ -597,15 +431,12 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if self.export_invalid():
             self.report({"WARNING"}, "Export aborted")
             return {"CANCELLED"}
-
-        # Save the scene
-        # bpy.ops.wm.save_mainfile()
-
+        
+        # toggle the console
         os.system("cls")
-
-        if self.show_output:
+        if context.scene.nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            context.scene.nwo_export.show_output = False
+            bpy.app.timers.register(toggle_output)
 
         export_title = "►►► HALO TAG EXPORT ◄◄◄"
 
@@ -615,17 +446,18 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
         self.failed = False
 
+
         try:
             try:
                 nwo_scene = PrepareScene(
                     context,
                     self.asset,
-                    self.sidecar_type,
-                    self.export_animations,
-                    self.export_gr2_files,
-                    self.export_all_perms,
-                    self.export_all_bsps,
-                    self.fix_bone_rotations,
+                    scene_nwo.asset_type,
+                    scene_nwo_export.export_animations,
+                    scene_nwo_export.export_gr2_files,
+                    scene_nwo_export.export_all_perms,
+                    scene_nwo_export.export_all_bsps,
+                    scene_nwo_export.fix_bone_rotations,
                 )
 
                 export = ProcessScene(
@@ -637,51 +469,49 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     self.asset_path,
                     fbx_exporter(),
                     nwo_scene,
-                    self.sidecar_type,
-                    self.output_biped,
-                    self.output_crate,
-                    self.output_creature,
-                    self.output_device_control,
-                    self.output_device_machine,
-                    self.output_device_terminal,
-                    self.output_device_dispenser,
-                    self.output_effect_scenery,
-                    self.output_equipment,
-                    self.output_giant,
-                    self.output_scenery,
-                    self.output_vehicle,
-                    self.output_weapon,
-                    self.export_skeleton,
-                    self.export_render,
-                    self.export_collision,
-                    self.export_physics,
-                    self.export_markers,
-                    self.export_animations,
-                    self.export_structure,
-                    self.export_design,
-                    self.lightmap_structure,
-                    self.import_to_game,
-                    self.export_gr2_files,
-                    self.import_check,
-                    self.import_force,
-                    # self.import_verbose,
-                    self.import_draft,
-                    self.import_seam_debug,
-                    self.import_skip_instances,
-                    self.import_decompose_instances,
-                    self.import_suppress_errors,
-                    self.import_lighting,
-                    self.import_meta_only,
-                    self.import_disable_hulls,
-                    self.import_disable_collision,
-                    self.import_no_pca,
-                    self.import_force_animations,
-                    self.lightmap_quality,
-                    self.lightmap_quality_h4,
-                    self.lightmap_all_bsps,
-                    self.lightmap_specific_bsp,
-                    self.lightmap_region,
-                    self.fast_animation_export,
+                    scene_nwo.asset_type,
+                    scene_nwo.output_biped,
+                    scene_nwo.output_crate,
+                    scene_nwo.output_creature,
+                    scene_nwo.output_device_control,
+                    scene_nwo.output_device_machine,
+                    scene_nwo.output_device_terminal,
+                    scene_nwo.output_device_dispenser,
+                    scene_nwo.output_effect_scenery,
+                    scene_nwo.output_equipment,
+                    scene_nwo.output_giant,
+                    scene_nwo.output_scenery,
+                    scene_nwo.output_vehicle,
+                    scene_nwo.output_weapon,
+                    scene_nwo_export.export_skeleton,
+                    scene_nwo_export.export_render,
+                    scene_nwo_export.export_collision,
+                    scene_nwo_export.export_physics,
+                    scene_nwo_export.export_markers,
+                    scene_nwo_export.export_animations,
+                    scene_nwo_export.export_structure,
+                    scene_nwo_export.export_design,
+                    scene_nwo_export.lightmap_structure,
+                    scene_nwo_export.import_to_game,
+                    scene_nwo_export.export_gr2_files,
+                    scene_nwo_export.import_force,
+                    scene_nwo_export.import_draft,
+                    scene_nwo_export.import_seam_debug,
+                    scene_nwo_export.import_skip_instances,
+                    scene_nwo_export.import_decompose_instances,
+                    scene_nwo_export.import_suppress_errors,
+                    scene_nwo_export.import_lighting,
+                    scene_nwo_export.import_meta_only,
+                    scene_nwo_export.import_disable_hulls,
+                    scene_nwo_export.import_disable_collision,
+                    scene_nwo_export.import_no_pca,
+                    scene_nwo_export.import_force_animations,
+                    scene_nwo_export.lightmap_quality,
+                    scene_nwo_export.lightmap_quality_h4,
+                    scene_nwo_export.lightmap_all_bsps,
+                    scene_nwo_export.lightmap_specific_bsp,
+                    scene_nwo_export.lightmap_region,
+                    scene_nwo_export.fast_animation_export,
                 )
 
             except Exception as e:
@@ -762,326 +592,17 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
-
-            self.write_temp_settings(context, sidecar_path, final_report, report_type)
+            
+            # self.report({report_type}, final_report)
+            # self.write_temp_settings(context, sidecar_path, final_report, report_type)
 
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
-            self.write_temp_settings(context, sidecar_path)
+            # self.write_temp_settings(context, sidecar_path)
 
-        # restore scene back to its pre export state
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
-
-        return {"FINISHED"}
-
-    def set_scene_props(self, context):
-        scene_nwo = context.scene.nwo
-
-        # Set the UI asset type to the export type
-        scene_nwo.asset_type = self.sidecar_type
-
-        # Set the model outpug tag types in the UI to match export settings
-        scene_nwo.output_biped = self.output_biped
-        scene_nwo.output_crate = self.output_crate
-        scene_nwo.output_creature = self.output_creature
-        scene_nwo.output_device_control = self.output_device_control
-        scene_nwo.output_device_dispenser = self.output_device_dispenser
-        scene_nwo.output_device_machine = self.output_device_machine
-        scene_nwo.output_device_terminal = self.output_device_terminal
-        scene_nwo.output_effect_scenery = self.output_effect_scenery
-        scene_nwo.output_equipment = self.output_equipment
-        scene_nwo.output_giant = self.output_giant
-        scene_nwo.output_scenery = self.output_scenery
-        scene_nwo.output_vehicle = self.output_vehicle
-        scene_nwo.output_weapon = self.output_weapon
-
-    def export_invalid(self):
-        if (
-            not check_path(self.filepath)
-            or not file_exists(f"{get_tool_path()}.exe")
-            or self.asset_path.lower() + os.sep == get_data_path().lower()
-        ):  # check the user is saving the file to a location in their editing kit data directory AND tool exists. AND prevent exports to root data dir
-            game = bpy.context.scene.nwo.scene_project
-            if get_project_path() is None or get_project_path() == "":
-                ctypes.windll.user32.MessageBoxW(
-                    0,
-                    f"No {game} Editing Kit path found. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
-                    f"INVALID {game} EK PATH",
-                    0,
-                )
-            elif not file_exists(f"{get_tool_path()}.exe"):
-                ctypes.windll.user32.MessageBoxW(
-                    0,
-                    f"{game} Tool not found. Could not find {game} tool or tool_fast. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
-                    f"INVALID {game} TOOL PATH",
-                    0,
-                )
-            elif self.asset_path.lower() + path.sep == get_data_path().lower():
-                ctypes.windll.user32.MessageBoxW(
-                    0,
-                    f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder',
-                    f"ROOT DATA FOLDER EXPORT",
-                    0,
-                )
-            else:
-                ctypes.windll.user32.MessageBoxW(
-                    0,
-                    f"The selected export folder is outside of your {game} editing kit data directory, please ensure you are exporting to a directory within your {game} editing kit data folder.",
-                    f"INVALID {game} EXPORT PATH",
-                    0,
-                )
-
-            return True
-
-        return False
-
-    def write_temp_settings(
-        self, context, sidecar_path, report_text="", report_type=""
-    ):
-        settings = nwo_globals.nwo_scene_settings
-        settings["sidecar_path"] = sidecar_path
-        settings["scene_project"] = context.scene.nwo.scene_project
-        settings["asset_type"] = self.sidecar_type
-        settings["sidecar_type"] = self.sidecar_type
-        settings["output_biped"] = self.output_biped
-        settings["output_crate"] = self.output_crate
-        settings["output_creature"] = self.output_creature
-        settings["output_device_control"] = self.output_device_control
-        settings["output_device_dispenser"] = self.output_device_dispenser
-        settings["output_device_machine"] = self.output_device_machine
-        settings["output_device_machine"] = self.output_device_machine
-        settings["output_device_terminal"] = self.output_device_terminal
-        settings["output_effect_scenery"] = self.output_effect_scenery
-        settings["output_equipment"] = self.output_equipment
-        settings["output_giant"] = self.output_giant
-        settings["output_scenery"] = self.output_scenery
-        settings["output_vehicle"] = self.output_vehicle
-        settings["output_weapon"] = self.output_weapon
-        settings["show_output"] = context.scene.nwo_export.show_output
-        settings["lightmap_all_bsps"] = self.lightmap_all_bsps
-        settings["lightmap_quality"] = self.lightmap_quality
-        settings["lightmap_quality_h4"] = self.lightmap_quality_h4
-        settings["lightmap_region"] = self.lightmap_region
-        settings["lightmap_specific_bsp"] = self.lightmap_specific_bsp
-        settings["lightmap_structure"] = self.lightmap_structure
-        settings["import_force"] = self.import_force
-        settings["import_draft"] = self.import_draft
-        settings["import_seam_debug"] = self.import_seam_debug
-        settings["import_skip_instances"] = self.import_skip_instances
-        settings["import_decompose_instances"] = self.import_decompose_instances
-        settings["import_suppress_errors"] = self.import_suppress_errors
-        settings["import_lighting"] = self.import_lighting
-        settings["import_meta_only"] = self.import_meta_only
-        settings["import_disable_hulls"] = self.import_disable_hulls
-        settings["import_disable_collision"] = self.import_disable_collision
-        settings["import_no_pca"] = self.import_no_pca
-        settings["import_force_animations"] = self.import_force_animations
-        settings["fast_animation_export"] = self.fast_animation_export
-        settings["fix_bone_rotations"] = self.fix_bone_rotations
-
-        if self.quick_export and report_text and report_type:
-            nwo_globals.export_report["report_text"] = report_text
-            nwo_globals.export_report["report_type"] = report_type
-        elif report_text and report_type:
-            self.report({report_type}, report_text)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        # PROJECT
-        row = layout.row()
-        if managed_blam_active():
-            row.enabled = False
-        projects = get_prefs().projects
-        scene_nwo = context.scene.nwo
-        for p in projects:
-            if p.project_display_name == scene_nwo.scene_project:
-                thumbnail = os.path.join(p.project_path, p.project_image_path)
-                if os.path.exists(thumbnail):
-                    icon_id = get_icon_id_in_directory(thumbnail)
-                elif p.project_remote_server_name == "bngtoolsql":
-                    icon_id = get_icon_id("halo_reach")
-                elif p.project_remote_server_name == "metawins":
-                    icon_id = get_icon_id("halo_4")
-                elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
-                    icon_id = get_icon_id("halo_2amp")
-                else:
-                    icon_id = get_icon_id("tag_test")
-                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text=scene_nwo.scene_project, icon_value=icon_id)
-                break
-        else:
-            if projects:
-                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text="Choose Project", icon_value=get_icon_id("tag_test"))
-        # SETTINGS #
-        box = layout.box()
-        box.label(text="Settings")
-
-        h4 = is_corinth(context)
-        scenario = self.sidecar_type == "SCENARIO"
-
-        col = box.column()
-        row = col.row()
-        col.prop(self, "sidecar_type", text="Asset Type")
-        col.prop(self, "show_output", text="Toggle Output")
-        # NWO SETTINGS #
-        box = layout.box()
-        box.label(text="Export Scope")
-        col = box.column()
-        col.prop(self, "export_gr2_files", text="Export Tags")
-        if self.export_gr2_files:
-            col.separator()
-            sub = col.column(heading="Export")
-            # sub.prop(self, "export_hidden")
-            if self.sidecar_type == "MODEL":
-                sub.prop(self, "export_render")
-                sub.prop(self, "export_collision")
-                sub.prop(self, "export_physics")
-                sub.prop(self, "export_markers")
-                sub.prop(self, "export_skeleton")
-                sub.prop(self, "export_animations", expand=True)
-            elif self.sidecar_type == "FP ANIMATION":
-                sub.prop(self, "export_skeleton")
-                sub.prop(self, "export_animations", expand=True)
-            elif self.sidecar_type == "SCENARIO":
-                sub.prop(self, "export_structure")
-                sub.prop(self, "export_design")
-                sub.prop(self, "export_all_bsps", expand=True)
-            elif self.sidecar_type != "PREFAB":
-                sub.prop(self, "export_render")
-            if self.sidecar_type not in (
-                "DECORATOR SET",
-                "PARTICLE MODEL",
-                "PREFAB",
-            ):
-                sub.prop(self, "export_all_perms", expand=True)
-        # SIDECAR SETTINGS #
-        if self.sidecar_type == "MODEL" and self.export_gr2_files:
-            box = layout.box()
-            box.label(text="Model Settings")
-            col = box.column()
-            # col.prop(self, "export_sidecar_xml")
-            # if self.export_sidecar_xml:
-            sub = box.column(heading="Output Tags")
-            if self.sidecar_type == "MODEL":
-                sub.prop(self, "output_biped")
-                sub.prop(self, "output_crate")
-                sub.prop(self, "output_creature")
-                sub.prop(self, "output_device_control")
-                if h4:
-                    sub.prop(self, "output_device_dispenser")
-                sub.prop(self, "output_device_machine")
-                sub.prop(self, "output_device_terminal")
-                sub.prop(self, "output_effect_scenery")
-                sub.prop(self, "output_equipment")
-                sub.prop(self, "output_giant")
-                sub.prop(self, "output_scenery")
-                sub.prop(self, "output_vehicle")
-                sub.prop(self, "output_weapon")
-
-        # IMPORT SETTINGS #
-        if self.export_gr2_files:
-            box = layout.box()
-            sub = box.column(heading="Export Flags")
-            if self.sidecar_type in (('MODEL', 'SKY', 'FP ANIMATION')):
-                col.prop(self, "fix_bone_rotations", text="Fix Bone Rotations")
-                col.prop(self, "fast_animation_export", text="Fast Animation Export")
-            if h4:
-                sub.prop(self, "import_force", text="Force full export")
-                if scenario:
-                    sub.prop(
-                        self, "import_seam_debug", text="Show more seam debugging info"
-                    )
-                    sub.prop(
-                        self, "import_skip_instances", text="Skip importing instances"
-                    )
-                    sub.prop(
-                        self, "import_meta_only", text="Only import structure_meta tag"
-                    )
-                    sub.prop(
-                        self,
-                        "import_lighting",
-                        text="Only reimport lighting information",
-                    )
-                    sub.prop(
-                        self,
-                        "import_disable_hulls",
-                        text="Skip instance convex hull decomp",
-                    )
-                    sub.prop(
-                        self,
-                        "import_disable_collision",
-                        text="Don't generate complex collision",
-                    )
-                else:
-                    sub.prop(self, "import_no_pca", text="Skip PCA calculations")
-                    sub.prop(
-                        self,
-                        "import_force_animations",
-                        text="Force import error animations",
-                    )
-            else:
-                sub.prop(self, "import_force", text="Force full export")
-                # sub.prop(self, "import_verbose", text="Verbose Output")
-                sub.prop(
-                    self, "import_suppress_errors", text="Don't write errors to VRML"
-                )
-                if scenario:
-                    sub.prop(
-                        self, "import_seam_debug", text="Show more seam debugging info"
-                    )
-                    sub.prop(
-                        self, "import_skip_instances", text="Skip importing instances"
-                    )
-                    sub.prop(
-                        self,
-                        "import_decompose_instances",
-                        text="Run convex physics decomposition",
-                    )
-                else:
-                    sub.prop(self, "import_draft", text="Skip PRT generation")
-
-        # LIGHTMAP SETTINGS #
-        render = self.sidecar_type in ("MODEL", "SKY")
-        if (h4 and render) or scenario:
-            box = layout.box()
-            box.label(text="Lightmap Settings")
-            col = box.column()
-            if scenario:
-                lighting_name = "Light Scenario"
-            else:
-                lighting_name = "Light Model"
-
-            col.prop(self, "lightmap_structure", text=lighting_name)
-            if self.lightmap_structure:
-                if scenario:
-                    if h4:
-                        col.prop(self, "lightmap_quality_h4")
-                    else:
-                        col.prop(self, "lightmap_quality")
-                    if not self.lightmap_all_bsps:
-                        col.prop(self, "lightmap_specific_bsp")
-                    col.prop(self, "lightmap_all_bsps")
-                    # if not h4:
-                    #     col.prop(self, "lightmap_region")
-
-        # # SCENE SETTINGS #
-        # box = layout.box()
-        # box.label(text="Scene Settings")
-        # col = box.column()
-        # col.prop(self, "use_mesh_modifiers")
-        # col.prop(self, "use_armature_deform_only")
-        # if fbx_exporter() == "better":
-        #     col.prop(self, "mesh_smooth_type_better")
-        # else:
-        #     col.prop(self, "mesh_smooth_type")
-        # col.separator()
-        # # col.prop(self, "global_scale")
-
-
-def menu_func_export(self, context):
-    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag")
-
+        return {"CANCELLED"}
 
 def fbx_exporter():
     exporter = "default"
@@ -1133,6 +654,7 @@ def ExportSettingsFromSidecar(sidecar_filepath):
 
 
 def register():
+    bpy.utils.register_class(NWO_Export)
     bpy.utils.register_class(NWO_Export_Scene)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
@@ -1140,3 +662,4 @@ def register():
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_Export_Scene)
+    bpy.utils.unregister_class(NWO_Export)

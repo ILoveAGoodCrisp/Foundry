@@ -40,7 +40,7 @@ from io_scene_foundry.utils import nwo_globals
 class NWO_Project_ListItems(bpy.types.PropertyGroup):
     project_path: StringProperty()
     project_name: StringProperty()
-    project_display_name: StringProperty()
+    name: StringProperty()
     project_xml: StringProperty()
     project_corinth: BoolProperty()
     project_remote_server_name: StringProperty()
@@ -62,7 +62,7 @@ class NWO_UL_Projects(bpy.types.UIList):
                 icon_id = get_icon_id("halo_2amp")
             else:
                 icon_id = get_icon_id("tag_test")
-            layout.label(text=item.project_display_name, icon_value=icon_id)
+            layout.label(text=item.name, icon_value=icon_id)
             layout.label(text=item.project_path)
         else:
             layout.label(text="", translate=False, icon_value=icon)
@@ -107,7 +107,7 @@ class NWO_ProjectAdd(Operator):
 
         if self.set_scene_project:
             nwo = context.scene.nwo
-            nwo.scene_project = projects[-1].project_display_name
+            nwo.scene_project = projects[-1].name
 
         context.area.tag_redraw()
         return {'FINISHED'}
@@ -202,7 +202,7 @@ class NWO_ProjectEditDisplayName(Operator):
             xml.truncate()
             xml.write(ET.tostring(root, encoding='utf-8'))
         
-        active_project.project_display_name = self.new_display_name
+        active_project.name = self.new_display_name
 
         return {'FINISHED'}
 

@@ -233,7 +233,7 @@ class NWO_FoundryPanelProps(Panel):
         prefs = get_prefs()
         projects = prefs.projects
         for p in projects:
-            if p.project_display_name == nwo.scene_project:
+            if p.name == nwo.scene_project:
                 thumbnail = os.path.join(p.project_path, p.project_image_path)
                 if os.path.exists(thumbnail):
                     icon_id = get_icon_id_in_directory(thumbnail)
@@ -882,6 +882,7 @@ class NWO_FoundryPanelProps(Panel):
                 col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
                 col1.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
                 col2.menu("NWO_MT_Permutations", text=true_permutation(nwo), icon_value=get_icon_id("permutation"))
+                col.separator()
 
             if poll_ui("SCENARIO"):
                 is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
@@ -2537,7 +2538,7 @@ class NWO_ProjectChooserMenu(bpy.types.Menu):
         prefs = get_prefs()
         projects = prefs.projects
         for p in projects:
-            name = p.project_display_name
+            name = p.name
             thumbnail = os.path.join(p.project_path, p.project_image_path)
             if os.path.exists(thumbnail):
                 icon_id = get_icon_id_in_directory(thumbnail)
@@ -4052,7 +4053,6 @@ class NWO_HaloExportSettingsFlags(Panel):
 class NWO_HaloExport(Operator):
     bl_idname = "nwo.export_quick"
     bl_label = "Quick Export"
-    bl_options = {"UNDO"}
     bl_description = "Exports the current Halo asset and creates tags"
 
     def execute(self, context):
@@ -4061,29 +4061,7 @@ class NWO_HaloExport(Operator):
         scene = context.scene
         scene_nwo_export = scene.nwo_export
         if scene_nwo_export.export_quick and valid_nwo_asset(context):
-            return export_quick(
-                bpy.ops.export_scene.nwo,
-                self.report,
-                scene_nwo_export.export_gr2_files,
-                scene_nwo_export.export_all_bsps,
-                scene_nwo_export.export_all_perms,
-                scene_nwo_export.import_to_game,
-                scene_nwo_export.import_draft,
-                scene_nwo_export.lightmap_structure,
-                scene_nwo_export.lightmap_quality_h4,
-                scene_nwo_export.lightmap_region,
-                scene_nwo_export.lightmap_quality,
-                scene_nwo_export.lightmap_specific_bsp,
-                scene_nwo_export.lightmap_all_bsps,
-                scene_nwo_export.export_animations,
-                scene_nwo_export.export_skeleton,
-                scene_nwo_export.export_render,
-                scene_nwo_export.export_collision,
-                scene_nwo_export.export_physics,
-                scene_nwo_export.export_markers,
-                scene_nwo_export.export_structure,
-                scene_nwo_export.export_design,
-            )
+            return export_quick(bpy.ops.export_scene.nwo)
         else:
             return export(bpy.ops.export_scene.nwo)
 
@@ -4093,6 +4071,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         name="Fast Animation Export",
         description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects",
         default=False,
+        options=set(),
     )
     export_gr2_files: BoolProperty(
         name="Export GR2 Files",
@@ -4183,6 +4162,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     lightmap_region: StringProperty(
         name="Region",
         description="Lightmap region to use for lightmapping",
+        options=set(),
     )
 
     lightmap_quality: EnumProperty(
@@ -4339,71 +4319,80 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         name="Force",
         description="Force all files to import even if they haven't changed",
         default=False,
+        options=set(),
     )
-    # import_verbose: BoolProperty(
-    #     name="Verbose",
-    #     description="Write additional import progress information to the console",
-    #     default=False,
-    # )
+
     import_draft: BoolProperty(
         name="Draft",
         description="Skip generating PRT data. Faster speed, lower quality",
         default=False,
+        options=set(),
     )
     import_seam_debug: BoolProperty(
         name="Seam Debug",
         description="Write extra seam debugging information to the console",
         default=False,
+        options=set(),
     )
     import_skip_instances: BoolProperty(
         name="Skip Instances",
         description="Skip importing all instanced geometry",
         default=False,
+        options=set(),
     )
     import_decompose_instances: BoolProperty(
         name="Decompose Instances",
         description="Run convex decomposition for instanced geometry physics (very slow)",
         default=False,
+        options=set(),
     )
     import_suppress_errors: BoolProperty(
         name="Surpress Errors",
         description="Do not write errors to vrml files",
         default=False,
+        options=set(),
     )
     import_lighting: BoolProperty(
         name="Lighting Info Only",
         description="Only the scenario_structure_lighting_info tag will be reimported",
         default=False,
+        options=set(),
     )
     import_meta_only: BoolProperty(
         name="Meta Only",
         description="Import only the structure_meta tag",
         default=False,
+        options=set(),
     )
     import_disable_hulls: BoolProperty(
         name="Disable Hulls",
         description="Disables the contruction of convex hulls for instance physics and collision",
         default=False,
+        options=set(),
     )
     import_disable_collision: BoolProperty(
         name="Disable Collision",
         description="Do not generate complex collision",
         default=False,
+        options=set(),
     )
     import_no_pca: BoolProperty(
         name="No PCA",
         description="Skips PCA calculations",
         default=False,
+        options=set(),
     )
     import_force_animations: BoolProperty(
         name="Force Animations",
         description="Force import of all animations that had errors during the last import",
         default=False,
+        options=set(),
     )
     fix_bone_rotations: BoolProperty(
         name="Fix Bone Rotations",
         description="Sets the rotation of the following bones to match Halo conventions: pedestal, aim_pitch, aim_yaw, gun",
         default=True,
+        options=set(),
     )
 
 

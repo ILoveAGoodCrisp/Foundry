@@ -120,10 +120,10 @@ else:
         if not context.scene.nwo.scene_project and projects:
             for p in projects:
                 if bpy.data.filepath.startswith(p.project_path):
-                    context.scene.nwo.scene_project = p.project_display_name
+                    context.scene.nwo.scene_project = p.name
                     break
             else:
-                context.scene.nwo.scene_project = projects[0].project_display_name
+                context.scene.nwo.scene_project = projects[0].name
 
         # Handle old scenes with aleady existing regions/perms/global materials
         update_tables_from_objects(context)
@@ -236,7 +236,7 @@ else:
     def register():
         bpy.app.handlers.load_post.append(load_handler)
         bpy.app.handlers.load_post.append(load_set_output_state)
-        bpy.app.handlers.undo_post.append(get_temp_settings)
+        # bpy.app.handlers.undo_post.append(get_temp_settings)
         for module in modules:
             module.register()
 
@@ -245,7 +245,7 @@ else:
     def unregister():
         bpy.app.handlers.load_post.remove(load_handler)
         bpy.app.handlers.load_post.append(load_set_output_state)
-        bpy.app.handlers.undo_post.remove(get_temp_settings)
+        # bpy.app.handlers.undo_post.remove(get_temp_settings)
         for module in reversed(modules):
             module.unregister()
 
