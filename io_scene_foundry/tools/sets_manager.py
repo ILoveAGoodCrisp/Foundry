@@ -78,10 +78,15 @@ class TableEntryRemove(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
+        entry = table[table_active_index]
+        scene_objects = context.scene.objects
+        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
         table.remove(table_active_index)
         if table_active_index > len(table) - 1:
             setattr(nwo, table_active_index_str, table_active_index - 1)
-
+        new_entry_name = table[0].name
+        for ob in entry_objects:
+            setattr(ob.nwo, self.ob_prop_str, new_entry_name)
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -242,6 +247,7 @@ class NWO_RegionRemove(TableEntryRemove):
 
     def __init__(self):
         self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
     
 class NWO_RegionMove(TableEntryMove):
     bl_label = "Move Region"
@@ -356,6 +362,7 @@ class NWO_PermutationRemove(TableEntryRemove):
 
     def __init__(self):
         self.table_str = "permutations_table"
+        self.ob_prop_str = "permutation_name_ui"
     
 class NWO_PermutationMove(TableEntryMove):
     bl_label = "Move Permutation"
@@ -455,3 +462,11 @@ def get_entry(table, entry_name):
     for entry in table:
         if entry.name == entry_name:
             return entry
+        
+def update_objects_from_tables(context, table_str, ob_prop_str):
+    entry_names = [e.name for e in getattr(context.scene.nwo, table_str)]
+    default_entry = entry_names[0]
+    scene_obs = context.scene.objects
+    for ob in scene_obs:
+        if getattr(ob.nwo, ob_prop_str) not in entry_names:
+            setattr(ob.nwo, ob_prop_str, default_entry)

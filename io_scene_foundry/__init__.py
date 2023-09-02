@@ -31,7 +31,7 @@ import ctypes
 import bpy
 from bpy.app.handlers import persistent
 
-from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink
+from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink, update_tables_from_objects
 
 old_snapshot = {}
 old_x = None
@@ -124,7 +124,11 @@ else:
                     break
             else:
                 context.scene.nwo.scene_project = projects[0].project_display_name
-        # Add default sets
+
+        # Handle old scenes with aleady existing regions/perms/global materials
+        update_tables_from_objects(context)
+
+        # Add default sets if needed
         scene_nwo = context.scene.nwo
         if not scene_nwo.regions_table:
             default_region = scene_nwo.regions_table.add()
@@ -134,6 +138,7 @@ else:
             default_permutation = scene_nwo.permutations_table.add()
             default_permutation.name = "default"
 
+        
         if not bpy.app.background:
             # Set game version from file
             proxy_left_active = context.scene.nwo.instance_proxy_running

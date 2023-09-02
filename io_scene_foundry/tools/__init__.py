@@ -443,7 +443,7 @@ class NWO_FoundryPanelProps(Panel):
         if not nwo.regions_table:
             return
         region = nwo.regions_table[nwo.regions_table_active_index]
-        rows = 3
+        rows = 4
         row.template_list(
             "NWO_UL_Regions",
             "",
@@ -475,7 +475,7 @@ class NWO_FoundryPanelProps(Panel):
         row.label(text="Permutations")
         row = box.row()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
-        rows = 3
+        rows = 4
         row.template_list(
             "NWO_UL_Permutations",
             "",
