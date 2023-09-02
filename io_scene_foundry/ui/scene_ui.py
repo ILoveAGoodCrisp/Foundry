@@ -57,7 +57,7 @@ class NWO_UL_Regions(UIList):
             row.operator("nwo.region_rename", text=item.name, emboss=False, icon_value=get_icon_id("region"))
             row = layout.row(align=True)
             row.alignment = 'RIGHT'
-            row.operator("nwo.region_hide", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False).region_name = item.name
+            row.operator("nwo.region_hide", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False).entry_name = item.name
             row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
             row.prop(item, "active", text="", icon='CHECKBOX_HLT' if item.active else 'CHECKBOX_DEHLT', emboss=False)
         else:

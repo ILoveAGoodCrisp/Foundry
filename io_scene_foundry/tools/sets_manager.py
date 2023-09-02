@@ -30,37 +30,41 @@ import bpy
 
 from io_scene_foundry.ui.scene_properties import NWO_Regions_ListItems
 
-# REGIONS
-class NWO_RegionAdd(bpy.types.Operator):
-    bl_label = "Add Region"
-    bl_idname = "nwo.region_add"
-    bl_description = "Add a new Region"
+# Parent Classes
+class TableEntryAdd(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
-    set_object_region: bpy.props.BoolProperty()
+    set_object_prop: bpy.props.BoolProperty()
     name: bpy.props.StringProperty(name="Name")
+
+    def __init__(self):
+        self.type_str = ""
+        self.table_str = ""
+        self.ob_prop_str = ""
 
     def execute(self, context):
         name = self.name.lower()
-        # Cancel if name is null
-        all_names = [r.name for r in context.scene.nwo.regions_table]
+        nwo = context.scene.nwo
+        table = getattr(nwo, self.table_str)
+        all_names = [entry.name for entry in table]
+
         if not name:
-            self.report({'WARNING'}, "Region name cannot be empty")
+            self.report({'WARNING'}, f"{self.type_str} name cannot be empty")
             return {'CANCELLED'}
         elif len(name) > 128:
-            self.report({'WARNING'}, "Region name has a maximum of 128 characters")
+            self.report({'WARNING'}, f"{self.type_str} name has a maximum of 128 characters")
             return {'CANCELLED'}
         elif name in all_names:
-            self.report({'WARNING'}, "Region name already exists")
+            self.report({'WARNING'}, f"{self.type_str} name already exists")
             return {'CANCELLED'}
-        nwo = context.scene.nwo
-        region = nwo.regions_table.add()
-        region.name = name
-        nwo.regions_table_active_index = len(nwo.regions_table) - 1
-        if self.set_object_region:
+    
+        entry = table.add()
+        entry.name = name
+        setattr(nwo, f"{self.table_str}_active_index", len(table) - 1)
+        if self.set_object_prop:
             ob = context.object
-            if ob:
-                ob.nwo.region_name_ui = name
+            if ob: setattr(ob.nwo, self.ob_prop_str, name)
+
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -73,140 +77,136 @@ class NWO_RegionAdd(bpy.types.Operator):
         layout.activate_init = True
         layout.prop(self, "name", text="Name")
 
-class NWO_RegionRemove(bpy.types.Operator):
-    bl_label = "Remove Region"
-    bl_idname = "nwo.region_remove"
-    bl_description = "Removes the active Region"
+class TableEntryRemove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
-    @classmethod
-    def poll(self, context):
-        return len(context.scene.nwo.regions_table) > 1
+    def __init__(self):
+        self.table_str = ""
     
     def execute(self, context):
         nwo = context.scene.nwo
-        nwo.regions_table.remove(nwo.regions_table_active_index)
-        if nwo.regions_table_active_index > len(nwo.regions_table) - 1:
-            nwo.regions_table_active_index += -1
+        table = getattr(nwo, self.table_str)
+        table_active_index_str = f"{self.table_str}_active_index"
+        table_active_index = getattr(nwo, table_active_index_str)
+        table.remove(table_active_index)
+        if table_active_index > len(table) - 1:
+            setattr(nwo, table_active_index_str, table_active_index - 1)
+
         context.area.tag_redraw()
         return {'FINISHED'}
     
-class NWO_RegionMove(bpy.types.Operator):
-    bl_label = "Move Region"
-    bl_idname = "nwo.region_move"
-    bl_description = "Moves the active Region"
+class TableEntryMove(bpy.types.Operator):
     bl_options = {'UNDO'}
 
-    @classmethod
-    def poll(self, context):
-        return len(context.scene.nwo.regions_table) > 1
+    def __init__(self):
+        self.table_str = ""
     
     direction: bpy.props.StringProperty()
 
     def execute(self, context):
-        delta = {"down": 1, "up": -1,}[self.direction]
         nwo = context.scene.nwo
-        current_index = nwo.regions_table_active_index
-        to_index = (current_index + delta) % len(nwo.regions_table)
-        nwo.regions_table.move(current_index, to_index)
-        nwo.regions_table_active_index = to_index
+        table = getattr(nwo, self.table_str)
+        table_active_index_str = f"{self.table_str}_active_index"
+        table_active_index = getattr(nwo, table_active_index_str)
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = table_active_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        setattr(nwo, table_active_index_str, to_index)
+
         context.area.tag_redraw()
         return {'FINISHED'}
-    
-class NWO_RegionAssignSingle(bpy.types.Operator):
-    bl_label = "Assign Region to Object"
-    bl_idname = "nwo.region_assign_single"
-    bl_description = "Assigns the active Region to the active Object"
+
+class TableEntryAssignSingle(bpy.types.Operator):
     bl_options = {'UNDO'}
 
-    @classmethod
-    def poll(self, context):
-        return context.scene.nwo.regions_table and context.object
-    
+    def __init__(self):
+        self.table_str = ""
+        self.ob_prop_str = ""
     
     name: bpy.props.StringProperty(
-        name="Region",
+        name="Name",
     )
     
     def execute(self, context):
         nwo = context.object.nwo
-        nwo.region_name_ui = self.name
+        setattr(nwo, self.ob_prop_str, self.name)
         return {'FINISHED'}
     
-class NWO_RegionAssign(bpy.types.Operator):
-    bl_label = "Assign Region to Selected Objects"
-    bl_idname = "nwo.region_assign"
-    bl_description = "Assigns the active Region to selected Objects"
+class TableEntryAssign(bpy.types.Operator):
     bl_options = {'UNDO'}
 
-    @classmethod
-    def poll(self, context):
-        return context.scene.nwo.regions_table and context.selected_objects
+    def __init__(self):
+        self.table_str = ""
+        self.ob_prop_str = ""
     
     name: bpy.props.StringProperty(
-        name="Region",
+        name="Name",
     )
     
     def execute(self, context):
         sel_obs = context.selected_objects
         for ob in sel_obs:
-            ob.nwo.region_name_ui = self.name
+            setattr(ob.nwo, self.ob_prop_str, self.name)
         return {'FINISHED'}
     
-class NWO_RegionSelect(bpy.types.Operator):
-    bl_label = "Select Region"
-    bl_idname = "nwo.region_select"
-    bl_description = "Selects/Deselects the active Region"
+class TableEntrySelect(bpy.types.Operator):
     bl_options = {'UNDO'}
 
-    @classmethod
-    def poll(self, context):
-        return context.scene.nwo.regions_table
+    def __init__(self):
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
     
     select: bpy.props.BoolProperty()
     
     def execute(self, context):
         nwo = context.scene.nwo
-        region = nwo.regions_table[nwo.regions_table_active_index]
+        table = getattr(context.scene.nwo, self.table_str)
+        table_active_index_str = f"{self.table_str}_active_index"
+        table_active_index = getattr(nwo, table_active_index_str)
+        entry = table[table_active_index]
         scene_objects = context.scene.objects
-        region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == region.name]
-        [ob.select_set(self.select) for ob in region_objects]
+        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        [ob.select_set(self.select) for ob in entry_objects]
         return {'FINISHED'}
     
-class NWO_RegionRename(bpy.types.Operator):
-    bl_label = "Rename Region"
-    bl_idname = "nwo.region_rename"
-    bl_description = "Renames the active Region and updates scene objects"
+class TableEntryRename(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
-    @classmethod
-    def poll(self, context):
-        return context.scene.nwo.regions_table
+    def __init__(self):
+        self.type_str = "Region"
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
     
     new_name: bpy.props.StringProperty(
         name="New Name",
-        description="The name you want to give this region, duh",
     )
     
     def execute(self, context):
+        nwo = context.scene.nwo
         new_name = self.new_name.lower()
-        all_names = [r.name for r in context.scene.nwo.regions_table]
+        table = getattr(nwo, self.table_str)
+        table_active_index_str = f"{self.table_str}_active_index"
+        table_active_index = getattr(nwo, table_active_index_str)
+        all_names = [entry.name for entry in table]
+
         if not new_name:
-            self.report({'WARNING'}, "Region name cannot be empty")
+            self.report({'WARNING'}, f"{self.type_str} name cannot be empty")
             return {'CANCELLED'}
         elif len(new_name) > 128:
-            self.report({'WARNING'}, "Region name has a maximum of 128 characters")
+            self.report({'WARNING'}, f"{self.type_str} name has a maximum of 128 characters")
             return {'CANCELLED'}
         elif new_name in all_names:
-            self.report({'WARNING'}, "Region name already exists")
+            self.report({'WARNING'}, f"{self.type_str} name already exists")
             return {'CANCELLED'}
-        nwo = context.scene.nwo
-        region = nwo.regions_table[nwo.regions_table_active_index]
+        
+        entry = table[table_active_index]
         scene_objects = context.scene.objects
-        region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == region.name]
-        region.name = new_name
-        for ob in region_objects:
-            ob.nwo.region_name_ui = new_name
+        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        entry.name = new_name
+        for ob in entry_objects:
+            setattr(ob.nwo, self.ob_prop_str, new_name)
+
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -218,27 +218,126 @@ class NWO_RegionRename(bpy.types.Operator):
         layout = self.layout
         layout.activate_init = True
         layout.prop(self, "new_name", text="New Name")
+
+class TableEntryHide(bpy.types.Operator):
+    bl_options = {'UNDO'}
+
+    def __init__(self):
+        self.table_str = "regions_table"
     
-class NWO_RegionHide(bpy.types.Operator):
+    entry_name: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        table = getattr(nwo, self.table_str)
+        entry = get_entry(table, self.entry_name)
+        should_hide = not entry.hidden
+        entry.hidden = should_hide
+        scene_objects = context.scene.objects
+        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        [ob.hide_set(should_hide) for ob in entry_objects]
+        return {'FINISHED'}
+
+# REGIONS
+class NWO_RegionAdd(TableEntryAdd):
+    bl_label = "Add Region"
+    bl_idname = "nwo.region_add"
+    bl_description = "Add a new Region"
+
+    def __init__(self):
+        self.type_str = "Region"
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
+
+class NWO_RegionRemove(TableEntryRemove):
+    bl_label = "Remove Region"
+    bl_idname = "nwo.region_remove"
+    bl_description = "Removes the active Region"
+
+    @classmethod
+    def poll(cls, context):
+        return len(context.scene.nwo.regions_table) > 1
+
+    def __init__(self):
+        self.table_str = "regions_table"
+    
+class NWO_RegionMove(TableEntryMove):
+    bl_label = "Move Region"
+    bl_idname = "nwo.region_move"
+    bl_description = "Moves the active Region"
+
+    @classmethod
+    def poll(cls, context):
+        return len(context.scene.nwo.regions_table) > 1
+
+    def __init__(self):
+        self.table_str = "regions_table"
+    
+class NWO_RegionAssignSingle(TableEntryAssignSingle):
+    bl_label = "Assign Region to Object"
+    bl_idname = "nwo.region_assign_single"
+    bl_description = "Assigns the active Region to the active Object"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.regions_table and context.object
+
+    def __init__(self):
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
+    
+class NWO_RegionAssign(TableEntryAssign):
+    bl_label = "Assign Region to Selected Objects"
+    bl_idname = "nwo.region_assign"
+    bl_description = "Assigns the active Region to selected Objects"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.regions_table and context.selected_objects
+
+    def __init__(self):
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
+    
+class NWO_RegionSelect(TableEntrySelect):
+    bl_label = "Select Region"
+    bl_idname = "nwo.region_select"
+    bl_description = "Selects/Deselects the active Region"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.regions_table
+
+    def __init__(self):
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
+    
+class NWO_RegionRename(TableEntryRename):
+    bl_label = "Rename Region"
+    bl_idname = "nwo.region_rename"
+    bl_description = "Renames the active Region and updates scene objects"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.regions_table
+
+    def __init__(self):
+        self.type_str = "Region"
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
+    
+class NWO_RegionHide(TableEntryHide):
     bl_label = "Hide Region"
     bl_idname = "nwo.region_hide"
     bl_description = "Hides/Unhides the active Region"
-    bl_options = {'UNDO'}
 
     @classmethod
-    def poll(self, context):
+    def poll(cls, context):
         return context.scene.nwo.regions_table
-    
-    region_name: bpy.props.StringProperty()
-    
-    def execute(self, context):
-        region = get_region(context, self.region_name)
-        should_hide = not region.hidden
-        region.hidden = should_hide
-        scene_objects = context.scene.objects
-        region_objects = [ob for ob in scene_objects if ob.nwo.region_name_ui == self.region_name]
-        [ob.hide_set(should_hide) for ob in region_objects]
-        return {'FINISHED'}
+
+    def __init__(self):
+        self.table_str = "regions_table"
+        self.ob_prop_str = "region_name_ui"
 
 # PERMUTATIONS
 class NWO_UL_Permutations(bpy.types.UIList):
@@ -265,7 +364,7 @@ class NWO_UL_GlobalMaterials(bpy.types.UIList):
             layout.label(text="", translate=False, icon_value=icon)
 
 
-def get_region(context, region_name):
-    for r in context.scene.nwo.regions_table:
-        if r.name == region_name:
-            return r
+def get_entry(table, entry_name):
+    for entry in table:
+        if entry.name == entry_name:
+            return entry

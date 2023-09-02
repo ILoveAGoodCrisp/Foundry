@@ -59,7 +59,7 @@ class NWO_RegionsMenu(Menu):
         for region in context.scene.nwo.regions_table:
             layout.operator("nwo.region_assign_single", text=region.name).name = region.name
 
-        layout.operator("nwo.region_add", text="New Region", icon='ADD').set_object_region = True
+        layout.operator("nwo.region_add", text="New Region", icon='ADD').set_object_prop = True
 
 
 # FACE LEVEL FACE PROPS

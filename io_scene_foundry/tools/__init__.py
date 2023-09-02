@@ -452,7 +452,7 @@ class NWO_FoundryPanelProps(Panel):
             rows=rows,
         )
         col = row.column(align=True)
-        col.operator("nwo.region_add", text="", icon="ADD").set_object_region = False
+        col.operator("nwo.region_add", text="", icon="ADD").set_object_prop = False
         col.operator("nwo.region_remove", icon="REMOVE", text="")
         col.separator()
         col.operator("nwo.region_move", text="", icon="TRIA_UP").direction = 'up'
