@@ -1408,6 +1408,7 @@ class NWO_FoundryPanelProps(Panel):
             "_connected_geometry_mesh_type_poop",
             # "_connected_geometry_mesh_type_poop_collision",
             "_connected_geometry_mesh_type_collision",
+            "_connected_geometry_mesh_type_structure",
         ):
             if poll_ui(("SCENARIO", "PREFAB")) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
                 col.separator()

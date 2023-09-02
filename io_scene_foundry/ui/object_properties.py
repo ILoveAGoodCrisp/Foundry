@@ -1984,17 +1984,17 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             "Lightmap Only",
             "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
         ))
-        if not h4:
-            items.append((
-            "_connected_geometry_face_mode_breakable",
-            "Breakable",
-            "Faces set to be breakable",
-            )),
+        #if not h4: #BREAKABLE ENABLED
+        items.append((
+        "_connected_geometry_face_mode_breakable",
+        "Breakable",
+        "Faces set to be breakable",
+        )),
 
         return items
     
     def get_face_mode_ui(self):
-        max_int = 4
+        max_int = 5
         if not is_corinth():
             max_int = 5
         if self.face_mode_ui_help > max_int:
