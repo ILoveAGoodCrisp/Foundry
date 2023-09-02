@@ -1897,16 +1897,30 @@ def setup_projects_list(skip_registry_check=False, report=None):
 
 def update_tables_from_objects(context):
     regions_table = context.scene.nwo.regions_table
-    region_names = [e.name for e in regions_table]
+    region_names = {e.name for e in regions_table}
     permutations_table = context.scene.nwo.permutations_table
-    permutation_names = [e.name for e in permutations_table]
+    permutation_names = {e.name for e in permutations_table}
     scene_obs = context.scene.objects
     for ob in scene_obs:
-        if ob.nwo.region_name_ui not in region_names:
+        ob_region = true_region(ob.nwo)
+        if ob_region not in region_names:
             new_region = regions_table.add()
-            new_region.name = ob.nwo.region_name_ui
+            new_region.name = ob_region
+            region_names.add(ob_region)
+            ob.nwo.region_name_ui = ob_region
 
-        if ob.nwo.permutation_name_ui not in permutation_names:
+        ob_permutation = true_permutation(ob.nwo)
+        if ob_permutation not in permutation_names:
             new_permutation = permutations_table.add()
-            new_permutation.name = ob.nwo.permutation_name_ui
+            new_permutation.name = ob_permutation
+            permutation_names.add(ob_permutation)
+            ob.nwo.permutation_name_ui = ob_permutation
+
+# def update_objects_from_tables(context, table_str, ob_prop_str):
+#     entry_names = [e.name for e in getattr(context.scene.nwo, table_str)]
+#     default_entry = entry_names[0]
+#     scene_obs = context.scene.objects
+#     for ob in scene_obs:
+#         if getattr(ob.nwo, ob_prop_str) not in entry_names:
+#             setattr(ob.nwo, ob_prop_str, default_entry)
 

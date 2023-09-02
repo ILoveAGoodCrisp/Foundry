@@ -145,8 +145,8 @@ class TableEntrySelect(bpy.types.Operator):
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
-        scene_objects = context.scene.objects
-        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        available_objects = context.view_layer.objects
+        entry_objects = [ob for ob in available_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
         [ob.select_set(self.select) for ob in entry_objects]
         return {'FINISHED'}
     
@@ -204,8 +204,8 @@ class TableEntryHide(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
-        scene_objects = context.scene.objects
-        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        available_objects = context.view_layer.objects
+        entry_objects = [ob for ob in available_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
         [ob.hide_set(should_hide) for ob in entry_objects]
         return {'FINISHED'}
     
@@ -219,8 +219,8 @@ class TableEntryHideSelect(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
-        scene_objects = context.scene.objects
-        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        available_objects = context.view_layer.objects
+        entry_objects = [ob for ob in available_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
         for ob in entry_objects:
             ob.hide_select = should_hide_select
         return {'FINISHED'}
@@ -462,11 +462,3 @@ def get_entry(table, entry_name):
     for entry in table:
         if entry.name == entry_name:
             return entry
-        
-def update_objects_from_tables(context, table_str, ob_prop_str):
-    entry_names = [e.name for e in getattr(context.scene.nwo, table_str)]
-    default_entry = entry_names[0]
-    scene_obs = context.scene.objects
-    for ob in scene_obs:
-        if getattr(ob.nwo, ob_prop_str) not in entry_names:
-            setattr(ob.nwo, ob_prop_str, default_entry)
