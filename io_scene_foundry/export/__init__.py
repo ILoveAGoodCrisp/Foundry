@@ -223,7 +223,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         scene_nwo_export = scene.nwo_export
         scene_nwo = scene.nwo
         for p in projects:
-            if p.project_display_name == scene_nwo.scene_project:
+            if p.name == scene_nwo.scene_project:
                 thumbnail = os.path.join(p.project_path, p.project_image_path)
                 if os.path.exists(thumbnail):
                     icon_id = get_icon_id_in_directory(thumbnail)

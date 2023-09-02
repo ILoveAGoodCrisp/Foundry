@@ -233,7 +233,7 @@ class NWO_AssetMaker(NWO_Op):
         col = flow.column()
         projects = get_prefs().projects
         for p in projects:
-            if p.project_display_name == nwo_asset.scene_project:
+            if p.name == nwo_asset.scene_project:
                 thumbnail = os.path.join(p.project_path, p.project_image_path)
                 if os.path.exists(thumbnail):
                     icon_id = get_icon_id_in_directory(thumbnail)
