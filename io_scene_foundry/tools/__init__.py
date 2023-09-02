@@ -42,7 +42,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
-from io_scene_foundry.tools.sets_manager import NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect
+from io_scene_foundry.tools.sets_manager import NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
@@ -439,8 +439,9 @@ class NWO_FoundryPanelProps(Panel):
         nwo = self.scene.nwo
         context = self.context
         scene = self.scene
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         row = box.row()
-        row.label(text="Regions")
+        row.label(text="BSPs" if is_scenario else "Regions")
         row = box.row()
         if not nwo.regions_table:
             return
@@ -474,7 +475,7 @@ class NWO_FoundryPanelProps(Panel):
         # Permutations
         box = self.box.box()
         row = box.row()
-        row.label(text="Permutations")
+        row.label(text="BSP Categories" if is_scenario else "Permutations")
         row = box.row()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         rows = 4
@@ -869,58 +870,42 @@ class NWO_FoundryPanelProps(Panel):
 
             if poll_ui(("MODEL", "SCENARIO")):
                 perm_name = "Permutation"
+                region_name = "Region"
+                is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
                 if poll_ui("SCENARIO"):
-                    perm_name = "Subgroup"
+                    perm_name = "BSP Category"
+                    if is_seam:
+                        region_name = "Frontfacing BSP"
+                    else:
+                        region_name = "BSP"
 
                 row = col.row()
                 split = row.split()
                 col1 = split.column()
                 col2 = split.column()
-                col1.enabled = not nwo.region_name_locked_ui
-                col2.enabled = not nwo.permutation_name_locked_ui
-                col1.label(text="Region", icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
-                col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
-                col1.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
-                col2.menu("NWO_MT_Permutations", text=true_permutation(nwo), icon_value=get_icon_id("permutation"))
-                col.separator()
-
-            if poll_ui("SCENARIO"):
-                is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
-                row = col.row()
-                if nwo.bsp_name_locked_ui != "":
-                    if is_seam:
-                        row.prop(nwo, "bsp_name_locked_ui", text="Front Facing BSP")
-                    else:
-                        row.prop(nwo, "bsp_name_locked_ui", text="BSP")
-                else:
-                    if is_seam:
-                        row.prop(nwo, "bsp_name_ui", text="Front Facing BSP")
-                    else:
-                        row.prop(nwo, "bsp_name_ui", text="BSP")
-                    row.operator_menu_enum(
-                        "nwo.bsp_list",
-                        "bsp",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
-
                 if is_seam:
-                    row = col.row()
-                    row.prop(nwo, "seam_back_ui", text="Back Facing BSP")
-                    row.operator_menu_enum(
-                        "nwo.bsp_list_seam",
-                        "bsp",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
-                    # Seams guide
-                    col.separator()
-                    row = col.row()
-                    row.label(
-                        text="Seam normals should face towards the specified front facing BSP"
-                    )
-
-            # col.separator()
+                    col3 = split.column()
+                col1.enabled = not nwo.region_name_locked_ui
+                if is_seam:
+                    col3.enabled = not nwo.permutation_name_locked_ui
+                else:
+                    col2.enabled = not nwo.permutation_name_locked_ui
+                col1.label(text=region_name, icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
+                if is_seam:
+                    col2.label(text="Backfacing BSP", icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
+                    col3.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
+                else:
+                    col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
+                col1.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
+                if is_seam:
+                    if nwo.region_name_ui == nwo.seam_back_ui:
+                        col2.menu("NWO_MT_SeamBackface", text="", icon='ERROR')
+                    else:
+                        col2.menu("NWO_MT_SeamBackface", text=nwo.seam_back_ui, icon_value=get_icon_id("region"))
+                    col3.menu("NWO_MT_Permutations", text=true_permutation(nwo), icon_value=get_icon_id("permutation"))
+                else:
+                    col2.menu("NWO_MT_Permutations", text=true_permutation(nwo), icon_value=get_icon_id("permutation"))
+                col.separator()
 
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
@@ -5150,6 +5135,7 @@ classeshalo = (
     NWO_PermutationRename,
     NWO_PermutationHide,
     NWO_PermutationHideSelect,
+    NWO_SeamAssignSingle,
     NWO_OpenImageEditor,
     NWO_MaterialGirl,
     NWO_OpenFoundationTag,

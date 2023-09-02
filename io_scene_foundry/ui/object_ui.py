@@ -56,10 +56,23 @@ class NWO_RegionsMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        for region in context.scene.nwo.regions_table:
-            layout.operator("nwo.region_assign_single", text=region.name).name = region.name
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        region_names = [region.name for region in context.scene.nwo.regions_table]
+        for r_name in region_names:
+            layout.operator("nwo.region_assign_single", text=r_name).name = r_name
 
-        layout.operator("nwo.region_add", text="New Region", icon='ADD').set_object_prop = True
+        layout.operator("nwo.region_add", text="New BSP" if is_scenario else "New Region", icon='ADD').set_object_prop = True
+
+class NWO_SeamBackfaceMenu(NWO_RegionsMenu):
+    bl_idname = "NWO_MT_SeamBackface"
+
+    def draw(self, context):
+        layout = self.layout
+        region_names = [region.name for region in context.scene.nwo.regions_table if region.name != context.object.nwo.region_name_ui]
+        if not region_names:
+            layout.label(text="Only one BSP in scene. At least two required to use seams", icon="ERROR")
+        for r_name in region_names:
+            layout.operator("nwo.seam_backface_assign_single", text=r_name).name = r_name
 
 class NWO_PermutationsMenu(Menu):
     bl_label = "Add Mesh Property"
@@ -71,10 +84,12 @@ class NWO_PermutationsMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        for perm in context.scene.nwo.permutations_table:
-            layout.operator("nwo.permutation_assign_single", text=perm.name).name = perm.name
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
+        for p_name in permutation_names:
+            layout.operator("nwo.permutation_assign_single", text=p_name).name = p_name
 
-        layout.operator("nwo.permutation_add", text="New Permutation", icon='ADD').set_object_prop = True
+        layout.operator("nwo.permutation_add", text="New BSP Category" if is_scenario else "New Permutation", icon='ADD').set_object_prop = True
 
 
 # FACE LEVEL FACE PROPS

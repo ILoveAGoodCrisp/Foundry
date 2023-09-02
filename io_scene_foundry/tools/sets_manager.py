@@ -27,6 +27,7 @@
 '''Handles bpy operators and functions for the Sets Manager panel'''
 
 import bpy
+from bpy.types import Context, OperatorProperties
 
 from io_scene_foundry.utils.nwo_utils import true_permutation, true_region
 
@@ -120,7 +121,10 @@ class TableEntryAssignSingle(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.object.nwo
+        old_name = getattr(nwo, self.ob_prop_str)
         setattr(nwo, self.ob_prop_str, self.name)
+        if self.ob_prop_str == "region_name_ui" and nwo.seam_back_ui == self.name:
+            nwo.seam_back_ui = old_name
         return {'FINISHED'}
     
 class TableEntryAssign(bpy.types.Operator):
@@ -133,7 +137,10 @@ class TableEntryAssign(bpy.types.Operator):
     def execute(self, context):
         sel_obs = context.selected_objects
         for ob in sel_obs:
+            old_name = getattr(ob.nwo, self.ob_prop_str)
             setattr(ob.nwo, self.ob_prop_str, self.name)
+            if self.ob_prop_str == "region_name_ui" and ob.nwo.seam_back_ui == self.name:
+                ob.nwo.seam_back_ui = old_name
         return {'FINISHED'}
     
 class TableEntrySelect(bpy.types.Operator):
@@ -229,7 +236,7 @@ class TableEntryHideSelect(bpy.types.Operator):
 
 # REGIONS
 class NWO_RegionAdd(TableEntryAdd):
-    bl_label = "Add Region"
+    bl_label = ""
     bl_idname = "nwo.region_add"
     bl_description = "Add a new Region"
 
@@ -238,8 +245,16 @@ class NWO_RegionAdd(TableEntryAdd):
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
 
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Add a new BSP"
+        else:
+            return "Add a new Region"
+
 class NWO_RegionRemove(TableEntryRemove):
-    bl_label = "Remove Region"
+    bl_label = ""
     bl_idname = "nwo.region_remove"
     bl_description = "Removes the active Region"
 
@@ -250,9 +265,17 @@ class NWO_RegionRemove(TableEntryRemove):
     def __init__(self):
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Removes the active BSP"
+        else:
+            return "Removes the active Region"
     
 class NWO_RegionMove(TableEntryMove):
-    bl_label = "Move Region"
+    bl_label = ""
     bl_idname = "nwo.region_move"
     bl_description = "Moves the active Region"
 
@@ -262,9 +285,17 @@ class NWO_RegionMove(TableEntryMove):
 
     def __init__(self):
         self.table_str = "regions_table"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Moves the active BSP"
+        else:
+            return "Moves the active Region"
     
 class NWO_RegionAssignSingle(TableEntryAssignSingle):
-    bl_label = "Assign Region to Object"
+    bl_label = ""
     bl_idname = "nwo.region_assign_single"
     bl_description = "Assigns the active Region to the active Object"
 
@@ -275,9 +306,17 @@ class NWO_RegionAssignSingle(TableEntryAssignSingle):
     def __init__(self):
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Assigns the selected BSP to the active Object"
+        else:
+            return "Assigns the selected Region to the active Object"
     
 class NWO_RegionAssign(TableEntryAssign):
-    bl_label = "Assign Region to Selected Objects"
+    bl_label = ""
     bl_idname = "nwo.region_assign"
     bl_description = "Assigns the active Region to selected Objects"
 
@@ -288,9 +327,17 @@ class NWO_RegionAssign(TableEntryAssign):
     def __init__(self):
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Assigns the active BSP to selected Objects"
+        else:
+            return "Assigns the active Region to selected Objects"
     
 class NWO_RegionSelect(TableEntrySelect):
-    bl_label = "Select Region"
+    bl_label = ""
     bl_idname = "nwo.region_select"
     bl_description = "Selects/Deselects the active Region"
 
@@ -301,9 +348,23 @@ class NWO_RegionSelect(TableEntrySelect):
     def __init__(self):
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            if properties.select:
+                return "Selects the active BSP"
+            else:
+                return "Deselects the active BSP"
+        else:
+            if properties.select:
+                return "Selects the active Region"
+            else:
+                return "Deselects the active Region"
     
 class NWO_RegionRename(TableEntryRename):
-    bl_label = "Rename Region"
+    bl_label = ""
     bl_idname = "nwo.region_rename"
     bl_description = "Renames the active Region and updates scene objects"
 
@@ -315,9 +376,17 @@ class NWO_RegionRename(TableEntryRename):
         self.type_str = "Region"
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Renames the active BSP and updates scene objects"
+        else:
+            return "Renames the active Region and updates scene objects"
     
 class NWO_RegionHide(TableEntryHide):
-    bl_label = "Hide Region"
+    bl_label = ""
     bl_idname = "nwo.region_hide"
     bl_description = "Hides/Unhides the active Region"
 
@@ -329,10 +398,24 @@ class NWO_RegionHide(TableEntryHide):
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
 
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            if properties.hidden:
+                return "Unhides the active BSP"
+            else:
+                return "Hides the active BSP"
+        else:
+            if properties.select:
+                return "Unhides the active Region"
+            else:
+                return "Hides the active Region"
+
 class NWO_RegionHideSelect(TableEntryHideSelect):
-    bl_label = "Hide Region Selection"
+    bl_label = ""
     bl_idname = "nwo.region_hide_select"
-    bl_description = "Disable selection of the active Region objects"
+    bl_description = "Disables selection of the active Region objects"
 
     @classmethod
     def poll(cls, context):
@@ -342,9 +425,23 @@ class NWO_RegionHideSelect(TableEntryHideSelect):
         self.table_str = "regions_table"
         self.ob_prop_str = "region_name_ui"
 
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            if properties.hide_select:
+                return "Enables selection of the active BSP objects"
+            else:
+                return "Disables selection of the active BSP objects"
+        else:
+            if properties.select:
+                return "Enables selection of the active Region objects"
+            else:
+                return "Disables selection of the active Region objects"
+
 # PERMUTATIONS
 class NWO_PermutationAdd(TableEntryAdd):
-    bl_label = "Add Permutation"
+    bl_label = ""
     bl_idname = "nwo.permutation_add"
     bl_description = "Add a new Permutation"
 
@@ -353,8 +450,16 @@ class NWO_PermutationAdd(TableEntryAdd):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
 
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Add a new BSP Category"
+        else:
+            return "Add a new Permutation"
+
 class NWO_PermutationRemove(TableEntryRemove):
-    bl_label = "Remove Permutation"
+    bl_label = ""
     bl_idname = "nwo.permutation_remove"
     bl_description = "Removes the active Permutation"
 
@@ -365,9 +470,17 @@ class NWO_PermutationRemove(TableEntryRemove):
     def __init__(self):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Removes the active BSP Category"
+        else:
+            return "Removes the active Permutation"
     
 class NWO_PermutationMove(TableEntryMove):
-    bl_label = "Move Permutation"
+    bl_label = ""
     bl_idname = "nwo.permutation_move"
     bl_description = "Moves the active Permutation"
 
@@ -377,11 +490,19 @@ class NWO_PermutationMove(TableEntryMove):
 
     def __init__(self):
         self.table_str = "permutations_table"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Moves the active BSP Category"
+        else:
+            return "Moves the active Permutation"
     
 class NWO_PermutationAssignSingle(TableEntryAssignSingle):
-    bl_label = "Assign Permutation to Object"
+    bl_label = ""
     bl_idname = "nwo.permutation_assign_single"
-    bl_description = "Assigns the active Permutation to the active Object"
+    bl_description = "Assigns the selected Permutation to the active Object"
 
     @classmethod
     def poll(cls, context):
@@ -390,9 +511,17 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
     def __init__(self):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Assigns the selected BSP Category to the active Object"
+        else:
+            return "Assigns the selected Permutation to the active Object"
     
 class NWO_PermutationAssign(TableEntryAssign):
-    bl_label = "Assign Permutation to Selected Objects"
+    bl_label = ""
     bl_idname = "nwo.permutation_assign"
     bl_description = "Assigns the active Permutation to selected Objects"
 
@@ -403,9 +532,17 @@ class NWO_PermutationAssign(TableEntryAssign):
     def __init__(self):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Assigns the active BSP Category to selected Objects"
+        else:
+            return "Assigns the active Permutation to selected Objects"
     
 class NWO_PermutationSelect(TableEntrySelect):
-    bl_label = "Select Permutation"
+    bl_label = ""
     bl_idname = "nwo.permutation_select"
     bl_description = "Selects/Deselects the active Permutation"
 
@@ -416,9 +553,23 @@ class NWO_PermutationSelect(TableEntrySelect):
     def __init__(self):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            if properties.select:
+                return "Selects the active BSP Category"
+            else:
+                return "Deselects the active BSP Category"
+        else:
+            if properties.select:
+                return "Selects the active Permutation"
+            else:
+                return "Deselects the active Permutation"
     
 class NWO_PermutationRename(TableEntryRename):
-    bl_label = "Permutation Region"
+    bl_label = ""
     bl_idname = "nwo.permutation_rename"
     bl_description = "Renames the active Permutation and updates scene objects"
 
@@ -430,9 +581,17 @@ class NWO_PermutationRename(TableEntryRename):
         self.type_str = "Permutation"
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
+
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            return "Renames the active BSP Category and updates scene objects"
+        else:
+            return "Renames the active Permutation and updates scene objects"
     
 class NWO_PermutationHide(TableEntryHide):
-    bl_label = "Hide Permutation"
+    bl_label = ""
     bl_idname = "nwo.permutation_hide"
     bl_description = "Hides/Unhides the active Permutation"
 
@@ -444,8 +603,22 @@ class NWO_PermutationHide(TableEntryHide):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
 
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            if properties.hide_select:
+                return "Enables selection of the active BSP Category objects"
+            else:
+                return "Disables selection of the active BSP Category objects"
+        else:
+            if properties.select:
+                return "Enables selection of the active Permutation objects"
+            else:
+                return "Disables selection of the active Permutation objects"
+
 class NWO_PermutationHideSelect(TableEntryHideSelect):
-    bl_label = "Hide Permutation Selection"
+    bl_label = ""
     bl_idname = "nwo.permutation_hide_select"
     bl_description = "Disable selection of the active Permutation objects"
 
@@ -457,6 +630,33 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
 
+    @classmethod
+    def description(cls, context, properties) -> str:
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        if is_scenario:
+            if properties.hide_select:
+                return "Enables selection of the active BSP Category objects"
+            else:
+                return "Disables selection of the active BSP Category objects"
+        else:
+            if properties.select:
+                return "Enables selection of the active Permutation objects"
+            else:
+                return "Disables selection of the active Permutation objects"
+
+
+class NWO_SeamAssignSingle(TableEntryAssignSingle):
+    bl_label = ""
+    bl_idname = "nwo.seam_backface_assign_single"
+    bl_description = "Sets the selected BSP as this seam's backfacing BSP reference"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.regions_table and context.object
+
+    def __init__(self):
+        self.table_str = "regions_table"
+        self.ob_prop_str = "seam_back_ui"
 
 # HELPER FUNCTIONS
 
