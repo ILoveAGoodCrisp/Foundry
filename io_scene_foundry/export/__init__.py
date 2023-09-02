@@ -165,8 +165,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # save settings to global
         global export_settings
         export_settings = self.as_keywords()
+        bpy.ops.ed.undo_push()
         # start the actual export operator
         bpy.app.timers.register(call_export)
+
         return {'FINISHED'}
 
     def export_invalid(self):
@@ -602,7 +604,7 @@ class NWO_Export(NWO_Export_Scene):
 
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
-        return {"CANCELLED"}
+        return {"FINISHED"}
 
 def fbx_exporter():
     exporter = "default"

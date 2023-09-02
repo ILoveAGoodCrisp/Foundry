@@ -646,7 +646,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         subtype='TIME_ABSOLUTE',
     )
 
-
     scene_project : StringProperty(
         name="Project",
     )
