@@ -47,7 +47,7 @@ class NWOJSON(dict):
         world_frame,
         asset_name,
         bone_list,
-        regions_dict,
+        regions_table,
         global_materials_dict,
     ):
         self.objects = objects
@@ -57,7 +57,7 @@ class NWOJSON(dict):
         self.world_frame = world_frame
         self.asset_name = asset_name
         self.bone_list = bone_list
-        self.regions_dict = regions_dict
+        self.regions_table = regions_table
         self.global_materials_dict = global_materials_dict
         self.string_table = self.build_string_table()
         self.nodes_properties, self.meshes_properties = self.build_nodes_meshes_properties()
@@ -78,8 +78,9 @@ class NWOJSON(dict):
             table.update({"global_materials_names": list(global_materials.keys())})
             table.update({"global_materials_values": list(global_materials.values())})
         if self.sidecar_type in ("MODEL", "SKY"):
-            table.update({"regions_names": list(regions.keys())})
-            table.update({"regions_values": list(regions.values())})
+            table.update({"regions_names": regions})
+            table.update({"regions_values": [str(regions.index(region)) for region in regions]})
+            print(table["regions_values"])
 
         return table
 
@@ -102,19 +103,15 @@ class NWOJSON(dict):
         return global_materials_list
 
     def get_regions(self):
-        keep_list = ["default"]
-        for region in self.regions_dict.keys():
+        keep_regions = []
+        region_names = [region.name for region in self.regions_table]
+        for name in region_names:
             for ob in self.objects:
-                if region not in keep_list and ob.nwo.region_name == region:
-                    keep_list.append(region)
+                if name not in keep_regions and ob.nwo.region_name == name:
+                    keep_regions.append(name)
 
-        regions_list = {}
-        regions_list.update(self.regions_dict)
-        for key in self.regions_dict.keys():
-            if key not in keep_list:
-                regions_list.pop(key)
 
-        return regions_list
+        return keep_regions
 
     def build_nodes_meshes_properties(self):
         node_properties = {}

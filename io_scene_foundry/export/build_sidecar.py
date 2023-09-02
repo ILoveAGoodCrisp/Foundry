@@ -205,7 +205,7 @@ class Sidecar:
             metadata,
             sidecar_type,
             not_bungo_game,
-            nwo_scene.regions_dict,
+            nwo_scene.regions_table,
             nwo_scene.global_materials_dict,
         )
 
@@ -457,7 +457,7 @@ class Sidecar:
         metadata,
         sidecar_type,
         not_bungie_game,
-        regions_dict,
+        regions_table,
         global_materials_dict,
     ):  # FaceCollections is where regions and global materials are defined in the sidecar.
         faceCollections = ET.SubElement(metadata, "FaceCollections")
@@ -512,13 +512,13 @@ class Sidecar:
             )
 
             FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
-            for region in regions_dict.keys():
+            for region in regions_table:
                 ET.SubElement(
                     FaceCollectionsEntries,
                     "FaceCollectionEntry",
-                    Index=str(regions_dict.get(region)),
-                    Name=region,
-                    Active="true",
+                    Index=str(regions_table.keys().index(region.name)),
+                    Name=region.name,
+                    Active="true" if region.active else "false",
                 )
 
         if sidecar_type in ("MODEL", "SCENARIO", "PREFAB", "SKY"):

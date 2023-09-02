@@ -1334,7 +1334,7 @@ class ProcessScene:
             None,
             asset_name,
             nwo_scene.skeleton_bones,
-            nwo_scene.regions_dict,
+            nwo_scene.regions_table,
             nwo_scene.global_materials_dict,
         )
         with open(json_path, "w") as j:

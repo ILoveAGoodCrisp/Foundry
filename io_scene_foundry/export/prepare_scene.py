@@ -60,6 +60,7 @@ from ..utils.nwo_utils import (
     true_permutation,
     update_job,
     update_progress,
+    update_tables_from_objects,
     vector_str,
 )
 
@@ -316,7 +317,7 @@ class PrepareScene:
         has_regions = sidecar_type in ("MODEL", "SKY")
         has_global_mats = sidecar_type in ("MODEL", "SCENARIO", "PREFAB")
 
-        self.regions = {"default"}
+        self.regions = set()
         self.global_materials = {"default"}
         self.bsps = set()
         self.seams = []
@@ -409,9 +410,6 @@ class PrepareScene:
                 "_connected_geometry_mesh_type_physics",
                 "_connected_geometry_mesh_type_default",
             )
-
-            if uses_regions:
-                self.regions.add(nwo.region_name)
 
             if uses_global_mat:
                 self.global_materials.add(nwo.face_global_material)
@@ -598,9 +596,14 @@ class PrepareScene:
             export_obs = context.view_layer.objects[:]
 
             # print("cull_zero_face")
+
+        # Update tables from any new set entries created during export
+        update_tables_from_objects(context)
         # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
-        regions = [region for region in self.regions if region]
-        self.regions_dict = {region: str(idx) for idx, region in enumerate(regions)}
+        # regions = [region for region in self.regions if region]
+        # self.regions_dict = {region: str(idx) for idx, region in enumerate(regions)}
+        # Now just using the scene regions table
+        self.regions_table = context.scene.nwo.regions_table
 
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
         global_materials = ["default"]
