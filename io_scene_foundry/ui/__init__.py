@@ -72,6 +72,7 @@ from .object_properties import (
 
 from .object_ui import (
     NWO_GlobalMaterialGlobals,
+    NWO_PermutationsMenu,
     NWO_RegionsMenu,
     NWO_UL_MarkerPermutations,
     NWO_List_Add_MarkerPermutation,
@@ -135,7 +136,7 @@ from .animation_ui import (
 
 from .scene_properties import NWO_Asset_ListItems, NWO_BSP_ListItems, NWO_GlobalMaterial_ListItems, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
 
-from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_RenderPath, NWO_CollisionPath, NWO_PhysicsPath, NWO_AnimationPath, NWO_FPModelPath, NWO_GunModelPath, NWO_UL_Regions
+from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_RenderPath, NWO_CollisionPath, NWO_PhysicsPath, NWO_AnimationPath, NWO_FPModelPath, NWO_GunModelPath, NWO_UL_Permutations, NWO_UL_Regions
 
 from .viewport_ui import (
     NWO_ApplyTypeMesh,
@@ -426,8 +427,10 @@ classes_nwo = (
     NWO_Project_ListItems,
     NWO_Permutations_ListItems,
     NWO_UL_Regions,
+    NWO_UL_Permutations,
     NWO_Regions_ListItems,
     NWO_RegionsMenu,
+    NWO_PermutationsMenu,
     NWO_BSP_ListItems,
     NWO_GlobalMaterial_ListItems,
     NWO_UL_Projects,

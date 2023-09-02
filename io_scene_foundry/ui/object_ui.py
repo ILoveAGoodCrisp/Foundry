@@ -61,6 +61,23 @@ class NWO_RegionsMenu(Menu):
 
         layout.operator("nwo.region_add", text="New Region", icon='ADD').set_object_prop = True
 
+class NWO_PermutationsMenu(Menu):
+    bl_label = "Add Mesh Property"
+    bl_idname = "NWO_MT_Permutations"
+
+    @classmethod
+    def poll(self, context):
+        return context.object
+
+    def draw(self, context):
+        layout = self.layout
+        region = context.scene.nwo.regions_table[context.scene.nwo.regions_table_active_index]
+        permutations_table = region.permutations_table
+        for perm in permutations_table:
+            layout.operator("nwo.permutation_assign_single", text=perm.name).name = perm.name
+
+        layout.operator("nwo.permutation_add", text="New Permutation", icon='ADD').set_object_prop = True
+
 
 # FACE LEVEL FACE PROPS
 

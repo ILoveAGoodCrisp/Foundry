@@ -49,6 +49,17 @@ class NWO_RegionsContextMenu(Menu):
     def draw(self, context):
         pass
 
+class NWO_PermutationsContextMenu(Menu):
+    bl_label = "Permutations Context Menu"
+    bl_idname = "NWO_MT_PermutationsContext"
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo.permutations_table
+    
+    def draw(self, context):
+        pass
+
 class NWO_UL_Regions(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
@@ -63,18 +74,18 @@ class NWO_UL_Regions(UIList):
         else:
             layout.label(text="", translate=False, icon_value=icon)
 
-# class NWO_UL_Permutations(UIList):
-#     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-#         if item:
-#             row = layout.row()
-#             row.alignment = 'LEFT'
-#             row.operator("nwo.region_rename", text=item.name, emboss=False, icon_value=get_icon_id("region"))
-#             row = layout.row(align=True)
-#             row.alignment = 'RIGHT'
-#             row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
-#             row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
-#         else:
-#             layout.label(text="", translate=False, icon_value=icon)
+class NWO_UL_Permutations(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            row = layout.row()
+            row.alignment = 'LEFT'
+            row.operator("nwo.permutation_rename", text=item.name, emboss=False, icon_value=get_icon_id("permutation"))
+            row = layout.row(align=True)
+            row.alignment = 'RIGHT'
+            row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
+            row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
 
 class NWO_SetUnitScale(NWO_Op):
     """Sets up the scene for Halo: Sets the unit scale to match Halo's and sets the frame rate to 30fps"""

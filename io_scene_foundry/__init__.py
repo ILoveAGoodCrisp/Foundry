@@ -129,6 +129,12 @@ else:
         if not scene_nwo.regions_table:
             default_region = scene_nwo.regions_table.add()
             default_region.name = "default"
+
+        for region in scene_nwo.regions_table:
+            if not region.permutations_table:
+                default_permutation = region.permutations_table.add()
+                default_permutation.name = "default"
+
         if not bpy.app.background:
             # Set game version from file
             proxy_left_active = context.scene.nwo.instance_proxy_running

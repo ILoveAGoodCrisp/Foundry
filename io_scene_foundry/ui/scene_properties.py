@@ -39,7 +39,23 @@ from ..icons import get_icon_id
 from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_project_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
 
 class NWO_Permutations_ListItems(PropertyGroup):
-    name: StringProperty(name="Permutations Table")
+    name: StringProperty(name="Name")
+
+    def update_hidden(self, context):
+        bpy.ops.nwo.permutation_hide(entry_name=self.name)
+
+    hidden: BoolProperty(name="Hidden", update=update_hidden,)
+
+    def update_hide_select(self, context):
+        bpy.ops.nwo.permutation_hide_select(entry_name=self.name)
+
+    hide_select: BoolProperty(name="Hide Select", update=update_hide_select,)
+
+    active: BoolProperty(
+        name="Active",
+        description="If false, this region will not be active in the model tag except if added to a variant",
+        default=True,
+    )
 
 class NWO_Regions_ListItems(PropertyGroup):
     name: StringProperty(name="Name")
@@ -55,7 +71,7 @@ class NWO_Regions_ListItems(PropertyGroup):
     hide_select: BoolProperty(name="Hide Select", update=update_hide_select,)
 
     permutations_table: CollectionProperty(type=NWO_Permutations_ListItems)
-    permutations_active_index: IntProperty()
+    permutations_table_active_index: IntProperty()
     active: BoolProperty(
         name="Active",
         description="If false, this region will not be active in the model tag except if added to a variant",

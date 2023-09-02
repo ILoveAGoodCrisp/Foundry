@@ -42,7 +42,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
-from io_scene_foundry.tools.sets_manager import NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect
+from io_scene_foundry.tools.sets_manager import NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
@@ -438,8 +438,10 @@ class NWO_FoundryPanelProps(Panel):
         context = self.context
         scene = self.scene
         row = box.row()
-        row.label(text="Regions Table")
+        row.label(text="Regions")
         row = box.row()
+        if not nwo.regions_table:
+            return
         region = nwo.regions_table[nwo.regions_table_active_index]
         rows = 3
         row.template_list(
@@ -466,6 +468,39 @@ class NWO_FoundryPanelProps(Panel):
         sub = row.row(align=True)
         sub.operator("nwo.region_select", text="Select").select = True
         sub.operator("nwo.region_select", text="Deselect").select = False
+
+        # Permutations
+        row = box.row()
+        row.label(text=f"{region.name.title()} Permutations")
+        row = box.row()
+        if not region.permutations_table:
+            return
+        permutation = region.permutations_table[region.permutations_table_active_index]
+        rows = 3
+        row.template_list(
+            "NWO_UL_Permutations",
+            "",
+            region,
+            "permutations_table",
+            region,
+            "permutations_table_active_index",
+            rows=rows,
+        )
+        col = row.column(align=True)
+        col.operator("nwo.permutation_add", text="", icon="ADD").set_object_prop = False
+        col.operator("nwo.permutation_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.permutation_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.permutation_move", icon="TRIA_DOWN", text="").direction = 'down'
+
+        row = box.row()
+
+        sub = row.row(align=True)
+        sub.operator("nwo.permutation_assign", text="Assign").name = permutation.name
+
+        sub = row.row(align=True)
+        sub.operator("nwo.permutation_select", text="Select").select = True
+        sub.operator("nwo.permutation_select", text="Deselect").select = False
 
     def draw_object_properties(self):
         box = self.box.box()
@@ -850,13 +885,13 @@ class NWO_FoundryPanelProps(Panel):
                         text=perm_name,
                     )
                 else:
-                    row.prop(nwo, "permutation_name_ui", text=perm_name)
-                    row.operator_menu_enum(
-                        "nwo.permutation_list",
-                        "permutation",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
+                    split = row.split()
+                    col1 = split.column()
+                    col2 = split.column()
+                    col1.label(text="Region")
+                    col2.label(text="Permutation")
+                    col1.menu("NWO_MT_Regions", text=nwo.region_name_ui, icon_value=get_icon_id("region"))
+                    col2.menu("NWO_MT_Permutations", text=nwo.permutation_name_ui, icon_value=get_icon_id("permutation"))
 
             if poll_ui("SCENARIO"):
                 is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
@@ -1403,8 +1438,9 @@ class NWO_FoundryPanelProps(Panel):
             if nwo.region_name_locked_ui != "":
                 col.prop(nwo, "region_name_locked_ui", text="Region")
             else:
-                row = col.row(align=True)
-                row.menu("NWO_MT_Regions", text=nwo.region_name_ui)
+                pass
+                # row = col.row(align=True)
+                # row.menu("NWO_MT_Regions", text=f"Region: {nwo.region_name_ui}", icon_value=get_icon_id("region"))
                 # row.operator(
                 #     "nwo.region_assign_single", text="", icon="DOWNARROW_HLT"
                 # )
@@ -5153,6 +5189,15 @@ classeshalo = (
     NWO_RegionRename,
     NWO_RegionHide,
     NWO_RegionHideSelect,
+    NWO_PermutationAdd,
+    NWO_PermutationRemove,
+    NWO_PermutationMove,
+    NWO_PermutationAssignSingle,
+    NWO_PermutationAssign,
+    NWO_PermutationSelect,
+    NWO_PermutationRename,
+    NWO_PermutationHide,
+    NWO_PermutationHideSelect,
     NWO_OpenImageEditor,
     NWO_MaterialGirl,
     NWO_OpenFoundationTag,
