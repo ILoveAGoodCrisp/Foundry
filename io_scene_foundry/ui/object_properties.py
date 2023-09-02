@@ -389,7 +389,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             return 0
         if not self.mesh_type_ui_help_bool:
             self.mesh_type_ui_help_bool = True
-            self.mesh_type_ui_help = bpy.context.scene.nwo["default_mesh_type_ui"]
+            nwo = bpy.context.scene.nwo
+            items = self.items_mesh_type_ui(bpy.context)
+            current = nwo.default_mesh_type_ui
+            for idx, i in enumerate(items):
+                if i[0] == current:
+                    self.mesh_type_ui_help = idx
+                    break
 
         return self.mesh_type_ui_help
 
@@ -851,27 +857,10 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         update=update_uvmirror_across_entire_model_ui,
     )
 
-    bsp_name_ui: StringProperty(
-        name="BSP Name",
-        default="default",
-        description="Set bsp name for this object. Only valid for scenario exports",
-    )
-
     seam_back_ui: StringProperty(
         name="Seam Back Facing BSP",
         default="default",
         description="The BSP that the normals of this seam are facing away from",
-    )
-
-    def get_bsp_from_collection(self):
-        bsp = get_prop_from_collection(self.id_data, ("+bsp",))
-        return bsp
-
-    bsp_name_locked_ui: StringProperty(
-        name="BSP Name",
-        default="",
-        description="Set bsp name for this object. Only valid for scenario exports",
-        get=get_bsp_from_collection,
     )
 
     def mesh_primitive_type_items(self, context):
@@ -2270,7 +2259,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     # OBJECT LEVEL
     # ---------------------------------
     permutation_name: StringProperty()
-    bsp_name: StringProperty()
     is_pca: StringProperty()
 
     # BOUNDARY SURFACE

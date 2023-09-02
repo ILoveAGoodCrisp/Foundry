@@ -960,7 +960,7 @@ class ProcessScene:
                     export_obs = [
                         ob
                         for ob in objects
-                        if ob.nwo.permutation_name == perm and (ob.nwo.bsp_name == bsp)
+                        if ob.nwo.permutation_name == perm and (ob.nwo.region_name == bsp)
                     ]
 
                     if not export_obs:

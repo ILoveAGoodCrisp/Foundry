@@ -985,7 +985,7 @@ class NWOMesh(NWOObject):
 
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_seam":
             self.bungie_mesh_seam_associated_bsp = (
-                f"{self.asset_name}_{self.halo.bsp_name}"
+                f"{self.asset_name}_{self.halo.region_name}"
             )
 
         elif (

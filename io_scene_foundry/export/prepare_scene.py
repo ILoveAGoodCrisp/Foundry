@@ -56,7 +56,6 @@ from ..utils.nwo_utils import (
     set_object_mode,
     sort_alphanum,
     true_region,
-    true_bsp,
     true_permutation,
     update_job,
     update_progress,
@@ -139,6 +138,9 @@ class PrepareScene:
         self.animation_armatures = {}
         self.arm_name = ""
 
+        default_region = context.scene.nwo.regions_table[0].name
+        default_permutation = context.scene.nwo.permutations_table[0].name
+
         h4 = is_corinth(context)
 
         # Exit local view. Must do this otherwise fbx export will fail.
@@ -217,7 +219,7 @@ class PrepareScene:
             ]
             for ob in proxy_owners:
                 struc_nwo = ob.nwo
-                struc_nwo.bsp_name_ui = true_bsp(struc_nwo)
+                struc_nwo.region_name_ui = true_region(struc_nwo)
                 struc_nwo.permutation_name_ui = true_permutation(struc_nwo)
                 proxy_instance = ob.copy()
                 proxy_instance.data = ob.data.copy()
@@ -319,7 +321,6 @@ class PrepareScene:
 
         self.regions = set()
         self.global_materials = {"default"}
-        self.bsps = set()
         self.seams = []
 
         process = "Building Export Objects"
@@ -366,20 +367,12 @@ class PrepareScene:
                 halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
                 ob.matrix_world = blend_matrix @ halo_x_rot @ halo_z_rot
 
-            # fix empty group names
-            bsp_ui = nwo.bsp_name_ui
-            bsp_ui = "default" if bsp_ui == "" else bsp_ui
-
-            perm_ui = nwo.permutation_name_ui
-            perm_ui = "default" if perm_ui == "" else perm_ui
-
-            region_ui = nwo.region_name_ui
-            region_ui = "default" if region_ui == "" else region_ui
+            nwo.permutation_name_ui = default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
+            nwo.region_name_ui = default_permutation if not nwo.region_name_ui else nwo.region_name_ui
 
             # cast ui props to export props
             nwo.permutation_name = true_permutation(nwo)
-            if scenario_asset:
-                nwo.bsp_name = true_bsp(nwo)
+            nwo.region_name = true_region(nwo)
 
             self.strip_prefix(ob, protected_names)
             # if not_bungie_game():
@@ -414,9 +407,6 @@ class PrepareScene:
             if uses_global_mat:
                 self.global_materials.add(nwo.face_global_material)
 
-            if scenario_asset:
-                self.bsps.add(nwo.bsp_name)
-
             if export_gr2_files:
                 if is_mesh_loose:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
@@ -450,7 +440,7 @@ class PrepareScene:
                     self.selected_perms.add(nwo.permutation_name)
 
                 if sel_bsps:
-                    self.selected_bsps.add(nwo.bsp_name)
+                    self.selected_bsps.add(nwo.region_name)
 
         # loop through each material to check if find_shaders is needed
         for idx, mat in enumerate(self.used_materials):
@@ -498,7 +488,7 @@ class PrepareScene:
 
         # build seams
         if self.seams:
-            if len(self.bsps) < 2:
+            if len(self.regions) < 2:
                 self.warning_hit = True
                 print_warning(
                     "Only single BSP in scene, seam objects ignored from export"
@@ -531,8 +521,8 @@ class PrepareScene:
                     back_ui = seam_nwo.seam_back_ui
                     if (
                         back_ui == ""
-                        or back_ui == seam_nwo.bsp_name
-                        or back_ui not in self.bsps
+                        or back_ui == seam_nwo.region_name
+                        or back_ui not in self.regions
                     ):
                         # this attempts to fix a bad back facing bsp ref
                         self.warning_hit = True
@@ -546,11 +536,11 @@ class PrepareScene:
                             )
                             self.unlink(seam)
                         else:
-                            back_nwo.bsp_name = closest_bsp.nwo.bsp_name
+                            back_nwo.region_name = closest_bsp.nwo.region_name
                     else:
-                        back_nwo.bsp_name = seam_nwo.seam_back_ui
+                        back_nwo.region_name = seam_nwo.seam_back_ui
 
-                    back_seam.name = f"seam({back_nwo.bsp_name}:{seam_nwo.bsp_name})"
+                    back_seam.name = f"seam({back_nwo.region_name}:{seam_nwo.region_name})"
 
                     scene_coll.link(back_seam)
 
@@ -1500,14 +1490,14 @@ class PrepareScene:
                                 o_collision = s_ob.copy()
                                 scene_coll.link(o_collision)
                                 o_collision.nwo.permutation_name = o.nwo.permutation_name
-                                o_collision.nwo.bsp_name = o.nwo.bsp_name
+                                o_collision.nwo.region_name = o.nwo.region_name
                                 o_collision.parent = o
                                 o_collision.matrix_world = o.matrix_world
                         else:
                             o_collision = proxy_collision.copy()
                             scene_coll.link(o_collision)
                             o_collision.nwo.permutation_name = o.nwo.permutation_name
-                            o_collision.nwo.bsp_name = o.nwo.bsp_name
+                            o_collision.nwo.region_name = o.nwo.region_name
                             o_collision.parent = o
                             o_collision.matrix_world = o.matrix_world
 
@@ -1517,7 +1507,7 @@ class PrepareScene:
                                 o_physics = s_ob.copy()
                                 scene_coll.link(o_physics)
                                 o_physics.nwo.permutation_name = o.nwo.permutation_name
-                                o_physics.nwo.bsp_name = o.nwo.bsp_name
+                                o_physics.nwo.region_name = o.nwo.region_name
                                 o_physics.parent = o
                                 o_physics.matrix_world = o.matrix_world
 
@@ -1525,7 +1515,7 @@ class PrepareScene:
                             o_physics = proxy_physics.copy()
                             scene_coll.link(o_physics)
                             o_physics.nwo.permutation_name = o.nwo.permutation_name
-                            o_physics.nwo.bsp_name = o.nwo.bsp_name
+                            o_physics.nwo.region_name = o.nwo.region_name
                             o_physics.parent = o
                             o_physics.matrix_world = o.matrix_world
 
@@ -1533,7 +1523,7 @@ class PrepareScene:
                         o_cookie_cutter = proxy_cookie_cutter.copy()
                         scene_coll.link(o_cookie_cutter)
                         o_cookie_cutter.nwo.permutation_name = o.nwo.permutation_name
-                        o_cookie_cutter.nwo.bsp_name = o.nwo.bsp_name
+                        o_cookie_cutter.nwo.region_name = o.nwo.region_name
                         o_cookie_cutter.parent = o
                         o_cookie_cutter.matrix_world = o.matrix_world
 
@@ -1661,7 +1651,7 @@ class PrepareScene:
                                 scene_coll.link(new_ob)
                                 new_ob.matrix_world = linked_ob.matrix_world
                                 # linked objects might have different group assignments, ensure their split objects match this
-                                new_ob.nwo.bsp_name = linked_ob.nwo.bsp_name
+                                new_ob.nwo.region_name = linked_ob.nwo.region_name
                                 new_ob.nwo.permutation_name = linked_ob.nwo.permutation_name
                                 new_ob.nwo.region_name = linked_ob.nwo.region_name
 
@@ -1673,7 +1663,7 @@ class PrepareScene:
                                         scene_coll.link(new_child)
                                         new_child.parent = new_ob
                                         new_child.matrix_world = new_ob.matrix_world
-                                        new_child.nwo.bsp_name = new_ob.nwo.bsp_name
+                                        new_child.nwo.region_name = new_ob.nwo.region_name
                                         new_child.nwo.permutation_name = new_ob.nwo.permutation_name
                                         new_child.nwo.region_name = new_ob.nwo.region_name
 
@@ -1880,7 +1870,6 @@ class PrepareScene:
         # get mesh type
         if nwo.object_type == "_connected_geometry_object_type_mesh":
             if asset_type == "MODEL":
-                nwo.region_name = true_region(nwo)
                 if nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision":
                     nwo.mesh_type = "_connected_geometry_mesh_type_collision"
                 elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
@@ -3293,7 +3282,7 @@ class PrepareScene:
         # delete_object_list(context, mesh_markers)
 
     def set_node_props(self, ob_halo, node_halo):
-        node_halo.bsp_name = ob_halo.bsp_name
+        node_halo.region_name = ob_halo.region_name
 
         node_halo.permutation_name = ob_halo.permutation_name
 
@@ -3427,7 +3416,7 @@ class PrepareScene:
                     self.unlink(ob)
 
             else:
-                bsp = nwo.bsp_name
+                bsp = nwo.region_name
                 if design:
                     self.design.append(ob)
                     self.design_perms.add(permutation)
@@ -3639,7 +3628,6 @@ def reset_export_props(nwo):
     nwo.mesh_type = ""
     nwo.marker_type = ""
     nwo.permutation_name = ""
-    nwo.bsp_name = ""
     nwo.is_pca = ""
     nwo.boundary_surface_type = ""
     nwo.poop_lighting = ""

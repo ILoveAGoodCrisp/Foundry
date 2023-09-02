@@ -475,7 +475,7 @@ class Sidecar:
             FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
             using_default_bsp = False
             for ob in bpy.context.view_layer.objects:
-                bsp = ob.nwo.bsp_name
+                bsp = ob.nwo.region_name
                 if bsp == "default":
                     using_default_bsp = True
                     break
@@ -490,7 +490,7 @@ class Sidecar:
 
             count = 1
             for ob in bpy.context.view_layer.objects:
-                bsp = ob.nwo.bsp_name
+                bsp = ob.nwo.region_name
                 if bsp not in bsp_list:
                     ET.SubElement(
                         FaceCollectionsEntries,
