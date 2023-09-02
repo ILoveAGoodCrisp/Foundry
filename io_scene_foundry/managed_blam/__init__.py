@@ -166,7 +166,10 @@ class ManagedBlam():
                 else:
                     field.Value = value
             case "Reference":
-                field.Path = self.TagPath_from_string(value)
+                if type(value) == str:
+                    field.Path = self.TagPath_from_string(value)
+                else:
+                    field.Path = value
             case _:
                 field.SetStringData(value)
 
