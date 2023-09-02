@@ -43,7 +43,12 @@ class NWO_Permutations_ListItems(PropertyGroup):
 
 class NWO_Regions_ListItems(PropertyGroup):
     name: StringProperty(name="Name")
-    hidden: BoolProperty(name="Hidden")
+
+    def update_hidden(self, context):
+        bpy.ops.nwo.region_hide(entry_name=self.name)
+
+    hidden: BoolProperty(name="Hidden", update=update_hidden,)
+    
     hide_select: BoolProperty(name="Hide Select")
     permutations_table: CollectionProperty(type=NWO_Permutations_ListItems)
     permutations_active_index: IntProperty()

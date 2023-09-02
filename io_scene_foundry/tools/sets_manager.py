@@ -28,8 +28,6 @@
 
 import bpy
 
-from io_scene_foundry.ui.scene_properties import NWO_Regions_ListItems
-
 # Parent Classes
 class TableEntryAdd(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
@@ -231,8 +229,7 @@ class TableEntryHide(bpy.types.Operator):
         nwo = context.scene.nwo
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
-        should_hide = not entry.hidden
-        entry.hidden = should_hide
+        should_hide = entry.hidden
         scene_objects = context.scene.objects
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
         [ob.hide_set(should_hide) for ob in entry_objects]
