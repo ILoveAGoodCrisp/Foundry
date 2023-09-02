@@ -71,9 +71,7 @@ class NWO_PermutationsMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        region = context.scene.nwo.regions_table[context.scene.nwo.regions_table_active_index]
-        permutations_table = region.permutations_table
-        for perm in permutations_table:
+        for perm in context.scene.nwo.permutations_table:
             layout.operator("nwo.permutation_assign_single", text=perm.name).name = perm.name
 
         layout.operator("nwo.permutation_add", text="New Permutation", icon='ADD').set_object_prop = True

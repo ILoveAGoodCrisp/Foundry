@@ -470,19 +470,18 @@ class NWO_FoundryPanelProps(Panel):
         sub.operator("nwo.region_select", text="Deselect").select = False
 
         # Permutations
+        box = self.box.box()
         row = box.row()
-        row.label(text=f"{region.name.title()} Permutations")
+        row.label(text="Permutations")
         row = box.row()
-        if not region.permutations_table:
-            return
-        permutation = region.permutations_table[region.permutations_table_active_index]
+        permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         rows = 3
         row.template_list(
             "NWO_UL_Permutations",
             "",
-            region,
+            nwo,
             "permutations_table",
-            region,
+            nwo,
             "permutations_table_active_index",
             rows=rows,
         )

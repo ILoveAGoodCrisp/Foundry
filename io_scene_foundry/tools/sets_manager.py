@@ -38,8 +38,6 @@ class TableEntryAdd(bpy.types.Operator):
     def execute(self, context):
         name = self.name.lower()
         nwo = context.scene.nwo
-        if self.table_str == 'permutations_table':
-            nwo = nwo.regions_table[nwo.regions_table_active_index]
         table = getattr(nwo, self.table_str)
         all_names = [entry.name for entry in table]
 
@@ -60,10 +58,6 @@ class TableEntryAdd(bpy.types.Operator):
             ob = context.object
             if ob: setattr(ob.nwo, self.ob_prop_str, name)
 
-        if self.table_str == 'regions_table':
-            perm = entry.permutations_table.add()
-            perm.name = "default"
-
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -81,8 +75,6 @@ class TableEntryRemove(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.scene.nwo
-        if self.table_str == 'permutations_table':
-            nwo = nwo.regions_table[nwo.regions_table_active_index]
         table = getattr(nwo, self.table_str)
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
@@ -100,8 +92,6 @@ class TableEntryMove(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.scene.nwo
-        if self.table_str == 'permutations_table':
-            nwo = nwo.regions_table[nwo.regions_table_active_index]
         table = getattr(nwo, self.table_str)
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
@@ -146,8 +136,6 @@ class TableEntrySelect(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.scene.nwo
-        if self.table_str == 'permutations_table':
-            nwo = nwo.regions_table[nwo.regions_table_active_index]
         table = getattr(context.scene.nwo, self.table_str)
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
@@ -166,8 +154,6 @@ class TableEntryRename(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.scene.nwo
-        if self.table_str == 'permutations_table':
-            nwo = nwo.regions_table[nwo.regions_table_active_index]
         new_name = self.new_name.lower()
         table = getattr(nwo, self.table_str)
         table_active_index_str = f"{self.table_str}_active_index"
@@ -210,8 +196,6 @@ class TableEntryHide(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.scene.nwo
-        if self.table_str == 'permutations_table':
-            nwo = nwo.regions_table[nwo.regions_table_active_index]
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
@@ -227,8 +211,6 @@ class TableEntryHideSelect(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.scene.nwo
-        if self.table_str == 'permutations_table':
-            nwo = nwo.regions_table[nwo.regions_table_active_index]
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
@@ -370,11 +352,7 @@ class NWO_PermutationRemove(TableEntryRemove):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and len(region.permutations_table) > 1
+        return len(context.scene.nwo.permutations_table) > 1
 
     def __init__(self):
         self.table_str = "permutations_table"
@@ -386,11 +364,7 @@ class NWO_PermutationMove(TableEntryMove):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and len(region.permutations_table) > 1
+        return len(context.scene.nwo.permutations_table) > 1
 
     def __init__(self):
         self.table_str = "permutations_table"
@@ -402,12 +376,8 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and region.permutations_table and context.object
-
+        return context.scene.nwo.permutations_table and context.object
+    
     def __init__(self):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
@@ -419,11 +389,7 @@ class NWO_PermutationAssign(TableEntryAssign):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and region.permutations_table and context.selected_objects
+        return context.scene.nwo.permutations_table and context.selected_objects
 
     def __init__(self):
         self.table_str = "permutations_table"
@@ -436,11 +402,7 @@ class NWO_PermutationSelect(TableEntrySelect):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and region.permutations_table
+        return context.scene.nwo.permutations_table
 
     def __init__(self):
         self.table_str = "permutations_table"
@@ -453,11 +415,7 @@ class NWO_PermutationRename(TableEntryRename):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and region.permutations_table
+        return context.scene.nwo.permutations_table
 
     def __init__(self):
         self.type_str = "Permutation"
@@ -471,11 +429,7 @@ class NWO_PermutationHide(TableEntryHide):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and region.permutations_table
+        return context.scene.nwo.permutations_table
 
     def __init__(self):
         self.table_str = "permutations_table"
@@ -488,16 +442,14 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
 
     @classmethod
     def poll(cls, context):
-        nwo = context.scene.nwo
-        if not nwo.regions_table:
-            return False
-        region = nwo.regions_table[nwo.regions_table_active_index]
-        return region and region.permutations_table
+        return context.scene.nwo.permutations_table
 
     def __init__(self):
         self.table_str = "permutations_table"
         self.ob_prop_str = "permutation_name_ui"
 
+
+# HELPER FUNCTIONS
 
 def get_entry(table, entry_name):
     for entry in table:
