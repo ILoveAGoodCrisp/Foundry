@@ -196,7 +196,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
 
     def get_shader_type(self):
-        return self.blender_material.nwo.shader_type
+        return bpy.data.materials[self.blender_material].nwo.shader_type
 
     def custom_shader(self, struct_render_method, material_model_group_node):
         self.options_nodes = {}
