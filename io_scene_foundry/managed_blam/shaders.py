@@ -195,8 +195,8 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         self.options_dict[option_name] = getattr(globals(), f"enum_{option_name}_{option_value}")
 
 
-    def get_shader_type():
-        pass
+    def get_shader_type(self):
+        return self.blender_material.nwo.shader_type
 
     def custom_shader(self, struct_render_method, material_model_group_node):
         self.options_nodes = {}
