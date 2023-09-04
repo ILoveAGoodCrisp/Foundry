@@ -425,9 +425,9 @@ class NWO_Export(NWO_Export_Scene):
         # get the asset name and path to the asset folder
         self.asset_path, self.asset = get_asset_info(self.filepath)
 
-        sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml").lower()
+        sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml")
 
-        sidecar_path = sidecar_path_full.replace(get_data_path().lower(), "")
+        sidecar_path = sidecar_path_full.replace(get_data_path(), "")
         
         # Check that we can export
         if self.export_invalid():

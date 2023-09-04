@@ -207,7 +207,7 @@ def get_project_path():
     project = project_from_scene_project(bpy.context.scene.nwo.scene_project)
     if project is None:
         return ""
-    return project.project_path
+    return project.project_path.lower()
 
 
 def get_tool_path():
@@ -406,7 +406,7 @@ def get_active_object():
 
 
 def get_asset_info(filepath):
-    asset_path = os.path.dirname(filepath)
+    asset_path = os.path.dirname(filepath).lower()
     asset = os_sep_partition(asset_path, True)
 
     return asset_path, asset
@@ -414,13 +414,13 @@ def get_asset_info(filepath):
 
 def get_asset_path():
     """Returns the path to the asset folder."""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0].lower()
     return asset_path
 
 
 def get_asset_path_full(tags=False):
     """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0]
+    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0].lower()
     if tags:
         return get_tags_path() + asset_path
     else:
