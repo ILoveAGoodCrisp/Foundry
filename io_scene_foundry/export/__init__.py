@@ -58,13 +58,10 @@ from .process_scene import ProcessScene
 
 from io_scene_foundry.utils.nwo_utils import (
     check_path,
-    bpy_enum,
-    dot_partition,
     get_data_path,
     get_asset_info,
     get_prefs,
     get_project_path,
-    get_tags_path,
     get_tool_path,
     is_corinth,
     managed_blam_active,
@@ -79,11 +76,16 @@ export_settings = {}
 # lightmapper_run_once = False
 sidecar_read = False
 
+sidecar_path = ""
+
 def call_export():
     bpy.ops.nwo.export(**export_settings)
 
 def toggle_output():
     bpy.context.scene.nwo_export.show_output = False
+    
+def save_sidecar_path():
+    bpy.context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
 
 class NWO_Export_Scene(Operator, ExportHelper):
     bl_idname = "export_scene.nwo"
@@ -426,8 +428,10 @@ class NWO_Export(NWO_Export_Scene):
         self.asset_path, self.asset = get_asset_info(self.filepath)
 
         sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml")
-
+        global sidecar_path
         sidecar_path = sidecar_path_full.replace(get_data_path(), "")
+        
+        bpy.app.timers.register(save_sidecar_path)
         
         # Check that we can export
         if self.export_invalid():
