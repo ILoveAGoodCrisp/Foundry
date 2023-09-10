@@ -524,6 +524,20 @@ def color_4p_str(color):
     blue = color.b
     return f"1 {jstr(red)} {jstr(green)} {jstr(blue)}"
 
+def color_rgba_str(color):
+    red = color[0]
+    green = color[1]
+    blue = color[2]
+    alpha = color[3]
+    return f"{jstr(red)} {jstr(green)} {jstr(blue)} {jstr(alpha)}"
+
+def color_argb_str(color):
+    red = color[0]
+    green = color[1]
+    blue = color[2]
+    alpha = color[3]
+    return f"{jstr(alpha)} {jstr(red)} {jstr(green)} {jstr(blue)}"
+
 
 def bool_str(bool_var):
     """Returns a boolean as a string. 1 if true, 0 if false"""
