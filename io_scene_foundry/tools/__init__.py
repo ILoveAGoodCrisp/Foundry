@@ -1061,10 +1061,10 @@ class NWO_FoundryPanelProps(Panel):
                     )
 
                 row = col.row(align=True)
-                if nwo.bsp_name_locked_ui != "":
-                    row.prop(nwo, "bsp_name_locked_ui", text="BSP")
+                if nwo.region_name_locked_ui != "":
+                    row.prop(nwo, "region_name_locked_ui", text="BSP")
                 else:
-                    row.prop(nwo, "bsp_name_ui", text="BSP")
+                    row.prop(nwo, "region_name_ui", text="BSP")
                     row.operator_menu_enum(
                         "nwo.bsp_list",
                         "bsp",
