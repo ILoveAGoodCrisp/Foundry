@@ -131,6 +131,9 @@ class PrepareScene:
         # time it!
         # NOTE skipping timing as export is really fast now
         # start = time.perf_counter()
+        # NOTE forcing fix_bone_rotations to false as it currently causes issues
+        fix_bone_rotations = False
+        
         self.warning_hit = False
         self.pedestal = None
         self.aim_pitch = None

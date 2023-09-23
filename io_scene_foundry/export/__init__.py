@@ -313,7 +313,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             box = layout.box()
             sub = box.column(heading="Export Flags")
             if scene_nwo.asset_type in (('MODEL', 'SKY', 'FP ANIMATION')):
-                col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations")
+                # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
                 col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
             if h4:
                 sub.prop(scene_nwo_export, "import_force", text="Force full export")
