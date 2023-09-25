@@ -3453,14 +3453,15 @@ class PrepareScene:
         ob.nwo.object_type = "_connected_geometry_object_type_mesh"
         ob.nwo.mesh_type = "_connected_geometry_mesh_type_default"
         self.lighting.append(ob)
-        ob.parent = self.model_armature
-        ob.parent_type = "BONE"
-        bones = self.model_armature.data.bones
-        for b in bones:
-            if b.use_deform:
-                root_bone_name = b.name
-                break
-        ob.parent_bone = root_bone_name
+        if self.model_armature:
+            ob.parent = self.model_armature
+            ob.parent_type = "BONE"
+            bones = self.model_armature.data.bones
+            for b in bones:
+                if b.use_deform:
+                    root_bone_name = b.name
+                    break
+            ob.parent_bone = root_bone_name
 
         # copy = ob.copy()
         # copy.nwo.mesh_type = '_connected_geometry_mesh_type_lightprobevolume'
