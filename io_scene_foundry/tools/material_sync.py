@@ -26,7 +26,6 @@
 
 import bpy
 from bpy.types import Context
-from mathutils import Vector
 
 class NWO_MaterialSyncStart(bpy.types.Operator):
     bl_idname = "nwo.material_sync_start"

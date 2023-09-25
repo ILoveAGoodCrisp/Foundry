@@ -443,10 +443,10 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             new_dict['real'] = real
         elif type == 2: # int
             int_value = str(int(input.default_value))
-            new_dict['int/bool'] = int_value
+            new_dict['int\\bool'] = int_value
         elif type == 3: # bool
-            bool_value = str(int(bool(input.default_value,0)))
-            new_dict['int/bool'] = bool_value
+            bool_value = str(int(bool(input.default_value)))
+            new_dict['int\\bool'] = bool_value
         elif type == 4: # color
             r = input.default_value[0]
             g = input.default_value[1]

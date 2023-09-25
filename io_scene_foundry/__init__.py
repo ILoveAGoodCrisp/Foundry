@@ -244,7 +244,7 @@ else:
 
     def unregister():
         bpy.app.handlers.load_post.remove(load_handler)
-        bpy.app.handlers.load_post.append(load_set_output_state)
+        bpy.app.handlers.load_post.remove(load_set_output_state)
         # bpy.app.handlers.undo_post.remove(get_temp_settings)
         for module in reversed(modules):
             module.unregister()
