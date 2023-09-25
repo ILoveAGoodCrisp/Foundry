@@ -91,14 +91,14 @@ class NWO_MaterialSyncStart(bpy.types.Operator):
         self.node_dict = {}
         context.scene.nwo.shader_sync_active = True
         wm = context.window_manager
-        self._timer = wm.event_timer_add(context.scene.nwo.material_sync_rate, window=context.window)
+        self.timer = wm.event_timer_add(context.scene.nwo.material_sync_rate, window=context.window)
         wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
     
 
     def cancel(self, context):
         wm = context.window_manager
-        wm.event_timer_remove(self._timer)
+        wm.event_timer_remove(self.timer)
         return {'FINISHED'}
     
 class NWO_MaterialSyncEnd(bpy.types.Operator):
