@@ -66,6 +66,7 @@ class Sidecar:
         output_weapon,
     ):
         self.tag_path = data_relative(os.path.join(asset_path, asset_name))
+        self.asset_path = asset_path
         self.relative_blend = bpy.data.filepath.replace(get_data_path(), "")
         self.external_blend = False
         if self.relative_blend == bpy.data.filepath:
