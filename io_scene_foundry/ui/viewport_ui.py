@@ -27,9 +27,10 @@
 import bpy
 
 from io_scene_foundry.tools.property_apply import apply_props_material
-from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, true_bsp
+from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_bsp
 from .templates import NWO_Op
 
+from io_scene_foundry.utils.nwo_constants import VALID_MESHES 
 
 class NWO_MT_PIE_ApplyTypeMesh(bpy.types.Menu):
     bl_label = "Mesh Type"
@@ -346,19 +347,12 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 mesh_type = "_connected_geometry_mesh_type_decorator"
 
         meshes = [
-            ob
-            for ob in context.selected_objects
-            if ob.type
-            in (
-                "MESH",
-                "CURVE",
-                "META",
-                "SURFACE",
-                "FONT",
-            )
+            ob for ob in context.selected_objects
+            if ob.type in VALID_MESHES
         ]
-
+        old_active = context.active_object
         for ob in meshes:
+            set_active_object(ob)
             nwo = ob.nwo
             nwo.object_type_ui = "_connected_geometry_object_type_mesh"
             nwo.mesh_type_ui = mesh_type
@@ -379,6 +373,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
         self.report(
             {"INFO"}, f"Applied Mesh Type [{self.m_type}] to {len(meshes)} objects"
         )
+        set_active_object(old_active)
         return {"FINISHED"}
 
 
