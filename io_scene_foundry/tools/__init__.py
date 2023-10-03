@@ -1645,7 +1645,7 @@ class NWO_FoundryPanelProps(Panel):
             col.scale_y = 1.3
             col.operator(
                 "nwo.edit_face_layers",
-                text="Use Edit Mode to Add Face Properties",
+                text="Add Face Properties",
                 icon="EDITMODE_HLT",
             )
         else:

@@ -25,6 +25,10 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
+from io_scene_foundry.icons import get_icon_id
+
+from io_scene_foundry.ui.collection_properties import NWO_CollectionPropertiesGroup
+from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 
 # from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
 from .templates import NWO_Op
@@ -420,6 +424,16 @@ class NWO_OpenAssetFoundry(NWO_Op):
         self._process = subprocess.Popen(cli_args)
 
 
+
+def object_context_apply_types(self, context):
+    # self.layout.separator()
+    layout = self.layout
+    layout.separator()
+    if context.object.type in VALID_MESHES:
+        layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Halo Mesh Type")
+    layout.operator_menu_enum("nwo.apply_type_marker", property="m_type", text="Halo Marker Type")
+
+
 classes_nwo = (
     NWO_GlobalMaterialGlobals,
     H2AMPEKLocationPath,
@@ -495,6 +509,7 @@ classes_nwo = (
     NWO_MarkerPermutationItems,
     NWO_FaceProperties_ListItems,
     NWO_ObjectPropertiesGroup,
+    NWO_CollectionPropertiesGroup,
     NWO_LightPropertiesGroup,
     NWO_MaterialPropertiesGroup,
     NWO_MeshPropertiesGroup,
@@ -550,12 +565,12 @@ classes_nwo = (
     NWO_PIE_ApplyTypeMarker,
 )
 
-
 def register():
     for cls_nwo in classes_nwo:
         bpy.utils.register_class(cls_nwo)
 
     bpy.types.ASSETBROWSER_MT_context_menu.append(add_asset_open_in_foundry)
+    bpy.types.VIEW3D_MT_object_context_menu.append(object_context_apply_types)
     bpy.types.Scene.nwo = PointerProperty(
         type=NWO_ScenePropertiesGroup,
         name="NWO Scene Properties",
@@ -563,6 +578,11 @@ def register():
     )
     bpy.types.Object.nwo = PointerProperty(
         type=NWO_ObjectPropertiesGroup,
+        name="Halo NWO Properties",
+        description="Set Halo Object Properties",
+    )
+    bpy.types.Collection.nwo = PointerProperty(
+        type=NWO_CollectionPropertiesGroup,
         name="Halo NWO Properties",
         description="Set Halo Object Properties",
     )
@@ -598,6 +618,7 @@ def register():
     )
 
 def unregister():
+    bpy.types.VIEW3D_MT_object_context_menu.remove(object_context_apply_types)
     bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)
     del bpy.types.Scene.nwo
     del bpy.types.Object.nwo
