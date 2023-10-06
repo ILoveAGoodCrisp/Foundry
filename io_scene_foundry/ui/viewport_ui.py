@@ -261,7 +261,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
     def execute(self, context):
         apply_materials = get_prefs().apply_materials
         mesh_type = ""
-        sub_type = ""
         material = ""
         match self.m_type:
             case "collision":
@@ -284,64 +283,47 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 mesh_type = "_connected_geometry_mesh_type_seam"
                 material = "Seam"
             case "portal":
-                mesh_type = "_connected_geometry_mesh_type_plane"
-                sub_type = "_connected_geometry_plane_type_portal"
+                mesh_type = "_connected_geometry_mesh_type_portal"
                 material = "Portal"
             case "water_surface":
-                mesh_type = "_connected_geometry_mesh_type_plane"
-                sub_type = "_connected_geometry_plane_type_water_surface"
+                mesh_type = "_connected_geometry_mesh_type_water_surface"
             case "rain_sheet":
-                mesh_type = "_connected_geometry_mesh_type_plane"
-                sub_type = "_connected_geometry_plane_type_poop_vertical_rain_sheet"
+                mesh_type = "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
                 material = "RainSheet"
             case "fog":
-                mesh_type = "_connected_geometry_mesh_type_plane"
-                sub_type = "_connected_geometry_plane_type_planar_fog_volume"
+                mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
                 material = "Fog"
             case "rain_sheet":
-                mesh_type = "_connected_geometry_mesh_type_plane"
-                sub_type = "_connected_geometry_plane_type_vertical_rain_sheet"
+                mesh_type = "_connected_geometry_mesh_type_vertical_rain_sheet"
                 material = "RainSheet"
             case "soft_ceiling":
-                mesh_type = "_connected_geometry_mesh_type_volume"
-                sub_type = "_connected_geometry_volume_type_soft_ceiling"
+                mesh_type = "_connected_geometry_mesh_type_soft_ceiling"
                 material = "SoftCeiling"
             case "soft_kill":
-                mesh_type = "_connected_geometry_mesh_type_volume"
-                sub_type = "_connected_geometry_volume_type_soft_kill"
+                mesh_type = "_connected_geometry_mesh_type_soft_kill"
                 material = "SoftKill"
             case "slip_surface":
-                mesh_type = "_connected_geometry_mesh_type_volume"
-                sub_type = "_connected_geometry_volume_type_slip_surface"
+                mesh_type = "_connected_geometry_mesh_type_slip_surface"
                 material = "SlipSurface"
             case "water_physics":
-                mesh_type = "_connected_geometry_mesh_type_volume"
-                sub_type = "_connected_geometry_volume_type_water_physics_volume"
+                mesh_type = "_connected_geometry_mesh_type_water_physics_volume"
                 material = "WaterVolume"
             case "streaming":
-                mesh_type = "_connected_geometry_mesh_type_volume"
-                sub_type = "_connected_geometry_volume_type_streaming"
+                mesh_type = "_connected_geometry_mesh_type_streaming"
                 material = "Volume"
             case "lightmap":
-                mesh_type = "_connected_geometry_mesh_type_volume"
                 if is_corinth(context):
-                    sub_type = "_connected_geometry_volume_type_lightmap_exclude"
+                    mesh_type = "_connected_geometry_mesh_type_lightmap_exclude"
                 else:
-                    sub_type = "_connected_geometry_volume_type_lightmap_region"
+                    mesh_type = "_connected_geometry_mesh_type_lightmap_region"
                 material = "Volume"
 
             case "cookie_cutter":
-                if context.scene.nwo.asset_type == "PREFAB":
-                    mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
-                else:
-                    mesh_type = "_connected_geometry_mesh_type_volume"
-                    sub_type = "_connected_geometry_volume_type_cookie_cutter"
-
+                mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
                 material = "CookieCutter"
 
             case "rain_blocker":
-                mesh_type = "_connected_geometry_mesh_type_volume"
-                sub_type = "_connected_geometry_volume_type_poop_rain_blocker"
+                mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
                 material = "RainBlocker"
             case "decorator":
                 mesh_type = "_connected_geometry_mesh_type_decorator"
@@ -356,11 +338,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
             nwo = ob.nwo
             nwo.object_type_ui = "_connected_geometry_object_type_mesh"
             nwo.mesh_type_ui = mesh_type
-            if sub_type:
-                if mesh_type == "_connected_geometry_mesh_type_volume":
-                    nwo.volume_type_ui = sub_type
-                else:
-                    nwo.plane_type_ui = sub_type
 
             if apply_materials:
                 apply_props_material(ob, material)

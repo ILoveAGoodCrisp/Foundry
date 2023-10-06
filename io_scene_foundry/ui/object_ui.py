@@ -1197,94 +1197,84 @@ class NWO_ObjectProps(NWO_PropPanel):
                 elif ob_nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                     col.prop(ob_nwo, "mesh_primitive_type_ui", text="Primitive Type")
 
-                elif ob_nwo.mesh_type_ui == "_connected_geometry_mesh_type_plane":
+                elif ob_nwo.mesh_type_ui == "_connected_geometry_mesh_type_portal":
                     row = col.row()
-                    row.scale_y = 1.25
-                    row.prop(ob_nwo, "plane_type_ui")
+                    row.prop(
+                        ob_nwo,
+                        "portal_type_ui",
+                        text="Portal Type",
+                        expand=True,
+                    )
 
-                    if ob_nwo.plane_type_ui == "_connected_geometry_plane_type_portal":
-                        row = col.row()
-                        row.prop(
-                            ob_nwo,
-                            "portal_type_ui",
-                            text="Portal Type",
-                            expand=True,
-                        )
+                    col.separator()
 
-                        col.separator()
+                    col = col.column(heading="Flags")
 
-                        col = col.column(heading="Flags")
+                    col.prop(
+                        ob_nwo,
+                        "portal_ai_deafening_ui",
+                        text="AI Deafening",
+                    )
+                    col.prop(
+                        ob_nwo,
+                        "portal_blocks_sounds_ui",
+                        text="Blocks Sounds",
+                    )
+                    col.prop(ob_nwo, "portal_is_door_ui", text="Is Door")
 
-                        col.prop(
-                            ob_nwo,
-                            "portal_ai_deafening_ui",
-                            text="AI Deafening",
-                        )
-                        col.prop(
-                            ob_nwo,
-                            "portal_blocks_sounds_ui",
-                            text="Blocks Sounds",
-                        )
-                        col.prop(ob_nwo, "portal_is_door_ui", text="Is Door")
-
-                    elif (
-                        ob_nwo.plane_type_ui
-                        == "_connected_geometry_plane_type_planar_fog_volume"
-                    ):
-                        row = col.row()
-                        row.prop(
-                            ob_nwo,
-                            "fog_appearance_tag_ui",
-                            text="Fog Appearance Tag",
-                        )
-                        row.operator("nwo.fog_path", icon="FILE_FOLDER", text="")
-                        col.prop(
-                            ob_nwo,
-                            "fog_volume_depth_ui",
-                            text="Fog Volume Depth",
-                        )
-
-                    elif (
-                        ob_nwo.plane_type_ui
-                        == "_connected_geometry_plane_type_water_surface"
-                    ):
-                        col.prop(ob_nwo, "mesh_tessellation_density_ui")
-
-                elif ob_nwo.mesh_type_ui == "_connected_geometry_mesh_type_volume":
+                elif (
+                    ob_nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_planar_fog_volume"
+                ):
                     row = col.row()
-                    row.scale_y = 1.25
-                    row.prop(ob_nwo, "volume_type_ui")
+                    row.prop(
+                        ob_nwo,
+                        "fog_appearance_tag_ui",
+                        text="Fog Appearance Tag",
+                    )
+                    row.operator("nwo.fog_path", icon="FILE_FOLDER", text="")
+                    col.prop(
+                        ob_nwo,
+                        "fog_volume_depth_ui",
+                        text="Fog Volume Depth",
+                    )
 
-                    if (
-                        ob_nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_water_physics_volume"
-                    ):
-                        col.separator()
-                        col.prop(
-                            ob_nwo,
-                            "water_volume_depth_ui",
-                            text="Water Volume Depth",
-                        )
-                        col.prop(
-                            ob_nwo,
-                            "water_volume_flow_direction_ui",
-                            text="Flow Direction",
-                        )
-                        col.prop(
-                            ob_nwo,
-                            "water_volume_flow_velocity_ui",
-                            text="Flow Velocity",
-                        )
-                        col.prop(
-                            ob_nwo,
-                            "water_volume_fog_color_ui",
-                            text="Underwater Fog Color",
-                        )
-                        col.prop(
-                            ob_nwo,
-                            "water_volume_fog_murkiness_ui",
-                            text="Underwater Fog Murkiness",
-                        )
+                elif (
+                    ob_nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_water_surface"
+                ):
+                    col.prop(ob_nwo, "mesh_tessellation_density_ui")
+
+                elif (
+                    ob_nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_water_physics_volume"
+                ):
+                    col.separator()
+                    col.prop(
+                        ob_nwo,
+                        "water_volume_depth_ui",
+                        text="Water Volume Depth",
+                    )
+                    col.prop(
+                        ob_nwo,
+                        "water_volume_flow_direction_ui",
+                        text="Flow Direction",
+                    )
+                    col.prop(
+                        ob_nwo,
+                        "water_volume_flow_velocity_ui",
+                        text="Flow Velocity",
+                    )
+                    col.prop(
+                        ob_nwo,
+                        "water_volume_fog_color_ui",
+                        text="Underwater Fog Color",
+                    )
+                    col.prop(
+                        ob_nwo,
+                        "water_volume_fog_murkiness_ui",
+                        text="Underwater Fog Murkiness",
+                    )
 
                 elif (
                     ob_nwo.mesh_type_ui

@@ -243,28 +243,32 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def items_mesh_type_ui(self, context):
         """Function to handle context for mesh enum lists"""
         h4 = is_corinth()
+        index = -1
         items = []
 
         if poll_ui("DECORATOR SET"):
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_decorator",
                     "Decorator",
                     "Decorator mesh type. Supports up to 4 level of detail variants",
                     "decorator",
-                    0,
+                    index,
                 )
             )
         elif poll_ui(("MODEL", "SKY", "PARTICLE MODEL")):
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_render",
                     "Render",
                     "Render only geometry",
                     "render_geometry",
-                    0,
+                    index,
                 )
             )
+            index += 1
             if poll_ui("MODEL"):
                 items.append(
                     nwo_enum(
@@ -272,16 +276,17 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                         "Collision",
                         "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player",
                         "collider",
-                        1,
+                        index,
                     )
                 )
+                index += 1
                 items.append(
                     nwo_enum(
                         "_connected_geometry_mesh_type_physics",
                         "Physics",
                         "Physics only geometry. Uses havok physics to interact with static and dynamic objects",
                         "physics",
-                        2,
+                        index,
                     )
                 )
                 # if not h4: NOTE removing these for now until I figure out how they work
@@ -291,77 +296,188 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
             else:
                 descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_structure",
                     "Structure",
                     descrip,
                     "structure",
-                    0,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_poop",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
-                    1,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_poop_collision",
                     "Collision",
                     "Non rendered geometry which provides collision only",
                     "collider",
-                    2,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_seam",
                     "Seam",
                     "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
                     "seam",
-                    3,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
-                    "_connected_geometry_mesh_type_plane",
-                    "Plane",
-                    "Non rendered geometry which provides various utility functions in a bsp. The planes can cut through bsp geometry. Supports portals, fog planes, and water surfaces",
-                    "surface",
-                    4,
+                    "_connected_geometry_mesh_type_portal",
+                    "Portal",
+                    "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters",
+                    "portal",
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
-                    "_connected_geometry_mesh_type_volume",
-                    "Volume",
-                    "Non rendered geometry which defines regions for special properties",
-                    "volume",
-                    5,
+                    "_connected_geometry_mesh_type_water_surface",
+                    "Water Surface",
+                    "Plane which can cut through structure geometry to define a water surface",
+                    "water",
+                    index,
                 )
             )
+            index += 1
+            items.append(
+                nwo_enum(
+                    "_connected_geometry_mesh_type_soft_ceiling",
+                    "Soft Ceiling",
+                    "Soft barrier that blocks the player and player camera",
+                    "soft_ceiling",
+                    index,
+                )
+            )
+            index += 1
+            items.append(
+                nwo_enum(
+                    "_connected_geometry_mesh_type_soft_kill",
+                    "Soft Kill",
+                    "Defines a region where the player will be killed... softly",
+                    "soft_kill",
+                    index,
+                )
+            )
+            index += 1
+            items.append(
+                nwo_enum(
+                    "_connected_geometry_mesh_type_slip_surface",
+                    "Slip Surface",
+                    "Defines a region in which surfaces become slippery",
+                    "slip_surface",
+                    index,
+                )
+            )
+            index += 1
+            items.append(
+                nwo_enum(
+                    "_connected_geometry_mesh_type_water_physics_volume",
+                    "Water Physics",
+                    "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4+)",
+                    "water_physics",
+                    index,
+                )
+            )
+            index += 1
+            items.append(
+                nwo_enum(
+                    "_connected_geometry_mesh_type_poop_rain_blocker",
+                    "Rain Blocker",
+                    "Blocks rain from rendering in the region this volume occupies",
+                    "rain_sheet",
+                    index,
+                )
+            )
+            if h4:
+                index += 1
+                items.append(
+                    nwo_enum(
+                        "_connected_geometry_mesh_type_lightmap_exclude",
+                        "Lightmap Exclusion Volume",
+                        "Defines a region that should not be lightmapped",
+                        "lightmap_exclude",
+                        index,
+                    )
+                )   
+                index += 1
+                items.append(
+                    nwo_enum(
+                        "_connected_geometry_mesh_type_streaming",
+                        "Streaming Volume",
+                        "Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set should be used when generating the streaming zone set. This is useful for performance if you have textures in areas of the map the player will not get close to",
+                        "streaming",
+                        index,
+                    )
+                )   
+            else:
+                index += 1
+                items.append(
+                    nwo_enum(
+                        "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
+                        "Rain Sheet",
+                        "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
+                        "rain_sheet",
+                        index,
+                    )
+                )
+                index += 1
+                items.append(
+                    nwo_enum(
+                        "_connected_geometry_mesh_type_cookie_cutter",
+                        "Cookie Cutter",
+                        "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
+                        "cookie_cutter",
+                        index,
+                    )
+                )
+                index += 1
+                items.append(
+                    nwo_enum(
+                        "_connected_geometry_mesh_type_planar_fog_volume",
+                        "Fog Plane",
+                        "Defines an area in a cluster which renders fog defined in the scenario tag",
+                        "fog",
+                        index,
+                    )
+                )
+
         elif poll_ui("PREFAB"):
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_poop",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
-                    0,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "_connected_geometry_mesh_type_poop_collision",
                     "Collision",
                     "Non rendered geometry which provides collision only",
                     "collider",
-                    1,
+                    index,
                 )
             )
             # NOTE cookie cutters for H4 will need support through managedblam
@@ -382,7 +498,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         if poll_ui("MODEL"):
             max_int = 2
         elif poll_ui("SCENARIO"):
-            max_int = 5
+            max_int = 12 if is_corinth() else 13
         elif poll_ui("PREFAB"):
             max_int = 2
         if self.mesh_type_ui_help > max_int:
@@ -415,201 +531,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     mesh_type_ui_help: IntProperty()
     mesh_type_ui_help_bool: BoolProperty()
-
-    #########################################################################################################################
-    # PLANE TYPE UI ####################################################################################################
-    #########################################################################################################################
-
-    def items_plane_type_ui(self, context):
-        """Function to handle context for plane enum lists"""
-        h4 = is_corinth()
-        items = []
-
-        items.append(
-            (
-                "_connected_geometry_plane_type_portal",
-                "Portal",
-                "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters.",
-                get_icon_id("portal"),
-                0,
-            )
-        )
-        items.append(
-            (
-                "_connected_geometry_plane_type_planar_fog_volume",
-                "Fog Plane",
-                "Defines an area in a cluster which renders fog defined in the scenario tag",
-                get_icon_id("fog"),
-                1,
-            )
-        )
-        items.append(
-            (
-                "_connected_geometry_plane_type_water_surface",
-                "Water Surface",
-                "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
-                get_icon_id("water"),
-                2,
-            )
-        )
-        if not h4:
-            items.append(
-                (
-                    "_connected_geometry_plane_type_poop_vertical_rain_sheet",
-                    "Rain Sheet",
-                    "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
-                    get_icon_id("rain_sheet"),
-                    3,
-                )
-            )
-
-        return items
-
-    def get_plane_type_ui(self):
-        max_int = 2
-        if not is_corinth():
-            max_int = 3
-        if self.plane_type_ui_help > max_int:
-            return 0
-        return self.plane_type_ui_help
-
-    def set_plane_type_ui(self, value):
-        self["plane_type_ui"] = value
-
-    def update_plane_type_ui(self, context):
-        self.plane_type_ui_help = self["plane_type_ui"]
-
-    plane_type_ui: EnumProperty(
-        name="Plane Type",
-        items=items_plane_type_ui,
-        update=update_plane_type_ui,
-        get=get_plane_type_ui,
-        set=set_plane_type_ui,
-        options=set(),
-    )
-
-    plane_type_ui_help: IntProperty()
-
-    #########################################################################################################################
-    # VOLUME TYPE UI ####################################################################################################
-    #########################################################################################################################
-
-    def items_volume_type_ui(self, context):
-        """Function to handle context for plane enum lists"""
-        h4 = is_corinth()
-        items = []
-
-        items.append(
-            (
-                "_connected_geometry_volume_type_soft_ceiling",
-                "Soft Ceiling",
-                "Soft barrier that blocks the player and player camera",
-                get_icon_id("soft_ceiling"),
-                0,
-            )
-        )
-        items.append(
-            (
-                "_connected_geometry_volume_type_soft_kill",
-                "Soft Kill",
-                "Defines a region where the player will be killed... softly",
-                get_icon_id("soft_kill"),
-                1,
-            )
-        )
-        items.append(
-            (
-                "_connected_geometry_volume_type_slip_surface",
-                "Slip Surface",
-                "Defines a region in which surfaces become slippery",
-                get_icon_id("slip_surface"),
-                2,
-            )
-        )
-        items.append(
-            (
-                "_connected_geometry_volume_type_water_physics_volume",
-                "Water Physics",
-                "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
-                get_icon_id("water_physics"),
-                3,
-            )
-        )
-        items.append(
-            (
-                "_connected_geometry_volume_type_poop_rain_blocker",
-                "Rain Blocker",
-                "Blocks rain from rendering in the region this volume occupies",
-                get_icon_id("rain_sheet"),
-                4,
-            )
-        )
-        if not h4:
-            items.append(
-                (
-                    "_connected_geometry_volume_type_cookie_cutter",
-                    "Cookie Cutter",
-                    "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
-                    get_icon_id("cookie_cutter"),
-                    5,
-                )
-            )
-            # items.append(
-            #     (
-            #         "_connected_geometry_volume_type_lightmap_region",
-            #         "Lightmap Region",
-            #         "Restricts lightmapping to this area when specified during lightmapping",
-            #         get_icon_id("lightmap_region"),
-            #         6,
-            #     )
-        else:
-            items.append(
-                (
-                    "_connected_geometry_volume_type_lightmap_exclude",
-                    "Lightmap Exclude",
-                    "Defines a region that should not be lightmapped",
-                    get_icon_id("lightmap_exclude"),
-                    5,
-                )
-            )
-            items.append(
-                (
-                    "_connected_geometry_volume_type_streaming",
-                    "Streaming Volume",
-                    """Defines the region in a zone set that should be used when generating a streamingzoneset tag. 
-                     By default the full space inside a zone set should be used when generating the streaming zone set. 
-                     This is useful for performance if you have textures in areas of the map the player will not get close to""",
-                    get_icon_id("streaming"),
-                    6,
-                )
-            )
-
-        return items
-
-    def get_volume_type_ui(self):
-        max_int = 5
-        if is_corinth():
-            max_int = 6
-        if self.volume_type_ui_help > max_int:
-            return 0
-        return self.volume_type_ui_help
-
-    def set_volume_type_ui(self, value):
-        self["volume_type_ui"] = value
-
-    def update_volume_type_ui(self, context):
-        self.volume_type_ui_help = self["volume_type_ui"]
-
-    volume_type_ui: EnumProperty(
-        name="Volume Type",
-        options=set(),
-        update=update_volume_type_ui,
-        items=items_volume_type_ui,
-        get=get_volume_type_ui,
-        set=set_volume_type_ui,
-    )
-
-    volume_type_ui_help: IntProperty()
 
     def items_marker_type_ui(self, context):
         """Function to handle context for marker enum lists"""

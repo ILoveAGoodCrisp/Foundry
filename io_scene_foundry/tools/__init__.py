@@ -842,93 +842,83 @@ class NWO_FoundryPanelProps(Panel):
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
 
-            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_plane":
+            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_portal":
                 row = col.row()
-                row.scale_y = 1.25
-                row.prop(nwo, "plane_type_ui")
+                row.prop(
+                    nwo,
+                    "portal_type_ui",
+                    text="Portal Type",
+                    expand=True,
+                )
 
-                if nwo.plane_type_ui == "_connected_geometry_plane_type_portal":
-                    row = col.row()
-                    row.prop(
-                        nwo,
-                        "portal_type_ui",
-                        text="Portal Type",
-                        expand=True,
-                    )
+                col.separator()
 
-                    col.separator()
+                col = col.column(heading="Flags")
 
-                    col = col.column(heading="Flags")
+                col.prop(
+                    nwo,
+                    "portal_ai_deafening_ui",
+                    text="AI Deafening",
+                )
+                col.prop(
+                    nwo,
+                    "portal_blocks_sounds_ui",
+                    text="Blocks Sounds",
+                )
+                col.prop(nwo, "portal_is_door_ui", text="Is Door")
 
-                    col.prop(
-                        nwo,
-                        "portal_ai_deafening_ui",
-                        text="AI Deafening",
-                    )
-                    col.prop(
-                        nwo,
-                        "portal_blocks_sounds_ui",
-                        text="Blocks Sounds",
-                    )
-                    col.prop(nwo, "portal_is_door_ui", text="Is Door")
-
-                elif (
-                    nwo.plane_type_ui
-                    == "_connected_geometry_plane_type_planar_fog_volume"
-                ):
-                    row = col.row()
-                    row.prop(
-                        nwo,
-                        "fog_appearance_tag_ui",
-                        text="Fog Appearance Tag",
-                    )
-                    row.operator("nwo.fog_path", icon="FILE_FOLDER", text="")
-                    col.prop(
-                        nwo,
-                        "fog_volume_depth_ui",
-                        text="Fog Volume Depth",
-                    )
-
-                elif (
-                    nwo.plane_type_ui == "_connected_geometry_plane_type_water_surface"
-                ):
-                    col.prop(nwo, "mesh_tessellation_density_ui", text="Tessellation Density")
-
-            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_volume":
+            elif (
+                nwo.mesh_type_ui
+                == "_connected_geometry_mesh_type_planar_fog_volume"
+            ):
                 row = col.row()
-                row.scale_y = 1.25
-                row.prop(nwo, "volume_type_ui")
+                row.prop(
+                    nwo,
+                    "fog_appearance_tag_ui",
+                    text="Fog Appearance Tag",
+                )
+                row.operator("nwo.fog_path", icon="FILE_FOLDER", text="")
+                col.prop(
+                    nwo,
+                    "fog_volume_depth_ui",
+                    text="Fog Volume Depth",
+                )
 
-                if (
-                    nwo.volume_type_ui
-                    == "_connected_geometry_volume_type_water_physics_volume"
-                ):
-                    col.separator()
-                    col.prop(
-                        nwo,
-                        "water_volume_depth_ui",
-                        text="Water Volume Depth",
-                    )
-                    col.prop(
-                        nwo,
-                        "water_volume_flow_direction_ui",
-                        text="Flow Direction",
-                    )
-                    col.prop(
-                        nwo,
-                        "water_volume_flow_velocity_ui",
-                        text="Flow Velocity",
-                    )
-                    col.prop(
-                        nwo,
-                        "water_volume_fog_color_ui",
-                        text="Underwater Fog Color",
-                    )
-                    col.prop(
-                        nwo,
-                        "water_volume_fog_murkiness_ui",
-                        text="Underwater Fog Murkiness",
-                    )
+            elif (
+                nwo.mesh_type_ui == "_connected_geometry_mesh_type_water_surface"
+            ):
+                col.prop(nwo, "mesh_tessellation_density_ui", text="Tessellation Density")
+
+            elif (
+                nwo.mesh_type_ui
+                == "_connected_geometry_mesh_type_water_physics_volume"
+            ):
+                col.separator()
+                col.prop(
+                    nwo,
+                    "water_volume_depth_ui",
+                    text="Water Volume Depth",
+                )
+                col.prop(
+                    nwo,
+                    "water_volume_flow_direction_ui",
+                    text="Flow Direction",
+                )
+                col.prop(
+                    nwo,
+                    "water_volume_flow_velocity_ui",
+                    text="Flow Velocity",
+                )
+                col.prop(
+                    nwo,
+                    "water_volume_fog_color_ui",
+                    text="Underwater Fog Color",
+                )
+                col.prop(
+                    nwo,
+                    "water_volume_fog_murkiness_ui",
+                    text="Underwater Fog Murkiness",
+                )
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
                 col.prop(nwo, "poop_collision_type_ui", text="Collision Type")

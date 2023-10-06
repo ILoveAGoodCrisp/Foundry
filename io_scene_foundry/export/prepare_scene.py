@@ -1935,136 +1935,134 @@ class PrepareScene:
                     nwo.mesh_type = "_connected_geometry_mesh_type_seam"
                     self.seams.append(ob)
 
-                elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_plane":
-                    if nwo.plane_type_ui == "_connected_geometry_plane_type_portal":
-                        nwo.mesh_type = "_connected_geometry_mesh_type_portal"
-                        nwo.portal_type = nwo.portal_type_ui
-                        if nwo.portal_ai_deafening_ui:
-                            nwo.portal_ai_deafening = "1"
-                        if nwo.portal_blocks_sounds_ui:
-                            nwo.portal_blocks_sounds = "1"
-                        if nwo.portal_is_door_ui:
-                            nwo.portal_is_door = "1"
+                elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_portal":
+                    nwo.mesh_type = "_connected_geometry_mesh_type_portal"
+                    nwo.portal_type = nwo.portal_type_ui
+                    if nwo.portal_ai_deafening_ui:
+                        nwo.portal_ai_deafening = "1"
+                    if nwo.portal_blocks_sounds_ui:
+                        nwo.portal_blocks_sounds = "1"
+                    if nwo.portal_is_door_ui:
+                        nwo.portal_is_door = "1"
 
-                    elif (
-                        nwo.plane_type_ui
-                        == "_connected_geometry_plane_type_water_surface"
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
-                        nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
-                    elif (
-                        nwo.plane_type_ui
-                        == "_connected_geometry_plane_type_poop_vertical_rain_sheet"
-                    ):
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_water_surface"
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
+                    nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
+                ):
+                    nwo.mesh_type = (
+                        "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
+                    )
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_planar_fog_volume"
+                ):
+                    nwo.mesh_type = (
+                        "_connected_geometry_mesh_type_planar_fog_volume"
+                    )
+                    nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
+                    nwo.fog_volume_depth = jstr(nwo.fog_volume_depth_ui)
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_soft_ceiling"
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+                    nwo.boundary_surface_type = (
+                        "_connected_geometry_boundary_surface_type_soft_ceiling"
+                    )
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_soft_kill"
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+                    nwo.boundary_surface_type = (
+                        "_connected_geometry_boundary_surface_type_soft_kill"
+                    )
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_slip_surface"
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+                    nwo.boundary_surface_type = (
+                        "_connected_geometry_boundary_surface_type_slip_surface"
+                    )
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_water_physics_volume"
+                ):
+                    nwo.mesh_type = (
+                        "_connected_geometry_mesh_type_water_physics_volume"
+                    )
+                    nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
+                    nwo.water_volume_flow_direction = jstr(
+                        nwo.water_volume_flow_direction_ui
+                    )
+                    nwo.water_volume_flow_velocity = jstr(
+                        nwo.water_volume_flow_velocity_ui
+                    )
+                    if reach:
+                        nwo.water_volume_fog_color = color_argb_str(
+                            nwo.water_volume_fog_color_ui
+                        )
+                    else:
+                        nwo.water_volume_fog_color = color_rgba_str(
+                            nwo.water_volume_fog_color_ui
+                        )
+                    nwo.water_volume_fog_murkiness = jstr(
+                        nwo.water_volume_fog_murkiness_ui
+                    )
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_cookie_cutter"
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_lightmap_exclude"
+                    and not reach
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
+                    nwo.obb_volume_type = "_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume"
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_streaming"
+                    and not reach
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
+                    nwo.obb_volume_type = (
+                        "_connected_geometry_mesh_obb_volume_type_streamingvolume"
+                    )
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_lightmap_region"
+                    and reach
+                ):
+                    nwo.mesh_type = "_connected_geometry_mesh_type_lightmap_region"
+
+                elif (
+                    nwo.mesh_type_ui
+                    == "_connected_geometry_mesh_type_poop_rain_blocker"
+                ):
+                    nwo.poop_rain_occluder = "1"
+                    if reach:
                         nwo.mesh_type = (
-                            "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
+                            "_connected_geometry_mesh_type_poop_rain_blocker"
                         )
-
-                    elif (
-                        nwo.plane_type_ui
-                        == "_connected_geometry_plane_type_planar_fog_volume"
-                    ):
-                        nwo.mesh_type = (
-                            "_connected_geometry_mesh_type_planar_fog_volume"
-                        )
-                        nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
-                        nwo.fog_volume_depth = jstr(nwo.fog_volume_depth_ui)
-
-                elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_volume":
-                    if (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_soft_ceiling"
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-                        nwo.boundary_surface_type = (
-                            "_connected_geometry_boundary_surface_type_soft_ceiling"
-                        )
-
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_soft_kill"
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-                        nwo.boundary_surface_type = (
-                            "_connected_geometry_boundary_surface_type_soft_kill"
-                        )
-
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_slip_surface"
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-                        nwo.boundary_surface_type = (
-                            "_connected_geometry_boundary_surface_type_slip_surface"
-                        )
-
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_water_physics_volume"
-                    ):
-                        nwo.mesh_type = (
-                            "_connected_geometry_mesh_type_water_physics_volume"
-                        )
-                        nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
-                        nwo.water_volume_flow_direction = jstr(
-                            nwo.water_volume_flow_direction_ui
-                        )
-                        nwo.water_volume_flow_velocity = jstr(
-                            nwo.water_volume_flow_velocity_ui
-                        )
-                        if reach:
-                            nwo.water_volume_fog_color = color_argb_str(
-                                nwo.water_volume_fog_color_ui
-                            )
-                        else:
-                            nwo.water_volume_fog_color = color_rgba_str(
-                                nwo.water_volume_fog_color_ui
-                            )
-                        nwo.water_volume_fog_murkiness = jstr(
-                            nwo.water_volume_fog_murkiness_ui
-                        )
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_cookie_cutter"
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
-
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_lightmap_exclude"
-                        and not reach
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
-                        nwo.obb_volume_type = "_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume"
-
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_streaming"
-                        and not reach
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
-                        nwo.obb_volume_type = (
-                            "_connected_geometry_mesh_obb_volume_type_streamingvolume"
-                        )
-
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_lightmap_region"
-                        and reach
-                    ):
-                        nwo.mesh_type = "_connected_geometry_mesh_type_lightmap_region"
-
-                    elif (
-                        nwo.volume_type_ui
-                        == "_connected_geometry_volume_type_poop_rain_blocker"
-                    ):
-                        nwo.poop_rain_occluder = "1"
-                        if reach:
-                            nwo.mesh_type = (
-                                "_connected_geometry_mesh_type_poop_rain_blocker"
-                            )
-                        else:
-                            nwo.mesh_type = "_connected_geometry_mesh_type_poop"
+                    else:
+                        nwo.mesh_type = "_connected_geometry_mesh_type_poop"
                 else:
                     nwo.mesh_type = "_connected_geometry_mesh_type_default"
 
