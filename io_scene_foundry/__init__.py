@@ -129,10 +129,12 @@ else:
         scene_nwo = context.scene.nwo
         if not scene_nwo.regions_table:
             default_region = scene_nwo.regions_table.add()
+            default_region.old = "default"
             default_region.name = "default"
 
         if not scene_nwo.permutations_table:
             default_permutation = scene_nwo.permutations_table.add()
+            default_permutation.old = "default"
             default_permutation.name = "default"
 
         

@@ -65,7 +65,8 @@ class NWO_UL_Regions(UIList):
         if item:
             row = layout.row()
             row.alignment = 'LEFT'
-            row.operator("nwo.region_rename", text=item.name, emboss=False, icon_value=get_icon_id("region"))
+            # row.operator("nwo.region_rename", text=item.name, emboss=False, icon_value=get_icon_id("region"))
+            row.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("region"))
             row = layout.row(align=True)
             row.alignment = 'RIGHT'
             row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
@@ -79,7 +80,8 @@ class NWO_UL_Permutations(UIList):
         if item:
             row = layout.row()
             row.alignment = 'LEFT'
-            row.operator("nwo.permutation_rename", text=item.name, emboss=False, icon_value=get_icon_id("permutation"))
+            # row.operator("nwo.permutation_rename", text=item.name, emboss=False, icon_value=get_icon_id("permutation"))
+            row.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("permutation"))
             row = layout.row(align=True)
             row.alignment = 'RIGHT'
             row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)

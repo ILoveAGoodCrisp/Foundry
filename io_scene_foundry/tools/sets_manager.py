@@ -54,6 +54,7 @@ class TableEntryAdd(bpy.types.Operator):
             return {'CANCELLED'}
     
         entry = table.add()
+        entry.old = name
         entry.name = name
         setattr(nwo, f"{self.table_str}_active_index", len(table) - 1)
         if self.set_object_prop:
@@ -164,29 +165,38 @@ class TableEntryRename(bpy.types.Operator):
     new_name: bpy.props.StringProperty(
         name="New Name",
     )
+
+    index: bpy.props.IntProperty()
     
     def execute(self, context):
         nwo = context.scene.nwo
         new_name = self.new_name.lower()
         table = getattr(nwo, self.table_str)
-        table_active_index_str = f"{self.table_str}_active_index"
-        table_active_index = getattr(nwo, table_active_index_str)
+        table_active_index = self.index
         all_names = [entry.name for entry in table]
+        all_names.pop(table_active_index)
+        entry = table[table_active_index]
+
+        if not entry.old:
+            entry.old = 'default'
 
         if not new_name:
             self.report({'WARNING'}, f"{self.type_str} name cannot be empty")
+            entry.name = entry.old
             return {'CANCELLED'}
         elif len(new_name) > 128:
             self.report({'WARNING'}, f"{self.type_str} name has a maximum of 128 characters")
+            entry.name = entry.old
             return {'CANCELLED'}
         elif new_name in all_names:
             self.report({'WARNING'}, f"{self.type_str} name already exists")
+            entry.name = entry.old
             return {'CANCELLED'}
         
-        entry = table[table_active_index]
         scene_objects = context.scene.objects
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
-        old_name = entry.name
+        old_name = str(entry.old)
+        entry.old = new_name
         entry.name = new_name
         for ob in entry_objects:
             setattr(ob.nwo, self.ob_prop_str, new_name)
@@ -198,7 +208,8 @@ class TableEntryRename(bpy.types.Operator):
             if coll.nwo.type != current_type or c_parts[1] != old_name: continue
             coll.name = current_type + '::' + self.new_name
 
-        context.area.tag_redraw()
+        if hasattr(context.area, 'tag_redraw'):
+            context.area.tag_redraw()
         return {'FINISHED'}
     
     def invoke(self, context, event):

@@ -39,7 +39,18 @@ from ..icons import get_icon_id
 from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_project_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
 
 class NWO_Permutations_ListItems(PropertyGroup):
-    name: StringProperty(name="Name")
+
+    def update_name(self, context):
+        if self.old != self.name:
+            i = int(self.path_from_id().rpartition('[')[2].strip(']'))
+            bpy.ops.nwo.permutation_rename(new_name=self.name, index=i)
+
+    old: StringProperty()
+
+    name: StringProperty(
+        name="Name",
+        update=update_name,
+        )
 
     def update_hidden(self, context):
         bpy.ops.nwo.permutation_hide(entry_name=self.name)
@@ -58,7 +69,18 @@ class NWO_Permutations_ListItems(PropertyGroup):
     )
 
 class NWO_Regions_ListItems(PropertyGroup):
-    name: StringProperty(name="Name")
+
+    def update_name(self, context):
+        if self.old != self.name:
+            i = int(self.path_from_id().rpartition('[')[2].strip(']'))
+            bpy.ops.nwo.region_rename(new_name=self.name, index=i)
+
+    old: StringProperty()
+
+    name: StringProperty(
+        name="Name",
+        update=update_name,
+        )
 
     def update_hidden(self, context):
         bpy.ops.nwo.region_hide(entry_name=self.name)
