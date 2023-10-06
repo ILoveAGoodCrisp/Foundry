@@ -142,7 +142,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     nwo_enum(
                         "water_surface",
                         "Water Surface",
-                        "Plane which can cut through structure geometry to define a water surface. Supports tesselation",
+                        "Plane which can cut through geometry to define a water surface",
                         "water",
                         5,
                     )

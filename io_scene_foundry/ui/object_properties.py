@@ -351,7 +351,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 nwo_enum(
                     "_connected_geometry_mesh_type_water_surface",
                     "Water Surface",
-                    "Plane which can cut through structure geometry to define a water surface",
+                    "Plane which can cut through geometry to define a water surface",
                     "water",
                     index,
                 )
