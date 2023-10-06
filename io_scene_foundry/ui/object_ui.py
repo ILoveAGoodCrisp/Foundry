@@ -33,7 +33,6 @@ from ..utils.nwo_utils import (
     is_linked,
     is_corinth,
     sort_alphanum,
-    true_bsp,
     true_permutation,
     true_region,
     poll_ui,
@@ -1988,7 +1987,7 @@ class NWO_BSPList(NWO_Op):
         # get scene perms
         bsps = ["default"]
         for ob in export_objects_no_arm():
-            bsp = true_bsp(ob.nwo)
+            bsp = true_region(ob.nwo)
             if bsp not in bsps:
                 bsps.append(bsp)
 
@@ -2014,10 +2013,10 @@ class NWO_BSPListSeam(NWO_BSPList):
 
     def bsp_items(self, context):
         # get scene perms
-        self_bsp = true_bsp(context.object.nwo)
+        self_bsp = true_region(context.object.nwo)
         bsps = []
         for ob in export_objects_no_arm():
-            bsp = true_bsp(ob.nwo)
+            bsp = true_region(ob.nwo)
             if bsp != self_bsp and bsp not in bsps:
                 bsps.append(bsp)
 

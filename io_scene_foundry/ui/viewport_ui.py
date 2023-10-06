@@ -27,7 +27,7 @@
 import bpy
 
 from io_scene_foundry.tools.property_apply import apply_props_material
-from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_bsp
+from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_region
 from .templates import NWO_Op
 
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES 
@@ -368,7 +368,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             if self.m_type == "seam":
                 closest_bsp = closest_bsp_object(ob)
                 if closest_bsp is not None:
-                    ob.nwo.seam_back_ui = true_bsp(closest_bsp.nwo)
+                    ob.nwo.seam_back_ui = true_region(closest_bsp.nwo)
 
         self.report(
             {"INFO"}, f"Applied Mesh Type [{self.m_type}] to {len(meshes)} objects"

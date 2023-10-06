@@ -27,7 +27,7 @@
 import bpy
 import bmesh
 
-from io_scene_foundry.utils.nwo_utils import set_active_object, true_bsp
+from io_scene_foundry.utils.nwo_utils import set_active_object, true_region
 
 
 def auto_seam(context):
@@ -66,7 +66,7 @@ def auto_seam(context):
         # test against all other structure meshes
         for test_ob in structure_obs:
             # don't test structure meshes in own bsp
-            if true_bsp(test_ob.nwo) == true_bsp(ob.nwo):
+            if true_region(test_ob.nwo) == true_region(ob.nwo):
                 continue
             test_ob_mat = test_ob.matrix_world
             # get test ob verts

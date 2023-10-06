@@ -33,7 +33,7 @@ from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
 )
-from ..utils.nwo_utils import bpy_enum_seam, is_corinth, true_bsp
+from ..utils.nwo_utils import bpy_enum_seam, is_corinth
 
 
 class NWO_FaceProperties_ListItems(PropertyGroup):
@@ -84,7 +84,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     seam_override: BoolProperty()
 
     # def seam_item(self, context):
-    #     return [('seam', true_bsp(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam_facing"), 0)]
+    #     return [('seam', true_region(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam_facing"), 0)]
 
     # seam : EnumProperty(
     #     name="Seam Facing BSP",
@@ -95,8 +95,8 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     def scene_bsps(self, context):
         bsp_list = []
         for ob in context.scene.objects:
-            bsp = true_bsp(ob.nwo)
-            if bsp not in bsp_list and bsp != true_bsp(context.object.nwo):
+            bsp = true_region(ob.nwo)
+            if bsp not in bsp_list and bsp != true_region(context.object.nwo):
                 bsp_list.append(bsp)
 
         items = []

@@ -39,7 +39,7 @@ import random
 import xml.etree.ElementTree as ET
 
 from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.utils.nwo_constants import PROTECTED_MATERIALS
+from io_scene_foundry.utils.nwo_constants import PROTECTED_MATERIALS, VALID_MESHES
 
 from ..icons import get_icon_id
 import requests
@@ -368,7 +368,7 @@ def select_bsp_objects(
 def get_shared_objects(halo_objects):
     new_objects = []
     for ob in halo_objects:
-        if true_bsp(ob.nwo) == "shared":
+        if true_region(ob.nwo) == "shared":
             new_objects.append(ob)
 
     return new_objects
@@ -563,20 +563,11 @@ def jstr(number):
     """Takes a number, rounds it to six decimal places and returns it as a string"""
     return str(round(number, 6))
 
-
-def true_bsp(halo):
-    if halo.bsp_name_locked_ui:
-        return halo.bsp_name_locked_ui.lower()
-    else:
-        return halo.bsp_name_ui.lower()
-
-
 def true_region(halo):
     if halo.region_name_locked_ui:
         return halo.region_name_locked_ui.lower()
     else:
         return halo.region_name_ui.lower()
-
 
 def true_permutation(halo):
     if halo.permutation_name_locked_ui:
@@ -610,7 +601,7 @@ def clean_tag_path(path, file_ext=None):
 
 
 def is_shared(ob):
-    return true_bsp(ob.nwo) == "shared"
+    return true_region(ob.nwo) == "shared"
 
 
 def shortest_string(*strings):
@@ -1317,6 +1308,8 @@ def get_prop_from_collection(ob, valid_type):
                     return c.nwo.region
                 elif c_type == 'permutation':
                     return c.nwo.permutation
+            
+    return ''
 
 
 # returns true if this material is a halo shader
@@ -1410,7 +1403,7 @@ def export_objects():
     export_obs = []
     for ob in context.view_layer.objects:
         if ob.nwo.export_this and not any(
-            coll.name.startswith("+exclude") for coll in ob.users_collection
+            coll.nwo.type == 'exclude' for coll in ob.users_collection
         ):
             export_obs.append(ob)
 
@@ -1453,7 +1446,7 @@ def closest_bsp_object(ob):
 
     def get_distance(source_object, target_object):
         me = source_object.data
-        verts_sel = [v.co for v in me.vertices if v.select]
+        verts_sel = [v.co for v in me.vertices]
         if verts_sel:
             seam_median = (
                 source_object.matrix_world @ sum(verts_sel, Vector()) / len(verts_sel)
@@ -1475,21 +1468,19 @@ def closest_bsp_object(ob):
 
         return
 
-    valid_targets = [ob for ob in export_objects() if ob.type == "MESH"]
+    valid_targets = [ob for ob in export_objects() if ob.type in VALID_MESHES]
 
     for target_ob in valid_targets:
         if (
-            ob == target_ob
-            or not target_ob.type == "MESH"
-            and target_ob.nwo.mesh_type == "_connected_geometry_mesh_type_default"
-            and target_ob.nwo.bsp_name != ob.nwo.bsp_name
+            ob != target_ob
+            and target_ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+            and true_region(target_ob.nwo) != true_region(ob.nwo)
         ):
-            continue
-        d = get_distance(ob, target_ob)
-        if d is not None:
-            if distance < 0 or d < distance:
-                distance = d
-                closest_bsp = target_ob
+            d = get_distance(ob, target_ob)
+            if d is not None:
+                if distance < 0 or d < distance:
+                    distance = d
+                    closest_bsp = target_ob
 
     return closest_bsp
 

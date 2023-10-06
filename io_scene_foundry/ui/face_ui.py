@@ -32,7 +32,6 @@ from ..utils.nwo_utils import (
     layer_face_count,
     random_color,
     sort_alphanum,
-    true_bsp,
     true_region,
     poll_ui,
 )
@@ -709,7 +708,7 @@ class NWO_FaceLayerAdd(NWO_Op):
         nwo = ob.data.nwo
         match self.options:
             case "seam":
-                self.fm_name = f"seam {true_bsp(ob.nwo)}:"
+                self.fm_name = f"seam {true_region(ob.nwo)}:"
             case "precise_position":
                 self.fm_name = "Uncompressed"
             case "_connected_geometry_face_type_sky":
@@ -804,7 +803,7 @@ class NWO_FaceLayerAdd(NWO_Op):
         elif self.options == "seam":
             closest_bsp = closest_bsp_object(ob)
             if closest_bsp is not None:
-                item.seam_adjacent_bsp = true_bsp(closest_bsp.nwo)
+                item.seam_adjacent_bsp = true_region(closest_bsp.nwo)
             else:
                 self.report(
                     {"WARNING"},

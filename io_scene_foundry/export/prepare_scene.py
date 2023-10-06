@@ -2643,7 +2643,7 @@ class PrepareScene:
             self.hide_excluded_recursively(layer)
 
     def hide_excluded_recursively(self, layer):
-        if layer.collection.name.startswith("+exclude") and layer.is_visible:
+        if layer.collection.nwo.type == 'exclude' and layer.is_visible:
             layer.exclude = True
         for child_layer in layer.children:
             self.hide_excluded_recursively(child_layer)

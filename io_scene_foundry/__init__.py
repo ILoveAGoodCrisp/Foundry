@@ -24,9 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-# Don't edit the version or build version here or it will break CI
-# Need to do this because of Blender parsing the plugin init code instead of actually executing it when getting bl_info
-
 import ctypes
 import bpy
 from bpy.app.handlers import persistent

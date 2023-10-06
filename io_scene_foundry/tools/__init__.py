@@ -304,7 +304,7 @@ class NWO_FoundryPanelProps(Panel):
         
         row = col.row()
         if asset_name:
-            row.label(text=f"Asset Name: {asset_name}")
+            row.label(text=asset_name)
             row.operator("nwo.make_asset", text="Copy Asset", icon_value=get_icon_id("halo_asset")) 
             
         else:
@@ -835,7 +835,7 @@ class NWO_FoundryPanelProps(Panel):
             )
             col = flow.column()
             col.use_property_split = True
-            self.draw_table_menus(col, nwo)
+            self.draw_table_menus(col, nwo, ob, context.scene)
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
 
@@ -1344,21 +1344,22 @@ class NWO_FoundryPanelProps(Panel):
                 "_connected_geometry_mesh_type_poop_collision",
                 )):
                 row = col.row()
+                coll_mat_text = 'Collision Material'
+                if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
+                    for prop in ob.nwo.face_props:
+                        if prop.face_global_material_override:
+                            coll_mat_text += '*'
+                            break
                 row.prop(
                     nwo,
                     "face_global_material_ui",
-                    text="Collision Material",
+                    text=coll_mat_text,
                 )
                 row.menu(
                     NWO_GlobalMaterialMenu.bl_idname,
                     text="",
                     icon="DOWNARROW_HLT",
                 )
-                # if ob.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_object_structure'):
-                #     for prop in ob.nwo.face_props:
-                #         if prop.face_global_material_override:
-                #             row.label(text='*')
-                #             break
 
         if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
             if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure") or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
@@ -2411,7 +2412,7 @@ class NWO_FoundryPanelProps(Panel):
         row.operator("wm.save_userpref", text=("Save Foundry Settings") + (" *" if blend_prefs.is_dirty else ""))
 
 
-    def draw_table_menus(self, col, nwo):
+    def draw_table_menus(self, col, nwo, ob, scene):
         perm_name = "Permutation"
         region_name = "Region"
         is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
@@ -2421,6 +2422,12 @@ class NWO_FoundryPanelProps(Panel):
                 region_name = "Frontfacing BSP"
             else:
                 region_name = "BSP"
+        elif poll_ui('MODEL'):
+            if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
+                for prop in nwo.face_props:
+                    if prop.region_name_override:
+                        region_name += '*'
+                        break
 
         row = col.row()
         split = row.split()
