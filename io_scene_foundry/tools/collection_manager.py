@@ -28,6 +28,9 @@ import bpy
 
 def create_collections(context, ops, data, coll_type, coll_name, move_objects):
     selected_collection = context.collection
+    if coll_name.strip() == "":
+        coll_name = "default"
+    coll_name = coll_name.lower()[:128]
     # iterates through the selected objects and applies the chosen collection type
     full_name = get_full_name(coll_type, coll_name)
     collection_index = get_coll_if_exists(data, full_name)
@@ -41,12 +44,30 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
                 for coll in ob.users_collection:
                     coll.objects.unlink(ob)
                 data.collections[collection_index].objects.link(ob)
+
+        new_collection = bpy.data.collections[full_name]
     else:
         new_collection = bpy.data.collections.new(full_name)
         if selected_collection:
             selected_collection.children.link(new_collection)
         else:
             context.scene.collection.children.link(new_collection)
+
+    new_collection.nwo.type = coll_type
+    if coll_type == 'region':
+        regions = context.scene.nwo.regions_table
+        new_collection.nwo.region = coll_name
+        if coll_name not in [r.name for r in regions]:
+            new_region = regions.add()
+            new_region.name = coll_name
+
+
+    elif coll_type == 'permutation':
+        permutations = context.scene.nwo.permutations_table
+        new_collection.nwo.permutation = coll_name
+        if coll_name not in [p.name for p in permutations]:
+            new_perm = permutations.add()
+            new_perm.name = coll_name
 
     return {"FINISHED"}
 
@@ -65,26 +86,25 @@ def get_coll_if_exists(data, full_name):
 
 def get_full_name(coll_type, coll_name):
     prefix = ""
+    asset_type = bpy.context.scene.nwo.asset_type
     match coll_type:
-        case "EXCLUDE":
-            prefix = "+exclude"
-        case "BSP":
-            prefix = "+bsp"
-        case "REGION":
-            if  bpy.context.scene.nwo.asset_type == 'DECORATOR SET':
-                prefix = "+set"
+        case "exclude":
+            prefix = "exclude::"
+        case "region":
+            if asset_type in ("SCENARIO", "PREFAB"):
+                prefix = "bsp::"
             else:
-                prefix = "+region"
+                prefix = "region::"
         case _:
             if bpy.context.scene.nwo.asset_type in ("SCENARIO", "PREFAB"):
-                prefix = "+group"
+                prefix = "category::"
             else:
-                prefix = "+perm"
+                prefix = "permutation::"
 
     if not coll_name:
         coll_name = "default"
         
-    full_name_base = f"{prefix} {coll_name}"
+    full_name_base = f"{prefix}{coll_name}"
     full_name = full_name_base
 
     # check if a collection by this name already exists, if so rename.

@@ -1027,6 +1027,13 @@ def dot_partition(target_string, get_suffix=False):
     else:
         return shortest_string(target_string.rpartition(".")[0], target_string)
     
+def any_partition(target_string, part, get_suffix=False):
+    """Returns a string after partitioning it using the given string. If the returned string will be empty, the function will instead return the argument passed"""
+    if get_suffix:
+        return shortest_string(target_string.rpartition(part)[2], target_string)
+    else:
+        return shortest_string(target_string.rpartition(part)[0], target_string)
+    
 def space_partition(target_string, get_suffix=False):
     """Returns a string after partitioning it using space. If the returned string will be empty, the function will instead return the argument passed"""
     if get_suffix:
@@ -1265,14 +1272,14 @@ def nwo_asset_type():
 
 
 def get_collection_parents(current_coll, all_collections):
-    coll_list = [current_coll.name]
+    coll_list = [current_coll]
     keep_looping = True
 
     while keep_looping:
         for coll in all_collections:
             keep_looping = True
             if current_coll in tuple(coll.children):
-                coll_list.append(coll.name)
+                coll_list.append(coll)
                 current_coll = coll
                 break
             else:
@@ -1289,8 +1296,7 @@ def get_coll_prefix(coll, prefixes):
     return False
 
 
-def get_prop_from_collection(ob, prefixes):
-    prop = ""
+def get_prop_from_collection(ob, valid_type):
     if len(bpy.data.collections) > 0:
         collection = None
         all_collections = bpy.data.collections
@@ -1305,16 +1311,12 @@ def get_prop_from_collection(ob, prefixes):
 
             # test object collection parent tree
             for c in collection_list:
-                c_lower = c.lower()
-                pre = get_coll_prefix(c_lower, prefixes)
-                if pre:
-                    prop = c.replace(pre, "")
-                    prop = prop.strip(" :_+';#~,.")
-                    prop = prop.replace(" ", "_")
-                    prop = dot_partition(prop)
-                    break
-
-    return prop
+                c_type = c.nwo.type
+                if c_type != valid_type: continue
+                if c_type == 'region':
+                    return c.nwo.region
+                elif c_type == 'permutation':
+                    return c.nwo.permutation
 
 
 # returns true if this material is a halo shader

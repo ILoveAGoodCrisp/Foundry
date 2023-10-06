@@ -2154,7 +2154,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     def get_region_from_collection(self):
-        region = get_prop_from_collection(self.id_data, ("+region", "+set"))
+        region = get_prop_from_collection(self.id_data, 'region')
         return region
 
     region_name_locked_ui: StringProperty(
@@ -2163,14 +2163,31 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         get=get_region_from_collection,
     )
 
+    def get_permutation_name_ui(self):
+        scene_nwo = bpy.context.scene.nwo
+        permutations = scene_nwo.permutations_table
+        name = self.get("permutation_name_ui", "")
+        if not permutations:
+            return "default"
+        permutation_names = [p.name for p in permutations]
+        if name not in permutation_names:
+            name = scene_nwo.permutations_table[0].name
+        self['permutation_name_ui'] = name
+        return name
+
+    def set_permutation_name_ui(self, value):
+        self['permutation_name_ui'] = value
+
     permutation_name_ui: StringProperty(
         name="Permutation",
         default="default",
         description="Define the permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
+        get=get_permutation_name_ui,
+        set=set_permutation_name_ui,
     )
 
     def get_permutation_from_collection(self):
-        permutation = get_prop_from_collection(self.id_data, ("+perm", "+group"))
+        permutation = get_prop_from_collection(self.id_data, 'permutation')
         return permutation
 
     permutation_name_locked_ui: StringProperty(

@@ -32,6 +32,7 @@ TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_render", "_connected_geom
 
 # Blender Halo Mesh Types
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
+VALID_MARKERS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY'}
 
 # MATERIALS
 # Protected material names, we never let the user set shader paths for these

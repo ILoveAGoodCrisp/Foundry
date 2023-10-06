@@ -27,7 +27,6 @@
 '''Handles bpy operators and functions for the Sets Manager panel'''
 
 import bpy
-from bpy.types import Context, OperatorProperties
 
 from io_scene_foundry.utils.nwo_utils import true_permutation, true_region
 
@@ -187,9 +186,17 @@ class TableEntryRename(bpy.types.Operator):
         entry = table[table_active_index]
         scene_objects = context.scene.objects
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        old_name = entry.name
         entry.name = new_name
         for ob in entry_objects:
             setattr(ob.nwo, self.ob_prop_str, new_name)
+        scene_collections = bpy.data.collections
+        current_type = self.type_str.lower()
+        for coll in scene_collections:
+            c_parts = coll.name.split('::')
+            if not c_parts or len(c_parts) != 2: continue
+            if coll.nwo.type != current_type or c_parts[1] != old_name: continue
+            coll.name = current_type + '::' + self.new_name
 
         context.area.tag_redraw()
         return {'FINISHED'}

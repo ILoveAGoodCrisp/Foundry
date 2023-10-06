@@ -4408,25 +4408,25 @@ class NWO_CollectionManager_Create(Operator):
     bl_options = {"REGISTER", "UNDO"}
     bl_description = "Creates a Halo collection with the specified name and type"
 
-    def collection_type_items(self, context):
+    def type_items(self, context):
         items = []
-        asset_type = context.scene.nwo.asset_type
-        if asset_type in ("SCENARIO", "PREFAB"):
-            items.append(("PERMUTATION", "Subgroup", ""))
-            if asset_type == "SCENARIO":
-                items.insert(0, ("BSP", "BSP", ""))
-        elif asset_type in ("MODEL", "SKY"):
-            items.append(("REGION", "Region", ""))
-            if asset_type == "MODEL":
-                items.insert(0, ("PERMUTATION", "Permutation", ""))
-        elif asset_type == "DECORATOR SET":
-            items.append(("REGION", "Set", ""))
+        r_name = "Region"
+        p_name = "Permutation"
+        if context.scene.nwo.asset_type == "SCENARIO":
+            r_name = "BSP"
+            p_name = "BSP Category"
 
-        items.append(("EXCLUDE", "Exclude", ""))
+        items.append(("region", r_name, ""))
+        items.append(("permutation", p_name, ""))
+        items.append(("exclude", "Exclude", ""))
 
         return items
 
-    type : EnumProperty(items=collection_type_items)
+    type: bpy.props.EnumProperty(
+        name="Collection Type",
+        items=type_items,
+        )
+    
     name : StringProperty()
 
     def execute(self, context):
