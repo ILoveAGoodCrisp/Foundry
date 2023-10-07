@@ -438,7 +438,6 @@ class NWO_FoundryPanelProps(Panel):
         box = self.box.box()
         nwo = self.scene.nwo
         context = self.context
-        scene = self.scene
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         row = box.row()
         row.label(text="BSPs" if is_scenario else "Regions")
@@ -835,7 +834,7 @@ class NWO_FoundryPanelProps(Panel):
             )
             col = flow.column()
             col.use_property_split = True
-            self.draw_table_menus(col, nwo, ob, context.scene)
+            self.draw_table_menus(col, nwo, ob)
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
 
@@ -1034,35 +1033,7 @@ class NWO_FoundryPanelProps(Panel):
 
             if poll_ui("SCENARIO"):
                 col.use_property_split = True
-                row = col.row(align=True)
-                if nwo.permutation_name_locked_ui != "":
-                    row.prop(
-                        nwo,
-                        "permutation_name_locked_ui",
-                        text="Permutation",
-                    )
-                else:
-                    row.prop(nwo, "permutation_name_ui", text="Permutation")
-                    row.operator_menu_enum(
-                        "nwo.permutation_list",
-                        "permutation",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
-
-                row = col.row(align=True)
-                if nwo.region_name_locked_ui != "":
-                    row.prop(nwo, "region_name_locked_ui", text="BSP")
-                else:
-                    row.prop(nwo, "region_name_ui", text="BSP")
-                    row.operator_menu_enum(
-                        "nwo.bsp_list",
-                        "bsp",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
-
-                col.separator()
+                self.draw_table_menus(col, nwo, ob)
 
             if nwo.marker_type_ui in (
                 "_connected_geometry_marker_type_model",
@@ -1076,24 +1047,18 @@ class NWO_FoundryPanelProps(Panel):
                     row = col.row()
                     sub = col.row(align=True)
                     if not nwo.marker_all_regions_ui:
-                        if nwo.region_name_locked_ui != "":
-                            col.prop(
-                                nwo,
-                                "region_name_locked_ui",
-                                text="Region",
-                            )
-                        else:
-                            col.prop(nwo, "region_name_ui", text="Region")
+                        col.label(text='Region', icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
+                        col.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
                     
                     sub.prop(nwo, "marker_all_regions_ui", text="All Regions")
                     # marker perm ui
                     if not nwo.marker_all_regions_ui:
                         col.separator()
                         rows = 3
-                        row = col.row()
-                        row.use_property_split = True
+                        row = col.row(heading='Marker Permutations')
+                        row.use_property_split = False
                         # row.label(text="Marker Permutations")
-                        row.prop(nwo, "marker_permutation_type", text="Marker Permutations", expand=True)
+                        row.prop(nwo, "marker_permutation_type", text=" ", expand=True)
                         row = col.row()
                         row.template_list(
                             "NWO_UL_MarkerPermutations",
@@ -1105,7 +1070,7 @@ class NWO_FoundryPanelProps(Panel):
                             rows=rows,
                         )
                         col_perm = row.column(align=True)
-                        col_perm.operator_menu_enum("nwo.marker_perm_add", "permutation",text="", icon="ADD")
+                        col_perm.menu("NWO_MT_MarkerPermutations", text="", icon="ADD")
                         col_perm.operator("nwo.marker_perm_remove", icon="REMOVE", text="")
                         if nwo.marker_permutation_type == "include" and not nwo.marker_permutations:
                             row = col.row()
@@ -2402,17 +2367,18 @@ class NWO_FoundryPanelProps(Panel):
         row.operator("wm.save_userpref", text=("Save Foundry Settings") + (" *" if blend_prefs.is_dirty else ""))
 
 
-    def draw_table_menus(self, col, nwo, ob, scene):
+    def draw_table_menus(self, col, nwo, ob):
         perm_name = "Permutation"
         region_name = "Region"
-        is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"
+        is_mesh = nwo.object_type_ui == '_connected_geometry_object_type_mesh'
+        is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam" and is_mesh
         if poll_ui("SCENARIO"):
             perm_name = "BSP Category"
             if is_seam:
                 region_name = "Frontfacing BSP"
             else:
                 region_name = "BSP"
-        elif poll_ui('MODEL'):
+        elif poll_ui('MODEL') and is_mesh:
             if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
                 for prop in nwo.face_props:
                     if prop.region_name_override:

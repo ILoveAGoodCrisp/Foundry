@@ -49,6 +49,7 @@ class ManagedBlamGetNodeOrder(ManagedBlam):
 class ManagedBlamGetModelFromObject(ManagedBlam):
     def __init__(self, tag_path):
         super().__init__()
+        self.model_tag_path = None
         self.path = tag_path
         self.tag_helper()
     
@@ -66,7 +67,6 @@ class ManagedBlamGetModelFromObject(ManagedBlam):
             self.model_tag_path = model_path.RelativePathWithExtension
         else:
             print(f"{self.path} has no model reference")
-            self.model_tag_path = None
 
 class ManagedBlamGetModelVariants(ManagedBlam):
     def __init__(self, tag_path):

@@ -90,6 +90,19 @@ class NWO_PermutationsMenu(Menu):
 
         layout.operator("nwo.permutation_add", text="New BSP Category" if is_scenario else "New Permutation", icon='ADD').set_object_prop = True
 
+class NWO_MarkerPermutationsMenu(Menu):
+    bl_label = "Add Mesh Property"
+    bl_idname = "NWO_MT_MarkerPermutations"
+
+    @classmethod
+    def poll(self, context):
+        return context.object
+
+    def draw(self, context):
+        layout = self.layout
+        permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
+        for p_name in permutation_names:
+            layout.operator("nwo.marker_perm_add", text=p_name).name = p_name
 
 # FACE LEVEL FACE PROPS
 
@@ -2340,19 +2353,21 @@ class NWO_UL_MarkerPermutations(UIList):
         active_propname,
         index,
     ):
-        layout.prop(item, "permutation", text="", emboss=False, icon_value=get_icon_id("marker"))
+        layout.prop(item, "permutation", text="", emboss=False, icon_value=get_icon_id("permutation"))
 
-class NWO_List_Add_MarkerPermutation(NWO_PermutationList):
+class NWO_List_Add_MarkerPermutation(Operator):
     bl_idname = "nwo.marker_perm_add"
     bl_label = "Add"
     bl_description = "Add a new permutation"
     bl_options = {"UNDO"}
 
+    name: StringProperty()
+
     def execute(self, context):
         ob = context.object
         nwo = ob.nwo
         for perm in nwo.marker_permutations:
-            if perm.permutation == self.permutation:
+            if perm.permutation == self.name:
                 return {"CANCELLED"}
             
         bpy.ops.uilist.entry_add(
@@ -2360,7 +2375,7 @@ class NWO_List_Add_MarkerPermutation(NWO_PermutationList):
             active_index_path="object.nwo.marker_permutations_index",
         )
 
-        nwo.marker_permutations[nwo.marker_permutations_index].permutation = self.permutation
+        nwo.marker_permutations[nwo.marker_permutations_index].permutation = self.name
         context.area.tag_redraw()
 
         return {"FINISHED"}
