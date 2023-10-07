@@ -42,7 +42,7 @@ from bpy.props import (
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
-from io_scene_foundry.tools.sets_manager import NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
+from io_scene_foundry.tools.sets_manager import NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
@@ -1672,14 +1672,11 @@ class NWO_FoundryPanelProps(Panel):
                 item = nwo.face_props[nwo.face_props_index]
 
                 if item.region_name_override:
-                    row = col.row()
-                    row.prop(item, "region_name_ui")
-                    row.operator_menu_enum(
-                        "nwo.face_region_list",
-                        "region",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
+                    box = col.box()
+                    row = box.row()
+                    row.label(text='Region')
+                    row = box.row()
+                    row.menu("NWO_MT_FaceRegions", text=item.region_name_ui, icon_value=get_icon_id("region"))
                     row.operator(
                         "nwo.face_prop_remove", text="", icon="X"
                     ).options = "region"
@@ -5051,9 +5048,11 @@ def foundry_toolbar(layout, context):
 
 classeshalo = (
     NWO_RegionAdd,
+    NWO_FaceRegionAdd,
     NWO_RegionRemove,
     NWO_RegionMove,
     NWO_RegionAssignSingle,
+    NWO_FaceRegionAssignSingle,
     NWO_RegionAssign,
     NWO_RegionSelect,
     NWO_RegionRename,

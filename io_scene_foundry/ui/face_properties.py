@@ -33,7 +33,7 @@ from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
 )
-from ..utils.nwo_utils import bpy_enum_seam, is_corinth
+from ..utils.nwo_utils import bpy_enum_seam, is_corinth, true_region
 
 
 class NWO_FaceProperties_ListItems(PropertyGroup):

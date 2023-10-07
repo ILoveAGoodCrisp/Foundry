@@ -797,9 +797,9 @@ class NWO_FaceLayerAdd(NWO_Op):
                 bpy.ops.nwo.face_layer_color_all(enable_highlight=nwo.highlight)
 
         if self.options == "region":
-            item.region_name_ui = self.fm_name
-        elif self.options == "face_global_material":
-            item.face_global_material_ui = self.fm_name
+            region = context.scene.nwo.regions_table[0].name
+            item.name = 'region' + '::' + region
+            item.region_name_ui = region
         elif self.options == "seam":
             closest_bsp = closest_bsp_object(ob)
             if closest_bsp is not None:
@@ -826,13 +826,6 @@ class NWO_FaceLayerAdd(NWO_Op):
         else:
             row.prop(self, "fm_name", text="Collision Material")
             # row.operator_menu_enum("nwo.face_global_material_list", "global_material", text='', icon="DOWNARROW_HLT").dialog = True
-
-    def invoke(self, context, event):
-        self.fm_name = ""
-        if self.options in ("region", "face_global_material"):
-            return context.window_manager.invoke_props_dialog(self)
-        else:
-            return self.execute(context)
 
 
 class NWO_FaceLayerRemove(NWO_Op):
@@ -1052,6 +1045,7 @@ class NWO_FaceLayerAddLightmap(NWO_FaceLayerAdd):
 class NWO_FacePropRemove(NWO_Op):
     bl_idname = "nwo.face_prop_remove"
     bl_label = "Remove"
+    bl_description = 'Removes a face property'
 
     options: EnumProperty(
         default="face_type",

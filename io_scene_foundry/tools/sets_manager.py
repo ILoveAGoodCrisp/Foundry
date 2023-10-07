@@ -271,6 +271,54 @@ class NWO_RegionAdd(TableEntryAdd):
         else:
             return "Add a new Region"
 
+class NWO_FaceRegionAdd(bpy.types.Operator):
+    bl_label = ""
+    bl_idname = "nwo.face_region_add"
+    bl_description = "Add a new Region"
+    bl_options = {'UNDO'}
+
+    set_object_prop: bpy.props.BoolProperty()
+    name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        name = self.name.lower()
+        nwo = context.scene.nwo
+        table = getattr(nwo, "regions_table")
+        all_names = [entry.name for entry in table]
+
+        if not name:
+            self.report({'WARNING'}, f"Region name cannot be empty")
+            return {'CANCELLED'}
+        elif len(name) > 128:
+            self.report({'WARNING'}, f"Region name has a maximum of 128 characters")
+            return {'CANCELLED'}
+        elif name in all_names:
+            self.report({'WARNING'}, f"Region name already exists")
+            return {'CANCELLED'}
+    
+        entry = table.add()
+        entry.old = name
+        entry.name = name
+        setattr(nwo, f"regions_table_active_index", len(table) - 1)
+        if self.set_object_prop:
+            ob = context.object
+            if ob and ob.type == 'MESH':
+                face_layer = ob.data.nwo.face_props[ob.data.nwo.face_props_index]
+                face_layer.region_name_ui = name
+            
+
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.activate_init = True
+        layout.prop(self, "name", text="Name")
+
 class NWO_RegionRemove(TableEntryRemove):
     bl_label = ""
     bl_idname = "nwo.region_remove"
@@ -332,6 +380,27 @@ class NWO_RegionAssignSingle(TableEntryAssignSingle):
             return "Assigns the selected BSP to the active Object"
         else:
             return "Assigns the selected Region to the active Object"
+        
+class NWO_FaceRegionAssignSingle(bpy.types.Operator):
+    bl_options = {'UNDO'}
+    bl_label = ''
+    bl_idname = 'nwo.face_region_assign_single'
+    bl_description = "Assigns the active Region to the active face layer"
+    
+    name: bpy.props.StringProperty(
+        name="Name",
+    )
+    
+    def execute(self, context):
+        ob = context.object
+        if not ob or ob.type != 'MESH':
+            return {'CANCELLED'}
+        face_layer = ob.data.nwo.face_props[ob.data.nwo.face_props_index]
+        face_layer.region_name_ui = self.name
+        lay_parts = face_layer.name.split('::')
+        if lay_parts and len(lay_parts) == 2 and lay_parts[0] == 'region':
+            face_layer.name = 'region::' + self.name
+        return {'FINISHED'}
     
 class NWO_RegionAssign(TableEntryAssign):
     bl_label = ""

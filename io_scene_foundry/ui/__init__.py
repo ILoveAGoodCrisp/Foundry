@@ -77,6 +77,7 @@ from .object_properties import (
 )
 
 from .object_ui import (
+    NWO_FaceRegionsMenu,
     NWO_GlobalMaterialGlobals,
     NWO_MarkerPermutationsMenu,
     NWO_PermutationsMenu,
@@ -466,6 +467,7 @@ classes_nwo = (
     NWO_Regions_ListItems,
     NWO_SeamBackfaceMenu,
     NWO_RegionsMenu,
+    NWO_FaceRegionsMenu,
     NWO_PermutationsMenu,
     NWO_MarkerPermutationsMenu,
     NWO_BSP_ListItems,

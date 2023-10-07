@@ -62,6 +62,22 @@ class NWO_RegionsMenu(Menu):
 
         layout.operator("nwo.region_add", text="New BSP" if is_scenario else "New Region", icon='ADD').set_object_prop = True
 
+class NWO_FaceRegionsMenu(Menu):
+    bl_label = "Add Mesh Property"
+    bl_idname = "NWO_MT_FaceRegions"
+
+    @classmethod
+    def poll(self, context):
+        return context.object
+
+    def draw(self, context):
+        layout = self.layout
+        region_names = [region.name for region in context.scene.nwo.regions_table]
+        for r_name in region_names:
+            layout.operator("nwo.face_region_assign_single", text=r_name).name = r_name
+
+        layout.operator("nwo.face_region_add", text="New Region", icon='ADD').set_object_prop = True
+
 class NWO_SeamBackfaceMenu(NWO_RegionsMenu):
     bl_idname = "NWO_MT_SeamBackface"
 
