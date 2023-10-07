@@ -48,7 +48,7 @@ from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu, NWO_FacePropAddMen
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu, NWO_MeshPropAddMenu
 from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
-from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList
+from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList, NWO_TagExplore
 from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
 from io_scene_foundry.utils.nwo_constants import RENDER_MESH_TYPES, TWO_SIDED_MESH_TYPES
 from .shader_builder import NWO_ListMaterialShaders, build_shader
@@ -412,16 +412,20 @@ class NWO_FoundryPanelProps(Panel):
             col = box.column()
             row = col.row(align=True)
             row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
-            row.operator("nwo.render_path", text="", icon="FILE_FOLDER")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
             row = col.row(align=True)
             row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
-            row.operator("nwo.collision_path", text="", icon="FILE_FOLDER")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "collision_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'collision_model_path'
             row = col.row(align=True)
             row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
-            row.operator("nwo.animation_path", text="", icon="FILE_FOLDER")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_graph_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_graph_path'
             row = col.row(align=True)
             row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
-            row.operator("nwo.physics_path", text="", icon="FILE_FOLDER")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
 
         elif nwo.asset_type == "FP ANIMATION":
             box = box.box()
@@ -429,10 +433,12 @@ class NWO_FoundryPanelProps(Panel):
             col = box.column()
             row = col.row(align=True)
             row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
-            row.operator("nwo.fp_model_path", text="", icon="FILE_FOLDER")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
             row = col.row(align=True)
             row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
-            row.operator("nwo.gun_model_path", text="", icon="FILE_FOLDER")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
 
     def draw_sets_manager(self):
         box = self.box.box()
@@ -583,7 +589,7 @@ class NWO_FoundryPanelProps(Panel):
         if halo_light:
             col = box.column()
             col.use_property_split = True
-            self.draw_table_menus(col, nwo)
+            self.draw_table_menus(col, nwo, ob)
             flow = col.grid_flow(
                 row_major=True,
                 columns=0,
@@ -780,13 +786,16 @@ class NWO_FoundryPanelProps(Panel):
                 col.separator()
                 row = col.row()
                 row.prop(nwo, "light_tag_override", text="Light Tag Override", icon_value=get_icon_id("tags"))
-                row.operator("nwo.light_tag_path", text="", icon='FILE_FOLDER')
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_tag_override"
+                row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_tag_override'
                 row = col.row()
                 row.prop(nwo, "light_shader_reference", text="Shader Tag Reference", icon_value=get_icon_id("tags"))
-                row.operator("nwo.light_shader_path", text="", icon='FILE_FOLDER')
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_shader_reference"
+                row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_shader_reference'
                 row = col.row()
                 row.prop(nwo, "light_gel_reference", text="Gel Tag Reference", icon_value=get_icon_id("tags"))
-                row.operator("nwo.light_gel_path", text="", icon='FILE_FOLDER')
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_gel_reference"
+                row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_gel_reference'
                 row = col.row()
                 row.prop(
                     nwo,
@@ -794,7 +803,8 @@ class NWO_FoundryPanelProps(Panel):
                     text="Lens Flare Tag Reference",
                     icon_value=get_icon_id("tags")
                 )
-                row.operator("nwo.lens_flare_path", text="", icon='FILE_FOLDER')
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "light_lens_flare_reference"
+                row.operator("nwo.tag_explore", text="", icon='FILE_FOLDER').prop = 'light_lens_flare_reference'
 
                 # col.separator() # commenting out light clipping for now.
 
@@ -875,8 +885,10 @@ class NWO_FoundryPanelProps(Panel):
                     nwo,
                     "fog_appearance_tag_ui",
                     text="Fog Appearance Tag",
+                    icon_value=get_icon_id('tags')
                 )
-                row.operator("nwo.fog_path", icon="FILE_FOLDER", text="")
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fog_appearance_tag_ui"
+                row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'fog_appearance_tag_ui'
                 col.prop(
                     nwo,
                     "fog_volume_depth_ui",
@@ -1083,9 +1095,10 @@ class NWO_FoundryPanelProps(Panel):
                     nwo,
                     "marker_game_instance_tag_name_ui",
                     text="Tag Path",
+                    icon_value=get_icon_id('tags')
                 )
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "game_instance"
-                row.operator("nwo.game_instance_path", icon="FILE_FOLDER", text="")
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_game_instance_tag_name_ui"
+                row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_game_instance_tag_name_ui'
                 tag_name = nwo.marker_game_instance_tag_name_ui
                 if tag_name.endswith("decorator_set"):
                     col.prop(
@@ -1246,27 +1259,26 @@ class NWO_FoundryPanelProps(Panel):
 
             elif nwo.marker_type_ui == "_connected_geometry_marker_type_envfx" and h4:
                 row = col.row()
-                row.prop(nwo, "marker_looping_effect_ui")
-                row.operator("nwo.effect_path")
+                row.prop(nwo, "marker_looping_effect_ui", icon_value=get_icon_id('tags'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_looping_effect_ui"
+                row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_looping_effect_ui'
 
             elif (
                 nwo.marker_type_ui == "_connected_geometry_marker_type_lightCone" and h4
             ):
                 row = col.row()
-                row.prop(nwo, "marker_light_cone_tag_ui")
-                row.operator("nwo.light_cone_path", icon="FILE_FOLDER", text="")
-                col.prop(nwo, "marker_light_cone_color_ui")
-                col.prop(nwo, "marker_light_cone_alpha_ui")
-                col.prop(nwo, "marker_light_cone_intensity_ui")
-                col.prop(nwo, "marker_light_cone_width_ui")
-                col.prop(nwo, "marker_light_cone_length_ui")
+                row.prop(nwo, "marker_light_cone_tag_ui", text='Cone Tag Path', icon_value=get_icon_id('tags'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_light_cone_tag_ui"
+                row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_light_cone_tag_ui'
+                col.prop(nwo, "marker_light_cone_color_ui", text='Color')
+                col.prop(nwo, "marker_light_cone_alpha_ui", text='Alpha')
+                col.prop(nwo, "marker_light_cone_intensity_ui", text='Intensity')
+                col.prop(nwo, "marker_light_cone_width_ui", text='Width')
+                col.prop(nwo, "marker_light_cone_length_ui", text='Length')
                 row = col.row()
-                row.prop(nwo, "marker_light_cone_curve_ui")
-                row.operator(
-                    "nwo.light_cone_curve_path",
-                    icon="FILE_FOLDER",
-                    text="",
-                )
+                row.prop(nwo, "marker_light_cone_curve_ui", text='Curve Tag Path', icon_value=get_icon_id('tags'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_light_cone_curve_ui"
+                row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_light_cone_curve_ui'
 
         if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
             return
@@ -1974,7 +1986,8 @@ class NWO_FoundryPanelProps(Panel):
                 row = col.row(align=True)
                 row.prop(nwo, "shader_path", text="", icon_value=get_icon_id("tags"))
                 row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
-                row.operator("nwo.shader_path", icon="FILE_FOLDER", text="")
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "shader_path"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'shader_path'
                 tag_type = "Material" if h4 else "Shader"
                 has_valid_path = nwo.shader_path and os.path.exists(get_tags_path() + nwo.shader_path)
                 if has_valid_path:
@@ -3690,10 +3703,9 @@ class NWO_ShaderFinder(Panel):
 
 
 class NWO_ShaderFinder_Find(Operator):
-    """Searches the tags folder for shaders (or the specified directory) and applies all that match blender material names"""
-
     bl_idname = "nwo.shader_finder"
     bl_label = ""
+    bl_description = 'Searches the tags folder for shaders (or the specified directory) and applies all that match blender material names'
     bl_options = {"UNDO"}
 
     def execute(self, context):
@@ -3713,12 +3725,13 @@ class NWO_ShaderFinder_Find(Operator):
     @classmethod
     def description(cls, context: Context, properties: OperatorProperties) -> str:
         if is_corinth():
-            return "Update Halo Material path"
+            return "Searches the tags folder for Materials (or only the specified directory) and applies all that match blender material names"
         else:
-            return "Update Halo Shader Path"
+            return "Searches the tags folder for Shaders (or only the specified directory) and applies all that match blender material names"
 
 class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
     bl_idname = "nwo.shader_finder_single"
+    bl_description = ''
 
     def execute(self, context):
         scene = context.scene
@@ -3733,6 +3746,13 @@ class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
             True,
             False,
         )
+    
+    @classmethod
+    def description(cls, context: Context, properties: OperatorProperties) -> str:
+        if is_corinth():
+            return "Returns the path of the first Material tag which matches the name of the active Blender material"
+        else:
+            return "Returns the path of the first Shader tag which matches the name of the active Blender material"
 
 class NWO_HaloShaderFinderPropertiesGroup(PropertyGroup):
     shaders_dir: StringProperty(
@@ -5075,6 +5095,7 @@ classeshalo = (
     NWO_GetGlobalMaterials,
     NWO_GetModelVariants,
     NWO_GetTagsList,
+    NWO_TagExplore,
     NWO_ProxyInstanceCancel,
     NWO_ProxyInstanceDelete,
     NWO_ProxyInstanceEdit,

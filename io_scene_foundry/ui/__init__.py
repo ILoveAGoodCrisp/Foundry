@@ -97,15 +97,6 @@ from .object_ui import (
     NWO_MeshPropAddLightmap,
     NWO_MeshPropAddMaterialLighting,
     NWO_MeshPropAddMisc,
-    NWO_GameInstancePath,
-    NWO_FogPath,
-    NWO_EffectPath,
-    NWO_LightConePath,
-    NWO_LightConeCurvePath,
-    NWO_LightTagPath,
-    NWO_LightShaderPath,
-    NWO_LightGelPath,
-    NWO_LensFlarePath,
     NWO_GlobalMaterialMenu,
     NWO_RegionList,
     NWO_GlobalMaterialRegionList,
@@ -121,7 +112,7 @@ from .object_ui import (
 
 from .materials_ui import NWO_MaterialOpenTag
 
-from .materials_properties import NWO_ShaderPath, NWO_MaterialPropertiesGroup
+from .materials_properties import NWO_MaterialPropertiesGroup
 
 from .animation_properties import (
     NWO_UL_AnimProps_Events,
@@ -145,7 +136,7 @@ from .animation_ui import (
 
 from .scene_properties import NWO_Asset_ListItems, NWO_BSP_ListItems, NWO_GlobalMaterial_ListItems, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
 
-from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_RenderPath, NWO_CollisionPath, NWO_PhysicsPath, NWO_AnimationPath, NWO_FPModelPath, NWO_GunModelPath, NWO_UL_Permutations, NWO_UL_Regions
+from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_UL_Permutations, NWO_UL_Regions
 
 from .viewport_ui import (
     NWO_ApplyTypeMesh,
@@ -490,12 +481,6 @@ classes_nwo = (
     NWO_Asset_ListItems,
     NWO_UL_AnimationRename,
     NWO_ScenePropertiesGroup,
-    NWO_RenderPath,
-    NWO_CollisionPath,
-    NWO_PhysicsPath,
-    NWO_AnimationPath,
-    NWO_FPModelPath,
-    NWO_GunModelPath,
     # NWO_List_Add_Shared_Asset,
     # NWO_List_Remove_Shared_Asset,
     # NWO_UL_SceneProps_SharedAssets,
@@ -504,16 +489,6 @@ classes_nwo = (
     # NWO_SceneProps,
     NWO_SetUnitScale,
     NWO_AssetMaker,
-    NWO_GameInstancePath,
-    NWO_FogPath,
-    NWO_EffectPath,
-    NWO_LightConePath,
-    NWO_LightConeCurvePath,
-    NWO_LightTagPath,
-    NWO_LightShaderPath,
-    NWO_LightGelPath,
-    NWO_LensFlarePath,
-    NWO_ShaderPath,
     NWO_PermutationListCollection,
     NWO_RegionListCollection,
     NWO_ApplyCollectionType,

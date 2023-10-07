@@ -38,7 +38,7 @@ bl_info = {
 
 import bpy
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty
+from bpy.props import StringProperty
 from bpy.types import Operator
 from os.path import exists as file_exists
 from os import path
@@ -49,9 +49,6 @@ import traceback
 import logging
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools import NWO_ProjectChooserMenuDisallowNew
-from io_scene_foundry.tools.halo_export import export
-
-from io_scene_foundry.utils import nwo_globals
 
 from .prepare_scene import PrepareScene
 from .process_scene import ProcessScene

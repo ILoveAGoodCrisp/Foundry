@@ -25,9 +25,6 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from bpy.types import Panel, Operator
-from bpy.props import StringProperty
-from ..utils.nwo_utils import get_tags_path
-
 
 class NWO_PropPanel(Panel):
     bl_label = ""
@@ -46,26 +43,3 @@ class NWO_Op(Operator):
     @classmethod
     def poll(cls, context):
         return context.object
-
-
-class NWO_Op_Path(NWO_Op):
-    bl_label = "Select Tag"
-
-    filter_glob: StringProperty(
-        default="*",
-        options={"HIDDEN"},
-    )
-
-    filepath: StringProperty(
-        name="path", description="Set the path to the tag", subtype="FILE_PATH"
-    )
-
-    def execute(self, context):
-        print(self.filepath)
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        self.filepath = get_tags_path()
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}

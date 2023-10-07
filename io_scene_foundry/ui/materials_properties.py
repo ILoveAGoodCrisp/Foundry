@@ -29,21 +29,6 @@ import bpy
 from bpy.types import PropertyGroup
 from bpy.props import StringProperty, BoolProperty
 from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, is_corinth, valid_nwo_asset
-from .templates import NWO_Op_Path
-
-
-class NWO_ShaderPath(NWO_Op_Path):
-    bl_idname = "nwo.shader_path"
-    bl_description = "Set the path to a material / shader tag"
-
-    def __init__(self):
-        self.filter_glob = "*.material;*.shader*"
-        self.tag_path_field = bpy.context.object.active_material.nwo.shader_path
-
-    def execute(self, context):
-        mat = context.object.active_material
-        mat.nwo.shader_path = self.filepath
-        return {"FINISHED"}
 
 
 class NWO_MaterialPropertiesGroup(PropertyGroup):

@@ -33,7 +33,7 @@ from ..utils.nwo_utils import (
     is_corinth,
     os_sep_partition,
 )
-from .templates import NWO_Op_Path, NWO_PropPanel, NWO_Op
+from .templates import NWO_PropPanel, NWO_Op
 import bpy
 from bpy.props import BoolProperty, StringProperty
 from bpy.types import UIList, Menu
@@ -542,69 +542,4 @@ class NWO_List_Remove_Shared_Asset(NWO_Op):
         index = scene_nwo.shared_assets_index
         scene_nwo.shared_assets.remove(index)
         return {"FINISHED"}
-    
-class NWO_RenderPath(NWO_Op_Path):
-    bl_idname = "nwo.render_path"
-    bl_description = "Set the path to a render model tag"
 
-    def __init__(self):
-        self.tag_path_field = bpy.context.scene.nwo.render_model_path
-
-    def execute(self, context):
-        context.scene.nwo.render_model_path = self.filepath
-        return {"FINISHED"}
-    
-class NWO_CollisionPath(NWO_Op_Path):
-    bl_idname = "nwo.collision_path"
-    bl_description = "Set the path to a collision model tag"
-
-    def __init__(self):
-        self.tag_path_field = bpy.context.scene.nwo.collision_model_path
-
-    def execute(self, context):
-        context.scene.nwo.collision_model_path = self.filepath
-        return {"FINISHED"}
-    
-class NWO_PhysicsPath(NWO_Op_Path):
-    bl_idname = "nwo.physics_path"
-    bl_description = "Set the path to a physics model tag"
-
-    def __init__(self):
-        self.tag_path_field = bpy.context.scene.nwo.physics_model_path
-
-    def execute(self, context):
-        context.scene.nwo.physics_model_path = self.filepath
-        return {"FINISHED"}
-    
-class NWO_AnimationPath(NWO_Op_Path):
-    bl_idname = "nwo.animation_path"
-    bl_description = "Set the path to a model animation graph tag"
-
-    def __init__(self):
-        self.tag_path_field = bpy.context.scene.nwo.animation_graph_path
-
-    def execute(self, context):
-        context.scene.nwo.animation_graph_path = self.filepath
-        return {"FINISHED"}
-    
-class NWO_FPModelPath(NWO_Op_Path):
-    bl_idname = "nwo.fp_model_path"
-    bl_description = "Set the path to the FP render model tag"
-
-    def __init__(self):
-        self.tag_path_field = bpy.context.scene.nwo.fp_model_path
-
-    def execute(self, context):
-        context.scene.nwo.fp_model_path = self.filepath
-        return {"FINISHED"}
-    
-class NWO_GunModelPath(NWO_Op_Path):
-    bl_idname = "nwo.gun_model_path"
-    bl_description = "Set the path to the Gun render model tag"
-
-    def __init__(self):
-        self.tag_path_field = bpy.context.scene.nwo.gun_model_path
-
-    def execute(self, context):
-        context.scene.nwo.gun_model_path = self.filepath
-        return {"FINISHED"}

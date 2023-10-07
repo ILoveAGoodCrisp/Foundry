@@ -28,26 +28,30 @@ import bpy
 import os
 from io_scene_foundry.utils.nwo_utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
-global_items = []
+global_items = {}
+scene_props = ('render_model_path', 'collision_model_path', 'physics_model_path', 'animation_graph_path', 'fp_model_path', 'gun_model_path')
 
 class NWO_GetTagsList(bpy.types.Operator):
-    bl_idname = "nwo.get_tags_list"
-    bl_label = "Get Tags"
+    bl_label = ""
+    bl_idname = 'nwo.get_tags_list'
     bl_property = "tag_list"
-    bl_description = "Get a list of valid tags"
+    bl_description = "Returns a searchable list of valid tags"
     bl_options = {"REGISTER", "UNDO"}
 
     def tag_list_items(self, context):
         global global_items
-        if global_items:
-            return global_items
+        if global_items.get(self.list_type, 0):
+            return global_items[self.list_type]
+        else:
+            global_items[self.list_type] = []
+
         tags_dir = get_tags_path()
         ext_list = extensions_from_type(self.list_type)
         tags = walk_tags_dir(tags_dir, ext_list)
         for t in tags:
-            global_items.append((t, os_sep_partition(t, True), ""))
+            global_items[self.list_type].append((t, os_sep_partition(t, True), ""))
 
-        return global_items
+        return global_items[self.list_type]
 
     tag_list: bpy.props.EnumProperty(
         name="Tags",
@@ -58,8 +62,15 @@ class NWO_GetTagsList(bpy.types.Operator):
     list_type: bpy.props.StringProperty()
     
     def execute(self, context):
-        nwo = context.object.nwo
-        nwo.marker_game_instance_tag_name_ui = self.tag_list
+        if self.list_type in scene_props:
+            nwo = context.scene.nwo
+        elif self.list_type == 'shader_path':
+            nwo = context.object.active_material.nwo
+        elif self.list_type.startswith('light'):
+            nwo = context.object.data.nwo
+        else:
+            nwo = context.object.nwo
+        setattr(nwo, self.list_type, self.tag_list)
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -69,10 +80,40 @@ class NWO_GetTagsList(bpy.types.Operator):
     
 def extensions_from_type(list_type):
     match list_type:
-        case "game_instance":
+        case "marker_game_instance_tag_name_ui":
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment",
                         ".prefab", ".light", ".cheap_light", ".leaf", ".decorator_set")
+        case 'marker_looping_effect_ui':
+            return (".effect")
+        case 'marker_light_cone_tag_ui':
+            return (".light_cone")
+        case 'marker_light_cone_curve_ui':
+            return (".curve_scalar")
+        case 'fog_appearance_tag_ui':
+            return (".planar_fog_parameters")
+        case 'light_tag_override':
+            return (".light")
+        case 'light_shader_reference':
+            return (".render_method_definition")
+        case 'light_gel_reference':
+            return (".bitmap")
+        case 'light_lens_flare_reference':
+            return (".lens_flare")
+        case 'render_model_path':
+            return (".render_model")
+        case 'collision_model_path':
+            return (".collision_model")
+        case 'animation_graph_path':
+            return (".model_animation_graph")
+        case 'physics_model_path':
+            return (".physics_model")
+        case 'fp_model_path':
+            return (".render_model")
+        case 'gun_model_path':
+            return (".render_model")
+        case 'shader_path':
+            return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', 'shader_water')
         case _:
             return (".scenery")
         
@@ -100,3 +141,80 @@ def walk_tags_dir(tags_dir, ext_list):
     tags = [t for t in fav_tags]
     tags.extend(tags_sorted)
     return tags
+
+class NWO_TagExplore(bpy.types.Operator):
+    bl_label = "Select Tag"
+    bl_idname = 'nwo.tag_explore'
+    bl_options = {'UNDO'}
+    bl_property = "prop"
+    bl_description = 'Opens a file explorer dialog filtered for valid tags'
+
+    filter_glob: bpy.props.StringProperty(
+        default="*",
+        options={"HIDDEN"},
+    )
+
+    filepath: bpy.props.StringProperty(
+        name="path", description="Set the path to the tag", subtype="FILE_PATH"
+    )
+
+    prop: bpy.props.StringProperty()
+
+    def execute(self, context):
+        if self.prop in scene_props:
+            nwo = context.scene.nwo
+        elif self.prop == 'shader_path':
+            nwo = context.object.active_material.nwo
+        elif self.prop.startswith('light'):
+            nwo = context.object.data.nwo
+        else:
+            nwo = context.object.nwo
+        setattr(nwo, self.prop, self.filepath)
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        self.filepath = get_tags_path()
+        self.filter_glob = get_glob_from_prop(self.prop)
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+    
+    def draw(self, context):
+        pass
+    
+def get_glob_from_prop(prop):
+    match prop:
+        case 'marker_game_instance_tag_name_ui':
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_l*;*.light"
+        case 'fog_appearance_tag_ui':
+            return "*.planar_"
+        case 'marker_looping_effect_ui':
+            return "*.effect"
+        case 'marker_light_cone_tag_ui':
+            return "*.light_c"
+        case 'marker_light_cone_curve_ui':
+            return "*.curve_"
+        case 'light_tag_override':
+            return "*.light"
+        case 'light_shader_reference':
+            return "*.render_method_d"
+        case 'light_gel_reference':
+            return "*.bitmap"
+        case 'light_lens_flare_reference':
+            return "*.lens_"
+        case 'render_model_path':
+            return "*.render_mo"
+        case 'collision_model_path':
+            return "*.collision_m"
+        case 'animation_graph_path':
+            return "*.model_a"
+        case 'physics_model_path':
+            return "*.physics"
+        case 'fp_model_path':
+            return "*.render_mo"
+        case 'gun_model_path':
+            return "*.render_mo"
+        case 'shader_path':
+            return "*.material;*.shader"
+        case _:
+            return "*"
