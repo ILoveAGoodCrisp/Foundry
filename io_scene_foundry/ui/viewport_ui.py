@@ -26,7 +26,7 @@
 
 import bpy
 
-from io_scene_foundry.tools.property_apply import apply_props_material
+from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
 from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_region
 from .templates import NWO_Op
 
@@ -260,6 +260,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
 
     def execute(self, context):
         apply_materials = get_prefs().apply_materials
+        prefix_setting = get_prefs().apply_prefix
         mesh_type = ""
         material = ""
         match self.m_type:
@@ -338,6 +339,8 @@ class NWO_ApplyTypeMesh(NWO_Op):
             nwo = ob.nwo
             nwo.object_type_ui = "_connected_geometry_object_type_mesh"
             nwo.mesh_type_ui = mesh_type
+
+            apply_prefix(ob, self.m_type, prefix_setting)
 
             if apply_materials:
                 apply_props_material(ob, material)
@@ -441,6 +444,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
         self.layout.prop(self, "m_type", text="Marker Type")
 
     def execute(self, context):
+        prefix_setting = get_prefs().apply_prefix
         marker_type = ""
         match self.m_type:
             case "model":
@@ -476,6 +480,8 @@ class NWO_ApplyTypeMarker(NWO_Op):
             nwo = ob.nwo
             nwo.object_type_ui = "_connected_geometry_object_type_marker"
             nwo.marker_type_ui = marker_type
+            apply_prefix(ob, self.m_type, prefix_setting)
+
 
         self.report(
             {"INFO"}, f"Applied Marker Type: [{self.m_type}] to {len(markers)} objects"

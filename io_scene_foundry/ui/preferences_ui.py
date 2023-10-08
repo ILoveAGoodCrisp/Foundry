@@ -341,9 +341,20 @@ class ToolkitLocationPreferences(AddonPreferences):
     toolbar_icons_only : BoolProperty(name="Toolbar Icons Only", description="Toggle whether the Foundry Toolbar should only show icons")
 
     apply_materials : BoolProperty(
-        name="Apply Types Operator sets materials",
+        name="Apply Materials on applying mesh type",
         description="Sets whether the apply types operator will apply special materials",
         default=True,
+    )
+
+    apply_prefix : EnumProperty(
+        name="Object Prefixes",
+        description='Sets the prefixes to apply when applying a mesh or marker type to an object. Object prefixes are convention only and do not dictate the type. Mesh/Marker type can be verified via Object Properties in the Foundry Panel',
+        default='full',
+        items=[
+            ("none", "None", "Does not apply object prefixes"),
+            ("full", "Full", "Applies object prefixes that specify the object type"),
+            ("legacy", "Legacy", "Applies legacy object prefixes as you would see in the Halo 3 Editing Kit"),
+        ]
     )
 
     def draw(self, context):
@@ -385,5 +396,7 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.prop(prefs, "tool_type", expand=True)
         row = box.row(align=True)
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
+        row = box.row(align=True)
+        row.prop(prefs, "apply_prefix")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")

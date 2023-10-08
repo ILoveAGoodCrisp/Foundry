@@ -2369,6 +2369,8 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row(align=True)
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
+        row.prop(prefs, "apply_prefix")
+        row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
         blend_prefs = context.preferences
         if blend_prefs.use_preferences_save and (not bpy.app.use_userpref_skip_save_on_exit):
@@ -2390,7 +2392,7 @@ class NWO_FoundryPanelProps(Panel):
                 region_name = "BSP"
         elif poll_ui('MODEL') and is_mesh:
             if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
-                for prop in nwo.face_props:
+                for prop in ob.data.nwo.face_props:
                     if prop.region_name_override:
                         region_name += '*'
                         break

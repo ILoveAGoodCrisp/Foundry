@@ -24,8 +24,50 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import bpy
+# Full Prefixes:
 
+render = {'full': 'render:', 'legacy': ''}
+decorator = {'full': 'decorator:', 'legacy': ''}
+collision = {'full': 'collision:', 'legacy': '@'}
+physics = {'full': 'physics:', 'legacy': '$'}
+flair = {'full': 'flair:', 'legacy': ''}
+structure = {'full': 'structure:', 'legacy': ''}
+instance = {'full': 'instance:', 'legacy': '%'}
+seam = {'full': 'seam:', 'legacy': ''}
+portal = {'full': 'portal:', 'legacy': ''}
+water_surface = {'full': 'water_surface:', 'legacy': ''}
+soft_ceiling = {'full': 'soft_ceiling:', 'legacy': ''}
+soft_kill = {'full': 'soft_kill:', 'legacy': ''}
+soft_surface = {'full': 'soft_surface:', 'legacy': ''}
+water_physics = {'full': 'water_physics:', 'legacy': ''}
+rain_blocker = {'full': 'rain_blocker:', 'legacy': ''}
+rain_sheet = {'full': 'rain_sheet:', 'legacy': ''}
+cookie_cutter = {'full': 'cookie_cutter:', 'legacy': ''}
+fog = {'full': 'fog:', 'legacy': ''}
+lightmap = {'full': 'lightmap_exclude:', 'legacy': ''}
+streaming = {'full': 'streaming_volume:', 'legacy': ''}
+
+model = {'full': 'marker:', 'legacy': '#'}
+game_instance = {'full': 'tag:', 'legacy': '?'}
+envfx = {'full': 'env_fx:', 'legacy': '#'}
+lightcone = {'full': 'light_cone:', 'legacy': '#'}
+airprobe = {'full': 'airprobe:', 'legacy': '#'}
+effects = {'full': 'fx:', 'legacy': '#'}
+garbage = {'full': 'garbage:', 'legacy': '#'}
+hint = {'full': 'hint:', 'legacy': '#'}
+pathfinding_sphere = {'full': 'pathfinding_sphere:', 'legacy': '#'}
+physics_constraint = {'full': 'constraint:', 'legacy': '$'}
+target = {'full': 'target:', 'legacy': '#'}
+
+all_prefixes = []
+
+for dictionary in [render, decorator, collision, physics, flair, structure, instance, seam, portal, water_surface, soft_ceiling, soft_kill, soft_surface, water_physics, rain_blocker, rain_sheet, cookie_cutter, fog, lightmap, streaming, model, game_instance, envfx, lightcone, airprobe, effects, garbage, hint, pathfinding_sphere, physics_constraint, target]:
+    all_prefixes.extend(list(dictionary.values()))
+
+all_prefixes = [p for p in all_prefixes if p != '']
+all_prefixes = set(all_prefixes)
+
+import bpy
 from io_scene_foundry.utils.nwo_utils import is_corinth
 
 special_materials = (
@@ -203,3 +245,20 @@ def apply_props_material(ob, mat_name):
     else:
         clear_special_mats(ob.data.materials)
         cleanup_empty_slots(ob.material_slots)
+
+def apply_prefix(ob, type, setting):
+    original_name = ob.name
+    no_prefix = original_name
+    # Match start of string
+    for p in all_prefixes:
+        if original_name.startswith(p):
+            no_prefix = original_name[len(p):]
+            if no_prefix: break
+    type_dict = globals()[type]
+    if setting != 'none':
+        prefix = type_dict[setting]
+        ob.name = prefix + no_prefix
+    else:
+        ob.name = no_prefix
+    
+    
