@@ -423,9 +423,12 @@ class NWO_OpenAssetFoundry(NWO_Op):
 def object_context_apply_types(self, context):
     # self.layout.separator()
     layout = self.layout
-    if context.object.type in VALID_MARKERS:
+    asset_type = context.scene.nwo.asset_type
+    markers_valid = context.object.type in VALID_MARKERS and asset_type in ('MODEL', 'SCENARIO', 'SKY')
+    meshes_valid = context.object.type in VALID_MESHES and asset_type in ('MODEL', 'SCENARIO')
+    if markers_valid:
         layout.separator()
-        if context.object.type in VALID_MESHES:
+        if meshes_valid:
             layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Halo Mesh Type")
         layout.operator_menu_enum("nwo.apply_type_marker", property="m_type", text="Halo Marker Type")
 
