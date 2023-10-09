@@ -424,8 +424,8 @@ def object_context_apply_types(self, context):
     # self.layout.separator()
     layout = self.layout
     asset_type = context.scene.nwo.asset_type
-    markers_valid = context.object.type in VALID_MARKERS and asset_type in ('MODEL', 'SCENARIO', 'SKY')
-    meshes_valid = context.object.type in VALID_MESHES and asset_type in ('MODEL', 'SCENARIO')
+    markers_valid = context.object.type in VALID_MARKERS and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
+    meshes_valid = context.object.type in VALID_MESHES and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
     if markers_valid:
         layout.separator()
         if meshes_valid:
