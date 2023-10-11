@@ -30,6 +30,7 @@ from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO_ApplyCollectionType, NWO_PermutationListCollection, NWO_RegionListCollection
 
 from io_scene_foundry.ui.collection_properties import NWO_CollectionPropertiesGroup
+from io_scene_foundry.ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
 from io_scene_foundry.utils.nwo_constants import VALID_MARKERS, VALID_MESHES
 
 # from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
@@ -568,6 +569,8 @@ classes_nwo = (
     NWO_MT_PIE_ApplyTypeMarker,
     NWO_ApplyTypeMarker,
     NWO_PIE_ApplyTypeMarker,
+    NWO_HaloMaterialNodes,
+    NWO_HaloMaterialTilingNode,
 )
 
 def register():
@@ -577,6 +580,7 @@ def register():
     bpy.types.ASSETBROWSER_MT_context_menu.append(add_asset_open_in_foundry)
     bpy.types.VIEW3D_MT_object_context_menu.append(object_context_apply_types)
     bpy.types.OUTLINER_MT_collection.append(collection_context)
+    bpy.types.NODE_MT_add.append(node_context_menu)
     bpy.types.Scene.nwo = PointerProperty(
         type=NWO_ScenePropertiesGroup,
         name="NWO Scene Properties",
@@ -624,6 +628,7 @@ def register():
     )
 
 def unregister():
+    bpy.types.NODE_MT_add.remove(node_context_menu)
     bpy.types.OUTLINER_MT_collection.remove(collection_context)
     bpy.types.VIEW3D_MT_object_context_menu.remove(object_context_apply_types)
     bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)
