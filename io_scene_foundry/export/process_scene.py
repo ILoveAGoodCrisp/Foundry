@@ -764,6 +764,7 @@ class ProcessScene:
             no_top_level_tag = hasattr(sidecar_result, "no_top_level_tag") and not os.path.exists(scenery_path)
 
             if export_gr2_files and os.path.exists(sidecar_path_full):
+                self.managed_blam_pre_import_tasks(nwo_scene, export_animations)
                 export_failed, error = import_sidecar(
                     sidecar_type,
                     sidecar_path,
@@ -790,7 +791,7 @@ class ProcessScene:
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_tasks(context, nwo_scene, sidecar_type, asset_path.replace(get_data_path(), ""), asset)
+                    self.managed_blam_post_import_tasks(context, nwo_scene, sidecar_type, asset_path.replace(get_data_path(), ""), asset)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -1117,12 +1118,29 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name):
+    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations):
+        node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(nwo_scene.model_armature.nwo)
+        mb_justified = (node_usage_set)
+        if not mb_justified:
+            return
+        print("\nManagedBlam Pre Import Tasks")
+        print(
+            "-----------------------------------------------------------------------\n"
+        )
+        # Update/ set up Node Usage block of the model_animation_graph
+        if node_usage_set:
+            job = "Setting Animation Node Usages"
+            update_job(job, 0)
+            # disable_prints()
+            ManagedBlamNodeUsage(nwo_scene.model_armature, nwo_scene.skeleton_bones)
+            enable_prints()
+            update_job(job, 1)
+
+    def managed_blam_post_import_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name):
         nwo = context.scene.nwo
         model_sky = sidecar_type in ('MODEL', 'SKY')
         model = sidecar_type == 'MODEL'
         h4_model_lighting = (nwo_scene.lighting and is_corinth(context) and model_sky)
-        node_usage_set = self.asset_has_animations and self.any_node_usage_override(nwo_scene.model_armature.nwo)
         model_override = (
             (nwo.render_model_path and model)
             or (nwo.collision_model_path and model)
@@ -1132,12 +1150,11 @@ class ProcessScene:
         mb_justified =  (
             h4_model_lighting
             or model_override
-            or node_usage_set
         )
         if not mb_justified:
             return
         
-        print("\nManagedBlam Tasks")
+        print("\nManagedBlam Post Import Tasks")
         print(
             "-----------------------------------------------------------------------\n"
         )
@@ -1158,15 +1175,6 @@ class ProcessScene:
             update_job(job, 0)
             disable_prints()
             ManagedBlamModelOverride(nwo.render_model_path, nwo.collision_model_path, nwo.physics_model_path, nwo.animation_graph_path)
-            enable_prints()
-            update_job(job, 1)
-
-        # Update/ set up Node Usage block of the model_animation_graph
-        if node_usage_set:
-            job = "Setting Animation Node Usages"
-            update_job(job, 0)
-            disable_prints()
-            ManagedBlamNodeUsage(nwo_scene.model_armature)
             enable_prints()
             update_job(job, 1)
 

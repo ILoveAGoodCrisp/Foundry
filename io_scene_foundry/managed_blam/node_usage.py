@@ -29,9 +29,10 @@ from io_scene_foundry.utils.nwo_utils import get_asset_path
 from . import ManagedBlam
 
 class ManagedBlamNodeUsage(ManagedBlam):
-    def __init__(self, armature):
+    def __init__(self, armature, bones):
       super().__init__()
       self.node_usage_dict = self.get_node_usage_dict(armature)
+      self.bones = bones
       self.tag_helper()
 
     def get_node_usage_dict(self, armature):
@@ -97,21 +98,33 @@ class ManagedBlamNodeUsage(ManagedBlam):
       graph_path = os.path.join(asset_path, asset_name + ".model_animation_graph")
       return graph_path
     
-    def get_node_index_list(self, definition_block):
-      """Loops through each element in the skeleton nodes block and returns a list of bone names"""
-      node_index_list = []
-      block = definition_block.SelectField("Block:skeleton nodes")
-      for element in block:
-         field = element.SelectField("name")
-         node_index_list.append(field.GetStringData())
+    def get_node_index_list(self, bones, definition_block):
+      # Old way, now that the bones in blender always match the order in the tag, can skip this and just use blender
+      # """Loops through each element in the skeleton nodes block and returns a list of bone names"""
+      # node_index_list = []
+      # block = definition_block.SelectField("Block:skeleton nodes")
+      # for element in block:
+      #    field = element.SelectField("name")
+      #    node_index_list.append(field.GetStringData())
+
+
+      # Have to set up the skeleton nodes block. If we end up with any node usages that point to non-existant nodes, the importer will crash
+      self.clear_block(definition_block, 'skeleton nodes')
+      node_index_list = [b for b in bones.keys()][1:]
+      for n in node_index_list:
+         new_node = self.block_new_element(definition_block, 'skeleton nodes')
+         self.Element_set_field_value(new_node, 'name', n)
 
       return node_index_list
+    
+    def verify_change_needed(self):
+       pass
 
     def tag_edit(self, tag):
       definitions = tag.SelectField("Struct:definitions")
       definition_block = definitions.Elements[0]
       # Establish a list of node indexes. These are needed when we write the node usage data
-      node_index_list = self.get_node_index_list(definition_block)
+      node_index_list = self.get_node_index_list(self.bones, definition_block)
       node_usages = definition_block.SelectField("Block:node usage")
       # loop through existing blocks, applying node indexes
       # for element in block:
