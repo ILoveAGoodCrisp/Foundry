@@ -1131,7 +1131,7 @@ class ProcessScene:
         if node_usage_set:
             job = "Setting Animation Node Usages"
             update_job(job, 0)
-            # disable_prints()
+            disable_prints()
             ManagedBlamNodeUsage(nwo_scene.model_armature, nwo_scene.skeleton_bones)
             enable_prints()
             update_job(job, 1)

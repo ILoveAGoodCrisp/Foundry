@@ -101,7 +101,7 @@ class ManagedBlam():
             elif callable(getattr(self, "tag_edit", None)):
                 self.tag_edit(tag)
                 global last_saved_tag
-                if last_saved_tag != tag:
+                if not getattr(self, 'skip_save', 0) and last_saved_tag != tag:
                     last_saved_tag = tag
                     tag.Save()
 
