@@ -26,9 +26,11 @@
 
 import bpy
 import os
-from io_scene_foundry.utils.nwo_utils import is_corinth
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_tags_path, is_corinth
 
 MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'resources', 'materials')
+
+all_material_shaders = []
 
 def node_context_menu(self, context):
     entry_name = 'Halo Shaders'
@@ -58,25 +60,42 @@ class NWO_HaloMaterialTilingNode(bpy.types.Operator):
         else:
             self.report({'ERROR', 'Failed to add node'})
             return {'CANCELLED'}
-
         return {'FINISHED'}
 
 class NWO_HaloMaterialNodes(bpy.types.Operator):
     bl_idname = 'nwo.halo_material_nodes'
     bl_label = ''
     bl_description = 'Adds a Halo Material Node. This should plug into the Surface input of the Material Output node'
+    
+    def halo_material_exists(self, h4, mat):
+
+            
+        return 
+
 
     def nodes_items(self, context):
         items = []
-        if is_corinth(context):
+        h4 = is_corinth(context)
+        if h4:
             lib_blend = os.path.join(MATERIAL_RESOURCES, 'h4_nodes.blend')
         else:
             lib_blend = os.path.join(MATERIAL_RESOURCES, 'hr_nodes.blend')
         
         with bpy.data.libraries.load(lib_blend, link=True) as (data_from, _):
             for n_group in data_from.node_groups:
-                items.append((n_group, n_group, 'Texture Tiling'))
-
+                if not h4:
+                    items.append((n_group, n_group, ''))
+                else:
+                    global all_material_shaders
+                    if not all_material_shaders:
+                        tags_dir = get_tags_path()
+                        material_shaders_dir = os.path.join(tags_dir, 'shaders')
+                        for root, _, files in os.walk(material_shaders_dir):
+                            for file in files:
+                                if file.endswith(".material_shader"):
+                                    all_material_shaders.append(dot_partition(file))
+                    if n_group in all_material_shaders:
+                        items.append((n_group, n_group, ''))
 
         return items    
 
