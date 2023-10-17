@@ -155,7 +155,10 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         return shader_path
     
     def blender_halo_material(self):
-        nodes = bpy.data.materials[self.blender_material].node_tree.nodes
+        tree = bpy.data.materials[self.blender_material].node_tree
+        if tree is None:
+            return None
+        nodes = tree.nodes
         for n in nodes:
             if n.type != "OUTPUT_MATERIAL":
                 continue
