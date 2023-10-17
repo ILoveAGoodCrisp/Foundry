@@ -107,6 +107,11 @@ class ManagedBlamNewBitmap(ManagedBlam):
         bitmap_curve = override_element.SelectField("bitmap curve")
         if bitmap_curve.Value == 1: # 1 is xRGB
             bitmap_curve.SetValue("sRGB (gamma 2.2)")
+        if bitmap_curve.Value == 3:
+            self.Element_set_field_value(override_element, 'source gamma', '1')
+        elif bitmap_curve.Value == 5:
+                self.Element_set_field_value(override_element, 'source gamma', '2.2')
+                
         flags = override_element.SelectField("flags")
         flags.SetBit("Ignore Curve Override", True)
         if self.bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):

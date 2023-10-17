@@ -96,7 +96,6 @@ class NWO_HaloMaterialNodes(bpy.types.Operator):
                                     all_material_shaders.append(dot_partition(file))
                     if n_group in all_material_shaders:
                         items.append((n_group, n_group, ''))
-
         return items    
 
     node: bpy.props.EnumProperty(
