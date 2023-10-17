@@ -129,6 +129,7 @@ from .animation_properties import (
 from .animation_ui import (
     NWO_NewAnimation,
     NWO_DeleteAnimation,
+    NWO_SetTimeline,
     NWO_UnlinkAnimation,
     NWO_List_Add_Animation_Rename,
     NWO_UL_AnimationRename,
@@ -479,6 +480,7 @@ classes_nwo = (
     NWO_List_Remove_MarkerPermutation,
     NWO_List_Add_Animation_Rename,
     NWO_List_Remove_Animation_Rename,
+    NWO_SetTimeline,
     NWO_NewAnimation,
     NWO_DeleteAnimation,
     NWO_UnlinkAnimation,

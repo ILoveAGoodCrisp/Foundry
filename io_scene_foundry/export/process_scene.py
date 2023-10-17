@@ -508,6 +508,9 @@ class ProcessScene:
                                         data_relative(gr2_path),
                                         animation_name,
                                         action_nwo.animation_type,
+                                        action_nwo.animation_movement_data,
+                                        action_nwo.animation_space,
+                                        action_nwo.animation_is_pose,
                                         action_nwo.compression,
                                     ]
                                 )
@@ -519,6 +522,9 @@ class ProcessScene:
                                         data_relative(gr2_path),
                                         animation_name,
                                         action_nwo.animation_type,
+                                        action_nwo.animation_movement_data,
+                                        action_nwo.animation_space,
+                                        action_nwo.animation_is_pose,
                                         action_nwo.compression,
                                     ]
                                 ]

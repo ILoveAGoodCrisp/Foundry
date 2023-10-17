@@ -1300,7 +1300,7 @@ class NWO_MasterInstance(NWO_Op):
 
 # BONE PANEL
 class NWO_BoneProps(NWO_PropPanel):
-    bl_label = "Halo Bone Properties"
+    bl_label = "Foundry Bone Properties"
     bl_idname = "NWO_PT_BoneDetailsPanel"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
@@ -1332,10 +1332,10 @@ class NWO_BoneProps(NWO_PropPanel):
 
         # col.separator()
 
-        col.prop(bone_nwo, "frame_id1", text="Frame ID 1")
-        col.prop(bone_nwo, "frame_id2", text="Frame ID 2")
+        # col.prop(bone_nwo, "frame_id1", text="Frame ID 1")
+        # col.prop(bone_nwo, "frame_id2", text="Frame ID 2")
 
-        col.separator()
+        # col.separator()
 
         col.prop(bone_nwo, "object_space_node", text="Object Space Offset Node")
         col.prop(

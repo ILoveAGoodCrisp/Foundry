@@ -1764,6 +1764,9 @@ class PrepareScene:
                 old_nwo = action.nwo
                 new_nwo = new_animation.nwo
                 new_nwo.animation_type = old_nwo.animation_type
+                new_nwo.animation_movement_data = old_nwo.animation_movement_data
+                new_nwo.animation_space = old_nwo.animation_space
+                new_nwo.animation_is_pose = old_nwo.animation_is_pose
                 new_nwo.name_override = old_nwo.name_override
 
                 old_renames = old_nwo.animation_renames

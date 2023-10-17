@@ -27,7 +27,7 @@
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
 
-from io_scene_foundry.utils.nwo_utils import poll_ui
+from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui
 from .templates import NWO_Op, NWO_PropPanel
 import bpy
 
@@ -100,6 +100,24 @@ class NWO_UnlinkAnimation(NWO_Op):
         for bone in arm.pose.bones:
             bone.matrix_basis = Matrix()
         return {"FINISHED"}
+    
+class NWO_SetTimeline(bpy.types.Operator):
+    bl_label = "Set Timeline"
+    bl_idname = "nwo.set_timeline"
+    bl_description = "Sets the scene timeline to match the current animation's frame range"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE'
+    
+    def execute(self, context):
+        action = context.object.animation_data.action
+        if not action.use_frame_range:
+            return {'CANCELLED'}
+        scene = context.scene
+        scene.frame_start = int(action.frame_start)
+        scene.frame_end = int(action.frame_end)
+        return {'FINISHED'}
 
 class NWO_NewAnimation(NWO_Op):
     bl_label = "New Animation"
@@ -108,55 +126,127 @@ class NWO_NewAnimation(NWO_Op):
 
     frame_start: bpy.props.IntProperty(name="First Frame", default=0)
     frame_end: bpy.props.IntProperty(name="Last Frame", default=29)
+    
+    def animation_type_items(self, context):
+        items = [
+            (
+                "base",
+                "Base",
+                "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, and any animations that effect a full skeleton or are expected to be overlayed on top of",
+                '',
+                0,
+            ),
+            (
+                "overlay",
+                "Overlay",
+                "Animations that overlay on top of a base animation (or none). Supports keyframe and pose overlays. Useful for animations that should overlay on top of base animations, such as vehicle steering or weapon aiming. Supports object functions to define how these animations blend with others\nLegacy format: JMO\nExamples: fire_1, reload_1, device position",
+                '',
+                1,
+            ),
+            (
+                "replacement",
+                "Replacement",
+                "Animations that fully replace base animated nodes, provided those bones are animated. Useful for animations that should completely overrule a certain set of bones, and don't need any kind of blending influence. Can be set to either object or local space",
+                '',
+                2,
+            ),
+        ]
+        
+        if is_corinth(context):
+            items.append(
+            (
+                "world",
+                "World",
+                "Animations that play relative to the world rather than an objects current position",
+                '',
+                3,
+            ))
+            # NOTE Need to add support for composites
+            # items.append(
+            # (
+            #     "composite",
+            #     "Composite",
+            #     "",
+            # ))
+            # items.append(
+            # (
+            #     "composite_overlay",
+            #     "Composite Overlay",
+            #     "",
+            # ))
+        
+        return items
+    
+    def get_animation_type(self):
+        max_int = 2
+        if is_corinth():
+            max_int = 3
+        if self.animation_type_help > max_int:
+            return 0
+        return self.animation_type_help
+
+    def set_animation_type(self, value):
+        self["animation_type"] = value
+
+    def update_animation_type(self, context):
+        self.animation_type_help = self["animation_type"]
+        
+    animation_type_help: bpy.props.IntProperty()
+            
     animation_type: bpy.props.EnumProperty(
-        name="Animation Type",
+        name="Type",
+        description="Set the type of Halo animation you want this action to be",
+        items=animation_type_items,
+        get=get_animation_type,
+        set=set_animation_type,
+        update=update_animation_type,
+    )
+    
+    animation_movement_data: bpy.props.EnumProperty(
+        name='Movement',
+        description='Set how this animations moves the object in the world',
+        default="none",
         items=[
             (
-                "JMM",
-                "Base (JMM)",
-                "Full skeleton animation. Has no physics movement. Examples: enter, exit, idle",
+                "none",
+                "None",
+                "Object will not physically move from its position. The standard for cinematic animation.\nLegacy format: JMM\nExamples: enter, exit, idle",
             ),
             (
-                "JMA",
-                "Base - Horizontal Movement (JMA)",
-                "Full skeleton animation with physics movement on the X-Y plane. Examples: move_front, walk_left, h_ping front gut",
+                "xy",
+                "Horizontal",
+                "Object can move on the XY plane. Useful for horizontal movement animations.\nLegacy format: JMA\nExamples: move_front, walk_left, h_ping front gut",
             ),
             (
-                "JMT",
-                "Base - Yaw Rotation (JMT)",
-                "Full skeleton animation with physics rotation on the yaw axis. Examples: turn_left, turn_right",
+                "xyyaw",
+                "Horizontal & Yaw",
+                "Object can turn on its Z axis and move on the XY plane. Useful for turning movement animations.\nLegacy format: JMT\nExamples: turn_left, turn_right",
             ),
             (
-                "JMZ",
-                "Base - Full Movement / Yaw Rotation (JMZ)",
-                "Full skeleton animation with physics movement on the X-Y-Z axis and yaw rotation. Examples: climb, jump_down_long, jump_forward_short",
+                "xyzyaw",
+                "Full & Yaw",
+                "Object can turn on its Z axis and move in any direction. Useful for jumping animations.\nLegacy format: JMZ\nExamples: climb, jump_down_long, jump_forward_short",
             ),
             (
-                "JMV",
-                "Base - Full Movement & Rotation (JMV)",
-                "Full skeleton animation for vehicles. Has full roll / pitch / yaw rotation and angular velocity. Do not use for bipeds. Examples: vehicle roll_left, vehicle roll_right_short",
+                "full",
+                "Full (Vehicle Only)",
+                "Full movement and rotation. Useful for vehicle animations that require multiple dimensions of rotation. Do not use on bipeds.\nLegacy format: JMV\nExamples: climb, vehicle roll_left, vehicle roll_right_short",
             ),
-            (
-                "JMO",
-                "Overlay - Keyframe (JMO)",
-                "Overlays animation on top of others. Use on animations that aren't controlled by a function. Use this type for animating device_machines. Examples: fire_1, reload_1, device position",
-            ),
-            (
-                "JMOX",
-                "Overlay - Pose (JMOX)",
-                "Overlays animation on top of others. Use on animations that rely on functions like aiming / steering / accelaration. These animations require pitch & yaw bones to be animated and defined in the animation graph. Examples: aim_still_up, acc_up_down, vehicle steering",
-            ),
-            (
-                "JMR",
-                "Replacement - Object Space (JMR)",
-                "Replaces animation only on the bones animated in the replacement animation. Examples: combat pistol hp melee_strike_2, revenant_p sword put_away",
-            ),
-            (
-                "JMRX",
-                "Replacement - Local Space (JMRX)",
-                "Replaces animation only on the bones animated in the replacement animation. Examples: combat pistol any grip, combat rifle sr grip",
-            ),
-        ],
+        ]
+    )
+    
+    animation_space: bpy.props.EnumProperty(
+        name="Space",
+        description="Set whether the animation is in object or local space",
+        items=[
+            ('object', 'Object', 'Replacement animation in object space.\nLegacy format: JMR\nExamples: revenant_p, sword put_away'),
+            ('local', 'Local', 'Replacement animation in local space.\nLegacy format: JMRX\nExamples: combat pistol any grip, combat rifle sr grip'),
+        ]
+    )
+
+    animation_is_pose: bpy.props.BoolProperty(
+        name='Pose Overlay',
+        description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
     )
 
     state_type: bpy.props.EnumProperty(
@@ -279,6 +369,9 @@ class NWO_NewAnimation(NWO_Op):
         ob.animation_data.action = animation
         nwo = animation.nwo
         nwo.animation_type = self.animation_type
+        nwo.animation_movement_data = self.animation_movement_data
+        nwo.animation_is_pose = self.animation_is_pose
+        nwo.animation_space = self.animation_space
         # Blender animations have a max 64 character limit
         # on action names, so apply the full animation name to
         # the name_override field if this limit is breached
@@ -312,25 +405,35 @@ class NWO_NewAnimation(NWO_Op):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "frame_start", text="First Frame")
-        layout.prop(self, "frame_end", text="Last Frame")
-        layout.label(text="Animation Type")
-        layout.prop(self, "animation_type", text="")
-        layout.separator()
+        col = layout.column()
+        col.use_property_split = True
+        col.prop(self, "frame_start", text="First Frame")
+        col.prop(self, "frame_end", text="Last Frame")
+        layout.label(text="Animation Format")
+        row = layout.row()
+        row.use_property_split = True
+        row.prop(self, "animation_type")
+        if self.animation_type != 'world':
+            row = layout.row()
+            row.use_property_split = True
+            if self.animation_type == 'base':
+                row.prop(self, 'animation_movement_data')
+            elif self.animation_type == 'overlay':
+                row.prop(self, 'animation_is_pose')
+            elif self.animation_type == 'replacement':
+                row.prop(self, 'animation_space', expand=True)
         self.draw_name(layout)
 
     def draw_name(self, layout):
         if self.fp_animation:
-            layout.label(text="* Denotes required fields")
-            layout.prop(self, "state", text="*State")
+            layout.prop(self, "state", text="State")
             layout.prop(self, "variant")
         else:
-            layout.label(text="Animation State Type")
-            layout.prop(self, "state_type", text="")
-            layout.label(text="* Denotes required fields")
-            is_damage = self.state_type == "damage"
+            layout.label(text="Animation Name")
             col = layout.column()
             col.use_property_split = True
+            col.prop(self, "state_type", text="State Type")
+            is_damage = self.state_type == "damage"
             if self.state_type == "custom":
                 col.prop(self, "custom")
             else:
@@ -339,11 +442,11 @@ class NWO_NewAnimation(NWO_Op):
                 col.prop(self, "weapon_type")
                 col.prop(self, "set")
                 if not is_damage:
-                    col.prop(self, "state", text="*State")
+                    col.prop(self, "state", text="State")
 
                 if self.state_type == "transition":
                     col.prop(self, "destination_mode")
-                    col.prop(self, "destination_state", text="*Destination State")
+                    col.prop(self, "destination_state", text="Destination State")
                 elif is_damage:
                     col.prop(self, "damage_power")
                     col.prop(self, "damage_type")

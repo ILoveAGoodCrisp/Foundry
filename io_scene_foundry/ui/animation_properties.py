@@ -80,7 +80,7 @@ class NWO_List_Add_Animation_Event(Operator):
 
     bl_idname = "animation_event.list_add"
     bl_label = "Add"
-    bl_description = "Add a new animation event to the list."
+    bl_description = "Add a new animation event"
     filename_ext = ""
     bl_options = {"UNDO"}
 
@@ -465,7 +465,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
     name_override: StringProperty(
         name="Name Override",
         # update=update_name_override,
-        description="Overrides the action name when setting exported animation name. Use this if the action field is too short for your animation name",
+        description="If this field is not empty, the exporter will use the animation given here instead of relying on the action name. Use this if the action name field is too short for your animation name",
         default="",
     )
 
@@ -480,105 +480,134 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         name="Compression",
         description="Level of compression to apply to animations",
         items=[
-            ("Automatic", "Automatic", "Animation compression is determined by the importer"),
+            ("Automatic", "Automatic", "Animation compression is determined by the exporter"),
             ("Uncompressed", "Uncompressed", "No compression"),
             ("Medium", "Medium", "Medium compression"),
             ("Rough", "Rough", "Highest level of compression"),
         ],
     )
 
-    def update_animation_type(self, context):
-        action_name = (
-            str(self.id_data.name)
-            if self.id_data.nwo.name_override == ""
-            else str(self.id_data.nwo.name_override)
-        )
-        action_name = dot_partition(action_name)
-        action_name = f"{action_name}.{self.animation_type}"
-        if self.id_data.nwo.name_override != "":
-            self.id_data.nwo.name_override = action_name
-        else:
-            if self.id_data.name.rpartition(".")[0] != "":
-                self.id_data.name = action_name
-        # Set the name override if the action name is out of characters
-        if (
-            dot_partition(action_name) != dot_partition(self.id_data.name)
-            and self.id_data.nwo.name_override == ""
-        ):
-            self.id_data.nwo.name_override = action_name
-            self.id_data.name = dot_partition(self.id_data.name)
+    def animation_type_items(self, context):
+        items = [
+            (
+                "base",
+                "Base",
+                "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, and any animations that effect a full skeleton or are expected to be overlayed on top of",
+                '',
+                0,
+            ),
+            (
+                "overlay",
+                "Overlay",
+                "Animations that overlay on top of a base animation (or none). Supports keyframe and pose overlays. Useful for animations that should overlay on top of base animations, such as vehicle steering or weapon aiming. Supports object functions to define how these animations blend with others\nLegacy format: JMO\nExamples: fire_1, reload_1, device position",
+                '',
+                1,
+            ),
+            (
+                "replacement",
+                "Replacement",
+                "Animations that fully replace base animated nodes, provided those bones are animated. Useful for animations that should completely overrule a certain set of bones, and don't need any kind of blending influence. Can be set to either object or local space",
+                '',
+                2,
+            ),
+        ]
+        
+        if is_corinth(context):
+            items.append(
+            (
+                "world",
+                "World",
+                "Animations that play relative to the world rather than an objects current position",
+                '',
+                3,
+            ))
+            # NOTE Need to add support for composites
+            # items.append(
+            # (
+            #     "composite",
+            #     "Composite",
+            #     "",
+            # ))
+            # items.append(
+            # (
+            #     "composite_overlay",
+            #     "Composite Overlay",
+            #     "",
+            # ))
+        
+        return items
+    
+    def get_animation_type(self):
+        max_int = 2
+        if is_corinth():
+            max_int = 3
+        if self.animation_type_help > max_int:
+            return 0
+        return self.animation_type_help
 
+    def set_animation_type(self, value):
+        self["animation_type"] = value
+
+    def update_animation_type(self, context):
+        self.animation_type_help = self["animation_type"]
+        
+    animation_type_help: IntProperty()
+            
     animation_type: EnumProperty(
         name="Type",
-        # update=update_animation_type,
-        description="Set the type of Halo animation you want this action to be.",
-        default="JMM",
+        description="Set the type of Halo animation you want this action to be",
+        items=animation_type_items,
+        get=get_animation_type,
+        set=set_animation_type,
+        update=update_animation_type,
+    )
+    
+    animation_movement_data: EnumProperty(
+        name='Movement',
+        description='Set how this animations moves the object in the world',
+        default="none",
         items=[
             (
-                "JMM",
-                "Base (JMM)",
-                "Full skeleton animation. Has no physics movement. Examples: enter, exit, idle",
+                "none",
+                "None",
+                "Object will not physically move from its position. The standard for cinematic animation.\nLegacy format: JMM\nExamples: enter, exit, idle",
             ),
             (
-                "JMA",
-                "Base - Horizontal Movement (JMA)",
-                "Full skeleton animation with physics movement on the X-Y plane. Examples: move_front, walk_left, h_ping front gut",
+                "xy",
+                "Horizontal",
+                "Object can move on the XY plane. Useful for horizontal movement animations.\nLegacy format: JMA\nExamples: move_front, walk_left, h_ping front gut",
             ),
             (
-                "JMT",
-                "Base - Yaw Rotation (JMT)",
-                "Full skeleton animation with physics rotation on the yaw axis. Examples: turn_left, turn_right",
+                "xyyaw",
+                "Horizontal & Yaw",
+                "Object can turn on its Z axis and move on the XY plane. Useful for turning movement animations.\nLegacy format: JMT\nExamples: turn_left, turn_right",
             ),
             (
-                "JMZ",
-                "Base - Full Movement / Yaw Rotation (JMZ)",
-                "Full skeleton animation with physics movement on the X-Y-Z axis and yaw rotation. Examples: climb, jump_down_long, jump_forward_short",
+                "xyzyaw",
+                "Full & Yaw",
+                "Object can turn on its Z axis and move in any direction. Useful for jumping animations.\nLegacy format: JMZ\nExamples: climb, jump_down_long, jump_forward_short",
             ),
             (
-                "JMV",
-                "Base - Full Movement & Rotation (JMV)",
-                "Full skeleton animation for vehicles. Has full roll / pitch / yaw rotation and angular velocity. Do not use for bipeds. Examples: vehicle roll_left, vehicle roll_right_short",
+                "full",
+                "Full (Vehicle Only)",
+                "Full movement and rotation. Useful for vehicle animations that require multiple dimensions of rotation. Do not use on bipeds.\nLegacy format: JMV\nExamples: climb, vehicle roll_left, vehicle roll_right_short",
             ),
-            (
-                "JMO",
-                "Overlay - Keyframe (JMO)",
-                "Overlays animation on top of others. Use on animations that aren't controlled by a function. Use this type for animating device_machines. Examples: fire_1, reload_1, device position",
-            ),
-            (
-                "JMOX",
-                "Overlay - Pose (JMOX)",
-                "Overlays animation on top of others. Use on animations that rely on functions like aiming / steering / accelaration. These animations require pitch & yaw bones to be animated and defined in the animation graph. Examples: aim_still_up, acc_up_down, vehicle steering",
-            ),
-            (
-                "JMR",
-                "Replacement - Object Space (JMR)",
-                "Replaces animation only on the bones animated in the replacement animation. Examples: combat pistol hp melee_strike_2, revenant_p sword put_away",
-            ),
-            (
-                "JMRX",
-                "Replacement - Local Space (JMRX)",
-                "Replaces animation only on the bones animated in the replacement animation. Examples: combat pistol any grip, combat rifle sr grip",
-            ),
-        ],
+        ]
+    )
+    
+    animation_space: EnumProperty(
+        name="Space",
+        description="Set whether the animation is in object or local space",
+        items=[
+            ('object', 'Object', 'Replacement animation in object space.\nLegacy format: JMR\nExamples: revenant_p, sword put_away'),
+            ('local', 'Local', 'Replacement animation in local space.\nLegacy format: JMRX\nExamples: combat pistol any grip, combat rifle sr grip'),
+        ]
     )
 
-    # def animation_type_items(self, context):
-    #     items = []
-    #     items.append(("Base", "Base", ""))
-    #     items.append(("Overlay", "Overlay", ""))
-    #     if is_corinth(context):
-    #         items.append(("World", "World", ""))
-        
-    #     return items
-
-    # animation_type: EnumProperty(
-    #     name="Type",
-    #     items= animation_type_items,
-    # )
-
-    # animation_movement_data: EnumProperty()
-    # animation_is_pose: BoolProperty()
-    # animation_space: EnumProperty()
+    animation_is_pose: BoolProperty(
+        name='Pose Overlay',
+        description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
+    )
 
     animation_events: CollectionProperty(
         type=NWO_Animation_ListItems,

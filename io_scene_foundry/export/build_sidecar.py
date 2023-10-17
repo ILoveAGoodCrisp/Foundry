@@ -848,34 +848,39 @@ class Sidecar:
             )
             animation_paths = sidecar_paths.get("animation")
             for path in animation_paths:
-                compression = path[5] if path[5] != "Automatic" else None
+                compression = path[8] if path[8] != "Automatic" else None
                 network_attribs = {"Name": path[3], "Type": "Base"}
-                match path[4]:
-                    case "JMM":
+                a_type = path[4]
+                movement = path[5]
+                space = path[6]
+                pose_overlay = path[7]
+                if a_type == 'base':
+                    if movement == 'none':
                         network_attribs['ModelAnimationMovementData'] = "None"
-                    case "JMA":
+                    elif movement == 'xy':
                         network_attribs['ModelAnimationMovementData'] = "XY"
-                    case "JMT":
+                    elif movement == 'xyyaw':
                         network_attribs['ModelAnimationMovementData'] = "XYYaw"
-                    case "JMZ":
+                    elif movement == 'xyzyaw':
                         network_attribs['ModelAnimationMovementData'] = "XYZYaw"
-                    case "JMV":
+                    else:
                         network_attribs['ModelAnimationMovementData'] = "XYZFullRotation"
-                    case "JMO":
-                        network_attribs['Type'] = "Overlay"
-                        network_attribs['ModelAnimationOverlayType'] = "Keyframe"
-                        network_attribs['ModelAnimationOverlayBlending'] = "Additive"
-                    case "JMOX":
-                        network_attribs['Type'] = "Overlay"
+                elif a_type == 'overlay':
+                    network_attribs['Type'] = "Overlay"
+                    network_attribs['ModelAnimationOverlayBlending'] = "Additive"
+                    if pose_overlay:
                         network_attribs['ModelAnimationOverlayType'] = "Pose"
-                        network_attribs['ModelAnimationOverlayBlending'] = "Additive"
-                    case "JMR":
-                        network_attribs['Type'] = "Overlay"
+                    else:
                         network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                elif a_type == 'world':
+                    network_attribs['Type'] = "World"
+                    network_attribs['ModelAnimationMovementData'] = "XYZAbsolute"
+                else:
+                    network_attribs['Type'] = "Overlay"
+                    network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                    if space == 'object':
                         network_attribs['ModelAnimationOverlayBlending'] = "ReplacementObjectSpace"
-                    case _:
-                        network_attribs['Type'] = "Overlay"
-                        network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                    else:
                         network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
                     
                 if compression is not None:

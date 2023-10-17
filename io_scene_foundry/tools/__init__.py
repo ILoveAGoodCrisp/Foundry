@@ -2136,139 +2136,164 @@ class NWO_FoundryPanelProps(Panel):
             col2.prop(action, "use_frame_range", text="Export")
 
             if action.use_frame_range:
-                row = box.row()
+                col = box.column()
+                row = col.row()
+                col.separator()
+                row.operator("nwo.set_timeline", text="Update Scene Timeline", icon='TIME')
+                row = col.row()
                 row.use_property_split = True
-                row.prop(action, "frame_start")
-                row = box.row()
+                row.prop(action, "frame_start", text='Start Frame')
+                row = col.row()
                 row.use_property_split = True
-                row.prop(action, "frame_end")
-                row = box.row()
+                row.prop(action, "frame_end", text='End Frame')
+                col.separator()
+                row = col.row()
                 row.use_property_split = True
                 row.prop(nwo, "animation_type")
-                row = box.row()
+                if nwo.animation_type != 'world':
+                    row = col.row()
+                    row.use_property_split = True
+                    if nwo.animation_type == 'base':
+                        row.prop(nwo, 'animation_movement_data')
+                    elif nwo.animation_type == 'overlay':
+                        row.prop(nwo, 'animation_is_pose')
+                    elif nwo.animation_type == 'replacement':
+                        row.prop(nwo, 'animation_space', expand=True)
+                col.separator()
+                row = col.row()
                 row.use_property_split = True
                 row.prop(nwo, "compression", text="Compression")
-                row = box.row()
+                col.separator()
+                row = col.row()
                 row.use_property_split = True
                 row.prop(nwo, "name_override")
-
+                col.separator()
+                row = col.row()
                 # ANIMATION RENAMES
-                row = box.row()
-                row.label(text="Animation Renames")
-                row = box.row()
-                rows = 2
-                row.template_list(
-                    "NWO_UL_AnimationRename",
-                    "",
-                    nwo,
-                    "animation_renames",
-                    nwo,
-                    "animation_renames_index",
-                    rows=rows,
-                )
-                col = row.column(align=True)
-                col.operator("nwo.animation_rename_add", text="", icon="ADD")
-                col.operator("nwo.animation_rename_remove", icon="REMOVE", text="")
-                # col.separator()
-                # col.operator(
-                #     "nwo.face_layer_move", icon="TRIA_UP", text=""
-                # ).direction = "UP"
-                # col.operator(
-                #     "nwo.face_layer_move", icon="TRIA_DOWN", text=""
-                # ).direction = "DOWN"
+                if not nwo.animation_renames:
+                    row.operator("nwo.animation_rename_add", text="New Animation Rename", icon_value=get_icon_id('animation_rename'))
+                else:
+                    row = col.row()
+                    row.label(text="Animation Renames")
+                    row = col.row()
+                    rows = 3
+                    row.template_list(
+                        "NWO_UL_AnimationRename",
+                        "",
+                        nwo,
+                        "animation_renames",
+                        nwo,
+                        "animation_renames_index",
+                        rows=rows,
+                    )
+                    col = row.column(align=True)
+                    col.operator("nwo.animation_rename_add", text="", icon="ADD")
+                    col.operator("nwo.animation_rename_remove", icon="REMOVE", text="")
+                    # col.separator()
+                    # col.operator(
+                    #     "nwo.face_layer_move", icon="TRIA_UP", text=""
+                    # ).direction = "UP"
+                    # col.operator(
+                    #     "nwo.face_layer_move", icon="TRIA_DOWN", text=""
+                    # ).direction = "DOWN"
 
                 # ANIMATION EVENTS
-                row = box.row()
-                row.label(text="Animation Events")
-                row = box.row()
-                rows = 3
-                row.template_list(
-                    "NWO_UL_AnimProps_Events",
-                    "",
-                    nwo,
-                    "animation_events",
-                    nwo,
-                    "animation_events_index",
-                    rows=rows,
-                )
-
-                col = row.column(align=True)
-                col.operator("animation_event.list_add", icon="ADD", text="")
-                col.operator("animation_event.list_remove", icon="REMOVE", text="")
-
-                if len(nwo.animation_events) > 0:
-                    item = nwo.animation_events[nwo.animation_events_index]
-                    # row = layout.row()
-                    # row.prop(item, "name") # debug only
-                    flow = box.grid_flow(
-                        row_major=True,
-                        columns=0,
-                        even_columns=True,
-                        even_rows=False,
-                        align=False,
+                if not nwo.animation_events:
+                    if nwo.animation_renames:
+                        row = box.row()
+                    row.operator("animation_event.list_add", text="New Animation Event", icon_value=get_icon_id('animation_event'))
+                else:
+                    row = box.row()
+                    row.label(text="Animation Events")
+                    row = box.row()
+                    rows = 3
+                    row.template_list(
+                        "NWO_UL_AnimProps_Events",
+                        "",
+                        nwo,
+                        "animation_events",
+                        nwo,
+                        "animation_events_index",
+                        rows=rows,
                     )
-                    col = flow.column()
-                    col.use_property_split = True
-                    row = col.row()
-                    row.prop(item, "multi_frame", expand=True)
-                    col.prop(item, "frame_frame")
-                    if item.multi_frame == "range":
-                        col.prop(item, "frame_range")
-                    col.prop(item, "frame_name")
-                    col.prop(item, "event_type")
-                    if (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_wrinkle_map"
-                    ):
-                        col.prop(item, "wrinkle_map_face_region")
-                        col.prop(item, "wrinkle_map_effect")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_footstep"
-                    ):
-                        col.prop(item, "footstep_type")
-                        col.prop(item, "footstep_effect")
-                    elif item.event_type in (
-                        "_connected_geometry_animation_event_type_ik_active",
-                        "_connected_geometry_animation_event_type_ik_passive",
-                    ):
-                        col.prop(item, "ik_chain")
-                        col.prop(item, "ik_active_tag")
-                        col.prop(item, "ik_target_tag")
-                        col.prop(item, "ik_target_marker")
-                        col.prop(item, "ik_target_usage")
-                        col.prop(item, "ik_proxy_target_id")
-                        col.prop(item, "ik_pole_vector_id")
-                        col.prop(item, "ik_effector_id")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_cinematic_effect"
-                    ):
-                        col.prop(item, "cinematic_effect_tag")
-                        col.prop(item, "cinematic_effect_effect")
-                        col.prop(item, "cinematic_effect_marker")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_object_function"
-                    ):
-                        col.prop(item, "object_function_name")
-                        col.prop(item, "object_function_effect")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_frame"
-                    ):
-                        col.prop(item, "frame_trigger")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_import"
-                    ):
-                        col.prop(item, "import_frame")
-                        col.prop(item, "import_name")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_text"
-                    ):
-                        col.prop(item, "text")
+
+                    col = row.column(align=True)
+                    col.operator("animation_event.list_add", icon="ADD", text="")
+                    col.operator("animation_event.list_remove", icon="REMOVE", text="")
+
+                    if len(nwo.animation_events) > 0:
+                        item = nwo.animation_events[nwo.animation_events_index]
+                        # row = layout.row()
+                        # row.prop(item, "name") # debug only
+                        flow = box.grid_flow(
+                            row_major=True,
+                            columns=0,
+                            even_columns=True,
+                            even_rows=False,
+                            align=False,
+                        )
+                        col = flow.column()
+                        col.use_property_split = True
+                        row = col.row()
+                        row.prop(item, "multi_frame", expand=True)
+                        col.prop(item, "frame_frame")
+                        if item.multi_frame == "range":
+                            col.prop(item, "frame_range")
+                        col.prop(item, "frame_name")
+                        col.prop(item, "event_type")
+                        if (
+                            item.event_type
+                            == "_connected_geometry_animation_event_type_wrinkle_map"
+                        ):
+                            col.prop(item, "wrinkle_map_face_region")
+                            col.prop(item, "wrinkle_map_effect")
+                        elif (
+                            item.event_type
+                            == "_connected_geometry_animation_event_type_footstep"
+                        ):
+                            col.prop(item, "footstep_type")
+                            col.prop(item, "footstep_effect")
+                        elif item.event_type in (
+                            "_connected_geometry_animation_event_type_ik_active",
+                            "_connected_geometry_animation_event_type_ik_passive",
+                        ):
+                            col.prop(item, "ik_chain")
+                            col.prop(item, "ik_active_tag")
+                            col.prop(item, "ik_target_tag")
+                            col.prop(item, "ik_target_marker")
+                            col.prop(item, "ik_target_usage")
+                            col.prop(item, "ik_proxy_target_id")
+                            col.prop(item, "ik_pole_vector_id")
+                            col.prop(item, "ik_effector_id")
+                        elif (
+                            item.event_type
+                            == "_connected_geometry_animation_event_type_cinematic_effect"
+                        ):
+                            col.prop(item, "cinematic_effect_tag")
+                            col.prop(item, "cinematic_effect_effect")
+                            col.prop(item, "cinematic_effect_marker")
+                        elif (
+                            item.event_type
+                            == "_connected_geometry_animation_event_type_object_function"
+                        ):
+                            col.prop(item, "object_function_name")
+                            col.prop(item, "object_function_effect")
+                        elif (
+                            item.event_type
+                            == "_connected_geometry_animation_event_type_frame"
+                        ):
+                            col.prop(item, "frame_trigger")
+                        elif (
+                            item.event_type
+                            == "_connected_geometry_animation_event_type_import"
+                        ):
+                            col.prop(item, "import_frame")
+                            col.prop(item, "import_name")
+                        elif (
+                            item.event_type
+                            == "_connected_geometry_animation_event_type_text"
+                        ):
+                            col.prop(item, "text")
             col = box.column()
             col.separator()
             col.operator("nwo.delete_animation", text="DELETE ANIMATION", icon="CANCEL")
