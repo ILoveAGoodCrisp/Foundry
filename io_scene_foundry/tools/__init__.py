@@ -1999,6 +1999,7 @@ class NWO_FoundryPanelProps(Panel):
                         text="Open in Tag Editor"
                     )
                     col.separator()
+                    col.label(text=f'{txt} Export Tools')
                     col.prop(nwo, "uses_blender_nodes", text=f"Link Tag to Nodes", icon='NODETREE')
                     if nwo.uses_blender_nodes:
                         col.operator("nwo.build_shader_single", text=f"Update {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
@@ -2015,6 +2016,7 @@ class NWO_FoundryPanelProps(Panel):
                         col.label(text="Shader Tag Not Found", icon="ERROR")
                     else:
                         col.separator()
+                        col.label(text=f'{txt} Export Tools')
                         row = col.row()
                         row.operator("nwo.build_shader_single", text=f"New Empty {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = False
                         row.operator("nwo.build_shader_single", text=f"New Linked {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
@@ -2044,7 +2046,7 @@ class NWO_FoundryPanelProps(Panel):
 
             box = self.box.box()
             box.use_property_split = False
-            box.label(text="Bitmap Properties")
+            box.label(text="Image Properties")
             col = box.column()
             col.template_ID_preview(nwo, "active_image")
             image = nwo.active_image
@@ -2076,9 +2078,10 @@ class NWO_FoundryPanelProps(Panel):
             data_dir = get_data_path()
             bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
             if not os.path.exists(tags_dir + bitmap_path):
-                bitmap_path = dot_partition(image.filepath_from_user().replace(data_dir, "")) + '.bitmap'
+                bitmap_path = dot_partition(image.filepath_from_user().lower().replace(data_dir, "")) + '.bitmap'
             if not os.path.exists(tags_dir + bitmap_path):
                 col.separator()
+                col.label(text='Bitmap Export Tools')
                 col.operator("nwo.export_bitmaps_single", text="Export Bitmap", icon_value=get_icon_id("texture_export"))
                 col.separator()
                 col_props = col.column()
@@ -2089,6 +2092,7 @@ class NWO_FoundryPanelProps(Panel):
             col.separator()
             col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
             col.separator()
+            col.label(text='Bitmap Export Tools')
             col.prop(bitmap, "export", text="Link Tag to Blender Image", icon="TEXTURE")
             if bitmap.export:
                 col.operator("nwo.export_bitmaps_single", text="Update Bitmap", icon_value=get_icon_id("texture_export"))
@@ -4985,7 +4989,11 @@ class NWO_OpenImageEditor(Operator):
         return os.path.exists(image.filepath_from_user())
 
     def execute(self, context):
-        bpy.ops.image.external_edit(filepath=context.object.active_material.nwo.active_image.filepath_from_user())
+        try:
+            bpy.ops.image.external_edit(filepath=context.object.active_material.nwo.active_image.filepath_from_user())
+        except:
+            self.report({'ERROR'}, 'Image editor could not be launched, ensure that the path in User Preferences > File is valid, and Blender has rights to launch it')
+            return {'CANCELLED'}
         return {'FINISHED'}
 
 def draw_foundry_nodes_toolbar(self, context):
