@@ -441,7 +441,7 @@ class NWO_Export(NWO_Export_Scene):
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             bpy.app.timers.register(toggle_output)
 
-        export_title = "►►► HALO TAG EXPORT ◄◄◄"
+        export_title = "►►► HALO EXPORT ◄◄◄"
 
         print(export_title)
 

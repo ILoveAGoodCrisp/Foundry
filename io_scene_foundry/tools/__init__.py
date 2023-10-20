@@ -5083,7 +5083,7 @@ def foundry_toolbar(layout, context):
         sub0 = row.row(align=True)
         sub0.operator(
             "nwo.export_quick",
-            text="" if icons_only else "Tag Export",
+            text="" if icons_only else "Export",
             icon_value=get_icon_id("quick_export"),
         )
         sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
