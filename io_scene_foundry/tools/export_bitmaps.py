@@ -80,8 +80,8 @@ def export_bitmap(
     bitmap_path = dot_partition(image.filepath_from_user().replace(data_dir, "")) + '.bitmap'
     if not os.path.exists(tags_dir + bitmap_path):
         bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
-    if not os.path.exists(tags_dir + bitmap_path):
-        bitmap_path = ""
+        if not os.path.exists(tags_dir + bitmap_path):
+            bitmap_path = ""
     # Create a bitmap folder in the asset directory
     if folder:
         bitmaps_data_dir = os.path.join(data_dir + folder)
