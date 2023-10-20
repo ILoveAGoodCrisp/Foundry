@@ -177,8 +177,8 @@ class PrepareScene:
         # make objects linked to scene real and local
         # Context override selection does not work here
         disable_prints()
-
-        bpy.ops.object.select_all(action="SELECT")
+        all_obs_start = context.view_layer.objects
+        [ob.select_set(True) for ob in all_obs_start if ob.nwo.export_this]   
         bpy.ops.object.duplicates_make_real()
         bpy.ops.object.make_local(type="ALL")
         bpy.ops.object.select_all(action="DESELECT")

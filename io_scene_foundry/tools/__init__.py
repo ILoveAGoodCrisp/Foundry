@@ -584,7 +584,15 @@ class NWO_FoundryPanelProps(Panel):
         if halo_light:
             row.prop(data, "type", expand=True)
         else:
+            # Check if this is a linked collection
+            if ob.instance_type == 'COLLECTION' and ob.instance_collection:
+                row.label(text='Instanced Collection', icon='OUTLINER_OB_GROUP_INSTANCE')
+                row = box.row()
+                row.label(text=f'{ob.name} will be unpacked at export')
+                return
             row.prop(nwo, "object_type_ui", expand=True)
+                
+                
 
         if halo_light:
             col = box.column()
