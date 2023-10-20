@@ -1464,9 +1464,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     material_lighting_attenuation_cutoff_ui: FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
-        description="Determines how far light travels before it stops",
+        description="Determines how far light travels before it stops (in world units)",
         min=0,
-        default=200,
+        default=2,
     )
 
     lighting_attenuation_enabled: BoolProperty(
@@ -1479,9 +1479,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     material_lighting_attenuation_falloff_ui: FloatProperty(
         name="Material Lighting Attenuation Falloff",
         options=set(),
-        description="Determines how far light travels before its power begins to falloff",
+        description="Determines how far light travels before its power begins to falloff (in world units)",
         min=0,
-        default=100,
+        default=1,
     )
 
     material_lighting_emissive_focus_active: BoolProperty()
@@ -1516,7 +1516,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         min=0,
-        default=100,
+        default=10,
         update=update_emissive,
     )
 
@@ -2445,7 +2445,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_near_attenuation_start: FloatProperty(
         name="Light Near Attenuation Start Distance",
         options=set(),
-        description="The power of the light remains zero up until this point",
+        description="The power of the light remains zero up until this point  (in world units)",
         default=0,
         min=0,
     )
@@ -2453,7 +2453,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_near_attenuation_end: FloatProperty(
         name="Light Near Attenuation End Distance",
         options=set(),
-        description="From the starting near attenuation, light power gradually increases up until the end point",
+        description="From the starting near attenuation, light power gradually increases up until the end point  (in world units)",
         default=0,
         min=0,
     )
@@ -2461,16 +2461,16 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_far_attenuation_start: FloatProperty(
         name="Light Near Attenuation Start Distance",
         options=set(),
-        description="After this point, the light will begin to lose power",
-        default=500,
+        description="After this point, the light will begin to lose power (in world units)",
+        default=5,
         min=0,
     )
 
     light_far_attenuation_end: FloatProperty(
         name="Light Near Attenuation Start Distance",
         options=set(),
-        description="From the far attenuation start, the light will gradually lose power until it reaches zero by the end point",
-        default=1000,
+        description="From the far attenuation start, the light will gradually lose power until it reaches zero by the end point (in world units)",
+        default=10,
         min=0,
     )
 

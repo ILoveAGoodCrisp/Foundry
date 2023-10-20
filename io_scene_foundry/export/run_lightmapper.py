@@ -40,7 +40,7 @@ def run_lightmapper(
     misc_halo_objects,
     asset,
     lightmap_quality="DIRECT",
-    lightmap_quality_h4="asset",
+    lightmap_quality_h4="__custom__",
     lightmap_all_bsps=True,
     lightmap_specific_bsp="default",
     lightmap_region="all",
@@ -269,7 +269,7 @@ class LightMapper:
     def lightmap_h4(self):
         self.force_reatlas = "false"
         self.suppress_dialog = (
-            "false" if self.quality == "asset" or self.quality == "" else "true"
+            "false" if self.quality == "__custom__" or self.quality == "" else "true"
         )
         self.settings = os.path.join("globals", "lightmapper_settings", self.quality)
         print("\n\nRunning Lightmapper")
@@ -286,7 +286,7 @@ class LightMapper:
                 ]
             )
 
-        elif self.suppress_dialog == "false":
+        elif self.quality == "__custom__" or self.quality == '__asset__':
             run_tool(
                 [
                     "faux_lightmap",

@@ -174,13 +174,13 @@ class NWO_AssetMaker(NWO_Op):
             asset_folder = os.path.join(data_dir, "new_asset")
 
         # check folder location valid
-        if not asset_folder.startswith(data_dir):
+        if not asset_folder.lower().startswith(data_dir):
             # try to fix it...
             # test if path equal to another project path
             for p in get_prefs().projects:
-                path_data = os.path.join(p.project_path, "data" + os.sep)
-                if asset_folder.startswith(path_data):
-                    asset_folder = asset_folder.replace(path_data, data_dir)
+                path_data = os.path.join(p.project_path, "data" + os.sep).lower()
+                if asset_folder.lower().startswith(path_data):
+                    asset_folder = asset_folder.lower().replace(path_data, data_dir)
                     break
             else:
                 self.report(
@@ -356,7 +356,7 @@ class NWO_AssetMaker(NWO_Op):
             )
 
     def invoke(self, context, event):
-        self.filepath = get_data_path() + self.asset_name
+        self.filepath = get_data_path()
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 

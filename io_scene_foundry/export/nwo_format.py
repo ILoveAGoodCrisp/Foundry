@@ -363,7 +363,7 @@ class NWOLight(NWOObject):
         if self.not_bungie_game:
             return jstr(self.data.nwo.light_far_attenuation_starth4)
         else:
-            return jstr(self.data.nwo.light_far_attenuation_start)
+            return jstr(self.data.nwo.light_far_attenuation_start * 100)
 
     def light_far_attenuation_end(self):
         if self.not_bungie_game:
@@ -375,13 +375,13 @@ class NWOLight(NWOObject):
         if self.not_bungie_game:
             return jstr(self.data.nwo.light_near_attenuation_starth4)
         else:
-            return jstr(self.data.nwo.light_near_attenuation_start)
+            return jstr(self.data.nwo.light_near_attenuation_start * 100)
 
     def light_near_attenuation_end(self):
         if self.not_bungie_game:
             return jstr(self.data.nwo.light_near_attenuation_endh4)
         else:
-            return jstr(self.data.nwo.light_near_attenuation_end)
+            return jstr(self.data.nwo.light_near_attenuation_end * 100)
 
     def light_mode(self):
         return self.data.nwo.light_mode

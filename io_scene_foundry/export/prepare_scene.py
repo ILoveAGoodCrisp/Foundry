@@ -1395,9 +1395,14 @@ class PrepareScene:
             mesh_props.material_lighting_emissive_per_unit = bool_str(
                 face_props.material_lighting_emissive_per_unit_ui
             )
-            mesh_props.material_lighting_emissive_power = jstr(
-                face_props.material_lighting_emissive_power_ui
-            )
+            if h4:
+                mesh_props.material_lighting_emissive_power = jstr(
+                    face_props.material_lighting_emissive_power_ui / 20
+                )
+            else:
+                mesh_props.material_lighting_emissive_power = jstr(
+                    face_props.material_lighting_emissive_power_ui
+                )
             mesh_props.material_lighting_emissive_quality = jstr(
                 face_props.material_lighting_emissive_quality_ui
             )
@@ -2435,10 +2440,10 @@ class PrepareScene:
                     )
                 if nwo.emissive_active:
                     nwo.material_lighting_attenuation_falloff = jstr(
-                        nwo.material_lighting_attenuation_falloff_ui
+                        nwo.material_lighting_attenuation_falloff_ui * 100
                     )
                     nwo.material_lighting_attenuation_cutoff = jstr(
-                        nwo.material_lighting_attenuation_cutoff_ui
+                        nwo.material_lighting_attenuation_cutoff_ui * 100
                     )
                     nwo.material_lighting_emissive_focus = jstr(
                         nwo.material_lighting_emissive_focus_ui

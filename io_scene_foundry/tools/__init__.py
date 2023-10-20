@@ -4098,10 +4098,18 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         items = []
         items.append(
             (
-                "asset",
-                "Asset",
-                "The user defined lightmap settings. Opens a settings dialog",
+                "__custom__",
+                "Custom",
+                "Opens a lightmap settings dialog",
                 0,
+            )
+        )
+        items.append(
+            (
+                "__asset__",
+                "Asset",
+                "Uses the asset defined lightmap settings",
+                1,
             )
         )
         lightmapper_globals_dir = path_join(
@@ -4110,7 +4118,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         if file_exists(lightmapper_globals_dir):
             from os import listdir
 
-            index = 1
+            index = 2
             for file in listdir(lightmapper_globals_dir):
                 if file.endswith(".lightmapper_globals"):
                     file_no_ext = dot_partition(file)

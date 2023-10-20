@@ -519,9 +519,9 @@ def color_3p_str(color):
 
 
 def color_4p_str(color):
-    red = color.r
-    green = color.g
-    blue = color.b
+    red = color.r * 255
+    green = color.g * 255
+    blue = color.b * 255
     return f"1 {jstr(red)} {jstr(green)} {jstr(blue)}"
 
 def color_rgba_str(color):
