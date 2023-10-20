@@ -261,32 +261,23 @@ class NWO_NewAnimation(NWO_Op):
 
     mode: bpy.props.StringProperty(
         name="Mode",
-        description="""The mode the object must be in to use this animation. Use 'any' for all modes. Other valid
-        inputs inlcude but are not limited to: 'crouch' when a unit is crouching, 
-        'combat' when a unit is in combat. Modes can also refer
-        to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more
-        information refer to existing model_animation_graph tags. Can be empty""",
+        description="The mode the object must be in to use this animation. Use 'any' for all modes. Other valid inputs inlcude but are not limited to: 'crouch' when a unit is crouching,  'combat' when a unit is in combat. Modes can also refer to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more information refer to existing model_animation_graph tags. Can be empty",
     )
 
     weapon_class: bpy.props.StringProperty(
         name="Weapon Class",
-        description="""The weapon class this unit must be holding to use this animation. Weapon class is defined
-        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
+        description="The weapon class this unit must be holding to use this animation. Weapon class is defined per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty",
     )
     weapon_type: bpy.props.StringProperty(
         name="Weapon Name",
-        description="""The weapon type this unit must be holding to use this animation.  Weapon name is defined
-        per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
+        description="The weapon type this unit must be holding to use this animation.  Weapon name is defined per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty",
     )
     set: bpy.props.StringProperty(
         name="Set", description="The set this animtion is a part of. Can be empty"
     )
     state: bpy.props.StringProperty(
         name="State",
-        description="""The state this animation plays in. States can refer to hardcoded properties or be entirely
-        custom. You should refer to existing model_animation_graph tags for more information. Examples include: 'idle' for 
-        animations that should play when the object is inactive, 'move-left', 'move-front' for moving. 'put-away' for
-        an animation that should play when putting away a weapon. Must not be empty""",
+        description="The state this animation plays in. States can refer to hardcoded properties or be entirely custom. You should refer to existing model_animation_graph tags for more information. Examples include: 'idle' for  animations that should play when the object is inactive, 'move-left', 'move-front' for moving. 'put-away' for an animation that should play when putting away a weapon. Must not be empty",
     )
 
     destination_mode: bpy.props.StringProperty(

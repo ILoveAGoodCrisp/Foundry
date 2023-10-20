@@ -603,6 +603,11 @@ class NWO_FoundryPanelProps(Panel):
 
             col.prop(data, "color")
             col.prop(data, "energy")
+            if data.energy < 11 and data.type != 'SUN':
+                # Warn user about low light power. Need the light scaled to Halo proportions
+                col.label(text="Light power is very low", icon='ERROR')
+                col.label(text="For best results match the power of the light in")
+                col.label(text="Cycles to how you'd like it to appear in game")
 
             if data.type == 'SPOT' and h4:
                 col.separator()
@@ -634,14 +639,14 @@ class NWO_FoundryPanelProps(Panel):
                     nwo.light_lighting_mode
                     == "_connected_geometry_lighting_mode_artistic"
                 ):
-                    col.prop(nwo, "light_near_attenuation_starth4")
-                    col.prop(nwo, "light_near_attenuation_endh4")
+                    col.prop(nwo, "light_near_attenuation_starth4", text='Attenuation Start')
+                    col.prop(nwo, "light_near_attenuation_endh4", text='Attenuation End')
 
                 col.separator()
 
                 if nwo.light_mode == "_connected_geometry_light_mode_dynamic":
-                    col.prop(nwo, "light_far_attenuation_starth4")
-                    col.prop(nwo, "light_far_attenuation_endh4")
+                    col.prop(nwo, "light_far_attenuation_starth4", text='Camera Fade Start')
+                    col.prop(nwo, "light_far_attenuation_endh4", text='Camera Fade End')
 
                     col.separator()
 
