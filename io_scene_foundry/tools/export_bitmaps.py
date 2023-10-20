@@ -77,11 +77,16 @@ def export_bitmap(
     data_dir = get_data_path()
     tags_dir = get_tags_path()
     asset_path = get_asset_path()
-    bitmap_path = dot_partition(image.filepath_from_user().replace(data_dir, "")) + '.bitmap'
-    if not os.path.exists(tags_dir + bitmap_path):
+    user_path = image.filepath_from_user().lower()
+    if user_path:
+        bitmap_path = dot_partition(user_path.replace(data_dir, "")) + '.bitmap'
+        if not os.path.exists(tags_dir + bitmap_path):
+            bitmap_path = ''
+    else:
         bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
         if not os.path.exists(tags_dir + bitmap_path):
-            bitmap_path = ""
+            bitmap_path = ''
+            
     image.nwo.filepath = bitmap_path
     # Create a bitmap folder in the asset directory
     if folder:
@@ -93,10 +98,9 @@ def export_bitmap(
         # get a list of textures associated with this material
     # export the texture as a tiff to the asset bitmaps folder
     image.nwo.source_name = dot_partition(image.name) + ".tif"
-    full_filepath = image.filepath_from_user().lower()
     is_tiff = image.file_format == 'TIFF'
-    if is_tiff and full_filepath and full_filepath.startswith(data_dir) and os.path.exists(full_filepath):
-        image.nwo.filepath = full_filepath.replace(data_dir, "")
+    if is_tiff and user_path and user_path.startswith(data_dir) and os.path.exists(user_path):
+        image.nwo.filepath = user_path.replace(data_dir, "")
         if image.nwo.reexport_tiff:
             if image.has_data:
                 image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)

@@ -237,8 +237,8 @@ class NWO_FarmShaders(bpy.types.Operator):
                     update_job(job, 0)
                     image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
                     update_job(job, 1)
-            else:
-                return print_warning(f"{image.name} has no data. Cannot export Tif")
+                else:
+                    return print_warning(f"{image.name} has no data. Cannot export Tif")
 
         if is_tiff and nwo_full_filepath.lower().endswith(".tif") or nwo_full_filepath.lower().endswith(".tiff") and os.path.exists(self.data_dir + nwo_full_filepath):
             if export_tiff:
@@ -246,8 +246,8 @@ class NWO_FarmShaders(bpy.types.Operator):
                     update_job(job, 0)
                     image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
                     update_job(job, 1)
-            else:
-                return print_warning(f"{image.name} has no data. Cannot export Tif")
+                else:
+                    return print_warning(f"{image.name} has no data. Cannot export Tif")
         else:
             if image.has_data:
                 update_job(job, 0)
@@ -260,14 +260,22 @@ class NWO_FarmShaders(bpy.types.Operator):
         return image.nwo.filepath
     
     def thread_bitmap_export(self, image, tiff_path):
-        bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
-        if not os.path.exists(self.tags_dir + bitmap_path):
-            bitmap_path = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + '.bitmap'
-        if not os.path.exists(self.tags_dir + bitmap_path):
-            bitmap_path = ""
-            job = f"-- Created Tag:"
+        user_path = image.filepath_from_user().lower()
+        if user_path:
+            bitmap_path = dot_partition(user_path.replace(self.data_dir, "")) + '.bitmap'
+            if not os.path.exists(self.tags_dir + bitmap_path):
+                bitmap_path = ''
         else:
+            bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
+            if not os.path.exists(self.tags_dir + bitmap_path):
+                bitmap_path = ''
+            
+        image.nwo.filepath = bitmap_path
+        if os.path.exists(self.tags_dir + bitmap_path):
             job = f"-- Updated Tag:"
+        else:
+            job = f"-- Created Tag:"
+
         if not bitmap_path or bitmap_path not in self.exported_bitmaps:
             bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, tiff_path).path
             path = dot_partition(image.nwo.filepath)

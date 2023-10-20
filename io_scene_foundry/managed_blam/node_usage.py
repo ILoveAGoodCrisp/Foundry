@@ -38,57 +38,57 @@ class ManagedBlamNodeUsage(ManagedBlam):
     def get_node_usage_dict(self, armature):
       node_usage_dict = {}
       nwo = armature.nwo
-      if nwo.node_usage_physics_control:
-         node_usage_dict["physics control"] = nwo.node_usage_physics_control
-      if nwo.node_usage_camera_control:
-         node_usage_dict["camera control"] = nwo.node_usage_camera_control
-      if nwo.node_usage_origin_marker:
-         node_usage_dict["origin marker"] = nwo.node_usage_origin_marker
-      if nwo.node_usage_left_clavicle:
-         node_usage_dict["left clavicle"] = nwo.node_usage_left_clavicle
-      if nwo.node_usage_left_upperarm:
-         node_usage_dict["left upperarm"] = nwo.node_usage_left_upperarm
-      if nwo.node_usage_pose_blend_pitch:
-         node_usage_dict["pose blend pitch"] = nwo.node_usage_pose_blend_pitch
-      if nwo.node_usage_pose_blend_yaw:
-         node_usage_dict["pose blend yaw"] = nwo.node_usage_pose_blend_yaw
       if nwo.node_usage_pedestal:
-         node_usage_dict["pedestal"] = nwo.node_usage_pedestal
+         node_usage_dict[nwo.node_usage_pedestal] = "pedestal"
+      if nwo.node_usage_physics_control:
+         node_usage_dict[nwo.node_usage_physics_control] = "physics control"
+      if nwo.node_usage_camera_control:
+         node_usage_dict[nwo.node_usage_camera_control] = "camera control"
+      if nwo.node_usage_origin_marker:
+         node_usage_dict[nwo.node_usage_origin_marker] = "origin marker"
+      if nwo.node_usage_left_clavicle:
+         node_usage_dict[nwo.node_usage_left_clavicle] = "left clavicle"
+      if nwo.node_usage_left_upperarm:
+         node_usage_dict[nwo.node_usage_left_upperarm] = "left upperarm"
+      if nwo.node_usage_pose_blend_pitch:
+         node_usage_dict[nwo.node_usage_pose_blend_pitch] = "pose blend pitch"
+      if nwo.node_usage_pose_blend_yaw:
+         node_usage_dict[nwo.node_usage_pose_blend_yaw] = "pose blend yaw"
       if nwo.node_usage_pelvis:
-         node_usage_dict["pelvis"] = nwo.node_usage_pelvis
+         node_usage_dict[nwo.node_usage_pelvis] = "pelvis"
       if nwo.node_usage_left_foot:
-         node_usage_dict["left foot"] = nwo.node_usage_left_foot
+         node_usage_dict[nwo.node_usage_left_foot] = "left foot"
       if nwo.node_usage_right_foot:
-         node_usage_dict["right foot"] = nwo.node_usage_right_foot
+         node_usage_dict[nwo.node_usage_right_foot] = "right foot"
       if nwo.node_usage_damage_root_gut:
-         node_usage_dict["damage root gut"] = nwo.node_usage_damage_root_gut
+         node_usage_dict[nwo.node_usage_damage_root_gut] = "damage root gut"
       if nwo.node_usage_damage_root_chest:
-         node_usage_dict["damage root chest"] = nwo.node_usage_damage_root_chest
+         node_usage_dict[nwo.node_usage_damage_root_chest] = "damage root chest"
       if nwo.node_usage_damage_root_head:
-         node_usage_dict["damage root head"] = nwo.node_usage_damage_root_head
+         node_usage_dict[nwo.node_usage_damage_root_head] = "damage root head"
       if nwo.node_usage_damage_root_left_shoulder:
-         node_usage_dict["damage root left shoulder"] = nwo.node_usage_damage_root_left_shoulder
+         node_usage_dict[nwo.node_usage_damage_root_left_shoulder] = "damage root left shoulder"
       if nwo.node_usage_damage_root_left_arm:
-         node_usage_dict["damage root left arm"] = nwo.node_usage_damage_root_left_arm
+         node_usage_dict[nwo.node_usage_damage_root_left_arm] = "damage root left arm"
       if nwo.node_usage_damage_root_left_leg:
-         node_usage_dict["damage root left leg"] = nwo.node_usage_damage_root_left_leg
+         node_usage_dict[nwo.node_usage_damage_root_left_leg] = "damage root left leg"
       if nwo.node_usage_damage_root_left_foot:
-         node_usage_dict["damage root left foot"] = nwo.node_usage_damage_root_left_foot
+         node_usage_dict[nwo.node_usage_damage_root_left_foot] = "damage root left foot"
       if nwo.node_usage_damage_root_right_shoulder:
-         node_usage_dict["damage root right shoulder"] = nwo.node_usage_damage_root_right_shoulder
+         node_usage_dict[nwo.node_usage_damage_root_right_shoulder] = "damage root right shoulder"
       if nwo.node_usage_damage_root_right_arm:
-         node_usage_dict["damage root right arm"] = nwo.node_usage_damage_root_right_arm
+         node_usage_dict[nwo.node_usage_damage_root_right_arm] = "damage root right arm"
       if nwo.node_usage_damage_root_right_leg:
-         node_usage_dict["damage root right leg"] = nwo.node_usage_damage_root_right_leg
+         node_usage_dict[nwo.node_usage_damage_root_right_leg] = "damage root right leg"
       if nwo.node_usage_damage_root_right_foot:
-         node_usage_dict["damage root right foot"] = nwo.node_usage_damage_root_right_foot
+         node_usage_dict[nwo.node_usage_damage_root_right_foot] = "damage root right foot"
       if self.corinth:
          if nwo.node_usage_left_hand:
-            node_usage_dict["left hand"] = nwo.node_usage_left_hand
+            node_usage_dict[nwo.node_usage_left_hand] = "left hand"
          if nwo.node_usage_right_hand:
-            node_usage_dict["right hand"] = nwo.node_usage_right_hand
+            node_usage_dict[nwo.node_usage_right_hand] = "right hand"
          if nwo.node_usage_weapon_ik:
-            node_usage_dict["weapon ik"] = nwo.node_usage_weapon_ik
+            node_usage_dict[nwo.node_usage_weapon_ik] = "weapon ik"
 
       return node_usage_dict
 
@@ -122,13 +122,14 @@ class ManagedBlamNodeUsage(ManagedBlam):
       skeleton_nodes = definition_block.SelectField("Block:skeleton nodes")
       node_index_list = self.get_node_index_list(self.bones, definition_block, skeleton_nodes)
       node_usages.RemoveAllElements()
-      for k, v in self.node_usage_dict.items():
-         if v in node_index_list:
-               new_element = node_usages.AddElement()
-               usage = new_element.SelectField("usage")
-               node = new_element.SelectField("node to use")
-               items = [i.EnumName for i in usage.Items]
-               usage.Value = items.index(k)
-               node.Value = node_index_list.index(v)
+      for node in node_index_list:
+         if node in self.node_usage_dict.keys():
+            usage = self.node_usage_dict[node]
+            new_element = node_usages.AddElement()
+            usage_field = new_element.SelectField("usage")
+            node_field = new_element.SelectField("node to use")
+            items = [i.EnumName for i in usage_field.Items]
+            usage_field.Value = items.index(usage)
+            node_field.Value = node_index_list.index(node)
                 
 
