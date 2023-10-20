@@ -77,9 +77,9 @@ def export_bitmap(
     data_dir = get_data_path()
     tags_dir = get_tags_path()
     asset_path = get_asset_path()
-    bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
+    bitmap_path = dot_partition(image.filepath_from_user().replace(data_dir, "")) + '.bitmap'
     if not os.path.exists(tags_dir + bitmap_path):
-        bitmap_path = dot_partition(image.filepath_from_user().replace(data_dir, "")) + '.bitmap'
+        bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
     if not os.path.exists(tags_dir + bitmap_path):
         bitmap_path = ""
     # Create a bitmap folder in the asset directory
