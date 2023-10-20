@@ -2881,7 +2881,23 @@ class PrepareScene:
             nodes_order.update(nodes_order_fp)
             nodes_order.update(nodes_order_gun)
             bone_list = sorted(bone_list, key=sorting_key)
-
+            
+        else:
+            # Fine, I'll order it myself
+            bones_ordered = []
+            for b in bone_list:
+                if b.parent:
+                    continue
+                bones_ordered.append(b)
+                break
+            idx = 0
+            while idx < len(bone_list):
+                for b in bone_list:
+                    if b.parent == bones_ordered[idx]:
+                        bones_ordered.append(b)
+                idx += 1
+                
+            bone_list = bones_ordered
             
         for idx, b in enumerate(bone_list):
             b_nwo = b.nwo
