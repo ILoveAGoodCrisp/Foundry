@@ -92,7 +92,7 @@ def export_bitmap(
         # get a list of textures associated with this material
     # export the texture as a tiff to the asset bitmaps folder
     image.nwo.source_name = dot_partition(image.name) + ".tif"
-    full_filepath = image.filepath_from_user()
+    full_filepath = image.filepath_from_user().lower()
     is_tiff = image.file_format == 'TIFF'
     if is_tiff and full_filepath and full_filepath.startswith(data_dir) and os.path.exists(full_filepath):
         image.nwo.filepath = full_filepath.replace(data_dir, "")
