@@ -2191,7 +2191,7 @@ class NWO_FoundryPanelProps(Panel):
                                     missing.append('Pose Blend Yaw')
                                 
                                 col.label(text=', '.join(missing))
-                                col.operator('nwo.add_pose_bones', text='Add Pose Bones', icon='SHADERFX')
+                                col.operator('nwo.add_pose_bones', text='Setup Rig for Pose Overlays', icon='SHADERFX')
                                 col.separator()
                                     
                     elif nwo.animation_type == 'replacement':
@@ -5027,6 +5027,7 @@ class NWO_AddPoseBones(Operator):
     bl_description = 'Adds pose bones to the armature if missing, optionally with a control bone. Assigns node usage bones'
     
     add_control_bone: BoolProperty(default=True)
+    has_no_control_bone: BoolProperty()
     
     def new_bone(self, arm, parent_name, bone_name):
         parent_edit = arm.data.edit_bones.get(parent_name)
@@ -5112,6 +5113,12 @@ class NWO_AddPoseBones(Operator):
         copy_rotation.target_space = 'LOCAL_OWNER_ORIENT'
         copy_rotation.owner_space = 'LOCAL'
         
+    def no_control_bone_exists(self, arm):
+        for b in arm.data.bones:
+            if b.name == 'f_aim_control':
+                return False
+        return True
+        
     def execute(self, context):
         arm = context.object
         bones = arm.data.bones
@@ -5145,7 +5152,7 @@ class NWO_AddPoseBones(Operator):
             yaw_name = self.new_bone(arm, parent_bone_name, 'b_aim_yaw')
             nwo.node_usage_pose_blend_yaw = yaw_name
             
-        if self.add_control_bone:
+        if self.add_control_bone and self.has_no_control_bone:
             bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
             existing_obs = context.view_layer.objects[:]
             resources_zip = os.path.join(addon_root(), "resources.zip")
@@ -5176,8 +5183,13 @@ class NWO_AddPoseBones(Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
+        if self.no_control_bone_exists(context.object):
+            self.has_no_control_bone = True
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
+        else:
+            self.has_no_control_bone = False
+            return self.execute(context)
     
     def draw(self, context):
         self.layout.prop(self, 'add_control_bone', text='Add Aim Control')
