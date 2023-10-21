@@ -27,6 +27,7 @@ import json
 import subprocess
 import sys
 import winreg
+import zipfile
 import bpy
 import platform
 from math import radians
@@ -1935,3 +1936,12 @@ def update_tables_from_objects(context):
 #         if getattr(ob.nwo, ob_prop_str) not in entry_names:
 #             setattr(ob.nwo, ob_prop_str, default_entry)
 
+def addon_root():
+    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+def extract_from_resources(relative_file_path):
+    relative_file_path.replace('\\', '/')
+    resources_zip = os.path.join(addon_root(), 'resources')
+    with zipfile.ZipFile(resources_zip, "r") as zip:
+        file = zip.extract(relative_file_path)
+    return file

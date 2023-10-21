@@ -107,7 +107,6 @@ class ProcessScene:
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
-        fast_animation_export,
     ):
         self.gr2_fail = False
         self.lightmap_failed = False
@@ -166,7 +165,6 @@ class ProcessScene:
             lightmap_all_bsps,
             lightmap_specific_bsp,
             lightmap_region,
-            fast_animation_export,
         )
 
     def process(
@@ -221,7 +219,6 @@ class ProcessScene:
         lightmap_all_bsps,
         lightmap_specific_bsp,
         lightmap_region,
-        fast_animation_export,
     ):
         if fbx_exporter == "better":
             print("Found Better FBX exporter")

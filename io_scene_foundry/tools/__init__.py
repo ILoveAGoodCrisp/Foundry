@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import radians
 import os
 import bpy
 from os.path import exists as file_exists
@@ -58,9 +59,11 @@ from io_scene_foundry.utils import nwo_globals
 from .halo_launcher import NWO_MaterialGirl, open_file_explorer
 
 from io_scene_foundry.utils.nwo_utils import (
+    addon_root,
     bpy_enum,
     deselect_all_objects,
     dot_partition,
+    extract_from_resources,
     foundry_update_check,
     get_data_path,
     get_halo_material_count,
@@ -79,6 +82,7 @@ from io_scene_foundry.utils.nwo_utils import (
     set_object_mode,
     true_permutation,
     true_region,
+    unlink,
     valid_nwo_asset,
     poll_ui,
     validate_ek,
@@ -2172,6 +2176,24 @@ class NWO_FoundryPanelProps(Panel):
                         row.prop(nwo, 'animation_movement_data')
                     elif nwo.animation_type == 'overlay':
                         row.prop(nwo, 'animation_is_pose')
+                        if nwo.animation_is_pose:
+                            no_aim_pitch = not ob.nwo.node_usage_pose_blend_pitch
+                            no_aim_yaw = not ob.nwo.node_usage_pose_blend_yaw
+                            no_pedestal = not ob.nwo.node_usage_pedestal
+                            if no_aim_pitch or no_aim_yaw or no_pedestal:
+                                col.label(text='Pose Overlay needs Node Usages defined for:', icon='ERROR')
+                                missing = []
+                                if no_pedestal:
+                                    missing.append('Pedestal')
+                                if no_aim_pitch:
+                                    missing.append('Pose Blend Pitch')
+                                if no_aim_yaw:
+                                    missing.append('Pose Blend Yaw')
+                                
+                                col.label(text=', '.join(missing))
+                                col.operator('nwo.add_pose_bones', text='Add Pose Bones', icon='SHADERFX')
+                                col.separator()
+                                    
                     elif nwo.animation_type == 'replacement':
                         row.prop(nwo, 'animation_space', expand=True)
                 col.separator()
@@ -4060,7 +4082,7 @@ class NWO_HaloExport(Operator):
 class NWO_HaloExportPropertiesGroup(PropertyGroup):
     fast_animation_export : BoolProperty(
         name="Fast Animation Export",
-        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects",
+        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects. You should ensure animations begin at frame 0 if using this option",
         default=False,
         options=set(),
     )
@@ -4998,7 +5020,167 @@ class NWO_ShaderPropertiesGroup(PropertyGroup):
             ("all", "All", "Builds shaders for all appropriate materials"),
         ],
     )
-
+    
+class NWO_AddPoseBones(Operator):
+    bl_idname = 'nwo.add_pose_bones'
+    bl_label = 'Add Pose Bones'
+    bl_description = 'Adds pose bones to the armature if missing, optionally with a control bone. Assigns node usage bones'
+    
+    add_control_bone: BoolProperty(default=True)
+    
+    def new_bone(self, arm, parent_name, bone_name):
+        parent_edit = arm.data.edit_bones.get(parent_name)
+        new_edit = arm.data.edit_bones.new(bone_name)
+        new_edit.parent = parent_edit
+        new_edit.head = parent_edit.head
+        new_edit.tail = parent_edit.tail
+        new_edit.matrix = parent_edit.matrix
+        
+        return new_edit.name
+    
+    def new_control_bone(self, arm, parent_name, bone_name, pitch_name, yaw_name, shape_ob):
+        parent_edit = arm.data.edit_bones.get(parent_name)
+        new_edit = arm.data.edit_bones.new(bone_name)
+        new_edit.parent = parent_edit
+        new_edit.tail[1] = 1
+        name = new_edit.name
+        bpy.ops.object.mode_set(mode="POSE", toggle=False)
+        new_bone = arm.data.bones.get(name)
+        new_pose = arm.pose.bones.get(name)
+        new_bone.use_deform = False
+        new_pose.custom_shape = shape_ob
+        
+        # Constraints for the control bone
+        cons = new_pose.constraints
+        
+        limit_scale = cons.new('LIMIT_SCALE')
+        limit_scale.use_min_x = True
+        limit_scale.use_min_y = True
+        limit_scale.use_min_z = True
+        limit_scale.use_max_x = True
+        limit_scale.use_max_y = True
+        limit_scale.use_max_z = True
+        limit_scale.min_x = 1
+        limit_scale.min_y = 1
+        limit_scale.min_z = 1
+        limit_scale.max_x = 1
+        limit_scale.max_y = 1
+        limit_scale.max_z = 1
+        limit_scale.use_transform_limit = True
+        limit_scale.owner_space = 'LOCAL'
+        
+        limit_rotation = cons.new('LIMIT_ROTATION')
+        limit_rotation.use_limit_x = True
+        limit_rotation.use_limit_y = True
+        limit_rotation.use_limit_z = True
+        limit_rotation.min_y = radians(-90)
+        limit_rotation.max_y = radians(90)
+        limit_rotation.min_z = radians(-90)
+        limit_rotation.max_z = radians(90)
+        limit_rotation.use_transform_limit = True
+        limit_rotation.owner_space = 'LOCAL'
+        
+        limit_location = cons.new('LIMIT_LOCATION')
+        limit_location.use_min_x = True
+        limit_location.use_min_y = True
+        limit_location.use_min_z = True
+        limit_location.use_max_x = True
+        limit_location.use_max_y = True
+        limit_location.use_max_z = True
+        limit_location.use_transform_limit = True
+        limit_location.owner_space = 'LOCAL'
+        
+        # Constraints for the pitch bone
+        pose_pitch = arm.pose.bones.get(pitch_name)
+        cons = pose_pitch.constraints
+        copy_rotation = cons.new('COPY_ROTATION')
+        copy_rotation.target = arm
+        copy_rotation.subtarget = name
+        copy_rotation.use_x = False
+        copy_rotation.use_z = False
+        copy_rotation.target_space = 'LOCAL_OWNER_ORIENT'
+        copy_rotation.owner_space = 'LOCAL'
+        
+        # Constraints for the yaw bone
+        pose_yaw = arm.pose.bones.get(yaw_name)
+        cons = pose_yaw.constraints
+        copy_rotation = cons.new('COPY_ROTATION')
+        copy_rotation.target = arm
+        copy_rotation.subtarget = name
+        copy_rotation.use_x = False
+        copy_rotation.use_y = False
+        copy_rotation.target_space = 'LOCAL_OWNER_ORIENT'
+        copy_rotation.owner_space = 'LOCAL'
+        
+    def execute(self, context):
+        arm = context.object
+        bones = arm.data.bones
+        nwo = arm.nwo
+        for b in bones:
+            if b.use_deform and not b.parent:
+                nwo.node_usage_pedestal = b.name
+                parent_bone = b
+                parent_bone_name = parent_bone.name
+                break
+        else:
+            self.report({'WARNING'}, 'Failed to assign pedestal node usage')
+            return {'FINISHED'}
+        
+        for b in bones:
+            if not nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
+                nwo.node_usage_pose_blend_pitch = b.name
+            elif not nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
+                nwo.node_usage_pose_blend_yaw = b.name
+                
+        # Get missing node usages
+        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+        if nwo.node_usage_pose_blend_pitch:
+            pitch_name = nwo.node_usage_pose_blend_pitch
+        else:
+            pitch_name = self.new_bone(arm, parent_bone_name, 'b_aim_pitch')
+            nwo.node_usage_pose_blend_pitch = pitch_name
+        if nwo.node_usage_pose_blend_yaw:
+            yaw_name = nwo.node_usage_pose_blend_yaw
+        else:
+            yaw_name = self.new_bone(arm, parent_bone_name, 'b_aim_yaw')
+            nwo.node_usage_pose_blend_yaw = yaw_name
+            
+        if self.add_control_bone:
+            bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            existing_obs = context.view_layer.objects[:]
+            resources_zip = os.path.join(addon_root(), "resources.zip")
+            control_bone_path = os.path.join('rigs', 'shape_aim_control.glb')
+            full_path = os.path.join(addon_root(), 'resources', control_bone_path)
+            if os.path.exists(full_path):
+                bpy.ops.import_scene.gltf(filepath=full_path, import_shading='FLAT')
+            elif os.path.exists(resources_zip):
+                file = extract_from_resources(control_bone_path)
+                if os.path.exists(file):
+                    bpy.ops.import_scene.gltf(filepath=file, import_shading='FLAT')
+                    os.remove(file)
+            else:
+                self.report({'ERROR'}, 'Failed to extract control shape')
+                return {'FINISHED'}
+                
+            bone_shape = [ob for ob in context.view_layer.objects if ob not in existing_obs][0]
+            bone_shape.select_set(False)
+            bone_shape.nwo.export_this = False
+            arm.select_set(True)
+            set_active_object(arm)
+            bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+            self.new_control_bone(arm, parent_bone_name, 'f_aim_control', pitch_name, yaw_name, bone_shape)
+            unlink(bone_shape)
+            
+        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop(self, 'add_control_bone', text='Add Aim Control')
 
 class NWO_OpenImageEditor(Operator):
     bl_label = "Open in Image Editor"
@@ -5229,6 +5411,7 @@ classeshalo = (
     # NWO_GunRigMaker,
     # NWO_GunRigMaker_Start,
     NWO_DuplicateMaterial,
+    NWO_AddPoseBones,
 )
 
 

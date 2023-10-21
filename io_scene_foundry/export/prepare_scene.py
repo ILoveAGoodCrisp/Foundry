@@ -123,6 +123,7 @@ class PrepareScene:
         export_all_perms,
         export_all_bsps,
         fix_bone_rotations,
+        fast_animation_export,
     ):
         print("\nPreparing Export Scene")
         print(
@@ -747,6 +748,7 @@ class PrepareScene:
                     self.current_action,
                     scene_coll,
                     export_obs,
+                    fast_animation_export,
                 )
 
             # unlink current action and reset pose transforms
@@ -1841,19 +1843,33 @@ class PrepareScene:
         current_action,
         scene_coll,
         export_obs,
+        fast_animation_export
     ):
         # Used to check if the model had a forward direction that wasn't x positive before baking
         # now however, just doing this always to simplify things
         # Doing this lets us ignore everything but the armature at animation export
         if sidecar_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
-            if export_animations != "NONE" and bpy.data.actions:
+            if export_animations != "NONE" and bpy.data.actions and not fast_animation_export:
                 self.bake_animations(
                     armature,
                     export_animations,
                     current_action,
                     scene_coll,
                 )
+            else:
+                if hasattr(self, "old_pedestal_mat"):
+                    self.counter_matrix(self.old_pedestal_mat, self.pedestal_matrix, self.pedestal, export_obs)
+                if hasattr(self, "old_aim_pitch_mat"):
+                    self.counter_matrix(self.old_aim_pitch_mat, self.pedestal_matrix, self.aim_pitch, export_obs)
+                if hasattr(self, "old_aim_yaw_mat"):
+                    self.counter_matrix(self.old_aim_yaw_mat, self.pedestal_matrix, self.aim_yaw, export_obs)
+                if hasattr(self, "old_gun_mat"):
+                    self.counter_matrix(self.old_gun_mat, self.pedestal_matrix, self.gun, export_obs)
+                self.animation_arm = self.model_armature.copy()
+                self.animation_arm.data = self.model_armature.data.copy()
+                scene_coll.link(self.animation_arm)
+                
             self.remove_constraints(self.model_armature)
             # apply rotation based on selected forward direction
             # context.scene.frame_current = 0
@@ -1863,19 +1879,6 @@ class PrepareScene:
                 self.z_rotate_and_apply(armature, 90, export_obs)
             elif forward == "x-":
                 self.z_rotate_and_apply(armature, 180, export_obs)
-
-        else:
-            if hasattr(self, "old_pedestal_mat"):
-                self.counter_matrix(self.old_pedestal_mat, self.pedestal_matrix, self.pedestal, export_obs)
-            if hasattr(self, "old_aim_pitch_mat"):
-                self.counter_matrix(self.old_aim_pitch_mat, self.pedestal_matrix, self.aim_pitch, export_obs)
-            if hasattr(self, "old_aim_yaw_mat"):
-                self.counter_matrix(self.old_aim_yaw_mat, self.pedestal_matrix, self.aim_yaw, export_obs)
-            if hasattr(self, "old_gun_mat"):
-                self.counter_matrix(self.old_gun_mat, self.pedestal_matrix, self.gun, export_obs)
-            self.animation_arm = self.model_armature.copy()
-            self.animation_arm.data = self.model_armature.data.copy()
-            scene_coll.link(self.animation_arm)
             
 
     def set_bone_names(self, bones):

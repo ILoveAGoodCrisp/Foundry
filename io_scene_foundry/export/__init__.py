@@ -466,6 +466,7 @@ class NWO_Export(NWO_Export_Scene):
                     scene_nwo_export.export_all_perms,
                     scene_nwo_export.export_all_bsps,
                     scene_nwo_export.fix_bone_rotations,
+                    scene_nwo_export.fast_animation_export
                 )
 
                 export = ProcessScene(
@@ -519,7 +520,6 @@ class NWO_Export(NWO_Export_Scene):
                     scene_nwo_export.lightmap_all_bsps,
                     scene_nwo_export.lightmap_specific_bsp,
                     scene_nwo_export.lightmap_region,
-                    scene_nwo_export.fast_animation_export,
                 )
             
             except Exception as e:
