@@ -328,7 +328,7 @@ class PrepareScene:
         self.global_materials = {"default"}
         self.seams = []
 
-        process = "Building Export Objects"
+        process = "--- Building Export Scene"
         update_progress(process, 0)
         len_export_obs = len(export_obs)
 
@@ -460,10 +460,10 @@ class PrepareScene:
 
                 if h4:
                     print_warning("Scene has empty Halo material tag paths")
-                    job = "Fixing Empty Material Paths"
+                    job = " --- Fixing Empty Material Paths"
                 else:
                     print_warning("Scene has empty Halo shader tag paths")
-                    job = "Fixing Empty Shader Paths"
+                    job = "--- Fixing Empty Shader Paths"
 
                 update_job(job, 0)
                 no_path_materials = find_shaders(self.used_materials, h4)
@@ -1592,7 +1592,7 @@ class PrepareScene:
 
                     me_ob_dict[me].append(ob)
 
-        process = "Creating Meshes From Face Properties"
+        process = "--- Creating Meshes From Face Properties"
         len_me_ob_dict = len(me_ob_dict)
         self.any_face_props = False
 
@@ -1733,7 +1733,7 @@ class PrepareScene:
         if armature.animation_data is None:
             armature.animation_data_create()
 
-        job = "Baking Animations"
+        job = "--- Baking Animations"
         update_progress(job, 0)
         export_actions = [a for a in bpy.data.actions if a.use_frame_range]
         old_animations = [a for a in bpy.data.actions]
@@ -1814,6 +1814,12 @@ class PrepareScene:
                     new_events[idx].import_frame = e.import_frame
                     new_events[idx].import_name = e.import_name
                     new_events[idx].text = e.text
+                    
+                # Force the keyframes to start at frame 0
+                frame_diff = int(new_animation.frame_start)
+                for fcurve in new_animation.fcurves:
+                    for kfp in fcurve.keyframe_points:
+                        kfp.co[0] -= frame_diff
 
                 bpy.ops.object.posemode_toggle()
                 new_arm.select_set(False)
@@ -1836,7 +1842,10 @@ class PrepareScene:
         scene_coll,
         export_obs,
     ):
-        if forward != "x" and sidecar_type in ("MODEL", "FP ANIMATION"):
+        # Used to check if the model had a forward direction that wasn't x positive before baking
+        # now however, just doing this always to simplify things
+        # Doing this lets us ignore everything but the armature at animation export
+        if sidecar_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
             if export_animations != "NONE" and bpy.data.actions:
                 self.bake_animations(
@@ -3016,7 +3025,7 @@ class PrepareScene:
             return None
 
         if any_poop_child:
-            process = "Copying Instanced Geometry Proxy Meshes"
+            process = "--- Copying Instanced Geometry Proxy Meshes"
             update_progress(process, 0)
             meshes = set([ob.data for ob in poops])
             #print(meshes)
@@ -3281,7 +3290,7 @@ class PrepareScene:
         if not mesh_markers:
             return None
 
-        process = "Converting Mesh Markers to Empties"
+        process = "--- Converting Mesh Markers to Empties"
         update_progress(process, 0)
         len_mesh_markers = len(mesh_markers)
 

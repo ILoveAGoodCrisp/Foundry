@@ -337,9 +337,6 @@ class ProcessScene:
                             True,
                         )
 
-                if nwo_scene.model_armature and fast_animation_export and not self.skeleton_only:
-                    self.remove_all_but_armature(nwo_scene)
-
                 fbx_path, json_path, gr2_path = self.get_path(
                     asset_path, asset, "skeleton", None, None, None
                 )
@@ -358,7 +355,7 @@ class ProcessScene:
                     override["space_data"] = area.spaces.active
                     override["selected_objects"] = export_obs
                     with context.temp_override(**override):
-                        job = "-- skeleton"
+                        job = "--- skeleton"
                         update_job(job, 0)
                         if self.export_fbx(
                             fbx_exporter,
@@ -404,8 +401,7 @@ class ProcessScene:
                     and nwo_scene.model_armature.animation_data
                 ):
                     if export_animations != "NONE":
-                        if fast_animation_export and not self.skeleton_only: # NOTE this speeds up export but can cause issues if user relies on other scene objects for parenting / constraints
-                            self.remove_all_but_armature(nwo_scene)
+                        self.remove_all_but_armatures(nwo_scene)
 
                         timeline = context.scene
                         print("\n\nStarting Animations Export")
@@ -440,7 +436,7 @@ class ProcessScene:
                                     export_animations == "ALL"
                                     or nwo_scene.current_action == action
                                 ):
-                                    job = f"-- {animation_name}"
+                                    job = f"--- {animation_name}"
                                     update_job(job, 0)
 
                                     # Handle swapping out armature
@@ -709,7 +705,7 @@ class ProcessScene:
 
             total_p = self.gr2_processes
 
-            job = "Running GR2 Conversion"
+            job = "--- Running GR2 Conversion"
             spinner = itertools.cycle(["|", "/", "—", "\\"])
             while self.running_check:
                 update_job_count(
@@ -720,7 +716,7 @@ class ProcessScene:
             update_job_count(job, "", total_p, total_p)
 
             # check that gr2 files exist (since fbx-to-gr2 doesn't return a non zero code on faiL!)
-            job = "Validating GR2 Files"
+            job = "--- Validating GR2 Files"
             update_job(job, 0)
             for path_set in self.export_paths:
                 gr2_file = path_set[2]
@@ -907,7 +903,7 @@ class ProcessScene:
                     override["selected_objects"] = export_obs
 
                     with context.temp_override(**override):
-                        job = f"-- {print_text}"
+                        job = f"--- {print_text}"
                         update_job(job, 0)
                         if self.export_fbx(
                             fbx_exporter,
@@ -990,7 +986,7 @@ class ProcessScene:
                             else:
                                 print_text = f"{bsp} {perm} {type}"
 
-                            job = f"-- {print_text}"
+                            job = f"--- {print_text}"
                             update_job(job, 0)
                             if self.export_fbx(
                                 fbx_exporter,
@@ -1108,8 +1104,7 @@ class ProcessScene:
 
         return f"{path}.fbx", f"{path}.json", f"{path_gr2}.gr2"
 
-    def remove_all_but_armature(self, nwo_scene):
-        self.skeleton_only = True
+    def remove_all_but_armatures(self, nwo_scene):
         bpy.ops.object.select_all(action="SELECT")
         nwo_scene.model_armature.select_set(False)
         if nwo_scene.animation_arm:
@@ -1129,18 +1124,16 @@ class ProcessScene:
         mb_justified = (node_usage_set)
         if not mb_justified:
             return
-        print("\nManagedBlam Pre Import Tasks")
+        print("\nManagedBlam Pre Tag-Build Tasks")
         print(
             "-----------------------------------------------------------------------\n"
         )
         # Update/ set up Node Usage block of the model_animation_graph
         if node_usage_set:
-            job = "Setting Animation Node Usages"
-            update_job(job, 0)
             disable_prints()
             ManagedBlamNodeUsage(nwo_scene.model_armature, nwo_scene.skeleton_bones)
             enable_prints()
-            update_job(job, 1)
+            print("--- Updated Animation Node Usages")
 
     def managed_blam_post_import_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name):
         nwo = context.scene.nwo
@@ -1160,29 +1153,25 @@ class ProcessScene:
         if not mb_justified:
             return
         
-        print("\nManagedBlam Post Import Tasks")
+        print("\nManagedBlam Post Tag-Build Tasks")
         print(
             "-----------------------------------------------------------------------\n"
         )
         
         # If this model has lighting, add a reference to the structure_meta tag in the render_model
         if h4_model_lighting:
-            job = "Adding Structure Meta Reference to Render Model"
             meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
-            update_job(job, 0)
             disable_prints()
             ManagedBlamSetStructureMetaRef(meta_path)
             enable_prints()
-            update_job(job, 1)
+            print("--- Added Structure Meta Reference to Render Model")
 
         # Apply model overrides if any
         if model_override:
-            job = "Applying Model Overrides"
-            update_job(job, 0)
             disable_prints()
             ManagedBlamModelOverride(nwo.render_model_path, nwo.collision_model_path, nwo.physics_model_path, nwo.animation_graph_path)
             enable_prints()
-            update_job(job, 1)
+            print("--- Applied Model Overrides")
 
     def any_node_usage_override(self, nwo):
         return (nwo.node_usage_physics_control
@@ -1286,7 +1275,7 @@ class ProcessScene:
         self,
         fbx_exporter,
         fbx_filepath,
-    ):  # fbx_exporter
+    ):  
         disable_prints()
 
         if fbx_exporter == "better":

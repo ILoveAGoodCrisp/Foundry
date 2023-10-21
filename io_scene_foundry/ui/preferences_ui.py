@@ -349,7 +349,7 @@ class ToolkitLocationPreferences(AddonPreferences):
     apply_prefix : EnumProperty(
         name="Object Prefixes",
         description='Sets the prefixes to apply when applying a mesh or marker type to an object. Object prefixes are convention only and do not dictate the type. Mesh/Marker type can be verified via Object Properties in the Foundry Panel',
-        default='full',
+        default='none',
         items=[
             ("none", "None", "Does not apply object prefixes"),
             ("full", "Full", "Applies object prefixes that specify the object type"),

@@ -914,7 +914,7 @@ def run_tool_sidecar(tool_args: list, asset_path):
         # Read and print stderr contents while writing to the file
         for line in p.stderr:
             line = line.decode().rstrip("\n")
-            if failed or is_error_line(line):
+            if failed or is_error_line(line, p):
                 print_error(line)
                 failed = True
             elif "(skipping tangent-space calculations)" in line or "if it is a decorator" in line:
@@ -959,9 +959,14 @@ def get_export_error_explanation(error_log):
     return ""
 
 
-def is_error_line(line):
+def is_error_line(line, process):
     words = line.split()
     if words:
+        # Need to abort import if we got a corrupt granny file
+        if line.startswith('importing an invalid granny file,'):
+            print_error('Corrupt GR2 File encountered. Please re-run export')
+            process.kill()
+            raise RuntimeError(line)
         first_word = words[0]
         second_word = ""
         if len(words) > 1:
@@ -1576,7 +1581,7 @@ def update_progress(job_title, progress):
             round(progress * 100, 2),
         )
         if progress >= 1:
-            msg += " DONE\r\n"
+            msg += "     \r\n"
         sys.stdout.write(msg)
         sys.stdout.flush()
 
@@ -1586,7 +1591,7 @@ def update_job(job_title, progress):
     if progress < 1:
         msg += "..."
     else:
-        msg += " DONE\r\n"
+        msg += "     \r\n"
 
     sys.stdout.write(msg)
     sys.stdout.flush()
@@ -1598,7 +1603,7 @@ def update_job_count(message, spinner, completed, total):
     if completed < total:
         msg += f"{spinner}"
     else:
-        msg += "DONE\r\n"
+        msg += "     \r\n"
 
     sys.stdout.write(msg)
     sys.stdout.flush()

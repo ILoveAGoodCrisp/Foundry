@@ -406,7 +406,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
 
 def menu_func_export(self, context):
-    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Tag")
+    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Foundry Export")
 
 class NWO_Export(NWO_Export_Scene):
     bl_idname = "nwo.export"
@@ -435,6 +435,10 @@ class NWO_Export(NWO_Export_Scene):
             self.report({"WARNING"}, "Export aborted")
             return {"CANCELLED"}
         
+        # Pretty much always need ManagedBlam now, so launch it at export
+        if not managed_blam_active():
+            bpy.ops.managed_blam.init()
+        
         # toggle the console
         os.system("cls")
         if context.scene.nwo_export.show_output:
@@ -448,6 +452,7 @@ class NWO_Export(NWO_Export_Scene):
         print("\nIf you did not intend to export, hold CTRL+C")
 
         self.failed = False
+        self.known_fail = False
 
 
         try:
@@ -516,11 +521,14 @@ class NWO_Export(NWO_Export_Scene):
                     scene_nwo_export.lightmap_region,
                     scene_nwo_export.fast_animation_export,
                 )
-
+            
             except Exception as e:
-                print_error("\n\nException hit. Please include in report\n")
-                logging.error(traceback.format_exc())
-                self.failed = True
+                if type(e) == RuntimeError:
+                    self.known_fail = True
+                else:
+                    print_error("\n\nException hit. Please include in report\n")
+                    logging.error(traceback.format_exc())
+                    self.failed = True
 
             # validate that a sidecar file exists
             if not file_exists(sidecar_path_full):
@@ -541,6 +549,11 @@ class NWO_Export(NWO_Export_Scene):
                 )
                 print_error(
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                )
+            
+            elif self.known_fail:
+                    print_warning(
+                    "\nEXPORT ABORTED. Please see above for details"
                 )
 
             elif export.gr2_fail:
