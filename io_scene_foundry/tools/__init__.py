@@ -1922,9 +1922,7 @@ class NWO_FoundryPanelProps(Panel):
                     )
                 if not (is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision"):
                     col.separator()
-                    col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Layer Property", icon="PLUS")
-
-            
+                    col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Layer Property", icon="PLUS")            
 
     def draw_material_properties(self):
         box = self.box.box()
@@ -1942,7 +1940,7 @@ class NWO_FoundryPanelProps(Panel):
 
         mat = ob.active_material
         col1 = row.column()
-        col1.template_ID(ob, "active_material", new="material.new")
+        col1.template_ID(ob, "active_material", new="nwo.duplicate_material")
         if mat:
             txt = "Halo Material" if h4 else "Halo Shader"
             nwo = mat.nwo
@@ -2061,8 +2059,8 @@ class NWO_FoundryPanelProps(Panel):
             box.use_property_split = False
             box.label(text="Image Properties")
             col = box.column()
-            col.template_ID_preview(nwo, "active_image")
             image = nwo.active_image
+            col.template_ID_preview(nwo, "active_image")
             if not image:
                 return
             bitmap = image.nwo
@@ -2786,7 +2784,21 @@ class NWO_OT_PanelExpand(Operator):
         setattr(nwo, prop, not getattr(nwo, prop))
         self.report({"INFO"}, f"Expanded: {prop}")
         return {"FINISHED"}
-
+    
+class NWO_DuplicateMaterial(Operator):
+    bl_idname = 'nwo.duplicate_material'
+    bl_label = 'Duplicate Material'
+    bl_description = 'Duplicates the active material'
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.active_material
+    
+    def execute(self, context):
+        mat = context.object.active_material
+        new_mat = mat.copy()
+        context.object.active_material = new_mat
+        return {'FINISHED'}
 
 class NWO_ScaleModels_Add(Operator, AddObjectHelper):
     bl_idname = "mesh.add_halo_scale_model"
@@ -5216,6 +5228,7 @@ classeshalo = (
     NWO_ProjectChooserMenu,
     # NWO_GunRigMaker,
     # NWO_GunRigMaker_Start,
+    NWO_DuplicateMaterial,
 )
 
 
