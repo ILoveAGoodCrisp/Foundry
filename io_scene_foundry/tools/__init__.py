@@ -74,6 +74,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     has_face_props,
     has_mesh_props,
+    import_gltf,
     is_halo_object,
     managed_blam_active,
     is_corinth,
@@ -577,8 +578,14 @@ class NWO_FoundryPanelProps(Panel):
             box.label(text="Controls")
             col = box.column()
             col.use_property_split = True
-            col.prop_search(nwo, 'control_pedestal', ob.data, 'bones')
-            col.prop_search(nwo, 'control_aim', ob.data, 'bones')
+            row = col.row(align=True)
+            row.prop_search(nwo, 'control_pedestal', ob.data, 'bones')
+            if not nwo.control_pedestal:
+                row.operator('nwo.add_pedestal_control', text='', icon='ADD')
+            row = col.row(align=True)
+            row.prop_search(nwo, 'control_aim', ob.data, 'bones')
+            if not nwo.control_aim:
+                row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
             return
 
         row = box.grid_flow(
@@ -2650,17 +2657,24 @@ class NWO_SelectArmature(Operator):
     def execute(self, context):
         set_object_mode(context)
         objects = context.view_layer.objects
-        for ob in objects:
-            if ob.type == 'ARMATURE':
-                deselect_all_objects()
-                ob.hide_set(False)
-                ob.hide_select = False
-                ob.select_set(True)
-                set_active_object(ob)
-                self.report({'INFO'}, F"Selected {ob.name}")
-                break
-        else:
-            self.report({'WARNING'}, "No Armature Found")
+        scene = context.scene
+        rigs = [ob for ob in objects if ob.type == 'ARMATURE']
+        if not rigs:
+            self.report({'WARNING'}, "No Armature in Scene")
+            return {'CANCELLED'}
+        elif len(rigs) > 1:
+            if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
+                arm = scene.nwo.parent_rig
+            else:
+                self.report({'WARNING'}, "Multiple Armatures found. Please validate rig under Foundry Tools > Rig Tools")
+                return {'CANCELLED'}
+        arm = rigs[0]
+        deselect_all_objects()
+        arm.hide_set(False)
+        arm.hide_select = False
+        arm.select_set(True)
+        set_active_object(arm)
+        self.report({'INFO'}, F"Selected {arm.name}")
 
         return {'FINISHED'}
 
@@ -3035,15 +3049,9 @@ def add_halo_scale_model_button(self, context):
 def add_halo_armature_buttons(self, context):
     self.layout.operator(
         "nwo.armature_create",
-        text="Halo Pedestal",
+        text="Halo Skeleton",
         icon_value=get_icon_id("rig_creator"),
     ).rig = "PEDESTAL"
-
-    self.layout.operator(
-        "nwo.armature_create",
-        text="Halo Unit",
-        icon_value=get_icon_id("rig_creator"),
-    ).rig = "UNIT"
 
 
 def create_halo_collection(self, context):
@@ -4628,32 +4636,57 @@ class NWO_ArmatureCreator(Panel):
 
 
 class NWO_ArmatureCreator_Create(Operator):
-    """Creates the specified armature"""
-
     bl_idname = "nwo.armature_create"
     bl_label = "Create Armature"
     bl_options = {"REGISTER", "UNDO"}
-
-    rig : StringProperty()
+    bl_description = "Creates a Halo rig with a pedestal bone, and optionally pose and control bones"
+    
+    has_pedestal_control: BoolProperty()
+    has_pose_bones: BoolProperty()
+    has_aim_control: BoolProperty()
+    
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT'
 
     def execute(self, context):
         scene = context.scene
-        from .armature_creator import armature_create
-
-        return armature_create(
-            context,
-            self.rig,
+        asset_name = scene.nwo_halo_launcher.sidecar_path.rpartition("\\")[2].replace(
+            ".sidecar.xml", ""
         )
+        if asset_name:
+            data = bpy.data.armatures.new(f'{asset_name}_world')
+        else:
+            data = bpy.data.armatures.new('Armature')
+        
+        arm = bpy.data.objects.new(data.name, data)
+        scene.collection.objects.link(arm)
+        arm.select_set(True)
+        set_active_object(arm)
+        
+        bpy.ops.object.editmode_toggle()
+        
+        pedestal = data.edit_bones.new('b_pedestal')
+        pedestal.head = [0, 0, 0]
+        pedestal.tail = [0, 1, 0]
+        
+        bpy.ops.object.editmode_toggle()
+        if self.has_pedestal_control:
+            bpy.ops.nwo.add_pedestal_control()
+        if self.has_pose_bones:
+            if self.has_aim_control:
+                bpy.ops.nwo.add_pose_bones(add_control_bone=True)
+            else:
+                bpy.ops.nwo.add_pose_bones()
+        return {'FINISHED'}
     
-    @classmethod
-    def description(cls, context, properties):
-        if properties.rig == 'PEDESTAL':
-            return "Creates a Halo rig with a pedestal deform and control bone"
-        elif properties.rig == 'UNIT':
-            return ("Creates a Halo rig requried for a unit (biped / vehicle / giant). "
-            "Includes a pedestal bone, and pitch and yaw bones (with a controller) necessary "
-            "for pose overlay animations (e.g. aiming / steering)"
-            )
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'has_pedestal_control', text='Add Pedestal Control')
+        layout.prop(self, 'has_pose_bones', text='Add Aim Bones')
+        if self.has_pose_bones:
+            layout.prop(self, 'has_aim_control', text='Add Aim Control')
+        
 
 
 class NWO_ArmatureCreatorPropertiesGroup(PropertyGroup):
@@ -5071,12 +5104,13 @@ class NWO_ShaderPropertiesGroup(PropertyGroup):
     
 class NWO_AddPoseBones(Operator):
     bl_idname = 'nwo.add_pose_bones'
-    bl_label = 'Add Pose Bones'
-    bl_description = 'Adds pose bones to the armature if missing, optionally with a control bone. Assigns node usage bones'
+    bl_label = 'Add Aim Bones'
+    bl_description = 'Adds aim bones to the armature if missing, optionally with a control bone. Assigns node usage bones'
     bl_options = {'REGISTER', 'UNDO'}
     
-    add_control_bone: BoolProperty(default=True)
+    add_control_bone: BoolProperty()
     has_control_bone: BoolProperty()
+    skip_invoke: BoolProperty()
     
     def new_bone(self, arm, parent_name, bone_name):
         parent_edit = arm.data.edit_bones.get(parent_name)
@@ -5166,6 +5200,11 @@ class NWO_AddPoseBones(Operator):
         
     def execute(self, context):
         arm = context.object
+        if arm.type != 'ARMATURE':
+            bpy.ops.nwo.select_armature()
+            arm = context.object
+            if arm.type != 'ARMATURE':
+                return {'CANCELLED'}
         bones = arm.data.bones
         nwo = arm.nwo
         for b in bones:
@@ -5204,11 +5243,11 @@ class NWO_AddPoseBones(Operator):
             control_bone_path = os.path.join('rigs', 'shape_aim_control.glb')
             full_path = os.path.join(addon_root(), 'resources', control_bone_path)
             if os.path.exists(full_path):
-                bpy.ops.import_scene.gltf(filepath=full_path, import_shading='FLAT')
+                import_gltf(full_path)
             elif os.path.exists(resources_zip):
                 file = extract_from_resources(control_bone_path)
                 if os.path.exists(file):
-                    bpy.ops.import_scene.gltf(filepath=file, import_shading='FLAT')
+                    import_gltf(full_path)
                     os.remove(file)
             else:
                 self.report({'ERROR'}, 'Failed to extract control shape')
@@ -5229,10 +5268,14 @@ class NWO_AddPoseBones(Operator):
     
     def invoke(self, context, event):
         if context.object.nwo.control_aim:
+            self.report({'INFO'}, "Aim Control bone already set")
             self.has_control_bone = True
             return self.execute(context)
         else:
             self.has_control_bone = False
+            if self.skip_invoke:
+                self.add_control_bone = True
+                return self.execute(context)
             wm = context.window_manager
             return wm.invoke_props_dialog(self)
     
@@ -5395,7 +5438,7 @@ class NWO_ValidateRig(Operator):
             
         if self.needs_pose_bones(rig):
             scene.nwo.needs_pose_bones = True
-            self.report({'WARNING'}, 'Found pose overlay animations, but this rig has no pose bones')
+            self.report({'WARNING'}, 'Found pose overlay animations, but this rig has no aim bones')
         else:
             scene.nwo.needs_pose_bones = False
             
@@ -5500,6 +5543,76 @@ class NWO_AddPedestalControl(Operator):
     bl_label = "Add Pedestal Control"
     bl_idname = "nwo.add_pedestal_control"
     bl_description = "Adds a control bone and custom shape to the armature pedestal bone"
+    
+    def new_control_bone(self, arm, pedestal_name, bone_name, shape_ob):
+        new_edit = arm.data.edit_bones.new(bone_name)
+        new_edit.tail[1] = 1
+        name = new_edit.name
+        bpy.ops.object.mode_set(mode="POSE", toggle=False)
+        new_bone = arm.data.bones.get(name)
+        new_pose = arm.pose.bones.get(name)
+        new_bone.use_deform = False
+        new_pose.custom_shape = shape_ob
+        
+        # Constraints for the pedestal bone
+        pose_control = arm.pose.bones.get(pedestal_name)
+        cons = pose_control.constraints
+        copy_rotation = cons.new('COPY_TRANSFORMS')
+        copy_rotation.target = arm
+        copy_rotation.subtarget = name
+        copy_rotation.target_space = 'LOCAL_OWNER_ORIENT'
+        copy_rotation.owner_space = 'LOCAL'
+        
+        return name
+    
+    def execute(self, context):
+        arm = context.object
+        if arm.type != 'ARMATURE':
+            bpy.ops.nwo.select_armature()
+            arm = context.object
+            if arm.type != 'ARMATURE':
+                return {'CANCELLED'}
+        bones = arm.data.bones
+        nwo = arm.nwo
+        for b in bones:
+            if b.use_deform and not b.parent:
+                pedestal_bone_name = b.name
+                break
+        else:
+            self.report({'WARNING'}, 'No root bone found')
+            return {'FINISHED'}
+            
+        if arm.nwo.control_pedestal:
+            self.report({'INFO'}, "Pedestal control already in place")
+            return {'CANCELLED'}
+        else:
+            bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            existing_obs = context.view_layer.objects[:]
+            resources_zip = os.path.join(addon_root(), "resources.zip")
+            control_bone_path = os.path.join('rigs', 'shape_pedestal_control.glb')
+            full_path = os.path.join(addon_root(), 'resources', control_bone_path)
+            if os.path.exists(full_path):
+                import_gltf(full_path)
+            elif os.path.exists(resources_zip):
+                file = extract_from_resources(control_bone_path)
+                if os.path.exists(file):
+                    import_gltf(full_path)
+                    os.remove(file)
+            else:
+                self.report({'ERROR'}, 'Failed to extract control shape')
+                return {'FINISHED'}
+                
+            bone_shape = [ob for ob in context.view_layer.objects if ob not in existing_obs][0]
+            bone_shape.select_set(False)
+            bone_shape.nwo.export_this = False
+            arm.select_set(True)
+            set_active_object(arm)
+            bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+            nwo.control_pedestal = self.new_control_bone(arm, pedestal_bone_name, 'c_pedestal', bone_shape)
+            unlink(bone_shape)
+            
+        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+        return {'FINISHED'}
 
 class NWO_OpenImageEditor(Operator):
     bl_label = "Open in Image Editor"
@@ -5734,6 +5847,7 @@ classeshalo = (
     NWO_ValidateRig,
     NWO_FixRootBone,
     NWO_FixArmatureTransforms,
+    NWO_AddPedestalControl,
 )
 
 

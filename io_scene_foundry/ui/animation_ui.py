@@ -81,6 +81,7 @@ class NWO_DeleteAnimation(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     def execute(self, context):
+        context.scene.tool_settings.use_keyframe_insert_auto = False
         arm = context.object
         action = arm.animation_data.action
         name = str(action.name)

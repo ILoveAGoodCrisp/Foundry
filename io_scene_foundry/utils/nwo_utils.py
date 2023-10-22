@@ -1945,3 +1945,10 @@ def extract_from_resources(relative_file_path):
     with zipfile.ZipFile(resources_zip, "r") as zip:
         file = zip.extract(relative_file_path)
     return file
+
+def import_gltf(path):
+    unit_settings = bpy.context.scene.unit_settings
+    old_unit_scale = unit_settings.scale_length
+    unit_settings.scale_length = 1
+    bpy.ops.import_scene.gltf(filepath=path, import_shading='FLAT')
+    unit_settings.scale_length = old_unit_scale
