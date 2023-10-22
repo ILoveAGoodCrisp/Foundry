@@ -108,6 +108,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     node_usage_right_hand : StringProperty(name="Right Hand")
     node_usage_weapon_ik : StringProperty(name="Weapon IK")
     
+    control_pedestal: StringProperty(name='Pedestal Control')
+    control_aim: StringProperty(name='Aim Control')
+    
     ### PROXY
     proxy_parent: PointerProperty(type=bpy.types.Mesh)
     proxy_type : StringProperty()

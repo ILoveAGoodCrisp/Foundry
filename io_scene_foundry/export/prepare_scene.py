@@ -1939,6 +1939,7 @@ class PrepareScene:
                         nwo.poop_decal_spacing = "1"
 
                     if not reach:
+                        nwo.poop_collision_type = nwo.poop_collision_type_ui
                         nwo.poop_streaming_priority = nwo.poop_streaming_priority_ui
                         nwo.poop_cinematic_properties = nwo.poop_cinematic_properties_ui
                         if nwo.poop_remove_from_shadow_geometry_ui:

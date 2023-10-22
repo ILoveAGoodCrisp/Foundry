@@ -1138,10 +1138,12 @@ class NWOMesh(NWOObject):
             self.halo.face_mode == "_connected_geometry_face_mode_sphere_collision_only"
         ):
             return "_connected_geometry_poop_collision_type_play_collision"
-        elif self.halo.mesh_type == "_connected_geometry_mesh_type_poop_collision":
-            return self.halo.poop_collision_type
+        elif (
+            self.halo.face_mode == "_connected_geometry_face_mode_collision_only"
+        ):
+            return "_connected_geometry_poop_collision_type_bullet_collision"
         else:
-            return "_connected_geometry_poop_collision_type_default"
+            return self.halo.poop_collision_type
 
     def lightmap_photon_fidelity(self):
         return self.halo.lightmap_photon_fidelity

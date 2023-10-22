@@ -40,6 +40,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
@@ -63,6 +64,7 @@ from io_scene_foundry.utils.nwo_utils import (
     bpy_enum,
     deselect_all_objects,
     dot_partition,
+    export_objects,
     extract_from_resources,
     foundry_update_check,
     get_data_path,
@@ -539,7 +541,7 @@ class NWO_FoundryPanelProps(Panel):
 
         elif ob.type == "ARMATURE":
             # node usage
-            box.label(text="Node Usage Overrides")
+            box.label(text="Node Usage")
             col = box.column()
             col.use_property_split = True
             col.prop_search(nwo, "node_usage_pedestal", ob.data, "bones")
@@ -570,6 +572,12 @@ class NWO_FoundryPanelProps(Panel):
             col.prop_search(nwo, "node_usage_damage_root_right_arm", ob.data, "bones")
             col.prop_search(nwo, "node_usage_damage_root_right_leg", ob.data, "bones")
             col.prop_search(nwo, "node_usage_damage_root_right_foot", ob.data, "bones")
+            col.separator()
+            box.label(text="Controls")
+            col = box.column()
+            col.use_property_split = True
+            col.prop_search(nwo, 'control_pedestal', ob.data, 'bones')
+            col.prop_search(nwo, 'control_aim', ob.data, 'bones')
             return
 
         row = box.grid_flow(
@@ -998,6 +1006,7 @@ class NWO_FoundryPanelProps(Panel):
                             col.prop(nwo, "poop_imposter_brightness_ui")
 
                     if h4:
+                        col.prop(nwo, "poop_collision_type_ui", text="Collision Type")
                         col.prop(nwo, "poop_streaming_priority_ui")
                         col.prop(nwo, "poop_cinematic_properties_ui")
 
@@ -2337,6 +2346,40 @@ class NWO_FoundryPanelProps(Panel):
 
     def draw_tools(self):
         box = self.box.box()
+        self.draw_asset_shaders(box)
+        box = self.box.box()
+        self.draw_rig_tools(box)
+        
+    def draw_rig_tools(self, box):
+        row = box.row()
+        col = row.column()
+        nwo = self.scene.nwo
+        col.label(text=f"Rig Tools")
+        col.use_property_split = True
+        col.operator('nwo.validate_rig', text='Validate Rig')
+        if nwo.multiple_rigs or nwo.parent_rig:
+            col.prop(nwo, 'parent_rig', text='Main Rig')
+            if nwo.parent_rig:
+                col.prop(nwo, 'child_rig_1', text='Support Rig')
+                if nwo.child_rig_1:
+                    col.prop(nwo, 'child_rig_1_parent_bone', text='Main Rig Parent Bone')
+                    col.prop(nwo, 'child_rig_1_child_bone', text='Support Rig Child Bone')
+        if nwo.multiple_root_bones:
+            col.label(text='Multiple Root Bones', icon='ERROR')
+        if nwo.armature_has_parent:
+            col.label(text='Armature is parented', icon='ERROR')
+        if nwo.armature_bad_transforms:
+            col.label(text='Armature has bad transforms', icon='ERROR')
+            col.operator('nwo.fix_armature_transforms', text='Fix Armature Transforms')
+        if nwo.invalid_root_bone:
+            col.label(text='Root Bone has non-standard transforms', icon='QUESTION')
+            col.operator('nwo.fix_root_bone', text='Fix Root Bone')
+        if nwo.needs_pose_bones:
+            col.label(text='Rig not setup for pose overlay animations', icon='ERROR')
+            col.operator('nwo.add_pose_bones', text='Fix for Pose Overlays')
+            
+
+    def draw_asset_shaders(self, box):
         h4 = self.h4
         count, total = get_halo_material_count()
         shader_type = "Material" if h4 else "Shader"
@@ -2811,6 +2854,7 @@ class NWO_DuplicateMaterial(Operator):
     bl_idname = 'nwo.duplicate_material'
     bl_label = 'Duplicate Material'
     bl_description = 'Duplicates the active material'
+    bl_options = {"UNDO"}
     
     @classmethod
     def poll(cls, context):
@@ -5025,9 +5069,10 @@ class NWO_AddPoseBones(Operator):
     bl_idname = 'nwo.add_pose_bones'
     bl_label = 'Add Pose Bones'
     bl_description = 'Adds pose bones to the armature if missing, optionally with a control bone. Assigns node usage bones'
+    bl_options = {'REGISTER', 'UNDO'}
     
     add_control_bone: BoolProperty(default=True)
-    has_no_control_bone: BoolProperty()
+    has_control_bone: BoolProperty()
     
     def new_bone(self, arm, parent_name, bone_name):
         parent_edit = arm.data.edit_bones.get(parent_name)
@@ -5113,11 +5158,7 @@ class NWO_AddPoseBones(Operator):
         copy_rotation.target_space = 'LOCAL_OWNER_ORIENT'
         copy_rotation.owner_space = 'LOCAL'
         
-    def no_control_bone_exists(self, arm):
-        for b in arm.data.bones:
-            if b.name == 'f_aim_control':
-                return False
-        return True
+        return name
         
     def execute(self, context):
         arm = context.object
@@ -5152,7 +5193,7 @@ class NWO_AddPoseBones(Operator):
             yaw_name = self.new_bone(arm, parent_bone_name, 'b_aim_yaw')
             nwo.node_usage_pose_blend_yaw = yaw_name
             
-        if self.add_control_bone and self.has_no_control_bone:
+        if self.add_control_bone and not self.has_control_bone:
             bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
             existing_obs = context.view_layer.objects[:]
             resources_zip = os.path.join(addon_root(), "resources.zip")
@@ -5175,24 +5216,243 @@ class NWO_AddPoseBones(Operator):
             arm.select_set(True)
             set_active_object(arm)
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            self.new_control_bone(arm, parent_bone_name, 'f_aim_control', pitch_name, yaw_name, bone_shape)
+            nwo.control_aim = self.new_control_bone(arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
             unlink(bone_shape)
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-            
+        context.scene.nwo.needs_pose_bones = False
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        if self.no_control_bone_exists(context.object):
-            self.has_no_control_bone = True
+        if context.object.nwo.control_aim:
+            self.has_control_bone = True
+            return self.execute(context)
+        else:
+            self.has_control_bone = False
             wm = context.window_manager
             return wm.invoke_props_dialog(self)
-        else:
-            self.has_no_control_bone = False
-            return self.execute(context)
     
     def draw(self, context):
         self.layout.prop(self, 'add_control_bone', text='Add Aim Control')
+        
+class NWO_ValidateRig(Operator):
+    bl_idname = 'nwo.validate_rig'
+    bl_label = ''
+    bl_description = ''
+    
+    def get_rig(self, scene):
+        obs = export_objects()
+        rigs = [ob for ob in obs if ob.type == 'ARMATURE']
+        if not rigs:
+            return
+        elif len(rigs) > 1:
+            if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
+                return scene.nwo.parent_rig
+            scene.nwo.multiple_rigs = True
+            return
+        return rigs[0]
+    
+    def get_root_bone(self, rig, scene):
+        root_bones = [b for b in rig.data.bones if b.use_deform and not b.parent]
+        if len(root_bones) > 1:
+            scene.nwo.multiple_root_bones = True
+            return
+        return root_bones[0].name
+    
+    def validate_root_rot(self, rig, root_bone_name, scene):
+        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+        # Valid rotation depends on model forward direction
+        # Given false tuples hightlight whether tail values should be zero = (x, y, z)
+        # x_postive = (0, 1, 0)
+        # y_postive = (-1, 0, 0)
+        # x_negative = (0, -1, 0)
+        # y_postive = (1, 0, 0)
+        edit_root = rig.data.edit_bones.get(root_bone_name)
+        match scene.nwo.forward_direction:
+            case 'x':
+                tail_okay = (
+                edit_root.tail[0] == 0 and
+                edit_root.tail[1] > 0 and
+                edit_root.tail[0] == 0)
+            case 'x-':
+                tail_okay = (
+                edit_root.tail[0] == 0 and
+                edit_root.tail[1] < 0 and
+                edit_root.tail[0] == 0)
+            case 'y':
+                tail_okay = (
+                edit_root.tail[0] < 0 and
+                edit_root.tail[1] == 0 and
+                edit_root.tail[0] == 0)
+            case 'y-':
+                tail_okay = (
+                edit_root.tail[0] > 0 and
+                edit_root.tail[1] == 0 and
+                edit_root.tail[0] == 0)
+                
+        head_okay = edit_root.head[0] == 0 and edit_root.head[1] == 0 and edit_root.head[2] == 0
+        roll_okay = edit_root.roll == 0
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        
+        return tail_okay and head_okay and roll_okay
+    
+    def needs_pose_bones(self, rig):
+        usage_set =  rig.nwo.node_usage_pedestal and rig.nwo.node_usage_pose_blend_pitch and rig.nwo.node_usage_pose_blend_yaw
+        if usage_set:
+            return False
+        for action in bpy.data.actions:
+            if action.frame_range:
+                if action.nwo.animation_type == 'overlay' and action.nwo.animation_is_pose:
+                    return True
+                
+        return False
+    
+    def armature_transforms_valid(self, rig):
+        return rig.matrix_world == Matrix(((1.0, 0.0, 0.0, 0.0),
+                                    (0.0, 1.0, 0.0, 0.0),
+                                    (0.0, 0.0, 1.0, 0.0),
+                                    (0.0, 0.0, 0.0, 1.0)))
+            
+    def complete_validation(self):
+        if self.old_active:
+            set_active_object(self.old_active)
+        return {'FINISHED'}
+            
+    def execute(self, context):
+        self.old_mode = context.mode
+        self.old_active = context.object
+        set_object_mode(context)
+        scene = context.scene
+        rig = self.get_rig(scene)
+        if rig is None:
+            if scene.nwo.multiple_rigs:
+                self.report({'WARNING'}, 'Multiple armatures in scene. Please declare the main armature')
+            else:
+                self.report({'INFO'}, "No Armature in scene. You only need an armature only if this model is intended to animate")
+                scene.nwo.multiple_root_bones = False
+                scene.nwo.multiple_rigs = False
+                scene.nwo.invalid_root_bone = False
+                scene.nwo.needs_pose_bones = False
+                scene.nwo.armature_bad_transforms = False
+                scene.nwo.armature_has_parent = False
+                
+            return self.complete_validation()
+        
+        if rig.parent:
+            scene.nwo.armature_has_parent = True
+            return self.complete_validation()
+        else:
+            scene.nwo.armature_has_parent = False
+        
+        if self.armature_transforms_valid(rig):
+            scene.nwo.armature_bad_transforms = False
+        else:
+            scene.nwo.armature_bad_transforms = True
+            return self.complete_validation()
+        
+        scene.nwo.multiple_rigs = False
+        set_active_object(rig)
+        root_bone_name = self.get_root_bone(rig, scene)
+        if root_bone_name is None:
+            self.report({'WARNING'}, 'Multiple root bones in armature. Export will fail. Ensure only one bone in the armature has no parent (or set additional root bones as non-deform bones)')
+            scene.nwo.multiple_root_bones = True
+            return self.complete_validation()
+        else:
+            scene.nwo.multiple_root_bones = False
+        
+        if self.validate_root_rot(rig, root_bone_name, scene):
+            scene.nwo.invalid_root_bone = False
+        else:
+            self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
+            scene.nwo.invalid_root_bone = True
+            
+        if self.needs_pose_bones(rig):
+            scene.nwo.needs_pose_bones = True
+            return self.complete_validation()
+        else:
+            scene.nwo.needs_pose_bones = False
+        
+        return self.complete_validation()
+    
+
+class NWO_FixRootBone(Operator):
+    bl_idname = 'nwo.fix_root_bone'
+    bl_label = ''
+    bl_description = ''
+    
+    def execute(self, context):
+        scene = context.scene
+        obs = export_objects()
+        rigs = [ob for ob in obs if ob.type == 'ARMATURE']
+        if not rigs:
+            return {'CANCELLED'}
+        elif len(rigs) > 1:
+            if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
+                arm = scene.nwo.parent_rig
+            else:
+                return {'CANCELLED'}
+        arm = rigs[0]
+        root_bones = [b for b in arm.data.bones if b.use_deform and not b.parent]
+        if len(root_bones) > 1:
+            return {'CANCELLED'}
+        root_bone_name = root_bones[0].name
+        self.old_mode = context.mode
+        self.old_active = context.object
+        set_object_mode(context)
+        set_active_object(arm)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        edit_root = arm.data.edit_bones.get(root_bone_name)
+        match scene.nwo.forward_direction:
+            case 'x':
+                edit_root.tail[0] = 0
+                edit_root.tail[1] = 1
+                edit_root.tail[2] = 0
+            case 'x-':
+                edit_root.tail[0] = 0
+                edit_root.tail[1] = -1
+                edit_root.tail[2] = 0
+            case 'y':
+                edit_root.tail[0] = -1
+                edit_root.tail[1] = 0
+                edit_root.tail[2] = 0
+            case 'y-':
+                edit_root.tail[0] = 1
+                edit_root.tail[1] = 0
+                edit_root.tail[2] = 0
+                
+        edit_root.head[0] = 0
+        edit_root.head[1] = 0
+        edit_root.head[2] = 0
+        edit_root.roll = 0
+        
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        scene.nwo.invalid_root_bone = False
+        return {'FINISHED'}
+    
+class NWO_FixArmatureTransforms(Operator):
+    bl_idname = 'nwo.fix_armature_transforms'
+    bl_label = ''
+    bl_description = ''
+    
+    def execute(self, context):
+        scene = context.scene
+        obs = export_objects()
+        rigs = [ob for ob in obs if ob.type == 'ARMATURE']
+        if not rigs:
+            return {'CANCELLED'}
+        elif len(rigs) > 1:
+            if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
+                arm = scene.nwo.parent_rig
+            else:
+                return {'CANCELLED'}
+        arm = rigs[0]
+        
+        arm.matrix_world = Matrix(((1.0, 0.0, 0.0, 0.0),
+                                    (0.0, 1.0, 0.0, 0.0),
+                                    (0.0, 0.0, 1.0, 0.0),
+                                    (0.0, 0.0, 0.0, 1.0)))
+        scene.nwo.armature_bad_transforms = False
+        return {'FINISHED'}
 
 class NWO_OpenImageEditor(Operator):
     bl_label = "Open in Image Editor"
@@ -5424,6 +5684,9 @@ classeshalo = (
     # NWO_GunRigMaker_Start,
     NWO_DuplicateMaterial,
     NWO_AddPoseBones,
+    NWO_ValidateRig,
+    NWO_FixRootBone,
+    NWO_FixArmatureTransforms,
 )
 
 

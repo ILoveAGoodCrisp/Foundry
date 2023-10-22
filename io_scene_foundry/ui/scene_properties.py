@@ -32,6 +32,7 @@ from bpy.props import (
     EnumProperty,
     StringProperty,
     CollectionProperty,
+    PointerProperty,
 )
 from bpy.types import PropertyGroup
 
@@ -682,3 +683,38 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     bsp_active_index: IntProperty()
     global_material_table: CollectionProperty(type=NWO_GlobalMaterial_ListItems)
     global_material_active_index: IntProperty()
+    
+    # Rig Validation
+    multiple_rigs: BoolProperty()
+    parent_rig: PointerProperty(
+        name="",
+        description="",
+        type=bpy.types.Object,
+    )
+    child_rig_1: PointerProperty(
+        name="",
+        description="",
+        type=bpy.types.Object,
+    )
+    child_rig_1_parent_bone: StringProperty()
+    child_rig_1_child_bone: StringProperty()
+    child_rig_2: PointerProperty(
+        name="",
+        description="",
+        type=bpy.types.Object,
+    )
+    child_rig_2_parent_bone: StringProperty()
+    child_rig_2_child_bone: StringProperty()
+    child_rig_3: PointerProperty(
+        name="",
+        description="",
+        type=bpy.types.Object,
+    )
+    child_rig_3_parent_bone: StringProperty()
+    child_rig_3_child_bone: StringProperty()
+    
+    armature_has_parent: BoolProperty()
+    armature_bad_transforms: BoolProperty()
+    multiple_root_bones: BoolProperty()
+    invalid_root_bone: BoolProperty()
+    needs_pose_bones: BoolProperty()

@@ -95,6 +95,7 @@ class NWO_UnlinkAnimation(NWO_Op):
     bl_description = "Unlinks a Halo Animation"
 
     def execute(self, context):
+        context.scene.tool_settings.use_keyframe_insert_auto = False
         arm = context.object
         arm.animation_data.action = None
         for bone in arm.pose.bones:
