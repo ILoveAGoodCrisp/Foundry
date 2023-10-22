@@ -26,6 +26,7 @@
 
 from math import radians
 import os
+import random
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
@@ -2167,7 +2168,7 @@ class NWO_FoundryPanelProps(Panel):
                 col = box.column()
                 row = col.row()
                 col.separator()
-                row.operator("nwo.set_timeline", text="Update Scene Timeline", icon='TIME')
+                row.operator("nwo.set_timeline", text="Sync Timeline", icon='TIME')
                 row = col.row()
                 row.use_property_split = True
                 row.prop(action, "frame_start", text='Start Frame')
@@ -2348,7 +2349,8 @@ class NWO_FoundryPanelProps(Panel):
         box = self.box.box()
         self.draw_asset_shaders(box)
         box = self.box.box()
-        self.draw_rig_tools(box)
+        if poll_ui(('MODEL', 'FP ANIMATION', 'SKY')):
+            self.draw_rig_tools(box)
         
     def draw_rig_tools(self, box):
         row = box.row()
@@ -2356,27 +2358,29 @@ class NWO_FoundryPanelProps(Panel):
         nwo = self.scene.nwo
         col.label(text=f"Rig Tools")
         col.use_property_split = True
-        col.operator('nwo.validate_rig', text='Validate Rig')
+        col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
         if nwo.multiple_rigs or nwo.parent_rig:
-            col.prop(nwo, 'parent_rig', text='Main Rig')
+            col.prop(nwo, 'parent_rig', text='Main Rig', icon='ARMATURE_DATA')
             if nwo.parent_rig:
-                col.prop(nwo, 'child_rig_1', text='Support Rig')
+                col.prop(nwo, 'child_rig_1', text='Support Rig', icon='ARMATURE_DATA')
                 if nwo.child_rig_1:
-                    col.prop(nwo, 'child_rig_1_parent_bone', text='Main Rig Parent Bone')
-                    col.prop(nwo, 'child_rig_1_child_bone', text='Support Rig Child Bone')
+                    col.prop_search(nwo, 'child_rig_1_parent_bone', nwo.parent_rig.data, 'bones', text='Main Rig Parent Bone')
+                    col.prop_search(nwo, 'child_rig_1_child_bone', nwo.child_rig_1.data, 'bones', text='Support Rig Child Bone')
         if nwo.multiple_root_bones:
             col.label(text='Multiple Root Bones', icon='ERROR')
         if nwo.armature_has_parent:
             col.label(text='Armature is parented', icon='ERROR')
         if nwo.armature_bad_transforms:
             col.label(text='Armature has bad transforms', icon='ERROR')
-            col.operator('nwo.fix_armature_transforms', text='Fix Armature Transforms')
+            col.operator('nwo.fix_armature_transforms', text='Fix Armature Transforms', icon='SHADERFX')
         if nwo.invalid_root_bone:
             col.label(text='Root Bone has non-standard transforms', icon='QUESTION')
-            col.operator('nwo.fix_root_bone', text='Fix Root Bone')
+            col.operator('nwo.fix_root_bone', text='Fix Root Bone', icon='SHADERFX')
         if nwo.needs_pose_bones:
             col.label(text='Rig not setup for pose overlay animations', icon='ERROR')
-            col.operator('nwo.add_pose_bones', text='Fix for Pose Overlays')
+            col.operator('nwo.add_pose_bones', text='Fix for Pose Overlays', icon='SHADERFX')
+        if nwo.too_many_bones:
+            col.label(text='Rig exceeds the maxmimum number of bones', icon='ERROR')
             
 
     def draw_asset_shaders(self, box):
@@ -5233,7 +5237,7 @@ class NWO_AddPoseBones(Operator):
             return wm.invoke_props_dialog(self)
     
     def draw(self, context):
-        self.layout.prop(self, 'add_control_bone', text='Add Aim Control')
+        self.layout.prop(self, 'add_control_bone', text='Add Aim Control Bone')
         
 class NWO_ValidateRig(Operator):
     bl_idname = 'nwo.validate_rig'
@@ -5316,7 +5320,29 @@ class NWO_ValidateRig(Operator):
     def complete_validation(self):
         if self.old_active:
             set_active_object(self.old_active)
+        if self.old_mode:
+            print(self.old_mode)
+            if self.old_mode == 'POSE':
+                bpy.ops.object.mode_set(mode='POSE', toggle=False)
+            elif self.old_mode.startswith('EDIT'):
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                
         return {'FINISHED'}
+    
+    def valid_message(self):
+        options = [
+            "Rig valid!",
+            "Rig validated",
+            "Rig is good",
+            "Rig is ready for export",
+            "Tool is gonna love this rig",
+            "You are valid and your rig is valid",
+        ]
+        return random.choice(options)
+    
+    def too_many_bones(self, rig):
+        bones = rig.data.bones
+        return len(bones) > 253
             
     def execute(self, context):
         self.old_mode = context.mode
@@ -5328,19 +5354,20 @@ class NWO_ValidateRig(Operator):
             if scene.nwo.multiple_rigs:
                 self.report({'WARNING'}, 'Multiple armatures in scene. Please declare the main armature')
             else:
-                self.report({'INFO'}, "No Armature in scene. You only need an armature only if this model is intended to animate")
+                self.report({'INFO'}, "No Armature in scene. Armature only required if you want this model to animate")
                 scene.nwo.multiple_root_bones = False
                 scene.nwo.multiple_rigs = False
                 scene.nwo.invalid_root_bone = False
                 scene.nwo.needs_pose_bones = False
                 scene.nwo.armature_bad_transforms = False
                 scene.nwo.armature_has_parent = False
+                scene.nwo.too_many_bones = False
                 
             return self.complete_validation()
         
         if rig.parent:
             scene.nwo.armature_has_parent = True
-            return self.complete_validation()
+            self.report({'WARNING'}, 'Armature is parented')
         else:
             scene.nwo.armature_has_parent = False
         
@@ -5348,7 +5375,7 @@ class NWO_ValidateRig(Operator):
             scene.nwo.armature_bad_transforms = False
         else:
             scene.nwo.armature_bad_transforms = True
-            return self.complete_validation()
+            self.report({'WARNING'}, 'Rig has bad transforms')
         
         scene.nwo.multiple_rigs = False
         set_active_object(rig)
@@ -5368,9 +5395,24 @@ class NWO_ValidateRig(Operator):
             
         if self.needs_pose_bones(rig):
             scene.nwo.needs_pose_bones = True
-            return self.complete_validation()
+            self.report({'WARNING'}, 'Found pose overlay animations, but this rig has no pose bones')
         else:
             scene.nwo.needs_pose_bones = False
+            
+        if self.too_many_bones(rig):
+            scene.nwo.too_many_bones = True
+            self.report({'WARNING'}, "Rig has more than 253 bones")
+        else:
+            scene.nwo.too_many_bones = False
+            
+        if not (scene.nwo.multiple_root_bones or
+                scene.nwo.multiple_rigs or
+                scene.nwo.invalid_root_bone or
+                scene.nwo.needs_pose_bones or
+                scene.nwo.armature_bad_transforms or
+                scene.nwo.armature_has_parent or
+                scene.nwo.too_many_bones):
+            self.report({'INFO'}, self.valid_message())
         
         return self.complete_validation()
     
@@ -5378,7 +5420,7 @@ class NWO_ValidateRig(Operator):
 class NWO_FixRootBone(Operator):
     bl_idname = 'nwo.fix_root_bone'
     bl_label = ''
-    bl_description = ''
+    bl_description = 'Sets the root bone to have transforms expected by Halo'
     
     def execute(self, context):
         scene = context.scene
@@ -5432,7 +5474,7 @@ class NWO_FixRootBone(Operator):
 class NWO_FixArmatureTransforms(Operator):
     bl_idname = 'nwo.fix_armature_transforms'
     bl_label = ''
-    bl_description = ''
+    bl_description = 'Sets the model armature to a location, scale, and rotation of 0,0,0'
     
     def execute(self, context):
         scene = context.scene
@@ -5453,6 +5495,11 @@ class NWO_FixArmatureTransforms(Operator):
                                     (0.0, 0.0, 0.0, 1.0)))
         scene.nwo.armature_bad_transforms = False
         return {'FINISHED'}
+    
+class NWO_AddPedestalControl(Operator):
+    bl_label = "Add Pedestal Control"
+    bl_idname = "nwo.add_pedestal_control"
+    bl_description = "Adds a control bone and custom shape to the armature pedestal bone"
 
 class NWO_OpenImageEditor(Operator):
     bl_label = "Open in Image Editor"

@@ -74,10 +74,11 @@ class NWO_ActionProps(NWO_PropPanel):
             col.prop(action_nwo, "animation_type")
 
 
-class NWO_DeleteAnimation(NWO_Op):
+class NWO_DeleteAnimation(bpy.types.Operator):
     bl_label = "Delete Animation"
     bl_idname = "nwo.delete_animation"
     bl_description = "Deletes a Halo Animation from the blend file"
+    bl_options = {'UNDO'}
 
     def execute(self, context):
         arm = context.object
@@ -89,10 +90,11 @@ class NWO_DeleteAnimation(NWO_Op):
             bone.matrix_basis = Matrix()
         return {"FINISHED"}
     
-class NWO_UnlinkAnimation(NWO_Op):
+class NWO_UnlinkAnimation(bpy.types.Operator):
     bl_label = "Unlink Animation"
     bl_idname = "nwo.unlink_animation"
     bl_description = "Unlinks a Halo Animation"
+    bl_options = {'UNDO'}
 
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
@@ -103,9 +105,13 @@ class NWO_UnlinkAnimation(NWO_Op):
         return {"FINISHED"}
     
 class NWO_SetTimeline(bpy.types.Operator):
-    bl_label = "Set Timeline"
+    bl_label = "Sync Timeline"
     bl_idname = "nwo.set_timeline"
     bl_description = "Sets the scene timeline to match the current animation's frame range"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    exclude_first_frame: bpy.props.BoolProperty()
+    exclude_last_frame: bpy.props.BoolProperty()
     
     @classmethod
     def poll(cls, context):
@@ -117,8 +123,18 @@ class NWO_SetTimeline(bpy.types.Operator):
             return {'CANCELLED'}
         scene = context.scene
         scene.frame_start = int(action.frame_start)
+        if self.exclude_first_frame:
+            scene.frame_start += 1
         scene.frame_end = int(action.frame_end)
+        if self.exclude_last_frame:
+            scene.frame_end -= 1
+            
         return {'FINISHED'}
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'exclude_first_frame', text="Exclude First Frame")
+        layout.prop(self, 'exclude_last_frame', text="Exclude Last Frame")
 
 class NWO_NewAnimation(NWO_Op):
     bl_label = "New Animation"

@@ -1656,11 +1656,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Not sure",
     )
+    
+    def poll_physics_constraint_target(self, object):
+        return object.type == 'ARMATURE' or object.nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics'
 
     physics_constraint_parent_ui: PointerProperty(
         name="Physics Constraint Parent",
         description="Enter the name of the object that is this marker's parent",
         type=bpy.types.Object,
+        poll=poll_physics_constraint_target,
     )
 
     physics_constraint_parent_bone_ui: StringProperty(
@@ -1672,6 +1676,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Physics Constraint Child",
         description="Enter the name of the object that is this marker's child",
         type=bpy.types.Object,
+        poll=poll_physics_constraint_target,
     )
 
     physics_constraint_child_bone_ui: StringProperty(
