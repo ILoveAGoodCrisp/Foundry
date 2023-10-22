@@ -5597,7 +5597,7 @@ class NWO_AddPedestalControl(Operator):
     
 class NWO_AddAimAnimation(Operator):
     bl_idname = 'nwo.add_aim_animation'
-    bl_label = ''
+    bl_label = 'Aim Animation'
     bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option'
     bl_options = {'REGISTER', 'UNDO'}
     
