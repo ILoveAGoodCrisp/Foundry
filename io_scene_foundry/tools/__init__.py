@@ -5608,9 +5608,9 @@ class NWO_AddAimAnimation(Operator):
     aim_animation: EnumProperty(
         name='Animation',
         items=[
-            ("steering_yaw", "Steering (Yaw only)", "Uses the yaw bone only. Steers left and right Frames:\nrest\nleft\nmiddle\nright"),
-            ("steering_full", "Steering (Yaw & Pitch)", "Animates the yaw and pitch bones from left to right. Frames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
-            ("aiming_360", "Aiming (360)", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up). Frames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
+            ("steering_yaw", "Steering (Yaw only)", "Uses the yaw bone only. Steers left and right\nFrames:\nrest\nleft\nmiddle\nright"),
+            ("steering_full", "Steering (Yaw & Pitch)", "Animates the yaw and pitch bones from left to right\nFrames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
+            ("aiming_360", "Aiming (360)", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up)\nFrames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
             ]
         )
     
