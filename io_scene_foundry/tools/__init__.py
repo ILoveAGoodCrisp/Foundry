@@ -2210,6 +2210,8 @@ class NWO_FoundryPanelProps(Panel):
                                 col.label(text=', '.join(missing))
                                 col.operator('nwo.add_pose_bones', text='Setup Rig for Pose Overlays', icon='SHADERFX')
                                 col.separator()
+                            else:
+                                col.operator('nwo.add_aim_animation', text='Add/Change Aim Bones Animation', icon='ANIM')
                                     
                     elif nwo.animation_type == 'replacement':
                         row.prop(nwo, 'animation_space', expand=True)
@@ -4688,30 +4690,6 @@ class NWO_ArmatureCreator_Create(Operator):
             layout.prop(self, 'has_aim_control', text='Add Aim Control')
         
 
-
-class NWO_ArmatureCreatorPropertiesGroup(PropertyGroup):
-    armature_type: EnumProperty(
-        name="Armature Type",
-        options=set(),
-        description="Creates a Halo armature of the specified type",
-        default="PEDESTAL",
-        items=[
-            ("PEDESTAL", "Pedestal", "Creates a single bone Halo armature"),
-            (
-                "UNIT",
-                "Unit",
-                "Creates a rig consisting of a pedestal bone, and a pitch and yaw bone. For bipeds and vehicles",
-            ),
-        ],
-    )
-    control_rig: BoolProperty(
-        name="Use Control Rig",
-        description="If True, adds a control rig to the specified armature",
-        default=True,
-        options=set(),
-    )
-
-
 class NWO_CopyHaloProps(Panel):
     bl_label = "Copy Halo Properties"
     bl_idname = "NWO_PT_CopyHaloProps"
@@ -5153,16 +5131,16 @@ class NWO_AddPoseBones(Operator):
         limit_scale.use_transform_limit = True
         limit_scale.owner_space = 'LOCAL'
         
-        limit_rotation = cons.new('LIMIT_ROTATION')
-        limit_rotation.use_limit_x = True
-        limit_rotation.use_limit_y = True
-        limit_rotation.use_limit_z = True
-        limit_rotation.min_y = radians(-90)
-        limit_rotation.max_y = radians(90)
-        limit_rotation.min_z = radians(-90)
-        limit_rotation.max_z = radians(90)
-        limit_rotation.use_transform_limit = True
-        limit_rotation.owner_space = 'LOCAL'
+        # limit_rotation = cons.new('LIMIT_ROTATION')
+        # limit_rotation.use_limit_x = True
+        # limit_rotation.use_limit_y = True
+        # limit_rotation.use_limit_z = True
+        # limit_rotation.min_y = radians(-90)
+        # limit_rotation.max_y = radians(90)
+        # limit_rotation.min_z = radians(-90)
+        # limit_rotation.max_z = radians(90)
+        # limit_rotation.use_transform_limit = True
+        # limit_rotation.owner_space = 'LOCAL'
         
         limit_location = cons.new('LIMIT_LOCATION')
         limit_location.use_min_x = True
@@ -5464,6 +5442,7 @@ class NWO_FixRootBone(Operator):
     bl_idname = 'nwo.fix_root_bone'
     bl_label = ''
     bl_description = 'Sets the root bone to have transforms expected by Halo'
+    bl_options = {'UNDO'}
     
     def execute(self, context):
         scene = context.scene
@@ -5518,6 +5497,7 @@ class NWO_FixArmatureTransforms(Operator):
     bl_idname = 'nwo.fix_armature_transforms'
     bl_label = ''
     bl_description = 'Sets the model armature to a location, scale, and rotation of 0,0,0'
+    bl_options = {'UNDO'}
     
     def execute(self, context):
         scene = context.scene
@@ -5543,6 +5523,7 @@ class NWO_AddPedestalControl(Operator):
     bl_label = "Add Pedestal Control"
     bl_idname = "nwo.add_pedestal_control"
     bl_description = "Adds a control bone and custom shape to the armature pedestal bone"
+    bl_options = {'UNDO'}
     
     def new_control_bone(self, arm, pedestal_name, bone_name, shape_ob):
         new_edit = arm.data.edit_bones.new(bone_name)
@@ -5613,6 +5594,262 @@ class NWO_AddPedestalControl(Operator):
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
         return {'FINISHED'}
+    
+class NWO_AddAimAnimation(Operator):
+    bl_idname = 'nwo.add_aim_animation'
+    bl_label = ''
+    bl_description = 'Animates the aim bones (or aim control if it exists) based on the chosen option'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == 'ARMATURE' and context.object.nwo.node_usage_pose_blend_yaw and context.object.nwo.node_usage_pose_blend_pitch
+    
+    aim_animation: EnumProperty(
+        name='Animation',
+        items=[
+            ("steering_yaw", "Steering (Yaw only)", "Uses the yaw bone only. Steers left and right Frames:\nrest\nleft\nmiddle\nright"),
+            ("steering_full", "Steering (Yaw & Pitch)", "Animates the yaw and pitch bones from left to right. Frames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
+            ("aiming_360", "Aiming (360)", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up). Frames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
+            ]
+        )
+    
+    max_yaw: bpy.props.FloatProperty(
+        name='Max Steering Yaw',
+        subtype='ANGLE',
+        default=radians(45),
+        min=radians(1),
+        max=radians(90),
+    )
+    
+    max_pitch: bpy.props.FloatProperty(
+        name='Max Steering Pitch',
+        subtype='ANGLE',
+        default=radians(45),
+        min=radians(1),
+        max=radians(90),
+    )
+    
+    def setup_steering_yaw(self, yaw, aim, start):
+        if aim is None:
+            yaw.matrix_basis = Matrix()
+            yaw.rotation_mode = 'XYZ'
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
+            yaw.rotation_euler = [0, 0, self.max_yaw]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            yaw.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            yaw.rotation_euler = [0, 0, -self.max_yaw]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+        else:
+            aim.matrix_basis = Matrix()
+            aim.rotation_mode = 'XYZ'
+            aim.keyframe_insert(data_path='rotation_euler', frame=start)
+            aim.rotation_euler = [0, 0, self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            aim.rotation_euler = [0, 0, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            aim.rotation_euler = [0, 0, -self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            
+        return start + 3
+        
+    def setup_steering_full(self, yaw, pitch, aim, start):
+        if aim is None:
+            yaw.matrix_basis = Matrix()
+            pitch.matrix_basis = Matrix()
+            yaw.rotation_mode = 'XYZ'
+            pitch.rotation_mode = 'XYZ'
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start)
+            yaw.rotation_euler = [0, 0, self.max_yaw]
+            pitch.rotation_euler = [0, -self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            yaw.rotation_euler = [0, 0, self.max_yaw]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            yaw.rotation_euler = [0, 0, self.max_yaw]
+            pitch.rotation_euler = [0, self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, -self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            yaw.rotation_euler = [0, 0, -self.max_yaw]
+            pitch.rotation_euler = [0, -self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            yaw.rotation_euler = [0, 0, -self.max_yaw]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            yaw.rotation_euler = [0, 0, -self.max_yaw]
+            pitch.rotation_euler = [0, self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+        else:
+            aim.matrix_basis = Matrix()
+            aim.rotation_mode = 'XYZ'
+            aim.keyframe_insert(data_path='rotation_euler', frame=start)
+            aim.rotation_euler = [0, -self.max_pitch, self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            aim.rotation_euler = [0, 0, self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            aim.rotation_euler = [0, self.max_pitch, self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            aim.rotation_euler = [0, -self.max_pitch, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            aim.rotation_euler = [0, 0, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            aim.rotation_euler = [0, self.max_pitch, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            aim.rotation_euler = [0, -self.max_pitch, -self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            aim.rotation_euler = [0, 0, -self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            aim.rotation_euler = [0, self.max_pitch, -self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+        return start + 9
+    
+    def setup_aiming_360(self, yaw, pitch, aim, start):
+        if aim is None:
+            yaw.matrix_basis = Matrix()
+            pitch.matrix_basis = Matrix()
+            yaw.rotation_mode = 'XYZ'
+            pitch.rotation_mode = 'XYZ'
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start)
+            yaw.rotation_euler = [0, 0, radians(45)]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            yaw.rotation_euler = [0, 0, radians(90)]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            yaw.rotation_euler = [0, 0, radians(135)]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            yaw.rotation_euler = [0, 0, radians(180)]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            yaw.rotation_euler = [0, 0, radians(-135)]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            yaw.rotation_euler = [0, 0, radians(-90)]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            yaw.rotation_euler = [0, 0, radians(-45)]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, radians(90), 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, radians(-90), 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 10)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 10)
+        else:
+            aim.matrix_basis = Matrix()
+            aim.rotation_mode = 'XYZ'
+            aim.keyframe_insert(data_path='rotation_euler', frame=start)
+            aim.rotation_euler = [0, 0, radians(45)]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            aim.rotation_euler = [0, 0, radians(90)]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            aim.rotation_euler = [0, 0, radians(135)]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            aim.rotation_euler = [0, 0, radians(180)]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            aim.rotation_euler = [0, 0, radians(-135)]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            aim.rotation_euler = [0, 0, radians(-90)]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            aim.rotation_euler = [0, 0, radians(-45)]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            aim.rotation_euler = [0, 0, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            aim.rotation_euler = [0, radians(90), 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+            aim.rotation_euler = [0, radians(-90), 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 10)
+            
+        return start + 10
+    
+    def execute(self, context):
+        arm = context.object
+        yaw_name = arm.nwo.node_usage_pose_blend_yaw
+        pitch_name = arm.nwo.node_usage_pose_blend_pitch
+        aim_name = arm.nwo.control_aim
+        yaw = arm.pose.bones.get(yaw_name)
+        pitch = arm.pose.bones.get(pitch_name)
+        if aim_name:
+            aim = arm.pose.bones.get(aim_name)
+        else:
+            aim = None
+        start = int(arm.animation_data.action.frame_start)
+        scene = context.scene
+        current = int(scene.frame_current)
+        already_in_pose_mode = False
+        if context.mode == 'POSE':
+            already_in_pose_mode = True
+        else:
+            bpy.ops.object.posemode_toggle()
+            
+        scene.frame_current = start
+        action = arm.animation_data.action
+        fcurves_for_destruction = set()
+        for fc in action.fcurves:
+            if fc.data_path.startswith(f'pose.bones["{pitch_name}"].') or fc.data_path.startswith(f'pose.bones["{yaw_name}"].') or fc.data_path.startswith(f'pose.bones["{aim_name}"].'):
+                fcurves_for_destruction.add(fc)
+        [action.fcurves.remove(fc) for fc in fcurves_for_destruction]
+        
+        if self.aim_animation == 'steering_yaw':
+            action.frame_end = self.setup_steering_yaw(yaw, aim, start)
+        elif self.aim_animation == 'steering_full':
+            action.frame_end = self.setup_steering_full(yaw, pitch, aim, start)
+        elif self.aim_animation == 'aiming_360':
+            action.frame_end = self.setup_aiming_360(yaw, pitch, aim, start)
+        if not already_in_pose_mode:
+            bpy.ops.object.posemode_toggle()
+            
+        scene.frame_current = current
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, 'aim_animation', text='Animation')
+        if self.aim_animation.startswith('steering'):
+            layout.prop(self, 'max_yaw', text='Max Yaw Angle')
+            if self.aim_animation == 'steering_full':
+                layout.prop(self, 'max_pitch', text='Max Pitch Angle')
+        
 
 class NWO_OpenImageEditor(Operator):
     bl_label = "Open in Image Editor"
@@ -5825,7 +6062,6 @@ classeshalo = (
     # NWO_AnimationTools,
     # NWO_ArmatureCreator,
     NWO_ArmatureCreator_Create,
-    NWO_ArmatureCreatorPropertiesGroup,
     # NWO_Material,
     # NWO_Shader,
     NWO_ListMaterialShaders,
@@ -5848,6 +6084,7 @@ classeshalo = (
     NWO_FixRootBone,
     NWO_FixArmatureTransforms,
     NWO_AddPedestalControl,
+    NWO_AddAimAnimation,
 )
 
 
@@ -5874,11 +6111,6 @@ def register():
     bpy.types.Scene.nwo_export = PointerProperty(
         type=NWO_HaloExportPropertiesGroup, name="Halo Export", description=""
     )
-    bpy.types.Scene.nwo_armature_creator = PointerProperty(
-        type=NWO_ArmatureCreatorPropertiesGroup,
-        name="Halo Armature",
-        description="",
-    )
     bpy.types.Scene.nwo_shader_build = PointerProperty(
         type=NWO_ShaderPropertiesGroup,
         name="Halo Shader Export",
@@ -5895,7 +6127,6 @@ def unregister():
     del bpy.types.Scene.nwo_halo_launcher
     del bpy.types.Scene.nwo_shader_finder
     del bpy.types.Scene.nwo_export
-    del bpy.types.Scene.nwo_armature_creator
     del bpy.types.Scene.nwo_shader_build
     for clshalo in classeshalo:
         bpy.utils.unregister_class(clshalo)
