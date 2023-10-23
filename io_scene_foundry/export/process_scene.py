@@ -63,7 +63,6 @@ class ProcessScene:
         sidecar_path_full,
         asset,
         asset_path,
-        fbx_exporter,
         nwo_scene,
         sidecar_type,
         output_biped,
@@ -121,7 +120,6 @@ class ProcessScene:
             sidecar_path_full,
             asset,
             asset_path,
-            fbx_exporter,
             nwo_scene,
             sidecar_type,
             output_biped,
@@ -175,7 +173,6 @@ class ProcessScene:
         sidecar_path_full,
         asset,
         asset_path,
-        fbx_exporter,
         nwo_scene,
         sidecar_type,
         output_biped,
@@ -220,8 +217,6 @@ class ProcessScene:
         lightmap_specific_bsp,
         lightmap_region,
     ):
-        if fbx_exporter == "better":
-            print("Found Better FBX exporter")
 
         reports = []
         gr2_count = 0
@@ -265,7 +260,6 @@ class ProcessScene:
                             nwo_scene.render_perms,
                             nwo_scene.selected_perms,
                             nwo_scene.model_armature,
-                            fbx_exporter,
                             sidecar_type,
                             nwo_scene,
                             export_render,
@@ -281,7 +275,6 @@ class ProcessScene:
                             nwo_scene.collision_perms,
                             nwo_scene.selected_perms,
                             nwo_scene.model_armature,
-                            fbx_exporter,
                             sidecar_type,
                             nwo_scene,
                             export_collision,
@@ -297,7 +290,6 @@ class ProcessScene:
                             nwo_scene.physics_perms,
                             nwo_scene.selected_perms,
                             nwo_scene.model_armature,
-                            fbx_exporter,
                             sidecar_type,
                             nwo_scene,
                             export_physics,
@@ -313,7 +305,6 @@ class ProcessScene:
                             None,
                             None,
                             nwo_scene.model_armature,
-                            fbx_exporter,
                             sidecar_type,
                             nwo_scene,
                             export_markers,
@@ -328,7 +319,6 @@ class ProcessScene:
                             None,
                             None,
                             nwo_scene.model_armature,
-                            fbx_exporter,
                             sidecar_type,
                             nwo_scene,
                             True,
@@ -355,7 +345,7 @@ class ProcessScene:
                         job = "--- skeleton"
                         update_job(job, 0)
                         if self.export_fbx(
-                            fbx_exporter,
+                            False,
                             fbx_path,
                         ):
                             if self.export_json(
@@ -471,7 +461,7 @@ class ProcessScene:
 
                                     with context.temp_override(**override):
                                         if self.export_fbx(
-                                            fbx_exporter,
+                                            True,
                                             fbx_path,
                                         ):
                                             if self.export_json(
@@ -534,7 +524,6 @@ class ProcessScene:
                         nwo_scene.structure_perms,
                         nwo_scene.selected_perms,
                         nwo_scene.selected_bsps,
-                        fbx_exporter,
                         sidecar_type,
                         nwo_scene,
                         export_structure,
@@ -551,7 +540,6 @@ class ProcessScene:
                         nwo_scene.design_perms,
                         nwo_scene.selected_perms,
                         nwo_scene.selected_bsps,
-                        fbx_exporter,
                         sidecar_type,
                         nwo_scene,
                         export_design,
@@ -568,7 +556,6 @@ class ProcessScene:
                         None,
                         None,
                         nwo_scene.model_armature,
-                        fbx_exporter,
                         sidecar_type,
                         nwo_scene,
                         export_render,
@@ -583,7 +570,6 @@ class ProcessScene:
                         None,
                         None,
                         nwo_scene.model_armature,
-                        fbx_exporter,
                         sidecar_type,
                         nwo_scene,
                         True,
@@ -600,7 +586,6 @@ class ProcessScene:
                         None,
                         None,
                         None,
-                        fbx_exporter,
                         sidecar_type,
                         nwo_scene,
                         export_render,
@@ -617,7 +602,6 @@ class ProcessScene:
                         None,
                         None,
                         None,
-                        fbx_exporter,
                         sidecar_type,
                         nwo_scene,
                         True,
@@ -634,7 +618,6 @@ class ProcessScene:
                         None,
                         None,
                         None,
-                        fbx_exporter,
                         sidecar_type,
                         nwo_scene,
                         export_render,
@@ -840,7 +823,6 @@ class ProcessScene:
         obs_perms,
         sel_perms,
         model_armature,
-        fbx_exporter,
         sidecar_type,
         nwo_scene,
         export_check,
@@ -903,7 +885,7 @@ class ProcessScene:
                         job = f"--- {print_text}"
                         update_job(job, 0)
                         if self.export_fbx(
-                            fbx_exporter,
+                            False,
                             fbx_path,
                         ):
                             if self.export_json(
@@ -947,7 +929,6 @@ class ProcessScene:
         obs_perms,
         sel_perms,
         sel_bsps,
-        fbx_exporter,
         sidecar_type,
         nwo_scene,
         export_check,
@@ -986,7 +967,7 @@ class ProcessScene:
                             job = f"--- {print_text}"
                             update_job(job, 0)
                             if self.export_fbx(
-                                fbx_exporter,
+                                False,
                                 fbx_path,
                             ):
                                 if self.export_json(
@@ -1270,46 +1251,31 @@ class ProcessScene:
 
     def export_fbx(
         self,
-        fbx_exporter,
+        export_anim,
         fbx_filepath,
     ):  
         disable_prints()
 
-        if fbx_exporter == "better":
-            bpy.ops.better_export.fbx(
-                filepath=fbx_filepath,
-                check_existing=False,
-                my_fbx_unit="m",
-                use_selection=True,
-                use_visible=True,
-                use_only_deform_bones=True,
-                use_apply_modifiers=True,
-                use_triangulate=False,
-                use_optimize_for_game_engine=False,
-                use_ignore_armature_node=False,
-                my_edge_smoothing="FBXSDK",
-                my_material_style="Blender",
-            )
-        else:
-            bpy.ops.export_scene.fbx(
-                filepath=fbx_filepath,
-                check_existing=False,
-                use_selection=True,
-                use_visible=True,
-                apply_scale_options="FBX_SCALE_UNITS",
-                use_mesh_modifiers=True,
-                mesh_smooth_type="OFF",
-                use_triangles=False,
-                add_leaf_bones=False,
-                use_armature_deform_only=True,
-                bake_anim_use_all_bones=False,
-                bake_anim_use_nla_strips=False,
-                bake_anim_use_all_actions=False,
-                bake_anim_force_startend_keying=False,
-                bake_anim_simplify_factor=0,
-                axis_forward="X",
-                axis_up="Z",
-            )
+        bpy.ops.export_scene.fbx(
+            filepath=fbx_filepath,
+            check_existing=False,
+            use_selection=True,
+            use_visible=True,
+            apply_scale_options="FBX_SCALE_UNITS",
+            use_mesh_modifiers=True,
+            mesh_smooth_type="OFF",
+            use_triangles=False,
+            add_leaf_bones=False,
+            use_armature_deform_only=True,
+            bake_anim_use_all_bones=False,
+            bake_anim_use_nla_strips=False,
+            bake_anim_use_all_actions=False,
+            bake_anim_force_startend_keying=False,
+            bake_anim_simplify_factor=0,
+            axis_forward="X",
+            axis_up="Z",
+            bake_anim=export_anim,
+        )
 
         enable_prints()
         return os.path.exists(fbx_filepath)

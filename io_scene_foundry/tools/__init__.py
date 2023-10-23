@@ -5763,11 +5763,11 @@ class NWO_AddAimAnimation(Operator):
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
             yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, radians(90), 0]
+            pitch.rotation_euler = [0, self.max_pitch, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
             yaw.rotation_euler = [0, 0, 0]
-            pitch.rotation_euler = [0, radians(-90), 0]
+            pitch.rotation_euler = [0, -self.max_pitch, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 10)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 10)
         else:
@@ -5790,9 +5790,9 @@ class NWO_AddAimAnimation(Operator):
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
             aim.rotation_euler = [0, 0, 0]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            aim.rotation_euler = [0, radians(90), 0]
+            aim.rotation_euler = [0, self.max_pitch, 0]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            aim.rotation_euler = [0, radians(-90), 0]
+            aim.rotation_euler = [0, -self.max_pitch, 0]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 10)
             
         return start + 10
@@ -5847,8 +5847,8 @@ class NWO_AddAimAnimation(Operator):
         layout.prop(self, 'aim_animation', text='Animation')
         if self.aim_animation.startswith('steering'):
             layout.prop(self, 'max_yaw', text='Max Yaw Angle')
-            if self.aim_animation == 'steering_full':
-                layout.prop(self, 'max_pitch', text='Max Pitch Angle')
+        if self.aim_animation == 'steering_full' or self.aim_animation == 'aiming_360':
+            layout.prop(self, 'max_pitch', text='Max Pitch Angle')
         
 
 class NWO_OpenImageEditor(Operator):

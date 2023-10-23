@@ -641,6 +641,11 @@ class PrepareScene:
             if self.model_armature:
                 if bpy.data.actions and self.model_armature.animation_data:
                     self.current_action = self.get_current_action(self.model_armature)
+                    if self.model_armature.animation_data.action:
+                        context.scene.tool_settings.use_keyframe_insert_auto = False
+                        self.model_armature.animation_data.action = None
+                        for bone in self.model_armature.pose.bones:
+                            bone.matrix_basis = Matrix()
 
                 self.remove_relative_parenting(export_obs)
 
@@ -2631,9 +2636,9 @@ class PrepareScene:
         timeline_start = scene.frame_start
         timeline_end = scene.frame_end
 
+        scene.frame_current = 0
         scene.frame_start = 0
         scene.frame_end = 0
-        scene.frame_current = 0
 
         return timeline_start, timeline_end
 

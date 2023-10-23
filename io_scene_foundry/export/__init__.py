@@ -468,7 +468,6 @@ class NWO_Export(NWO_Export_Scene):
                     scene_nwo_export.fix_bone_rotations,
                     scene_nwo_export.fast_animation_export
                 )
-
                 export = ProcessScene(
                     context,
                     self.report,
@@ -476,7 +475,6 @@ class NWO_Export(NWO_Export_Scene):
                     sidecar_path_full,
                     self.asset,
                     self.asset_path,
-                    fbx_exporter(),
                     nwo_scene,
                     scene_nwo.asset_type,
                     scene_nwo.output_biped,
@@ -619,26 +617,6 @@ class NWO_Export(NWO_Export_Scene):
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
         return {"FINISHED"}
-
-def fbx_exporter():
-    exporter = "default"
-    # addon_default, addon_state = check("better_fbx")
-
-    # if addon_default or addon_state:
-    #     from sys import modules
-
-    #     if module_bl_info(modules.get("better_fbx")).get("version") in (
-    #         (5, 1, 5),
-    #         (5, 2, 10),
-    #     ):
-    #         exporter = "better"
-    #     else:
-    #         print(
-    #             "Only BetterFBX versions [5.1.5] & [5.2.10] are supported. Using Blender's default fbx exporter"
-    #         )
-
-    return exporter
-
 
 def ExportSettingsFromSidecar(sidecar_filepath):
     settings = []
