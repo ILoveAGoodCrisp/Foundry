@@ -137,6 +137,9 @@ else:
             default_permutation.old = "default"
             default_permutation.name = "default"
             
+        for ob in bpy.data.objects:
+            ob.nwo.mesh_type_ui_help_bool = True
+            
         prefs = get_prefs()
         if prefs.poop_default:
             scene_nwo.default_mesh_type_ui = '_connected_geometry_mesh_type_poop'
