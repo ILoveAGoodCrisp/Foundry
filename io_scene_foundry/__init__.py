@@ -28,7 +28,7 @@ import ctypes
 import bpy
 from bpy.app.handlers import persistent
 
-from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink, update_tables_from_objects
+from io_scene_foundry.utils.nwo_utils import get_prefs, setup_projects_list, unlink, update_tables_from_objects
 
 old_snapshot = {}
 old_x = None
@@ -136,7 +136,10 @@ else:
             default_permutation = scene_nwo.permutations_table.add()
             default_permutation.old = "default"
             default_permutation.name = "default"
-
+            
+        prefs = get_prefs()
+        if prefs.poop_default:
+            scene_nwo.default_mesh_type_ui = '_connected_geometry_mesh_type_poop'
         
         if not bpy.app.background:
             # Set game version from file

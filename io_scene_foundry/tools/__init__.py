@@ -2357,8 +2357,8 @@ class NWO_FoundryPanelProps(Panel):
     def draw_tools(self):
         box = self.box.box()
         self.draw_asset_shaders(box)
-        box = self.box.box()
         if poll_ui(('MODEL', 'FP ANIMATION', 'SKY')):
+            box = self.box.box()
             self.draw_rig_tools(box)
         
     def draw_rig_tools(self, box):
@@ -2488,6 +2488,8 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
         row.prop(prefs, "apply_prefix")
+        row = box.row(align=True)
+        row.prop(prefs, "poop_default")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
         blend_prefs = context.preferences
@@ -5400,6 +5402,11 @@ class NWO_ValidateRig(Operator):
         
         scene.nwo.multiple_rigs = False
         set_active_object(rig)
+        
+        if rig.data.library:
+            self.report({'INFO'}, f"{rig} is linked from another scene, further validation cancelled")
+            return self.complete_validation()
+        
         root_bone_name = self.get_root_bone(rig, scene)
         if root_bone_name is None:
             self.report({'WARNING'}, 'Multiple root bones in armature. Export will fail. Ensure only one bone in the armature has no parent (or set additional root bones as non-deform bones)')

@@ -356,6 +356,12 @@ class ToolkitLocationPreferences(AddonPreferences):
             ("legacy", "Legacy", "Applies legacy object prefixes as you would see in the Halo 3 Editing Kit"),
         ]
     )
+    
+    poop_default : BoolProperty(
+        name="Instances Are Default",
+        description="Sets instances as the default mesh type when a scenario asset is loaded",
+        default=False,
+    )
 
     def draw(self, context):
         prefs = self
@@ -398,5 +404,7 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
         row.prop(prefs, "apply_prefix")
+        row = box.row(align=True)
+        row.prop(prefs, "poop_default")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
