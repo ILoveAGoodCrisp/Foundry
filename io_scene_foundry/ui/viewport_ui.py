@@ -27,7 +27,6 @@
 import bpy
 
 from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
-from io_scene_foundry.ui.object_properties import NWO_ObjectPropertiesGroup
 from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_region
 from .templates import NWO_Op
 
@@ -264,6 +263,8 @@ class NWO_ApplyTypeMesh(NWO_Op):
         prefix_setting = get_prefs().apply_prefix
         mesh_type = ""
         material = ""
+        original_selection = context.selected_objects
+        original_active = context.object
         match self.m_type:
             case "collision":
                 if context.scene.nwo.asset_type == "MODEL":
@@ -335,15 +336,10 @@ class NWO_ApplyTypeMesh(NWO_Op):
             if ob.type in VALID_MESHES
         ]
         for ob in meshes:
+            set_active_object(ob)
+            ob.select_set(True)
             nwo = ob.nwo
-            nwo.object_type_ui_help = 0
             nwo.object_type_ui = "_connected_geometry_object_type_mesh"
-            items = NWO_ObjectPropertiesGroup.items_mesh_type_ui(nwo, context)
-            for idx, i in enumerate(items):
-                if i[0] == mesh_type:
-                    nwo.mesh_type_ui_help = idx
-                    break
-                
             nwo.mesh_type_ui = mesh_type
 
             apply_prefix(ob, self.m_type, prefix_setting)
@@ -355,10 +351,14 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 closest_bsp = closest_bsp_object(ob)
                 if closest_bsp is not None:
                     ob.nwo.seam_back_ui = true_region(closest_bsp.nwo)
+                    
+            ob.select_set(False)
 
         self.report(
             {"INFO"}, f"Applied Mesh Type [{self.m_type}] to {len(meshes)} objects"
         )
+        [ob.select_set(True) for ob in original_selection]
+        set_active_object(original_active)
         return {"FINISHED"}
 
 
@@ -451,6 +451,8 @@ class NWO_ApplyTypeMarker(NWO_Op):
     def execute(self, context):
         prefix_setting = get_prefs().apply_prefix
         marker_type = ""
+        original_selection = context.selected_objects
+        original_active = context.object
         match self.m_type:
             case "model":
                 marker_type = "_connected_geometry_marker_type_model"
@@ -482,23 +484,17 @@ class NWO_ApplyTypeMarker(NWO_Op):
         ]
 
         for ob in markers:
+            set_active_object(ob)
+            ob.select_set(True)
             nwo = ob.nwo
-            ob_items = NWO_ObjectPropertiesGroup.items_object_type_ui(nwo, context)
-            for idx, i in enumerate(ob_items):
-                if i[0] == '_connected_geometry_object_type_marker':
-                    nwo.object_type_ui_help = idx
-                    break
             nwo.object_type_ui = "_connected_geometry_object_type_marker"
-            items = NWO_ObjectPropertiesGroup.items_marker_type_ui(nwo, context)
-            for idx, i in enumerate(items):
-                if i[0] == marker_type:
-                    nwo.marker_type_ui_help = idx
-                    break
             nwo.marker_type_ui = marker_type
             apply_prefix(ob, self.m_type, prefix_setting)
-
+            ob.select_set(False)
 
         self.report(
             {"INFO"}, f"Applied Marker Type: [{self.m_type}] to {len(markers)} objects"
         )
+        [ob.select_set(True) for ob in original_selection]
+        set_active_object(original_active)
         return {"FINISHED"}
