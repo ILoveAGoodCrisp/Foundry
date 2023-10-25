@@ -48,7 +48,6 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
-    is_mesh,
     jstr,
     layer_face_count,
     layer_faces,
@@ -219,12 +218,13 @@ class PrepareScene:
 
         # build proxy instances from structure
         if h4:
-            proxy_owners = [
-                ob
-                for ob in export_obs
-                if ob.type in VALID_MESHES and get_object_type_ui(ob, context) == '_connected_geometry_object_type_mesh' and get_mesh_type_ui(ob, context) == "_connected_geometry_mesh_type_structure"
-                and ob.nwo.proxy_instance
-            ]
+            proxy_owners = []
+            for ob in export_obs:
+                set_active_object(ob)
+                ob.select_set(True)
+                if ob.nwo.object_type_ui == '_connected_geometry_object_type_mesh' and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance:
+                    proxy_owners.append(ob)
+                ob.select_set(False)
             if proxy_owners:
                 len_proxy_owners = len(proxy_owners)
                 process = "--- Creating Proxy Instances from Structure"
@@ -346,6 +346,8 @@ class PrepareScene:
         self.used_materials = set()
         # start the great loop!
         for idx, ob in enumerate(export_obs):
+            set_active_object(ob)
+            ob.select_set(True)
             nwo = ob.nwo
 
             reset_export_props(nwo)
@@ -378,9 +380,9 @@ class PrepareScene:
             # if not_bungie_game():
             #     self.apply_namespaces(ob, asset)
 
-            self.set_object_type(ob, ob_type, nwo, is_valid_object_type, context)
+            self.set_object_type(ob, ob_type, nwo, is_valid_object_type)
 
-            self.apply_object_mesh_marker_properties(ob, sidecar_type, not h4, nwo, context)
+            self.apply_object_mesh_marker_properties(ob, sidecar_type, not h4, nwo)
 
             is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and self.has_halo_materials(nwo, h4)
 
@@ -414,7 +416,8 @@ class PrepareScene:
                         ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render
                     )
                 # print("fix_materials")
-
+                
+            ob.select_set(False)
             update_progress(process, idx / len_export_obs)
 
         update_progress(process, 1)
@@ -1893,11 +1896,11 @@ class PrepareScene:
             set_bone_prefix(b)
 
 
-    def apply_object_mesh_marker_properties(self, ob, asset_type, reach, nwo, context):
+    def apply_object_mesh_marker_properties(self, ob, asset_type, reach, nwo):
         # Apply final properties so we can rename objects (and also avoid complex checking in later code)
         # get mesh type
-        mesh_type_ui = get_mesh_type_ui(ob, context)
-        marker_type_ui = get_marker_type_ui(ob, context)
+        mesh_type_ui = nwo.mesh_type_ui
+        marker_type_ui = nwo.marker_type_ui
         if nwo.object_type == "_connected_geometry_object_type_mesh":
             if asset_type == "MODEL":
                 if mesh_type_ui == "_connected_geometry_mesh_type_collision":
@@ -2517,7 +2520,7 @@ class PrepareScene:
                 ob.name += "."
             ob.name += "padding"
 
-    def set_object_type(self, ob, ob_type, nwo, is_valid_object_type, context):
+    def set_object_type(self, ob, ob_type, nwo, is_valid_object_type):
         if ob_type == "LIGHT":
             nwo.object_type = "_connected_geometry_object_type_light"
         elif ob_type == "CAMERA":
@@ -2536,7 +2539,7 @@ class PrepareScene:
                 nwo.object_type = "_connected_geometry_object_type_marker"
 
         elif is_valid_object_type:
-            nwo.object_type = get_object_type_ui(ob, context)
+            nwo.object_type = nwo.object_type_ui
         else:
             # Mesh invalid, don't export
             print(f"{ob.name} is invalid. Skipping export")
@@ -3789,18 +3792,3 @@ def matrices_equal(mat_1, mat_2):
             if abs(mat_1[i][j] - mat_2[i][j]) > 1e-6:
                 return False
     return True
-
-def get_object_type_ui(ob, context):
-    enum_idx = NWO_ObjectPropertiesGroup.get_object_type_ui(ob.nwo)
-    items = NWO_ObjectPropertiesGroup.items_object_type_ui(ob.nwo, context)
-    return items[enum_idx][0]
-
-def get_mesh_type_ui(ob, context):
-    enum_idx = NWO_ObjectPropertiesGroup.get_mesh_type_ui(ob.nwo)
-    items = NWO_ObjectPropertiesGroup.items_mesh_type_ui(ob.nwo, context)
-    return items[enum_idx][0]
-
-def get_marker_type_ui(ob, context):
-    enum_idx = NWO_ObjectPropertiesGroup.get_marker_type_ui(ob.nwo)
-    items = NWO_ObjectPropertiesGroup.items_marker_type_ui(ob.nwo, context)
-    return items[enum_idx][0]
