@@ -32,6 +32,7 @@ from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO
 from io_scene_foundry.ui.collection_properties import NWO_CollectionPropertiesGroup
 from io_scene_foundry.ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
 from io_scene_foundry.utils.nwo_constants import VALID_MARKERS, VALID_MESHES
+from io_scene_foundry.utils.nwo_utils import is_marker, is_mesh
 
 # from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
 from .templates import NWO_Op
@@ -81,6 +82,8 @@ from .object_ui import (
     NWO_FaceRegionsMenu,
     NWO_GlobalMaterialGlobals,
     NWO_MarkerPermutationsMenu,
+    NWO_MarkerTypes,
+    NWO_MeshTypes,
     NWO_PermutationsMenu,
     NWO_RegionsMenu,
     NWO_SeamBackfaceMenu,
@@ -141,7 +144,9 @@ from .scene_properties import NWO_Asset_ListItems, NWO_BSP_ListItems, NWO_Global
 from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_UL_Permutations, NWO_UL_Regions
 
 from .viewport_ui import (
+    NWO_ApplyTypeMarkerSingle,
     NWO_ApplyTypeMesh,
+    NWO_ApplyTypeMeshSingle,
     NWO_MT_PIE_ApplyTypeMesh,
     NWO_PIE_ApplyTypeMesh,
     NWO_ApplyTypeMarker,
@@ -426,12 +431,14 @@ def object_context_apply_types(self, context):
     # self.layout.separator()
     layout = self.layout
     asset_type = context.scene.nwo.asset_type
-    markers_valid = context.object.type in VALID_MARKERS and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
-    meshes_valid = context.object.type in VALID_MESHES and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
-    if markers_valid:
+    ob = context.object
+    markers_valid = is_marker(ob) and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
+    meshes_valid = is_mesh(ob) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
+    if markers_valid or meshes_valid:
         layout.separator()
         if meshes_valid:
             layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Halo Mesh Type")
+            layout.operator("nwo.mesh_to_marker", text="Convert to Marker", icon_value=get_icon_id("marker"))
         layout.operator_menu_enum("nwo.apply_type_marker", property="m_type", text="Halo Marker Type")
 
 def collection_context(self, context):
@@ -566,13 +573,17 @@ classes_nwo = (
     NWO_FacePropAddMenu,
     NWO_FaceLayerAddMenu,
     NWO_MT_PIE_ApplyTypeMesh,
+    NWO_ApplyTypeMeshSingle,
     NWO_ApplyTypeMesh,
     NWO_PIE_ApplyTypeMesh,
     NWO_MT_PIE_ApplyTypeMarker,
+    NWO_ApplyTypeMarkerSingle,
     NWO_ApplyTypeMarker,
     NWO_PIE_ApplyTypeMarker,
     NWO_HaloMaterialNodes,
     NWO_HaloMaterialTilingNode,
+    NWO_MeshTypes,
+    NWO_MarkerTypes,
 )
 
 def register():

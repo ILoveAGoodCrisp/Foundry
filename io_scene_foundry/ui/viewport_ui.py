@@ -257,31 +257,23 @@ class NWO_ApplyTypeMesh(NWO_Op):
 
     def draw(self, context):
         self.layout.prop(self, "m_type", text="Mesh Type")
-
-    def execute(self, context):
-        apply_materials = get_prefs().apply_materials
-        prefix_setting = get_prefs().apply_prefix
+        
+    def mesh_and_material(self, context):
         mesh_type = ""
         material = ""
-        original_selection = context.selected_objects
-        original_active = context.object
         match self.m_type:
             case "collision":
-                if context.scene.nwo.asset_type == "MODEL":
-                    mesh_type = "_connected_geometry_mesh_type_collision"
-                    material = "Collision"
-                else:
-                    mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                    material = "Collision"
+                mesh_type = "_connected_geometry_mesh_type_collision"
+                material = "Collision"
             case "physics":
                 mesh_type = "_connected_geometry_mesh_type_physics"
                 material = "Physics"
             case "render":
-                mesh_type = "_connected_geometry_mesh_type_render"
+                mesh_type = "_connected_geometry_mesh_type_default"
             case "instance":
                 mesh_type = "_connected_geometry_mesh_type_poop"
             case "structure":
-                mesh_type = "_connected_geometry_mesh_type_structure"
+                mesh_type = "_connected_geometry_mesh_type_default"
             case "seam":
                 mesh_type = "_connected_geometry_mesh_type_seam"
                 material = "Seam"
@@ -296,9 +288,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
             case "fog":
                 mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
                 material = "Fog"
-            case "rain_sheet":
-                mesh_type = "_connected_geometry_mesh_type_vertical_rain_sheet"
-                material = "RainSheet"
             case "soft_ceiling":
                 mesh_type = "_connected_geometry_mesh_type_soft_ceiling"
                 material = "SoftCeiling"
@@ -330,6 +319,15 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 material = "RainBlocker"
             case "decorator":
                 mesh_type = "_connected_geometry_mesh_type_decorator"
+                
+        return mesh_type, material
+
+    def execute(self, context):
+        apply_materials = get_prefs().apply_materials
+        prefix_setting = get_prefs().apply_prefix
+        original_selection = context.selected_objects
+        original_active = context.object
+        mesh_type, material = self.mesh_and_material(context)
 
         meshes = [
             ob for ob in context.selected_objects
@@ -361,6 +359,31 @@ class NWO_ApplyTypeMesh(NWO_Op):
         set_active_object(original_active)
         return {"FINISHED"}
 
+class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
+    bl_label = "Apply Mesh Type"
+    bl_idname = "nwo.apply_type_mesh_single"
+    bl_description = "Applies the specified mesh type to the active object"
+    
+    def execute(self, context):
+        apply_materials = get_prefs().apply_materials
+        prefix_setting = get_prefs().apply_prefix
+        mesh_type, material = self.mesh_and_material(context)
+        ob = context.object
+        nwo = ob.nwo
+        nwo.object_type_ui = "_connected_geometry_object_type_mesh"
+        nwo.mesh_type_ui = mesh_type
+
+        apply_prefix(ob, self.m_type, prefix_setting)
+
+        if apply_materials:
+            apply_props_material(ob, material)
+
+        if self.m_type == "seam":
+            closest_bsp = closest_bsp_object(ob)
+            if closest_bsp is not None:
+                ob.nwo.seam_back_ui = true_region(closest_bsp.nwo)
+
+        return {"FINISHED"}
 
 class NWO_MT_PIE_ApplyTypeMarker(bpy.types.Menu):
     bl_label = "Marker Type"
@@ -447,12 +470,10 @@ class NWO_ApplyTypeMarker(NWO_Op):
 
     def draw(self, context):
         self.layout.prop(self, "m_type", text="Marker Type")
-
-    def execute(self, context):
-        prefix_setting = get_prefs().apply_prefix
-        marker_type = ""
-        original_selection = context.selected_objects
-        original_active = context.object
+        
+    def get_marker_type(self):
+        marker_type = "_connected_geometry_marker_type_none"
+        display = 'ARROWS'
         match self.m_type:
             case "model":
                 marker_type = "_connected_geometry_marker_type_model"
@@ -464,18 +485,29 @@ class NWO_ApplyTypeMarker(NWO_Op):
                 marker_type = "_connected_geometry_marker_type_hint"
             case "pathfinding_sphere":
                 marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
+                display = 'SPHERE'
             case "physics_constraint":
                 marker_type = "_connected_geometry_marker_type_physics_constraint"
             case "target":
                 marker_type = "_connected_geometry_marker_type_target"
+                display = 'SPHERE'
             case "game_instance":
                 marker_type = "_connected_geometry_marker_type_game_instance"
             case "airprobe":
                 marker_type = "_connected_geometry_marker_type_airprobe"
+                display = 'SPHERE'
             case "envfx":
                 marker_type = "_connected_geometry_marker_type_envfx"
             case "lightcone":
                 marker_type = "_connected_geometry_marker_type_lightCone"
+                
+        return marker_type, display
+
+    def execute(self, context):
+        prefix_setting = get_prefs().apply_prefix
+        marker_type = ""
+        original_selection = context.selected_objects
+        original_active = context.object
 
         markers = [
             ob
@@ -487,7 +519,6 @@ class NWO_ApplyTypeMarker(NWO_Op):
             set_active_object(ob)
             ob.select_set(True)
             nwo = ob.nwo
-            nwo.object_type_ui = "_connected_geometry_object_type_marker"
             nwo.marker_type_ui = marker_type
             apply_prefix(ob, self.m_type, prefix_setting)
             ob.select_set(False)
@@ -497,4 +528,20 @@ class NWO_ApplyTypeMarker(NWO_Op):
         )
         [ob.select_set(True) for ob in original_selection]
         set_active_object(original_active)
+        return {"FINISHED"}
+    
+class NWO_ApplyTypeMarkerSingle(NWO_ApplyTypeMarker):
+    bl_label = "Apply Marker Type"
+    bl_idname = "nwo.apply_type_marker_single"
+    bl_description = "Applies the specified marker type to the active object"
+    
+    def execute(self, context):
+        prefix_setting = get_prefs().apply_prefix
+        apply_display = get_prefs().apply_empty_display
+        ob = context.object
+        nwo = ob.nwo
+        nwo.marker_type_ui, display_type = self.get_marker_type()
+        if apply_display:
+            ob.empty_display_type = display_type
+        apply_prefix(ob, self.m_type, prefix_setting)
         return {"FINISHED"}

@@ -341,8 +341,14 @@ class ToolkitLocationPreferences(AddonPreferences):
     toolbar_icons_only : BoolProperty(name="Toolbar Icons Only", description="Toggle whether the Foundry Toolbar should only show icons")
 
     apply_materials : BoolProperty(
-        name="Apply Materials on applying mesh type",
-        description="Sets whether the apply types operator will apply special materials",
+        name="Apply Materials on Setting Mesh Type",
+        description="",
+        default=True,
+    )
+    
+    apply_empty_display : BoolProperty(
+        name="Change Empty Display on Setting Marker Type",
+        description="",
         default=True,
     )
 
@@ -357,10 +363,22 @@ class ToolkitLocationPreferences(AddonPreferences):
         ]
     )
     
+    # def update_poop_default(self, context):
+    #     if self.poop_default:
+    #         value = '_connected_geometry_mesh_type_poop'
+    #     else:
+    #         value = '_connected_geometry_mesh_type_default'
+    #     appdata = os.getenv('APPDATA')
+    #     foundry_folder = os.path.join(appdata, "FoundryHBCK")
+    #     mesh_file = os.path.join(foundry_folder, 'mesh_default.txt')
+    #     with open(mesh_file, 'w') as f:
+    #         f.write(value)
+    
     poop_default : BoolProperty(
         name="Instances Are Default",
         description="Sets instances as the default mesh type when a scenario asset is loaded",
         default=False,
+        # update=update_poop_default,
     )
 
     def draw(self, context):
@@ -403,8 +421,10 @@ class ToolkitLocationPreferences(AddonPreferences):
         row = box.row(align=True)
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
-        row.prop(prefs, "apply_prefix")
+        row.prop(prefs, "apply_empty_display")
         row = box.row(align=True)
-        row.prop(prefs, "poop_default")
+        row.prop(prefs, "apply_prefix")
+        # row = box.row(align=True)
+        # row.prop(prefs, "poop_default")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")

@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 from io_scene_foundry.ui.scene_properties import NWO_Regions_ListItems
 from .face_properties import NWO_FaceProperties_ListItems
 from bpy.props import (
@@ -42,12 +43,23 @@ from ..icons import get_icon_id
 from ..utils.nwo_utils import (
     clean_tag_path,
     dot_partition,
+    get_prefs,
     get_prop_from_collection,
-    mesh_object,
     is_corinth,
     nwo_enum,
     poll_ui,
 )
+
+# def get_default_mesh_type():
+#     appdata = os.getenv('APPDATA')
+#     foundry_folder = os.path.join(appdata, "FoundryHBCK")
+#     mesh_file = os.path.join(foundry_folder, 'mesh_default.txt')
+#     if os.path.exists(mesh_file):
+#         with open(mesh_file, 'r') as f:
+#             value = f.read()
+#         return value
+
+#     return '_connected_geometry_mesh_type_default'
 
 # MESH PROPS
 # ----------------------------------------------------------
@@ -72,6 +84,527 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         options=set(),
         name="Highlight",
     )
+    
+    face_global_material_ui: StringProperty(
+        name="Collision Material",
+        default="",
+        description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
+    )
+
+    mesh_face: EnumProperty(
+        name="Mesh | Face",
+        items=[
+            ("mesh", "MOP", "Mesh Object Properties"),
+            ("face", "FLOP", "Face Level Object Properties"),
+        ],
+        options=set(),
+    )
+
+    def update_face_type_ui(self, context):
+        self.face_type_active = True
+
+    face_type_active: BoolProperty()
+    face_type_ui: EnumProperty(
+        name="Face Type",
+        options=set(),
+        update=update_face_type_ui,
+        description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
+        items=[
+            (
+                "_connected_geometry_face_type_seam_sealer",
+                "Seam Sealer",
+                "Set mesh faces to have the special seam sealer property. Collsion only geometry",
+            ),
+            (
+                "_connected_geometry_face_type_sky",
+                "Sky",
+                "Set mesh faces to render the sky",
+            ),
+        ],
+    )
+
+    def update_face_mode_ui(self, context):
+        self.face_mode_active = True
+
+    def face_mode_items(self, context):
+        h4 = is_corinth(context)
+        items = []
+        items.append((
+            "_connected_geometry_face_mode_render_only",
+            "Render Only",
+            "Faces set to render only",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_collision_only",
+            "Collision Only",
+            "Faces set to collision only",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_sphere_collision_only",
+            "Sphere Collision Only",
+            "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_shadow_only",
+            "Shadow Only",
+            "Faces set to only cast shadows",
+        ))
+        items.append((
+            "_connected_geometry_face_mode_lightmap_only",
+            "Lightmap Only",
+            "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
+        ))
+        #if not h4: #BREAKABLE ENABLED
+        items.append((
+        "_connected_geometry_face_mode_breakable",
+        "Breakable",
+        "Faces set to be breakable",
+        )),
+
+        return items
+    
+    def get_face_mode_ui(self):
+        max_int = 5
+        if not is_corinth():
+            max_int = 5
+        if self.face_mode_ui_help > max_int:
+            return 0
+        return self.face_mode_ui_help
+
+    def set_face_mode_ui(self, value):
+        self["face_mode_ui"] = value
+
+    def update_face_mode_ui(self, context):
+        self.face_mode_ui_help = self["face_mode_ui"]
+
+    face_mode_ui_help : IntProperty()
+    face_mode_active: BoolProperty()
+    face_mode_ui: EnumProperty(
+        name="Face Mode",
+        options=set(),
+        update=update_face_mode_ui,
+        description="Sets face mode for this mesh",
+        items=face_mode_items,
+        get=get_face_mode_ui,
+        set=set_face_mode_ui,
+    )
+
+    def update_face_sides_ui(self, context):
+        self.face_sides_active = True
+
+    face_sides_active: BoolProperty()
+    face_sides_ui: EnumProperty(  # NOTE replaced by face_two_sided_ui
+        name="Face Sides",
+        options=set(),
+        update=update_face_sides_ui,
+        description="Sets the face sides for this mesh",
+        default="_connected_geometry_face_sides_one_sided",
+        items=[
+            (
+                "_connected_geometry_face_sides_one_sided",
+                "One Sided",
+                "Faces set to only render on one side (the direction of face normals)",
+            ),
+            (
+                "_connected_geometry_face_sides_one_sided_transparent",
+                "One Sided Transparent",
+                "Faces set to only render on one side (the direction of face normals), but also render geometry behind them",
+            ),
+            (
+                "_connected_geometry_face_sides_two_sided",
+                "Two Sided",
+                "Faces set to render on both sides",
+            ),
+            (
+                "_connected_geometry_face_sides_two_sided_transparent",
+                "Two Sided Transparent",
+                "Faces set to render on both sides and are transparent",
+            ),
+            ("_connected_geometry_face_sides_mirror", "Mirror", "H4+ only"),
+            (
+                "_connected_geometry_face_sides_mirror_transparent",
+                "Mirror Transparent",
+                "H4+ only",
+            ),
+            ("_connected_geometry_face_sides_keep", "Keep", "H4+ only"),
+            (
+                "_connected_geometry_face_sides_keep_transparent",
+                "Keep Transparent",
+                "H4+ only",
+            ),
+        ],
+    )
+
+    face_two_sided_ui: BoolProperty(
+        name="Two Sided",
+        description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
+        options=set(),
+    )
+
+    face_transparent_ui: BoolProperty(
+        name="Transparent",
+        description="Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag",
+        options=set(),
+    )
+
+    face_two_sided_type_ui: EnumProperty(
+        name="Two Sided Policy",
+        description="Set how the game should render the opposite side of mesh faces",
+        options=set(),
+        items=[
+            ("two_sided", "Default", "No special properties"),
+            ("mirror", "Mirror", "Mirror backside normals from the frontside"),
+            ("keep", "Keep", "Keep the same normal on each face side"),
+        ]
+    )
+
+    def update_face_draw_distance_ui(self, context):
+        self.face_draw_distance_active = True
+
+    face_draw_distance_active: BoolProperty()
+    face_draw_distance_ui: EnumProperty(
+        name="Face Draw Distance",
+        options=set(),
+        update=update_face_draw_distance_ui,
+        description="Select the draw distance for faces on this mesh",
+        default="_connected_geometry_face_draw_distance_normal",
+        items=[
+            ("_connected_geometry_face_draw_distance_normal", "Normal", ""),
+            ("_connected_geometry_face_draw_distance_detail_mid", "Mid", ""),
+            (
+                "_connected_geometry_face_draw_distance_detail_close",
+                "Close",
+                "",
+            ),
+        ],
+    )
+
+    def update_texcoord_usage_ui(self, context):
+        self.texcoord_usage_active = True
+
+    texcoord_usage_active: BoolProperty()
+    texcoord_usage_ui: EnumProperty(
+        name="Texture Coordinate Usage",
+        options=set(),
+        description="",
+        update=update_texcoord_usage_ui,
+        default="_connected_material_texcoord_usage_default",
+        items=[
+            ("_connected_material_texcoord_usage_default", "Default", ""),
+            ("_connected_material_texcoord_usage_none", "None", ""),
+            (
+                "_connected_material_texcoord_usage_anisotropic",
+                "Ansiotropic",
+                "",
+            ),
+        ],
+    )
+
+    sky_permutation_index_ui: IntProperty(
+        name="Sky Permutation Index",
+        options=set(),
+        description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
+        min=0,
+        soft_max=10,
+    )
+
+    ladder_ui: BoolProperty(
+        name="Ladder",
+        options=set(),
+        description="Makes faces climbable",
+    )
+
+    slip_surface_ui: BoolProperty(
+        name="Slip Surface",
+        options=set(),
+        description="Makes faces slippery for units",
+    )
+
+
+    decal_offset_ui: BoolProperty(
+        name="Decal Offset",
+        options=set(),
+        description="Enable to offset these faces so that they appear to be layered on top of another face",
+        default=False,
+    )
+
+    group_transparents_by_plane_ui: BoolProperty(
+        name="Group Transparents By Plane",
+        options=set(),
+        description="Enable to group transparent geometry by fitted planes",
+        default=True,
+    )
+
+    no_shadow_ui: BoolProperty(
+        name="No Shadow",
+        options=set(),
+        description="Enable to prevent faces from casting shadows",
+    )
+
+    precise_position_ui: BoolProperty(
+        name="Precise Position",
+        options=set(),
+        description="Enable to prevent faces from being altered during the import process",
+    )
+
+    no_lightmap_ui: BoolProperty(
+        name="Exclude From Lightmap",
+        options=set(),
+        description="",
+    )
+
+    no_pvs_ui: BoolProperty(
+        name="Invisible To PVS",
+        options=set(),
+        description="",
+    )
+
+    uvmirror_across_entire_model_ui: BoolProperty(
+        name="UV Mirror Across Model",
+        options=set(),
+        default=False,
+    )
+    
+    def update_lightmap_additive_transparency_ui(self, context):
+        self.lightmap_additive_transparency_active = True
+
+    lightmap_additive_transparency_active: BoolProperty()
+    lightmap_additive_transparency_ui: FloatVectorProperty(
+        name="lightmap Additive Transparency",
+        options=set(),
+        description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader",
+        default=(1.0, 1.0, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+        update=update_lightmap_additive_transparency_ui,
+    )
+
+    def update_lightmap_ignore_default_resolution_scale_ui(self, context):
+        self.lightmap_ignore_default_resolution_scale_active = True
+
+    lightmap_ignore_default_resolution_scale_active: BoolProperty()
+    lightmap_ignore_default_resolution_scale_ui: BoolProperty(
+        name="Lightmap Resolution Scale",
+        options=set(),
+        description="",
+        default=False,
+        update=update_lightmap_ignore_default_resolution_scale_ui,
+    )
+
+    def update_lightmap_resolution_scale_ui(self, context):
+        self.lightmap_resolution_scale_active = True
+
+    lightmap_resolution_scale_active: BoolProperty()
+    lightmap_resolution_scale_ui: FloatProperty(
+        name="Resolution Scale",
+        options=set(),
+        default=3.0,
+        min=0.0,
+        max=7.0,
+        description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
+        update=update_lightmap_resolution_scale_ui,
+    )
+
+    def update_lightmap_photon_fidelity_ui(self, context):
+        self.lightmap_photon_fidelity_active = True
+
+    lightmap_photon_fidelity_active: BoolProperty()
+    lightmap_photon_fidelity_ui: EnumProperty(
+        name="Photon Fidelity",
+        options=set(),
+        update=update_lightmap_photon_fidelity_ui,
+        description="H4+ only",
+        default="_connected_material_lightmap_photon_fidelity_normal",
+        items=[
+            (
+                "_connected_material_lightmap_photon_fidelity_normal",
+                "Normal",
+                "",
+            ),
+            (
+                "_connected_material_lightmap_photon_fidelity_medium",
+                "Medium",
+                "",
+            ),
+            ("_connected_material_lightmap_photon_fidelity_high", "High", ""),
+            ("_connected_material_lightmap_photon_fidelity_none", "None", ""),
+        ],
+    )
+
+    # Lightmap_Chart_Group: IntProperty(
+    #     name="Lightmap Chart Group",
+    #     options=set(),
+    #     description="",
+    #     default=3,
+    #     min=1,
+    # )
+
+    def update_lightmap_type_ui(self, context):
+        self.lightmap_type_active = True
+
+    lightmap_type_active: BoolProperty()
+    lightmap_type_ui: EnumProperty(
+        name="Lightmap Type",
+        options=set(),
+        update=update_lightmap_type_ui,
+        description="Sets how this should be lit while lightmapping",
+        default="_connected_material_lightmap_type_per_pixel",
+        items=[
+            ("_connected_material_lightmap_type_per_pixel", "Per Pixel", ""),
+            ("_connected_material_lightmap_type_per_vertex", "Per Vertex", ""),
+        ],
+    )
+
+    lightmap_transparency_override_ui: BoolProperty(
+        name="Lightmap Transparency Override",
+        options=set(),
+        description="",
+        default=False,
+    )
+
+    def update_lightmap_analytical_bounce_modifier_ui(self, context):
+        self.lightmap_analytical_bounce_modifier_active = True
+
+    lightmap_analytical_bounce_modifier_active: BoolProperty()
+    lightmap_analytical_bounce_modifier_ui: FloatProperty(
+        name="Lightmap Analytical Bounce Modifier",
+        options=set(),
+        description="",
+        default=1,
+        update=update_lightmap_analytical_bounce_modifier_ui,
+    )
+
+    def update_lightmap_general_bounce_modifier_ui(self, context):
+        self.lightmap_general_bounce_modifier_active = True
+
+    lightmap_general_bounce_modifier_active: BoolProperty()
+    lightmap_general_bounce_modifier_ui: FloatProperty(
+        name="Lightmap General Bounce Modifier",
+        options=set(),
+        description="",
+        default=1,
+        update=update_lightmap_general_bounce_modifier_ui,
+    )
+
+    def update_lightmap_translucency_tint_color_ui(self, context):
+        self.lightmap_translucency_tint_color_active = True
+
+    lightmap_translucency_tint_color_active: BoolProperty()
+    lightmap_translucency_tint_color_ui: FloatVectorProperty(
+        name="Lightmap Translucency Tint Color",
+        options=set(),
+        description="",
+        default=(1.0, 1.0, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+        update=update_lightmap_translucency_tint_color_ui,
+    )
+
+    def update_lightmap_lighting_from_both_sides_ui(self, context):
+        self.lightmap_lighting_from_both_sides_active = True
+
+    lightmap_lighting_from_both_sides_active: BoolProperty()
+    lightmap_lighting_from_both_sides_ui: BoolProperty(
+        name="Lightmap Lighting From Both Sides",
+        options=set(),
+        description="",
+        default=False,
+        update=update_lightmap_lighting_from_both_sides_ui,
+    )
+
+    # MATERIAL LIGHTING PROPERTIES
+
+    def update_emissive(self, context):
+        self.emissive_active = True
+
+    emissive_active: BoolProperty()
+    material_lighting_attenuation_active: BoolProperty()
+    material_lighting_attenuation_cutoff_ui: FloatProperty(
+        name="Material Lighting Attenuation Cutoff",
+        options=set(),
+        description="Determines how far light travels before it stops (in world units)",
+        min=0,
+        default=2,
+    )
+
+    lighting_attenuation_enabled: BoolProperty(
+        name="Use Attenuation",
+        options=set(),
+        description="Enable / Disable use of attenuation",
+        default=True,
+    )
+
+    material_lighting_attenuation_falloff_ui: FloatProperty(
+        name="Material Lighting Attenuation Falloff",
+        options=set(),
+        description="Determines how far light travels before its power begins to falloff (in world units)",
+        min=0,
+        default=1,
+    )
+
+    material_lighting_emissive_focus_active: BoolProperty()
+    material_lighting_emissive_focus_ui: FloatProperty(
+        name="Material Lighting Emissive Focus",
+        options=set(),
+        description="",
+    )
+
+    material_lighting_emissive_color_active: BoolProperty()
+    material_lighting_emissive_color_ui: FloatVectorProperty(
+        name="Material Lighting Emissive Color",
+        options=set(),
+        description="",
+        default=(1.0, 1.0, 1.0),
+        subtype="COLOR",
+        min=0.0,
+        max=1.0,
+    )
+
+    material_lighting_emissive_per_unit_active: BoolProperty()
+    material_lighting_emissive_per_unit_ui: BoolProperty(
+        name="Material Lighting Emissive Per Unit",
+        options=set(),
+        description="",
+        default=False,
+    )
+
+    material_lighting_emissive_power_active: BoolProperty()
+    material_lighting_emissive_power_ui: FloatProperty(
+        name="Material Lighting Emissive Quality",
+        options=set(),
+        description="",
+        min=0,
+        default=10,
+        update=update_emissive,
+    )
+
+    material_lighting_emissive_quality_active: BoolProperty()
+    material_lighting_emissive_quality_ui: FloatProperty(
+        name="Material Lighting Emissive Quality",
+        options=set(),
+        description="",
+        default=1,
+        min=0,
+    )
+
+    material_lighting_use_shader_gel_active: BoolProperty()
+    material_lighting_use_shader_gel_ui: BoolProperty(
+        name="Material Lighting Use Shader Gel",
+        options=set(),
+        description="",
+        default=False,
+    )
+
+    material_lighting_bounce_ratio_active: BoolProperty()
+    material_lighting_bounce_ratio_ui: FloatProperty(
+        name="Material Lighting Bounce Ratio",
+        options=set(),
+        description="",
+        default=1,
+        min=0,
+    )
 
 # MARKER PERM PROPERTIES
 # ----------------------------------------------------------
@@ -81,6 +614,7 @@ class NWO_MarkerPermutationItems(PropertyGroup):
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
 class NWO_ObjectPropertiesGroup(PropertyGroup):
+    
     ### ARMATURE
     node_usage_physics_control : StringProperty(name="Physics Control")
     node_usage_camera_control : StringProperty(name="Camera Control")
@@ -141,103 +675,103 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
     )
 
-    def items_object_type_ui(self, context):
-        """Function to handle context for object enum lists"""
-        ob = context.object
-        items = []
+    # def items_object_type_ui(self, context):
+    #     """Function to handle context for object enum lists"""
+    #     ob = context.object
+    #     items = []
 
-        # context: any light object
-        if ob.type == "LIGHT":
-            items.append(
-                (
-                    "_connected_geometry_object_type_light",
-                    "Light",
-                    "Light",
-                    get_icon_id("light_cone"),
-                    0,
-                )
-            )
+    #     # context: any light object
+    #     if ob.type == "LIGHT":
+    #         items.append(
+    #             (
+    #                 "_connected_geometry_object_type_light",
+    #                 "Light",
+    #                 "Light",
+    #                 get_icon_id("light_cone"),
+    #                 0,
+    #             )
+    #         )
 
-        # context: any 3D object type i.e. a blender mesh or an object that can convert to mesh
-        elif mesh_object(ob):
-            items.append(
-                (
-                    "_connected_geometry_object_type_mesh",
-                    "Mesh",
-                    "Mesh",
-                    get_icon_id("mesh"),
-                    0,
-                )
-            )
-            items.append(
-                (
-                    "_connected_geometry_object_type_marker",
-                    "Marker",
-                    "Marker",
-                    get_icon_id("marker"),
-                    1,
-                )
-            )
-            items.append(
-                (
-                    "_connected_geometry_object_type_frame",
-                    "Frame",
-                    "Frame",
-                    get_icon_id("frame"),
-                    2,
-                )
-            )
+    #     # context: any 3D object type i.e. a blender mesh or an object that can convert to mesh
+    #     elif mesh_object(ob):
+    #         items.append(
+    #             (
+    #                 "_connected_geometry_object_type_mesh",
+    #                 "Mesh",
+    #                 "Mesh",
+    #                 get_icon_id("mesh"),
+    #                 0,
+    #             )
+    #         )
+    #         items.append(
+    #             (
+    #                 "_connected_geometry_object_type_marker",
+    #                 "Marker",
+    #                 "Marker",
+    #                 get_icon_id("marker"),
+    #                 1,
+    #             )
+    #         )
+    #         items.append(
+    #             (
+    #                 "_connected_geometry_object_type_frame",
+    #                 "Frame",
+    #                 "Frame",
+    #                 get_icon_id("frame"),
+    #                 2,
+    #             )
+    #         )
 
-        # context: any empty object
-        else:
-            items.append(
-                (
-                    "_connected_geometry_object_type_marker",
-                    "Marker",
-                    "Marker",
-                    get_icon_id("marker"),
-                    0,
-                )
-            )
-            items.append(
-                (
-                    "_connected_geometry_object_type_frame",
-                    "Frame",
-                    "Frame",
-                    get_icon_id("frame"),
-                    1,
-                )
-            )
+    #     # context: any empty object
+    #     else:
+    #         items.append(
+    #             (
+    #                 "_connected_geometry_object_type_marker",
+    #                 "Marker",
+    #                 "Marker",
+    #                 get_icon_id("marker"),
+    #                 0,
+    #             )
+    #         )
+    #         items.append(
+    #             (
+    #                 "_connected_geometry_object_type_frame",
+    #                 "Frame",
+    #                 "Frame",
+    #                 get_icon_id("frame"),
+    #                 1,
+    #             )
+    #         )
 
-        return items
+    #     return items
 
-    def get_object_type_ui(self):
-        max_int = 2
-        try:
-            ob = bpy.context.object
-            if ob.type == "EMPTY":
-                max_int = 1
-            if self.object_type_ui_help > max_int:
-                return 0
-            return self.object_type_ui_help
-        except:
-            return self.object_type_ui_help
+    # def get_object_type_ui(self):
+    #     max_int = 2
+    #     try:
+    #         ob = bpy.context.object
+    #         if ob.type == "EMPTY":
+    #             max_int = 1
+    #         if self.object_type_ui_help > max_int:
+    #             return 0
+    #         return self.object_type_ui_help
+    #     except:
+    #         return self.object_type_ui_help
 
-    def set_object_type_ui(self, value):
-        self["object_type_ui"] = value
+    # def set_object_type_ui(self, value):
+    #     self["object_type_ui"] = value
 
-    def update_object_type_ui(self, context):
-        self.object_type_ui_help = self["object_type_ui"]
+    # def update_object_type_ui(self, context):
+    #     self.object_type_ui_help = self["object_type_ui"]
 
-    object_type_ui: EnumProperty(
-        name="Object Type",
-        items=items_object_type_ui,
-        update=update_object_type_ui,
-        get=get_object_type_ui,
-        set=set_object_type_ui,
-    )
+    # object_type_ui: StringProperty(
+    #     name="Object Type",
+    #     # items=items_object_type_ui,
+    #     # update=update_object_type_ui,
+    #     # get=get_object_type_ui,
+    #     # set=set_object_type_ui,
+    # )
 
-    object_type_ui_help: IntProperty()
+    # object_type_ui_help: IntProperty()
 
     #########################################################################################################################
     # MESH TYPE UI ####################################################################################################
@@ -496,44 +1030,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
         return items
 
-    def get_mesh_type_ui(self):
-        max_int = 0
-        if poll_ui("MODEL"):
-            max_int = 2
-        elif poll_ui("SCENARIO"):
-            max_int = 12 if is_corinth() else 13
-        elif poll_ui("PREFAB"):
-            max_int = 2
-        if self.mesh_type_ui_help > max_int:
-            return 0
-        if not self.mesh_type_ui_help_bool:
-            self.mesh_type_ui_help_bool = True
-            nwo = bpy.context.scene.nwo
-            items = self.items_mesh_type_ui(bpy.context)
-            current = nwo.default_mesh_type_ui
-            for idx, i in enumerate(items):
-                if i[0] == current:
-                    self.mesh_type_ui_help = idx
-                    break
-
-        return self.mesh_type_ui_help
-
-    def set_mesh_type_ui(self, value):
-        self["mesh_type_ui"] = value
-
-    def update_mesh_type_ui(self, context):
-        self.mesh_type_ui_help = self["mesh_type_ui"]
-
-    mesh_type_ui: EnumProperty(
+    mesh_type_ui: StringProperty(
         name="Mesh Type",
-        items=items_mesh_type_ui,
-        update=update_mesh_type_ui,
-        get=get_mesh_type_ui,
-        set=set_mesh_type_ui,
+        default='_connected_geometry_mesh_type_default',
+        options=set(),
     )
 
-    mesh_type_ui_help: IntProperty()
-    mesh_type_ui_help_bool: BoolProperty()
+    mesh_type_ui_help: BoolProperty()
 
     def items_marker_type_ui(self, context):
         """Function to handle context for marker enum lists"""
@@ -751,13 +1254,14 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     def update_marker_type_ui(self, context):
         self.marker_type_ui_help = self["marker_type_ui"]
 
-    marker_type_ui: EnumProperty(
+    marker_type_ui: StringProperty(
         name="Marker Type",
         options=set(),
-        items=items_marker_type_ui,
-        update=update_marker_type_ui,
-        get=get_marker_type_ui,
-        set=set_marker_type_ui,
+        default='_connected_geometry_marker_type_model',
+        # items=items_marker_type_ui,
+        # update=update_marker_type_ui,
+        # get=get_marker_type_ui,
+        # set=set_marker_type_ui,
     )
 
     marker_type_ui_help: IntProperty()
@@ -770,16 +1274,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     # OBJECT LEVEL PROPERTIES
-    def update_uvmirror_across_entire_model_ui(self, context):
-        self.uvmirror_across_entire_model_active = True
-
-    uvmirror_across_entire_model_active: BoolProperty()
-    uvmirror_across_entire_model_ui: BoolProperty(
-        name="UV Mirror Across Model",
-        options=set(),
-        default=False,
-        update=update_uvmirror_across_entire_model_ui,
-    )
 
     seam_back_ui: StringProperty(
         name="Seam Back Facing BSP",
@@ -1306,249 +1800,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=20,
     )
 
-    # LIGHTMAP PROPERTIES
-
-    def update_lightmap_additive_transparency_ui(self, context):
-        self.lightmap_additive_transparency_active = True
-
-    lightmap_additive_transparency_active: BoolProperty()
-    lightmap_additive_transparency_ui: FloatVectorProperty(
-        name="lightmap Additive Transparency",
-        options=set(),
-        description="Overrides the amount and color of light that will pass through the surface. Tint color will override the alpha blend settings in the shader",
-        default=(1.0, 1.0, 1.0),
-        subtype="COLOR",
-        min=0.0,
-        max=1.0,
-        update=update_lightmap_additive_transparency_ui,
-    )
-
-    def update_lightmap_ignore_default_resolution_scale_ui(self, context):
-        self.lightmap_ignore_default_resolution_scale_active = True
-
-    lightmap_ignore_default_resolution_scale_active: BoolProperty()
-    lightmap_ignore_default_resolution_scale_ui: BoolProperty(
-        name="Lightmap Resolution Scale",
-        options=set(),
-        description="",
-        default=False,
-        update=update_lightmap_ignore_default_resolution_scale_ui,
-    )
-
-    def update_lightmap_resolution_scale_ui(self, context):
-        self.lightmap_resolution_scale_active = True
-
-    lightmap_resolution_scale_active: BoolProperty()
-    lightmap_resolution_scale_ui: FloatProperty(
-        name="Resolution Scale",
-        options=set(),
-        default=3.0,
-        min=0.0,
-        max=7.0,
-        description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
-        update=update_lightmap_resolution_scale_ui,
-    )
-
-    def update_lightmap_photon_fidelity_ui(self, context):
-        self.lightmap_photon_fidelity_active = True
-
-    lightmap_photon_fidelity_active: BoolProperty()
-    lightmap_photon_fidelity_ui: EnumProperty(
-        name="Photon Fidelity",
-        options=set(),
-        update=update_lightmap_photon_fidelity_ui,
-        description="H4+ only",
-        default="_connected_material_lightmap_photon_fidelity_normal",
-        items=[
-            (
-                "_connected_material_lightmap_photon_fidelity_normal",
-                "Normal",
-                "",
-            ),
-            (
-                "_connected_material_lightmap_photon_fidelity_medium",
-                "Medium",
-                "",
-            ),
-            ("_connected_material_lightmap_photon_fidelity_high", "High", ""),
-            ("_connected_material_lightmap_photon_fidelity_none", "None", ""),
-        ],
-    )
-
-    # Lightmap_Chart_Group: IntProperty(
-    #     name="Lightmap Chart Group",
-    #     options=set(),
-    #     description="",
-    #     default=3,
-    #     min=1,
-    # )
-
-    def update_lightmap_type_ui(self, context):
-        self.lightmap_type_active = True
-
-    lightmap_type_active: BoolProperty()
-    lightmap_type_ui: EnumProperty(
-        name="Lightmap Type",
-        options=set(),
-        update=update_lightmap_type_ui,
-        description="Sets how this should be lit while lightmapping",
-        default="_connected_material_lightmap_type_per_pixel",
-        items=[
-            ("_connected_material_lightmap_type_per_pixel", "Per Pixel", ""),
-            ("_connected_material_lightmap_type_per_vertex", "Per Vertex", ""),
-        ],
-    )
-
-    lightmap_transparency_override_ui: BoolProperty(
-        name="Lightmap Transparency Override",
-        options=set(),
-        description="",
-        default=False,
-    )
-
-    def update_lightmap_analytical_bounce_modifier_ui(self, context):
-        self.lightmap_analytical_bounce_modifier_active = True
-
-    lightmap_analytical_bounce_modifier_active: BoolProperty()
-    lightmap_analytical_bounce_modifier_ui: FloatProperty(
-        name="Lightmap Analytical Bounce Modifier",
-        options=set(),
-        description="",
-        default=1,
-        update=update_lightmap_analytical_bounce_modifier_ui,
-    )
-
-    def update_lightmap_general_bounce_modifier_ui(self, context):
-        self.lightmap_general_bounce_modifier_active = True
-
-    lightmap_general_bounce_modifier_active: BoolProperty()
-    lightmap_general_bounce_modifier_ui: FloatProperty(
-        name="Lightmap General Bounce Modifier",
-        options=set(),
-        description="",
-        default=1,
-        update=update_lightmap_general_bounce_modifier_ui,
-    )
-
-    def update_lightmap_translucency_tint_color_ui(self, context):
-        self.lightmap_translucency_tint_color_active = True
-
-    lightmap_translucency_tint_color_active: BoolProperty()
-    lightmap_translucency_tint_color_ui: FloatVectorProperty(
-        name="Lightmap Translucency Tint Color",
-        options=set(),
-        description="",
-        default=(1.0, 1.0, 1.0),
-        subtype="COLOR",
-        min=0.0,
-        max=1.0,
-        update=update_lightmap_translucency_tint_color_ui,
-    )
-
-    def update_lightmap_lighting_from_both_sides_ui(self, context):
-        self.lightmap_lighting_from_both_sides_active = True
-
-    lightmap_lighting_from_both_sides_active: BoolProperty()
-    lightmap_lighting_from_both_sides_ui: BoolProperty(
-        name="Lightmap Lighting From Both Sides",
-        options=set(),
-        description="",
-        default=False,
-        update=update_lightmap_lighting_from_both_sides_ui,
-    )
-
-    # MATERIAL LIGHTING PROPERTIES
-
-    def update_emissive(self, context):
-        self.emissive_active = True
-
-    emissive_active: BoolProperty()
-    material_lighting_attenuation_active: BoolProperty()
-    material_lighting_attenuation_cutoff_ui: FloatProperty(
-        name="Material Lighting Attenuation Cutoff",
-        options=set(),
-        description="Determines how far light travels before it stops (in world units)",
-        min=0,
-        default=2,
-    )
-
-    lighting_attenuation_enabled: BoolProperty(
-        name="Use Attenuation",
-        options=set(),
-        description="Enable / Disable use of attenuation",
-        default=True,
-    )
-
-    material_lighting_attenuation_falloff_ui: FloatProperty(
-        name="Material Lighting Attenuation Falloff",
-        options=set(),
-        description="Determines how far light travels before its power begins to falloff (in world units)",
-        min=0,
-        default=1,
-    )
-
-    material_lighting_emissive_focus_active: BoolProperty()
-    material_lighting_emissive_focus_ui: FloatProperty(
-        name="Material Lighting Emissive Focus",
-        options=set(),
-        description="",
-    )
-
-    material_lighting_emissive_color_active: BoolProperty()
-    material_lighting_emissive_color_ui: FloatVectorProperty(
-        name="Material Lighting Emissive Color",
-        options=set(),
-        description="",
-        default=(1.0, 1.0, 1.0),
-        subtype="COLOR",
-        min=0.0,
-        max=1.0,
-    )
-
-    material_lighting_emissive_per_unit_active: BoolProperty()
-    material_lighting_emissive_per_unit_ui: BoolProperty(
-        name="Material Lighting Emissive Per Unit",
-        options=set(),
-        description="",
-        default=False,
-    )
-
-    material_lighting_emissive_power_active: BoolProperty()
-    material_lighting_emissive_power_ui: FloatProperty(
-        name="Material Lighting Emissive Quality",
-        options=set(),
-        description="",
-        min=0,
-        default=10,
-        update=update_emissive,
-    )
-
-    material_lighting_emissive_quality_active: BoolProperty()
-    material_lighting_emissive_quality_ui: FloatProperty(
-        name="Material Lighting Emissive Quality",
-        options=set(),
-        description="",
-        default=1,
-        min=0,
-    )
-
-    material_lighting_use_shader_gel_active: BoolProperty()
-    material_lighting_use_shader_gel_ui: BoolProperty(
-        name="Material Lighting Use Shader Gel",
-        options=set(),
-        description="",
-        default=False,
-    )
-
-    material_lighting_bounce_ratio_active: BoolProperty()
-    material_lighting_bounce_ratio_ui: FloatProperty(
-        name="Material Lighting Bounce Ratio",
-        options=set(),
-        description="",
-        default=1,
-        min=0,
-    )
-
     marker_all_regions_ui: BoolProperty(
         name="Marker All Regions",
         options=set(),
@@ -1849,217 +2100,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         update=light_cone_curve_clean_tag_path,
     )
 
-    # MESH LEVEL FACE PROPS
-
-    mesh_face: EnumProperty(
-        name="Mesh | Face",
-        items=[
-            ("mesh", "MOP", "Mesh Object Properties"),
-            ("face", "FLOP", "Face Level Object Properties"),
-        ],
-        options=set(),
-    )
-
-    def update_face_type_ui(self, context):
-        self.face_type_active = True
-
-    face_type_active: BoolProperty()
-    face_type_ui: EnumProperty(
-        name="Face Type",
-        options=set(),
-        update=update_face_type_ui,
-        description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
-        items=[
-            (
-                "_connected_geometry_face_type_seam_sealer",
-                "Seam Sealer",
-                "Set mesh faces to have the special seam sealer property. Collsion only geometry",
-            ),
-            (
-                "_connected_geometry_face_type_sky",
-                "Sky",
-                "Set mesh faces to render the sky",
-            ),
-        ],
-    )
-
-    def update_face_mode_ui(self, context):
-        self.face_mode_active = True
-
-    def face_mode_items(self, context):
-        h4 = is_corinth(context)
-        items = []
-        items.append((
-            "_connected_geometry_face_mode_render_only",
-            "Render Only",
-            "Faces set to render only",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_collision_only",
-            "Collision Only",
-            "Faces set to collision only",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_sphere_collision_only",
-            "Sphere Collision Only",
-            "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_shadow_only",
-            "Shadow Only",
-            "Faces set to only cast shadows",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_lightmap_only",
-            "Lightmap Only",
-            "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
-        ))
-        #if not h4: #BREAKABLE ENABLED
-        items.append((
-        "_connected_geometry_face_mode_breakable",
-        "Breakable",
-        "Faces set to be breakable",
-        )),
-
-        return items
-    
-    def get_face_mode_ui(self):
-        max_int = 5
-        if not is_corinth():
-            max_int = 5
-        if self.face_mode_ui_help > max_int:
-            return 0
-        return self.face_mode_ui_help
-
-    def set_face_mode_ui(self, value):
-        self["face_mode_ui"] = value
-
-    def update_face_mode_ui(self, context):
-        self.face_mode_ui_help = self["face_mode_ui"]
-
-    face_mode_ui_help : IntProperty()
-    face_mode_active: BoolProperty()
-    face_mode_ui: EnumProperty(
-        name="Face Mode",
-        options=set(),
-        update=update_face_mode_ui,
-        description="Sets face mode for this mesh",
-        items=face_mode_items,
-        get=get_face_mode_ui,
-        set=set_face_mode_ui,
-    )
-
-    def update_face_sides_ui(self, context):
-        self.face_sides_active = True
-
-    face_sides_active: BoolProperty()
-    face_sides_ui: EnumProperty(  # NOTE replaced by face_two_sided_ui
-        name="Face Sides",
-        options=set(),
-        update=update_face_sides_ui,
-        description="Sets the face sides for this mesh",
-        default="_connected_geometry_face_sides_one_sided",
-        items=[
-            (
-                "_connected_geometry_face_sides_one_sided",
-                "One Sided",
-                "Faces set to only render on one side (the direction of face normals)",
-            ),
-            (
-                "_connected_geometry_face_sides_one_sided_transparent",
-                "One Sided Transparent",
-                "Faces set to only render on one side (the direction of face normals), but also render geometry behind them",
-            ),
-            (
-                "_connected_geometry_face_sides_two_sided",
-                "Two Sided",
-                "Faces set to render on both sides",
-            ),
-            (
-                "_connected_geometry_face_sides_two_sided_transparent",
-                "Two Sided Transparent",
-                "Faces set to render on both sides and are transparent",
-            ),
-            ("_connected_geometry_face_sides_mirror", "Mirror", "H4+ only"),
-            (
-                "_connected_geometry_face_sides_mirror_transparent",
-                "Mirror Transparent",
-                "H4+ only",
-            ),
-            ("_connected_geometry_face_sides_keep", "Keep", "H4+ only"),
-            (
-                "_connected_geometry_face_sides_keep_transparent",
-                "Keep Transparent",
-                "H4+ only",
-            ),
-        ],
-    )
-
-    face_two_sided_ui: BoolProperty(
-        name="Two Sided",
-        description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
-        options=set(),
-    )
-
-    face_transparent_ui: BoolProperty(
-        name="Transparent",
-        description="Game treats this mesh as being transparent. If you're using a shader/material which has transparency, set this flag",
-        options=set(),
-    )
-
-    face_two_sided_type_ui: EnumProperty(
-        name="Two Sided Policy",
-        description="Set how the game should render the opposite side of mesh faces",
-        options=set(),
-        items=[
-            ("two_sided", "Default", "No special properties"),
-            ("mirror", "Mirror", "Mirror backside normals from the frontside"),
-            ("keep", "Keep", "Keep the same normal on each face side"),
-        ]
-    )
-
-    def update_face_draw_distance_ui(self, context):
-        self.face_draw_distance_active = True
-
-    face_draw_distance_active: BoolProperty()
-    face_draw_distance_ui: EnumProperty(
-        name="Face Draw Distance",
-        options=set(),
-        update=update_face_draw_distance_ui,
-        description="Select the draw distance for faces on this mesh",
-        default="_connected_geometry_face_draw_distance_normal",
-        items=[
-            ("_connected_geometry_face_draw_distance_normal", "Normal", ""),
-            ("_connected_geometry_face_draw_distance_detail_mid", "Mid", ""),
-            (
-                "_connected_geometry_face_draw_distance_detail_close",
-                "Close",
-                "",
-            ),
-        ],
-    )
-
-    def update_texcoord_usage_ui(self, context):
-        self.texcoord_usage_active = True
-
-    texcoord_usage_active: BoolProperty()
-    texcoord_usage_ui: EnumProperty(
-        name="Texture Coordinate Usage",
-        options=set(),
-        description="",
-        update=update_texcoord_usage_ui,
-        default="_connected_material_texcoord_usage_default",
-        items=[
-            ("_connected_material_texcoord_usage_default", "Default", ""),
-            ("_connected_material_texcoord_usage_none", "None", ""),
-            (
-                "_connected_material_texcoord_usage_anisotropic",
-                "Ansiotropic",
-                "",
-            ),
-        ],
-    )
-
     def get_region_name_ui(self):
         scene_nwo = bpy.context.scene.nwo
         regions = scene_nwo.regions_table
@@ -2130,71 +2170,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=False,
-    )
-
-    face_global_material_ui: StringProperty(
-        name="Collision Material",
-        default="",
-        description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
-    )
-
-    sky_permutation_index_ui: IntProperty(
-        name="Sky Permutation Index",
-        options=set(),
-        description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
-        min=0,
-        soft_max=10,
-    )
-
-    ladder_ui: BoolProperty(
-        name="Ladder",
-        options=set(),
-        description="Makes faces climbable",
-    )
-
-    slip_surface_ui: BoolProperty(
-        name="Slip Surface",
-        options=set(),
-        description="Makes faces slippery for units",
-    )
-
-
-    decal_offset_ui: BoolProperty(
-        name="Decal Offset",
-        options=set(),
-        description="Enable to offset these faces so that they appear to be layered on top of another face",
-        default=False,
-    )
-
-    group_transparents_by_plane_ui: BoolProperty(
-        name="Group Transparents By Plane",
-        options=set(),
-        description="Enable to group transparent geometry by fitted planes",
-        default=True,
-    )
-
-    no_shadow_ui: BoolProperty(
-        name="No Shadow",
-        options=set(),
-        description="Enable to prevent faces from casting shadows",
-    )
-
-    precise_position_ui: BoolProperty(
-        name="Precise Position",
-        options=set(),
-        description="Enable to prevent faces from being altered during the import process",
-    )
-
-    no_lightmap_ui: BoolProperty(
-        name="Exclude From Lightmap",
-        options=set(),
-        description="",
-    )
-
-    no_pvs_ui: BoolProperty(
-        name="Invisible To PVS",
-        options=set(),
-        description="",
     )
 
     # EXPORT ONLY PROPS

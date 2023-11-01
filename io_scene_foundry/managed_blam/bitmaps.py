@@ -46,7 +46,7 @@ class ManagedBlamNewBitmap(ManagedBlam):
             suffix = self.bitmap_name.rpartition("_")[2].lower()
             self.bitmap_type = "Diffuse Map"
             if suffix and "_" in self.bitmap_name.strip("_"):
-                if suffix.startswith(("orm", "mro", "mtr", "rmo", "control")):
+                if suffix.startswith(("orm", "mro", "mtr", "rmo", "control", "arm")):
                     self.bitmap_type = "Material Map"
                 elif suffix.startswith("3d"):
                     self.bitmap_type = "3D Texture"
@@ -84,7 +84,7 @@ class ManagedBlamNewBitmap(ManagedBlam):
                     self.bitmap_type = "Vector Map"
                 elif suffix.startswith("warp"):
                     self.bitmap_type = "Warp Map (EMBM)"
-                elif suffix.startswith(("zbump", "dx_normal")):
+                elif suffix.startswith(("zbump", "dx_normal", 'dxnormal', 'normaldx', 'normal_dx')):
                     self.bitmap_type = "ZBrush Bump Map (from Bump Map)"
                 elif suffix.startswith(("nor", "nm", "nrm")):
                     if self.corinth:

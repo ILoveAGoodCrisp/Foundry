@@ -45,6 +45,8 @@ from io_scene_foundry.utils.nwo_constants import PROTECTED_MATERIALS, VALID_MESH
 from ..icons import get_icon_id
 import requests
 
+from io_scene_foundry.utils.nwo_constants import object_asset_validation, object_game_validation
+
 
 ###########
 ##GLOBALS##
@@ -1424,7 +1426,22 @@ def export_objects_no_arm():
             ob.nwo.export_this
             and ob.type != "ARMATURE"
             and not any(
-                coll.name.startswith("+exclude") for coll in ob.users_collection
+                coll.nwo.type == 'exclude' for coll in ob.users_collection
+            )
+        ):
+            export_obs.append(ob)
+
+    return export_obs
+
+def export_objects_mesh_only():
+    context = bpy.context
+    export_obs = []
+    for ob in context.view_layer.objects:
+        if (
+            ob.nwo.export_this
+            and is_mesh(ob)
+            and not any(
+                coll.nwo.type == 'exclude' for coll in ob.users_collection
             )
         ):
             export_obs.append(ob)
@@ -1479,7 +1496,7 @@ def closest_bsp_object(ob):
     for target_ob in valid_targets:
         if (
             ob != target_ob
-            and target_ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+            and target_ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
             and true_region(target_ob.nwo) != true_region(ob.nwo)
         ):
             d = get_distance(ob, target_ob)
@@ -1639,8 +1656,7 @@ def has_mesh_props(ob) -> bool:
     valid_mesh_types = (
         "_connected_geometry_mesh_type_collision",
         "_connected_geometry_mesh_type_physics",
-        "_connected_geometry_mesh_type_structure",
-        "_connected_geometry_mesh_type_render",
+        "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_poop",
         "_connected_geometry_mesh_type_poop_collision",
     )
@@ -1648,7 +1664,7 @@ def has_mesh_props(ob) -> bool:
     return (
         ob
         and nwo.export_this
-        and nwo.object_type_ui == "_connected_geometry_object_type_mesh"
+        and is_mesh(ob)
         and nwo.mesh_type_ui in valid_mesh_types
     )
 
@@ -1656,16 +1672,14 @@ def has_mesh_props(ob) -> bool:
 def has_face_props(ob) -> bool:
     valid_mesh_types = (
         "_connected_geometry_mesh_type_collision",
-        "_connected_geometry_mesh_type_structure",
-        "_connected_geometry_mesh_type_render",
+        "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_poop",
         "_connected_geometry_mesh_type_poop_collision",
     )
     return (
         ob
         and ob.nwo.export_this
-        and ob.type == "MESH"
-        and ob.nwo.object_type_ui == "_connected_geometry_object_type_mesh"
+        and is_mesh(ob)
         and ob.nwo.mesh_type_ui in valid_mesh_types
     )
 
@@ -1952,3 +1966,111 @@ def import_gltf(path):
     unit_settings.scale_length = 1
     bpy.ops.import_scene.gltf(filepath=path, import_shading='FLAT')
     unit_settings.scale_length = old_unit_scale
+
+def get_mesh_display(mesh_type):
+    match mesh_type:
+        case '_connected_geometry_mesh_type_poop':
+            return 'Instanced Geometry', get_icon_id('instance')
+        case '_connected_geometry_mesh_type_collision':
+            return 'Collision', get_icon_id('collider')
+        case '_connected_geometry_mesh_type_physics':
+            return 'Physics', get_icon_id('physics')
+        case '_connected_geometry_mesh_type_poop_collision':
+            return 'Collision', get_icon_id('collider')
+        case '_connected_geometry_mesh_type_seam':
+            return 'Seam', get_icon_id('seam')
+        case '_connected_geometry_mesh_type_portal':
+            return 'Portal', get_icon_id('portal')
+        case '_connected_geometry_mesh_type_water_surface':
+            return 'Water Surface', get_icon_id('water')
+        case '_connected_geometry_mesh_type_water_physics_volume':
+            return 'Water Physics Volume', get_icon_id('water_physics')
+        case '_connected_geometry_mesh_type_soft_ceiling':
+            return 'Soft Ceiling Volume', get_icon_id('soft_ceiling')
+        case '_connected_geometry_mesh_type_soft_kill':
+            return 'Soft Kill Volume', get_icon_id('soft_ceiling')
+        case '_connected_geometry_mesh_type_slip_surface':
+            return 'Slip Surface Volume', get_icon_id('slip_surface')
+        case '_connected_geometry_mesh_type_poop_rain_blocker':
+            return 'Rain Blocker Volume', get_icon_id('rain_sheet')
+        case '_connected_geometry_mesh_type_lightmap_exclude':
+            return 'Lightmap Exclusion Volume', get_icon_id('lightmap_exclude')
+        case '_connected_geometry_mesh_type_streaming':
+            return 'Streaming Volume', get_icon_id('streaming')
+        case '_connected_geometry_mesh_type_poop_vertical_rain_sheet':
+            return 'Rain Sheet', get_icon_id('rain_sheet')
+        case '_connected_geometry_mesh_type_cookie_cutter':
+            return 'Pathfinding Cutout Volume', get_icon_id('cookie_cutter')
+        case '_connected_geometry_mesh_type_planar_fog_volume':
+            return 'Fog Sheet', get_icon_id('fog')
+        case _:
+            if poll_ui(('SCENARIO')):
+                return 'Structure', get_icon_id('structure')
+            elif poll_ui(('PREFAB')):
+                return 'Instance', get_icon_id('instance')
+            elif poll_ui(('DECORATOR')):
+                return 'Decorator', get_icon_id('decorator')
+            else:
+                return 'Render', get_icon_id('render_geometry')
+            
+def get_marker_display(mesh_type):
+    match mesh_type:
+        case '_connected_geometry_marker_type_effects':
+            return 'Effects', get_icon_id('effects')
+        case '_connected_geometry_marker_type_garbage':
+            return 'Garbage', get_icon_id('garbage')
+        case '_connected_geometry_marker_type_hint':
+            return 'Hint', get_icon_id('hint')
+        case '_connected_geometry_marker_type_pathfinding_sphere':
+            return 'Pathfinding Sphere', get_icon_id('pathfinding_sphere')
+        case '_connected_geometry_marker_type_physics_constraint':
+            return 'Physics Constraint', get_icon_id('physics_constraint')
+        case '_connected_geometry_mesh_type_water_surface':
+            return 'Water Surface', get_icon_id('water')
+        case '_connected_geometry_marker_type_target':
+            return 'Target', get_icon_id('target')
+        case '_connected_geometry_marker_type_game_instance':
+            return 'Game Object', get_icon_id('game_object')
+        case '_connected_geometry_marker_type_airprobe':
+            return 'Airprobe', get_icon_id('airprobe')
+        case '_connected_geometry_marker_type_envfx':
+            return 'Environment Effect', get_icon_id('environment_effect')
+        case '_connected_geometry_marker_type_lightCone':
+            return 'Light Cone', get_icon_id('light_cone')
+        case _:
+            if poll_ui(('SCENARIO', 'PREFAB')):
+                return 'Structure Marker', get_icon_id('marker')
+            else:
+                return 'Model Marker', get_icon_id('marker')
+            
+def is_mesh(ob):
+    return ob.type in VALID_MESHES
+
+def is_marker(ob):
+    return ob.type == 'EMPTY' and not ob.children
+
+def is_frame(ob):
+    return (ob.type == 'EMPTY' and ob.children) or ob.type == 'ARMATURE'
+
+def is_light(ob):
+    return ob.type == 'LIGHT'
+
+def is_camera(ob):
+    return ob.type == 'CAMERA'
+
+def get_object_type(ob):
+    if is_mesh(ob):
+        return '_connected_geometry_object_type_mesh'
+    elif is_marker(ob):
+        return '_connected_geometry_object_type_marker'
+    elif is_frame(ob):
+        return '_connected_geometry_object_type_frame'
+    elif is_light(ob):
+        return '_connected_geometry_object_type_light'
+    elif is_camera(ob):
+        return '_connected_geometry_object_type_animation_camera'
+    else:
+        return '_connected_geometry_object_type_none'
+    
+def type_valid(m_type, asset_type, game_version):
+    return asset_type in object_asset_validation[m_type] and game_version in object_game_validation[m_type]

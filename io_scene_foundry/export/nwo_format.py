@@ -1013,29 +1013,29 @@ class NWOMesh(NWOObject):
             self.bungie_mesh_obb_type = self.halo.obb_volume_type
 
         # LIGHTMAP PROPERTIES
-        if self.halo.lightmap_additive_transparency_active:
+        if self.ob.data.nwo.lightmap_additive_transparency_active:
             self.bungie_lightmap_transparency_override = "1"
             self.bungie_lightmap_additive_transparency = (
                 self.halo.lightmap_additive_transparency
             )
-        if self.halo.lightmap_resolution_scale_active:
+        if self.ob.data.nwo.lightmap_resolution_scale_active:
             # self.bungie_lightmap_ignore_default_resolution_scale = "1"
             self.bungie_lightmap_resolution_scale = self.halo.lightmap_resolution_scale
         # self.bungie_lightmap_chart_group = self.lightmap_chart_group()
         # if self.not_bungie_game:
         #     self.bungie_lightmap_photon_fidelity = self.halo.lightmap_photon_fidelity
-        if self.halo.lightmap_type_active:
+        if self.ob.data.nwo.lightmap_type_active:
             self.bungie_lightmap_type = self.halo.lightmap_type
         # if self.halo.lightmap_analytical_bounce_modifier_active:
         #     self.bungie_lightmap_analytical_bounce_modifier = self.lightmap_analytical_bounce_modifier()
         # if self.halo.lightmap_general_bounce_modifier_active:
         #     self.bungie_lightmap_general_bounce_modifier = self.lightmap_general_bounce_modifier()
         # self.bungie_lightmap_analytical_absorb_ratio = self.lightmap_analytical_absorb_ratio()
-        if self.halo.lightmap_translucency_tint_color_active:
+        if self.ob.data.nwo.lightmap_translucency_tint_color_active:
             self.bungie_lightmap_translucency_tint_color = (
                 self.halo.lightmap_translucency_tint_color
             )
-        if self.halo.lightmap_lighting_from_both_sides_active:
+        if self.ob.data.nwo.lightmap_lighting_from_both_sides_active:
             self.bungie_lightmap_lighting_from_both_sides = "1"
             # if self.not_bungie_game:
             #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()

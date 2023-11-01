@@ -26,12 +26,16 @@
 
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.managed_blam.globals import ManagedBlamGetGlobalMaterials
+from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from .templates import NWO_Op, NWO_PropPanel
 from ..utils.nwo_utils import (
     bpy_enum_list,
+    export_objects_mesh_only,
     export_objects_no_arm,
     is_linked,
     is_corinth,
+    is_marker,
+    is_mesh,
     sort_alphanum,
     true_permutation,
     true_region,
@@ -120,6 +124,74 @@ class NWO_MarkerPermutationsMenu(Menu):
         for p_name in permutation_names:
             layout.operator("nwo.marker_perm_add", text=p_name).name = p_name
 
+# Object Type Menu
+class NWO_MeshTypes(Menu):
+    bl_label = "Mesh Type"
+    bl_idname = "NWO_MT_MeshTypes"
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and is_mesh(context.object)
+    
+    def draw(self, context):
+        layout = self.layout
+        h4 = is_corinth(context)
+        if poll_ui("MODEL"):
+            layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('render_geometry')).m_type = 'render'
+            layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
+            layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
+        elif poll_ui("SCENARIO"):
+            layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
+            layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
+            layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
+            layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
+            layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
+            layout.operator('nwo.apply_type_mesh_single', text='Water Surface', icon_value=get_icon_id('water')).m_type = 'water_surface'
+            layout.operator('nwo.apply_type_mesh_single', text='Water Physics', icon_value=get_icon_id('water_physics')).m_type = 'water_physics'
+            layout.operator('nwo.apply_type_mesh_single', text='Soft Ceiling', icon_value=get_icon_id('soft_ceiling')).m_type = 'soft_ceiling'
+            layout.operator('nwo.apply_type_mesh_single', text='Soft Kill', icon_value=get_icon_id('soft_kill')).m_type = 'soft_kill'
+            layout.operator('nwo.apply_type_mesh_single', text='Slip Surface', icon_value=get_icon_id('slip_surface')).m_type = 'slip_surface'
+            if h4:
+                layout.operator('nwo.apply_type_mesh_single', text='Lightmap Exclusion Volume', icon_value=get_icon_id('lightmap_exclude')).m_type = 'lightmap'
+                layout.operator('nwo.apply_type_mesh_single', text='Streaming Volume', icon_value=get_icon_id('streaming')).m_type = 'streaming'
+            else:
+                layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_blocker'
+                layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
+                layout.operator('nwo.apply_type_mesh_single', text='Cookie Cutter', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
+                layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'
+        elif poll_ui("PREFAB"):
+            layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
+            layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
+            
+class NWO_MarkerTypes(Menu):
+    bl_label = "Marker Type"
+    bl_idname = "NWO_MT_MarkerTypes"
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and is_marker(context.object)
+    
+    def draw(self, context):
+        layout = self.layout
+        h4 = is_corinth(context)
+        if poll_ui(("MODEL", "SKY")):
+            layout.operator('nwo.apply_type_marker_single', text='Model Marker', icon_value=get_icon_id('marker')).m_type = 'model'
+            layout.operator('nwo.apply_type_marker_single', text='Effects', icon_value=get_icon_id('effects')).m_type = 'effects'
+            if poll_ui("MODEL"):
+                layout.operator('nwo.apply_type_marker_single', text='Garbage', icon_value=get_icon_id('garbage')).m_type = 'garbage'
+                layout.operator('nwo.apply_type_marker_single', text='Hint', icon_value=get_icon_id('hint')).m_type = 'hint'
+                layout.operator('nwo.apply_type_marker_single', text='Pathfinding Sphere', icon_value=get_icon_id('pathfinding_sphere')).m_type = 'pathfinding_sphere'
+                layout.operator('nwo.apply_type_marker_single', text='Physics Constraint', icon_value=get_icon_id('physics_constraint')).m_type = 'physics_constraint'
+                layout.operator('nwo.apply_type_marker_single', text='Target', icon_value=get_icon_id('target')).m_type = 'target'
+                if h4:
+                    layout.operator('nwo.apply_type_marker_single', text='Airprobe', icon_value=get_icon_id('airprobe')).m_type = 'airprobe'
+        elif poll_ui(("SCENARIO", "PREFAB")):
+            layout.operator('nwo.apply_type_marker_single', text='Structure Marker', icon_value=get_icon_id('marker')).m_type = 'model'
+            layout.operator('nwo.apply_type_marker_single', text='Game Object', icon_value=get_icon_id('game_object')).m_type = 'game_instance'
+            if h4:
+                layout.operator('nwo.apply_type_marker_single', text='Airprobe', icon_value=get_icon_id('airprobe')).m_type = 'airprobe'
+                layout.operator('nwo.apply_type_marker_single', text='Light Cone', icon_value=get_icon_id('light_cone')).m_type = 'lightcone'
+
 # FACE LEVEL FACE PROPS
 
 class NWO_UL_FaceMapProps(UIList):
@@ -147,14 +219,14 @@ class NWO_MeshFaceProps(NWO_PropPanel):
         valid_mesh_types = (
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_physics",
-            "_connected_geometry_mesh_type_structure",
+            "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_render",
             "_connected_geometry_mesh_type_poop",
         )
         return (
             ob
             and ob.nwo.export_this
-            and ob.nwo.object_type_ui == "_connected_geometry_object_type_mesh"
+            and ob.type in VALID_MESHES
             and ob.nwo.mesh_type_ui in valid_mesh_types
         )
 
@@ -245,8 +317,7 @@ class NWO_MeshFaceProps(NWO_PropPanel):
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
                 "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_poop_collision",
-                "_connected_geometry_mesh_type_structure",
+                "_connected_geometry_mesh_type_default",
             ):
                 row = col.row()
                 row.prop(
@@ -269,7 +340,7 @@ class NWO_MeshFaceProps(NWO_PropPanel):
             if ob_nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_render",
                 "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_structure",
+                "_connected_geometry_mesh_type_default",
             ):
                 col2 = col.column()
                 flow2 = col2.grid_flow()
@@ -278,7 +349,6 @@ class NWO_MeshFaceProps(NWO_PropPanel):
         if ob_nwo.mesh_type_ui in (
             "_connected_geometry_mesh_type_render",
             "_connected_geometry_mesh_type_poop",
-            "_connected_geometry_mesh_type_poop_collision",
             "_connected_geometry_mesh_type_collision",
         ):
             col3 = col.column()
@@ -640,7 +710,7 @@ class NWO_FaceDefaultsToggle(NWO_Op):
 
 def toggle_active(context, option, bool_var):
     ob = context.object
-    ob_nwo = ob.nwo
+    ob_nwo = ob.data.nwo
 
     match option:
         case "face_type":
@@ -741,6 +811,10 @@ def toggle_active(context, option, bool_var):
 class NWO_MeshPropAddMenu(Menu):
     bl_label = "Add Mesh Property"
     bl_idname = "NWO_MT_MeshPropAdd"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and is_mesh(context.object)
 
     def draw(self, context):
         layout = self.layout
@@ -752,11 +826,11 @@ class NWO_MeshPropAddMenu(Menu):
 
         if poll_ui(("SCENARIO", "PREFAB")):
             # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
-            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
                 layout.operator(
                     "nwo.add_mesh_property", text="Sky"
                 ).options = "_connected_geometry_face_type_sky"
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
                 layout.operator(
                     "nwo.add_mesh_property", text="Seam Sealer"
                 ).options = "_connected_geometry_face_type_seam_sealer"
@@ -805,7 +879,7 @@ class NWO_MeshPropAdd(NWO_Op):
 
     @classmethod
     def poll(cls, context):
-        return context.object
+        return context.object and is_mesh(context.object)
 
     options: EnumProperty(
         items=[
@@ -1026,8 +1100,8 @@ class NWO_GlobalMaterialMenu(Menu):
         layout = self.layout
         ob = context.object
         global_materials = ["default"]
-        for ob in export_objects_no_arm():
-            global_material = ob.nwo.face_global_material_ui
+        for ob in export_objects_mesh_only():
+            global_material = ob.data.nwo.face_global_material_ui
             if global_material != "" and global_material not in global_materials:
                 global_materials.append(global_material)
             # also need to loop through face props
@@ -1040,10 +1114,10 @@ class NWO_GlobalMaterialMenu(Menu):
                     ):
                         global_materials.append(face_prop.face_global_material_ui)
 
-        for g_mat in global_materials:
-            layout.operator(
-                "nwo.global_material_list", text=g_mat
-            ).global_material = g_mat
+        # for g_mat in global_materials:
+        #     layout.operator(
+        #         "nwo.global_material_list", text=g_mat
+        #     ).global_material = g_mat
 
         if poll_ui(("MODEL", "SKY")):
             layout.operator_menu_enum(
@@ -1152,8 +1226,8 @@ class NWO_GlobalMaterialList(NWO_Op):
     def global_material_items(self, context):
         # get scene regions
         global_materials = ["default"]
-        for ob in export_objects_no_arm():
-            global_material = ob.nwo.face_global_material_ui
+        for ob in export_objects_mesh_only():
+            global_material = ob.data.nwo.face_global_material_ui
             if (
                 global_material != ""
                 and global_material not in global_materials
@@ -1183,7 +1257,7 @@ class NWO_GlobalMaterialList(NWO_Op):
     )
 
     def execute(self, context):
-        context.object.nwo.face_global_material_ui = self.global_material
+        context.object.data.nwo.face_global_material_ui = self.global_material
         return {"FINISHED"}
 
 class NWO_PermutationList(NWO_Op):

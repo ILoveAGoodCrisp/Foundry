@@ -48,6 +48,8 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
+    get_object_type,
+    is_mesh,
     jstr,
     layer_face_count,
     layer_faces,
@@ -60,6 +62,7 @@ from ..utils.nwo_utils import (
     sort_alphanum,
     true_region,
     true_permutation,
+    type_valid,
     update_job,
     update_progress,
     update_tables_from_objects,
@@ -149,6 +152,7 @@ class PrepareScene:
         default_permutation = context.scene.nwo.permutations_table[0].name
 
         h4 = is_corinth(context)
+        game_version = 'corinth' if h4 else 'reach'
 
         # Exit local view. Must do this otherwise fbx export will fail.
         self.exit_local_view(context)
@@ -220,11 +224,8 @@ class PrepareScene:
         if h4:
             proxy_owners = []
             for ob in export_obs:
-                set_active_object(ob)
-                ob.select_set(True)
-                if ob.nwo.object_type_ui == '_connected_geometry_object_type_mesh' and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance:
+                if is_mesh(ob) and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and ob.nwo.proxy_instance:
                     proxy_owners.append(ob)
-                ob.select_set(False)
             if proxy_owners:
                 len_proxy_owners = len(proxy_owners)
                 process = "--- Creating Proxy Instances from Structure"
@@ -237,7 +238,7 @@ class PrepareScene:
                     proxy_instance.data = ob.data.copy()
                     proxy_instance.name = f"{ob.name}(instance)"
 
-                    proxy_instance.nwo.mesh_type_ui_help = 1
+                    proxy_instance.nwo.mesh_type_ui = '_connected_geometry_mesh_type_poop'
                     scene_coll.link(proxy_instance)
                     update_progress(process, idx / len_proxy_owners)
                     
@@ -278,15 +279,6 @@ class PrepareScene:
 
         # add special reach materials
         if not h4:
-            # NOTE No longer setting Sky this way, as if we do, we cannot set sky permutation index
-            # if INVISIBLE_SKY not in materials:
-            #     sky_mat = materials.new(INVISIBLE_SKY)
-            # else:
-            #     sky_mat = materials.get(INVISIBLE_SKY)
-
-            # sky_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_sky.override"
-            # sky_mat.nwo.rendered = True # not actually rendered but this lets us use the special shader path input
-
             if SEAM_SEALER not in materials:
                 seam_sealer_mat = materials.new(SEAM_SEALER)
             else:
@@ -294,38 +286,6 @@ class PrepareScene:
 
             seam_sealer_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_seam_sealer.override"
             seam_sealer_mat.nwo.rendered = True
-
-            # if COLLISION_ONLY not in materials:
-            #     collision_only_mat = materials.new(COLLISION_ONLY)
-            # else:
-            #     collision_only_mat = materials.get(COLLISION_ONLY)
-
-            # collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_collision_only.override"
-            # collision_only_mat.nwo.rendered = True
-
-            # if SPHERE_COLLISION_ONLY not in materials:
-            #     sphere_collision_only_mat = materials.new(SPHERE_COLLISION_ONLY)
-            # else:
-            #     sphere_collision_only_mat = materials.get(SPHERE_COLLISION_ONLY)
-
-            # sphere_collision_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_sphere_collision_only.override"
-            # sphere_collision_only_mat.nwo.rendered = True
-
-            # if LIGHTMAP_ONLY not in materials:
-            #     lightmap_only_mat = materials.new(LIGHTMAP_ONLY)
-            # else:
-            #     lightmap_only_mat = materials.get(LIGHTMAP_ONLY)
-
-            # lightmap_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_lightmap_only.override"
-            # lightmap_only_mat.nwo.rendered = True
-
-            # if SHADOW_ONLY not in materials:
-            #     shadow_only_mat = materials.new(SHADOW_ONLY)
-            # else:
-            #     shadow_only_mat = materials.get(SHADOW_ONLY)
-
-            # shadow_only_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_mode_shadow_only.override"
-            # shadow_only_mat.nwo.rendered = True
 
 
         context.view_layer.update()
@@ -346,8 +306,6 @@ class PrepareScene:
         self.used_materials = set()
         # start the great loop!
         for idx, ob in enumerate(export_obs):
-            set_active_object(ob)
-            ob.select_set(True)
             nwo = ob.nwo
 
             reset_export_props(nwo)
@@ -355,7 +313,6 @@ class PrepareScene:
             me = ob.data
             ob_type = ob.type
             is_mesh_loose = ob_type in VALID_MESHES
-            is_valid_object_type = ob_type in VALID_MARKERS
 
             # export objects must be visible and selectable
             ob.hide_set(False)
@@ -380,9 +337,28 @@ class PrepareScene:
             # if not_bungie_game():
             #     self.apply_namespaces(ob, asset)
 
-            self.set_object_type(ob, ob_type, nwo, is_valid_object_type)
-
-            self.apply_object_mesh_marker_properties(ob, sidecar_type, not h4, nwo)
+            nwo.object_type = get_object_type(ob)
+            if nwo.object_type == '_connected_geometry_object_type_none':
+                self.unlink(ob)
+                continue
+            
+            elif nwo.object_type == '_connected_geometry_object_type_mesh':
+                if type_valid(nwo.mesh_type_ui, sidecar_type, game_version):
+                    self.setup_mesh_properties(ob, nwo.mesh_type_ui, sidecar_type, h4, nwo)
+                else:
+                    self.warning_hit = True
+                    print_warning(f"{ob.name} has illegal mesh type: [{nwo.mesh_type_ui}]. Skipped")
+                    self.unlink(ob)
+                    continue
+                
+            elif nwo.object_type == '_connected_geometry_object_type_marker':
+                if type_valid(nwo.marker_type_ui, sidecar_type, game_version):
+                    self.setup_marker_properties(ob, nwo.marker_type_ui, sidecar_type, h4, nwo)
+                else:
+                    self.warning_hit = True
+                    print_warning(f"{ob.name} has illegal marker type: [{nwo.marker_type_ui}]. Skipped")
+                    self.unlink(ob)
+                    continue
 
             is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and self.has_halo_materials(nwo, h4)
 
@@ -1459,7 +1435,7 @@ class PrepareScene:
             proxy_physics = me.nwo.proxy_physics
             if proxy_physics is not None:
                 proxy_physics.nwo.object_type = "_connected_geometry_object_type_mesh"
-                glob_mat_phys = proxy_physics.nwo.face_global_material_ui
+                glob_mat_phys = proxy_physics.data.nwo.face_global_material_ui
                 if glob_mat_phys:
                     proxy_physics.nwo.face_global_material = glob_mat_phys
                     self.global_materials.add(glob_mat_phys)
@@ -1470,7 +1446,7 @@ class PrepareScene:
                     split_physics = self.proxy_face_split(proxy_physics, context, scene_coll, h4)
                 else:
                     proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
-                    if proxy_physics.nwo.face_global_material_ui:
+                    if proxy_physics.data.nwo.face_global_material_ui:
                         self.set_reach_coll_materials(proxy_physics.data, proxy_physics.nwo, bpy.data.materials)
 
 
@@ -1478,7 +1454,7 @@ class PrepareScene:
             if proxy_collision is not None:
                 proxy_collision.nwo.object_type = "_connected_geometry_object_type_mesh"
                 proxy_collision.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                glob_mat_coll = proxy_collision.nwo.face_global_material_ui
+                glob_mat_coll = proxy_collision.data.nwo.face_global_material_ui
                 if glob_mat_coll:
                     proxy_collision.nwo.face_global_material = glob_mat_coll
                     self.global_materials.add(glob_mat_coll)
@@ -1489,7 +1465,7 @@ class PrepareScene:
                         proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_default"
 
                     split_collision = self.proxy_face_split(proxy_collision, context, scene_coll, h4)
-                elif proxy_collision.nwo.face_global_material_ui:
+                elif proxy_collision.data.nwo.face_global_material_ui:
                     self.set_reach_coll_materials(proxy_collision.data, proxy_collision.nwo, bpy.data.materials)
 
             proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
@@ -1894,449 +1870,114 @@ class PrepareScene:
         #         bone.name = override
         for b in bones:
             set_bone_prefix(b)
-
-
-    def apply_object_mesh_marker_properties(self, ob, asset_type, reach, nwo):
-        # Apply final properties so we can rename objects (and also avoid complex checking in later code)
-        # get mesh type
-        mesh_type_ui = nwo.mesh_type_ui
-        marker_type_ui = nwo.marker_type_ui
-        if nwo.object_type == "_connected_geometry_object_type_mesh":
-            if asset_type == "MODEL":
-                if mesh_type_ui == "_connected_geometry_mesh_type_collision":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_collision"
-                elif mesh_type_ui == "_connected_geometry_mesh_type_physics":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_physics"
-                    nwo.mesh_primitive_type = nwo.mesh_primitive_type_ui
-                elif (
-                    mesh_type_ui == "_connected_geometry_mesh_type_object_instance"
-                    and not is_corinth()
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
-                else:
-                    nwo.mesh_type = "_connected_geometry_mesh_type_default"
-
-            if asset_type in ("SCENARIO", "PREFAB"):
-                if mesh_type_ui == "_connected_geometry_mesh_type_poop":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-                    nwo.poop_lighting = nwo.poop_lighting_ui
-                    nwo.poop_pathfinding = nwo.poop_pathfinding_ui
-                    nwo.poop_imposter_policy = nwo.poop_imposter_policy_ui
-                    if (
-                        nwo.poop_imposter_policy
-                        != "_connected_poop_instance_imposter_policy_never"
-                    ):
-                        if not nwo.poop_imposter_transition_distance_auto:
-                            nwo.poop_imposter_transition_distance = (
-                                nwo.poop_imposter_transition_distance_ui
-                            )
-                            if not reach:
-                                nwo.poop_imposter_brightness = (
-                                    nwo.poop_imposter_brightness_ui
-                                )
-
-                    if nwo.poop_render_only_ui:
-                        nwo.poop_render_only = "1"
-                    if nwo.poop_chops_portals_ui:
-                        nwo.poop_chops_portals = "1"
-                    if nwo.poop_does_not_block_aoe_ui:
-                        nwo.poop_does_not_block_aoe = "1"
-                    if nwo.poop_excluded_from_lightprobe_ui:
-                        nwo.poop_excluded_from_lightprobe = "1"
-                    if nwo.poop_decal_spacing_ui:
-                        nwo.poop_decal_spacing = "1"
-
-                    if not reach:
-                        nwo.poop_collision_type = nwo.poop_collision_type_ui
-                        nwo.poop_streaming_priority = nwo.poop_streaming_priority_ui
-                        nwo.poop_cinematic_properties = nwo.poop_cinematic_properties_ui
-                        if nwo.poop_remove_from_shadow_geometry_ui:
-                            nwo.poop_remove_from_shadow_geometry = "1"
-                        if nwo.poop_disallow_lighting_samples_ui:
-                            nwo.poop_disallow_lighting_samples = "1"
-                elif mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                    nwo.poop_collision_type = nwo.poop_collision_type_ui
-                    if reach:
-                        nwo.reach_poop_collision = True
-                        
-                elif mesh_type_ui == "_connected_geometry_mesh_type_seam":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_seam"
-                    self.seams.append(ob)
-
-                elif mesh_type_ui == "_connected_geometry_mesh_type_portal":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_portal"
-                    nwo.portal_type = nwo.portal_type_ui
-                    if nwo.portal_ai_deafening_ui:
-                        nwo.portal_ai_deafening = "1"
-                    if nwo.portal_blocks_sounds_ui:
-                        nwo.portal_blocks_sounds = "1"
-                    if nwo.portal_is_door_ui:
-                        nwo.portal_is_door = "1"
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_water_surface"
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
-                    nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
-                ):
-                    nwo.mesh_type = (
-                        "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
+            
+    def setup_poop_props(self, nwo, h4):
+        nwo.poop_lighting = nwo.poop_lighting_ui
+        nwo.poop_pathfinding = nwo.poop_pathfinding_ui
+        nwo.poop_imposter_policy = nwo.poop_imposter_policy_ui
+        if (
+            nwo.poop_imposter_policy
+            != "_connected_poop_instance_imposter_policy_never"
+        ):
+            if not nwo.poop_imposter_transition_distance_auto:
+                nwo.poop_imposter_transition_distance = (
+                    nwo.poop_imposter_transition_distance_ui
+                )
+                if h4:
+                    nwo.poop_imposter_brightness = (
+                        nwo.poop_imposter_brightness_ui
                     )
 
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_planar_fog_volume"
-                ):
-                    nwo.mesh_type = (
-                        "_connected_geometry_mesh_type_planar_fog_volume"
-                    )
-                    nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
-                    nwo.fog_volume_depth = jstr(nwo.fog_volume_depth_ui)
+        if nwo.poop_render_only_ui:
+            nwo.poop_render_only = "1"
+        if nwo.poop_chops_portals_ui:
+            nwo.poop_chops_portals = "1"
+        if nwo.poop_does_not_block_aoe_ui:
+            nwo.poop_does_not_block_aoe = "1"
+        if nwo.poop_excluded_from_lightprobe_ui:
+            nwo.poop_excluded_from_lightprobe = "1"
+        if nwo.poop_decal_spacing_ui:
+            nwo.poop_decal_spacing = "1"
 
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_soft_ceiling"
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-                    nwo.boundary_surface_type = (
-                        "_connected_geometry_boundary_surface_type_soft_ceiling"
-                    )
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_soft_kill"
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-                    nwo.boundary_surface_type = (
-                        "_connected_geometry_boundary_surface_type_soft_kill"
-                    )
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_slip_surface"
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
-                    nwo.boundary_surface_type = (
-                        "_connected_geometry_boundary_surface_type_slip_surface"
-                    )
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_water_physics_volume"
-                ):
-                    nwo.mesh_type = (
-                        "_connected_geometry_mesh_type_water_physics_volume"
-                    )
-                    nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
-                    nwo.water_volume_flow_direction = jstr(
-                        nwo.water_volume_flow_direction_ui
-                    )
-                    nwo.water_volume_flow_velocity = jstr(
-                        nwo.water_volume_flow_velocity_ui
-                    )
-                    if reach:
-                        nwo.water_volume_fog_color = color_argb_str(
-                            nwo.water_volume_fog_color_ui
-                        )
-                    else:
-                        nwo.water_volume_fog_color = color_rgba_str(
-                            nwo.water_volume_fog_color_ui
-                        )
-                    nwo.water_volume_fog_murkiness = jstr(
-                        nwo.water_volume_fog_murkiness_ui
-                    )
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_cookie_cutter"
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_lightmap_exclude"
-                    and not reach
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
-                    nwo.obb_volume_type = "_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume"
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_streaming"
-                    and not reach
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
-                    nwo.obb_volume_type = (
-                        "_connected_geometry_mesh_obb_volume_type_streamingvolume"
-                    )
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_lightmap_region"
-                    and reach
-                ):
-                    nwo.mesh_type = "_connected_geometry_mesh_type_lightmap_region"
-
-                elif (
-                    mesh_type_ui
-                    == "_connected_geometry_mesh_type_poop_rain_blocker"
-                ):
-                    nwo.poop_rain_occluder = "1"
-                    if reach:
-                        nwo.mesh_type = (
-                            "_connected_geometry_mesh_type_poop_rain_blocker"
-                        )
-                    else:
-                        nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-                else:
-                    nwo.mesh_type = "_connected_geometry_mesh_type_default"
-
-            if asset_type == "SKY":
-                nwo.region_name = true_region(nwo)
-                nwo.mesh_type = "_connected_geometry_mesh_type_default"
-
-            if asset_type == "DECORATOR SET":
-                nwo.mesh_type = "_connected_geometry_mesh_type_decorator"
-                nwo.region_name = true_region(nwo)
-                nwo.decorator_lod = str(self.decorator_int(ob))
-
-            if asset_type == "PARTICLE MODEL":
-                nwo.mesh_type = "_connected_geometry_mesh_type_default"
-
-            if asset_type == "PREFAB":
-                if mesh_type_ui == "_connected_geometry_mesh_type_poop_collision":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                elif mesh_type_ui == "_connected_geometry_mesh_type_cookie_cutter":
-                    nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
-                else:
-                    nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-
-        # get marker type
-        elif nwo.object_type == "_connected_geometry_object_type_marker":
-            if asset_type == "MODEL":
-                nwo.marker_all_regions = bool_str(nwo.marker_all_regions_ui)
-                if nwo.marker_all_regions == "0":
-                    nwo.region_name = true_region(nwo)
-                m_perms = nwo.marker_permutations
-                if m_perms:
-                    m_perm_set = set()
-                    for perm in m_perms:
-                        m_perm_set.add(perm.permutation)
-                    m_person_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
-                    if nwo.marker_permutation_type == "exclude":
-                        nwo.marker_exclude_perms = m_person_json_value
-                    else:
-                        nwo.marker_include_perms = m_person_json_value
-
-
-                if marker_type_ui == "_connected_geometry_marker_type_hint":
-                    nwo.marker_type = "_connected_geometry_marker_type_hint"
-                    if not reach:
-                        max_abs_scale = max(
-                            abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)
-                        )
-                        if ob.type == "EMPTY":
-                            nwo.marker_hint_length = jstr(
-                                ob.empty_display_size * 2 * max_abs_scale
-                            )
-                        elif ob.type in ("MESH", "CURVE", "META", "SURFACE", "FONT"):
-                            nwo.marker_hint_length = jstr(
-                                max(ob.dimensions * max_abs_scale)
-                            )
-
-                    ob.name = "hint_"
-                    if nwo.marker_hint_type == "bunker":
-                        ob.name += "bunker"
-                    elif nwo.marker_hint_type == "corner":
-                        ob.name += "corner_"
-                        if nwo.marker_hint_side == "right":
-                            ob.name += "right"
-                        else:
-                            ob.name += "left"
-
-                    else:
-                        if nwo.marker_hint_type == "vault":
-                            ob.name += "vault_"
-                        elif nwo.marker_hint_type == "mount":
-                            ob.name += "mount_"
-                        else:
-                            ob.name += "hoist_"
-
-                        if nwo.marker_hint_height == "step":
-                            ob.name += "step"
-                        elif nwo.marker_hint_height == "crouch":
-                            ob.name += "crouch"
-                        else:
-                            ob.name += "stand"
-
-                elif (
-                    marker_type_ui
-                    == "_connected_geometry_marker_type_pathfinding_sphere"
-                ):
-                    nwo.marker_type = (
-                        "_connected_geometry_marker_type_pathfinding_sphere"
-                    )
-                    set_marker_sphere_size(ob, nwo)
-                    nwo.marker_pathfinding_sphere_vehicle = bool_str(
-                        nwo.marker_pathfinding_sphere_vehicle_ui
-                    )
-                    nwo.pathfinding_sphere_remains_when_open = bool_str(
-                        nwo.pathfinding_sphere_remains_when_open_ui
-                    )
-                    nwo.pathfinding_sphere_with_sectors = bool_str(
-                        nwo.pathfinding_sphere_with_sectors_ui
-                    )
-
-                elif (
-                    marker_type_ui
-                    == "_connected_geometry_marker_type_physics_constraint"
-                ):
-                    nwo.marker_type = nwo.physics_constraint_type_ui
-                    parent = nwo.physics_constraint_parent_ui
-                    if (
-                        parent is not None
-                        and parent.type == "ARMATURE"
-                        and nwo.physics_constraint_parent_bone_ui != ""
-                    ):
-                        nwo.physics_constraint_parent = (
-                            nwo.physics_constraint_parent_bone_ui
-                        )
-
-                    elif parent is not None:
-                        nwo.physics_constraint_parent = str(
-                            nwo.physics_constraint_parent_ui.name
-                        )
-                    child = nwo.physics_constraint_child_ui
-                    if (
-                        child is not None
-                        and child.type == "ARMATURE"
-                        and nwo.physics_constraint_child_bone_ui != ""
-                    ):
-                        nwo.physics_constraint_child = (
-                            nwo.physics_constraint_child_bone_ui
-                        )
-
-                    elif child is not None:
-                        nwo.physics_constraint_child = str(
-                            nwo.physics_constraint_child_ui.name
-                        )
-                    nwo.physics_constraint_uses_limits = bool_str(
-                        nwo.physics_constraint_uses_limits_ui
-                    )
-                    nwo.hinge_constraint_minimum = jstr(nwo.hinge_constraint_minimum_ui)
-                    nwo.hinge_constraint_maximum = jstr(nwo.hinge_constraint_maximum_ui)
-                    nwo.cone_angle = jstr(nwo.cone_angle_ui)
-                    nwo.plane_constraint_minimum = jstr(nwo.plane_constraint_minimum_ui)
-                    nwo.plane_constraint_maximum = jstr(nwo.plane_constraint_maximum_ui)
-                    nwo.twist_constraint_start = jstr(nwo.twist_constraint_start_ui)
-                    nwo.twist_constraint_end = jstr(nwo.twist_constraint_end_ui)
-
-                elif marker_type_ui == "_connected_geometry_marker_type_target":
-                    nwo.marker_type = "_connected_geometry_marker_type_target"
-                    set_marker_sphere_size(ob, nwo)
-                elif marker_type_ui == "_connected_geometry_marker_type_effects":
-                    if not ob.name.startswith("fx_"):
-                        ob.name = "fx_" + ob.name
-                        nwo.marker_type = "_connected_geometry_marker_type_model"
-                elif (
-                    not reach
-                    and marker_type_ui == "_connected_geometry_marker_type_airprobe"
-                ):
-                    nwo.marker_type = "_connected_geometry_marker_type_airprobe"
-                else:
-                    nwo.marker_type = "_connected_geometry_marker_type_model"
-                    if nwo.marker_type == "_connected_geometry_marker_type_garbage":
-                        nwo.marker_velocity = vector_str(nwo.marker_velocity_ui)
-
-            elif asset_type in ("SCENARIO", "PREFAB"):
-                if (
-                    marker_type_ui
-                    == "_connected_geometry_marker_type_game_instance"
-                ):
-                    nwo.marker_game_instance_tag_name = (
-                        nwo.marker_game_instance_tag_name_ui
-                    )
-                    if not reach and nwo.marker_game_instance_tag_name.lower().endswith(
-                        ".prefab"
-                    ):
-                        nwo.marker_type = "_connected_geometry_marker_type_prefab"
-                    elif (
-                        not reach
-                        and nwo.marker_game_instance_tag_name.lower().endswith(
-                            ".cheap_light"
-                        )
-                    ):
-                        nwo.marker_type = "_connected_geometry_marker_type_cheap_light"
-                    elif (
-                        not reach
-                        and nwo.marker_game_instance_tag_name.lower().endswith(".light")
-                    ):
-                        nwo.marker_type = "_connected_geometry_marker_type_light"
-                    elif (
-                        not reach
-                        and nwo.marker_game_instance_tag_name.lower().endswith(".leaf")
-                    ):
-                        nwo.marker_type = "_connected_geometry_marker_type_falling_leaf"
-                    else:
-                        nwo.marker_type = (
-                            "_connected_geometry_marker_type_game_instance"
-                        )
-                        nwo.marker_game_instance_tag_variant_name = (
-                            nwo.marker_game_instance_tag_variant_name_ui
-                        )
-                        if not reach:
-                            nwo.marker_game_instance_run_scripts = bool_str(
-                                nwo.marker_game_instance_run_scripts_ui
-                            )
-                elif (
-                    not reach
-                    and marker_type_ui == "_connected_geometry_marker_type_airprobe"
-                ):
-                    nwo.marker_type = "_connected_geometry_marker_type_airprobe"
-                elif (
-                    not reach
-                    and marker_type_ui == "_connected_geometry_marker_type_envfx"
-                ):
-                    nwo.marker_type = "_connected_geometry_marker_type_envfx"
-                    nwo.marker_looping_effect = nwo.marker_looping_effect_ui
-                elif (
-                    not reach
-                    and marker_type_ui
-                    == "_connected_geometry_marker_type_lightcone"
-                ):
-                    nwo.marker_type = "_connected_geometry_marker_type_lightcone"
-                    nwo.marker_light_cone_tag = nwo.marker_light_cone_tag_ui
-                    nwo.marker_light_cone_color = color_3p_str(
-                        nwo.marker_light_cone_color_ui
-                    )
-                    nwo.marker_light_cone_alpha = jstr(nwo.marker_light_cone_alpha_ui)
-                    nwo.marker_light_cone_width = jstr(nwo.marker_light_cone_width_ui)
-                    nwo.marker_light_cone_length = jstr(nwo.marker_light_cone_length_ui)
-                    nwo.marker_light_cone_intensity = jstr(
-                        nwo.marker_light_cone_intensity_ui
-                    )
-                    nwo.marker_light_cone_curve = nwo.marker_light_cone_curve_ui
-                elif (
-                    marker_type_ui
-                    == "_connected_geometry_marker_type_water_volume_flow"
-                ):
-                    # water volume markers are for the blend scene only
-                    self.unlink(ob)
-                else:
-                    nwo.marker_type = "_connected_geometry_marker_type_model"
-
+        if h4:
+            nwo.poop_collision_type = nwo.poop_collision_type_ui
+            nwo.poop_streaming_priority = nwo.poop_streaming_priority_ui
+            nwo.poop_cinematic_properties = nwo.poop_cinematic_properties_ui
+            if nwo.poop_remove_from_shadow_geometry_ui:
+                nwo.poop_remove_from_shadow_geometry = "1"
+            if nwo.poop_disallow_lighting_samples_ui:
+                nwo.poop_disallow_lighting_samples = "1"
+            
+    def setup_mesh_properties(self, ob, mesh_type, asset_type, h4, nwo):
+        nwo.mesh_type = mesh_type
+        if mesh_type == "_connected_geometry_mesh_type_physics":
+            nwo.mesh_primitive_type = nwo.mesh_primitive_type_ui
+        elif mesh_type == '_connected_geometry_mesh_type_poop':
+            self.setup_poop_props(nwo, h4)
+                    
+        elif mesh_type == "_connected_geometry_mesh_type_seam":
+            self.seams.append(ob)
+            
+        elif mesh_type == "_connected_geometry_mesh_type_portal":
+            nwo.portal_type = nwo.portal_type_ui
+            if nwo.portal_ai_deafening_ui:
+                nwo.portal_ai_deafening = "1"
+            if nwo.portal_blocks_sounds_ui:
+                nwo.portal_blocks_sounds = "1"
+            if nwo.portal_is_door_ui:
+                nwo.portal_is_door = "1"
+                
+        elif mesh_type == "_connected_geometry_mesh_type_water_surface":
+            nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
+            
+        elif mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
+            nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
+            nwo.fog_volume_depth = jstr(nwo.fog_volume_depth_ui)
+            
+        elif mesh_type == "_connected_geometry_mesh_type_soft_ceiling":
+            nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+            nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_ceiling'
+            
+        elif mesh_type == "_connected_geometry_mesh_type_soft_kill":
+            nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+            nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_soft_kill'
+            
+        elif mesh_type == "_connected_geometry_mesh_type_slip_surface":
+            nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
+            nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_slip_surface'
+            
+        elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
+            nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
+            nwo.water_volume_flow_direction = jstr(nwo.water_volume_flow_direction_ui)
+            nwo.water_volume_flow_velocity = jstr(nwo.water_volume_flow_velocity_ui)
+            nwo.water_volume_fog_murkiness = jstr(nwo.water_volume_fog_murkiness_ui)
+            if h4:
+                nwo.water_volume_fog_color = color_rgba_str(nwo.water_volume_fog_color_ui)
             else:
-                nwo.marker_type = "_connected_geometry_marker_type_model"
-
-        #  Handling mesh level properties
-        # --------------------------------------
-        # NOTE not sure if mesh_compression needs to be exposed. Need to test what it does exactly
-        # if nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_decorator', '_connected_geometry_mesh_type_water_surface'):
-        #     nwo.mesh_compression = nwo.mesh_compression_ui
+                nwo.water_volume_fog_color = color_argb_str(nwo.water_volume_fog_color_ui)
+                
+        elif mesh_type == "_connected_geometry_mesh_type_lightmap_exclude":
+            nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
+            nwo.obb_volume_type = "_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume"
+            
+        elif mesh_type == "_connected_geometry_mesh_type_streaming":
+            nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
+            nwo.obb_volume_type = "_connected_geometry_mesh_obb_volume_type_streamingvolume"
+            
+        elif mesh_type == '_connected_geometry_mesh_type_collision' and asset_type in ('SCENARIO', 'PREFAB'):
+            nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+            nwo.poop_collision_type = nwo.poop_collision_type_ui
+        
+        elif asset_type == 'PREFAB':
+            nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+            self.setup_poop_props(nwo, h4)
+            
+        elif asset_type == 'DECORATOR SET':
+            nwo.mesh_type = '_connected_geometry_mesh_type_decorator'
+            nwo.decorator_lod = str(self.decorator_int(ob))
+        
+        
+        # MESH LEVEL PROPERTIES
         if nwo.mesh_type in (
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_physics",
@@ -2344,27 +1985,28 @@ class PrepareScene:
             "_connected_geometry_mesh_type_poop",
             "_connected_geometry_mesh_type_poop_collision",
         ):
+            nwo_data = ob.data.nwo
             if asset_type in ("SCENARIO", "PREFAB") or nwo.mesh_type in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
-            ) and not (reach and nwo.mesh_type in "_connected_geometry_mesh_type_poop"):
+            ) and not (not h4 and nwo.mesh_type in "_connected_geometry_mesh_type_poop"):
                 
-                nwo.face_global_material = nwo.face_global_material_ui
-                if nwo.mesh_type != "_connected_geometry_mesh_type_physics" and reach:
-                    if nwo.ladder_ui:
+                nwo.face_global_material = nwo_data.face_global_material_ui
+                if nwo.mesh_type != "_connected_geometry_mesh_type_physics" and not h4:
+                    if nwo_data.ladder_ui:
                         nwo.ladder = "1"
-                    if nwo.slip_surface_ui:
+                    if nwo_data.slip_surface_ui:
                         nwo.slip_surface = "1"
             if nwo.mesh_type != "_connected_geometry_mesh_type_physics":
                 # Handle face sides, game wants an enum but Foundry uses flags
                 face_sides_value = "_connected_geometry_face_sides_"
-                has_transparency = nwo.face_transparent_ui and nwo.mesh_type in RENDER_MESH_TYPES
-                if nwo.face_two_sided_ui:
+                has_transparency = nwo_data.face_transparent_ui and nwo.mesh_type in RENDER_MESH_TYPES
+                if nwo_data.face_two_sided_ui:
                     # Only h4+ support properties for the backside face
-                    if reach or nwo.mesh_type not in RENDER_MESH_TYPES:
+                    if not h4 or nwo.mesh_type not in RENDER_MESH_TYPES:
                         face_sides_value += "two_sided"
                     else:
-                        face_sides_value += nwo.face_two_sided_type_ui
+                        face_sides_value += nwo_data.face_two_sided_type_ui
                     # Add transparency if set
                     if has_transparency:
                         face_sides_value += "_transparent"
@@ -2379,28 +2021,28 @@ class PrepareScene:
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_poop",
             ):
-                if nwo.precise_position_ui:
+                if nwo_data.precise_position_ui:
                     nwo.precise_position = "1"
                 # if nwo.face_draw_distance_active:
                 #     nwo.face_draw_distance = nwo.face_draw_distance_ui
                 # if nwo.texcoord_usage_active:
                 #     nwo.texcoord_usage = nwo.texcoord_usage_ui
-                if nwo.decal_offset_ui:
+                if nwo_data.decal_offset_ui:
                     nwo.decal_offset = "1"
             if asset_type in ("SCENARIO", "PREFAB"):
                 h4_structure = (
-                    not reach
+                    h4
                     and nwo.mesh_type == "_connected_geometry_mesh_type_default"
                 )
-                if nwo.face_type_active or h4_structure:
+                if nwo_data.face_type_active or h4_structure:
                     if h4_structure:
                         nwo.face_type = "_connected_geometry_face_type_sky"
                     else:
-                        if not reach or nwo.face_type_ui == "_connected_geometry_face_type_sky":
+                        if h4 or nwo_data.face_type_ui == "_connected_geometry_face_type_sky":
                             # enforces that only structure gets the sky property
                             if nwo.mesh_type == "_connected_geometry_mesh_type_default":
-                                nwo.face_type = nwo.face_type_ui
-                            elif not reach:
+                                nwo.face_type = nwo_data.face_type_ui
+                            elif h4:
                                 # h4 seamsealer interacts with projectiles by default. We don't want this, so instead force it to poop wall collision
                                 nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
                                 nwo.poop_collision_type = "_connected_geometry_poop_collision_type_invisible_wall"
@@ -2408,85 +2050,242 @@ class PrepareScene:
                                 nwo.face_type = "_connected_geometry_face_type_seam_sealer"
                                     
                     if nwo.face_type == "_connected_geometry_face_type_sky":
-                            nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
+                            nwo.sky_permutation_index = str(nwo_data.sky_permutation_index_ui)
 
                     if nwo.face_type == "_connected_geometry_face_type_sky":
-                        nwo.sky_permutation_index = str(nwo.sky_permutation_index_ui)
-                if nwo.face_mode_active:
-                    nwo.face_mode = nwo.face_mode_ui
+                        nwo.sky_permutation_index = str(nwo_data.sky_permutation_index_ui)
+                if nwo_data.face_mode_active:
+                    nwo.face_mode = nwo_data.face_mode_ui
                 # NOTE I don't think this actually does anything in Reach+
                 # if nwo.group_transparents_by_plane:
                 #     nwo.group_transparents_by_plane = bool_str(
                 #         nwo.group_transparents_by_plane_ui
                 #     )
-                if nwo.no_shadow_ui:
+                if nwo_data.no_shadow_ui:
                     nwo.no_shadow = "1"
-                if not reach:
-                    if nwo.no_lightmap_ui:
+                if h4:
+                    if nwo_data.no_lightmap_ui:
                         nwo.no_lightmap = "1"
-                    if nwo.no_pvs_ui:
+                    if nwo_data.no_pvs_ui:
                         nwo.no_pvs = "1"
-                    if nwo.uvmirror_across_entire_model_active:
-                        nwo.uvmirror_across_entire_model = bool_str(
-                            nwo.uvmirror_across_entire_model_ui
-                        )
-                if nwo.lightmap_additive_transparency_active:
-                    nwo.lightmap_additive_transparency =  color_4p_str(nwo.lightmap_additive_transparency_ui)
-                if nwo.lightmap_resolution_scale_active:
+                    if nwo_data.uvmirror_across_entire_model_ui:
+                        nwo.uvmirror_across_entire_model = "1"
+                if nwo_data.lightmap_additive_transparency_active:
+                    nwo.lightmap_additive_transparency =  color_4p_str(nwo_data.lightmap_additive_transparency_ui)
+                if nwo_data.lightmap_resolution_scale_active:
                     nwo.lightmap_resolution_scale = jstr(
-                        nwo.lightmap_resolution_scale_ui
+                        nwo_data.lightmap_resolution_scale_ui
                     )
                 # if nwo.lightmap_photon_fidelity_active: TODO Restore this
                 #     nwo.lightmap_photon_fidelity = (
                 #         nwo.lightmap_photon_fidelity_ui
                 #     )
-                if nwo.lightmap_type_active:
-                    nwo.lightmap_type = nwo.lightmap_type_ui
-                if nwo.lightmap_analytical_bounce_modifier_active:
+                if nwo_data.lightmap_type_active:
+                    nwo.lightmap_type = nwo_data.lightmap_type_ui
+                if nwo_data.lightmap_analytical_bounce_modifier_active:
                     nwo.lightmap_analytical_bounce_modifier = jstr(
-                        nwo.lightmap_analytical_bounce_modifier_ui
+                        nwo_data.lightmap_analytical_bounce_modifier_ui
                     )
-                if nwo.lightmap_general_bounce_modifier_active:
+                if nwo_data.lightmap_general_bounce_modifier_active:
                     nwo.lightmap_general_bounce_modifier = jstr(
-                        nwo.lightmap_general_bounce_modifier_ui
+                        nwo_data.lightmap_general_bounce_modifier_ui
                     )
-                if nwo.lightmap_translucency_tint_color_active:
+                if nwo_data.lightmap_translucency_tint_color_active:
                     nwo.lightmap_translucency_tint_color = color_4p_str(
-                        nwo.lightmap_translucency_tint_color_ui
+                        nwo_data.lightmap_translucency_tint_color_ui
                     )
 
-                if nwo.lightmap_lighting_from_both_sides_active:
+                if nwo_data.lightmap_lighting_from_both_sides_active:
                     nwo.lightmap_lighting_from_both_sides = bool_str(
-                        nwo.lightmap_lighting_from_both_sides_ui
+                        nwo_data.lightmap_lighting_from_both_sides_ui
                     )
-                if nwo.emissive_active:
+                if nwo_data.emissive_active:
                     nwo.material_lighting_attenuation_falloff = jstr(
-                        nwo.material_lighting_attenuation_falloff_ui * 100
+                        nwo_data.material_lighting_attenuation_falloff_ui * 100
                     )
                     nwo.material_lighting_attenuation_cutoff = jstr(
-                        nwo.material_lighting_attenuation_cutoff_ui * 100
+                        nwo_data.material_lighting_attenuation_cutoff_ui * 100
                     )
                     nwo.material_lighting_emissive_focus = jstr(
-                        nwo.material_lighting_emissive_focus_ui
+                        nwo_data.material_lighting_emissive_focus_ui
                     )
                     nwo.material_lighting_emissive_color = color_4p_str(
-                        nwo.material_lighting_emissive_color_ui
+                        nwo_data.material_lighting_emissive_color_ui
                     )
                     nwo.material_lighting_emissive_per_unit = bool_str(
-                        nwo.material_lighting_emissive_per_unit_ui
+                        nwo_data.material_lighting_emissive_per_unit_ui
                     )
                     nwo.material_lighting_emissive_power = jstr(
-                        nwo.material_lighting_emissive_power_ui
+                        nwo_data.material_lighting_emissive_power_ui
                     )
                     nwo.material_lighting_emissive_quality = jstr(
-                        nwo.material_lighting_emissive_quality_ui
+                        nwo_data.material_lighting_emissive_quality_ui
                     )
                     nwo.material_lighting_use_shader_gel = bool_str(
-                        nwo.material_lighting_use_shader_gel_ui
+                        nwo_data.material_lighting_use_shader_gel_ui
                     )
                     nwo.material_lighting_bounce_ratio = jstr(
-                        nwo.material_lighting_bounce_ratio_ui
+                        nwo_data.material_lighting_bounce_ratio_ui
                     )
+
+    
+    def setup_marker_properties(self, ob, marker_type, asset_type, h4, nwo):
+        nwo.marker_type = marker_type
+        if asset_type in ('MODEL', 'SKY'):
+            nwo.marker_all_regions = bool_str(nwo.marker_all_regions_ui)
+            if nwo.marker_all_regions == "0":
+                nwo.region_name = true_region(nwo)
+            m_perms = nwo.marker_permutations
+            if m_perms:
+                m_perm_set = set()
+                for perm in m_perms:
+                    m_perm_set.add(perm.permutation)
+                m_person_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
+                if nwo.marker_permutation_type == "exclude":
+                    nwo.marker_exclude_perms = m_person_json_value
+                else:
+                    nwo.marker_include_perms = m_person_json_value
+                    
+            if marker_type == "_connected_geometry_marker_type_hint":
+                if h4:
+                    max_abs_scale = max(
+                        abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)
+                    )
+                    if ob.type == "EMPTY":
+                        nwo.marker_hint_length = jstr(
+                            ob.empty_display_size * 2 * max_abs_scale
+                        )
+                    elif ob.type in ("MESH", "CURVE", "META", "SURFACE", "FONT"):
+                        nwo.marker_hint_length = jstr(
+                            max(ob.dimensions * max_abs_scale)
+                        )
+
+                ob.name = "hint_"
+                if nwo.marker_hint_type == "bunker":
+                    ob.name += "bunker"
+                elif nwo.marker_hint_type == "corner":
+                    ob.name += "corner_"
+                    if nwo.marker_hint_side == "right":
+                        ob.name += "right"
+                    else:
+                        ob.name += "left"
+
+                else:
+                    if nwo.marker_hint_type == "vault":
+                        ob.name += "vault_"
+                    elif nwo.marker_hint_type == "mount":
+                        ob.name += "mount_"
+                    else:
+                        ob.name += "hoist_"
+
+                    if nwo.marker_hint_height == "step":
+                        ob.name += "step"
+                    elif nwo.marker_hint_height == "crouch":
+                        ob.name += "crouch"
+                    else:
+                        ob.name += "stand"
+                        
+            elif marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
+                set_marker_sphere_size(ob, nwo)
+                nwo.marker_pathfinding_sphere_vehicle = bool_str(nwo.marker_pathfinding_sphere_vehicle_ui)
+                nwo.pathfinding_sphere_remains_when_open = bool_str(nwo.pathfinding_sphere_remains_when_open_ui)
+                nwo.pathfinding_sphere_with_sectors = bool_str(nwo.pathfinding_sphere_with_sectors_ui)
+                
+            elif marker_type == "_connected_geometry_marker_type_physics_constraint":
+                nwo.marker_type = nwo.physics_constraint_type_ui
+                parent = nwo.physics_constraint_parent_ui
+                if (
+                    parent is not None
+                    and parent.type == "ARMATURE"
+                    and nwo.physics_constraint_parent_bone_ui != ""
+                ):
+                    nwo.physics_constraint_parent = (
+                        nwo.physics_constraint_parent_bone_ui
+                    )
+
+                elif parent is not None:
+                    nwo.physics_constraint_parent = str(
+                        nwo.physics_constraint_parent_ui.name
+                    )
+                child = nwo.physics_constraint_child_ui
+                if (
+                    child is not None
+                    and child.type == "ARMATURE"
+                    and nwo.physics_constraint_child_bone_ui != ""
+                ):
+                    nwo.physics_constraint_child = (
+                        nwo.physics_constraint_child_bone_ui
+                    )
+
+                elif child is not None:
+                    nwo.physics_constraint_child = str(
+                        nwo.physics_constraint_child_ui.name
+                    )
+                nwo.physics_constraint_uses_limits = bool_str(
+                    nwo.physics_constraint_uses_limits_ui
+                )
+                nwo.hinge_constraint_minimum = jstr(nwo.hinge_constraint_minimum_ui)
+                nwo.hinge_constraint_maximum = jstr(nwo.hinge_constraint_maximum_ui)
+                nwo.cone_angle = jstr(nwo.cone_angle_ui)
+                nwo.plane_constraint_minimum = jstr(nwo.plane_constraint_minimum_ui)
+                nwo.plane_constraint_maximum = jstr(nwo.plane_constraint_maximum_ui)
+                nwo.twist_constraint_start = jstr(nwo.twist_constraint_start_ui)
+                nwo.twist_constraint_end = jstr(nwo.twist_constraint_end_ui)
+                
+            elif marker_type == "_connected_geometry_marker_type_target":
+                set_marker_sphere_size(ob, nwo)
+                
+            elif marker_type == "_connected_geometry_marker_type_effects":
+                if not ob.name.startswith("fx_"):
+                    ob.name = "fx_" + ob.name
+                    nwo.marker_type = "_connected_geometry_marker_type_model"
+                    
+            elif marker_type == "_connected_geometry_marker_type_garbage":
+                nwo.marker_type = "_connected_geometry_marker_type_model"
+                nwo.marker_velocity = vector_str(nwo.marker_velocity_ui)
+        
+        elif asset_type in ("SCENARIO", "PREFAB"):
+            if marker_type == "_connected_geometry_marker_type_game_instance":
+                nwo.marker_game_instance_tag_name = (
+                    nwo.marker_game_instance_tag_name_ui
+                )
+                if h4 and nwo.marker_game_instance_tag_name.lower().endswith(
+                    ".prefab"
+                ):
+                    nwo.marker_type = "_connected_geometry_marker_type_prefab"
+                elif (
+                    h4
+                    and nwo.marker_game_instance_tag_name.lower().endswith(
+                        ".cheap_light"
+                    )
+                ):
+                    nwo.marker_type = "_connected_geometry_marker_type_cheap_light"
+                elif (
+                    h4
+                    and nwo.marker_game_instance_tag_name.lower().endswith(".light")
+                ):
+                    nwo.marker_type = "_connected_geometry_marker_type_light"
+                elif (
+                    h4
+                    and nwo.marker_game_instance_tag_name.lower().endswith(".leaf")
+                ):
+                    nwo.marker_type = "_connected_geometry_marker_type_falling_leaf"
+                else:
+                    nwo.marker_game_instance_tag_variant_name = (nwo.marker_game_instance_tag_variant_name_ui)
+                    if h4:
+                        nwo.marker_game_instance_run_scripts = bool_str(nwo.marker_game_instance_run_scripts_ui)
+            
+            elif marker_type == "_connected_geometry_marker_type_envfx":
+                nwo.marker_looping_effect = nwo.marker_looping_effect_ui
+                
+            elif marker_type == "_connected_geometry_marker_type_lightCone":
+                nwo.marker_light_cone_tag = nwo.marker_light_cone_tag_ui
+                nwo.marker_light_cone_color = color_3p_str(nwo.marker_light_cone_color_ui)
+                nwo.marker_light_cone_alpha = jstr(nwo.marker_light_cone_alpha_ui)
+                nwo.marker_light_cone_width = jstr(nwo.marker_light_cone_width_ui)
+                nwo.marker_light_cone_length = jstr(nwo.marker_light_cone_length_ui)
+                nwo.marker_light_cone_intensity = jstr(nwo.marker_light_cone_intensity_ui )
+                nwo.marker_light_cone_curve = nwo.marker_light_cone_curve_ui
 
     def strip_prefix(self, ob, protected_names):
         name = ob.name.lower()
@@ -2519,31 +2318,6 @@ class PrepareScene:
             if not ob.name.rpartition(".")[0]:
                 ob.name += "."
             ob.name += "padding"
-
-    def set_object_type(self, ob, ob_type, nwo, is_valid_object_type):
-        if ob_type == "LIGHT":
-            nwo.object_type = "_connected_geometry_object_type_light"
-        elif ob_type == "CAMERA":
-            # don't export cameras
-            self.unlink(ob)
-            # ob.nwo.object_type = '_connected_geometry_object_type_animation_camera'
-        elif ob_type == "ARMATURE":
-            nwo.object_type = "_connected_geometry_object_type_frame"
-        elif ob_type == "EMPTY":
-            if (
-                ob.children
-                or nwo.object_type_ui != "_connected_geometry_object_type_marker"
-            ):
-                nwo.object_type = "_connected_geometry_object_type_frame"
-            else:
-                nwo.object_type = "_connected_geometry_object_type_marker"
-
-        elif is_valid_object_type:
-            nwo.object_type = nwo.object_type_ui
-        else:
-            # Mesh invalid, don't export
-            print(f"{ob.name} is invalid. Skipping export")
-            self.unlink(ob)
 
     def apply_namespaces(self, ob, asset):
         """Reads the objects halo properties and then applies the appropriate maya namespace, or optionally a set namespace if a second arg is passed"""
