@@ -1366,7 +1366,7 @@ class NWO_FoundryPanelProps(Panel):
                 )
 
         if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
-            if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default") or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
+            if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui('SCENARIO')) or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 return
             col2 = col.column()
             col2.separator()
