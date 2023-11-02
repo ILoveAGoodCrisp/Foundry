@@ -3065,12 +3065,7 @@ def add_halo_scale_model_button(self, context):
     )
 
 def add_halo_armature_buttons(self, context):
-    self.layout.operator(
-        "nwo.armature_create",
-        text="Halo Skeleton",
-        icon_value=get_icon_id("rig_creator"),
-    ).rig = "PEDESTAL"
-
+    self.layout.operator("nwo.armature_create", text="Halo Skeleton", icon_value=get_icon_id("rig_creator"))
 
 def create_halo_collection(self, context):
     self.layout.operator("nwo.collection_create" , text="", icon_value=get_icon_id("collection_creator"))
@@ -5224,7 +5219,7 @@ class NWO_AddPoseBones(Operator):
             elif os.path.exists(resources_zip):
                 file = extract_from_resources(control_bone_path)
                 if os.path.exists(file):
-                    import_gltf(full_path)
+                    import_gltf(file)
                     os.remove(file)
             else:
                 self.report({'ERROR'}, 'Failed to extract control shape')
@@ -5581,7 +5576,7 @@ class NWO_AddPedestalControl(Operator):
             elif os.path.exists(resources_zip):
                 file = extract_from_resources(control_bone_path)
                 if os.path.exists(file):
-                    import_gltf(full_path)
+                    import_gltf(file)
                     os.remove(file)
             else:
                 self.report({'ERROR'}, 'Failed to extract control shape')

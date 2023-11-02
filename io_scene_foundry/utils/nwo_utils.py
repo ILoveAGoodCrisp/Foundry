@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 import json
+import pathlib
 import subprocess
 import sys
 import winreg
@@ -1954,16 +1955,18 @@ def addon_root():
     return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 def extract_from_resources(relative_file_path):
-    relative_file_path.replace('\\', '/')
-    resources_zip = os.path.join(addon_root(), 'resources')
+    p = pathlib.PureWindowsPath(relative_file_path)
+    resources_zip = os.path.join(addon_root(), 'resources.zip')
+    os.chdir(addon_root())
     with zipfile.ZipFile(resources_zip, "r") as zip:
-        file = zip.extract(relative_file_path)
+        file = zip.extract(p.as_posix())
     return file
 
 def import_gltf(path):
     unit_settings = bpy.context.scene.unit_settings
     old_unit_scale = unit_settings.scale_length
     unit_settings.scale_length = 1
+    print(path)
     bpy.ops.import_scene.gltf(filepath=path, import_shading='FLAT')
     unit_settings.scale_length = old_unit_scale
 
