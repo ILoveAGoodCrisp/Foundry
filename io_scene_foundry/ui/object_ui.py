@@ -1209,7 +1209,7 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
     )
 
     def execute(self, context):
-        context.object.nwo.face_global_material_ui = self.material
+        context.object.data.nwo.face_global_material_ui = self.material
         return {"FINISHED"}
     
     def invoke(self, context, event):
