@@ -38,7 +38,7 @@ portal = {'full': 'portal:', 'legacy': ''}
 water_surface = {'full': 'water_surface:', 'legacy': ''}
 soft_ceiling = {'full': 'soft_ceiling:', 'legacy': ''}
 soft_kill = {'full': 'soft_kill:', 'legacy': ''}
-soft_surface = {'full': 'soft_surface:', 'legacy': ''}
+slip_surface = {'full': 'slip_surface:', 'legacy': ''}
 water_physics = {'full': 'water_physics:', 'legacy': ''}
 rain_blocker = {'full': 'rain_blocker:', 'legacy': ''}
 rain_sheet = {'full': 'rain_sheet:', 'legacy': ''}
@@ -61,7 +61,7 @@ target = {'full': 'target:', 'legacy': '#'}
 
 all_prefixes = []
 
-for dictionary in [render, decorator, collision, physics, flair, structure, instance, seam, portal, water_surface, soft_ceiling, soft_kill, soft_surface, water_physics, rain_blocker, rain_sheet, cookie_cutter, fog, lightmap, streaming, model, game_instance, envfx, lightcone, airprobe, effects, garbage, hint, pathfinding_sphere, physics_constraint, target]:
+for dictionary in [render, decorator, collision, physics, flair, structure, instance, seam, portal, water_surface, soft_ceiling, soft_kill, slip_surface, water_physics, rain_blocker, rain_sheet, cookie_cutter, fog, lightmap, streaming, model, game_instance, envfx, lightcone, airprobe, effects, garbage, hint, pathfinding_sphere, physics_constraint, target]:
     all_prefixes.extend(list(dictionary.values()))
 
 all_prefixes = [p for p in all_prefixes if p != '']
