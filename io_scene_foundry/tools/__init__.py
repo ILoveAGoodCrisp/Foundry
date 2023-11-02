@@ -43,6 +43,7 @@ from bpy.props import (
 )
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
+from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
@@ -2362,6 +2363,15 @@ class NWO_FoundryPanelProps(Panel):
         if poll_ui(('MODEL', 'FP ANIMATION', 'SKY')):
             box = self.box.box()
             self.draw_rig_tools(box)
+        elif poll_ui('SCENARIO'):
+            box = self.box.box()
+            self.draw_bsp_tools(box)
+            
+    def draw_bsp_tools(self, box):
+        row = box.row()
+        col = row.column()
+        col.label(text=f"BSP Tools")
+        col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
         
     def draw_rig_tools(self, box):
         row = box.row()
@@ -4864,23 +4874,6 @@ class NWO_AMFHelper(Panel):
         )
         col = flow.column()
         col.operator("nwo.amf_assign")
-
-
-class NWO_AutoSeam(Operator):
-    bl_idname = "nwo.auto_seam"
-    bl_label = "Auto Seam"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Automatically adds bsp seams to the blend scene"
-
-    @classmethod
-    def poll(cls, context):
-        return context.mode == "OBJECT"
-
-    def execute(self, context):
-        from .auto_seam import auto_seam
-
-        return auto_seam(context)
-
 
 class NWO_AnimationTools(Panel):
     bl_label = "Halo Animation Tools"

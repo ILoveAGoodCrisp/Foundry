@@ -140,9 +140,9 @@ else:
         for ob in bpy.data.objects:
             ob.nwo.mesh_type_ui_help_bool = True
             
-        prefs = get_prefs()
-        if prefs.poop_default:
-            scene_nwo.default_mesh_type_ui = '_connected_geometry_mesh_type_poop'
+        # prefs = get_prefs()
+        # if prefs.poop_default:
+        #     scene_nwo.default_mesh_type_ui = '_connected_geometry_mesh_type_poop'
         
         if not bpy.app.background:
             # Set game version from file
