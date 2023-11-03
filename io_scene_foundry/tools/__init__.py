@@ -94,6 +94,7 @@ from io_scene_foundry.utils.nwo_utils import (
     set_object_mode,
     true_permutation,
     true_region,
+    type_valid,
     unlink,
     valid_nwo_asset,
     poll_ui,
@@ -614,6 +615,10 @@ class NWO_FoundryPanelProps(Panel):
                 return
             display_name, icon_id = get_mesh_display(nwo.mesh_type_ui)
             row.menu('NWO_MT_MeshTypes', text=display_name, icon_value=icon_id)
+            if not type_valid(nwo.mesh_type_ui):
+                row = box.row()
+                row.label(text="Mesh Type Invalid for Asset/Game", icon='ERROR')
+                return
 
         if halo_light:
             col = box.column()
@@ -966,8 +971,8 @@ class NWO_FoundryPanelProps(Panel):
             elif nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_poop",
                 "_connected_geometry_mesh_type_default",
-            ):
-                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
+            ) and poll_ui(('SCENARIO', 'PREFAB')):
+                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui('SCENARIO'):
                     col.prop(nwo, "proxy_instance")
                 if nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop" or (
                     nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
@@ -1585,10 +1590,9 @@ class NWO_FoundryPanelProps(Panel):
                 col_ob.separator()
                 col_ob.menu(NWO_MeshPropAddMenu.bl_idname, text="Add Mesh Property", icon="PLUS")
 
-        if not has_face_props(ob) or not (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_default"):
-            return
-
-        self.draw_face_props(self.box, ob, context)
+        if has_face_props(ob):
+            self.draw_face_props(self.box, ob, context)
+  
         nwo = ob.data.nwo
         # Instance Proxy Operators
         if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop":
@@ -1668,7 +1672,7 @@ class NWO_FoundryPanelProps(Panel):
 
             if context.mode == "EDIT_MESH":
                 col = row.column(align=True)
-                if is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision":
+                if is_proxy or (ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision" and poll_ui(('SCENARIO', 'PREFAB'))):
                     col.operator("nwo.face_layer_add", text="", icon="ADD").options = "face_global_material"
                 else:
                     col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")

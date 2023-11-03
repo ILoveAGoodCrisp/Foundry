@@ -62,43 +62,41 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             layout.operator(self.op_prefix, text="Region").options = "region"
         # if (
         #     poll_ui("SCENARIO")
-        #     and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+        #     and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
         # ):
         #     layout.operator(self.op_prefix, text="Seam").options = "seam"
         if (h4 and
             (nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop"
-            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop_collision"
-            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure")
-        ) or (not h4 and nwo.mesh_type_ui in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision")):
+            or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui(('SCENARIO', 'PREFAB')))
+        ) or (not h4 and nwo.mesh_type_ui in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision"))):
             layout.operator(
                 self.op_prefix, text="Collision Material"
             ).options = "face_global_material"
         if nwo.mesh_type_ui in (
-            "_connected_geometry_mesh_type_render",
+            "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_poop",
-            "_connected_geometry_mesh_type_poop_collision",
             "_connected_geometry_mesh_type_collision",
         ):
             layout.operator(self.op_prefix, text="Two Sided").options = "two_sided"
-            layout.operator(self.op_prefix, text="Transparent").options = "transparent"
+            if nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+                layout.operator(self.op_prefix, text="Transparent").options = "transparent"
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
             if nwo.mesh_type_ui in (
-                "_connected_geometry_mesh_type_render",
+                "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_structure",
             ):
                 layout.operator(
                     self.op_prefix, text="Uncompressed"
                 ).options = "precise_position"
 
         if poll_ui(("SCENARIO", "PREFAB")):
-            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
                 layout.operator(
                     self.op_prefix, text="Sky"
                 ).options = "_connected_geometry_face_type_sky"
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
                 layout.operator(
                     self.op_prefix, text="Seam Sealer"
                 ).options = "_connected_geometry_face_type_seam_sealer"
@@ -136,7 +134,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     text="Lightmap",
                 )
 
-        if (poll_ui(("SCENARIO", "PREFAB")) and nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop_collision") or nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision":
+        if nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision" and not h4:
             layout.operator_menu_enum(
                 self.op_prefix + "_flags",
                 property="options",
@@ -163,8 +161,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
         ob = context.object
         valid_mesh_types = (
             "_connected_geometry_mesh_type_collision",
-            "_connected_geometry_mesh_type_structure",
-            "_connected_geometry_mesh_type_render",
+            "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_poop",
         )
         return (
@@ -998,7 +995,7 @@ class NWO_FaceLayerAddFlags(NWO_FaceLayerAdd):
 
     def get_options(self, context):
         items = []
-        render = context.object.nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_poop")
+        render = context.object.nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop")
         if render:
             items.append(("decal_offset", "Decal Offset", ""))
             items.append(("no_shadow", "No Shadow", ""))
@@ -1333,7 +1330,7 @@ class NWO_GlobalMaterialListFace(bpy.types.Operator):
         # get scene regions
         global_materials = ["default"]
         for ob in export_objects_no_arm():
-            global_material = ob.nwo.face_global_material_ui
+            global_material = ob.data.nwo.face_global_material_ui
             if global_material not in global_materials and global_material:
                 global_materials.append(global_material)
             # also need to loop through face props

@@ -691,7 +691,6 @@ class CheckType:
             ob,
             (
                 "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_poop_collision",
                 "_connected_geometry_mesh_type_poop_physics",
             ),
         )
@@ -709,7 +708,6 @@ class CheckType:
         return mesh_type(
             ob,
             (
-                "_connected_geometry_mesh_type_poop_collision",
                 "_connected_geometry_mesh_type_poop_physics",
             ),
         )
@@ -1675,8 +1673,9 @@ def has_face_props(ob) -> bool:
         "_connected_geometry_mesh_type_collision",
         "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_poop",
-        "_connected_geometry_mesh_type_poop_collision",
     )
+    if is_corinth() and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_default' and poll_ui('SCENARIO') and not ob.nwo.proxy_instance:
+        return
     return (
         ob
         and ob.nwo.export_this
@@ -1978,8 +1977,6 @@ def get_mesh_display(mesh_type):
             return 'Collision', get_icon_id('collider')
         case '_connected_geometry_mesh_type_physics':
             return 'Physics', get_icon_id('physics')
-        case '_connected_geometry_mesh_type_poop_collision':
-            return 'Collision', get_icon_id('collider')
         case '_connected_geometry_mesh_type_seam':
             return 'Seam', get_icon_id('seam')
         case '_connected_geometry_mesh_type_portal':
@@ -2075,5 +2072,9 @@ def get_object_type(ob):
     else:
         return '_connected_geometry_object_type_none'
     
-def type_valid(m_type, asset_type, game_version):
+def type_valid(m_type, asset_type=None, game_version=None):
+    if asset_type is None:
+        asset_type = bpy.context.scene.nwo.asset_type
+    if game_version is None:
+        game_version = 'corinth' if is_corinth() else 'reach'
     return asset_type in object_asset_validation[m_type] and game_version in object_game_validation[m_type]
