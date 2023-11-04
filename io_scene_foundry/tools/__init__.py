@@ -2501,11 +2501,11 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row(align=True, heading="Tool Version")
         row.prop(prefs, "tool_type", expand=True)
         row = box.row(align=True)
+        row.prop(prefs, "apply_prefix")
+        row = box.row(align=True)
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
         row.prop(prefs, "apply_empty_display")
-        row = box.row(align=True)
-        row.prop(prefs, "apply_prefix")
         # row = box.row(align=True)
         # row.prop(prefs, "poop_default")
         row = box.row(align=True)
@@ -5052,9 +5052,9 @@ class NWO_Shader_BuildSingle(Operator):
     def description(cls, context, properties) -> str:
         tag_type = 'material' if is_corinth(context) else 'shader'
         if properties.linked_to_blender:
-            return f"Creates an empty {tag_type} tag for this material"
-        else:
             return f"Creates an linked {tag_type} tag for this material. The tag will populate using Blender Material Nodes"
+        else:
+            return f"Creates an empty {tag_type} tag for this material"
 
 
 class NWO_ShaderPropertiesGroup(PropertyGroup):

@@ -31,7 +31,6 @@ from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO
 
 from io_scene_foundry.ui.collection_properties import NWO_CollectionPropertiesGroup
 from io_scene_foundry.ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
-from io_scene_foundry.utils.nwo_constants import VALID_MARKERS, VALID_MESHES
 from io_scene_foundry.utils.nwo_utils import is_marker, is_mesh
 
 # from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
@@ -437,9 +436,10 @@ def object_context_apply_types(self, context):
     if markers_valid or meshes_valid:
         layout.separator()
         if meshes_valid:
-            layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Halo Mesh Type")
-            layout.operator("nwo.mesh_to_marker", text="Convert to Marker", icon_value=get_icon_id("marker"))
-        layout.operator_menu_enum("nwo.apply_type_marker", property="m_type", text="Halo Marker Type")
+            layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Set Mesh Type", icon='MESH_CUBE')
+            layout.operator("nwo.mesh_to_marker", text="Convert to Marker", icon='MESH_CUBE')
+        if markers_valid:
+            layout.operator_menu_enum("nwo.apply_type_marker", property="m_type", text="Set Marker Type", icon='EMPTY_AXIS')
 
 def collection_context(self, context):
     layout = self.layout
