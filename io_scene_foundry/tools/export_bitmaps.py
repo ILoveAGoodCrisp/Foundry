@@ -57,7 +57,7 @@ def save_image_as(image, dir, tiff_name=""):
     settings.color_mode = "RGBA" if image.alpha_mode != "NONE" else "RGB"
     settings.color_depth = "8" if image.depth < 16 else "16"
     settings.tiff_codec = "LZW"
-    if not os.path.exists(dir):
+    if dir and not os.path.exists(dir):
         os.makedirs(dir, exist_ok=True)
     full_path = os.path.join(dir, tiff_name)
     image.save_render(filepath=full_path, scene=temp_scene)
@@ -93,8 +93,6 @@ def export_bitmap(
         bitmaps_data_dir = os.path.join(data_dir + folder)
     else:
         bitmaps_data_dir = os.path.join(data_dir + asset_path, "bitmaps")
-    if not os.path.exists(bitmaps_data_dir):
-        os.makedirs(bitmaps_data_dir, exist_ok=True)
         # get a list of textures associated with this material
     # export the texture as a tiff to the asset bitmaps folder
     image.nwo.source_name = dot_partition(image.name) + ".tif"
@@ -103,7 +101,7 @@ def export_bitmap(
         image.nwo.filepath = user_path.replace(data_dir, "")
         if image.nwo.reexport_tiff:
             if image.has_data:
-                image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
+                image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
             else:
                 print_warning(f"{image.name} has no data. Cannot export Tif")
                 if report:
@@ -113,7 +111,7 @@ def export_bitmap(
     elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and os.path.exists(data_dir + image.nwo.filepath):
         if image.nwo.reexport_tiff:
             if image.has_data:
-                image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
+                image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
             else:
                 print_warning(f"{image.name} has no data. Cannot export Tif")
                 if report:
@@ -132,6 +130,7 @@ def export_bitmap(
     if image.nwo.filepath and os.path.exists(data_dir + image.nwo.filepath):
         bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
         path = dot_partition(image.nwo.filepath)
+        print(path)
         if is_corinth():
             process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
         else:

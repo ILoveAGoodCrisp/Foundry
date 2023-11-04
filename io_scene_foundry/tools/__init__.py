@@ -2132,7 +2132,7 @@ class NWO_FoundryPanelProps(Panel):
             col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
             col.separator()
             col.label(text='Bitmap Export Tools')
-            col.prop(bitmap, "export", text="Link Tag to Blender Image", icon="TEXTURE")
+            col.prop(bitmap, "export", text="Link Bitmap to Blender Image", icon="TEXTURE")
             if bitmap.export:
                 col.operator("nwo.export_bitmaps_single", text="Update Bitmap", icon_value=get_icon_id("texture_export"))
                 col.separator()
@@ -2419,7 +2419,7 @@ class NWO_FoundryPanelProps(Panel):
         col.use_property_split = True
         # col.separator()
         col.label(
-            text=f"{count} tag paths found out of {total} materials",
+            text=f"{count}/{total} {shader_type} tag paths found",
             icon='CHECKMARK' if total == count else 'ERROR'
         )
         row = col.row(align=True)

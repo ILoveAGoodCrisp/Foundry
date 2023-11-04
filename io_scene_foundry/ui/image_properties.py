@@ -129,7 +129,7 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
 
     bitmap_dir : bpy.props.StringProperty(
         name="Tiff Directory",
-        description="Specifies where the exported tiff should be saved. Defaults to the asset bitmaps folder",
+        description="Specifies where the exported tiff should be saved (if it is not externally linked). Defaults to the asset bitmaps folder",
         update=update_bitmap_dir,
         get=get_bitmap_dir,
         set=set_bitmap_dir,

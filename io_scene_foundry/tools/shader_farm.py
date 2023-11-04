@@ -229,40 +229,32 @@ class NWO_FarmShaders(bpy.types.Operator):
 
         return {'FINISHED'}
     
-    def export_tiff_if_needed(self, image, folder, export_tiff):
+    def export_tiff_if_needed(self, image, bitmaps_data_dir, export_tiff):
         image.nwo.source_name = dot_partition(image.name) + ".tif"
         job = f"-- Tiff Export: {image.nwo.source_name}"
-        full_filepath = image.filepath_from_user()
+        user_path = image.filepath_from_user()
         nwo_full_filepath = self.data_dir + image.nwo.filepath
         is_tiff = image.file_format == 'TIFF'
-        reexport = image.nwo.reexport_tiff
-        if not reexport and is_tiff and full_filepath and full_filepath.startswith(self.data_dir) and os.path.exists(full_filepath):
-            image.nwo.filepath = full_filepath.replace(self.data_dir, "")
-            if export_tiff:
+        if is_tiff and user_path and user_path.startswith(self.data_dir) and os.path.exists(user_path):
+            image.nwo.filepath = user_path.replace(self.data_dir, "")
+            if image.nwo.reexport_tiff:
                 if image.has_data:
-                    update_job(job, 0)
-                    image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
-                    update_job(job, 1)
+                    image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
                 else:
                     return print_warning(f"{image.name} has no data. Cannot export Tif")
 
-        if is_tiff and nwo_full_filepath.lower().endswith(".tif") or nwo_full_filepath.lower().endswith(".tiff") and os.path.exists(self.data_dir + nwo_full_filepath):
-            if export_tiff:
+        elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and os.path.exists(self.data_dir + image.nwo.filepath):
+            if image.nwo.reexport_tiff:
                 if image.has_data:
-                    update_job(job, 0)
-                    image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
-                    update_job(job, 1)
+                    image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
                 else:
                     return print_warning(f"{image.name} has no data. Cannot export Tif")
         else:
             if image.has_data:
-                update_job(job, 0)
-                image.nwo.filepath = save_image_as(image, folder, tiff_name=image.nwo.source_name)
-                update_job(job, 1)
+                image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
             else:
                 return print_warning(f"{image.name} has no data. Cannot export Tif")
                 
-        
         return image.nwo.filepath
     
     def thread_bitmap_export(self, image, tiff_path):
@@ -276,7 +268,6 @@ class NWO_FarmShaders(bpy.types.Operator):
             if not os.path.exists(self.tags_dir + bitmap_path):
                 bitmap_path = ''
             
-        image.nwo.filepath = bitmap_path
         if os.path.exists(self.tags_dir + bitmap_path):
             job = f"-- Updated Tag:"
         else:
