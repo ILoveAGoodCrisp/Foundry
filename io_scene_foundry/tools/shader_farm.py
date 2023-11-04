@@ -34,7 +34,7 @@ from io_scene_foundry.managed_blam.bitmaps import ManagedBlamNewBitmap
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_data_path, get_tags_path, managed_blam_active, is_corinth, print_warning, run_tool, update_job, update_job_count, update_progress
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, run_tool, update_job, update_job_count, update_progress
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -112,13 +112,19 @@ class NWO_FarmShaders(bpy.types.Operator):
         export_title = f"►►► {tag_type.upper()} FARM ◄◄◄"
 
         print(export_title)
-
+        shader_names = set()
         for mat in bpy.data.materials:
+            # Check if material is library linked
             if mat.name != mat.name_full:
                 continue
             mat_nwo = mat.nwo
+            # Skip if either declared as not a shader or is a grease pencil material
             if not mat_nwo.rendered or mat.is_grease_pencil:
                 continue
+            s_name = get_shader_name(mat)
+            if s_name in shader_names:
+                continue
+            shader_names.add(s_name)
             if mat_nwo.shader_path and os.path.exists(self.tags_dir + mat_nwo.shader_path):
                 if mat_nwo.uses_blender_nodes:
                     shaders['update'].append(mat)

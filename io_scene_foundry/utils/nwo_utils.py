@@ -2078,3 +2078,11 @@ def type_valid(m_type, asset_type=None, game_version=None):
     if game_version is None:
         game_version = 'corinth' if is_corinth() else 'reach'
     return asset_type in object_asset_validation[m_type] and game_version in object_game_validation[m_type]
+
+def get_shader_name(mat):
+    if not protected_material_name(mat.name):
+        shader_name = get_valid_shader_name(mat.name)
+        if shader_name != "":
+            return shader_name
+
+    return None

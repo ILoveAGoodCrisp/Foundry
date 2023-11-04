@@ -28,23 +28,13 @@ import os
 from io_scene_foundry.managed_blam.shaders import ManagedBlamNewShader
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
+    get_shader_name,
     get_tags_path,
-    get_valid_shader_name,
     is_corinth,
     os_sep_partition,
-    protected_material_name,
 )
 
 global_material_shaders = []
-
-def get_shader_name(mat):
-    if not protected_material_name(mat.name):
-        shader_name = get_valid_shader_name(mat.name)
-        if shader_name != "":
-            return shader_name
-
-    return None
-
 
 def build_shader(material, corinth, folder="", report=None):
     if not get_shader_name(material):
