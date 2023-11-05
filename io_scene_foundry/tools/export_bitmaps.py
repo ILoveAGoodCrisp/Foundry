@@ -130,7 +130,6 @@ def export_bitmap(
     if image.nwo.filepath and os.path.exists(data_dir + image.nwo.filepath):
         bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
         path = dot_partition(image.nwo.filepath)
-        print(path)
         if is_corinth():
             process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
         else:
