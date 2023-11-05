@@ -475,7 +475,7 @@ class PrepareScene:
                     self.unlink(seam)
 
             else:
-                process = "Creating BSP Seams"
+                process = "--- Creating BSP Seams"
                 update_progress(process, 0)
                 len_seams = len(self.seams)
                 for idx, seam in enumerate(self.seams):
@@ -1811,6 +1811,9 @@ class PrepareScene:
                 old_animations.append(new_animation)
                 # scene_coll.unlink(new_arm)
                 update_progress(job, idx / len(export_actions))
+                if export_animations == 'ACTIVE':
+                    self.current_action = new_animation
+                    break
         update_progress(job, 1)
 
         for action in export_actions:
