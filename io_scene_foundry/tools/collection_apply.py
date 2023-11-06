@@ -77,7 +77,7 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
 
     def execute(self, context):
         if self.c_type == 'exclude':
-            self.name = context.collection.name
+            self.name = any_partition(context.collection.name, '::', True)
         if self.collection:
             coll = bpy.data.collections[self.collection]
         else:
