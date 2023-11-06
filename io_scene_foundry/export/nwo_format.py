@@ -811,9 +811,7 @@ class NWOMesh(NWOObject):
             if self.halo.no_lightmap:
                 self.bungie_no_lightmap = self.halo.no_lightmap
             if self.halo.uvmirror_across_entire_model:
-                self.bungie_uvmirror_across_entire_model = (
-                    self.halo.uvmirror_across_entire_model
-                )
+                self.bungie_uvmirror_across_entire_model = self.halo.uvmirror_across_entire_model
 
             if self.halo.precise_position:
                 self.bungie_mesh_use_uncompressed_verts = (

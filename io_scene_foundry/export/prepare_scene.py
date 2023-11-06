@@ -2043,6 +2043,8 @@ class PrepareScene:
                 #     nwo.texcoord_usage = nwo.texcoord_usage_ui
                 if nwo_data.decal_offset_ui:
                     nwo.decal_offset = "1"
+                if asset_type in ('MODEL', 'SKY') and h4 and nwo_data.uvmirror_across_entire_model_ui:
+                    nwo.uvmirror_across_entire_model = "1"
             if asset_type in ("SCENARIO", "PREFAB"):
                 h4_structure = (
                     h4
@@ -2082,8 +2084,6 @@ class PrepareScene:
                         nwo.no_lightmap = "1"
                     if nwo_data.no_pvs_ui:
                         nwo.no_pvs = "1"
-                    if nwo_data.uvmirror_across_entire_model_ui:
-                        nwo.uvmirror_across_entire_model = "1"
                 if nwo_data.lightmap_additive_transparency_active:
                     nwo.lightmap_additive_transparency =  color_4p_str(nwo_data.lightmap_additive_transparency_ui)
                 if nwo_data.lightmap_resolution_scale_active:
