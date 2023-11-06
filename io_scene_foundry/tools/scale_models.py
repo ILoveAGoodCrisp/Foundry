@@ -26,6 +26,7 @@
 import bpy
 from bpy_extras.object_utils import object_data_add
 import os
+from mathutils import Vector # Don't remove this!!
 import zipfile
 
 
