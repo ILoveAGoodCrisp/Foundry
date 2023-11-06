@@ -590,7 +590,7 @@ def register():
     for cls_nwo in classes_nwo:
         bpy.utils.register_class(cls_nwo)
 
-    bpy.types.ASSETBROWSER_MT_context_menu.append(add_asset_open_in_foundry)
+    # bpy.types.ASSETBROWSER_MT_context_menu.append(add_asset_open_in_foundry)
     bpy.types.VIEW3D_MT_object_context_menu.append(object_context_apply_types)
     bpy.types.OUTLINER_MT_collection.append(collection_context)
     bpy.types.NODE_MT_add.append(node_context_menu)
@@ -644,7 +644,7 @@ def unregister():
     bpy.types.NODE_MT_add.remove(node_context_menu)
     bpy.types.OUTLINER_MT_collection.remove(collection_context)
     bpy.types.VIEW3D_MT_object_context_menu.remove(object_context_apply_types)
-    bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)
+    # bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)
     del bpy.types.Scene.nwo
     del bpy.types.Object.nwo
     del bpy.types.Light.nwo
