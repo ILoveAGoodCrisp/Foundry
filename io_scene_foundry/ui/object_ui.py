@@ -141,8 +141,8 @@ class NWO_MeshTypes(Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
         elif poll_ui("SCENARIO"):
-            layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
+            layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
@@ -220,8 +220,7 @@ class NWO_MeshFaceProps(NWO_PropPanel):
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_physics",
             "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_render",
-            "_connected_geometry_mesh_type_poop",
+            "_connected_geometry_mesh_type_structure",
         )
         return (
             ob
@@ -316,7 +315,7 @@ class NWO_MeshFaceProps(NWO_PropPanel):
             if ob_nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
-                "_connected_geometry_mesh_type_poop",
+                "_connected_geometry_mesh_type_structure",
                 "_connected_geometry_mesh_type_default",
             ):
                 row = col.row()
@@ -330,25 +329,15 @@ class NWO_MeshFaceProps(NWO_PropPanel):
                     text="",
                     icon="DOWNARROW_HLT",
                 )
-                # if ob.nwo.face_props and ob_nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_object_structure'):
-                #     for prop in ob.nwo.face_props:
-                #         if prop.face_global_material_override:
-                #             row.label(text='*')
-                #             break
 
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if ob_nwo.mesh_type_ui in (
-                "_connected_geometry_mesh_type_render",
-                "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_default",
-            ):
+            if ob_nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
                 col2 = col.column()
                 flow2 = col2.grid_flow()
                 flow2.prop(ob_nwo, "precise_position_ui", text="Uncompressed")
 
         if ob_nwo.mesh_type_ui in (
-            "_connected_geometry_mesh_type_render",
-            "_connected_geometry_mesh_type_poop",
+            "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_collision",
         ):
             col3 = col.column()
@@ -830,7 +819,7 @@ class NWO_MeshPropAddMenu(Menu):
                 layout.operator(
                     "nwo.add_mesh_property", text="Sky"
                 ).options = "_connected_geometry_face_type_sky"
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                 layout.operator(
                     "nwo.add_mesh_property", text="Seam Sealer"
                 ).options = "_connected_geometry_face_type_seam_sealer"

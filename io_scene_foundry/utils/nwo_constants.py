@@ -97,6 +97,7 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_default': ('MODEL', 'SCENARIO', 'SKY', 'PARTICLE MODEL', 'DECORATOR SET', 'FP ANIMATION', 'PREFAB'),
     '_connected_geometry_mesh_type_collision': ('MODEL', 'SCENARIO', 'SKY', 'PREFAB'),
     '_connected_geometry_mesh_type_physics': ('MODEL',),
+    '_connected_geometry_mesh_type_structure': ('SCENARIO'),
     '_connected_geometry_mesh_type_poop': ('SCENARIO', 'PREFAB'),
     '_connected_geometry_mesh_type_seam': ('SCENARIO',),
     '_connected_geometry_mesh_type_portal': ('SCENARIO',),
@@ -128,9 +129,10 @@ object_asset_validation = {
 object_game_validation = {
     # Mesh
     '_connected_geometry_mesh_type_default': ('reach', 'corinth'),
+    '_connected_geometry_mesh_type_poop': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_collision': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_physics': ('reach', 'corinth'),
-    '_connected_geometry_mesh_type_poop': ('reach', 'corinth'),
+    '_connected_geometry_mesh_type_structure': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_seam': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_portal': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_water_surface': ('reach', 'corinth'),

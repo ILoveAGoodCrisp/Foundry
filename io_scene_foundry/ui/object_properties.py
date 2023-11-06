@@ -24,8 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import os
-from io_scene_foundry.ui.scene_properties import NWO_Regions_ListItems
 from .face_properties import NWO_FaceProperties_ListItems
 from bpy.props import (
     IntProperty,

@@ -68,15 +68,15 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         if (h4 and
             (nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
-            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop"
-            or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui(('SCENARIO', 'PREFAB')))
+            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
+            or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui(('SCENARIO', 'PREFAB')))
         ) or (not h4 and nwo.mesh_type_ui in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision"))):
             layout.operator(
                 self.op_prefix, text="Collision Material"
             ).options = "face_global_material"
         if nwo.mesh_type_ui in (
             "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_poop",
+            "_connected_geometry_mesh_type_structure",
             "_connected_geometry_mesh_type_collision",
         ):
             layout.operator(self.op_prefix, text="Two Sided").options = "two_sided"
@@ -85,7 +85,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
             if nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_default",
-                "_connected_geometry_mesh_type_poop",
+                "_connected_geometry_mesh_type_structure",
             ):
                 layout.operator(
                     self.op_prefix, text="Uncompressed"
@@ -96,7 +96,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                 layout.operator(
                     self.op_prefix, text="Sky"
                 ).options = "_connected_geometry_face_type_sky"
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                 layout.operator(
                     self.op_prefix, text="Seam Sealer"
                 ).options = "_connected_geometry_face_type_seam_sealer"
@@ -162,7 +162,7 @@ class NWO_FacePropPanel(NWO_PropPanel):
         valid_mesh_types = (
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_poop",
+            "_connected_geometry_mesh_type_structure",
         )
         return (
             ob
@@ -995,7 +995,7 @@ class NWO_FaceLayerAddFlags(NWO_FaceLayerAdd):
 
     def get_options(self, context):
         items = []
-        render = context.object.nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop")
+        render = context.object.nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure")
         if render:
             items.append(("decal_offset", "Decal Offset", ""))
             items.append(("no_shadow", "No Shadow", ""))

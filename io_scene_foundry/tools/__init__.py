@@ -55,8 +55,7 @@ from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
 from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList, NWO_TagExplore
 from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
-from io_scene_foundry.ui.viewport_ui import NWO_ApplyTypeMesh
-from io_scene_foundry.utils.nwo_constants import RENDER_MESH_TYPES, TWO_SIDED_MESH_TYPES, VALID_MESHES
+from io_scene_foundry.utils.nwo_constants import RENDER_MESH_TYPES, TWO_SIDED_MESH_TYPES
 from .shader_builder import NWO_ListMaterialShaders, build_shader
 
 from io_scene_foundry.utils import nwo_globals
@@ -969,13 +968,13 @@ class NWO_FoundryPanelProps(Panel):
                 col.prop(nwo, "poop_collision_type_ui", text="Collision Type")
 
             elif nwo.mesh_type_ui in (
-                "_connected_geometry_mesh_type_poop",
                 "_connected_geometry_mesh_type_default",
+                "_connected_geometry_mesh_type_structure",
             ) and poll_ui(('SCENARIO', 'PREFAB')):
-                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui('SCENARIO'):
+                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('SCENARIO'):
                     col.prop(nwo, "proxy_instance")
-                if nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop" or (
-                    nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
+                if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" or (
+                    nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
                     and h4
                     and nwo.proxy_instance
                 ):
@@ -1324,7 +1323,7 @@ class NWO_FoundryPanelProps(Panel):
             return
                 
 
-        if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and poll_ui('SCENARIO') and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"):
+        if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and poll_ui('SCENARIO') and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
             return
 
         box = self.box.box()
@@ -1345,16 +1344,16 @@ class NWO_FoundryPanelProps(Panel):
             if (h4 and (nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
-                "_connected_geometry_mesh_type_poop",
+                "_connected_geometry_mesh_type_structure",
                 "_connected_geometry_mesh_type_default",
                 )
-                and (nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_default"))) or (not h4 and nwo.mesh_type_ui in (
+                and (nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"))) or (not h4 and nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
                 )):
                 row = col.row()
                 coll_mat_text = 'Collision Material'
-                if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
+                if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
                     for prop in ob.data.nwo.face_props:
                         if prop.face_global_material_override:
                             coll_mat_text += '*'
@@ -1371,7 +1370,7 @@ class NWO_FoundryPanelProps(Panel):
                 )
 
         if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
-            if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui('SCENARIO')) or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
+            if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('SCENARIO')) or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 return
             col2 = col.column()
             col2.separator()
@@ -1385,25 +1384,25 @@ class NWO_FoundryPanelProps(Panel):
                 align=True,
             )
             row.scale_x = 1.2
-            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_poop" or (poll_ui(('MODEL', 'SKY')) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"):
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" or (poll_ui(('MODEL', 'SKY')) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
                 row.prop(mesh_nwo, "precise_position_ui", text="Uncompressed")
             if nwo.mesh_type_ui in TWO_SIDED_MESH_TYPES:
                 row.prop(mesh_nwo, "face_two_sided_ui", text="Two Sided")
                 if nwo.mesh_type_ui in RENDER_MESH_TYPES:
                     row.prop(mesh_nwo, "face_transparent_ui", text="Transparent")
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset")
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision") or (poll_ui(('SCENARIO',)) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision") or (poll_ui(('SCENARIO',)) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
                 if not h4:
                     row.prop(mesh_nwo, "ladder_ui", text="Ladder")
                     row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
-                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                         row.prop(mesh_nwo, "no_shadow_ui", text="No Shadow")
                 else:
                     # row.prop(mesh_nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
-                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                         row.prop(mesh_nwo, "no_shadow_ui", text="No Shadow")
                         if h4:
                             row.prop(mesh_nwo, "no_lightmap_ui", text="No Lightmap")
@@ -1415,12 +1414,11 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(mesh_nwo, "face_two_sided_type_ui", text="Backside Normals")
 
         if nwo.mesh_type_ui in (
-            "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_poop",
+            "_connected_geometry_mesh_type_structure",
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_default",
         ):
-            if poll_ui(("SCENARIO", "PREFAB")) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_default"):
+            if poll_ui(("SCENARIO", "PREFAB")) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
                 col.separator()
                 col_ob = box.column()
                 col_ob.use_property_split = False
@@ -1595,7 +1593,7 @@ class NWO_FoundryPanelProps(Panel):
   
         nwo = ob.data.nwo
         # Instance Proxy Operators
-        if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_poop":
+        if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_default":
             return
         
         col.separator()
@@ -2529,7 +2527,7 @@ class NWO_FoundryPanelProps(Panel):
             else:
                 region_name = "BSP"
         elif poll_ui('MODEL') and ob_is_mesh:
-            if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_poop', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
+            if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
                 for prop in ob.data.nwo.face_props:
                     if prop.region_name_override:
                         region_name += '*'

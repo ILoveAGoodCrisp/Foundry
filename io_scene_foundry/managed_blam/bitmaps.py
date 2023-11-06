@@ -25,7 +25,6 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.managed_blam import ManagedBlam
-import os
 
 from io_scene_foundry.utils.nwo_utils import dot_partition
 

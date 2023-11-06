@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from ..utils.nwo_utils import CheckType, blender_object_types_mesh, is_corinth
+from ..utils.nwo_utils import is_corinth
 from .nwo_format import (
     NWOFrame,
     NWOLight,

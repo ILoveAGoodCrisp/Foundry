@@ -26,7 +26,7 @@
 
 from io_scene_foundry import managed_blam
 from io_scene_foundry.tools.export_bitmaps import export_bitmap
-from io_scene_foundry.utils.nwo_utils import cull_invalid_chars, dot_partition, get_valid_shader_name, is_halo_node, os_sep_partition, print_warning, remove_chars, space_partition
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_valid_shader_name, is_halo_node, os_sep_partition, print_warning, remove_chars, space_partition
 import os
 import bpy
 

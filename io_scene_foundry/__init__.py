@@ -28,7 +28,7 @@ import ctypes
 import bpy
 from bpy.app.handlers import persistent
 
-from io_scene_foundry.utils.nwo_utils import get_prefs, setup_projects_list, unlink, update_tables_from_objects
+from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink, update_tables_from_objects
 
 old_snapshot = {}
 old_x = None

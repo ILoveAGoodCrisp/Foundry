@@ -1,5 +1,4 @@
 import os
-import bpy
 from io_scene_foundry.managed_blam import Halo
 from io_scene_foundry.utils.nwo_utils import get_project_path, is_corinth
 

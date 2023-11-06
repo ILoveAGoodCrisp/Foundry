@@ -271,9 +271,9 @@ class NWO_ApplyTypeMesh(NWO_Op):
             case "render":
                 mesh_type = "_connected_geometry_mesh_type_default"
             case "instance":
-                mesh_type = "_connected_geometry_mesh_type_poop"
-            case "structure":
                 mesh_type = "_connected_geometry_mesh_type_default"
+            case "structure":
+                mesh_type = "_connected_geometry_mesh_type_structure"
             case "seam":
                 mesh_type = "_connected_geometry_mesh_type_seam"
                 material = "Seam"

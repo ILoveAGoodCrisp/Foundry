@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from bpy.types import PropertyGroup, Panel, UIList, Operator
+from bpy.types import PropertyGroup, UIList, Operator
 from bpy.props import (
     StringProperty,
     BoolProperty,

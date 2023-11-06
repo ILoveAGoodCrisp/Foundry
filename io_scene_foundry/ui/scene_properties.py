@@ -37,7 +37,7 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_project_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
+from ..utils.nwo_utils import clean_tag_path, get_asset_path, is_corinth, poll_ui, valid_nwo_asset
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
