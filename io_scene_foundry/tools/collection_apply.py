@@ -74,20 +74,10 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
         name="Collection Type",
         items=type_items,
         )
-    
-    def invoke(self, context, event):
-        if self.c_type == 'exclude':
-            wm = context.window_manager
-            return wm.invoke_props_dialog(self)
-        return self.execute(context)
-    
-    def draw(self, context):
-        layout = self.layout
-        row = layout.row()
-        row.activate_init = True
-        row.prop(self, "name", text="Name")
 
     def execute(self, context):
+        if self.c_type == 'exclude':
+            self.name = context.collection.name
         if self.collection:
             coll = bpy.data.collections[self.collection]
         else:
