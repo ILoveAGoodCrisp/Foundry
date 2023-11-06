@@ -2043,8 +2043,8 @@ class PrepareScene:
                 #     nwo.texcoord_usage = nwo.texcoord_usage_ui
                 if nwo_data.decal_offset_ui:
                     nwo.decal_offset = "1"
-                if asset_type in ('MODEL', 'SKY') and h4 and nwo_data.uvmirror_across_entire_model_ui:
-                    nwo.uvmirror_across_entire_model = "1"
+                # if asset_type in ('MODEL', 'SKY') and h4 and nwo_data.uvmirror_across_entire_model_ui:
+                #     nwo.uvmirror_across_entire_model = "1"
             if asset_type in ("SCENARIO", "PREFAB"):
                 h4_structure = (
                     h4

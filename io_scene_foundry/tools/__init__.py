@@ -1390,8 +1390,8 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(mesh_nwo, "face_two_sided_ui", text="Two Sided")
                 if nwo.mesh_type_ui in RENDER_MESH_TYPES:
                     row.prop(mesh_nwo, "face_transparent_ui", text="Transparent")
-                    if h4 and poll_ui(('MODEL', 'SKY')):
-                        row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
+                    # if h4 and poll_ui(('MODEL', 'SKY')):
+                    #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision") or (poll_ui(('SCENARIO',)) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
