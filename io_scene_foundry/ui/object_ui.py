@@ -108,7 +108,7 @@ class NWO_PermutationsMenu(Menu):
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign_single", text=p_name).name = p_name
 
-        layout.operator("nwo.permutation_add", text="New BSP Category" if is_scenario else "New Permutation", icon='ADD').set_object_prop = True
+        layout.operator("nwo.permutation_add", text="New BSP Layer" if is_scenario else "New Permutation", icon='ADD').set_object_prop = True
 
 class NWO_MarkerPermutationsMenu(Menu):
     bl_label = "Add Mesh Property"

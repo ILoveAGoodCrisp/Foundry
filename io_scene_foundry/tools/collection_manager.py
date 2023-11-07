@@ -97,7 +97,7 @@ def get_full_name(coll_type, coll_name):
                 prefix = "region::"
         case _:
             if bpy.context.scene.nwo.asset_type in ("SCENARIO", "PREFAB"):
-                prefix = "category::"
+                prefix = "layer::"
             else:
                 prefix = "permutation::"
 

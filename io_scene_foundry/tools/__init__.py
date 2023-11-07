@@ -496,7 +496,7 @@ class NWO_FoundryPanelProps(Panel):
         # Permutations
         box = self.box.box()
         row = box.row()
-        row.label(text="BSP Categories" if is_scenario else "Permutations")
+        row.label(text="Layers" if is_scenario else "Permutations")
         row = box.row()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         rows = 4
@@ -2522,7 +2522,7 @@ class NWO_FoundryPanelProps(Panel):
         ob_is_mesh = is_mesh(ob)
         is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam" and ob_is_mesh
         if poll_ui("SCENARIO"):
-            perm_name = "BSP Category"
+            perm_name = "Layer"
             if is_seam:
                 region_name = "Frontfacing BSP"
             else:
@@ -4552,7 +4552,7 @@ class NWO_CollectionManager_Create(Operator):
         p_name = "Permutation"
         if context.scene.nwo.asset_type == "SCENARIO":
             r_name = "BSP"
-            p_name = "BSP Category"
+            p_name = "Layer"
 
         items.append(("region", r_name, ""))
         items.append(("permutation", p_name, ""))

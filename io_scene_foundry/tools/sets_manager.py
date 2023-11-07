@@ -541,7 +541,7 @@ class NWO_PermutationAdd(TableEntryAdd):
     def description(cls, context, properties) -> str:
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
-            return "Add a new BSP Category"
+            return "Add a new Layer"
         else:
             return "Add a new Permutation"
 
@@ -562,7 +562,7 @@ class NWO_PermutationRemove(TableEntryRemove):
     def description(cls, context, properties) -> str:
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
-            return "Removes the active BSP Category"
+            return "Removes the active Layer"
         else:
             return "Removes the active Permutation"
     
@@ -582,7 +582,7 @@ class NWO_PermutationMove(TableEntryMove):
     def description(cls, context, properties) -> str:
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
-            return "Moves the active BSP Category"
+            return "Moves the active Layer"
         else:
             return "Moves the active Permutation"
     
@@ -603,7 +603,7 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
     def description(cls, context, properties) -> str:
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
-            return "Assigns the selected BSP Category to the active Object"
+            return "Assigns the selected Layer to the active Object"
         else:
             return "Assigns the selected Permutation to the active Object"
     
@@ -624,7 +624,7 @@ class NWO_PermutationAssign(TableEntryAssign):
     def description(cls, context, properties) -> str:
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
-            return "Assigns the active BSP Category to selected Objects"
+            return "Assigns the active Layer to selected Objects"
         else:
             return "Assigns the active Permutation to selected Objects"
     
@@ -646,9 +646,9 @@ class NWO_PermutationSelect(TableEntrySelect):
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
             if properties.select:
-                return "Selects the active BSP Category"
+                return "Selects the active Layer"
             else:
-                return "Deselects the active BSP Category"
+                return "Deselects the active Layer"
         else:
             if properties.select:
                 return "Selects the active Permutation"
@@ -673,7 +673,7 @@ class NWO_PermutationRename(TableEntryRename):
     def description(cls, context, properties) -> str:
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
-            return "Renames the active BSP Category and updates scene objects"
+            return "Renames the active Layer and updates scene objects"
         else:
             return "Renames the active Permutation and updates scene objects"
     
@@ -695,9 +695,9 @@ class NWO_PermutationHide(TableEntryHide):
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
             if properties.hide_select:
-                return "Enables selection of the active BSP Category objects"
+                return "Enables selection of the active Layer objects"
             else:
-                return "Disables selection of the active BSP Category objects"
+                return "Disables selection of the active Layer objects"
         else:
             if properties.select:
                 return "Enables selection of the active Permutation objects"
@@ -722,9 +722,9 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
         is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         if is_scenario:
             if properties.hide_select:
-                return "Enables selection of the active BSP Category objects"
+                return "Enables selection of the active Layer objects"
             else:
-                return "Disables selection of the active BSP Category objects"
+                return "Disables selection of the active Layer objects"
         else:
             if properties.select:
                 return "Enables selection of the active Permutation objects"

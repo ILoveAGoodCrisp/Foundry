@@ -35,13 +35,12 @@ from bpy.props import (
     FloatVectorProperty,
     CollectionProperty,
 )
-from bpy.types import PropertyGroup, Object
+from bpy.types import PropertyGroup
 import bpy
 from ..icons import get_icon_id
 from ..utils.nwo_utils import (
     clean_tag_path,
     dot_partition,
-    get_prefs,
     get_prop_from_collection,
     is_corinth,
     nwo_enum,

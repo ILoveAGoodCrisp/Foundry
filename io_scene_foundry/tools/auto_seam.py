@@ -50,7 +50,7 @@ class NWO_AutoSeam(bpy.types.Operator):
         apply_materials = get_prefs().apply_materials
         export_obs = export_objects_mesh_only()
         seam_obs = [ob for ob in export_obs if ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"]
-        structure_obs = [ob for ob in export_obs if ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"]
+        structure_obs = [ob for ob in export_obs if ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"]
         deselect_all_objects()
         for ob in seam_obs:
             ob.select_set(True)

@@ -453,7 +453,7 @@ def collection_context(self, context):
             first_part = 'BSP Collection : ' if is_scenario else 'Region Collection : '
             layout.label(text=first_part + coll.nwo.region)
         elif coll.nwo.type == 'permutation':
-            first_part = 'BSP Category Collection : ' if is_scenario else 'Permutation Collection : '
+            first_part = 'Layer Collection : ' if is_scenario else 'Permutation Collection : '
             layout.label(text=first_part + coll.nwo.permutation)
 
         layout.menu("NWO_MT_ApplyCollectionMenu", text="Set Halo Collection", icon_value=get_icon_id("collection"))

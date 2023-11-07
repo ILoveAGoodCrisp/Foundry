@@ -39,7 +39,7 @@ class NWO_ApplyCollectionMenu(bpy.types.Menu):
         p_name = "Permutation"
         if is_scenario:
             r_name = "BSP"
-            p_name = "BSP Category"
+            p_name = "Layer"
         
         layout.operator('nwo.apply_type_collection', text="None").c_type = "none"
         layout.operator_menu_enum('nwo.region_collection_list', property='name', text=r_name).c_type = 'region'
@@ -61,7 +61,7 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
         p_name = "Permutation"
         if context.scene.nwo.asset_type == "SCENARIO":
             r_name = "BSP"
-            p_name = "BSP Category"
+            p_name = "Layer"
 
         items.append(("none", "None", ""))
         items.append(("region", r_name, ""))
@@ -105,7 +105,7 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
 
         elif self.c_type == 'permutation':
             if is_scenario:
-                display_name = 'category'
+                display_name = 'layer'
             permutations = context.scene.nwo.permutations_table
             coll.nwo.permutation = coll_name
             if coll_name not in [p.name for p in permutations]:
