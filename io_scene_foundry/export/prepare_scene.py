@@ -139,7 +139,7 @@ class PrepareScene:
         fix_bone_rotations = False
         
         self.warning_hit = False
-        self.bsps_with_structure = {}
+        self.bsps_with_structure = set()
         self.pedestal = None
         self.aim_pitch = None
         self.aim_yaw = None
