@@ -26,6 +26,7 @@
 
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.managed_blam.globals import ManagedBlamGetGlobalMaterials
+from io_scene_foundry.ui.viewport_ui import NWO_ApplyTypeMesh
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from .templates import NWO_Op, NWO_PropPanel
 from ..utils.nwo_utils import (
@@ -128,9 +129,10 @@ class NWO_MarkerPermutationsMenu(Menu):
 class NWO_MeshTypes(Menu):
     bl_label = "Mesh Type"
     bl_idname = "NWO_MT_MeshTypes"
+    bl_description = "Mesh Type"
     
     @classmethod
-    def poll(self, context):
+    def poll(cls, context):
         return context.object and is_mesh(context.object)
     
     def draw(self, context):
@@ -153,7 +155,7 @@ class NWO_MeshTypes(Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Slip Surface', icon_value=get_icon_id('slip_surface')).m_type = 'slip_surface'
             if h4:
                 layout.operator('nwo.apply_type_mesh_single', text='Lightmap Exclusion Volume', icon_value=get_icon_id('lightmap_exclude')).m_type = 'lightmap'
-                layout.operator('nwo.apply_type_mesh_single', text='Streaming Volume', icon_value=get_icon_id('streaming')).m_type = 'streaming'
+                layout.operator('nwo.apply_type_mesh_single', text='Texture Streaming Volume', icon_value=get_icon_id('streaming')).m_type = 'streaming'
             else:
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_blocker'
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'

@@ -1347,7 +1347,7 @@ def get_mesh_display(mesh_type):
         case '_connected_geometry_mesh_type_lightmap_exclude':
             return 'Lightmap Exclusion Volume', get_icon_id('lightmap_exclude')
         case '_connected_geometry_mesh_type_streaming':
-            return 'Streaming Volume', get_icon_id('streaming')
+            return 'Texture Streaming Volume', get_icon_id('streaming')
         case '_connected_geometry_mesh_type_poop_vertical_rain_sheet':
             return 'Rain Sheet', get_icon_id('rain_sheet')
         case '_connected_geometry_mesh_type_cookie_cutter':

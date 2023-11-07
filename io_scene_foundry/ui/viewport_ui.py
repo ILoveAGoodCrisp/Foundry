@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
+from bpy.types import Context, OperatorProperties
 
 from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
 from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_region
@@ -150,7 +151,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 items.append(
                     nwo_enum(
                         "water_physics",
-                        "Water Physics",
+                        "Water Physics Volume",
                         "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
                         "water_physics",
                         6,
@@ -159,7 +160,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 items.append(
                     nwo_enum(
                         "soft_ceiling",
-                        "Soft Ceiling",
+                        "Soft Ceiling Volume",
                         "Soft barrier that blocks the player and player camera",
                         "soft_ceiling",
                         7,
@@ -168,7 +169,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 items.append(
                     nwo_enum(
                         "soft_kill",
-                        "Soft Kill",
+                        "Soft Kill Volume",
                         "Defines a region where the player will be killed... softly",
                         "soft_kill",
                         8,
@@ -177,7 +178,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 items.append(
                     nwo_enum(
                         "slip_surface",
-                        "Slip Surface",
+                        "Slip Surface Volume",
                         "Defines a region in which surfaces become slippery",
                         "slip_surface",
                         9,
@@ -196,7 +197,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     items.append(
                         nwo_enum(
                             "cookie_cutter",
-                            "Cookie Cutter",
+                            "Pathfinding Cutout Volume",
                             "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
                             "cookie_cutter",
                             11,
@@ -215,7 +216,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     items.append(
                         nwo_enum(
                             "lightmap",
-                            "Lightmap Exclusion",
+                            "Lightmap Exclusion Volume",
                             "Defines a region that should not be lightmapped",
                             "lightmap_exclude",
                             11,
@@ -225,7 +226,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 items.append(
                     nwo_enum(
                         "rain_blocker",
-                        "Rain Blocker",
+                        "Rain Blocker Volume",
                         "Blocks rain from rendering in the region this volume occupies",
                         "rain_sheet",
                         12,
@@ -242,11 +243,9 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         )
                     )
                 else:
-                    stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. 
-                     By default the full space inside a zone set should be used when generating the streaming zone set. 
-                     This is useful for performance if you have textures in areas of the map the player will not get close to"""
+                    stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.This is useful for performance if you have textures in areas of the map the player will not get close to"""
                     items.append(
-                        nwo_enum("streaming", "Streaming", stream_des, "streaming", 14)
+                        nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 14)
                     )
 
         return items
@@ -254,6 +253,12 @@ class NWO_ApplyTypeMesh(NWO_Op):
     m_type: bpy.props.EnumProperty(
         items=m_type_items,
     )
+    
+    @classmethod
+    def description(cls, context: Context, properties: OperatorProperties) -> str:
+        items = cls.m_type_items(cls, context)
+        enum = items[properties['m_type']]
+        return enum[2]
 
     def draw(self, context):
         self.layout.prop(self, "m_type", text="Mesh Type")
