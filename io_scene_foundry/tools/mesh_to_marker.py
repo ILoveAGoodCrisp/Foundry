@@ -277,9 +277,9 @@ class NWO_MeshToMarker(bpy.types.Operator):
         self.report({'INFO'}, f"Converted {len(to_set)} objects to markers")
         return {'FINISHED'}
     
-    def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
+    # def invoke(self, context, event):
+    #     wm = context.window_manager
+    #     return wm.invoke_props_dialog(self)
     
     def draw(self, context):
         layout = self.layout

@@ -157,7 +157,7 @@ class NWO_MeshTypes(Menu):
                 layout.operator('nwo.apply_type_mesh_single', text='Lightmap Exclusion Volume', icon_value=get_icon_id('lightmap_exclude')).m_type = 'lightmap'
                 layout.operator('nwo.apply_type_mesh_single', text='Texture Streaming Volume', icon_value=get_icon_id('streaming')).m_type = 'streaming'
             else:
-                layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_blocker'
+                layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_blocker')).m_type = 'rain_blocker'
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
                 layout.operator('nwo.apply_type_mesh_single', text='Cookie Cutter', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
                 layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'

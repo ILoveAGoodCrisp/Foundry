@@ -1343,7 +1343,7 @@ def get_mesh_display(mesh_type):
         case '_connected_geometry_mesh_type_slip_surface':
             return 'Slip Surface Volume', get_icon_id('slip_surface')
         case '_connected_geometry_mesh_type_poop_rain_blocker':
-            return 'Rain Blocker Volume', get_icon_id('rain_sheet')
+            return 'Rain Blocker Volume', get_icon_id('rain_blocker')
         case '_connected_geometry_mesh_type_lightmap_exclude':
             return 'Lightmap Exclusion Volume', get_icon_id('lightmap_exclude')
         case '_connected_geometry_mesh_type_streaming':

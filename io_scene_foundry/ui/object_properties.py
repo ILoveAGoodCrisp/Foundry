@@ -936,7 +936,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     "_connected_geometry_mesh_type_poop_rain_blocker",
                     "Rain Blocker",
                     "Blocks rain from rendering in the region this volume occupies",
-                    "rain_sheet",
+                    "rain_blocker",
                     index,
                 )
             )

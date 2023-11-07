@@ -228,7 +228,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "rain_blocker",
                         "Rain Blocker Volume",
                         "Blocks rain from rendering in the region this volume occupies",
-                        "rain_sheet",
+                        "rain_blocker",
                         12,
                     )
                 )
@@ -245,7 +245,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 else:
                     stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.This is useful for performance if you have textures in areas of the map the player will not get close to"""
                     items.append(
-                        nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 14)
+                        nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 13)
                     )
 
         return items
@@ -472,6 +472,12 @@ class NWO_ApplyTypeMarker(NWO_Op):
     m_type: bpy.props.EnumProperty(
         items=m_type_items,
     )
+    
+    @classmethod
+    def description(cls, context: Context, properties: OperatorProperties) -> str:
+        items = cls.m_type_items(cls, context)
+        enum = items[properties['m_type']]
+        return enum[2]
 
     def draw(self, context):
         self.layout.prop(self, "m_type", text="Marker Type")
