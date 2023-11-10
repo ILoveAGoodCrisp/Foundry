@@ -1807,6 +1807,8 @@ class PrepareScene:
                     for kfp in fcurve.keyframe_points:
                         kfp.co[0] -= frame_diff
 
+                new_animation.frame_start = 0
+                new_animation.frame_end = new_animation.frame_end - frame_diff
                 bpy.ops.object.posemode_toggle()
                 new_arm.select_set(False)
                 self.animation_armatures[new_animation] = new_arm
