@@ -3048,6 +3048,7 @@ class PrepareScene:
                 if s_name not in mats.keys():
                     mats[s_name] = idx
                 elif ob.type == 'MESH':
+                    set_active_object(ob)
                     bpy.ops.object.mode_set(mode="EDIT", toggle=False)
                     ob.active_material_index = idx
                     slots_to_remove.append(idx)
