@@ -367,7 +367,8 @@ def radius_str(ob, pill=False):
 
 def jstr(number):
     """Takes a number, rounds it to six decimal places and returns it as a string"""
-    return str(round(number, 6))
+    
+    return format(round(number, 6), 'f')
 
 def true_region(halo):
     if halo.region_name_locked_ui:

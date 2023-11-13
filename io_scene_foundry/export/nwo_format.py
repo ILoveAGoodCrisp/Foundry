@@ -352,12 +352,16 @@ class NWOLight(NWOObject):
             div = 10
         else:
             div = 300
+        
+        if self.ob.data.type == "SUN":
+            power = self.ob.data.energy
+        else:
+            power = (self.ob.data.energy / 0.03048**-2) / div
+        
+        # Tool can't read light info if power lower than 0.0001
+        power = max(0.0001, power)
 
-        return jstr(
-            (self.ob.data.energy / 0.03048**-2) / div
-            if self.ob.data.type != "SUN"
-            else self.ob.data.energy
-        )
+        return jstr(power)
 
     def light_far_attenuation_start(self):
         if self.not_bungie_game:

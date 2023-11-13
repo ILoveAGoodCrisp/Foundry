@@ -329,7 +329,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         items.append(
             (
                 "FP ANIMATION",
-                "First Person Animation",
+                "Animation",
                 "",
                 get_icon_id("animation"),
                 5,
