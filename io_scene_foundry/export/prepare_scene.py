@@ -48,6 +48,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     enable_prints,
     get_object_type,
+    is_marker,
     is_mesh,
     jstr,
     layer_face_count,
@@ -177,13 +178,17 @@ class PrepareScene:
         # print("unhide_collections")
 
         #rotate -90 if this is a Reach Scenario/Decorator/Particle Model
-        # if not h4 and self.get_scene_armature(context.view_layer.objects, asset) is None:
+        # if not h4 and self.get_scene_armature(context.view_layer.objects, asset) is None:A
         #     self.rotate_scene(context.view_layer.objects)
 
         # make objects linked to scene real and local
         # Context override selection does not work here
         disable_prints()
         all_obs_start = context.view_layer.objects
+        # Remove all marker instancing
+        markers = [ob for ob in all_obs_start if is_marker(ob)]
+        for ob in markers:
+            ob.instance_type = 'NONE' 
         [ob.select_set(True) for ob in all_obs_start if ob.nwo.export_this]   
         bpy.ops.object.duplicates_make_real()
         bpy.ops.object.make_local(type="ALL")

@@ -83,6 +83,7 @@ from io_scene_foundry.utils.nwo_utils import (
     is_halo_object,
     is_marker,
     is_mesh,
+    library_instanced_collection,
     managed_blam_active,
     is_corinth,
     nwo_asset_type,
@@ -607,7 +608,7 @@ class NWO_FoundryPanelProps(Panel):
             row.prop(data, "type", expand=True)
         else:
             # Check if this is a linked collection
-            if ob.instance_type == 'COLLECTION' and ob.instance_collection and ob.instance_collection.library:
+            if library_instanced_collection(ob):
                 row.label(text='Instanced Collection', icon='OUTLINER_OB_GROUP_INSTANCE')
                 row = box.row()
                 row.label(text=f'{ob.name} will be unpacked at export')

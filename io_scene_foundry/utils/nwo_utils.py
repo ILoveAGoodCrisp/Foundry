@@ -1362,7 +1362,10 @@ def get_mesh_display(mesh_type):
                 return 'Decorator', get_icon_id('decorator')
             else:
                 return 'Render', get_icon_id('render_geometry')
-            
+
+def library_instanced_collection(ob):
+    return ob.instance_type == 'COLLECTION' and ob.instance_collection and ob.instance_collection.library
+
 def get_marker_display(mesh_type):
     match mesh_type:
         case '_connected_geometry_marker_type_effects':
@@ -1397,7 +1400,7 @@ def is_mesh(ob):
     return ob.type in VALID_MESHES
 
 def is_marker(ob):
-    return ob.type == 'EMPTY' and not ob.children
+    return ob.type == 'EMPTY' and not ob.children and not library_instanced_collection(ob)
 
 def is_frame(ob):
     return (ob.type == 'EMPTY' and ob.children) or ob.type == 'ARMATURE'
