@@ -223,7 +223,7 @@ class PrepareScene:
 
         scene_coll = context.scene.collection.objects
 
-        protected_names = self.get_bone_names(export_obs)
+        protected_names = self.get_bone_names(export_obs, context.scene.nwo)
 
         # build proxy instances from structure
         if h4:
@@ -613,7 +613,7 @@ class PrepareScene:
         if sidecar_type in ("MODEL", "SKY", "FP ANIMATION"):
             forward = context.scene.nwo.forward_direction
             self.model_armature = self.get_scene_armature(
-                export_obs, asset
+                export_obs, asset, context.scene.nwo
             )
 
             if self.lighting:
@@ -2473,21 +2473,28 @@ class PrepareScene:
     #####################################################################################
     #####################################################################################
     # ARMATURE FUNCTIONS
-    def get_scene_armature(self, export_obs, asset):
-        for ob in export_obs:
-            if ob.type == "ARMATURE":
-                arm_name = f"{asset}_world"
-                self.arm_name = arm_name
-                ob.name = arm_name
-                return ob
+    def get_scene_armature(self, export_obs, asset, scene_nwo):
+        arm_name = f"{asset}_world"
+        self.arm_name = arm_name
+        arm = None
+        if scene_nwo.main_armature:
+            arm = scene_nwo.main_armature
+        else:
+            for ob in export_obs:
+                if ob.type == "ARMATURE":
+                    arm = ob
+        
+        if arm is not None:
+            arm.name = arm_name
+            return arm
     
-    def get_bone_names(self, export_obs):
+    def get_bone_names(self, export_obs, scene_nwo):
         for ob in export_obs:
             if ob.type == "ARMATURE":
                 for b in ob.data.bones:
-                    if not self.aim_pitch and (ob.nwo.node_usage_pose_blend_pitch == b.name or b.name.endswith("aim_pitch")):
+                    if not self.aim_pitch and (scene_nwo.node_usage_pose_blend_pitch == b.name or b.name.endswith("aim_pitch")):
                         self.aim_pitch = b.name
-                    elif not self.aim_yaw and (ob.nwo.node_usage_pose_blend_yaw == b.name or b.name.endswith("aim_yaw")):
+                    elif not self.aim_yaw and (scene_nwo.node_usage_pose_blend_yaw == b.name or b.name.endswith("aim_yaw")):
                         self.aim_yaw = b.name
                     elif not self.gun and b.name == ("b_gun"):
                         self.gun = b.name

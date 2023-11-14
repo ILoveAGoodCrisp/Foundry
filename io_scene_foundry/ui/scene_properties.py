@@ -687,7 +687,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # Rig Validation
     
     def poll_armature(self, object):
-        return object.type == 'ARMATURE'
+        return object.type == 'ARMATURE' and object not in (self.main_armature, self.support_armature_a, self.support_armature_b, self.support_armature_c)
     
     multiple_rigs: BoolProperty()
     parent_rig: PointerProperty(
@@ -711,3 +711,66 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     invalid_root_bone: BoolProperty()
     needs_pose_bones: BoolProperty()
     too_many_bones: BoolProperty()
+    
+    # RIG PROPS
+    main_armature: PointerProperty(
+        name="Main Armature",
+        description="",
+        type=bpy.types.Object,
+        poll=poll_armature,
+    )
+    support_armature_a: PointerProperty(
+        name="Support Armature",
+        description="",
+        type=bpy.types.Object,
+        poll=poll_armature,
+    )
+    support_armature_a_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the child bone should join to at export')
+    support_armature_a_child_bone : StringProperty(name='Child Bone', description='Specify the bone from the support armature to join to the parent bone')
+    
+    support_armature_b: PointerProperty(
+        name="Support Armature",
+        description="",
+        type=bpy.types.Object,
+        poll=poll_armature,
+    )
+    support_armature_b_parent_bone : StringProperty(name='Parent Bone')
+    support_armature_b_child_bone : StringProperty(name='Child Bone')
+    
+    support_armature_c: PointerProperty(
+        name="Support Armature",
+        description="",
+        type=bpy.types.Object,
+        poll=poll_armature,
+    )
+    support_armature_c_parent_bone : StringProperty(name='Parent Bone')
+    support_armature_c_child_bone : StringProperty(name='Child Bone')
+    
+    node_usage_physics_control : StringProperty(name="Physics Control")
+    node_usage_camera_control : StringProperty(name="Camera Control")
+    node_usage_origin_marker : StringProperty(name="Origin Marker")
+    node_usage_left_clavicle : StringProperty(name="Left Clavicle")
+    node_usage_left_upperarm : StringProperty(name="Left Upperarm")
+    node_usage_pose_blend_pitch : StringProperty(name="Pose Blend Pitch")
+    node_usage_pose_blend_yaw : StringProperty(name="Pose Blend Yaw")
+    node_usage_pedestal : StringProperty(name="Pedestal")
+    node_usage_pelvis : StringProperty(name="Pelvis")
+    node_usage_left_foot : StringProperty(name="Left Foot")
+    node_usage_right_foot : StringProperty(name="Right Foot")
+    node_usage_damage_root_gut : StringProperty(name="Damage Root Gut")
+    node_usage_damage_root_chest : StringProperty(name="Damage Root Chest")
+    node_usage_damage_root_head : StringProperty(name="Damage Root Head")
+    node_usage_damage_root_left_shoulder : StringProperty(name="Damage RootLeft Shoulder")
+    node_usage_damage_root_left_arm : StringProperty(name="Damage Root Left Arm")
+    node_usage_damage_root_left_leg : StringProperty(name="Damage Root Left Leg")
+    node_usage_damage_root_left_foot : StringProperty(name="Damage Root Left Foot")
+    node_usage_damage_root_right_shoulder : StringProperty(name="Damage Root Right Shoulder")
+    node_usage_damage_root_right_arm : StringProperty(name="Damage Root Right Arm")
+    node_usage_damage_root_right_leg : StringProperty(name="Damage Root Right Leg")
+    node_usage_damage_root_right_foot : StringProperty(name="Damage Root Right Foot")
+    node_usage_left_hand : StringProperty(name="Left Hand")
+    node_usage_right_hand : StringProperty(name="Right Hand")
+    node_usage_weapon_ik : StringProperty(name="Weapon IK")
+    
+    control_pedestal: StringProperty(name='Pedestal Control')
+    control_aim: StringProperty(name='Aim Control')

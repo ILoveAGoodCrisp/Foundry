@@ -543,3 +543,4 @@ class NWO_List_Remove_Shared_Asset(NWO_Op):
         scene_nwo.shared_assets.remove(index)
         return {"FINISHED"}
 
+

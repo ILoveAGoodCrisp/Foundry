@@ -70,6 +70,7 @@ from io_scene_foundry.utils.nwo_utils import (
     export_objects,
     extract_from_resources,
     foundry_update_check,
+    get_arm_count,
     get_data_path,
     get_halo_material_count,
     get_marker_display,
@@ -424,8 +425,8 @@ class NWO_FoundryPanelProps(Panel):
                 icon_value=get_icon_id("equipment"),
             )
 
-            box = box.box()
-            box.label(text="Model Tag Reference Overrides")
+            box = self.box.box()
+            box.label(text="Model Overrides")
             col = box.column()
             row = col.row(align=True)
             row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
@@ -443,6 +444,84 @@ class NWO_FoundryPanelProps(Panel):
             row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
             row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
             row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
+            if nwo.render_model_path and nwo.collision_model_path and nwo.animation_graph_path and nwo.physics_model_path:
+                row = col.row(align=True)
+                row.label(text='All overrides specified', icon='ERROR')
+                row = col.row(align=True)
+                row.label(text='Everything exported from this scene will be overwritten')
+                
+            box = self.box.box()
+            box.label(text="Model Rig")
+            col = box.column()
+            col.use_property_split = True
+            col.prop(nwo, 'main_armature', icon='OUTLINER_OB_ARMATURE')
+            if not nwo.main_armature: return
+            arm_count = get_arm_count(context)
+            if arm_count > 1 or nwo.support_armature_a:
+                col.prop(nwo, 'support_armature_a', icon='OUTLINER_OB_ARMATURE')
+                if nwo.support_armature_a:
+                    col.prop_search(nwo, 'support_armature_a_parent_bone', nwo.main_armature.data, 'bones')
+                    col.prop_search(nwo, 'support_armature_a_child_bone', nwo.support_armature_a.data, 'bones')
+                    col.separator()
+            if arm_count > 2 or nwo.support_armature_b:
+                col.prop(nwo, 'support_armature_b', icon='OUTLINER_OB_ARMATURE')
+                if nwo.support_armature_b:
+                    col.prop_search(nwo, 'support_armature_b_parent_bone', nwo.main_armature.data, 'bones')
+                    col.prop_search(nwo, 'support_armature_b_child_bone', nwo.support_armature_b.data, 'bones')
+                    col.separator()
+            if arm_count > 3 or nwo.support_armature_c:
+                col.prop(nwo, 'support_armature_c', icon='OUTLINER_OB_ARMATURE')
+                if nwo.support_armature_c:
+                    col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
+                    col.prop_search(nwo, 'support_armature_c_child_bone', nwo.support_armature_c.data, 'bones')
+            
+            col.separator()
+            # Bone Controls
+            box_controls = box.box()
+            box_controls.label(text='Rig Controls')
+            box_controls.use_property_split = True
+            row = box_controls.row(align=True)
+            row.prop_search(nwo, 'control_pedestal', nwo.main_armature.data, 'bones')
+            if not nwo.control_pedestal:
+                row.operator('nwo.add_pedestal_control', text='', icon='ADD')
+            row = box_controls.row(align=True)
+            row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
+            if not nwo.control_aim:
+                row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
+            # Node Usages
+            box_usages = box.box()
+            box_usages.label(text='Rig Node Usages')
+            box_usages.use_property_split = True
+            col = box_usages.column()
+            col.prop_search(nwo, "node_usage_pedestal", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_pose_blend_pitch", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_pose_blend_yaw", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_physics_control", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_camera_control", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_origin_marker", nwo.main_armature.data, "bones")
+            if self.h4:
+                col.prop_search(nwo, "node_usage_weapon_ik", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_pelvis", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_left_clavicle", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_left_upperarm", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_left_foot", nwo.main_armature.data, "bones")
+            if self.h4:
+                col.prop_search(nwo, "node_usage_left_hand", nwo.main_armature.data, "bones")
+                col.prop_search(nwo, "node_usage_right_foot", nwo.main_armature.data, "bones")
+                col.prop_search(nwo, "node_usage_right_hand", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_gut", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_chest", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_head", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_shoulder", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_arm", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_leg", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_left_foot", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_shoulder", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_arm", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_leg", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_damage_root_right_foot", nwo.main_armature.data, "bones")
+            
+                
 
         elif nwo.asset_type == "FP ANIMATION":
             box = box.box()
@@ -551,50 +630,7 @@ class NWO_FoundryPanelProps(Panel):
             return
 
         elif ob.type == "ARMATURE":
-            # node usage
-            box.label(text="Node Usage")
-            col = box.column()
-            col.use_property_split = True
-            col.prop_search(nwo, "node_usage_pedestal", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_pose_blend_pitch", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_pose_blend_yaw", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_physics_control", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_camera_control", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_origin_marker", ob.data, "bones")
-            if self.h4:
-                col.prop_search(nwo, "node_usage_weapon_ik", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_pelvis", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_left_clavicle", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_left_upperarm", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_left_foot", ob.data, "bones")
-            if self.h4:
-                col.prop_search(nwo, "node_usage_left_hand", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_right_foot", ob.data, "bones")
-            if self.h4:
-                col.prop_search(nwo, "node_usage_right_hand", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_gut", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_chest", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_head", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_shoulder", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_arm", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_leg", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_foot", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_shoulder", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_arm", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_leg", ob.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_foot", ob.data, "bones")
-            col.separator()
-            box.label(text="Controls")
-            col = box.column()
-            col.use_property_split = True
-            row = col.row(align=True)
-            row.prop_search(nwo, 'control_pedestal', ob.data, 'bones')
-            if not nwo.control_pedestal:
-                row.operator('nwo.add_pedestal_control', text='', icon='ADD')
-            row = col.row(align=True)
-            row.prop_search(nwo, 'control_aim', ob.data, 'bones')
-            if not nwo.control_aim:
-                row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
+            box.label(text='Frame')
             return
 
         row = box.row(align=True)
@@ -2193,6 +2229,7 @@ class NWO_FoundryPanelProps(Panel):
                 row = col.row()
                 row.use_property_split = True
                 row.prop(nwo, "animation_type")
+                scene_nwo = context.scene.nwo
                 if nwo.animation_type != 'world':
                     row = col.row()
                     row.use_property_split = True
@@ -2201,9 +2238,9 @@ class NWO_FoundryPanelProps(Panel):
                     elif nwo.animation_type == 'overlay':
                         row.prop(nwo, 'animation_is_pose')
                         if nwo.animation_is_pose:
-                            no_aim_pitch = not ob.nwo.node_usage_pose_blend_pitch
-                            no_aim_yaw = not ob.nwo.node_usage_pose_blend_yaw
-                            no_pedestal = not ob.nwo.node_usage_pedestal
+                            no_aim_pitch = not scene_nwo.node_usage_pose_blend_pitch
+                            no_aim_yaw = not scene_nwo.node_usage_pose_blend_yaw
+                            no_pedestal = not scene_nwo.node_usage_pedestal
                             if no_aim_pitch or no_aim_yaw or no_pedestal:
                                 col.label(text='Pose Overlay needs Node Usages defined for:', icon='ERROR')
                                 missing = []
@@ -5088,6 +5125,10 @@ class NWO_AddPoseBones(Operator):
     has_control_bone: BoolProperty()
     skip_invoke: BoolProperty()
     
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.main_armature
+    
     def new_bone(self, arm, parent_name, bone_name):
         parent_edit = arm.data.edit_bones.get(parent_name)
         new_edit = arm.data.edit_bones.new(bone_name)
@@ -5175,17 +5216,12 @@ class NWO_AddPoseBones(Operator):
         return name
         
     def execute(self, context):
-        arm = context.object
-        if arm.type != 'ARMATURE':
-            bpy.ops.nwo.select_armature()
-            arm = context.object
-            if arm.type != 'ARMATURE':
-                return {'CANCELLED'}
+        scene_nwo = context.scene.nwo
+        arm = scene_nwo.main_armature
         bones = arm.data.bones
-        nwo = arm.nwo
         for b in bones:
             if b.use_deform and not b.parent:
-                nwo.node_usage_pedestal = b.name
+                scene_nwo.node_usage_pedestal = b.name
                 parent_bone = b
                 parent_bone_name = parent_bone.name
                 break
@@ -5194,23 +5230,23 @@ class NWO_AddPoseBones(Operator):
             return {'FINISHED'}
         
         for b in bones:
-            if not nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
-                nwo.node_usage_pose_blend_pitch = b.name
-            elif not nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
-                nwo.node_usage_pose_blend_yaw = b.name
+            if not scene_nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
+                scene_nwo.node_usage_pose_blend_pitch = b.name
+            elif not scene_nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
+                scene_nwo.node_usage_pose_blend_yaw = b.name
                 
         # Get missing node usages
         bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-        if nwo.node_usage_pose_blend_pitch:
-            pitch_name = nwo.node_usage_pose_blend_pitch
+        if scene_nwo.node_usage_pose_blend_pitch:
+            pitch_name = scene_nwo.node_usage_pose_blend_pitch
         else:
             pitch_name = self.new_bone(arm, parent_bone_name, 'b_aim_pitch')
-            nwo.node_usage_pose_blend_pitch = pitch_name
-        if nwo.node_usage_pose_blend_yaw:
-            yaw_name = nwo.node_usage_pose_blend_yaw
+            scene_nwo.node_usage_pose_blend_pitch = pitch_name
+        if scene_nwo.node_usage_pose_blend_yaw:
+            yaw_name = scene_nwo.node_usage_pose_blend_yaw
         else:
             yaw_name = self.new_bone(arm, parent_bone_name, 'b_aim_yaw')
-            nwo.node_usage_pose_blend_yaw = yaw_name
+            scene_nwo.node_usage_pose_blend_yaw = yaw_name
             
         if self.add_control_bone and not self.has_control_bone:
             bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
@@ -5235,7 +5271,7 @@ class NWO_AddPoseBones(Operator):
             arm.select_set(True)
             set_active_object(arm)
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            nwo.control_aim = self.new_control_bone(arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
+            scene_nwo.control_aim = self.new_control_bone(arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
             unlink(bone_shape)
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
@@ -5243,7 +5279,8 @@ class NWO_AddPoseBones(Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        if context.object.nwo.control_aim:
+        scene_nwo = context.scene.nwo
+        if scene_nwo.control_aim:
             self.report({'INFO'}, "Aim Control bone already set")
             self.has_control_bone = True
             return self.execute(context)
@@ -5528,6 +5565,10 @@ class NWO_AddPedestalControl(Operator):
     bl_description = "Adds a control bone and custom shape to the armature pedestal bone"
     bl_options = {'UNDO'}
     
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.main_armature
+    
     def new_control_bone(self, arm, pedestal_name, bone_name, shape_ob):
         new_edit = arm.data.edit_bones.new(bone_name)
         new_edit.tail[1] = 1
@@ -5550,14 +5591,9 @@ class NWO_AddPedestalControl(Operator):
         return name
     
     def execute(self, context):
-        arm = context.object
-        if arm.type != 'ARMATURE':
-            bpy.ops.nwo.select_armature()
-            arm = context.object
-            if arm.type != 'ARMATURE':
-                return {'CANCELLED'}
+        scene_nwo = context.scene.nwo
+        arm = scene_nwo.main_armature
         bones = arm.data.bones
-        nwo = arm.nwo
         for b in bones:
             if b.use_deform and not b.parent:
                 pedestal_bone_name = b.name
@@ -5566,7 +5602,7 @@ class NWO_AddPedestalControl(Operator):
             self.report({'WARNING'}, 'No root bone found')
             return {'FINISHED'}
             
-        if arm.nwo.control_pedestal:
+        if scene_nwo.control_pedestal:
             self.report({'INFO'}, "Pedestal control already in place")
             return {'CANCELLED'}
         else:
@@ -5592,7 +5628,7 @@ class NWO_AddPedestalControl(Operator):
             arm.select_set(True)
             set_active_object(arm)
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            nwo.control_pedestal = self.new_control_bone(arm, pedestal_bone_name, 'c_pedestal', bone_shape)
+            scene_nwo.control_pedestal = self.new_control_bone(arm, pedestal_bone_name, 'c_pedestal', bone_shape)
             unlink(bone_shape)
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
@@ -5606,7 +5642,10 @@ class NWO_AddAimAnimation(Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == 'ARMATURE' and context.object.nwo.node_usage_pose_blend_yaw and context.object.nwo.node_usage_pose_blend_pitch
+        scene_nwo = context.scene.nwo
+        arm = scene_nwo.main_armature
+        if not arm: return False
+        return context.object and context.object == arm and scene_nwo.node_usage_pose_blend_yaw and scene_nwo.node_usage_pose_blend_pitch
     
     aim_animation: EnumProperty(
         name='Animation',
@@ -5801,10 +5840,11 @@ class NWO_AddAimAnimation(Operator):
         return start + 10
     
     def execute(self, context):
-        arm = context.object
-        yaw_name = arm.nwo.node_usage_pose_blend_yaw
-        pitch_name = arm.nwo.node_usage_pose_blend_pitch
-        aim_name = arm.nwo.control_aim
+        scene_nwo = context.scene.nwo
+        arm = scene_nwo.main_armature
+        yaw_name = scene_nwo.node_usage_pose_blend_yaw
+        pitch_name = scene_nwo.node_usage_pose_blend_pitch
+        aim_name = scene_nwo.control_aim
         yaw = arm.pose.bones.get(yaw_name)
         pitch = arm.pose.bones.get(pitch_name)
         if aim_name:

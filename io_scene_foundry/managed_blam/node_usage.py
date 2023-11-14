@@ -29,15 +29,14 @@ from io_scene_foundry.utils.nwo_utils import get_asset_path
 from . import ManagedBlam
 
 class ManagedBlamNodeUsage(ManagedBlam):
-    def __init__(self, armature, bones):
+    def __init__(self, scene_nwo, bones):
       super().__init__()
-      self.node_usage_dict = self.get_node_usage_dict(armature)
+      self.node_usage_dict = self.get_node_usage_dict(scene_nwo)
       self.bones = bones
       self.tag_helper()
 
-    def get_node_usage_dict(self, armature):
+    def get_node_usage_dict(self, nwo):
       node_usage_dict = {}
-      nwo = armature.nwo
       if nwo.node_usage_pedestal:
          node_usage_dict[nwo.node_usage_pedestal] = "pedestal"
       if nwo.node_usage_physics_control:

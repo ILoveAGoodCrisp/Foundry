@@ -746,7 +746,7 @@ class ProcessScene:
             no_top_level_tag = hasattr(sidecar_result, "no_top_level_tag") and not os.path.exists(scenery_path)
 
             if export_gr2_files and os.path.exists(sidecar_path_full):
-                self.managed_blam_pre_import_tasks(nwo_scene, export_animations)
+                self.managed_blam_pre_import_tasks(nwo_scene, export_animations, context.scene.nwo)
                 export_failed, error = import_sidecar(
                     sidecar_type,
                     sidecar_path,
@@ -1097,8 +1097,8 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations):
-        node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(nwo_scene.model_armature.nwo)
+    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo):
+        node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
         mb_justified = (node_usage_set)
         if not mb_justified:
             return
@@ -1109,7 +1109,7 @@ class ProcessScene:
         # Update/ set up Node Usage block of the model_animation_graph
         if node_usage_set:
             disable_prints()
-            ManagedBlamNodeUsage(nwo_scene.model_armature, nwo_scene.skeleton_bones)
+            ManagedBlamNodeUsage(scene_nwo, nwo_scene.skeleton_bones)
             enable_prints()
             print("--- Updated Animation Node Usages")
 

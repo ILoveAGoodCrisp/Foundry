@@ -1439,3 +1439,7 @@ def get_shader_name(mat):
             return shader_name
 
     return None
+
+def get_arm_count(context: bpy.types.Context):
+    arms = [ob for ob in context.view_layer.objects if ob.type == 'ARMATURE']
+    return len(arms)
