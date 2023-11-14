@@ -25,9 +25,10 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
+from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, set_active_object
+from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
 
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'
@@ -221,9 +222,12 @@ class NWO_MeshToMarker(bpy.types.Operator):
             # node.matrix_parent_inverse = ob.matrix_parent_inverse
             marker.scale = ob.scale
             if self.maintain_mesh:
-                mesh_ob = bpy.data.objects.new(original_name + '_TEMP', ob.data)
+                ob.name += '_MARKER_SHAPE'
+                ob.matrix_world = Matrix()
+                # mesh_ob = bpy.data.objects.new(original_name + '_TEMP', ob.data)
+                unlink(ob)
                 secret_coll = bpy.data.collections.new(original_name)
-                secret_coll.objects.link(mesh_ob)
+                secret_coll.objects.link(ob)
                 marker.instance_type = 'COLLECTION'
                 marker.instance_collection = secret_coll
                 
