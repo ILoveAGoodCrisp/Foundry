@@ -449,82 +449,11 @@ class NWO_FoundryPanelProps(Panel):
                 row.label(text='All overrides specified', icon='ERROR')
                 row = col.row(align=True)
                 row.label(text='Everything exported from this scene will be overwritten')
-                
-            box = self.box.box()
-            box.label(text="Model Rig")
-            col = box.column()
-            col.use_property_split = True
-            col.prop(nwo, 'main_armature', icon='OUTLINER_OB_ARMATURE')
-            if not nwo.main_armature: return
-            arm_count = get_arm_count(context)
-            if arm_count > 1 or nwo.support_armature_a:
-                col.prop(nwo, 'support_armature_a', icon='OUTLINER_OB_ARMATURE')
-                if nwo.support_armature_a:
-                    col.prop_search(nwo, 'support_armature_a_parent_bone', nwo.main_armature.data, 'bones')
-                    col.prop_search(nwo, 'support_armature_a_child_bone', nwo.support_armature_a.data, 'bones')
-                    col.separator()
-            if arm_count > 2 or nwo.support_armature_b:
-                col.prop(nwo, 'support_armature_b', icon='OUTLINER_OB_ARMATURE')
-                if nwo.support_armature_b:
-                    col.prop_search(nwo, 'support_armature_b_parent_bone', nwo.main_armature.data, 'bones')
-                    col.prop_search(nwo, 'support_armature_b_child_bone', nwo.support_armature_b.data, 'bones')
-                    col.separator()
-            if arm_count > 3 or nwo.support_armature_c:
-                col.prop(nwo, 'support_armature_c', icon='OUTLINER_OB_ARMATURE')
-                if nwo.support_armature_c:
-                    col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
-                    col.prop_search(nwo, 'support_armature_c_child_bone', nwo.support_armature_c.data, 'bones')
             
-            col.separator()
-            # Bone Controls
-            box_controls = box.box()
-            box_controls.label(text='Rig Controls')
-            box_controls.use_property_split = True
-            row = box_controls.row(align=True)
-            row.prop_search(nwo, 'control_pedestal', nwo.main_armature.data, 'bones')
-            if not nwo.control_pedestal:
-                row.operator('nwo.add_pedestal_control', text='', icon='ADD')
-            row = box_controls.row(align=True)
-            row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
-            if not nwo.control_aim:
-                row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
-            # Node Usages
-            box_usages = box.box()
-            box_usages.label(text='Rig Node Usages')
-            box_usages.use_property_split = True
-            col = box_usages.column()
-            col.prop_search(nwo, "node_usage_pedestal", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_pose_blend_pitch", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_pose_blend_yaw", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_physics_control", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_camera_control", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_origin_marker", nwo.main_armature.data, "bones")
-            if self.h4:
-                col.prop_search(nwo, "node_usage_weapon_ik", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_pelvis", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_left_clavicle", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_left_upperarm", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_left_foot", nwo.main_armature.data, "bones")
-            if self.h4:
-                col.prop_search(nwo, "node_usage_left_hand", nwo.main_armature.data, "bones")
-                col.prop_search(nwo, "node_usage_right_foot", nwo.main_armature.data, "bones")
-                col.prop_search(nwo, "node_usage_right_hand", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_gut", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_chest", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_head", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_shoulder", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_arm", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_leg", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_left_foot", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_shoulder", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_arm", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_leg", nwo.main_armature.data, "bones")
-            col.prop_search(nwo, "node_usage_damage_root_right_foot", nwo.main_armature.data, "bones")
-            
-                
+            self.draw_rig_ui(context, nwo)    
 
         elif nwo.asset_type == "FP ANIMATION":
-            box = box.box()
+            box = self.box.box()
             box.label(text="Tag References")
             col = box.column()
             row = col.row(align=True)
@@ -535,6 +464,81 @@ class NWO_FoundryPanelProps(Panel):
             row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
             row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
             row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
+            
+            self.draw_rig_ui(context, nwo)  
+            
+    def draw_rig_ui(self, context, nwo):
+        box = self.box.box()
+        box.label(text="Model Rig")
+        col = box.column()
+        col.use_property_split = True
+        col.prop(nwo, 'main_armature', icon='OUTLINER_OB_ARMATURE')
+        if not nwo.main_armature: return
+        col.separator()
+        arm_count = get_arm_count(context)
+        if arm_count > 1 or nwo.support_armature_a:
+            col.prop(nwo, 'support_armature_a', icon='OUTLINER_OB_ARMATURE')
+            if nwo.support_armature_a:
+                col.prop_search(nwo, 'support_armature_a_parent_bone', nwo.main_armature.data, 'bones')
+                col.prop_search(nwo, 'support_armature_a_child_bone', nwo.support_armature_a.data, 'bones')
+                col.separator()
+        if arm_count > 2 or nwo.support_armature_b:
+            col.prop(nwo, 'support_armature_b', icon='OUTLINER_OB_ARMATURE')
+            if nwo.support_armature_b:
+                col.prop_search(nwo, 'support_armature_b_parent_bone', nwo.main_armature.data, 'bones')
+                col.prop_search(nwo, 'support_armature_b_child_bone', nwo.support_armature_b.data, 'bones')
+                col.separator()
+        if arm_count > 3 or nwo.support_armature_c:
+            col.prop(nwo, 'support_armature_c', icon='OUTLINER_OB_ARMATURE')
+            if nwo.support_armature_c:
+                col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
+                col.prop_search(nwo, 'support_armature_c_child_bone', nwo.support_armature_c.data, 'bones')
+        
+        col.separator()
+        # Bone Controls
+        box_controls = box.box()
+        box_controls.label(text='Rig Controls')
+        box_controls.use_property_split = True
+        row = box_controls.row(align=True)
+        row.prop_search(nwo, 'control_pedestal', nwo.main_armature.data, 'bones')
+        if not nwo.control_pedestal:
+            row.operator('nwo.add_pedestal_control', text='', icon='ADD')
+        row = box_controls.row(align=True)
+        row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
+        if not nwo.control_aim:
+            row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
+        # Node Usages
+        box_usages = box.box()
+        box_usages.label(text='Rig Node Usages')
+        box_usages.use_property_split = True
+        col = box_usages.column()
+        col.prop_search(nwo, "node_usage_pedestal", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_pose_blend_pitch", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_pose_blend_yaw", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_physics_control", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_camera_control", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_origin_marker", nwo.main_armature.data, "bones")
+        if self.h4:
+            col.prop_search(nwo, "node_usage_weapon_ik", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_pelvis", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_left_clavicle", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_left_upperarm", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_left_foot", nwo.main_armature.data, "bones")
+        if self.h4:
+            col.prop_search(nwo, "node_usage_left_hand", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_right_foot", nwo.main_armature.data, "bones")
+            col.prop_search(nwo, "node_usage_right_hand", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_gut", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_chest", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_head", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_left_shoulder", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_left_arm", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_left_leg", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_left_foot", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_right_shoulder", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_right_arm", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_right_leg", nwo.main_armature.data, "bones")
+        col.prop_search(nwo, "node_usage_damage_root_right_foot", nwo.main_armature.data, "bones")
 
     def draw_sets_manager(self):
         box = self.box.box()

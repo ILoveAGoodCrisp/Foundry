@@ -686,8 +686,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     # Rig Validation
     
-    def poll_armature(self, object):
-        return object.type == 'ARMATURE' and object not in (self.main_armature, self.support_armature_a, self.support_armature_b, self.support_armature_c)
+    def poll_armature(self, object: bpy.types.Object):
+        return object.type == 'ARMATURE' and object.visible_get() and object not in (self.main_armature, self.support_armature_a, self.support_armature_b, self.support_armature_c)
     
     multiple_rigs: BoolProperty()
     parent_rig: PointerProperty(

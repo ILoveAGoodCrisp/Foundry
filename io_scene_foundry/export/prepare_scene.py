@@ -201,6 +201,11 @@ class PrepareScene:
 
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
+        
+        # Combine Armatures is possible
+        scene_nwo = context.scene.nwo
+        if sidecar_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
+            self.consolidate_rig(scene_nwo)
 
         # unlink non export objects
         if sidecar_type == "FP ANIMATION":
@@ -3397,7 +3402,64 @@ class PrepareScene:
                 b.use_relative_parent = False
 
         self.model_armature.select_set(False)
-
+        
+    
+    def consolidate_rig(self, scene_nwo):
+        if scene_nwo.support_armature_a:
+            if scene_nwo.support_armature_a_parent_bone and scene_nwo.support_armature_a_child_bone:
+                self.join_armatures(scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, scene_nwo.support_armature_a_child_bone)
+            else:
+                self.unlink(scene_nwo.support_armature_a)
+                if not scene_nwo.support_armature_a_parent_bone:
+                    self.warning_hit = True
+                    print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
+                    
+                if not scene_nwo.support_armature_a_child_bone:
+                    self.warning_hit = True
+                    print_warning(f"No child bone specified in Asset Editor panel for {scene_nwo.support_armature_a_child_bone}. Ignoring support armature")
+                    
+        if scene_nwo.support_armature_b:
+            if scene_nwo.support_armature_b_parent_bone and scene_nwo.support_armature_b_child_bone:
+                self.join_armatures(scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, scene_nwo.support_armature_b_child_bone)
+            else:
+                self.unlink(scene_nwo.support_armature_b)
+                if not scene_nwo.support_armature_b_parent_bone:
+                    self.warning_hit = True
+                    print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
+                    
+                if not scene_nwo.support_armature_b_child_bone:
+                    self.warning_hit = True
+                    print_warning(f"No child bone specified in Asset Editor panel for {scene_nwo.support_armature_b_child_bone}. Ignoring support armature")
+                    
+        if scene_nwo.support_armature_c:
+            if scene_nwo.support_armature_c_parent_bone and scene_nwo.support_armature_c_child_bone:
+                self.join_armatures(scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, scene_nwo.support_armature_c_child_bone)
+            else:
+                self.unlink(scene_nwo.support_armature_c)
+                if not scene_nwo.support_armature_c_parent_bone:
+                    self.warning_hit = True
+                    print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
+                    
+                if not scene_nwo.support_armature_b_child_bone:
+                    self.warning_hit = True
+                    print_warning(f"No child bone specified in Asset Editor panel for {scene_nwo.support_armature_c_child_bone}. Ignoring support armature")
+                    
+    def join_armatures(self, parent, child, parent_bone, child_bone):
+        parent.select_set(True)
+        child.select_set(True)
+        set_active_object(parent)
+        bpy.ops.object.join()
+        bpy.ops.object.editmode_toggle()
+        edit_child = parent.data.edit_bones.get(child_bone, 0)
+        edit_parent = parent.data.edit_bones.get(parent_bone, 0)
+        if edit_child and edit_parent:
+            edit_child.parent = edit_parent
+        else:
+            self.warning_hit = True
+            print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
+            
+        bpy.ops.object.editmode_toggle()
+        parent.select_set(False)
 
     def remove_constraints(self, arm):
         arm.select_set(True)
