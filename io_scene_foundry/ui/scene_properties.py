@@ -510,8 +510,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             "render_model"
         ).strip('"')
     def gun_model_clean_tag_path(self, context):
-        self["fp_model_path"] = clean_tag_path(
-            self["fp_model_path"],
+        self["gun_model_path"] = clean_tag_path(
+            self["gun_model_path"],
             "render_model"
         ).strip('"')
 
