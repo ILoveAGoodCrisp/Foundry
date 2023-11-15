@@ -3103,7 +3103,7 @@ class PrepareScene:
         for bsp in bsps_in_need:
             bsp_obs = [ob for ob in export_obs if ob.nwo.region_name == bsp]
             max_x, max_y, max_z = 1000, 1000, 1000
-            padding = 1.5
+            padding = 1.25
             for ob in bsp_obs:
                 max_x = max(max_x, abs(ob.location.x) * padding)
                 max_y = max(max_y, abs(ob.location.z) * padding)
@@ -3111,7 +3111,7 @@ class PrepareScene:
         
             # Create the box with bmesh
             bm = bmesh.new()
-            bmesh.ops.create_cube(bm, size=max(max_x, max_y, max_z))
+            bmesh.ops.create_cube(bm, size=max(max_x, max_y, max_z) * 2)
             bm.faces.ensure_lookup_table()
             for face in bm.faces:
                 face.normal_flip()
