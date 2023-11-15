@@ -194,7 +194,7 @@ class TableEntryRename(bpy.types.Operator):
             return {'CANCELLED'}
         
         scene_objects = context.scene.objects
-        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
+        entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.old]
         old_name = str(entry.old)
         entry.old = new_name
         entry.name = new_name

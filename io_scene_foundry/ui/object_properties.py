@@ -2073,7 +2073,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         if not regions:
             return "default"
         region_names = [r.name for r in regions]
-        if name not in region_names:
+        old_region_names = [r.old for r in regions]
+        if name not in region_names and name not in old_region_names:
             name = scene_nwo.regions_table[0].name
         self['region_name_ui'] = name
         return name
@@ -2105,7 +2106,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         if not permutations:
             return "default"
         permutation_names = [p.name for p in permutations]
-        if name not in permutation_names:
+        old_permutation_names = [p.old for p in permutations]
+        if name not in permutation_names and name not in old_permutation_names:
             name = scene_nwo.permutations_table[0].name
         self['permutation_name_ui'] = name
         return name
