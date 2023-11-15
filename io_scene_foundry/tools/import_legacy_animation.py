@@ -40,11 +40,13 @@ def import_legacy_animation(context, filepath, report):
     load_file(context, filepath, 'halo3', False, False, "", "", report)
     filename = os.path.basename(filepath)
     anim_name, extension = filename.split('.')
-    anim = bpy.data.actions.get(anim_name, 0)
+    anim = bpy.data.actions.get(anim_name[:64], 0)
     nwo = anim.nwo
     if anim:
         anim.use_fake_user = True
         anim.use_frame_range = True
+        if len(filename) > 64:
+            nwo.name_override = anim_name
         match extension.lower():
             case 'jmm':
                 nwo.animation_type = 'base'

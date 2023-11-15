@@ -5914,7 +5914,7 @@ class NWO_AddAimAnimation(Operator):
 class NWO_ImportLegacyAnimation(Operator):
     bl_label = "Import"
     bl_idname = "nwo.import_legacy_animation"
-    bl_description = "Imports a legacy Halo animation. Supported file extensions: JMM, JMA, JMT, JMZ, JMV, JMW, JMO, JMR, JMRX"
+    bl_description = "Imports legacy Halo animations. Will import all animations selected. Supported file extensions: JMM, JMA, JMT, JMZ, JMV, JMW, JMO, JMR, JMRX"
     
     @classmethod
     def poll(cls, context):
