@@ -1443,3 +1443,10 @@ def get_shader_name(mat):
 def get_arm_count(context: bpy.types.Context):
     arms = [ob for ob in context.view_layer.objects if ob.type == 'ARMATURE']
     return len(arms)
+
+def blender_toolset_installed():
+    try:
+        from io_scene_halo import bl_info
+        return True
+    except:
+        return False

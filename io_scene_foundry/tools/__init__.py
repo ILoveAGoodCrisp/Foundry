@@ -64,6 +64,7 @@ from .halo_launcher import NWO_MaterialGirl, open_file_explorer
 
 from io_scene_foundry.utils.nwo_utils import (
     addon_root,
+    blender_toolset_installed,
     bpy_enum,
     deselect_all_objects,
     dot_partition,
@@ -2407,6 +2408,8 @@ class NWO_FoundryPanelProps(Panel):
         self.draw_asset_shaders(box)
         if poll_ui(('MODEL', 'FP ANIMATION', 'SKY')):
             box = self.box.box()
+            self.draw_importer(box)
+            box = self.box.box()
             self.draw_rig_tools(box)
         elif poll_ui('SCENARIO'):
             box = self.box.box()
@@ -2417,6 +2420,16 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column()
         col.label(text=f"BSP Tools")
         col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
+        
+    def draw_importer(self, box):
+        row = box.row()
+        col = row.column()
+        col.label(text=f"Importer")
+        if blender_toolset_installed():
+            col.operator('nwo.import_legacy_animation', text="Import Legacy Animations", icon='ANIM')
+        else:
+            col.label(text="Halo Blender Toolset required for legacy animations")
+            col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
         
     def draw_rig_tools(self, box):
         row = box.row()
@@ -5898,6 +5911,61 @@ class NWO_AddAimAnimation(Operator):
             layout.prop(self, 'max_pitch', text='Max Pitch Angle')
         
 
+class NWO_ImportLegacyAnimation(Operator):
+    bl_label = "Import Legacy Animation"
+    bl_idname = "nwo.import_legacy_animation"
+    bl_description = "Imports a legacy Halo animation. Support file extensions: JMM, JMA, JMT, JMZ, JMV, JMW, JMO, JMR, JMRX"
+    
+    @classmethod
+    def poll(cls, context):
+        return blender_toolset_installed()
+    
+    filter_glob: StringProperty(
+        default="*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx",
+        options={"HIDDEN"},
+    )
+
+    files: bpy.props.CollectionProperty(
+        type=bpy.types.OperatorFileListElement,
+        options={"HIDDEN", "SKIP_SAVE"},
+    )
+    
+    directory: StringProperty(
+        name='Directory',
+        subtype='DIR_PATH'
+    )
+    
+    def execute(self, context):
+        old_active = None
+        if context.object:
+            old_active = context.object
+        scene_nwo = context.scene.nwo
+        if scene_nwo.main_armature:
+            arm = scene_nwo.main_armature
+        else:
+            arms = [ob for ob in bpy.context.view_layer.objects if ob.type == 'ARMATURE']
+            if arms:
+                arm = arms[0]
+            else:
+                arm_data = bpy.data.armatures.new('Armature')
+                arm = bpy.data.objects.new('Armature', arm_data)
+                context.scene.collection.objects.link(arm)
+            
+        arm.hide_set(False)
+        arm.hide_select = False
+        set_active_object(arm)
+        from io_scene_foundry.tools.import_legacy_animation import import_legacy_animations
+        filepaths = [self.directory + f.name for f in self.files]
+        import_legacy_animations(context, filepaths, self.report)
+        if old_active is not None:
+            set_active_object(old_active)
+            
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
 class NWO_OpenImageEditor(Operator):
     bl_label = "Open in Image Editor"
     bl_idname = "nwo.open_image_editor"
@@ -6054,6 +6122,7 @@ classeshalo = (
     NWO_PermutationHide,
     NWO_PermutationHideSelect,
     NWO_SeamAssignSingle,
+    NWO_ImportLegacyAnimation,
     NWO_OpenImageEditor,
     NWO_MaterialGirl,
     NWO_OpenFoundationTag,
