@@ -2734,17 +2734,20 @@ class NWO_SelectArmature(Operator):
         set_object_mode(context)
         objects = context.view_layer.objects
         scene = context.scene
-        rigs = [ob for ob in objects if ob.type == 'ARMATURE']
-        if not rigs:
-            self.report({'WARNING'}, "No Armature in Scene")
-            return {'CANCELLED'}
-        elif len(rigs) > 1:
-            if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
-                arm = scene.nwo.parent_rig
-            else:
-                self.report({'WARNING'}, "Multiple Armatures found. Please validate rig under Foundry Tools > Rig Tools")
+        if scene.nwo.main_armature:
+            arm = scene.nwo.main_armature
+        else:
+            rigs = [ob for ob in objects if ob.type == 'ARMATURE']
+            if not rigs:
+                self.report({'WARNING'}, "No Armature in Scene")
                 return {'CANCELLED'}
-        arm = rigs[0]
+            elif len(rigs) > 1:
+                if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
+                    arm = scene.nwo.parent_rig
+                else:
+                    self.report({'WARNING'}, "Multiple Armatures found. Please validate rig under Foundry Tools > Rig Tools")
+                    return {'CANCELLED'}
+            arm = rigs[0]
         deselect_all_objects()
         arm.hide_set(False)
         arm.hide_select = False
