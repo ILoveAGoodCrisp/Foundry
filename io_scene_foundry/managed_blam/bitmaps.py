@@ -104,7 +104,9 @@ class ManagedBlamNewBitmap(ManagedBlam):
         reset = override_element.SelectField("reset usage override")
         reset.RunCommand()
         bitmap_curve = override_element.SelectField("bitmap curve")
-        if bitmap_curve.Value == 1: # 1 is xRGB
+        if self.bitmap_type == "Material Map":
+            bitmap_curve.SetValue("linear")
+        elif bitmap_curve.Value == 1: # 1 is xRGB
             bitmap_curve.SetValue("sRGB (gamma 2.2)")
         if bitmap_curve.Value == 3:
             self.Element_set_field_value(override_element, 'source gamma', '1')
