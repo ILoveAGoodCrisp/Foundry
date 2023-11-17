@@ -44,6 +44,7 @@ from bpy.props import (
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
+from io_scene_foundry.tools.clear_duplicate_materials import NWO_StompMaterials
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
@@ -2490,8 +2491,10 @@ class NWO_FoundryPanelProps(Panel):
         col2.separator()
         col1.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
         col2.popover(panel=NWO_ShaderFarmPopover.bl_idname, text="")
+        col1.separator()
+        col.operator("nwo.stomp_materials", text=f"Remove Duplicate Materials", icon='X')
         if h4:
-            col1.separator()
+            col.separator()
             col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=get_icon_id("foundation"))
 
 
@@ -6205,6 +6208,7 @@ classeshalo = (
     NWO_AddPedestalControl,
     NWO_AddAimAnimation,
     NWO_MeshToMarker,
+    NWO_StompMaterials,
 )
 
 
