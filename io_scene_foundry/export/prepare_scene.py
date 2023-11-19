@@ -3069,6 +3069,7 @@ class PrepareScene:
                     bpy.ops.object.mode_set(mode="EDIT", toggle=False)
                     ob.active_material_index = idx
                     slots_to_remove.append(idx)
+                    bpy.ops.mesh.select_all(action='DESELECT')
                     bpy.ops.object.material_slot_select()
                     ob.active_material_index = mats[s_name]
                     bpy.ops.object.material_slot_assign()

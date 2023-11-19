@@ -181,28 +181,28 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f"No {game} Editing Kit path found. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
-                    f"INVALID {game} EK PATH",
+                    f"Invalid {game} Project Path",
                     0,
                 )
             elif not file_exists(f"{get_tool_path()}.exe"):
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f"{game} Tool not found. Could not find {game} tool or tool_fast. Please check your {game} editing kit path in add-on preferences [Edit > Preferences > Add-ons > Halo Asset Blender Development Toolset] and ensure this points to your {game} editing kit directory.",
-                    f"INVALID {game} TOOL PATH",
+                    f"Invalid {game} Tool Path",
                     0,
                 )
             elif self.asset_path.lower() + path.sep == get_data_path().lower():
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f'You cannot export directly to your root {game} editing kit data directory. Please create a valid asset directory such as "data\my_asset" and direct your export to this folder',
-                    f"ROOT DATA FOLDER EXPORT",
+                    f"Root Data Folder Export",
                     0,
                 )
             else:
                 ctypes.windll.user32.MessageBoxW(
                     0,
                     f"The selected export folder is outside of your {game} editing kit data directory, please ensure you are exporting to a directory within your {game} editing kit data folder.",
-                    f"INVALID {game} EXPORT PATH",
+                    f"Invalid {game} Export Path",
                     0,
                 )
 
@@ -432,6 +432,7 @@ class NWO_Export(NWO_Export_Scene):
         
         # Check that we can export
         if self.export_invalid():
+            scene_nwo_export.export_quick = False
             self.report({"WARNING"}, "Export aborted")
             return {"CANCELLED"}
         
@@ -614,8 +615,8 @@ class NWO_Export(NWO_Export_Scene):
             print_warning("\n\nEXPORT CANCELLED BY USER")
             # self.write_temp_settings(context, sidecar_path)
 
-        bpy.ops.ed.undo_push()
-        bpy.ops.ed.undo()
+        # bpy.ops.ed.undo_push()
+        # bpy.ops.ed.undo()
         return {"FINISHED"}
 
 def ExportSettingsFromSidecar(sidecar_filepath):
