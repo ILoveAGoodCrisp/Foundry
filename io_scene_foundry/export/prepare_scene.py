@@ -1897,13 +1897,9 @@ class PrepareScene:
             != "_connected_poop_instance_imposter_policy_never"
         ):
             if not nwo.poop_imposter_transition_distance_auto:
-                nwo.poop_imposter_transition_distance = (
-                    nwo.poop_imposter_transition_distance_ui
-                )
+                nwo.poop_imposter_transition_distance = jstr(nwo.poop_imposter_transition_distance_ui)
                 if h4:
-                    nwo.poop_imposter_brightness = (
-                        nwo.poop_imposter_brightness_ui
-                    )
+                    nwo.poop_imposter_brightness = jstr(nwo.poop_imposter_brightness_ui)
 
         if nwo.poop_render_only_ui:
             nwo.poop_render_only = "1"
