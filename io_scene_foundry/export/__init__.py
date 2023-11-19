@@ -615,8 +615,8 @@ class NWO_Export(NWO_Export_Scene):
             print_warning("\n\nEXPORT CANCELLED BY USER")
             # self.write_temp_settings(context, sidecar_path)
 
-        # bpy.ops.ed.undo_push()
-        # bpy.ops.ed.undo()
+        bpy.ops.ed.undo_push()
+        bpy.ops.ed.undo()
         return {"FINISHED"}
 
 def ExportSettingsFromSidecar(sidecar_filepath):
