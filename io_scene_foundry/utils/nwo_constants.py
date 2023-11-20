@@ -26,13 +26,12 @@
 
 # MESH TYPE GROUPS
 # Mesh types which support render properties
-RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop")
+RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop")
 # Mesh types which support the two sided flag
-TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_render", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision")
+TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision")
 
 # Blender Halo Mesh Types
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
-VALID_MARKERS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY'}
 
 # MATERIALS
 # Protected material names, we never let the user set shader paths for these
