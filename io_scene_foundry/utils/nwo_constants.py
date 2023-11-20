@@ -71,6 +71,7 @@ PROTECTED_MATERIALS = (
     "SlipSurface",
     "SoftCeiling",
     "SoftKill",
+    "InvisibleMesh",
 )
 
 # LEGACY PREFIXES

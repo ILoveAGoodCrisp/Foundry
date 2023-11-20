@@ -81,6 +81,11 @@ RENDER_ONLY_FACE_TYPES = (
     "_connected_geometry_face_mode_shadow_only"
 )
 
+FORCE_INVIS_FACE_MODES = (
+    "_connected_geometry_face_mode_lightmap_only",
+    "_connected_geometry_face_mode_shadow_only",
+)
+
 # Reach special materials
 
 INVISIBLE_SKY = "InvisibleSky"
@@ -264,6 +269,16 @@ class PrepareScene:
             override_mat.nwo.rendered = False
         else:
             override_mat = materials.get("Override")
+            
+        if "InvisibleMesh" not in materials:
+            self.invisible_mat = materials.new("InvisibleMesh")
+        else:
+            self.invisible_mat = materials.get("InvisibleMesh")
+        self.invisible_mat.nwo.rendered = True
+        if h4:
+            self.invisible_mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
+        else:
+            self.invisible_mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.shader"
 
         if "invalid" not in materials:
             invalid_mat = materials.new("invalid")
@@ -1257,9 +1272,11 @@ class PrepareScene:
 
         if face_props.face_mode_override:
             mesh_props.face_mode = face_props.face_mode_ui
-            if h4 and mesh_props.mesh_type == "_connected_geometry_mesh_type_poop":
-                if mesh_props.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only"):
-                    mesh_props.mesh_type = "_connected_geometry_mesh_type_poop_collision"
+            if mesh_props.face_mode in FORCE_INVIS_FACE_MODES and ob.data.materials != [self.invisible_mat]:
+                ob.data.materials.clear()
+                ob.data.materials.append(self.invisible_mat)
+            elif h4 and mesh_props.mesh_type == "_connected_geometry_mesh_type_poop" and mesh_props.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only"):
+                mesh_props.mesh_type = "_connected_geometry_mesh_type_poop_collision"
 
         # set mesh props from face props
         if face_props.face_type_override:
@@ -1920,7 +1937,7 @@ class PrepareScene:
             if nwo.poop_disallow_lighting_samples_ui:
                 nwo.poop_disallow_lighting_samples = "1"
             
-    def setup_mesh_properties(self, ob, mesh_type, asset_type, h4, nwo):
+    def setup_mesh_properties(self, ob: bpy.types.Object, mesh_type, asset_type, h4, nwo):
         is_map = asset_type in ('SCENARIO', 'PREFAB')
         if is_map:
             # The ol switcheroo
@@ -2078,6 +2095,9 @@ class PrepareScene:
                         nwo.sky_permutation_index = str(nwo_data.sky_permutation_index_ui)
                 if nwo_data.face_mode_active:
                     nwo.face_mode = nwo_data.face_mode_ui
+                    if nwo.face_mode in FORCE_INVIS_FACE_MODES and ob.data.materials != [self.invisible_mat]:
+                        ob.data.materials.clear()
+                        ob.data.materials.append(self.invisible_mat)
                 # NOTE I don't think this actually does anything in Reach+
                 # if nwo.group_transparents_by_plane:
                 #     nwo.group_transparents_by_plane = bool_str(
