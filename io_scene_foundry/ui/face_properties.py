@@ -148,11 +148,6 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
             "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
         ))
         items.append((
-            "_connected_geometry_face_mode_shadow_only",
-            "Shadow Only",
-            "Faces set to only cast shadows",
-        ))
-        items.append((
             "_connected_geometry_face_mode_lightmap_only",
             "Lightmap Only",
             "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
@@ -334,7 +329,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         description="Determines if objects will sort based on center point or by plane.  Provides more accurate sorting of large alpha'd objects, but is very expensive",
         default=True,
     )
-
+    
     no_shadow_ui: BoolProperty(
         name="No Shadow",
         options=set(),
@@ -345,7 +340,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     precise_position_ui: BoolProperty(
         name="Precise Position",
         options=set(),
-        description="Provides more accurate render and collision geometry",
+        description="Disables compression of vertices during export, resulting in more accurate (and expensive) meshes in game. Only use this when you need to",
         default=True,
     )
 

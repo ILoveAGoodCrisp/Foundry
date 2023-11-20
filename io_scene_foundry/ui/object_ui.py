@@ -596,9 +596,6 @@ def toggle_override(context, option, bool_var):
         case "_connected_geometry_face_mode_sphere_collision_only":
             item.face_mode_override = bool_var
             item.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
-        case "_connected_geometry_face_mode_shadow_only":
-            item.face_mode_override = bool_var
-            item.face_mode = "_connected_geometry_face_mode_shadow_only"
         case "_connected_geometry_face_mode_lightmap_only":
             item.face_mode_override = bool_var
             item.face_mode = "_connected_geometry_face_mode_lightmap_only"
@@ -725,9 +722,6 @@ def toggle_active(context, option, bool_var):
         case "_connected_geometry_face_mode_sphere_collision_only":
             ob_nwo.face_mode_active = bool_var
             ob_nwo.face_mode_ui = "_connected_geometry_face_mode_sphere_collision_only"
-        case "_connected_geometry_face_mode_shadow_only":
-            ob_nwo.face_mode_active = bool_var
-            ob_nwo.face_mode_ui = "_connected_geometry_face_mode_shadow_only"
         case "_connected_geometry_face_mode_lightmap_only":
             ob_nwo.face_mode_active = bool_var
             ob_nwo.face_mode_ui = "_connected_geometry_face_mode_lightmap_only"
@@ -835,9 +829,6 @@ class NWO_MeshPropAddMenu(Menu):
                     "nwo.add_mesh_property", text="Sphere Collision Only"
                 ).options = "_connected_geometry_face_mode_sphere_collision_only"
                 layout.operator(
-                    "nwo.add_mesh_property", text="Shadow Only"
-                ).options = "_connected_geometry_face_mode_shadow_only"
-                layout.operator(
                     "nwo.add_mesh_property", text="Lightmap Only"
                 ).options = "_connected_geometry_face_mode_lightmap_only"
                 # if not h4: #BREAKABLE ENABLED
@@ -880,7 +871,6 @@ class NWO_MeshPropAdd(NWO_Op):
             ("_connected_geometry_face_mode_render_only", "Render Only", ""),
             ("_connected_geometry_face_mode_collision_only", "Collision Only", ""),
             ("_connected_geometry_face_mode_sphere_collision_only", "Sphere Collision Only", ""),
-            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
             ("_connected_geometry_face_mode_lightmap_only", "Lightmap Only","",),
             ("_connected_geometry_face_mode_breakable", "Breakable", ""),
         ]
@@ -964,7 +954,6 @@ class NWO_MeshPropAddFaceMode(NWO_MeshPropAdd):
                 "Sphere Collision Only",
                 "",
             ),
-            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
             (
                 "_connected_geometry_face_mode_lightmap_only",
                 "Lightmap Only",

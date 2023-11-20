@@ -142,21 +142,16 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
             "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
         ))
         items.append((
-            "_connected_geometry_face_mode_shadow_only",
-            "Shadow Only",
-            "Faces set to only cast shadows",
-        ))
-        items.append((
             "_connected_geometry_face_mode_lightmap_only",
             "Lightmap Only",
             "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
         ))
-        #if not h4: #BREAKABLE ENABLED
-        items.append((
-        "_connected_geometry_face_mode_breakable",
-        "Breakable",
-        "Faces set to be breakable",
-        )),
+        if not h4:
+            items.append((
+            "_connected_geometry_face_mode_breakable",
+            "Breakable",
+            "Faces set to be breakable",
+            )),
 
         return items
     
@@ -328,32 +323,32 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     group_transparents_by_plane_ui: BoolProperty(
         name="Group Transparents By Plane",
         options=set(),
-        description="Enable to group transparent geometry by fitted planes",
+        description="Group transparent geometry by fitted planes",
         default=True,
     )
-
+    
     no_shadow_ui: BoolProperty(
         name="No Shadow",
         options=set(),
-        description="Enable to prevent faces from casting shadows",
+        description="Prevents faces from casting shadows",
     )
 
     precise_position_ui: BoolProperty(
         name="Precise Position",
         options=set(),
-        description="Enable to prevent faces from being altered during the import process",
+        description="Disables compression of vertices during export, resulting in more accurate (and expensive) meshes in game. Only use this when you need to",
     )
 
     no_lightmap_ui: BoolProperty(
         name="Exclude From Lightmap",
         options=set(),
-        description="",
+        description="Exclude mesh from lightmapping",
     )
 
     no_pvs_ui: BoolProperty(
         name="Invisible To PVS",
         options=set(),
-        description="",
+        description="Mesh is unaffected by Potential Visbility Sets - the games render culling system",
     )
 
     uvmirror_across_entire_model_ui: BoolProperty(

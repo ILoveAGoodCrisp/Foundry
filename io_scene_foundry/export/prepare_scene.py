@@ -78,12 +78,10 @@ render_mesh_types_full = [
 RENDER_ONLY_FACE_TYPES = (
     "_connected_geometry_face_mode_render_only",
     "_connected_geometry_face_mode_lightmap_only"
-    "_connected_geometry_face_mode_shadow_only"
 )
 
 FORCE_INVIS_FACE_MODES = (
     "_connected_geometry_face_mode_lightmap_only",
-    "_connected_geometry_face_mode_shadow_only",
 )
 
 # Reach special materials
@@ -93,7 +91,6 @@ SEAM_SEALER = "SeamSealer"
 COLLISION_ONLY = "CollisionOnly"
 SPHERE_COLLISION_ONLY = "SphereCollisionOnly"
 LIGHTMAP_ONLY = "LightmapOnly"
-SHADOW_ONLY = "ShadowOnly"
 
 # Bone matrix constants
 
@@ -2054,10 +2051,7 @@ class PrepareScene:
                     face_sides_value += "one_sided_transparent"
                     nwo.face_sides = face_sides_value
 
-            if nwo.mesh_type in (
-                "_connected_geometry_mesh_type_default",
-                "_connected_geometry_mesh_type_poop",
-            ):
+            if nwo.mesh_type == '_connected_geometry_mesh_type_default':
                 if nwo_data.precise_position_ui:
                     nwo.precise_position = "1"
                 # if nwo.face_draw_distance_active:

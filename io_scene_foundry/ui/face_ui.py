@@ -110,9 +110,6 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     self.op_prefix, text="Sphere Collision Only"
                 ).options = "_connected_geometry_face_mode_sphere_collision_only"
                 layout.operator(
-                    self.op_prefix, text="Shadow Only"
-                ).options = "_connected_geometry_face_mode_shadow_only"
-                layout.operator(
                     self.op_prefix, text="Lightmap Only"
                 ).options = "_connected_geometry_face_mode_lightmap_only"
                 if not h4:
@@ -562,9 +559,6 @@ def toggle_override(context, option, bool_var):
         case "_connected_geometry_face_mode_sphere_collision_only":
             item.face_mode_override = bool_var
             item.face_mode_ui = "_connected_geometry_face_mode_sphere_collision_only"
-        case "_connected_geometry_face_mode_shadow_only":
-            item.face_mode_override = bool_var
-            item.face_mode_ui = "_connected_geometry_face_mode_shadow_only"
         case "_connected_geometry_face_mode_lightmap_only":
             item.face_mode_override = bool_var
             item.face_mode_ui = "_connected_geometry_face_mode_lightmap_only"
@@ -677,7 +671,6 @@ class NWO_FaceLayerAdd(NWO_Op):
                 "Sphere Collision Only",
                 "",
             ),
-            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
             (
                 "_connected_geometry_face_mode_lightmap_only",
                 "Lightmap Only",
@@ -718,8 +711,6 @@ class NWO_FaceLayerAdd(NWO_Op):
                 self.fm_name = "Collision Only"
             case "_connected_geometry_face_mode_sphere_collision_only":
                 self.fm_name = "Sphere Collision Only"
-            case "_connected_geometry_face_mode_shadow_only":
-                self.fm_name = "Shadow Only"
             case "_connected_geometry_face_mode_lightmap_only":
                 self.fm_name = "Lightmap Only"
             case "_connected_geometry_face_mode_breakable":
@@ -977,7 +968,6 @@ class NWO_FaceLayerAddFaceMode(NWO_FaceLayerAdd):
                 "Sphere Collision Only",
                 "",
             ),
-            ("_connected_geometry_face_mode_shadow_only", "Shadow Only", ""),
             (
                 "_connected_geometry_face_mode_lightmap_only",
                 "Lightmap Only",

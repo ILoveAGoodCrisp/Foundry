@@ -1417,7 +1417,6 @@ class NWO_FoundryPanelProps(Panel):
                 return
             col2 = col.column()
             col2.separator()
-            col2.label(text="Flags")
             col2.use_property_split = False
             row = col2.grid_flow(
                 row_major=True,
@@ -1437,10 +1436,9 @@ class NWO_FoundryPanelProps(Panel):
                     #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset")
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision") or (poll_ui(('SCENARIO',)) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
-                if not h4:
-                    row.prop(mesh_nwo, "ladder_ui", text="Ladder")
-                    row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
+            if not h4 and (nwo.mesh_type_ui in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_structure") or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui('SCENARIO'))):
+                row.prop(mesh_nwo, "ladder_ui", text="Ladder")
+                row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
                     if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
