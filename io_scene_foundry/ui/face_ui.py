@@ -1167,7 +1167,7 @@ class NWO_FaceLayerColor(bpy.types.Operator):
         return self.loops
 
     def shader_prep(self):
-        self.shader = gpu.shader.from_builtin("3D_UNIFORM_COLOR")
+        self.shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 
         bm = bmesh.from_edit_mesh(self.me)
         self.volume = bm.calc_volume()

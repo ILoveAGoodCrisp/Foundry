@@ -1852,6 +1852,12 @@ class NWO_FoundryPanelProps(Panel):
                         row.operator(
                             "nwo.face_prop_remove", text="", icon="X"
                         ).options = "face_global_material"
+                if item.precise_position_override:
+                    row = col.row()
+                    row.prop(item, "precise_position_ui", text='Uncompressed')
+                    row.operator(
+                        "nwo.face_prop_remove", text="", icon="X"
+                    ).options = "precise_position"
                 if item.ladder_override:
                     row = col.row()
                     row.prop(item, "ladder_ui")
