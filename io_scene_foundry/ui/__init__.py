@@ -430,15 +430,15 @@ def object_context_apply_types(self, context):
     layout = self.layout
     asset_type = context.scene.nwo.asset_type
     ob = context.object
-    markers_valid = is_marker(ob) and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
-    meshes_valid = is_mesh(ob) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
+    markers_valid = any([is_marker(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
+    meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
     if markers_valid or meshes_valid:
         layout.separator()
         if meshes_valid:
             layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Set Mesh Type", icon='MESH_CUBE')
-            layout.operator("nwo.mesh_to_marker", text="Convert to Marker", icon_value=get_icon_id('marker'))
+            layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
         elif markers_valid:
-            layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS')
+            layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
 
 def collection_context(self, context):
     layout = self.layout

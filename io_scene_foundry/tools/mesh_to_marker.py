@@ -27,7 +27,6 @@
 import bpy
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 
 from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
 
@@ -174,12 +173,22 @@ class NWO_MeshToMarker(bpy.types.Operator):
     marker_type: bpy.props.EnumProperty(
         name='Marker Type',
         items=items_marker_type,
+        options={'SKIP_SAVE'}
     )
     maintain_mesh: bpy.props.BoolProperty(
-        description='Saves the object mesh to the blend and adds to an instanced collection linked to the new marker'
+        description='Saves the object mesh to the blend and adds to an instanced collection linked to the new marker',
+        options={'SKIP_SAVE'}
     )
+    
+    called_once: bpy.props.BoolProperty()
+    
+    meshes_selected: bpy.props.BoolProperty(options={'SKIP_SAVE'})
 
     def execute(self, context):
+        self.meshes_selected = any([is_mesh(ob) for ob in context.selected_objects])
+        if not self.called_once and self.meshes_selected and self.marker_type == '_connected_geometry_marker_type_game_instance':
+            self.maintain_mesh = True
+        self.called_once = True
         to_convert = set()
         to_set = set()
         active_name = context.object.name
@@ -272,6 +281,9 @@ class NWO_MeshToMarker(bpy.types.Operator):
                 case '_connected_geometry_marker_type_lightCone':
                     ob.nwo.marker_type_ui = '_connected_geometry_marker_type_lightCone'
                     ob.empty_display_type = 'ARROWS'
+            if self.maintain_mesh and ob.instance_type == 'COLLECTION':
+                ob.empty_display_type = 'PLAIN_AXES'
+                ob.empty_display_size = 0.01
         
         bpy.ops.object.delete()
         
@@ -282,16 +294,14 @@ class NWO_MeshToMarker(bpy.types.Operator):
         self.report({'INFO'}, f"Converted {len(to_set)} objects to markers")
         return {'FINISHED'}
     
-    # def invoke(self, context, event):
-    #     selected = context.selected_objects
-    #     has_mesh = any([ob.type in VALID_MESHES for ob in selected])
-    #     if has_mesh:
-    #         return context.window_manager.invoke_props_dialog(self)
-    #     else:
-    #         return self.execute(context)
+    def invoke(self, context, event):
+        if self.mesh_selected and self.marker_type == '_connected_geometry_marker_type_game_instance':
+            self.maintain_mesh = True
+        return self.execute(context)
     
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
         layout.prop(self, 'marker_type', text='Marker Type')
-        layout.prop(self, 'maintain_mesh', text='Keep Mesh')
+        if self.meshes_selected:
+            layout.prop(self, 'maintain_mesh', text='Keep Mesh')
