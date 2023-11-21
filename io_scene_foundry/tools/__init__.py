@@ -2975,12 +2975,15 @@ class NWO_DuplicateMaterial(Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.active_material
+        return context.object
     
     def execute(self, context):
-        mat = context.object.active_material
-        new_mat = mat.copy()
-        context.object.active_material = new_mat
+        ob = context.object
+        if ob.active_material:
+            new_mat = ob.active_material.copy()
+        else:
+            new_mat = bpy.data.materials.new(name='Material')
+        ob.active_material = new_mat
         return {'FINISHED'}
 
 class NWO_ScaleModels_Add(Operator, AddObjectHelper):
