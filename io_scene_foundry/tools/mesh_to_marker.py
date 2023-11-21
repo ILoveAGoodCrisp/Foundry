@@ -27,13 +27,14 @@
 import bpy
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 
 from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
 
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'
     bl_label = 'Convert to Marker'
-    bl_label = 'Converts selected objects to a marker'
+    bl_description = 'Converts selected objects to a marker'
     bl_options = {'REGISTER', 'UNDO'}
     
     @classmethod
@@ -282,8 +283,12 @@ class NWO_MeshToMarker(bpy.types.Operator):
         return {'FINISHED'}
     
     # def invoke(self, context, event):
-    #     wm = context.window_manager
-    #     return wm.invoke_props_dialog(self)
+    #     selected = context.selected_objects
+    #     has_mesh = any([ob.type in VALID_MESHES for ob in selected])
+    #     if has_mesh:
+    #         return context.window_manager.invoke_props_dialog(self)
+    #     else:
+    #         return self.execute(context)
     
     def draw(self, context):
         layout = self.layout

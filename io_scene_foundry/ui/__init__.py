@@ -438,7 +438,7 @@ def object_context_apply_types(self, context):
             layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Set Mesh Type", icon='MESH_CUBE')
             layout.operator("nwo.mesh_to_marker", text="Convert to Marker", icon_value=get_icon_id('marker'))
         elif markers_valid:
-            layout.operator_menu_enum("nwo.apply_type_marker", property="m_type", text="Set Marker Type", icon='EMPTY_AXIS')
+            layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS')
 
 def collection_context(self, context):
     layout = self.layout
