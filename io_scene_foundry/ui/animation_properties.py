@@ -372,6 +372,7 @@ class NWO_Animation_ListItems(PropertyGroup):
 
     frame_frame: IntProperty(
         name="Event Frame",
+        description="The timeline frame this event should occur on",
         default=0,
         options=set(),
     )

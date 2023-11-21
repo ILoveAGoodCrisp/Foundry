@@ -1782,7 +1782,16 @@ class PrepareScene:
                 new_nwo.animation_space = old_nwo.animation_space
                 new_nwo.animation_is_pose = old_nwo.animation_is_pose
                 new_nwo.name_override = old_nwo.name_override
+                                    
+                # Force the keyframes to start at frame 0
+                frame_diff = int(new_animation.frame_start)
+                for fcurve in new_animation.fcurves:
+                    for kfp in fcurve.keyframe_points:
+                        kfp.co[0] -= frame_diff
 
+                new_animation.frame_start = 0
+                new_animation.frame_end = new_animation.frame_end - frame_diff
+                # Copy over events/renames
                 old_renames = old_nwo.animation_renames
                 new_renames = new_nwo.animation_renames
                 for idx, r in enumerate(old_renames):
@@ -1798,8 +1807,8 @@ class PrepareScene:
                     new_events[idx].frame_range = e.frame_range
                     new_events[idx].name = e.name
                     new_events[idx].event_type = e.event_type
-                    new_events[idx].frame_start = e.frame_start
-                    new_events[idx].frame_end = e.frame_end
+                    new_events[idx].frame_start = e.frame_start - frame_diff
+                    new_events[idx].frame_end = e.frame_end - frame_diff
                     new_events[idx].wrinkle_map_face_region = e.wrinkle_map_face_region
                     new_events[idx].wrinkle_map_effect = e.wrinkle_map_effect
                     new_events[idx].footstep_type = e.footstep_type
@@ -1817,21 +1826,12 @@ class PrepareScene:
                     new_events[idx].cinematic_effect_marker = e.cinematic_effect_marker
                     new_events[idx].object_function_name = e.object_function_name
                     new_events[idx].object_function_effect = e.object_function_effect
-                    new_events[idx].frame_frame = e.frame_frame
+                    new_events[idx].frame_frame = e.frame_frame - frame_diff
                     new_events[idx].frame_name = e.frame_name
                     new_events[idx].frame_trigger = e.frame_trigger
                     new_events[idx].import_frame = e.import_frame
                     new_events[idx].import_name = e.import_name
                     new_events[idx].text = e.text
-                    
-                # Force the keyframes to start at frame 0
-                frame_diff = int(new_animation.frame_start)
-                for fcurve in new_animation.fcurves:
-                    for kfp in fcurve.keyframe_points:
-                        kfp.co[0] -= frame_diff
-
-                new_animation.frame_start = 0
-                new_animation.frame_end = new_animation.frame_end - frame_diff
                 bpy.ops.object.posemode_toggle()
                 new_arm.select_set(False)
                 self.animation_armatures[new_animation] = new_arm
