@@ -2051,8 +2051,8 @@ class PrepareScene:
                     face_sides_value += "one_sided_transparent"
                     nwo.face_sides = face_sides_value
 
-            if nwo.mesh_type == '_connected_geometry_mesh_type_default':
-                if nwo_data.precise_position_ui:
+            if nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop'):
+                if nwo_data.precise_position_ui and not (asset_type == 'SCENARIO' and nwo.mesh_type == '_connected_geometry_mesh_type_default'):
                     nwo.precise_position = "1"
                 # if nwo.face_draw_distance_active:
                 #     nwo.face_draw_distance = nwo.face_draw_distance_ui

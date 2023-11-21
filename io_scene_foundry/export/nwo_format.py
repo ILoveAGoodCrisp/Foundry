@@ -1113,20 +1113,12 @@ class NWOMesh(NWOObject):
         )
 
     def mesh_use_uncompressed_verts(self):
-        if self.bungie_mesh_type in (
-            "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_poop",
-            "_connected_geometry_mesh_type_object_instance",
-        ):
-            if (
-                "_connected_geometry_mesh_type_default"
-                and self.sidecar_type == "SCENARIO"
-            ):
+        if self.bungie_mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
+            if self.bungie_mesh_type == "_connected_geometry_mesh_type_default" and self.sidecar_type == "SCENARIO":
                 return "0"
             else:
                 return "1"
-        else:
-            return "0"
+        return "0"
 
     def mesh_per_vertex_lighting(self):
         return bool_str(
