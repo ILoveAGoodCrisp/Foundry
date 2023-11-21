@@ -43,7 +43,7 @@ from ..utils.nwo_utils import (
     poll_ui,
 )
 
-from bpy.types import Menu, UIList, Operator
+from bpy.types import Context, Menu, UIList, Operator
 from bpy.props import EnumProperty, StringProperty
 import bpy
 
@@ -1078,27 +1078,6 @@ class NWO_GlobalMaterialMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        ob = context.object
-        global_materials = ["default"]
-        for ob in export_objects_mesh_only():
-            global_material = ob.data.nwo.face_global_material_ui
-            if global_material != "" and global_material not in global_materials:
-                global_materials.append(global_material)
-            # also need to loop through face props
-            if ob.type == "MESH":
-                for face_prop in ob.data.nwo.face_props:
-                    if (
-                        face_prop.face_global_material_override
-                        and face_prop.face_global_material_ui != ""
-                        and face_prop.face_global_material_ui not in global_materials
-                    ):
-                        global_materials.append(face_prop.face_global_material_ui)
-
-        # for g_mat in global_materials:
-        #     layout.operator(
-        #         "nwo.global_material_list", text=g_mat
-        #     ).global_material = g_mat
-
         if poll_ui(("MODEL", "SKY")):
             layout.operator_menu_enum(
                 "nwo.global_material_regions_list",
@@ -1121,26 +1100,9 @@ class NWO_RegionList(NWO_Op):
 
     def regions_items(self, context):
         # get scene regions
-        regions = ["default"]
-        for ob in export_objects_no_arm():
-            region = true_region(ob.nwo)
-            if region != "" and region not in regions:
-                regions.append(region)
-            # also need to loop through face props
-            if ob.type == "MESH":
-                for face_prop in ob.data.nwo.face_props:
-                    if (
-                        face_prop.region_name_ui != ""
-                        and face_prop.region_name_override
-                        and face_prop.region_name_ui not in regions
-                    ):
-                        regions.append(face_prop.region_name_ui)
-
-        regions = sort_alphanum(regions)
         items = []
-        for index, region in enumerate(regions):
-            items.append(bpy_enum_list(region, index))
-
+        for r in context.scene.nwo.regions_table:
+            items.append((r.name, r.name, ''))
         return items
 
     region: EnumProperty(
@@ -1159,7 +1121,7 @@ class NWO_GlobalMaterialRegionList(NWO_RegionList):
     bl_description = "Applies a global material to the selected object"
 
     def execute(self, context):
-        context.object.nwo.face_global_material_ui = self.region
+        context.object.data.nwo.face_global_material_ui = self.region
         return {"FINISHED"}
     
 class NWO_GlobalMaterialGlobals(NWO_RegionList):
@@ -1167,6 +1129,8 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
     bl_label = "Collision Material List"
     bl_description = "Applies a global material to the selected object"
     bl_property = "material"
+    
+    face_level: bpy.props.BoolProperty()
 
     def get_materials(self, context):
         global global_mats_items
@@ -1189,7 +1153,12 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
     )
 
     def execute(self, context):
-        context.object.data.nwo.face_global_material_ui = self.material
+        nwo = context.object.data.nwo
+        if self.face_level:
+            nwo.face_props[nwo.face_props_index].face_global_material_ui = self.material
+        else:
+            nwo.face_global_material_ui = self.material
+        context.area.tag_redraw()
         return {"FINISHED"}
     
     def invoke(self, context, event):
@@ -1197,6 +1166,9 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
         wm.invoke_search_popup(self)
         return {"FINISHED"}
 
+    def draw(self, context: Context):
+        layout = self.layout
+        layout.prop(self, 'material', text="Collision Material")
 
 class NWO_GlobalMaterialList(NWO_Op):
     bl_idname = "nwo.global_material_list"

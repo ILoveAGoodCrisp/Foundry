@@ -1268,25 +1268,9 @@ class NWO_RegionListFace(bpy.types.Operator):
     bl_description = "Applies a region to the selected face layer"
 
     def regions_items(self, context):
-        # get scene regions
-        regions = ["default"]
-        for ob in export_objects_no_arm():
-            region = true_region(ob.nwo)
-            if region not in regions:
-                regions.append(region)
-            # also need to loop through face props
-            for face_prop in ob.data.nwo.face_props:
-                if (
-                    face_prop.region_name_override
-                    and face_prop.region_name_ui not in regions
-                ):
-                    regions.append(face_prop.region_name_ui)
-
-        regions = sort_alphanum(regions)
         items = []
-        for index, region in enumerate(regions):
-            items.append(bpy_enum_list(region, index))
-
+        for r in context.scene.nwo.regions_table:
+            items.append((r.name, r.name, ''))
         return items
 
     region: EnumProperty(
@@ -1311,76 +1295,22 @@ class NWO_GlobalMaterialRegionListFace(NWO_RegionListFace):
         return {"FINISHED"}
 
 
-class NWO_GlobalMaterialListFace(bpy.types.Operator):
-    bl_idname = "nwo.face_global_material_list"
-    bl_label = "Collision Material List"
-    bl_description = "Applies a Collision Material to the selected face layer"
-
-    def global_material_items(self, context):
-        # get scene regions
-        global_materials = ["default"]
-        for ob in export_objects_no_arm():
-            global_material = ob.data.nwo.face_global_material_ui
-            if global_material not in global_materials and global_material:
-                global_materials.append(global_material)
-            # also need to loop through face props
-            for face_prop in ob.data.nwo.face_props:
-                if (
-                    face_prop.face_global_material_override
-                    and face_prop.face_global_material_ui not in global_materials
-                ):
-                    global_materials.append(face_prop.face_global_material_ui)
-
-        global_materials = sort_alphanum(global_materials)
-        items = []
-        for index, global_material in enumerate(global_materials):
-            items.append(bpy_enum_list(global_material, index))
-
-        return items
-
-    global_material: EnumProperty(
-        name="Collision Material",
-        items=global_material_items,
-    )
-
-    dialog: BoolProperty()
-
-    def execute(self, context):
-        nwo = context.object.data.nwo
-        nwo.face_props[
-            nwo.face_props_index
-        ].face_global_material_ui = self.global_material
-        return {"FINISHED"}
-
-
 class NWO_GlobalMaterialMenuFace(bpy.types.Menu):
     bl_label = "Add Collision Material"
     bl_idname = "NWO_MT_AddGlobalMaterialFace"
 
     def draw(self, context):
         layout = self.layout
-        ob = context.object
-        global_materials = ["default"]
-        for ob in export_objects_no_arm():
-            global_material = ob.nwo.face_global_material_ui
-            if global_material not in global_materials:
-                global_materials.append(global_material)
-            # also need to loop through face props
-            for face_prop in ob.data.nwo.face_props:
-                if (
-                    face_prop.face_global_material_override
-                    and face_prop.face_global_material not in global_materials
-                ):
-                    global_materials.append(face_prop.face_global_material)
-
-        for g_mat in global_materials:
-            layout.operator(
-                "nwo.global_material_list", text=g_mat
-            ).global_material = g_mat
-
         if poll_ui(("MODEL", "SKY")):
             layout.operator_menu_enum(
                 "nwo.face_global_material_regions_list",
                 property="region",
                 text="From Region",
             )
+
+        if poll_ui(("SCENARIO", "PREFAB", "MODEL")):
+            layout.operator(
+                "nwo.global_material_globals",
+                text="From Globals",
+                icon="VIEWZOOM",
+            ).face_level = True

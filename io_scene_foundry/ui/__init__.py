@@ -63,7 +63,6 @@ from .face_ui import (
     NWO_FaceLayerColor,
     NWO_RegionListFace,
     NWO_GlobalMaterialRegionListFace,
-    NWO_GlobalMaterialListFace,
     NWO_GlobalMaterialMenuFace,
 )
 
@@ -509,7 +508,6 @@ classes_nwo = (
     # NWO_ObjectProps,
     NWO_GlobalMaterialRegionListFace,
     NWO_RegionListFace,
-    NWO_GlobalMaterialListFace,
     NWO_GlobalMaterialMenuFace,
     NWO_GlobalMaterialRegionList,
     NWO_BSPListSeam,

@@ -1406,11 +1406,18 @@ class NWO_FoundryPanelProps(Panel):
                     "face_global_material_ui",
                     text=coll_mat_text,
                 )
-                row.menu(
-                    NWO_GlobalMaterialMenu.bl_idname,
-                    text="",
-                    icon="DOWNARROW_HLT",
-                )
+                if poll_ui(('SCENARIO', 'PREFAB')):
+                    row.operator(
+                        "nwo.global_material_globals",
+                        text="",
+                        icon="VIEWZOOM",
+                    )
+                else:
+                    row.menu(
+                        NWO_GlobalMaterialMenu.bl_idname,
+                        text="",
+                        icon="DOWNARROW_HLT",
+                    )
 
         if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
             if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('SCENARIO')) or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
@@ -1829,12 +1836,18 @@ class NWO_FoundryPanelProps(Panel):
                 if item.face_global_material_override:
                     row = col.row()
                     row.prop(item, "face_global_material_ui")
-                    row.operator_menu_enum(
-                        "nwo.face_global_material_list",
-                        "global_material",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
+                    if poll_ui(('SCENARIO', 'PREFAB')):
+                        row.operator(
+                            "nwo.global_material_globals",
+                            text="",
+                            icon="VIEWZOOM",
+                        ).face_level = True
+                    else:
+                        row.menu(
+                            "NWO_MT_AddGlobalMaterialFace",
+                            text="",
+                            icon="DOWNARROW_HLT",
+                        )
                     if not (is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"):
                         row.operator(
                             "nwo.face_prop_remove", text="", icon="X"

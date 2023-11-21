@@ -481,7 +481,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="Determines how far light travels before it stops",
         min=0,
-        default=200,
+        default=2,
     )
 
     material_lighting_attenuation_falloff_ui: FloatProperty(
@@ -489,7 +489,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="For use on emissive surfaces. The distance in game units at which the light intensity will begin to fall off until reaching zero at the attenuation cutoff value",
         min=0,
-        default=100,
+        default=1,
     )
 
     material_lighting_emissive_focus_ui: FloatProperty(
