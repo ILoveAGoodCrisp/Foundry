@@ -831,10 +831,10 @@ class NWO_MeshPropAddMenu(Menu):
                 layout.operator(
                     "nwo.add_mesh_property", text="Lightmap Only"
                 ).options = "_connected_geometry_face_mode_lightmap_only"
-                # if not h4: #BREAKABLE ENABLED
-                layout.operator(
-                    "nwo.add_mesh_property", text="Breakable"
-                ).options = "_connected_geometry_face_mode_breakable"
+                if not h4:
+                    layout.operator(
+                        "nwo.add_mesh_property", text="Breakable"
+                    ).options = "_connected_geometry_face_mode_breakable"
                 layout.operator(
                     "nwo.add_mesh_property", text="Emissive"
                 ).options = "emissive"

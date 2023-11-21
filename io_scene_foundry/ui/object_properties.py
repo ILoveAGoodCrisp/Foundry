@@ -154,31 +154,15 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
             )),
 
         return items
-    
-    def get_face_mode_ui(self):
-        max_int = 5
-        if not is_corinth():
-            max_int = 5
-        if self.face_mode_ui_help > max_int:
-            return 0
-        return self.face_mode_ui_help
-
-    def set_face_mode_ui(self, value):
-        self["face_mode_ui"] = value
-
-    def update_face_mode_ui(self, context):
-        self.face_mode_ui_help = self["face_mode_ui"]
 
     face_mode_ui_help : IntProperty()
     face_mode_active: BoolProperty()
     face_mode_ui: EnumProperty(
         name="Face Mode",
-        options=set(),
         update=update_face_mode_ui,
+        options=set(),
         description="Sets face mode for this mesh",
         items=face_mode_items,
-        get=get_face_mode_ui,
-        set=set_face_mode_ui,
     )
 
     def update_face_sides_ui(self, context):
