@@ -35,7 +35,7 @@ from mathutils import Matrix, Vector
 from io_scene_foundry.managed_blam.objects import ManagedBlamGetNodeOrder
 
 from io_scene_foundry.tools.shader_finder import find_shaders
-from io_scene_foundry.utils.nwo_constants import RENDER_MESH_TYPES, VALID_MESHES
+from io_scene_foundry.utils.nwo_constants import MAT_INVISIBLE, MAT_SEAMSEALER, MAT_SKY, RENDER_MESH_TYPES, VALID_MESHES
 from ..utils.nwo_utils import (
     bool_str,
     closest_bsp_object,
@@ -48,6 +48,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     enable_prints,
     get_object_type,
+    get_sky_perm,
     is_marker,
     is_mesh,
     jstr,
@@ -249,7 +250,6 @@ class PrepareScene:
                     proxy_instance = ob.copy()
                     proxy_instance.data = ob.data.copy()
                     proxy_instance.name = f"{ob.name}(instance)"
-
                     proxy_instance.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
                     scene_coll.link(proxy_instance)
                     update_progress(process, idx / len_proxy_owners)
@@ -261,54 +261,65 @@ class PrepareScene:
         materials = bpy.data.materials
 
         # create fixup materials
-        if "Override" not in materials:
-            override_mat = materials.new("Override")
-            override_mat.nwo.rendered = False
-        else:
-            override_mat = materials.get("Override")
+        override_mat = materials.get("+override")
+        if override_mat is None:
+            override_mat = materials.new("+override")
+        override_mat.nwo.rendered = False
             
-        if "InvisibleMesh" not in materials:
-            self.invisible_mat = materials.new("InvisibleMesh")
-        else:
-            self.invisible_mat = materials.get("InvisibleMesh")
-        self.invisible_mat.nwo.rendered = True
+        self.invisible_mat = materials.get(MAT_INVISIBLE)
+        if self.invisible_mat is None:
+            self.invisible_mat = materials.new(MAT_INVISIBLE)
+        invisible_mats = [mat for mat in materials if mat.name.startswith(MAT_INVISIBLE)]
+        for mat in invisible_mats:
+            mat.nwo.rendered = True
+            if h4:
+                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
+            else:
+                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.shader"
+            
+        self.seamsealer_mat = materials.get(MAT_SEAMSEALER)
+        if self.seamsealer_mat is None:
+            self.seamsealer_mat = materials.new(MAT_SEAMSEALER)
+        seamsealer_mats = [mat for mat in materials if mat.name.startswith(MAT_SEAMSEALER)]
+        for mat in seamsealer_mats:
+            mat.nwo.rendered = True
+            if h4:
+                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
+            else:
+                mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_seam_sealer.override"
+        
+        self.sky_mat = materials.get(MAT_SKY)
+        if self.sky_mat is None:
+            self.sky_mat = materials.new(MAT_SKY)
+        sky_mats = [mat for mat in materials if mat.name.startswith(MAT_SKY)]
+        for mat in sky_mats:
+            mat.nwo.rendered = True
+            if h4:
+                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
+            else:
+                mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_sky.override"
+            
+        invalid_mat = materials.get("+invalid")
+        if invalid_mat is None:
+            invalid_mat = materials.new("+invalid")
+        invalid_mat.nwo.rendered = True
         if h4:
-            self.invisible_mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
+            invalid_mat.nwo.shader_path = r"shaders\invalid.material"
         else:
-            self.invisible_mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.shader"
-
-        if "invalid" not in materials:
-            invalid_mat = materials.new("invalid")
-            if h4:
-                invalid_mat.nwo.shader_path = r"shaders\invalid.material"
+            invalid_mat.nwo.shader_path = r"shaders\invalid.shader"
+            
+        water_surface_mat = materials.get("+water")
+        if water_surface_mat is None:
+            water_surface_mat = materials.new("+water")
+        water_surface_mat.nwo.rendered = True
+        if h4:
+            h2a_water = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
+            if os.path.exists(get_tags_path() + h2a_water):
+                water_surface_mat.nwo.shader_path = h2a_water
             else:
-                invalid_mat.nwo.shader_path = r"shaders\invalid.shader"
+                water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
         else:
-            invalid_mat = materials.get("invalid")
-
-        if "water" not in materials:
-            water_surface_mat = materials.new("water")
-            if h4:
-                h2a_water = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
-                if os.path.exists(get_tags_path() + h2a_water):
-                    water_surface_mat.nwo.shader_path = h2a_water
-                else:
-                    water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
-            else:
-                water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
-        else:
-            water_surface_mat = materials.get("water")
-
-        # add special reach materials
-        if not h4:
-            if SEAM_SEALER not in materials:
-                seam_sealer_mat = materials.new(SEAM_SEALER)
-            else:
-                seam_sealer_mat = materials.get(SEAM_SEALER)
-
-            seam_sealer_mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_seam_sealer.override"
-            seam_sealer_mat.nwo.rendered = True
-
+            water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
 
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
@@ -366,7 +377,9 @@ class PrepareScene:
             
             elif nwo.object_type == '_connected_geometry_object_type_mesh':
                 if type_valid(nwo.mesh_type_ui, sidecar_type, game_version):
-                    self.setup_mesh_properties(ob, nwo.mesh_type_ui, sidecar_type, h4, nwo)
+                    if not self.setup_mesh_properties(ob, nwo.mesh_type_ui, sidecar_type, h4, nwo):
+                        self.unlink(ob)
+                        continue
                 else:
                     self.warning_hit = True
                     print_warning(f"{ob.name} has illegal mesh type: [{nwo.mesh_type_ui}]. Skipped")
@@ -410,8 +423,9 @@ class PrepareScene:
             if export_gr2_files:
                 if is_mesh_loose:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
+                    does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or sidecar_type != 'SCENARIO'
                     self.fix_materials(
-                        ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render
+                        ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render, does_not_support_sky, scene_coll
                     )
                 # print("fix_materials")
                 
@@ -737,7 +751,7 @@ class PrepareScene:
 
         # print("armature")
         elif sidecar_type == 'SCENARIO':
-            if self.generate_structure(export_obs, scene_coll, context.scene.nwo, override_mat):
+            if self.generate_structure(export_obs, scene_coll, context.scene.nwo, override_mat, h4):
                 context.view_layer.update()
 
         # Set timeline range for use during animation export
@@ -844,10 +858,9 @@ class PrepareScene:
 
     # FACEMAP SPLIT
 
-    def justify_face_split(self, layer_faces_dict, poly_count, h4, ob, me):
+    def justify_face_split(self, layer_faces_dict, poly_count):
         """Checked whether we actually need to split this mesh up"""
         # check if face layers cover the whole mesh, if they do, we don't need to split the mesh
-        justified, is_just_render = False, True
         for layer, face_seq in layer_faces_dict.items():
             if not face_seq:
                 continue
@@ -855,100 +868,15 @@ class PrepareScene:
             if not face_count:
                 continue
 
-            if h4 or not self.is_material_property(layer, face_seq, ob, me):
-                if poly_count != face_count:
-                    if not is_just_render or not (self.prop_only("face_mode_override", layer) and layer.face_mode_ui in RENDER_ONLY_FACE_TYPES):
-                        is_just_render = False
-                    justified = True
-
-        return justified, is_just_render
-
-    def apply_reach_material(self, faces, mat_name, mat_slots, me):
-        for idx, slot in enumerate(mat_slots):
-            if slot.material.name == mat_name:
-                mat_index = idx
-                break
-        else:
-            # Material doesn't exist on mesh, so create it
-            me.materials.append(bpy.data.materials[mat_name])
-            mat_index = len(me.materials) - 1
-
-        # Apply material to faces
-        for f in faces:
-            f.material_index = mat_index
-
-        return True
-
-    
-    def is_material_property(self, layer, face_seq, ob, me):
-        if self.prop_only("face_type_override", layer):
-            if layer.face_type_ui == "_connected_geometry_face_type_seam_sealer":
-                return self.apply_reach_material(face_seq, SEAM_SEALER, ob.material_slots, me)
-            # else:
-            #     return self.apply_reach_material(face_seq, INVISIBLE_SKY, ob.material_slots, me)
-                
-        # elif self.prop_only("face_mode_override", layer):
-        #     if layer.face_mode_ui == "_connected_geometry_face_mode_collision_only":
-        #         return self.apply_reach_material(face_seq, COLLISION_ONLY, ob.material_slots, me)
-        #     elif layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only":
-        #         return self.apply_reach_material(face_seq, SPHERE_COLLISION_ONLY, ob.material_slots, me)
-        #     elif layer.face_mode_ui == "_connected_geometry_face_mode_lightmap_only":
-        #         return self.apply_reach_material(face_seq, LIGHTMAP_ONLY, ob.material_slots, me)
-        #     elif layer.face_mode_ui == "_connected_geometry_face_mode_shadow_only":
-        #         return self.apply_reach_material(face_seq, SHADOW_ONLY, ob.material_slots, me)
+            if poly_count != face_count:
+                return True
 
         return False
-        
-
-    def prop_only(self, prop, layer):
-        if prop != "face_mode_override" and layer.face_mode_override:
-            return False
-        elif prop != "face_type_override" and layer.face_type_override:
-            return False
-        elif layer.face_global_material_override:
-            return False
-        elif layer.region_name_override:
-            return False
-        elif layer.ladder_override:
-            return False
-        elif layer.slip_surface_override:
-            return False
-        elif layer.decal_offset_override:
-            return False
-        elif layer.group_transparents_by_plane_override:
-            return False
-        elif layer.no_shadow_override:
-            return False
-        elif layer.precise_position_override:
-            return False
-        elif layer.no_lightmap_override:
-            return False
-        elif layer.no_pvs_override:
-            return False
-        elif layer.lightmap_additive_transparency_override:
-            return False
-        elif layer.lightmap_resolution_scale_override:
-            return False
-        elif layer.lightmap_type_override:
-            return False
-        elif layer.lightmap_translucency_tint_color_override:
-            return False
-        elif layer.lightmap_lighting_from_both_sides_override:
-            return False
-        elif layer.emissive_override:
-            return False
-        
-        return getattr(layer, prop)
-        
             
     def strip_nocoll_only_faces(self, layer_faces_dict, bm):
-        """Removes faces from a mesh that have the render only property"""
-        # loop through each face layer and select non collision faces
+        """Removes faces from a mesh that shouldn't be used to build proxy collision"""
         for layer, face_seq in layer_faces_dict.items():
-            if (
-                layer.face_mode_override
-                and layer.face_mode_ui != "_connected_geometry_face_mode_collision_only"
-            ):
+            if layer.render_only_override or layer.sphere_collision_only_override or layer.breakable_override:
                 bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
         return len(bm.faces)
@@ -1062,7 +990,7 @@ class PrepareScene:
         }
 
         collision_ob = None
-        justified, is_just_render = self.justify_face_split(layer_faces_dict, poly_count, h4, ob, me)
+        justified = self.justify_face_split(layer_faces_dict, poly_count)
         bm.to_mesh(me)
 
         if justified:
@@ -1089,34 +1017,30 @@ class PrepareScene:
                     if child.nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision':
                         has_coll_child = True
 
-                if not (poop_render_only or is_just_render):
-                    if not has_coll_child:
-                        collision_ob = ob.copy()
-                        collision_ob.nwo.face_mode = ""
-                        collision_ob.data = me.copy()
-                        scene_coll.link(collision_ob)
-                        # Remove render only property faces from coll mesh
-                        coll_bm = bmesh.new()
-                        coll_bm.from_mesh(collision_ob.data)
-                        coll_layer_faces_dict = {
-                            layer: layer_faces(
-                                coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)
-                            )
-                            for layer in face_layers
-                        }
-                        poly_count = self.strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
-
-                        coll_bm.to_mesh(collision_ob.data)
-
-                        collision_ob.name = f"{ob.name}(collision)"
-
-                        ori_matrix = ob.matrix_world
-                        collision_ob.nwo.mesh_type = (
-                            "_connected_geometry_mesh_type_poop_collision"
+                if not has_coll_child:
+                    collision_ob = ob.copy()
+                    collision_ob.nwo.face_mode = ""
+                    collision_ob.data = me.copy()
+                    scene_coll.link(collision_ob)
+                    # Remove render only property faces from coll mesh
+                    coll_bm = bmesh.new()
+                    coll_bm.from_mesh(collision_ob.data)
+                    coll_layer_faces_dict = {
+                        layer: layer_faces(
+                            coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)
                         )
+                        for layer in face_layers
+                    }
+                    poly_count = self.strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
 
-                elif is_just_render:
-                    ob.nwo.face_mode = ""
+                    coll_bm.to_mesh(collision_ob.data)
+
+                    collision_ob.name = f"{ob.name}(collision)"
+
+                    ori_matrix = ob.matrix_world
+                    collision_ob.nwo.mesh_type = (
+                        "_connected_geometry_mesh_type_poop_collision"
+                    )
 
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
@@ -1184,7 +1108,7 @@ class PrepareScene:
             parent_ob = None
             if collision_ob is not None:
                 for split_ob in reversed(split_objects):
-                    if not (split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only") or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer"):
+                    if not split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only", "_connected_geometry_face_mode_breakable"):
                         parent_ob = split_ob
                         break
                 else:
@@ -1201,7 +1125,7 @@ class PrepareScene:
                 # remove coll only split objects, as this is already covered by the coll mesh
                 coll_only_objects = []
                 for split_ob in split_objects:
-                    if split_ob.nwo.face_mode == "_connected_geometry_face_mode_collision_only" or split_ob.nwo.face_type == "_connected_geometry_face_type_seam_sealer":
+                    if split_ob.nwo.face_mode == "_connected_geometry_face_mode_collision_only":
                         coll_only_objects.append(split_ob)
                         self.unlink(split_ob)
                         
@@ -1218,8 +1142,6 @@ class PrepareScene:
         
     def poop_split_override(self, face_layers):
         for layer in face_layers:
-            if layer.face_type_override:
-                return False
             if layer.face_mode_override and layer.face_mode_ui != '_connected_geometry_face_mode_render_only':
                 return False
             if layer.face_global_material_override:
@@ -1267,35 +1189,37 @@ class PrepareScene:
         # first set the persistent mesh props, followed by the optional
 
 
-        if face_props.face_mode_override:
-            mesh_props.face_mode = face_props.face_mode_ui
-            if mesh_props.face_mode in FORCE_INVIS_FACE_MODES and ob.data.materials != [self.invisible_mat]:
-                ob.data.materials.clear()
-                ob.data.materials.append(self.invisible_mat)
-            elif h4 and mesh_props.mesh_type == "_connected_geometry_mesh_type_poop" and mesh_props.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only"):
-                mesh_props.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-
-        # set mesh props from face props
-        if face_props.face_type_override:
-            # Never setting seam sealer with mesh props in Reach. This is always handled with a special material
-            if h4 or face_props.face_type_ui == "_connected_geometry_face_type_sky":
-                # enforces that only structure gets the sky property
-                if mesh_props.mesh_type == "_connected_geometry_mesh_type_default":
-                    mesh_props.face_type = face_props.face_type_ui
-                elif h4:
-                    # h4 seamsealer interacts with projectiles by default. We don't want this, so instead force it to poop wall collision
-                    mesh_props.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                    mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_invisible_wall"
-                else:
-                    mesh_props.face_type = "_connected_geometry_face_type_seam_sealer"
-                
-                if mesh_props.face_type == "_connected_geometry_face_type_sky":
-                    mesh_props.sky_permutation_index = str(face_props.sky_permutation_index_ui)
+        if face_props.render_only_override:
+            if h4:
+                mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_none"
+            else:
+                mesh_props.face_mode = "_connected_geometry_face_mode_render_only"
+        elif face_props.collision_only_override:
+            if h4:
+                mesh_props.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+                mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_default"
+            else:
+                mesh_props.face_mode = "_connected_geometry_face_mode_collision_only"
+        elif face_props.sphere_collision_only_override:
+            if h4:
+                mesh_props.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+                mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_invisible_wall"
+            else:
+                mesh_props.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
+        elif h4 and face_props.player_collision_only_override:
+            mesh_props.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+            mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_play_collision"
+        elif h4 and face_props.bullet_collision_only_override:
+            mesh_props.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+            mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_bullet_collision"
+            
+        if not h4 and face_props.breakable_override:
+            mesh_props.face_mode = '_connected_geometry_face_mode_breakable'
 
         # Handle face sides, game wants an enum but Foundry uses flags
         face_sides_value = "_connected_geometry_face_sides_"
-        has_transparency = face_props.face_transparent_override and face_props.face_transparent_ui and mesh_props.mesh_type in RENDER_MESH_TYPES
-        if face_props.face_two_sided_override and face_props.face_two_sided_ui:
+        has_transparency = face_props.face_transparent_override and mesh_props.mesh_type in RENDER_MESH_TYPES
+        if face_props.face_two_sided_override:
             # Only h4+ support properties for the backside face
             if h4 and mesh_props.mesh_type in RENDER_MESH_TYPES:
                 face_sides_value += face_props.face_two_sided_type_ui
@@ -1309,12 +1233,7 @@ class PrepareScene:
         elif has_transparency:
             face_sides_value += "one_sided_transparent"
             mesh_props.face_sides = face_sides_value
-            
-        if face_props.face_draw_distance_override:
-            mesh_props.face_draw_distance = face_props.face_draw_distance_ui
-
-        if face_props.texcoord_usage_override:
-            mesh_props.texcoord_usage = face_props.texcoord_usage_ui
+        
 
         if face_props.region_name_override:
             mesh_props.region_name = face_props.region_name_ui
@@ -1325,30 +1244,25 @@ class PrepareScene:
             self.global_materials.add(mesh_props.face_global_material)
 
         if face_props.ladder_override:
-            mesh_props.ladder = bool_str(face_props.ladder_ui)
+            mesh_props.ladder = "1"
 
         if face_props.slip_surface_override:
-            mesh_props.slip_surface = bool_str(face_props.slip_surface_ui)
+            mesh_props.slip_surface = "1"
 
         if face_props.decal_offset_override:
-            mesh_props.decal_offset = bool_str(face_props.decal_offset_ui)
-
-        if face_props.group_transparents_by_plane_override:
-            mesh_props.group_transparents_by_plane = bool_str(
-                face_props.group_transparents_by_plane_ui
-            )
+            mesh_props.decal_offset = "1"
 
         if face_props.no_shadow_override:
-            mesh_props.no_shadow = bool_str(face_props.no_shadow_ui)
+            mesh_props.no_shadow = "1"
 
         if face_props.precise_position_override:
-            mesh_props.precise_position = bool_str(face_props.precise_position_ui)
+            mesh_props.precise_position = "1"
 
         if face_props.no_lightmap_override:
-            mesh_props.no_lightmap = bool_str(face_props.no_lightmap_ui)
+            mesh_props.no_lightmap = "1"
 
         if face_props.no_pvs_override:
-            mesh_props.no_pvs = bool_str(face_props.no_pvs_ui)
+            mesh_props.no_pvs = "1"
 
         # lightmap props
         if face_props.lightmap_additive_transparency_override:
@@ -1370,23 +1284,15 @@ class PrepareScene:
             mesh_props.lightmap_resolution_scale_active = True
         if face_props.lightmap_type_override:
             mesh_props.lightmap_type = face_props.lightmap_type_ui
-            mesh_props.lightmap_type_active = True
-        # if item.lightmap_analytical_bounce_modifier_override:
-        #     mesh_props.lightmap_analytical_bounce_modifier = face_props.lightmap_analytical_bounce_modifier
-        #     mesh_props.lightmap_analytical_bounce_modifier_active = True
-        # if item.lightmap_general_bounce_modifier_override:
-        #     mesh_props.lightmap_general_bounce_modifier = face_props.lightmap_general_bounce_modifier
-        #     mesh_props.lightmap_general_bounce_modifier_active = True
+            
         if face_props.lightmap_translucency_tint_color_override:
             mesh_props.lightmap_translucency_tint_color = color_4p_str(
                 face_props.lightmap_translucency_tint_color_ui
             )
             mesh_props.lightmap_translucency_tint_color_active = True
         if face_props.lightmap_lighting_from_both_sides_override:
-            mesh_props.lightmap_lighting_from_both_sides = bool_str(
-                face_props.lightmap_lighting_from_both_sides_ui
-            )
-            mesh_props.lightmap_lighting_from_both_sides_active = True
+            mesh_props.lightmap_lighting_from_both_sides = "1"
+            
         # emissive props
         if face_props.emissive_override:
             mesh_props.material_lighting_attenuation_falloff = jstr(
@@ -1901,7 +1807,7 @@ class PrepareScene:
         for b in bones:
             set_bone_prefix(b)
             
-    def setup_poop_props(self, nwo, h4):
+    def setup_poop_props(self, nwo, h4, nwo_data):
         nwo.poop_lighting = nwo.poop_lighting_ui
         nwo.poop_pathfinding = nwo.poop_pathfinding_ui
         nwo.poop_imposter_policy = nwo.poop_imposter_policy_ui
@@ -1911,11 +1817,18 @@ class PrepareScene:
         ):
             if not nwo.poop_imposter_transition_distance_auto:
                 nwo.poop_imposter_transition_distance = jstr(nwo.poop_imposter_transition_distance_ui)
-                if h4:
-                    nwo.poop_imposter_brightness = jstr(nwo.poop_imposter_brightness_ui)
-
-        if nwo.poop_render_only_ui:
+            if h4:
+                nwo.poop_imposter_brightness = jstr(nwo.poop_imposter_brightness_ui)
+        if nwo_data.render_only_ui:
             nwo.poop_render_only = "1"
+            if h4:
+                nwo.poop_collision_type = '_connected_geometry_poop_collision_type_none'
+            else:
+                nwo.face_mode = '_connected_geometry_face_mode_render_only'
+        elif not h4 and nwo_data.sphere_collision_only_ui:
+            nwo.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
+        elif h4:
+            nwo.poop_collision_type = nwo_data.poop_collision_type_ui
         if nwo.poop_chops_portals_ui:
             nwo.poop_chops_portals = "1"
         if nwo.poop_does_not_block_aoe_ui:
@@ -1926,7 +1839,6 @@ class PrepareScene:
             nwo.poop_decal_spacing = "1"
 
         if h4:
-            nwo.poop_collision_type = nwo.poop_collision_type_ui
             nwo.poop_streaming_priority = nwo.poop_streaming_priority_ui
             nwo.poop_cinematic_properties = nwo.poop_cinematic_properties_ui
             if nwo.poop_remove_from_shadow_geometry_ui:
@@ -1945,10 +1857,11 @@ class PrepareScene:
                 mesh_type = '_connected_geometry_mesh_type_default'
             
         nwo.mesh_type = mesh_type
+        nwo_data = ob.data.nwo
         if mesh_type == "_connected_geometry_mesh_type_physics":
             nwo.mesh_primitive_type = nwo.mesh_primitive_type_ui
         elif mesh_type == '_connected_geometry_mesh_type_poop':
-            self.setup_poop_props(nwo, h4)
+            self.setup_poop_props(nwo, h4, nwo_data)
                     
         elif mesh_type == "_connected_geometry_mesh_type_seam":
             self.seams.append(ob)
@@ -1981,6 +1894,13 @@ class PrepareScene:
             nwo.mesh_type = "_connected_geometry_mesh_type_boundary_surface"
             nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_slip_surface'
             
+        elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
+            nwo.mesh_type = "_connected_geometry_mesh_type_poop"
+            nwo.face_mode = '_connected_geometry_face_mode_lightmap_only'
+            if ob.data.materials != [self.invisible_mat]:
+                ob.data.materials.clear()
+                ob.data.materials.append(self.invisible_mat)
+            
         elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
             nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
             nwo.water_volume_flow_direction = jstr(nwo.water_volume_flow_direction_ui)
@@ -2000,12 +1920,19 @@ class PrepareScene:
             nwo.obb_volume_type = "_connected_geometry_mesh_obb_volume_type_streamingvolume"
             
         elif mesh_type == '_connected_geometry_mesh_type_collision' and asset_type in ('SCENARIO', 'PREFAB'):
-            nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
-            nwo.poop_collision_type = nwo.poop_collision_type_ui
+            if h4:
+                nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
+                nwo.poop_collision_type = nwo_data.poop_collision_type_ui
+            else:
+                nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                if nwo_data.sphere_collision_only_ui:
+                    nwo.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
+                else:
+                    nwo.face_mode = '_connected_geometry_face_mode_collision_only'
         
         elif asset_type == 'PREFAB':
             nwo.mesh_type = '_connected_geometry_mesh_type_poop'
-            self.setup_poop_props(nwo, h4)
+            self.setup_poop_props(nwo, h4, nwo_data)
             
         elif asset_type == 'DECORATOR SET':
             nwo.mesh_type = '_connected_geometry_mesh_type_decorator'
@@ -2020,7 +1947,6 @@ class PrepareScene:
             "_connected_geometry_mesh_type_poop",
             "_connected_geometry_mesh_type_poop_collision",
         ):
-            nwo_data = ob.data.nwo
             if asset_type in ("SCENARIO", "PREFAB") or nwo.mesh_type in (
                 "_connected_geometry_mesh_type_collision",
                 "_connected_geometry_mesh_type_physics",
@@ -2067,36 +1993,9 @@ class PrepareScene:
                     h4
                     and nwo.mesh_type == "_connected_geometry_mesh_type_default"
                 )
-                if nwo_data.face_type_active or h4_structure:
-                    if h4_structure:
-                        nwo.face_type = "_connected_geometry_face_type_sky"
-                    else:
-                        if h4 or nwo_data.face_type_ui == "_connected_geometry_face_type_sky":
-                            # enforces that only structure gets the sky property
-                            if nwo.mesh_type == "_connected_geometry_mesh_type_default":
-                                nwo.face_type = nwo_data.face_type_ui
-                            elif h4:
-                                # h4 seamsealer interacts with projectiles by default. We don't want this, so instead force it to poop wall collision
-                                nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
-                                nwo.poop_collision_type = "_connected_geometry_poop_collision_type_invisible_wall"
-                            else:
-                                nwo.face_type = "_connected_geometry_face_type_seam_sealer"
-                                    
-                    if nwo.face_type == "_connected_geometry_face_type_sky":
-                            nwo.sky_permutation_index = str(nwo_data.sky_permutation_index_ui)
-
-                    if nwo.face_type == "_connected_geometry_face_type_sky":
-                        nwo.sky_permutation_index = str(nwo_data.sky_permutation_index_ui)
-                if nwo_data.face_mode_active:
-                    nwo.face_mode = nwo_data.face_mode_ui
-                    if nwo.face_mode in FORCE_INVIS_FACE_MODES and ob.data.materials != [self.invisible_mat]:
-                        ob.data.materials.clear()
-                        ob.data.materials.append(self.invisible_mat)
-                # NOTE I don't think this actually does anything in Reach+
-                # if nwo.group_transparents_by_plane:
-                #     nwo.group_transparents_by_plane = bool_str(
-                #         nwo.group_transparents_by_plane_ui
-                #     )
+                if h4_structure:
+                    nwo.face_type = "_connected_geometry_face_type_sky"
+                        
                 if nwo_data.no_shadow_ui:
                     nwo.no_shadow = "1"
                 if h4:
@@ -2161,6 +2060,8 @@ class PrepareScene:
                     nwo.material_lighting_bounce_ratio = jstr(
                         nwo_data.material_lighting_bounce_ratio_ui
                     )
+                    
+        return True
 
     
     def setup_marker_properties(self, ob, marker_type, asset_type, h4, nwo):
@@ -2416,8 +2317,11 @@ class PrepareScene:
                 if space.local_view:
                     for region in area.regions:
                         if region.type == "WINDOW":
-                            override = {"area": area, "region": region}
-                            bpy.ops.view3d.localview(override)
+                            override = context.copy()
+                            override["area"] = area
+                            override["region"] = region
+                            with context.temp_override(**override):
+                                bpy.ops.view3d.localview()
 
     def rotate_scene(self, objects):
         angle_z = radians(90)
@@ -2985,7 +2889,7 @@ class PrepareScene:
         return child_ob_set
 
     def fix_materials(
-        self, ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render
+        self, ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render, does_not_support_sky, scene_coll
     ):
         if h4:
             render_mesh_types = (
@@ -3006,7 +2910,7 @@ class PrepareScene:
         if nwo.reach_poop_collision and (nwo.face_global_material_ui or self.any_face_props):
             self.set_reach_coll_materials(me, nwo, scene_mats)
         else:
-            self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me)
+            self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me, does_not_support_sky, scene_coll, h4)
 
     def set_reach_coll_materials(self, me, nwo, scene_mats):
         # handle reach poop collision material assignment
@@ -3062,17 +2966,19 @@ class PrepareScene:
         bm.to_mesh(me)
         bm.free()
 
-    def loop_and_fix_slots(self, slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me):
+    def loop_and_fix_slots(self, slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me, does_not_support_sky, scene_coll, h4):
         slots_to_remove = []
+        is_true_mesh = ob.type == 'MESH'
         for idx, slot in enumerate(slots):
-            slot_mat = slot.material
-            if slot_mat:
+            if slot.material:
+                if not h4 and slot.material.name.startswith(MAT_SKY) and does_not_support_sky:
+                    slot.material = self.seamsealer_mat
                 if is_halo_render:
-                    self.used_materials.add(slot_mat)
-                s_name = slot_mat.name
+                    self.used_materials.add(slot.material)
+                s_name = slot.material.name
                 if s_name not in mats.keys():
                     mats[s_name] = idx
-                elif ob.type == 'MESH':
+                elif is_true_mesh:
                     set_active_object(ob)
                     bpy.ops.object.mode_set(mode="EDIT", toggle=False)
                     ob.active_material_index = idx
@@ -3103,8 +3009,49 @@ class PrepareScene:
                 me.materials.append(water_surface_mat)
             else:
                 me.materials.append(override_mat)
+        elif not h4:
+            sky_slots = [s for s in ob.material_slots if s.material.name.startswith(MAT_SKY)]
+            # Loop through slots with sky material, if a permutation is given we need to make a new mesh
+            if not sky_slots: return
+            # If there's only one sky material can skip face split code below
+            if len(sky_slots) == 1 or not is_true_mesh:
+                sky_index = get_sky_perm(sky_slots[0].material)
+                if sky_index > -1 and sky_index < 32:
+                    nwo.sky_permutation_index = str(sky_index)
+                return
                     
-    def generate_structure(self, export_obs, scene_coll, scene_nwo, override_mat):
+            original_bm = bmesh.new()
+            original_bm.from_mesh(me)
+            for s in sky_slots:
+                sky_index = get_sky_perm(s.material)
+                if sky_index > -1 and sky_index < 32:
+                    original_bm.faces.ensure_lookup_table()
+                    mat_faces = [f for f in original_bm.faces if f.material_index == s.slot_index]
+                    # Exit early here if all faces are assigned to one sky perm
+                    if len(mat_faces) == len(original_bm.faces):
+                        nwo.sky_permutation_index = str(sky_index)
+                        break
+                    
+                    for f in original_bm.faces:
+                        f.select = True if f in mat_faces else False
+
+                    new_bm = original_bm.copy()
+                    bmesh.ops.delete(original_bm, geom=[f for f in original_bm.faces if f.select], context="FACES")
+                    bmesh.ops.delete(new_bm, geom=[f for f in new_bm.faces if not f.select], context="FACES")
+                    new_sky_me = me.copy()
+                    new_bm.to_mesh(new_sky_me)
+                    original_bm.to_mesh(me)
+                    new_sky_ob = ob.copy()
+                    new_sky_ob.name = ob.name + f'(sky_perm_{str(sky_index)})'
+                    new_sky_ob.data = new_sky_me
+                    scene_coll.link(new_sky_ob)
+                    new_sky_ob.nwo.sky_permutation_index = str(sky_index)
+
+                    
+                
+            
+                    
+    def generate_structure(self, export_obs, scene_coll, scene_nwo, override_mat, h4):
         bsps_in_need = [bsp for bsp in self.structure_bsps if bsp not in self.bsps_with_structure]
         if not bsps_in_need:
             return False
@@ -3128,14 +3075,16 @@ class PrepareScene:
             structure_mesh = bpy.data.meshes.new('autogenerated_structure')
             bm.to_mesh(structure_mesh)
             bm.free()
-            structure_mesh.materials.append(override_mat)
             structure = bpy.data.objects.new('autogenerated_structure', structure_mesh)
             scene_coll.link(structure)
             nwo = structure.nwo
             nwo.object_type = '_connected_geometry_object_type_mesh'
             nwo.mesh_type = '_connected_geometry_mesh_type_default'
-            nwo.face_type = '_connected_geometry_face_type_sky'
-            nwo.sky_permutation_index = '0'
+            if h4:
+                nwo.face_type = '_connected_geometry_face_type_sky'
+                structure_mesh.materials.append(override_mat)
+            else:
+                structure_mesh.materials.append(self.sky_mat)
             nwo.region_name = bsp
             nwo.permutation_name = default_bsp_part
             self.structure.append(structure)

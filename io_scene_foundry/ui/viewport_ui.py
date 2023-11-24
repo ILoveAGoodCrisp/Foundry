@@ -141,11 +141,20 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 )
                 items.append(
                     nwo_enum(
+                        "lightmap_only",
+                        "Lightmap Only",
+                        "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
+                        "affinity_photo",
+                        5,
+                    )
+                )
+                items.append(
+                    nwo_enum(
                         "water_surface",
                         "Water Surface",
                         "Plane which can cut through geometry to define a water surface",
                         "water",
-                        5,
+                        6,
                     )
                 )
                 items.append(
@@ -154,7 +163,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Water Physics Volume",
                         "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
                         "water_physics",
-                        6,
+                        7,
                     )
                 )
                 items.append(
@@ -163,7 +172,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Soft Ceiling Volume",
                         "Soft barrier that blocks the player and player camera",
                         "soft_ceiling",
-                        7,
+                        8,
                     )
                 )
                 items.append(
@@ -172,7 +181,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Soft Kill Volume",
                         "Defines a region where the player will be killed... softly",
                         "soft_kill",
-                        8,
+                        9,
                     )
                 )
                 items.append(
@@ -181,26 +190,42 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         "Slip Surface Volume",
                         "Defines a region in which surfaces become slippery",
                         "slip_surface",
-                        9,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "fog",
-                        "Fog",
-                        "Defines an area in a cluster which renders fog defined in the scenario tag",
-                        "fog",
                         10,
                     )
                 )
                 if reach:
                     items.append(
                         nwo_enum(
+                            "fog",
+                            "Fog",
+                            "Defines an area in a cluster which renders fog defined in the scenario tag",
+                            "fog",
+                            11,
+                        )
+                    )
+                    items.append(
+                        nwo_enum(
                             "cookie_cutter",
                             "Pathfinding Cutout Volume",
                             "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
                             "cookie_cutter",
-                            11,
+                            12,
+                        )
+                    ),
+                    nwo_enum(
+                        "rain_blocker",
+                        "Rain Blocker Volume",
+                        "Blocks rain from rendering in the region this volume occupies",
+                        "rain_blocker",
+                        13,
+                    ),
+                    items.append(
+                        nwo_enum(
+                            "rain_sheet",
+                            "Rain Sheet",
+                            "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
+                            "rain_sheet",
+                            14,
                         )
                     ),
                     # items.append(
@@ -222,30 +247,9 @@ class NWO_ApplyTypeMesh(NWO_Op):
                             11,
                         )
                     )
-
-                items.append(
-                    nwo_enum(
-                        "rain_blocker",
-                        "Rain Blocker Volume",
-                        "Blocks rain from rendering in the region this volume occupies",
-                        "rain_blocker",
-                        12,
-                    )
-                )
-                if reach:
-                    items.append(
-                        nwo_enum(
-                            "rain_sheet",
-                            "Rain Sheet",
-                            "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
-                            "rain_sheet",
-                            13,
-                        )
-                    )
-                else:
                     stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.This is useful for performance if you have textures in areas of the map the player will not get close to"""
                     items.append(
-                        nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 13)
+                        nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 12)
                     )
 
         return items
@@ -285,6 +289,9 @@ class NWO_ApplyTypeMesh(NWO_Op):
             case "portal":
                 mesh_type = "_connected_geometry_mesh_type_portal"
                 material = "Portal"
+            case "lightmap_only":
+                mesh_type = "_connected_geometry_mesh_type_lightmap_only"
+                material = "Portal"
             case "water_surface":
                 mesh_type = "_connected_geometry_mesh_type_water_surface"
             case "rain_sheet":
@@ -304,6 +311,9 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 material = "SlipSurface"
             case "water_physics":
                 mesh_type = "_connected_geometry_mesh_type_water_physics_volume"
+                material = "WaterVolume"
+            case "invisible_wall":
+                mesh_type = "_connected_geometry_mesh_type_invisible_wall"
                 material = "WaterVolume"
             case "streaming":
                 mesh_type = "_connected_geometry_mesh_type_streaming"

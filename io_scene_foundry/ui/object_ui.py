@@ -148,6 +148,7 @@ class NWO_MeshTypes(Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
+            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('affinity_photo')).m_type = 'lightmap_only'
             layout.operator('nwo.apply_type_mesh_single', text='Water Surface', icon_value=get_icon_id('water')).m_type = 'water_surface'
             layout.operator('nwo.apply_type_mesh_single', text='Water Physics', icon_value=get_icon_id('water_physics')).m_type = 'water_physics'
             layout.operator('nwo.apply_type_mesh_single', text='Soft Ceiling', icon_value=get_icon_id('soft_ceiling')).m_type = 'soft_ceiling'
@@ -164,6 +165,8 @@ class NWO_MeshTypes(Menu):
         elif poll_ui("PREFAB"):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
+            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('affinity_photo')).m_type = 'lightmap_only'
+            layout.operator('nwo.apply_type_mesh_single', text='Invisible Wall', icon_value=get_icon_id('affinity_photo')).m_type = 'invisible_wall'
             
 class NWO_MarkerTypes(Menu):
     bl_label = "Marker Type"
@@ -587,21 +590,21 @@ def toggle_override(context, option, bool_var):
         case "_connected_geometry_face_type_seam_sealer":
             item.face_type_override = bool_var
             item.face_type = "_connected_geometry_face_type_seam_sealer"
-        case "_connected_geometry_face_mode_render_only":
-            item.face_mode_override = bool_var
-            item.face_mode = "_connected_geometry_face_mode_render_only"
-        case "_connected_geometry_face_mode_collision_only":
-            item.face_mode_override = bool_var
-            item.face_mode = "_connected_geometry_face_mode_collision_only"
-        case "_connected_geometry_face_mode_sphere_collision_only":
-            item.face_mode_override = bool_var
-            item.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
-        case "_connected_geometry_face_mode_lightmap_only":
-            item.face_mode_override = bool_var
-            item.face_mode = "_connected_geometry_face_mode_lightmap_only"
-        case "_connected_geometry_face_mode_breakable":
-            item.face_mode_override = bool_var
-            item.face_mode = "_connected_geometry_face_mode_breakable"
+        # case "_connected_geometry_face_mode_render_only":
+        #     item.face_mode_override = bool_var
+        #     item.face_mode = "_connected_geometry_face_mode_render_only"
+        # case "_connected_geometry_face_mode_collision_only":
+        #     item.face_mode_override = bool_var
+        #     item.face_mode = "_connected_geometry_face_mode_collision_only"
+        # case "_connected_geometry_face_mode_sphere_collision_only":
+        #     item.face_mode_override = bool_var
+        #     item.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
+        # case "_connected_geometry_face_mode_lightmap_only":
+        #     item.face_mode_override = bool_var
+        #     item.face_mode = "_connected_geometry_face_mode_lightmap_only"
+        # case "_connected_geometry_face_mode_breakable":
+        #     item.face_mode_override = bool_var
+        #     item.face_mode = "_connected_geometry_face_mode_breakable"
         case "_connected_geometry_face_sides_one_sided_transparent":
             item.face_sides_override = bool_var
             item.face_sides = "_connected_geometry_face_sides_one_sided_transparent"
@@ -713,21 +716,21 @@ def toggle_active(context, option, bool_var):
         case "_connected_geometry_face_type_seam_sealer":
             ob_nwo.face_type_active = bool_var
             ob_nwo.face_type_ui = "_connected_geometry_face_type_seam_sealer"
-        case "_connected_geometry_face_mode_render_only":
-            ob_nwo.face_mode_active = bool_var
-            ob_nwo.face_mode_ui = "_connected_geometry_face_mode_render_only"
-        case "_connected_geometry_face_mode_collision_only":
-            ob_nwo.face_mode_active = bool_var
-            ob_nwo.face_mode_ui = "_connected_geometry_face_mode_collision_only"
-        case "_connected_geometry_face_mode_sphere_collision_only":
-            ob_nwo.face_mode_active = bool_var
-            ob_nwo.face_mode_ui = "_connected_geometry_face_mode_sphere_collision_only"
-        case "_connected_geometry_face_mode_lightmap_only":
-            ob_nwo.face_mode_active = bool_var
-            ob_nwo.face_mode_ui = "_connected_geometry_face_mode_lightmap_only"
-        case "_connected_geometry_face_mode_breakable":
-            ob_nwo.face_mode_active = bool_var
-            ob_nwo.face_mode_ui = "_connected_geometry_face_mode_breakable"
+        # case "_connected_geometry_face_mode_render_only":
+        #     ob_nwo.face_mode_active = bool_var
+        #     ob_nwo.face_mode_ui = "_connected_geometry_face_mode_render_only"
+        # case "_connected_geometry_face_mode_collision_only":
+        #     ob_nwo.face_mode_active = bool_var
+        #     ob_nwo.face_mode_ui = "_connected_geometry_face_mode_collision_only"
+        # case "_connected_geometry_face_mode_sphere_collision_only":
+        #     ob_nwo.face_mode_active = bool_var
+        #     ob_nwo.face_mode_ui = "_connected_geometry_face_mode_sphere_collision_only"
+        # case "_connected_geometry_face_mode_lightmap_only":
+        #     ob_nwo.face_mode_active = bool_var
+        #     ob_nwo.face_mode_ui = "_connected_geometry_face_mode_lightmap_only"
+        # case "_connected_geometry_face_mode_breakable":
+        #     ob_nwo.face_mode_active = bool_var
+        #     ob_nwo.face_mode_ui = "_connected_geometry_face_mode_breakable"
         case "_connected_geometry_face_sides_one_sided_transparent":
             ob_nwo.face_sides_active = bool_var
             ob_nwo.face_sides_ui = (
@@ -804,54 +807,24 @@ class NWO_MeshPropAddMenu(Menu):
     def draw(self, context):
         layout = self.layout
         nwo = context.object.nwo
-        h4 = is_corinth(context)
-        # if poll_ui(('MODEL', 'SKY', 'DECORATOR SET')):
-        #     # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
-        #     layout.operator_menu_enum("nwo.add_mesh_property_misc", property="options", text="Other")
-
         if poll_ui(("SCENARIO", "PREFAB")):
-            # layout.operator_menu_enum("nwo.add_mesh_property_face_sides", property="options", text="Sides")
-            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
-                layout.operator(
-                    "nwo.add_mesh_property", text="Sky"
-                ).options = "_connected_geometry_face_type_sky"
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
-                layout.operator(
-                    "nwo.add_mesh_property", text="Seam Sealer"
-                ).options = "_connected_geometry_face_type_seam_sealer"
-                layout.operator(
-                    "nwo.add_mesh_property", text="Render Only"
-                ).options = "_connected_geometry_face_mode_render_only"
-                layout.operator(
-                    "nwo.add_mesh_property", text="Collision Only"
-                ).options = "_connected_geometry_face_mode_collision_only"
-                layout.operator(
-                    "nwo.add_mesh_property", text="Sphere Collision Only"
-                ).options = "_connected_geometry_face_mode_sphere_collision_only"
-                layout.operator(
-                    "nwo.add_mesh_property", text="Lightmap Only"
-                ).options = "_connected_geometry_face_mode_lightmap_only"
-                if not h4:
-                    layout.operator(
-                        "nwo.add_mesh_property", text="Breakable"
-                    ).options = "_connected_geometry_face_mode_breakable"
+            # if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+            #     layout.operator(
+            #         "nwo.add_mesh_property", text="Sky"
+            #     ).options = "_connected_geometry_face_type_sky"
+            # if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
+            #     layout.operator(
+            #         "nwo.add_mesh_property", text="Seam Sealer"
+            #     ).options = "_connected_geometry_face_type_seam_sealer"
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
                 layout.operator(
                     "nwo.add_mesh_property", text="Emissive"
                 ).options = "emissive"
-            # layout.operator_menu_enum(
-            #     "nwo.add_mesh_property_face_mode",
-            #     property="options",
-            #     text="Mode",
-            # )
-            # layout.operator_menu_enum(
-            #     "nwo.add_mesh_property_flags", property="options", text="Flags"
-            # )
                 layout.operator_menu_enum(
                     "nwo.add_mesh_property_lightmap",
                     property="options",
                     text="Lightmap",
                 )
-
 
 class NWO_MeshPropAdd(NWO_Op):
     """Adds a face property that will override face properties set in the mesh"""
@@ -868,11 +841,6 @@ class NWO_MeshPropAdd(NWO_Op):
             ("emissive", "Emissive", ""),
             ("_connected_geometry_face_type_sky", "Sky", ""),
             ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
-            ("_connected_geometry_face_mode_render_only", "Render Only", ""),
-            ("_connected_geometry_face_mode_collision_only", "Collision Only", ""),
-            ("_connected_geometry_face_mode_sphere_collision_only", "Sphere Collision Only", ""),
-            ("_connected_geometry_face_mode_lightmap_only", "Lightmap Only","",),
-            ("_connected_geometry_face_mode_breakable", "Breakable", ""),
         ]
     )
 

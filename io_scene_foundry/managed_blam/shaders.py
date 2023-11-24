@@ -773,7 +773,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         albedo_tint['parameter name'] = 'albedo_tint' if self.corinth else 'albedo_color'
         albedo_tint['parameter type'] = "color" if self.corinth else "argb color"
         tint_parameters = {}
-        color = self.get_default_color(shader, "color")
+        color = self.get_default_color(shader, "Base Color")
         if color is None: return
         if self.corinth:
             tint_parameters['color'] = color[:3]

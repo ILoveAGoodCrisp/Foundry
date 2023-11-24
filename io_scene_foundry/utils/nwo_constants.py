@@ -27,8 +27,9 @@
 # MESH TYPE GROUPS
 # Mesh types which support render properties
 RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop")
+COLLISION_MESH_TYPES = ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision")
 # Mesh types which support the two sided flag
-TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_poop_collision")
+TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision", '_connected_geometry_mesh_type_lightmap_only')
 
 # Blender Halo Mesh Types
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
@@ -74,6 +75,11 @@ PROTECTED_MATERIALS = (
     "InvisibleMesh",
 )
 
+MAT_SEAMSEALER = '+seamsealer'
+MAT_SKY = '+sky'
+MAT_INVISIBLE = '+invisible'
+MAT_INVALID = "+invalid"
+
 # LEGACY PREFIXES
 # Objects
 LEGACY_BONE_PREFIXES = ("b ", "b_", "frame ", "frame_", "bip ","bip_", "bone ", "bone_",)
@@ -108,6 +114,7 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_soft_kill': ('SCENARIO',),
     '_connected_geometry_mesh_type_slip_surface': ('SCENARIO',),
     '_connected_geometry_mesh_type_water_physics_volume': ('SCENARIO',),
+    '_connected_geometry_mesh_type_lightmap_only': ('SCENARIO', 'PREFAB'),
     '_connected_geometry_mesh_type_streaming': ('SCENARIO',),
     '_connected_geometry_mesh_type_lightmap_exclude': ('SCENARIO',),
     '_connected_geometry_mesh_type_cookie_cutter': ('SCENARIO',),
@@ -142,6 +149,7 @@ object_game_validation = {
     '_connected_geometry_mesh_type_soft_kill': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_slip_surface': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_water_physics_volume': ('reach', 'corinth'),
+    '_connected_geometry_mesh_type_lightmap_only': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_streaming': ('corinth',),
     '_connected_geometry_mesh_type_lightmap_exclude': ('corinth',),
     '_connected_geometry_mesh_type_cookie_cutter': ('reach',),

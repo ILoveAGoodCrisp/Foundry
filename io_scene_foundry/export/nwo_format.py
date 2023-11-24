@@ -777,8 +777,9 @@ class NWOMesh(NWOObject):
         # PROPS FOR MESH TYPES WHICH HAVE RENDERED FACES:
         if self.halo.face_type:
             self.bungie_face_type = self.halo.face_type
-            if self.bungie_face_type == "_connected_geometry_face_type_sky":
-                self.bungie_sky_permutation_index = self.halo.sky_permutation_index
+            
+        if self.halo.sky_permutation_index:
+            self.bungie_sky_permutation_index = self.halo.sky_permutation_index
 
         if self.halo.face_mode:
             self.bungie_face_mode = self.halo.face_mode
@@ -883,7 +884,7 @@ class NWOMesh(NWOObject):
                     # self.bungie_mesh_poop_fade_range_end = self.mesh_poop_fade_range_end()
 
                     # This needs to be Reach only otherwise tool complains. However, the flag is still in use in the UI as it is instead used to set instanced collision type to none
-                    if self.halo.poop_render_only == "1":
+                    if self.halo.poop_render_only == "1" and not self.not_bungie_game:
                         self.bungie_mesh_poop_is_render_only = "1"
 
                     if self.halo.poop_chops_portals:
@@ -1126,7 +1127,7 @@ class NWOMesh(NWOObject):
         )
 
     def mesh_poop_collision_type(self):
-        if self.halo.face_mode in ("_connected_geometry_face_mode_render_only", "_connected_geometry_face_mode_lightmap_only", "_connected_geometry_face_mode_shadow_only"):
+        if self.halo.face_mode in ("_connected_geometry_face_mode_render_only", "_connected_geometry_face_mode_lightmap_only"):
             return "_connected_geometry_poop_collision_type_none"
         elif (
             self.halo.face_mode == "_connected_geometry_face_mode_sphere_collision_only"

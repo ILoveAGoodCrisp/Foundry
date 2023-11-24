@@ -672,6 +672,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     scene_project : StringProperty(
         name="Project",
     )
+    
+    storage_only: BoolProperty()
 
     # TABLES
 

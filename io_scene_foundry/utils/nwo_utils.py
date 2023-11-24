@@ -39,8 +39,7 @@ import random
 import xml.etree.ElementTree as ET
 
 from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.utils.nwo_constants import PROTECTED_MATERIALS, VALID_MESHES
-
+from io_scene_foundry.utils.nwo_constants import COLLISION_MESH_TYPES, MAT_INVALID, MAT_INVISIBLE, MAT_SEAMSEALER, MAT_SKY, PROTECTED_MATERIALS, VALID_MESHES
 from ..icons import get_icon_id
 import requests
 
@@ -1014,6 +1013,7 @@ def has_mesh_props(ob) -> bool:
         "_connected_geometry_mesh_type_physics",
         "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_structure",
+        "_connected_geometry_mesh_type_lightmap_only",
     )
     nwo = ob.nwo
     return (
@@ -1026,16 +1026,15 @@ def has_mesh_props(ob) -> bool:
 
 def has_face_props(ob) -> bool:
     valid_mesh_types = (
-        "_connected_geometry_mesh_type_collision",
         "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_structure",
     )
     if is_corinth() and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and poll_ui('SCENARIO') and not ob.nwo.proxy_instance:
-        return
+        return False
     return (
         ob
         and ob.nwo.export_this
-        and is_mesh(ob)
+        and ob.type == 'MESH'
         and ob.nwo.mesh_type_ui in valid_mesh_types
     )
 
@@ -1359,6 +1358,10 @@ def get_mesh_display(mesh_type):
             return 'Pathfinding Cutout Volume', get_icon_id('cookie_cutter')
         case '_connected_geometry_mesh_type_planar_fog_volume':
             return 'Fog Sheet', get_icon_id('fog')
+        case '_connected_geometry_mesh_type_lightmap_only':
+            return 'Lightmap Only', get_icon_id('affinity_photo')
+        case '_connected_geometry_mesh_type_invisible_wall':
+            return 'Invisible Wall', get_icon_id('affinity_photo')
         case _:
             if poll_ui(('SCENARIO', 'PREFAB')):
                 return 'Instanced Geometry', get_icon_id('instance')
@@ -1454,3 +1457,55 @@ def blender_toolset_installed():
         return True
     except:
         return False
+    
+def has_collision_type(ob: bpy.types.Object) -> bool:
+    nwo = ob.nwo
+    mesh_type = nwo.mesh_type_ui
+    if not poll_ui(('SCENARIO', 'PREFAB')) and mesh_type != '_connected_geometry_mesh_type_collision':
+        return False
+    if mesh_type in COLLISION_MESH_TYPES:
+        return True
+    if is_instance_or_structure_proxy(ob):
+        return True
+    return False
+
+def get_special_mat(mat: bpy.types.Material) -> str:
+    name = mat.name
+    invis_only = is_corinth() or not poll_ui('SCENARIO')
+    if name.startswith(MAT_SEAMSEALER):
+        if invis_only:
+            return 'invisible'
+        else:
+            return 'seamsealer'
+    elif name.startswith(MAT_SKY):
+        if invis_only:
+            return 'invisible'
+        else:
+            return 'sky'
+    elif name.startswith(MAT_INVISIBLE):
+        return 'invisible'
+    elif name.startswith(MAT_INVALID):
+        return 'invalid'
+    
+    return ''
+
+def get_sky_perm(mat: bpy.types.Material) -> int:
+    name = mat.name
+    index_part = name.rpartition('+sky')[2]
+    if not index_part:
+        return -1
+    index_ignore_period = dot_partition(index_part)
+    index = ''.join(c for c in index_ignore_period if c.isdigit())
+    if not index:
+        return -1
+    return int(index)
+        
+def is_instance_or_structure_proxy(ob) -> bool:
+    mesh_type = ob.nwo.mesh_type_ui
+    if not poll_ui(('SCENARIO', 'PREFAB')):
+        return False
+    if mesh_type == '_connected_geometry_mesh_type_default':
+        return True
+    if is_corinth() and mesh_type == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance:
+        return True
+    return False

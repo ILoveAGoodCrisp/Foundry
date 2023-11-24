@@ -25,17 +25,13 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from ..utils.nwo_utils import (
-    bpy_enum_list,
-    closest_bsp_object,
-    export_objects_no_arm,
     is_corinth,
     layer_face_count,
     random_color,
-    sort_alphanum,
     true_region,
     poll_ui,
 )
-from .templates import NWO_Op, NWO_PropPanel
+from .templates import NWO_Op
 from bpy.props import EnumProperty, BoolProperty, StringProperty
 import bpy
 import bmesh
@@ -90,37 +86,51 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                 layout.operator(
                     self.op_prefix, text="Uncompressed"
                 ).options = "precise_position"
+                
+            if nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
+                if h4 and nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+                    layout.operator(
+                        self.op_prefix, text="No Lightmap"
+                    ).options = "no_lightmap"
+                    layout.operator(
+                        self.op_prefix, text="No Visibility Culling"
+                    ).options = "no_pvs"
+                elif not h4:
+                    layout.operator(
+                        self.op_prefix, text="Ladder"
+                    ).options = "ladder"
+                    layout.operator(
+                        self.op_prefix, text="Slip Surface"
+                    ).options = "slip_surface"
+                    layout.operator(
+                        self.op_prefix, text="Breakable"
+                    ).options = "breakable"
+                if nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+                    layout.operator(
+                        self.op_prefix, text="Decal Offset"
+                    ).options = "decal_offset"
+                    layout.operator(
+                        self.op_prefix, text="No Shadow"
+                    ).options = "no_shadow"
 
         if poll_ui(("SCENARIO", "PREFAB")):
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
                 layout.operator(
-                    self.op_prefix, text="Sky"
-                ).options = "_connected_geometry_face_type_sky"
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
-                layout.operator(
-                    self.op_prefix, text="Seam Sealer"
-                ).options = "_connected_geometry_face_type_seam_sealer"
-                layout.operator(
                     self.op_prefix, text="Render Only"
-                ).options = "_connected_geometry_face_mode_render_only"
+                ).options = "render_only"
                 layout.operator(
                     self.op_prefix, text="Collision Only"
-                ).options = "_connected_geometry_face_mode_collision_only"
+                ).options = "collision_only"
                 layout.operator(
                     self.op_prefix, text="Sphere Collision Only"
-                ).options = "_connected_geometry_face_mode_sphere_collision_only"
-                layout.operator(
-                    self.op_prefix, text="Lightmap Only"
-                ).options = "_connected_geometry_face_mode_lightmap_only"
-                if not h4:
+                ).options = "sphere_collision_only"
+                if h4:
                     layout.operator(
-                        self.op_prefix, text="Breakable"
-                    ).options = "_connected_geometry_face_mode_breakable"
-            # layout.operator_menu_enum(
-            #     self.op_prefix + "_face_mode",
-            #     property="options",
-            #     text="Mode",
-            # )
+                        self.op_prefix, text="Bullet Collision Only"
+                    ).options = "bullet_collision_only"
+                    layout.operator(
+                        self.op_prefix, text="Player Collision Only"
+                    ).options = "player_collision_only"
                 layout.operator(
                     self.op_prefix, text="Emissive"
                 ).options = "emissive"
@@ -145,348 +155,6 @@ class NWO_FacePropAddMenu(NWO_FaceLayerAddMenu):
 
     def __init__(self):
         self.op_prefix = "nwo.face_prop_add"
-
-
-class NWO_FacePropPanel(NWO_PropPanel):
-    bl_label = "Face Properties"
-    bl_idname = "NWO_PT_FaceLevelDetailsPanel"
-    bl_parent_id = "NWO_PT_ObjectDetailsPanel"
-    bl_context = "mesh"
-
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-        valid_mesh_types = (
-            "_connected_geometry_mesh_type_collision",
-            "_connected_geometry_mesh_type_default",
-            "_connected_geometry_mesh_type_structure",
-        )
-        return (
-            ob
-            and ob.nwo.export_this
-            and ob.type == "MESH"
-            and ob.nwo.object_type_ui == "_connected_geometry_object_type_mesh"
-            and ob.nwo.mesh_type_ui in valid_mesh_types
-        )
-
-    def draw(self, context):
-        layout = self.layout
-        ob = context.object
-        nwo = ob.data.nwo
-        layout.use_property_split = False
-        row = layout.row()
-        row.use_property_split = False
-        # row.prop(nwo, "mesh_face", expand=True)
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-
-        if len(nwo.face_props) <= 0 and context.mode != "EDIT_MESH":
-            flow = layout.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=False,
-                align=False,
-            )
-            col = flow.column()
-            col.scale_y = 1.3
-            col.operator(
-                "nwo.edit_face_layers",
-                text="Use Edit Mode to Add Face Properties",
-                icon="EDITMODE_HLT",
-            )
-        else:
-            rows = 5
-            row = layout.row()
-            row.template_list(
-                "NWO_UL_FacePropList",
-                "",
-                nwo,
-                "face_props",
-                nwo,
-                "face_props_index",
-                rows=rows,
-            )
-
-            if context.mode == "EDIT_MESH":
-                col = row.column(align=True)
-                col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
-                col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
-                col.separator()
-                col.operator(
-                    "nwo.face_layer_color_all",
-                    text="",
-                    icon="SHADING_RENDERED",
-                    depress=nwo.highlight,
-                ).enable_highlight = not nwo.highlight
-                col.separator()
-                col.operator(
-                    "nwo.face_layer_move", icon="TRIA_UP", text=""
-                ).direction = "UP"
-                col.operator(
-                    "nwo.face_layer_move", icon="TRIA_DOWN", text=""
-                ).direction = "DOWN"
-
-                row = layout.row()
-
-                if nwo.face_props:
-                    sub = row.row(align=True)
-                    sub.operator("nwo.face_layer_assign", text="Assign").assign = True
-                    sub.operator("nwo.face_layer_assign", text="Remove").assign = False
-                    sub = row.row(align=True)
-                    sub.operator("nwo.face_layer_select", text="Select").select = True
-                    sub.operator(
-                        "nwo.face_layer_select", text="Deselect"
-                    ).select = False
-
-            else:
-                layout.operator(
-                    "nwo.edit_face_layers",
-                    text="Edit Mode",
-                    icon="EDITMODE_HLT",
-                )
-
-            flow = layout.grid_flow(
-                row_major=True,
-                columns=0,
-                even_columns=True,
-                even_rows=False,
-                align=False,
-            )
-            col = flow.column()
-            row = col.row()
-            col.use_property_split = True
-            if nwo.face_props:
-                item = nwo.face_props[nwo.face_props_index]
-
-                if item.region_name_override:
-                    row = col.row()
-                    row.prop(item, "region_name_ui")
-                    row.operator_menu_enum(
-                        "nwo.face_region_list",
-                        "region",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "region"
-
-                if item.face_type_override:
-                    if item.face_type_ui == "_connected_geometry_face_type_sky":
-                        col.separator()
-                        box = col.box()
-                        row = box.row()
-                        row.label(text="Face Type Settings")
-                        row.operator(
-                            "nwo.face_prop_remove", text="", icon="X"
-                        ).options = "face_type"
-                        row = box.row()
-                        row.prop(item, "face_type_ui")
-                        row = box.row()
-                        row.prop(item, "sky_permutation_index_ui")
-                    else:
-                        row = col.row()
-                        row.prop(item, "face_type_ui")
-                        row.operator(
-                            "nwo.face_prop_remove", text="", icon="X"
-                        ).options = "face_type"
-
-                if item.face_mode_override:
-                    row = col.row()
-                    row.prop(item, "face_mode_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "face_mode"
-                if item.face_two_sided_override:
-                    row = col.row()
-                    row.prop(item, "face_two_sided_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "two_sided"
-                if item.face_transparent_override:
-                    row = col.row()
-                    row.prop(item, "face_transparent_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "transparent"
-                if item.face_global_material_override:
-                    row = col.row()
-                    row.prop(item, "face_global_material_ui")
-                    row.operator_menu_enum(
-                        "nwo.face_global_material_list",
-                        "global_material",
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "face_global_material"
-                if item.ladder_override:
-                    row = col.row()
-                    row.prop(item, "ladder_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "ladder"
-                if item.slip_surface_override:
-                    row = col.row()
-                    row.prop(item, "slip_surface_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "slip_surface"
-                if item.decal_offset_override:
-                    row = col.row()
-                    row.prop(item, "decal_offset_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "decal_offset"
-                if item.group_transparents_by_plane_override:
-                    row = col.row()
-                    row.prop(item, "group_transparents_by_plane_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "group_transparents_by_plane"
-                if item.no_shadow_override:
-                    row = col.row()
-                    row.prop(item, "no_shadow_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "no_shadow"
-                if item.precise_position_override:
-                    row = col.row()
-                    row.prop(item, "precise_position_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "precise_position"
-                if item.no_lightmap_override:
-                    row = col.row()
-                    row.prop(item, "no_lightmap_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "no_lightmap"
-                if item.no_pvs_override:
-                    row = col.row()
-                    row.prop(item, "no_pvs_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "no_pvs"
-                # lightmap
-                if item.lightmap_additive_transparency_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_additive_transparency_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_additive_transparency"
-                if item.lightmap_resolution_scale_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_resolution_scale_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_resolution_scale"
-                if item.lightmap_type_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_type_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_type"
-                if item.lightmap_analytical_bounce_modifier_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_analytical_bounce_modifier_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_analytical_bounce_modifier"
-                if item.lightmap_general_bounce_modifier_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_general_bounce_modifier_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_general_bounce_modifier"
-                if item.lightmap_translucency_tint_color_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_translucency_tint_color_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_translucency_tint_color"
-                if item.lightmap_lighting_from_both_sides_override:
-                    row = col.row()
-                    row.prop(item, "lightmap_lighting_from_both_sides_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_lighting_from_both_sides"
-                # material lighting
-                if item.emissive_override:
-                    col.separator()
-                    box = col.box()
-                    row = box.row()
-                    row.label(text="Emissive Settings")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "emissive"
-                    # row.operator("nwo.remove_mesh_property", text='', icon='X').options = 'emissive'
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_color_ui",
-                        text="Color",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_power_ui",
-                        text="Power",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_quality_ui",
-                        text="Quality",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_focus_ui",
-                        text="Focus",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_attenuation_falloff_ui",
-                        text="Attenutation Falloff",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_attenuation_cutoff_ui",
-                        text="Attenutation Cutoff",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_bounce_ratio_ui",
-                        text="Bounce Ratio",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_use_shader_gel_ui",
-                        text="Shader Gel",
-                    )
-                    row = box.row()
-                    row.prop(
-                        item,
-                        "material_lighting_emissive_per_unit_ui",
-                        text="Emissive Per Unit",
-                    )
-
-                col.menu(NWO_FacePropAddMenu.bl_idname, text="", icon="PLUS")
-
-
-# ----------------------------------------------------------------
 
 
 class NWO_UL_FacePropList(bpy.types.UIList):
@@ -530,41 +198,22 @@ def toggle_override(context, option, bool_var):
     item = nwo.face_props[nwo.face_props_index]
 
     match option:
-        case "seam":
-            item.seam_override = bool_var
         case "region":
             item.region_name_override = bool_var
-        case "face_type":
-            item.face_type_override = bool_var
-        case "face_mode":
-            item.face_mode_override = bool_var
         case "two_sided":
             item.face_two_sided_override = bool_var
-            item.face_two_sided_ui = True
         case "transparent":
             item.face_transparent_override = bool_var
-            item.face_transparent_ui = True
-        case "_connected_geometry_face_type_sky":
-            item.face_type_override = bool_var
-            item.face_type_ui = "_connected_geometry_face_type_sky"
-        case "_connected_geometry_face_type_seam_sealer":
-            item.face_type_override = bool_var
-            item.face_type_ui = "_connected_geometry_face_type_seam_sealer"
-        case "_connected_geometry_face_mode_render_only":
-            item.face_mode_override = bool_var
-            item.face_mode_ui = "_connected_geometry_face_mode_render_only"
-        case "_connected_geometry_face_mode_collision_only":
-            item.face_mode_override = bool_var
-            item.face_mode_ui = "_connected_geometry_face_mode_collision_only"
-        case "_connected_geometry_face_mode_sphere_collision_only":
-            item.face_mode_override = bool_var
-            item.face_mode_ui = "_connected_geometry_face_mode_sphere_collision_only"
-        case "_connected_geometry_face_mode_lightmap_only":
-            item.face_mode_override = bool_var
-            item.face_mode_ui = "_connected_geometry_face_mode_lightmap_only"
-        case "_connected_geometry_face_mode_breakable":
-            item.face_mode_override = bool_var
-            item.face_mode_ui = "_connected_geometry_face_mode_breakable"
+        case "render_only":
+            item.render_only_override = bool_var
+        case "collision_only":
+            item.collision_only_override = bool_var
+        case "sphere_collision_only":
+            item.sphere_collision_only_override = bool_var
+        case "bullet_collision_only":
+            item.bullet_collision_only_override = bool_var
+        case "player_collision_only":
+            item.player_collision_only_override = bool_var
         case "face_draw_distance":
             item.face_draw_distance_override = bool_var
         case "texcoord_usage":
@@ -577,8 +226,8 @@ def toggle_override(context, option, bool_var):
             item.slip_surface_override = bool_var
         case "decal_offset":
             item.decal_offset_override = bool_var
-        case "group_transparents_by_plane":
-            item.group_transparents_by_plane_override = bool_var
+        case "breakable":
+            item.breakable_override = bool_var
         case "no_shadow":
             item.no_shadow_override = bool_var
         case "precise_position":
@@ -652,31 +301,20 @@ class NWO_FaceLayerAdd(NWO_Op):
             ("emissive", "Emissive", ""),
             ("face_global_material", "Collision Material", ""),
             ("precise_position", "Precise Position", ""),
-            ("instanced_collision", "Bullet Collision", ""),
-            ("instanced_physics", "Player Collision", ""),
-            ("cookie_cutter", "Cookie Cutter", ""),
-            ("seam", "Seam", ""),
             ("two_sided", "Two Sided", ""),
             ("transparent", "Transparent", ""),
-            ("_connected_geometry_face_type_sky", "Sky", ""),
-            ("_connected_geometry_face_type_seam_sealer", "Seam Sealer", ""),
-            ("_connected_geometry_face_mode_render_only", "Render Only", ""),
-            (
-                "_connected_geometry_face_mode_collision_only",
-                "Collision Only",
-                "",
-            ),
-            (
-                "_connected_geometry_face_mode_sphere_collision_only",
-                "Sphere Collision Only",
-                "",
-            ),
-            (
-                "_connected_geometry_face_mode_lightmap_only",
-                "Lightmap Only",
-                "",
-            ),
-            ("_connected_geometry_face_mode_breakable", "Breakable", ""),
+            ("render_only", "Render Only", ""),
+            ("collision_only", "Collision Only", ""),
+            ("sphere_collision_only", "Sphere Collision Only", ""),
+            ("bullet_collision_only", "Bullet Collision Only", ""),
+            ("player_collision_only", "Player Collision Only", ""),
+            ("decal_offset", "Decal Offset", ""),
+            ("no_shadow", "No Shadow", ""),
+            ("ladder", "Ladder", ""),
+            ("slip_surface", "Slip Surface", ""),
+            ("breakable", "Breakable", ""),
+            ("no_lightmap", "No Lightmap", ""),
+            ("no_pvs", "No Visibility Culling", ""),
         ],
     )
 
@@ -701,20 +339,16 @@ class NWO_FaceLayerAdd(NWO_Op):
                 self.fm_name = f"seam {true_region(ob.nwo)}:"
             case "precise_position":
                 self.fm_name = "Uncompressed"
-            case "_connected_geometry_face_type_sky":
-                self.fm_name = "Sky"
-            case "_connected_geometry_face_type_seam_sealer":
-                self.fm_name = "Seam Sealer"
-            case "_connected_geometry_face_mode_render_only":
+            case "render_only":
                 self.fm_name = "Render Only"
-            case "_connected_geometry_face_mode_collision_only":
+            case "collision_only":
                 self.fm_name = "Collision Only"
-            case "_connected_geometry_face_mode_sphere_collision_only":
+            case "sphere_collision_only":
                 self.fm_name = "Sphere Collision Only"
-            case "_connected_geometry_face_mode_lightmap_only":
-                self.fm_name = "Lightmap Only"
-            case "_connected_geometry_face_mode_breakable":
-                self.fm_name = "Breakable"
+            case "bullet_collision_only":
+                self.fm_name = "Bullet Collision Only"
+            case "player_collision_only":
+                self.fm_name = "Player Collision Only"
             case "two_sided":
                 self.fm_name = "Two Sided"
             case "transparent":
@@ -723,27 +357,16 @@ class NWO_FaceLayerAdd(NWO_Op):
                 self.fm_name = "Ladder"
             case "slip_surface":
                 self.fm_name = "Slipsurface"
+            case "breakable":
+                self.fm_name = "Breakable"
             case "decal_offset":
                 self.fm_name = "Decal Offset"
-            case "group_transparents_by_plane":
-                self.fm_name = "Group Transparents By Plane"
             case "no_shadow":
                 self.fm_name = "No Shadow"
             case "no_lightmap":
                 self.fm_name = "No Lightmap"
             case "no_pvs":
                 self.fm_name = "No PVS"
-            case "face_draw_distance":
-                self.fm_name = "draw_distance"
-            case "texcoord_usage":
-                self.fm_name = "texcoord_usage"
-            # instances
-            case "instanced_collision":
-                self.fm_name = "projectile_collision"
-            case "instanced_physics":
-                self.fm_name = "sphere_collision"
-            case "cookie_cutter":
-                self.fm_name = "cookie_cutter"
             # lightmap
             case "lightmap_additive_transparency":
                 self.fm_name = "lightmap_additive_transparency"
@@ -788,15 +411,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             region = context.scene.nwo.regions_table[0].name
             item.name = 'region' + '::' + region
             item.region_name_ui = region
-        elif self.options == "seam":
-            closest_bsp = closest_bsp_object(ob)
-            if closest_bsp is not None:
-                item.seam_adjacent_bsp = true_region(closest_bsp.nwo)
-            else:
-                self.report(
-                    {"WARNING"},
-                    "No other BSPs in scene. Please create another BSP to use seams",
-                )
+            
         context.area.tag_redraw()
         # gotta do this mess so undo states correctly register
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
@@ -977,32 +592,6 @@ class NWO_FaceLayerAddFaceMode(NWO_FaceLayerAdd):
         ]
     )
 
-
-class NWO_FaceLayerAddFlags(NWO_FaceLayerAdd):
-    """Adds a face property that will override face properties set in the mesh"""
-
-    bl_idname = "nwo.face_layer_add_flags"
-
-    def get_options(self, context):
-        items = []
-        render = context.object.nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure")
-        if render:
-            items.append(("decal_offset", "Decal Offset", ""))
-            items.append(("no_shadow", "No Shadow", ""))
-        if not is_corinth(context):
-            items.append(("ladder", "Ladder", ""))
-            items.append(("slip_surface", "Slip Surface", ""))
-        elif render:
-            items.append(("no_lightmap", "No Lightmap", ""))
-            items.append(("no_pvs", "No PVS", ""))
-
-        return items
-
-    options: EnumProperty(
-        items=get_options
-    )
-
-
 class NWO_FaceLayerAddLightmap(NWO_FaceLayerAdd):
     """Adds a face property that will override face properties set in the mesh"""
 
@@ -1035,7 +624,6 @@ class NWO_FacePropRemove(NWO_Op):
     bl_description = 'Removes a face property'
 
     options: EnumProperty(
-        default="face_type",
         items=[
             ("seam", "", ""),
             ("region", "", ""),
@@ -1043,12 +631,11 @@ class NWO_FacePropRemove(NWO_Op):
             ("face_mode", "", ""),
             ("two_sided", "", ""),
             ("transparent", "", ""),
-            ("face_type", "", ""),
             ("texcoord_usage", "", ""),
             ("ladder", "Ladder", ""),
             ("slip_surface", "", ""),
+            ("breakable", "", ""),
             ("decal_offset", "", ""),
-            ("group_transparents_by_plane", "", ""),
             ("no_shadow", "", ""),
             ("precise_position", "", ""),
             ("no_lightmap", "", ""),
@@ -1078,12 +665,6 @@ class NWO_FacePropAdd(NWO_FaceLayerAdd):
 
 class NWO_FacePropAddFaceMode(NWO_FaceLayerAddFaceMode):
     bl_idname = "nwo.face_prop_add_face_mode"
-
-    new: BoolProperty(default=False)
-
-
-class NWO_FacePropAddFlags(NWO_FaceLayerAddFlags):
-    bl_idname = "nwo.face_prop_add_flags"
 
     new: BoolProperty(default=False)
 

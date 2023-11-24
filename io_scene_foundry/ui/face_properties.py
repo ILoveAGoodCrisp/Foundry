@@ -48,28 +48,18 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
     )
     name: StringProperty()
-    face_type_override: BoolProperty()
-    face_mode_override: BoolProperty()
     face_two_sided_override: BoolProperty()
     face_transparent_override: BoolProperty()
-    face_draw_distance_override: BoolProperty()
-    texcoord_usage_override: BoolProperty()
     region_name_override: BoolProperty()
-    is_pca_override: BoolProperty()
     face_global_material_override: BoolProperty()
-    sky_permutation_index_override: BoolProperty()
     ladder_override: BoolProperty()
     slip_surface_override: BoolProperty()
+    breakable_override: BoolProperty()
     decal_offset_override: BoolProperty()
-    group_transparents_by_plane_override: BoolProperty()
     no_shadow_override: BoolProperty()
     precise_position_override: BoolProperty()
     no_lightmap_override: BoolProperty()
     no_pvs_override: BoolProperty()
-    # instances
-    instanced_collision_override: BoolProperty()
-    instanced_physics_override: BoolProperty()
-    cookie_cutter_override: BoolProperty()
     # lightmap
     lightmap_additive_transparency_override: BoolProperty()
     lightmap_resolution_scale_override: BoolProperty()
@@ -80,17 +70,12 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     lightmap_lighting_from_both_sides_override: BoolProperty()
     # material lighting
     emissive_override: BoolProperty()
-    # seam
-    seam_override: BoolProperty()
-
-    # def seam_item(self, context):
-    #     return [('seam', true_region(context.object.nwo), "Allows visisbility between connected BSPs. Requires a zone set to be set up in the scenario tag containing the connected BSPs", get_icon_id("seam_facing"), 0)]
-
-    # seam : EnumProperty(
-    #     name="Seam Facing BSP",
-    #     options=set(),
-    #     items=seam_item,
-    #     )
+    # Collision stuff
+    render_only_override: BoolProperty()
+    collision_only_override: BoolProperty()
+    sphere_collision_only_override: BoolProperty()
+    player_collision_only_override: BoolProperty()
+    bullet_collision_only_override: BoolProperty()
 
     def scene_bsps(self, context):
         bsp_list = []
@@ -104,122 +89,12 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
             items.append(bpy_enum_seam(bsp, index))
 
         return items
-
-    seam_adjacent_bsp: StringProperty(
-        name="Seam Backfacing BSP",
-        description="The BSP that this seam has it's back to",
-        options=set(),
-    )
-
-    face_type_ui: EnumProperty(
-        name="Face Type",
-        options=set(),
-        description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
-        items=[
-            (
-                "_connected_geometry_face_type_seam_sealer",
-                "Seam Sealer",
-                "Used on faces that will not be seen by the player, however are required to make a mesh manifold or to properly block light.  Seam sealer faces use no lightmap space.  Can also be used on render only meshes",
-            ),
-            (
-                "_connected_geometry_face_type_sky",
-                "Sky",
-                "Assigned faces will act as a window into the sky assigned to the level in the .scenario tag",
-            ),
-        ],
-    )
-
-    def face_mode_items(self, context):
-        h4 = is_corinth(context)
-        items = []
-        items.append((
-            "_connected_geometry_face_mode_render_only",
-            "Render Only",
-            "Faces set to render only",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_collision_only",
-            "Collision Only",
-            "Faces set to collision only",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_sphere_collision_only",
-            "Sphere Collision Only",
-            "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_lightmap_only",
-            "Lightmap Only",
-            "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
-        ))
-        if not h4:
-            items.append((
-            "_connected_geometry_face_mode_breakable",
-            "Breakable",
-            "Faces set to be breakable",
-            )),
-
-        return items
     
-    def get_face_mode_ui(self):
-        max_int = 4
-        if not is_corinth():
-            max_int = 5
-        if self.face_mode_ui_help > max_int:
-            return 0
-        return self.face_mode_ui_help
-
-    def set_face_mode_ui(self, value):
-        self["face_mode_ui"] = value
-
-    def update_face_mode_ui(self, context):
-        self.face_mode_ui_help = self["face_mode_ui"]
-
-    face_mode_ui_help : IntProperty()
-    face_mode_ui: EnumProperty(
-        name="Face Mode",
-        options=set(),
-        description="Sets the face mode",
-        items=face_mode_items,
-        get=get_face_mode_ui,
-        set=set_face_mode_ui,
-        update=update_face_mode_ui,
-    )
-
-    face_sides_ui: EnumProperty(
-        name="Face Sides",
-        options=set(),
-        description="Sets the face sides for this mesh",
-        items=[
-            (
-                "_connected_geometry_face_sides_one_sided_transparent",
-                "One Sided Transparent",
-                "Faces set to only render on one side (the direction of face normals), but also render geometry behind them",
-            ),
-            (
-                "_connected_geometry_face_sides_two_sided",
-                "Two Sided",
-                "Faces set to render on both sides",
-            ),
-            (
-                "_connected_geometry_face_sides_two_sided_transparent",
-                "Two Sided Transparent",
-                "Faces set to render on both sides and are transparent",
-            ),
-            ("_connected_geometry_face_sides_mirror", "Mirror", "H4+ only"),
-            (
-                "_connected_geometry_face_sides_mirror_transparent",
-                "Mirror Transparent",
-                "H4+ only",
-            ),
-            ("_connected_geometry_face_sides_keep", "Keep", "H4+ only"),
-            (
-                "_connected_geometry_face_sides_keep_transparent",
-                "Keep Transparent",
-                "H4+ only",
-            ),
-        ],
-    )
+    render_only_ui: BoolProperty()
+    collision_only_ui: BoolProperty()
+    sphere_collision_only_ui: BoolProperty()
+    player_collision_only_ui: BoolProperty()
+    bullet_collision_only_ui: BoolProperty()
 
     face_two_sided_ui: BoolProperty(
         name="Two Sided",
@@ -244,38 +119,6 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         ]
     )
 
-    face_draw_distance_ui: EnumProperty(
-        name="Face Draw Distance",
-        options=set(),
-        description="Controls the distance at which the assigned faces will stop rendering",
-        default="_connected_geometry_face_draw_distance_normal",
-        items=[
-            ("_connected_geometry_face_draw_distance_normal", "Normal", ""),
-            ("_connected_geometry_face_draw_distance_detail_mid", "Mid", ""),
-            (
-                "_connected_geometry_face_draw_distance_detail_close",
-                "Close",
-                "",
-            ),
-        ],
-    )
-
-    texcoord_usage_ui: EnumProperty(
-        name="Texture Coordinate Usage",
-        options=set(),
-        description="",
-        default="_connected_material_texcoord_usage_default",
-        items=[
-            ("_connected_material_texcoord_usage_default", "Default", ""),
-            ("_connected_material_texcoord_usage_none", "None", ""),
-            (
-                "_connected_material_texcoord_usage_anisotropic",
-                "Ansiotropic",
-                "",
-            ),
-        ],
-    )
-
     region_name_ui: StringProperty(
         name="Region",
         default="default",
@@ -286,20 +129,6 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name="Collision Material",
         default="",
         description="Set the Collision Material of this mesh. If the Collision Material name matches a valid material defined in tags\globals\globals.globals then this mesh will automatically take the correct Collision Material response type, otherwise, the Collision Material override can be manually defined in the .model tag",
-    )
-
-    sky_permutation_index_ui: IntProperty(
-        name="Sky Permutation Index",
-        options=set(),
-        description="The sky permutation index of the sky faces",
-        min=0,
-    )
-
-    conveyor_ui: BoolProperty(  # UNSUPPORTED
-        name="Conveyor",
-        options=set(),
-        description="Enables the conveyor property",
-        default=True,
     )
 
     ladder_ui: BoolProperty(
@@ -320,13 +149,6 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name="Decal Offset",
         options=set(),
         description="Provides a Z bias to the faces that will not be overridden by the plane build.  If placing a face coplanar against another surface, this flag will prevent Z fighting",
-        default=True,
-    )
-
-    group_transparents_by_plane_ui: BoolProperty(
-        name="Group Transparents By Plane",
-        options=set(),
-        description="Determines if objects will sort based on center point or by plane.  Provides more accurate sorting of large alpha'd objects, but is very expensive",
         default=True,
     )
     
@@ -355,22 +177,6 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         name="Invisible To PVS",
         options=set(),
         description="",
-        default=True,
-    )
-
-    # INSTANCED GEOMETRY ONLY
-
-    instanced_collision: BoolProperty(
-        name="Bullet Collision",
-        default=True,
-    )
-    instanced_physics: BoolProperty(
-        name="Player Collision",
-        default=True,
-    )
-
-    cookie_cutter: BoolProperty(
-        name="Cookie Cutter",
         default=True,
     )
 

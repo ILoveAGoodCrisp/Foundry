@@ -78,12 +78,16 @@ from io_scene_foundry.utils.nwo_utils import (
     get_marker_display,
     get_mesh_display,
     get_prefs,
+    get_sky_perm,
+    get_special_mat,
     get_tags_path,
+    has_collision_type,
     has_face_props,
     has_mesh_props,
     import_gltf,
     is_frame,
     is_halo_object,
+    is_instance_or_structure_proxy,
     is_marker,
     is_mesh,
     library_instanced_collection,
@@ -155,6 +159,10 @@ class NWO_FoundryPanelProps(Panel):
 
     #######################################
     # ADD MENU TOOLS
+    
+    @classmethod
+    def poll(cls, context):
+        return not context.scene.nwo.storage_only
 
     def draw(self, context):
         self.context = context
@@ -1007,9 +1015,6 @@ class NWO_FoundryPanelProps(Panel):
                     text="Underwater Fog Murkiness",
                 )
 
-            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision":
-                col.prop(nwo, "poop_collision_type_ui", text="Collision Type")
-
             elif nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_structure",
@@ -1057,16 +1062,12 @@ class NWO_FoundryPanelProps(Panel):
                             col.prop(nwo, "poop_imposter_brightness_ui")
 
                     if h4:
-                        col.prop(nwo, "poop_collision_type_ui", text="Collision Type")
                         col.prop(nwo, "poop_streaming_priority_ui")
                         col.prop(nwo, "poop_cinematic_properties_ui")
 
                     col.separator()
 
                     col = col.column(heading="Instance Flags")
-
-                    col.prop(nwo, "poop_render_only_ui", text='Render Only')
-
                     col.prop(
                         nwo,
                         "poop_chops_portals_ui",
@@ -1371,69 +1372,19 @@ class NWO_FoundryPanelProps(Panel):
 
         box = self.box.box()
         box.label(text="Mesh Properties", icon='MESH_DATA')
-        flow = box.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-
-        flow.use_property_split = True
-
-        col = flow.column()
-        row = col.row()
-        if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if (h4 and (nwo.mesh_type_ui in (
-                "_connected_geometry_mesh_type_collision",
-                "_connected_geometry_mesh_type_physics",
-                "_connected_geometry_mesh_type_structure",
-                "_connected_geometry_mesh_type_default",
-                )
-                and (nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"))) or (not h4 and nwo.mesh_type_ui in (
-                "_connected_geometry_mesh_type_collision",
-                "_connected_geometry_mesh_type_physics",
-                )):
-                row = col.row()
-                coll_mat_text = 'Collision Material'
-                if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
-                    for prop in ob.data.nwo.face_props:
-                        if prop.face_global_material_override:
-                            coll_mat_text += '*'
-                            break
-                row.prop(
-                    mesh_nwo,
-                    "face_global_material_ui",
-                    text=coll_mat_text,
-                )
-                if poll_ui(('SCENARIO', 'PREFAB')):
-                    row.operator(
-                        "nwo.global_material_globals",
-                        text="",
-                        icon="VIEWZOOM",
-                    )
-                else:
-                    row.menu(
-                        NWO_GlobalMaterialMenu.bl_idname,
-                        text="",
-                        icon="DOWNARROW_HLT",
-                    )
-
+        has_collision = has_collision_type(ob)
         if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")):
             if h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('SCENARIO')) or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 return
-            col2 = col.column()
-            col2.separator()
-            col2.use_property_split = False
-            row = col2.grid_flow(
+            row = box.grid_flow(
                 row_major=True,
                 columns=0,
                 even_columns=True,
                 even_rows=True,
                 align=True,
             )
-            row.scale_x = 1.2
-            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" or (poll_ui(('MODEL', 'SKY')) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
+            row.scale_x = 0.8
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_lightmap_only"):
                 row.prop(mesh_nwo, "precise_position_ui", text="Uncompressed")
             if nwo.mesh_type_ui in TWO_SIDED_MESH_TYPES:
                 row.prop(mesh_nwo, "face_two_sided_ui", text="Two Sided")
@@ -1443,9 +1394,6 @@ class NWO_FoundryPanelProps(Panel):
                     #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset")
-            if not h4 and (nwo.mesh_type_ui in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_structure") or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" and poll_ui('SCENARIO'))):
-                row.prop(mesh_nwo, "ladder_ui", text="Ladder")
-                row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
                     if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
@@ -1456,45 +1404,79 @@ class NWO_FoundryPanelProps(Panel):
                         row.prop(mesh_nwo, "no_shadow_ui", text="No Shadow")
                         if h4:
                             row.prop(mesh_nwo, "no_lightmap_ui", text="No Lightmap")
-                            row.prop(mesh_nwo, "no_pvs_ui", text="No PVS")
+                            row.prop(mesh_nwo, "no_pvs_ui", text="No Visibility Culling")
+                            
+            if not h4 and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
+                row.prop(mesh_nwo, 'render_only_ui', text='Render Only')
+                if not mesh_nwo.render_only_ui:
+                    row.prop(mesh_nwo, "ladder_ui", text="Ladder")
+                    row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
+                    row.prop(mesh_nwo, 'breakable_ui', text='Breakable')
+                
+            elif not h4 and nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision':
+                row.prop(mesh_nwo, 'sphere_collision_only_ui', text='Sphere Collision Only')
+                
+            elif h4 and has_collision and nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+                row.prop(mesh_nwo, 'render_only_ui', text='Render Only')
 
             if h4 and nwo.mesh_type_ui in RENDER_MESH_TYPES and mesh_nwo.face_two_sided_ui:
-                row = col2.row()
+                row = box.row()
+                row.use_property_split = True
                 row.prop(mesh_nwo, "face_two_sided_type_ui", text="Backside Normals")
+                
+        if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
+            if has_collision and not (mesh_nwo.render_only_ui and is_instance_or_structure_proxy(ob)):
+                row = box.row()
+                row.use_property_split = True
+                if h4:
+                    row.prop(mesh_nwo, 'poop_collision_type_ui', text='Collision Type')
+                        
+                if (mesh_nwo.poop_collision_type_ui != '_connected_geometry_poop_collision_type_none' or nwo.mesh_type_ui == '_connected_geometry_mesh_type_physics') and (h4 and (nwo.mesh_type_ui in (
+                    "_connected_geometry_mesh_type_collision",
+                    "_connected_geometry_mesh_type_physics",
+                    "_connected_geometry_mesh_type_structure",
+                    "_connected_geometry_mesh_type_default",
+                    )
+                    and (nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"))) or (not h4 and nwo.mesh_type_ui in (
+                    "_connected_geometry_mesh_type_collision",
+                    "_connected_geometry_mesh_type_physics",
+                    )):
+                    row = box.row()
+                    row.use_property_split = True
+                    coll_mat_text = 'Collision Material'
+                    if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
+                        for prop in ob.data.nwo.face_props:
+                            if prop.face_global_material_override:
+                                coll_mat_text += '*'
+                                break
+                    row.prop(
+                        mesh_nwo,
+                        "face_global_material_ui",
+                        text=coll_mat_text,
+                    )
+                    if poll_ui(('SCENARIO', 'PREFAB')):
+                        row.operator(
+                            "nwo.global_material_globals",
+                            text="",
+                            icon="VIEWZOOM",
+                        )
+                    else:
+                        row.menu(
+                            NWO_GlobalMaterialMenu.bl_idname,
+                            text="",
+                            icon="DOWNARROW_HLT",
+                    )
 
         if nwo.mesh_type_ui in (
             "_connected_geometry_mesh_type_structure",
-            "_connected_geometry_mesh_type_collision",
+            # "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_default",
+            "_connected_geometry_mesh_type_lightmap_only",
         ):
             if poll_ui(("SCENARIO", "PREFAB")) and (not h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
-                col.separator()
+                # col.separator()
                 col_ob = box.column()
-                col_ob.use_property_split = False
-                if mesh_nwo.face_mode_active:
-                    row = col_ob.row(align=True)
-                    row.prop(mesh_nwo, "face_mode_ui")
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "face_mode"
-                if mesh_nwo.face_sides_active:
-                    row = col.row(align=True)
-                    row.prop(mesh_nwo, "face_sides_ui")
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "face_sides"
-                if mesh_nwo.face_draw_distance_active:
-                    row = col_ob.row(align=True)
-                    row.prop(mesh_nwo, "face_draw_distance_ui")
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "face_draw_distance"
-                if mesh_nwo.texcoord_usage_active:
-                    row = col_ob.row(align=True)
-                    row.prop(mesh_nwo, "texcoord_usage_ui")
-                    row.operator(
-                        "nwo.remove_mesh_property", text="", icon="X"
-                    ).options = "texcoord_usage"
+                col_ob.use_property_split = True
                 # lightmap
                 if mesh_nwo.lightmap_additive_transparency_active:
                     row = col_ob.row(align=True)
@@ -1511,7 +1493,7 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(
                         mesh_nwo,
                         "lightmap_resolution_scale_ui",
-                        text="Lightmap Resolution Scale",
+                        text="Resolution Scale",
                     )
                     row.operator(
                         "nwo.remove_mesh_property", text="", icon="X"
@@ -1562,32 +1544,11 @@ class NWO_FoundryPanelProps(Panel):
                     row.operator(
                         "nwo.remove_mesh_property", text="", icon="X"
                     ).options = "lightmap_lighting_from_both_sides"
-
-                if mesh_nwo.face_type_active:
-                    if mesh_nwo.face_type_ui == "_connected_geometry_face_type_sky":
-                        col_ob.separator()
-                        box_ob = col_ob.box()
-                        row = box_ob.row(align=True)
-                        row.label(text="Face Type Settings")
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "face_type"
-                        row = box_ob.row(align=True)
-                        row.prop(mesh_nwo, "face_type_ui")
-                        row = box_ob.row(align=True)
-                        row.prop(mesh_nwo, "sky_permutation_index_ui")
-                    else:
-                        row = col_ob.row(align=True)
-                        row.prop(mesh_nwo, "face_type_ui")
-                        row.operator(
-                            "nwo.remove_mesh_property", text="", icon="X"
-                        ).options = "face_type"
-                # material lighting
                 if mesh_nwo.emissive_active:
                     col_ob.separator()
                     box_ob = col_ob.box()
                     row = box_ob.row(align=True)
-                    row.label(text="Emissive Settings")
+                    row.label(text="Emissive Settings", icon='LIGHT_DATA')
                     row.operator(
                         "nwo.remove_mesh_property", text="", icon="X"
                     ).options = "emissive"
@@ -1602,7 +1563,7 @@ class NWO_FoundryPanelProps(Panel):
                         text="Quality",
                     )
                     row = box_ob.row(align=True)
-                    row.prop(nwo, "material_lighting_emissive_focus_ui", text="Focus")
+                    row.prop(mesh_nwo, "material_lighting_emissive_focus_ui", text="Focus")
                     row = box_ob.row(align=True)
                     row.prop(
                         mesh_nwo,
@@ -1635,14 +1596,18 @@ class NWO_FoundryPanelProps(Panel):
                     )
 
                 col_ob.separator()
-                col_ob.menu(NWO_MeshPropAddMenu.bl_idname, text="Add Mesh Property", icon="PLUS")
+                row_add_prop = col_ob.row()
+                if not mesh_nwo.emissive_active:
+                    row_add_prop.operator("nwo.add_mesh_property", text="Emissive", icon='LIGHT_DATA').options = "emissive"
+                
+                row_add_prop.operator_menu_enum("nwo.add_mesh_property_lightmap", property="options", text="Lightmap Settings", icon='OUTLINER_DATA_LIGHTPROBE')
 
         if has_face_props(ob):
             self.draw_face_props(self.box, ob, context)
   
         nwo = ob.data.nwo
         # Instance Proxy Operators
-        if ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_default" or not poll_ui(('SCENARIO', 'PREFAB')):
+        if ob.type != 'MESH' or ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_default" or not poll_ui(('SCENARIO', 'PREFAB')):
             return
         
         col.separator()
@@ -1780,59 +1745,40 @@ class NWO_FoundryPanelProps(Panel):
                     row.operator(
                         "nwo.face_prop_remove", text="", icon="X"
                     ).options = "region"
-
-                if item.face_type_override:
-                    if item.face_type_ui == "_connected_geometry_face_type_sky":
-                        col.separator()
-                        box = col.box()
-                        row = box.row()
-                        row.label(text="Face Type Settings")
-                        row.operator(
-                            "nwo.face_prop_remove", text="", icon="X"
-                        ).options = "face_type"
-                        row = box.row()
-                        row.prop(item, "face_type_ui")
-                        row = box.row()
-                        row.prop(item, "sky_permutation_index_ui")
-                    else:
-                        row = col.row()
-                        row.prop(item, "face_type_ui")
-                        row.operator(
-                            "nwo.face_prop_remove", text="", icon="X"
-                        ).options = "face_type"
-
-                if item.face_mode_override:
-                    row = col.row()
-                    row.prop(item, "face_mode_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "face_mode"
                 if item.face_two_sided_override:
                     if is_corinth(context):
                         col.separator()
                         box = col.box()
                         row = box.row()
-                        row.label(text="Two Sided Properties")
-                        row.operator(
-                            "nwo.face_prop_remove", text="", icon="X"
-                        ).options = "two_sided"
-                        row = box.row()
-                        row.prop(item, "face_two_sided_ui")
+                        row.label(text="Two Sided")
                         row = box.row()
                         row.prop(item, "face_two_sided_type_ui", text="Backside Normals")
                     else:
                         row = col.row()
-                        row.prop(item, "face_two_sided_ui")
-                        row.operator(
-                            "nwo.face_prop_remove", text="", icon="X"
-                        ).options = "two_sided"
+                        row.label(text="Two Sided")
+                if item.render_only_override:
+                    row = col.row()
+                    row.label(text='Render Only')
+                    
+                if item.collision_only_override:
+                    row = col.row()
+                    row.label(text='Collision Only')
+                    
+                if item.sphere_collision_only_override:
+                    row = col.row()
+                    row.label(text='Sphere Collision Only')
+                    
+                if item.player_collision_only_override:
+                    row = col.row()
+                    row.label(text='Player Collision Only')
+                    
+                if item.bullet_collision_only_override:
+                    row = col.row()
+                    row.label(text='Bullet Collision Only')
 
                 if item.face_transparent_override:
                     row = col.row()
-                    row.prop(item, "face_transparent_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "transparent"
+                    row.label(text="Transparent Faces")
                 if item.face_global_material_override:
                     row = col.row()
                     row.prop(item, "face_global_material_ui")
@@ -1848,58 +1794,30 @@ class NWO_FoundryPanelProps(Panel):
                             text="",
                             icon="DOWNARROW_HLT",
                         )
-                    if not (is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"):
-                        row.operator(
-                            "nwo.face_prop_remove", text="", icon="X"
-                        ).options = "face_global_material"
                 if item.precise_position_override:
                     row = col.row()
-                    row.prop(item, "precise_position_ui", text='Uncompressed')
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "precise_position"
+                    row.label(text='Uncompressed')
                 if item.ladder_override:
                     row = col.row()
-                    row.prop(item, "ladder_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "ladder"
+                    row.label(text='Ladder')
                 if item.slip_surface_override:
                     row = col.row()
-                    row.prop(item, "slip_surface_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "slip_surface"
+                    row.label(text='Slip Surface')
+                if item.breakable_override:
+                    row = col.row()
+                    row.label(text='Breakable')
                 if item.decal_offset_override:
                     row = col.row()
-                    row.prop(item, "decal_offset_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "decal_offset"
-                if item.group_transparents_by_plane_override:
-                    row = col.row()
-                    row.prop(item, "group_transparents_by_plane_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "group_transparents_by_plane"
+                    row.label(text='Decal Offset')
                 if item.no_shadow_override:
                     row = col.row()
-                    row.prop(item, "no_shadow_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "no_shadow"
+                    row.label(text='No Shadow')
                 if item.no_lightmap_override:
                     row = col.row()
-                    row.prop(item, "no_lightmap_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "no_lightmap"
+                    row.label(text="No Lightmap")
                 if item.no_pvs_override:
                     row = col.row()
-                    row.prop(item, "no_pvs_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "no_pvs"
+                    row.label(text="No Visibility Culling")
                 # lightmap
                 if item.lightmap_additive_transparency_override:
                     row = col.row()
@@ -1939,20 +1857,13 @@ class NWO_FoundryPanelProps(Panel):
                     ).options = "lightmap_translucency_tint_color"
                 if item.lightmap_lighting_from_both_sides_override:
                     row = col.row()
-                    row.prop(item, "lightmap_lighting_from_both_sides_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_lighting_from_both_sides"
+                    row.label(text="Lightmap Lighting From Both Sides")
                 # material lighting
                 if item.emissive_override:
                     col.separator()
                     box = col.box()
                     row = box.row()
                     row.label(text="Emissive Settings")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "emissive"
-                    # row.operator("nwo.remove_mesh_property", text='', icon='X').options = 'emissive'
                     row = box.row()
                     row.prop(
                         item,
@@ -2007,9 +1918,9 @@ class NWO_FoundryPanelProps(Panel):
                         "material_lighting_emissive_per_unit_ui",
                         text="Emissive Per Unit",
                     )
-                if not (is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"):
-                    col.separator()
-                    col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Layer Property", icon="PLUS")            
+                # if not (is_proxy or ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"):
+                #     col.separator()
+                #     col.menu(NWO_FacePropAddMenu.bl_idname, text="Add Face Layer Property", icon="PLUS")            
 
     def draw_material_properties(self):
         box = self.box.box()
@@ -2078,15 +1989,31 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("object.material_slot_select", text="Select")
             row.operator("object.material_slot_deselect", text="Deselect")
         if mat:
+            tag_type = "Material" if h4 else "Shader"
             col = box.column()
-            if nwo.rendered:
+            special_type = get_special_mat(mat)
+            if special_type:
+                if special_type == 'invisible':
+                    col.label(text=f'Invisible {tag_type} applied')
+                elif special_type == 'seamsealer':
+                    col.label(text=f'SeamSealer Material applied')
+                elif special_type == 'invalid':
+                    col.label(text=f'Default Invalid {tag_type} applied')
+                elif special_type == 'sky':
+                    col.label(text=f'Sky Material applied')
+                    sky_perm = get_sky_perm(mat)
+                    if sky_perm > -1:
+                        if sky_perm > 31:
+                            col.label(text='Maximum Sky Permutation Index is 31', icon='ERROR')
+                        else:
+                            col.label(text=f"Sky Permutation {str(sky_perm)}")
+            elif nwo.rendered:
                 col.label(text=f"{txt} Path")
                 row = col.row(align=True)
                 row.prop(nwo, "shader_path", text="", icon_value=get_icon_id("tags"))
                 row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "shader_path"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'shader_path'
-                tag_type = "Material" if h4 else "Shader"
                 has_valid_path = nwo.shader_path and os.path.exists(get_tags_path() + nwo.shader_path)
                 if has_valid_path:
                     col.separator()
@@ -6067,6 +5994,9 @@ def foundry_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
     nwo_scene = context.scene.nwo
+    if nwo_scene.storage_only:
+        row.label(text='Scene is used by Foundry for object storage', icon_value=get_icon_id('foundry'))
+        return
     icons_only = context.preferences.addons["io_scene_foundry"].preferences.toolbar_icons_only
     row.scale_x = 1
     box = row.box()

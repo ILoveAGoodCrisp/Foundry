@@ -92,7 +92,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
     @classmethod
     def poll(cls, context):
-        return not validate_ek()
+        return not validate_ek() and not context.scene.nwo.storage_only
     
     @classmethod
     def description(cls, context, properties):

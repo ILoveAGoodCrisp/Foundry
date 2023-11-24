@@ -242,7 +242,11 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         # self.scene_coll.link(ob)
         ob.nwo.proxy_parent = self.parent.data
         ob.nwo.proxy_type = proxy_type
-
+        proxy_scene = bpy.data.scenes.get('foundry_instance_proxies')
+        if proxy_scene is None:
+            proxy_scene =  bpy.data.scenes.new('foundry_instance_proxies')
+            proxy_scene.nwo.storage_only = True
+        proxy_scene.collection.objects.link(ob)
         setattr(self.parent.data.nwo, f"proxy_{proxy_type}", ob)
         if proxy_type == "collision":
             apply_props_material(ob, "Collision")

@@ -99,6 +99,40 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
 
     def update_face_type_ui(self, context):
         self.face_type_active = True
+    
+    def poop_collision_type_items(self, context):
+        items = []
+        items.append(("_connected_geometry_poop_collision_type_default", "Full", "Collision mesh that interacts with the physics objects and with projectiles"))
+        items.append(("_connected_geometry_poop_collision_type_invisible_wall", "Sphere Collision", "Collision mesh that interacts with the physics objects only"))
+        items.append(("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "Collision mesh that affects physics objects and physical projectiles, such as grenades"))
+        items.append(("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "Collision mesh that only interacts with simple projectiles, such as bullets"))
+        
+        return items
+        
+    poop_collision_type_ui: EnumProperty(
+        name="Collision Type",
+        options=set(),
+        description="",
+        items=poop_collision_type_items,
+    )
+    
+    render_only_ui: BoolProperty(
+        name="Render Only",
+        description="Mesh has no collision",
+        options=set(),
+    )
+    
+    sphere_collision_only_ui: BoolProperty(
+        name="Sphere Collision Only",
+        description="Only physics objects collide with this mesh. Projectiles will pass through it",
+        options=set(),
+    )
+    
+    breakable_ui: BoolProperty(
+        name="Breakable",
+        description="Geometry can be broken",
+        options=set(),
+    )
 
     face_type_active: BoolProperty()
     face_type_ui: EnumProperty(
@@ -1499,13 +1533,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     reach_poop_collision : BoolProperty() # INTERNAL
 
-    poop_render_only_ui: BoolProperty(
-        name="Render Only",
-        options=set(),
-        description="Instanced geometry set to render only",
-        default=False,
-    )
-
     poop_chops_portals_ui: BoolProperty(
         name="Chops Portals",
         options=set(),
@@ -1587,43 +1614,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     # poop light channel flags. Not included for now
-
-    poop_collision_type_ui_help: IntProperty()
-
-    def poop_collision_type_items(self, context):
-        h4 = is_corinth(context)
-        items = []
-        items.append(("_connected_geometry_poop_collision_type_default", "Default", "Collision mesh that interacts with the physics objects and with projectiles"))
-        items.append(("_connected_geometry_poop_collision_type_play_collision", "Player Collision", "The collision mesh affects physics objects, but not projectiles"))
-        items.append(("_connected_geometry_poop_collision_type_bullet_collision", "Bullet Collision", "The collision mesh only interacts with projectiles"))
-        if h4:
-            items.append(("_connected_geometry_poop_collision_type_invisible_wall", "Invisible Wall", "Projectiles go through this but the physics objects can't. You cannot directly place objects on wall collision mesh in Sapien"))
-        
-        return items
-    
-    def get_poop_collision_type_ui(self):
-        max_int = 2
-        if is_corinth():
-            max_int = 3
-        if self.poop_collision_type_ui_help > max_int:
-            return 0
-        return self.poop_collision_type_ui_help
-
-    def set_poop_collision_type_ui(self, value):
-        self["poop_collision_type_ui"] = value
-
-    def update_poop_collision_type_ui(self, context):
-        self.poop_collision_type_ui_help = self["poop_collision_type_ui"]
-
-    poop_collision_type_ui: EnumProperty(
-        name="Instanced Collision Type",
-        options=set(),
-        description="Set the instanced collision type. Only used when exporting a scenario",
-        items=poop_collision_type_items,
-        get=get_poop_collision_type_ui,
-        set=set_poop_collision_type_ui,
-        update=update_poop_collision_type_ui,
-    )
 
     # portal PROPERTIES
     portal_type_ui: EnumProperty(

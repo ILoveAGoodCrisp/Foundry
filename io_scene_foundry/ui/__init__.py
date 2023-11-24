@@ -52,12 +52,10 @@ from .face_ui import (
     NWO_FaceLayerSelect,
     NWO_FaceLayerMove,
     NWO_FaceLayerAddFaceMode,
-    NWO_FaceLayerAddFlags,
     NWO_FaceLayerAddLightmap,
     NWO_FacePropRemove,
     NWO_FacePropAdd,
     NWO_FacePropAddFaceMode,
-    NWO_FacePropAddFlags,
     NWO_FacePropAddLightmap,
     NWO_FaceLayerColorAll,
     NWO_FaceLayerColor,
@@ -493,19 +491,12 @@ classes_nwo = (
     NWO_Asset_ListItems,
     NWO_UL_AnimationRename,
     NWO_ScenePropertiesGroup,
-    # NWO_List_Add_Shared_Asset,
-    # NWO_List_Remove_Shared_Asset,
-    # NWO_UL_SceneProps_SharedAssets,
-    # NWO_SceneProps_SharedAssets,
-    # NWO_LightPropsCycles,
-    # NWO_SceneProps,
     NWO_SetUnitScale,
     NWO_AssetMaker,
     NWO_PermutationListCollection,
     NWO_RegionListCollection,
     NWO_ApplyCollectionType,
     NWO_ApplyCollectionMenu,
-    # NWO_ObjectProps,
     NWO_GlobalMaterialRegionListFace,
     NWO_RegionListFace,
     NWO_GlobalMaterialMenuFace,
@@ -516,7 +507,6 @@ classes_nwo = (
     NWO_BSPList,
     NWO_GlobalMaterialList,
     NWO_GlobalMaterialMenu,
-    # NWO_ShaderProps,
     NWO_MaterialOpenTag,
     NWO_UL_FaceMapProps,
     NWO_MarkerPermutationItems,
@@ -527,12 +517,9 @@ classes_nwo = (
     NWO_MaterialPropertiesGroup,
     NWO_MeshPropertiesGroup,
     NWO_ImagePropertiesGroup,
-    # NWO_LightProps,
     NWO_BoneProps,
     NWO_BonePropertiesGroup,
-    # NWO_ActionProps,
     NWO_UL_AnimProps_Events,
-    # NWO_AnimProps_Events,
     NWO_List_Add_Animation_Event,
     NWO_List_Remove_Animation_Event,
     NWO_Animation_ListItems,
@@ -547,7 +534,6 @@ classes_nwo = (
     NWO_MeshPropAdd,
     NWO_MeshPropRemove,
     NWO_FacePropAddFaceMode,
-    NWO_FacePropAddFlags,
     NWO_FacePropAddLightmap,
     NWO_FacePropAdd,
     NWO_FacePropRemove,
@@ -560,11 +546,8 @@ classes_nwo = (
     NWO_EditMode,
     NWO_MasterInstance,
     NWO_FaceDefaultsToggle,
-    # NWO_MeshFaceProps,
-    # NWO_FacePropPanel,
     NWO_UL_FacePropList,
     NWO_FaceLayerAddFaceMode,
-    NWO_FaceLayerAddFlags,
     NWO_FaceLayerAddLightmap,
     NWO_FaceLayerAdd,
     NWO_MeshPropAddMenu,
@@ -632,6 +615,26 @@ def register():
         name="Halo Mesh Properties",
         description="Set Halo Properties",
     )
+    bpy.types.TextCurve.nwo = PointerProperty(
+        type=NWO_MeshPropertiesGroup,
+        name="Halo Mesh Properties",
+        description="Set Halo Properties",
+    )
+    bpy.types.Curve.nwo = PointerProperty(
+        type=NWO_MeshPropertiesGroup,
+        name="Halo Mesh Properties",
+        description="Set Halo Properties",
+    )
+    bpy.types.SurfaceCurve.nwo = PointerProperty(
+        type=NWO_MeshPropertiesGroup,
+        name="Halo Mesh Properties",
+        description="Set Halo Properties",
+    )
+    bpy.types.MetaBall.nwo = PointerProperty(
+        type=NWO_MeshPropertiesGroup,
+        name="Halo Mesh Properties",
+        description="Set Halo Properties",
+    )
     bpy.types.Image.nwo = PointerProperty(
         type=NWO_ImagePropertiesGroup,
         name="Halo Mesh Properties",
@@ -650,6 +653,11 @@ def unregister():
     del bpy.types.Bone.nwo
     del bpy.types.Action.nwo
     del bpy.types.Mesh.nwo
+    del bpy.types.TextCurve.nwo
+    del bpy.types.Curve.nwo
+    del bpy.types.SurfaceCurve.nwo
+    del bpy.types.MetaBall.nwo
+    del bpy.types.Image.nwo
     for cls_nwo in classes_nwo:
         bpy.utils.unregister_class(cls_nwo)
 
