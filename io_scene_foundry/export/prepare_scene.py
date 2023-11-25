@@ -814,6 +814,9 @@ class PrepareScene:
 
     def cull_zero_face_meshes(self, export_obs, context):
         # disable_prints()
+        # convert mesh-like objects to real meshes to properly assess them
+        [ob.select_set(True) for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT")]
+        bpy.ops.object.convert(target='MESH')
         area = [
             area
             for area in context.screen.areas
@@ -838,16 +841,7 @@ class PrepareScene:
                             bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
                         except:
                             pass
-            
-            # convert mesh-like objects to real meshes to properly assess them
-            if ob.type in ("CURVE", "SURFACE", "META", "FONT"):
-                override = context.copy()
-                override["area"] = area
-                override["region"] = area_region
-                override["space_data"] = area_space
-                override['object'] = ob
-                with context.temp_override(**override):
-                    bpy.ops.object.convert(target='MESH')
+                
 
             if ob.type == "MESH" and not ob.data.polygons:
                 # print_warning(f"Removed object: [{ob.name}] from export because it has no polygons")
