@@ -116,6 +116,8 @@ PEDESTAL_MATRIX_X_NEGATIVE = Matrix(((-1.0, 0.0, 0.0, 0.0),
                                     (0.0, 0.0, 0.0, 1.0)))
 
 
+TARGET_SCALE = Vector.Fill(3, 1)
+
 #####################################################################################
 #####################################################################################
 # MAIN CLASS
@@ -151,6 +153,7 @@ class PrepareScene:
         self.animation_arm = None
         self.animation_armatures = {}
         self.arm_name = ""
+        self.verbose_warnings = False # For outputting info about things we otherwise silently fix
 
         default_region = context.scene.nwo.regions_table[0].name
         default_permutation = context.scene.nwo.permutations_table[0].name
@@ -338,6 +341,7 @@ class PrepareScene:
 
         self.used_materials = set()
         # start the great loop!
+        mesh_obs = []
         for idx, ob in enumerate(export_obs):
             nwo = ob.nwo
 
@@ -358,6 +362,8 @@ class PrepareScene:
                 halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
                 halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
                 ob.matrix_world = blend_matrix @ halo_x_rot @ halo_z_rot
+            elif ob_type == 'MESH':
+                mesh_obs.append(ob)
 
             nwo.permutation_name_ui = default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
             nwo.region_name_ui = default_permutation if not nwo.region_name_ui else nwo.region_name_ui
@@ -410,11 +416,6 @@ class PrepareScene:
                 or scenario_asset
                 and not h4
                 and nwo.mesh_type == "_connected_geometry_mesh_type_default"
-            )
-            uses_regions = has_regions and nwo.mesh_type in (
-                "_connected_geometry_mesh_type_collision",
-                "_connected_geometry_mesh_type_physics",
-                "_connected_geometry_mesh_type_default",
             )
 
             if uses_global_mat:
@@ -497,6 +498,9 @@ class PrepareScene:
                 break
 
         # print("found_shaders")
+        
+        # Fix objects with bad scale values
+        self.fix_scale(context, mesh_obs)
 
         # build seams
         if self.seams:
@@ -565,15 +569,6 @@ class PrepareScene:
         # get new export_obs
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
-
-        if export_gr2_files:
-            # Convert mesh markers to empty objects
-            self.markerify(export_obs, scene_coll)
-            # print("markifiy")
-
-            # get new export_obs from deleted markers
-            context.view_layer.update()
-            export_obs = context.view_layer.objects[:]
 
         # apply face layer properties
         self.apply_face_properties(
@@ -818,14 +813,9 @@ class PrepareScene:
         [ob.select_set(True) for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT")]
         if context.selected_objects:
             bpy.ops.object.convert(target='MESH')
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             deselect_all_objects()
-        area = [
-            area
-            for area in context.screen.areas
-            if area.type == "VIEW_3D"
-        ][0]
-        area_region = area.regions[-1]
-        area_space = area.spaces.active
+        area, area_region, area_space = get_area_info(context)
         for ob in export_obs:
             # apply all modifiers if mesh has no polys
             if ob.type == "MESH" and not ob.data.polygons and ob.modifiers:
@@ -3044,9 +3034,6 @@ class PrepareScene:
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
 
                     
-                
-            
-                    
     def generate_structure(self, export_obs, scene_coll, scene_nwo, override_mat, h4):
         bsps_in_need = [bsp for bsp in self.structure_bsps if bsp not in self.bsps_with_structure]
         if not bsps_in_need:
@@ -3054,20 +3041,56 @@ class PrepareScene:
         default_bsp_part = scene_nwo.regions_table[0].name
         for bsp in bsps_in_need:
             bsp_obs = [ob for ob in export_obs if ob.nwo.region_name == bsp]
-            max_x, max_y, max_z = 1000, 1000, 1000
-            padding = 1.25
+            min_x, min_y, min_z, max_x, max_y, max_z = 0, 0, 0, 0, 0, 400
+            padding = 0 if h4 else 0.01 # Reach needs a little padding so poop geo isn't overidden by sky
             for ob in bsp_obs:
-                max_x = max(max_x, abs(ob.location.x) * padding)
-                max_y = max(max_y, abs(ob.location.z) * padding)
-                max_z = max(max_z, abs(ob.location.y) * padding)
+                if ob.type == 'MESH':
+                    bbox = ob.bound_box
+                    for co in bbox:
+                        bounds = ob.matrix_world @ Vector((co[0], co[1], co[2]))
+                        min_x = min(min_x, bounds.x - padding)
+                        min_y = min(min_y, bounds.y - padding)
+                        min_z = min(min_z, bounds.z - padding)
+                        max_x = max(max_x, bounds.x + padding)
+                        max_y = max(max_y, bounds.y + padding)
+                        max_z = max(max_z, bounds.z + padding)
+                else:
+                    bounds = ob.location
+                    min_x = min(min_x, bounds.x - padding)
+                    min_y = min(min_y, bounds.y - padding)
+                    min_z = min(min_z, bounds.z - padding)
+                    max_x = max(max_x, bounds.x + padding)
+                    max_y = max(max_y, bounds.y + padding)
+                    max_z = max(max_z, bounds.z + padding)
         
             # Create the box with bmesh
             bm = bmesh.new()
-            bmesh.ops.create_cube(bm, size=max(max_x, max_y, max_z) * 2)
-            bm.faces.ensure_lookup_table()
-            for face in bm.faces:
-                face.normal_flip()
+            xyz = bm.verts.new(Vector((min_x, min_y, min_z)))
+            xyz = bm.verts.new(Vector((min_x, min_y, min_z)))
+            xYz = bm.verts.new(Vector((min_x, max_y, min_z)))
+            xYZ = bm.verts.new(Vector((min_x, max_y, max_z)))
+            xyZ = bm.verts.new(Vector((min_x, min_y, max_z)))
             
+            Xyz = bm.verts.new(Vector((max_x, min_y, min_z)))
+            XYz = bm.verts.new(Vector((max_x, max_y, min_z)))
+            XYZ = bm.verts.new(Vector((max_x, max_y, max_z)))
+            XyZ = bm.verts.new(Vector((max_x, min_y, max_z)))
+            
+            bm.faces.new([xyz, xYz, xYZ, xyZ]) # Create the minimum x face
+            bm.faces.new([Xyz, XYz, XYZ, XyZ]) # Create the maximum x face
+            
+            bm.faces.new([xyz, Xyz, XyZ, xyZ]) # Create the minimum y face
+            bm.faces.new([xYz, xYZ, XYZ, XYz]) # Create the maximum y face
+            
+            bm.faces.new([xyz, xYz, XYz, Xyz]) # Create the minimum z face
+            bm.faces.new([xyZ, xYZ, XYZ, XyZ]) # Create the maximum z face
+            
+            # Calculate consistent faces
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+            # Flip em since bmesh by default calculates outside normals
+            bmesh.ops.reverse_faces(bm, faces=bm.faces)
+            
+            # Create the mesh and object
             structure_mesh = bpy.data.meshes.new('autogenerated_structure')
             bm.to_mesh(structure_mesh)
             bm.free()
@@ -3431,6 +3454,35 @@ class PrepareScene:
                 bone_constraints.remove(c)
         bpy.ops.object.posemode_toggle()
         arm.select_set(False)
+        
+    def fix_scale(self, context, mesh_objects):
+        apply_targets = []
+        for ob in mesh_objects:
+            abs_scale = ob.matrix_world.to_scale()
+            if abs_scale != TARGET_SCALE:
+                is_poop = ob.nwo.mesh_type in ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_poop_physics') # only poops may be scaled
+                if ob.type == 'ARMATURE':
+                    self.warning_hit = True
+                    print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
+                elif ob.data.users > 1 and is_poop: 
+                    # Warn user if scale seems excessive
+                    if max(ob.scale) > 100:
+                        print_warning(f"{ob.name} has very high scale values: {ob.scale}")
+                    continue
+                elif is_poop:
+                    # Create new mesh data and apply scale
+                    if self.verbose_warnings:
+                        print_warning(f'{ob.name} has scale values of: {ob.scale}. New mesh data created')
+                    ob.data = ob.data.copy()
+                apply_targets.append(ob)
+                if self.verbose_warnings:
+                    print_warning(f'Applying scale to {ob.name}')
+                    
+        if apply_targets:
+            [ob.select_set(True) for ob in apply_targets]
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            deselect_all_objects()
+
 
     # def set_bone_orient(self, b_name: str, objects: list):
     #     bpy.ops.object.editmode_toggle()
@@ -3649,3 +3701,11 @@ def matrices_equal(mat_1, mat_2):
             if abs(mat_1[i][j] - mat_2[i][j]) > 1e-6:
                 return False
     return True
+
+def get_area_info(context):
+    area = [
+        area
+        for area in context.screen.areas
+        if area.type == "VIEW_3D"
+    ][0]
+    return area, area.regions[-1], area.spaces.active

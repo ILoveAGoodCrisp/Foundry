@@ -26,7 +26,6 @@
 
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.managed_blam.globals import ManagedBlamGetGlobalMaterials
-from io_scene_foundry.ui.viewport_ui import NWO_ApplyTypeMesh
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from .templates import NWO_Op, NWO_PropPanel
 from ..utils.nwo_utils import (
@@ -850,11 +849,16 @@ class NWO_MeshPropAdd(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_MeshPropRemove(NWO_Op):
+class NWO_MeshPropRemove(Operator):
     """Removes a mesh property"""
 
     bl_idname = "nwo.remove_mesh_property"
     bl_label = "Remove"
+    bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object
 
     options: EnumProperty(
         default="face_type",
