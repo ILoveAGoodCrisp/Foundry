@@ -816,7 +816,9 @@ class PrepareScene:
         # disable_prints()
         # convert mesh-like objects to real meshes to properly assess them
         [ob.select_set(True) for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT")]
-        bpy.ops.object.convert(target='MESH')
+        if context.selected_objects:
+            bpy.ops.object.convert(target='MESH')
+            deselect_all_objects()
         area = [
             area
             for area in context.screen.areas
