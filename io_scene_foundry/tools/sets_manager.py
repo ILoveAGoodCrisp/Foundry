@@ -28,7 +28,7 @@
 
 import bpy
 
-from io_scene_foundry.utils.nwo_utils import true_permutation, true_region
+from io_scene_foundry.utils.nwo_utils import poll_ui, true_permutation, true_region
 
 # Parent Classes
 class TableEntryAdd(bpy.types.Operator):
@@ -202,11 +202,18 @@ class TableEntryRename(bpy.types.Operator):
             setattr(ob.nwo, self.ob_prop_str, new_name)
         scene_collections = bpy.data.collections
         current_type = self.type_str.lower()
+        is_scenario = poll_ui(('SCENARIO', 'PREFAB'))
+            
         for coll in scene_collections:
             c_parts = coll.name.split('::')
             if not c_parts or len(c_parts) != 2: continue
             if coll.nwo.type != current_type or c_parts[1] != old_name: continue
-            coll.name = current_type + '::' + self.new_name
+            true_type = current_type
+            if current_type == 'region' and is_scenario:
+                true_type = 'bsp'
+            elif current_type == 'permutation' and is_scenario:
+                true_type = 'layer'
+            coll.name = true_type + '::' + self.new_name
 
         if hasattr(context.area, 'tag_redraw'):
             context.area.tag_redraw()
