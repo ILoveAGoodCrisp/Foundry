@@ -31,6 +31,7 @@ import os
 import json
 import multiprocessing
 import threading
+from io_scene_foundry.managed_blam.animation import ManagedBlamReachWorldAnimations
 
 from io_scene_foundry.managed_blam.node_usage import ManagedBlamNodeUsage
 from io_scene_foundry.managed_blam.objects import ManagedBlamModelOverride, ManagedBlamSetStructureMetaRef
@@ -773,7 +774,7 @@ class ProcessScene:
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_post_import_tasks(context, nwo_scene, sidecar_type, asset_path.replace(get_data_path(), ""), asset)
+                    self.managed_blam_post_import_tasks(context, nwo_scene, sidecar_type, asset_path.replace(get_data_path(), ""), asset, sidecar_result.reach_world_animations)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -1113,7 +1114,7 @@ class ProcessScene:
             enable_prints()
             print("--- Updated Animation Node Usages")
 
-    def managed_blam_post_import_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name):
+    def managed_blam_post_import_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name, reach_world_animations):
         nwo = context.scene.nwo
         model_sky = sidecar_type in ('MODEL', 'SKY')
         model = sidecar_type == 'MODEL'
@@ -1127,6 +1128,7 @@ class ProcessScene:
         mb_justified =  (
             h4_model_lighting
             or model_override
+            or reach_world_animations
         )
         if not mb_justified:
             return
@@ -1150,6 +1152,13 @@ class ProcessScene:
             ManagedBlamModelOverride(nwo.render_model_path, nwo.collision_model_path, nwo.physics_model_path, nwo.animation_graph_path)
             enable_prints()
             print("--- Applied Model Overrides")
+            
+        if reach_world_animations:
+            disable_prints()
+            ManagedBlamReachWorldAnimations(reach_world_animations)
+            enable_prints()
+            print("--- Setup World Animations")
+            
 
     def any_node_usage_override(self, nwo):
         return (nwo.node_usage_physics_control

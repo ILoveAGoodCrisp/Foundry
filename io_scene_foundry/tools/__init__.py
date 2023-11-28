@@ -4689,6 +4689,7 @@ class NWO_ArmatureCreator_Create(Operator):
         
         arm = bpy.data.objects.new(data.name, data)
         scene.collection.objects.link(arm)
+        context.scene.nwo.main_armature = arm
         arm.select_set(True)
         set_active_object(arm)
         

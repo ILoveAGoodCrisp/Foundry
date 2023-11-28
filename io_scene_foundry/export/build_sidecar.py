@@ -65,6 +65,7 @@ class Sidecar:
         output_vehicle,
         output_weapon,
     ):
+        self.reach_world_animations = set()
         self.tag_path = data_relative(os.path.join(asset_path, asset_name))
         self.asset_path = asset_path
         self.relative_blend = bpy.data.filepath.replace(get_data_path(), "")
@@ -854,8 +855,27 @@ class Sidecar:
                 movement = path[5]
                 space = path[6]
                 pose_overlay = path[7]
-                if a_type == 'base':
-                    if movement == 'none':
+                if a_type == 'overlay':
+                    network_attribs['Type'] = "Overlay"
+                    network_attribs['ModelAnimationOverlayBlending'] = "Additive"
+                    if pose_overlay:
+                        network_attribs['ModelAnimationOverlayType'] = "Pose"
+                    else:
+                        network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                elif a_type == 'world' and is_corinth():
+                    network_attribs['Type'] = "World"
+                    network_attribs['ModelAnimationMovementData'] = "XYZAbsolute"
+                elif a_type == 'replacement':
+                    network_attribs['Type'] = "Overlay"
+                    network_attribs['ModelAnimationOverlayType'] = "Keyframe"
+                    if space == 'object':
+                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementObjectSpace"
+                    else:
+                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
+                else:
+                    if a_type == 'world':
+                        self.reach_world_animations.add(path[3])
+                    elif movement == 'none':
                         network_attribs['ModelAnimationMovementData'] = "None"
                     elif movement == 'xy':
                         network_attribs['ModelAnimationMovementData'] = "XY"
@@ -865,23 +885,6 @@ class Sidecar:
                         network_attribs['ModelAnimationMovementData'] = "XYZYaw"
                     else:
                         network_attribs['ModelAnimationMovementData'] = "XYZFullRotation"
-                elif a_type == 'overlay':
-                    network_attribs['Type'] = "Overlay"
-                    network_attribs['ModelAnimationOverlayBlending'] = "Additive"
-                    if pose_overlay:
-                        network_attribs['ModelAnimationOverlayType'] = "Pose"
-                    else:
-                        network_attribs['ModelAnimationOverlayType'] = "Keyframe"
-                elif a_type == 'world':
-                    network_attribs['Type'] = "World"
-                    network_attribs['ModelAnimationMovementData'] = "XYZAbsolute"
-                else:
-                    network_attribs['Type'] = "Overlay"
-                    network_attribs['ModelAnimationOverlayType'] = "Keyframe"
-                    if space == 'object':
-                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementObjectSpace"
-                    else:
-                        network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
                     
                 if compression is not None:
                     network_attribs['Compression'] = compression

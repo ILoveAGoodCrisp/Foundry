@@ -511,37 +511,34 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
                 '',
                 2,
             ),
-        ]
-        
-        if is_corinth(context):
-            items.append(
             (
                 "world",
                 "World",
                 "Animations that play relative to the world rather than an objects current position",
                 '',
                 3,
-            ))
-            # NOTE Need to add support for composites
-            # items.append(
-            # (
-            #     "composite",
-            #     "Composite",
-            #     "",
-            # ))
-            # items.append(
-            # (
-            #     "composite_overlay",
-            #     "Composite Overlay",
-            #     "",
-            # ))
+            )
+        ]
+        # NOTE Need to add support for composites
+        # items.append(
+        # (
+        #     "composite",
+        #     "Composite",
+        #     "",
+        # ))
+        # items.append(
+        # (
+        #     "composite_overlay",
+        #     "Composite Overlay",
+        #     "",
+        # ))
         
         return items
     
     def get_animation_type(self):
-        max_int = 2
-        if is_corinth():
-            max_int = 3
+        max_int = 3
+        # if is_corinth():
+        #     max_int = 5
         if self.animation_type_help > max_int:
             return 0
         return self.animation_type_help

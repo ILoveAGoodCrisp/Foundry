@@ -142,8 +142,8 @@ class NWO_NewAnimation(NWO_Op):
     bl_idname = "nwo.new_animation"
     bl_description = "Creates a new Halo Animation"
 
-    frame_start: bpy.props.IntProperty(name="First Frame", default=0)
-    frame_end: bpy.props.IntProperty(name="Last Frame", default=29)
+    frame_start: bpy.props.IntProperty(name="First Frame", default=1)
+    frame_end: bpy.props.IntProperty(name="Last Frame", default=30)
     
     def animation_type_items(self, context):
         items = [
