@@ -352,12 +352,11 @@ class NWO_ApplyTypeMesh(NWO_Op):
             set_active_object(ob)
             ob.select_set(True)
             nwo = ob.nwo
-            nwo.object_type_ui = "_connected_geometry_object_type_mesh"
             nwo.mesh_type_ui = mesh_type
 
             apply_prefix(ob, self.m_type, prefix_setting)
 
-            if apply_materials:
+            if apply_materials and context.object.data.users == 1:
                 apply_props_material(ob, material)
 
             if self.m_type == "seam":
@@ -385,12 +384,11 @@ class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
         mesh_type, material = self.mesh_and_material(context)
         ob = context.object
         nwo = ob.nwo
-        nwo.object_type_ui = "_connected_geometry_object_type_mesh"
         nwo.mesh_type_ui = mesh_type
 
         apply_prefix(ob, self.m_type, prefix_setting)
 
-        if apply_materials:
+        if apply_materials and context.object.data.users == 1:
             apply_props_material(ob, material)
 
         if self.m_type == "seam":
