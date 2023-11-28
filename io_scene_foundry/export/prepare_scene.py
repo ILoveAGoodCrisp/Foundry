@@ -54,6 +54,7 @@ from ..utils.nwo_utils import (
     jstr,
     layer_face_count,
     layer_faces,
+    library_instanced_collection,
     print_warning,
     set_active_object,
     is_shader,
@@ -195,7 +196,7 @@ class PrepareScene:
         markers = [ob for ob in all_obs_start if is_marker(ob)]
         for ob in markers:
             ob.instance_type = 'NONE' 
-        [ob.select_set(True) for ob in all_obs_start if ob.nwo.export_this]   
+        [ob.select_set(True) for ob in all_obs_start if ob.nwo.export_this and (library_instanced_collection(ob) or ob.library or ob.data.library)]   
         bpy.ops.object.duplicates_make_real()
         bpy.ops.object.make_local(type="ALL")
         bpy.ops.object.select_all(action="DESELECT")
@@ -235,7 +236,6 @@ class PrepareScene:
         scene_coll = context.scene.collection.objects
 
         protected_names = self.get_bone_names(export_obs, context.scene.nwo)
-
         # build proxy instances from structure
         if h4:
             proxy_owners = []
@@ -338,10 +338,8 @@ class PrepareScene:
         process = "--- Building Export Scene"
         update_progress(process, 0)
         len_export_obs = len(export_obs)
-
         self.used_materials = set()
         # start the great loop!
-        mesh_obs = []
         for idx, ob in enumerate(export_obs):
             nwo = ob.nwo
 
@@ -362,8 +360,6 @@ class PrepareScene:
                 halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
                 halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
                 ob.matrix_world = blend_matrix @ halo_x_rot @ halo_z_rot
-            elif ob_type == 'MESH':
-                mesh_obs.append(ob)
 
             nwo.permutation_name_ui = default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
             nwo.region_name_ui = default_permutation if not nwo.region_name_ui else nwo.region_name_ui
@@ -498,9 +494,6 @@ class PrepareScene:
                 break
 
         # print("found_shaders")
-        
-        # Fix objects with bad scale values
-        self.fix_scale(context, mesh_obs)
 
         # build seams
         if self.seams:
@@ -588,15 +581,14 @@ class PrepareScene:
             # context.view_layer.update()
             # export_obs = context.view_layer.objects[:]
 
-            #set Reach instanced_collision objects to poops
-            if not h4:
-                self.fix_reach_poop_collision(export_obs)
-
             # remove meshes with zero faces
             self.cull_zero_face_meshes(export_obs, context)
 
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
+            
+            # Fix objects with bad scale values
+            self.fix_scale([ob for ob in export_obs if ob.type == 'MESH'])
 
             # print("cull_zero_face")
 
@@ -812,8 +804,8 @@ class PrepareScene:
         # convert mesh-like objects to real meshes to properly assess them
         [ob.select_set(True) for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT")]
         if context.selected_objects:
+            set_active_object(context.selected_objects[0])
             bpy.ops.object.convert(target='MESH')
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             deselect_all_objects()
         area, area_region, area_space = get_area_info(context)
         for ob in export_obs:
@@ -1363,8 +1355,8 @@ class PrepareScene:
                     split_physics = self.proxy_face_split(proxy_physics, context, scene_coll, h4)
                 else:
                     proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
-                    if proxy_physics.data.nwo.face_global_material_ui:
-                        self.set_reach_coll_materials(proxy_physics.data, proxy_physics.nwo, bpy.data.materials)
+                    if proxy_physics.data.nwo.face_global_material_ui or proxy_physics.data.nwo.face_props:
+                        self.set_reach_coll_materials(proxy_physics.data, bpy.data.materials)
 
 
             proxy_collision = me.nwo.proxy_collision
@@ -1382,8 +1374,8 @@ class PrepareScene:
                         proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_default"
 
                     split_collision = self.proxy_face_split(proxy_collision, context, scene_coll, h4)
-                elif proxy_collision.data.nwo.face_global_material_ui:
-                    self.set_reach_coll_materials(proxy_collision.data, proxy_collision.nwo, bpy.data.materials)
+                elif proxy_collision.data.nwo.face_global_material_ui or proxy_collision.data.nwo.face_props:
+                    self.set_reach_coll_materials(proxy_collision.data, bpy.data.materials)
 
             proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
             if not h4 and proxy_cookie_cutter is not None:
@@ -1515,10 +1507,12 @@ class PrepareScene:
             ob = linked_objects[0]
 
             # Running instance proxy stuff here because it makes the most sense
-            self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context)
-
             me_nwo = me.nwo
             ob_nwo = ob.nwo
+            
+            if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision:
+                self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context)
+
 
             face_layers = me_nwo.face_props
 
@@ -1911,6 +1905,10 @@ class PrepareScene:
                 nwo.poop_collision_type = nwo_data.poop_collision_type_ui
             else:
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                nwo.poop_lighting = "_connected_geometry_poop_lighting_single_probe"
+                nwo.poop_pathfinding = "_connected_poop_instance_pathfinding_policy_cutout"
+                nwo.poop_imposter_policy = "_connected_poop_instance_imposter_policy_never"
+                nwo.reach_poop_collision = True
                 if nwo_data.sphere_collision_only_ui:
                     nwo.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
                 else:
@@ -2716,19 +2714,7 @@ class PrepareScene:
                 break
 
         return predominant_shader
-    
-    def fix_reach_poop_collision(self, export_obs):
-        for ob in export_obs:
-            nwo = ob.nwo
-            if nwo.mesh_type == "_connected_geometry_mesh_type_poop_collision" and not poop_parent(ob):
-                nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-                nwo.poop_lighting = "_connected_geometry_poop_lighting_per_pixel"
-                nwo.poop_pathfinding = "_connected_poop_instance_pathfinding_policy_cutout"
-                nwo.poop_imposter_policy = "_connected_poop_instance_imposter_policy_never"
-                if nwo.poop_collision_type in ("_connected_geometry_poop_collision_type_play_collision", "_connected_geometry_poop_collision_type_invisible_wall"):
-                    nwo.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
-                else:
-                    nwo.face_mode = "_connected_geometry_face_mode_collision_only"
+
 
     def setup_poop_proxies(self, export_obs, h4):
         poops = [
@@ -2893,37 +2879,41 @@ class PrepareScene:
         materials = me.materials
         scene_mats = bpy.data.materials
         mats = dict.fromkeys(slots)
-        if nwo.reach_poop_collision and (nwo.face_global_material_ui or self.any_face_props):
-            self.set_reach_coll_materials(me, nwo, scene_mats)
+        if me.nwo.face_global_material_ui and nwo.reach_poop_collision:
+            self.set_reach_coll_materials(me, scene_mats, True)
         else:
             self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me, does_not_support_sky, scene_coll, h4)
 
-    def set_reach_coll_materials(self, me, nwo, scene_mats):
+    def set_reach_coll_materials(self, me, scene_mats, mesh_level=False):
         # handle reach poop collision material assignment
-        me.materials.clear()
-        new_mat_name = f"global_material_{nwo.face_global_material_ui}"
-        if new_mat_name not in scene_mats:
-            coll_mat = scene_mats.new(new_mat_name)
-        else:
-            coll_mat = scene_mats.get(new_mat_name)
+        mesh_global_mat = me.nwo.face_global_material_ui
+        if mesh_global_mat:
+            me.materials.clear()
+            new_mat_name = f"global_material_{mesh_global_mat}"
+            if new_mat_name not in scene_mats:
+                coll_mat = scene_mats.new(new_mat_name)
+            else:
+                coll_mat = scene_mats.get(new_mat_name)
 
-        tag_path = f"levels\\reference\\sound\\shaders\\bsp_{nwo.face_global_material_ui}.shader"
-        full_tag_path = get_tags_path() + tag_path
-        if os.path.exists(full_tag_path):
-            coll_mat.nwo.rendered = True
-            coll_mat.nwo.shader_path = tag_path
-        else:
-            coll_mat.nwo.rendered = False
-            self.warning_hit = True
-            print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {nwo.face_global_material_ui} prefixed with 'bsp_'")
+            
+            tag_path = f"levels\\reference\\sound\\shaders\\bsp_{mesh_global_mat}.shader"
+            full_tag_path = get_tags_path() + tag_path
+            if os.path.exists(full_tag_path):
+                coll_mat.nwo.rendered = True
+                coll_mat.nwo.shader_path = tag_path
+            else:
+                coll_mat.nwo.rendered = False
+                self.warning_hit = True
+                print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {mesh_global_mat} prefixed with 'bsp_'")
 
-        me.materials.append(coll_mat)
+            me.materials.append(coll_mat)
+        if mesh_level or not me.nwo.face_props: return
         # set up the materials by face props
         bm = bmesh.new()
         bm.from_mesh(me)
         layers = me.nwo.face_props
         for l in layers:
-            if not l.face_global_material_ui or l.face_global_material_ui == nwo.face_global_material_ui:
+            if not l.face_global_material_ui or l.face_global_material_ui == me.nwo.face_global_material_ui:
                 continue
             faces = layer_faces(bm, bm.faces.layers.int.get(l.layer_name))
             if not faces:
@@ -3455,12 +3445,12 @@ class PrepareScene:
         bpy.ops.object.posemode_toggle()
         arm.select_set(False)
         
-    def fix_scale(self, context, mesh_objects):
+    def fix_scale(self, mesh_objects):
         apply_targets = []
         for ob in mesh_objects:
             abs_scale = ob.matrix_world.to_scale()
             if abs_scale != TARGET_SCALE:
-                is_poop = ob.nwo.mesh_type in ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision', '_connected_geometry_mesh_type_poop_physics') # only poops may be scaled
+                is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' # only poops may be scaled
                 if ob.type == 'ARMATURE':
                     self.warning_hit = True
                     print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
@@ -3469,7 +3459,7 @@ class PrepareScene:
                     if max(ob.scale) > 100:
                         print_warning(f"{ob.name} has very high scale values: {ob.scale}")
                     continue
-                elif is_poop:
+                elif ob.data.users > 1:
                     # Create new mesh data and apply scale
                     if self.verbose_warnings:
                         print_warning(f'{ob.name} has scale values of: {ob.scale}. New mesh data created')
@@ -3480,6 +3470,7 @@ class PrepareScene:
                     
         if apply_targets:
             [ob.select_set(True) for ob in apply_targets]
+            set_active_object(apply_targets[0])
             bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             deselect_all_objects()
 

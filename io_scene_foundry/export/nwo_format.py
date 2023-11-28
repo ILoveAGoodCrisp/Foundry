@@ -823,7 +823,7 @@ class NWOMesh(NWOObject):
                     self.mesh_use_uncompressed_verts()
                 )
 
-        if self.halo.face_global_material:
+        if self.halo.face_global_material and not self.halo.reach_poop_collision:
             self.bungie_face_global_material = self.halo.face_global_material
 
         # SPECIFIC MESH TYPE PROPS
