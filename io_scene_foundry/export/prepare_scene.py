@@ -196,8 +196,12 @@ class PrepareScene:
         markers = [ob for ob in all_obs_start if is_marker(ob)]
         for ob in markers:
             ob.instance_type = 'NONE' 
-        [ob.select_set(True) for ob in all_obs_start if ob.nwo.export_this and (library_instanced_collection(ob) or ob.library or ob.data.library)]   
+        [ob.select_set(True) for ob in all_obs_start if ob.nwo.export_this and library_instanced_collection(ob)]   
         bpy.ops.object.duplicates_make_real()
+        context.view_layer.update()
+        all_obs = context.view_layer.objects
+        bpy.ops.object.select_all(action="DESELECT")
+        [ob.select_set(True) for ob in all_obs if ob.nwo.export_this and (ob.library or (ob.data and ob.data.library))]  
         bpy.ops.object.make_local(type="ALL")
         bpy.ops.object.select_all(action="DESELECT")
 
