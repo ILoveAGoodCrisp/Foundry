@@ -1273,36 +1273,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 3,
             )
         )
-        # if not_bungie_game():
-        #     items.append(("_connected_geometry_primitive_type_mopp", "MOPP", "", 4))
 
         return items
-
-    def get_mesh_primitive_type(self):
-        max_int = 3
-        if is_corinth():
-            max_int = 4
-        if self.mesh_primitive_type_help > max_int:
-            return 0
-        return self.mesh_primitive_type_help
-
-    def set_mesh_primitive_type(self, value):
-        self["mesh_primitive_type"] = value
-
-    def update_mesh_primitive_type(self, context):
-        self.mesh_primitive_type_help = self["mesh_primitive_type"]
 
     mesh_primitive_type_ui: EnumProperty(
         name="Mesh Primitive Type",
         options=set(),
         description="Select the primtive type of this mesh",
         items=mesh_primitive_type_items,
-        get=get_mesh_primitive_type,
-        set=set_mesh_primitive_type,
-        update=update_mesh_primitive_type,
     )
-
-    mesh_primitive_type_help: IntProperty()
 
     mesh_tessellation_density_ui: EnumProperty(
         name="Mesh Tessellation Density",

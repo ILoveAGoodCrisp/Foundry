@@ -61,6 +61,8 @@ from ..utils.nwo_utils import (
     get_tags_path,
     is_corinth,
     set_object_mode,
+    set_origin_to_centre,
+    set_origin_to_floor,
     sort_alphanum,
     true_region,
     true_permutation,
@@ -1844,6 +1846,10 @@ class PrepareScene:
         nwo_data = ob.data.nwo
         if mesh_type == "_connected_geometry_mesh_type_physics":
             nwo.mesh_primitive_type = nwo.mesh_primitive_type_ui
+            if nwo.mesh_primitive_type in ('_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'):
+                set_origin_to_floor(ob)
+            elif nwo.mesh_primitive_type == '_connected_geometry_primitive_type_sphere':
+                set_origin_to_centre(ob)
         elif mesh_type == '_connected_geometry_mesh_type_poop':
             self.setup_poop_props(nwo, h4, nwo_data)
                     

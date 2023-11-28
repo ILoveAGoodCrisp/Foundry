@@ -1511,3 +1511,36 @@ def is_instance_or_structure_proxy(ob) -> bool:
     if is_corinth() and mesh_type == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance:
         return True
     return False
+
+def set_origin_to_floor(ob):
+    bbox = ob.bound_box
+    world_coords = []
+    min_z = None
+    for co in bbox:
+        world_co = ob.matrix_world @ Vector((co[0], co[1], co[2]))
+        if min_z is None:
+            min_z = world_co.z
+        else:
+            min_z = min(min_z, world_co.z)
+        world_coords.append(world_co)
+    
+    floor_corners = []
+    for vec in world_coords:
+        if vec.z == min_z:
+            floor_corners.append(vec)
+    assert(len(floor_corners) == 4)
+    # Calc center point
+    avg_x = sum(v.x for v in floor_corners) / 4.0
+    avg_y = sum(v.y for v in floor_corners) / 4.0
+    center_point = Vector((avg_x, avg_y, min_z))
+    bpy.context.scene.cursor.location = center_point
+    set_active_object(ob)
+    ob.select_set(True)
+    bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='MEDIAN')
+    ob.select_set(False)
+    
+def set_origin_to_centre(ob):
+    set_active_object(ob)
+    ob.select_set(True)
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+    ob.select_set(False)
