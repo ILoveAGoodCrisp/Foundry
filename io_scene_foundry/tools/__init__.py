@@ -2555,7 +2555,7 @@ class NWO_FoundryPanelProps(Panel):
             col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
         col1.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
         if is_seam:
-            if nwo.region_name_ui == nwo.seam_back_ui:
+            if true_region(nwo) == nwo.seam_back_ui:
                 col2.menu("NWO_MT_SeamBackface", text="", icon='ERROR')
             else:
                 col2.menu("NWO_MT_SeamBackface", text=nwo.seam_back_ui, icon_value=get_icon_id("region"))

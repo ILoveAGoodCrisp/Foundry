@@ -87,7 +87,7 @@ class NWO_SeamBackfaceMenu(NWO_RegionsMenu):
 
     def draw(self, context):
         layout = self.layout
-        region_names = [region.name for region in context.scene.nwo.regions_table if region.name != context.object.nwo.region_name_ui]
+        region_names = [region.name for region in context.scene.nwo.regions_table if region.name != true_region(context.object.nwo)]
         if not region_names:
             layout.label(text="Only one BSP in scene. At least two required to use seams", icon="ERROR")
         for r_name in region_names:
