@@ -87,7 +87,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     self.op_prefix, text="Uncompressed"
                 ).options = "precise_position"
                 
-            if nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
+            if poll_ui(("SCENARIO", "PREFAB")) and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
                 if h4 and nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
                     layout.operator(
                         self.op_prefix, text="No Lightmap"
@@ -112,6 +112,18 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     layout.operator(
                         self.op_prefix, text="No Shadow"
                     ).options = "no_shadow"
+            elif poll_ui(("MODEL")):
+                if nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' and not h4:
+                    layout.operator(
+                        self.op_prefix, text="Ladder"
+                    ).options = "ladder"
+                    layout.operator(
+                        self.op_prefix, text="Slip Surface"
+                    ).options = "slip_surface"
+                elif nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+                    layout.operator(
+                        self.op_prefix, text="Decal Offset"
+                    ).options = "decal_offset"
 
         if poll_ui(("SCENARIO", "PREFAB")):
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
@@ -140,13 +152,6 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     property="options",
                     text="Lightmap",
                 )
-
-        if nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision" and not h4:
-            layout.operator_menu_enum(
-                self.op_prefix + "_flags",
-                property="options",
-                text="Flags",
-            )
 
 
 class NWO_FacePropAddMenu(NWO_FaceLayerAddMenu):

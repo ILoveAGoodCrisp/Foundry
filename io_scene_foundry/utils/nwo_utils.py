@@ -1025,10 +1025,12 @@ def has_mesh_props(ob) -> bool:
 
 
 def has_face_props(ob) -> bool:
-    valid_mesh_types = (
+    valid_mesh_types = [
         "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_structure",
-    )
+    ]
+    if poll_ui('MODEL'):
+        valid_mesh_types.append('_connected_geometry_mesh_type_collision')
     if is_corinth() and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and poll_ui('SCENARIO') and not ob.nwo.proxy_instance:
         return False
     return (

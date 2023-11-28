@@ -625,7 +625,7 @@ class NWOMarker(NWOObject):
                     self.bungie_marker_region = self.halo.region_name
 
         # garbage has velocity
-        if self.halo.marker_type == "_connected_geometry_marker_type_garbage":
+        if self.halo.marker_velocity:
             self.bungie_marker_velocity = self.halo.marker_velocity
 
         # game tag stuff
