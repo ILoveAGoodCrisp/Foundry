@@ -283,8 +283,6 @@ class NWO_FoundryPanelProps(Panel):
         col.use_property_split = True
         # if nwo.asset_type in ("MODEL", "SCENARIO", "PREFAB"):
         #     col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
-        if nwo.asset_type in ("MODEL", "FP ANIMATION"):
-            col.prop(nwo, "forward_direction", text="Model Forward")
 
         col.separator()
         row = col.row()
@@ -303,16 +301,20 @@ class NWO_FoundryPanelProps(Panel):
             row.label(text="Blender Restart Required for ManagedBlam")
         else:
             row.operator("managed_blam.init", text="Initialize ManagedBlam", icon_value=get_icon_id("managed_blam_off"))
-
+        col.separator()
         row = col.row()
         row.scale_y = 1.1
 
         unit_scale = scene.unit_settings.scale_length
 
-        if unit_scale == 1.0:
-            row.operator("nwo.set_unit_scale", text="Set Halo Scale", icon_value=get_icon_id("halo_scale")).scale = 0.03048
-        else:
-            row.operator("nwo.set_unit_scale", text="Set Default Scale", icon="BLENDER").scale = 1.0
+        # if unit_scale == 1.0:
+        #     row.operator("nwo.set_unit_scale", text="Set Halo Scale", icon_value=get_icon_id("halo_scale")).scale = 0.03048
+        # else:
+        #     row.operator("nwo.set_unit_scale", text="Set Default Scale", icon="BLENDER").scale = 1.0
+        row.prop(scene.nwo, 'scale', text='Scale', expand=True)
+        if nwo.asset_type in ("MODEL", "FP ANIMATION"):
+            row = col.row()
+            row.prop(nwo, "forward_direction", text="Model Forward", expand=True)
 
     def draw_asset_editor(self):
         box = self.box.box()
@@ -2388,13 +2390,6 @@ class NWO_FoundryPanelProps(Panel):
         col.label(text=f"Rig Tools")
         col.use_property_split = True
         col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
-        if nwo.multiple_rigs or nwo.parent_rig:
-            col.prop(nwo, 'parent_rig', text='Main Rig', icon='ARMATURE_DATA')
-            if nwo.parent_rig:
-                col.prop(nwo, 'child_rig_1', text='Support Rig', icon='ARMATURE_DATA')
-                if nwo.child_rig_1:
-                    col.prop_search(nwo, 'child_rig_1_parent_bone', nwo.parent_rig.data, 'bones', text='Main Rig Parent Bone')
-                    col.prop_search(nwo, 'child_rig_1_child_bone', nwo.child_rig_1.data, 'bones', text='Support Rig Child Bone')
         if nwo.multiple_root_bones:
             col.label(text='Multiple Root Bones', icon='ERROR')
         if nwo.armature_has_parent:
@@ -5280,19 +5275,19 @@ class NWO_AddPoseBones(Operator):
         
 class NWO_ValidateRig(Operator):
     bl_idname = 'nwo.validate_rig'
-    bl_label = ''
-    bl_description = ''
+    bl_label = 'Validate Rig'
+    bl_description = 'Runs a number of checks on the model armature, highlighting issues and providing fixes'
     
-    def get_rig(self, scene):
+    def get_rig(self, scene_nwo):
+        if scene_nwo.main_armature:
+            return scene_nwo.main_armature
         obs = export_objects()
         rigs = [ob for ob in obs if ob.type == 'ARMATURE']
         if not rigs:
             return
         elif len(rigs) > 1:
-            if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
-                return scene.nwo.parent_rig
-            scene.nwo.multiple_rigs = True
-            return
+            return rigs
+        scene_nwo.main_armature = rigs[0]
         return rigs[0]
     
     def get_root_bone(self, rig, scene):
@@ -5339,8 +5334,8 @@ class NWO_ValidateRig(Operator):
         
         return tail_okay and head_okay and roll_okay
     
-    def needs_pose_bones(self, rig):
-        usage_set =  rig.nwo.node_usage_pedestal and rig.nwo.node_usage_pose_blend_pitch and rig.nwo.node_usage_pose_blend_yaw
+    def needs_pose_bones(self, scene_nwo):
+        usage_set =  scene_nwo.node_usage_pedestal and scene_nwo.node_usage_pose_blend_pitch and scene_nwo.node_usage_pose_blend_yaw
         if usage_set:
             return False
         for action in bpy.data.actions:
@@ -5388,14 +5383,16 @@ class NWO_ValidateRig(Operator):
         self.old_active = context.object
         set_object_mode(context)
         scene = context.scene
-        rig = self.get_rig(scene)
-        if rig is None:
-            if scene.nwo.multiple_rigs:
-                self.report({'WARNING'}, 'Multiple armatures in scene. Please declare the main armature')
+        scene_nwo = scene.nwo
+        rig = self.get_rig(scene_nwo)
+        multi_rigs = type(rig) == list
+        no_rig = rig is None
+        if no_rig or multi_rigs:
+            if multi_rigs:
+                self.report({'WARNING'}, 'Multiple armatures in scene. Please declare the main armature in the Asset Editor')
             else:
                 self.report({'INFO'}, "No Armature in scene. Armature only required if you want this model to animate")
                 scene.nwo.multiple_root_bones = False
-                scene.nwo.multiple_rigs = False
                 scene.nwo.invalid_root_bone = False
                 scene.nwo.needs_pose_bones = False
                 scene.nwo.armature_bad_transforms = False
@@ -5416,7 +5413,6 @@ class NWO_ValidateRig(Operator):
             scene.nwo.armature_bad_transforms = True
             self.report({'WARNING'}, 'Rig has bad transforms')
         
-        scene.nwo.multiple_rigs = False
         set_active_object(rig)
         
         if rig.data.library:
@@ -5437,7 +5433,7 @@ class NWO_ValidateRig(Operator):
             self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
             scene.nwo.invalid_root_bone = True
             
-        if self.needs_pose_bones(rig):
+        if self.needs_pose_bones(scene_nwo):
             scene.nwo.needs_pose_bones = True
             self.report({'WARNING'}, 'Found pose overlay animations, but this rig has no aim bones')
         else:
@@ -5450,7 +5446,6 @@ class NWO_ValidateRig(Operator):
             scene.nwo.too_many_bones = False
             
         if not (scene.nwo.multiple_root_bones or
-                scene.nwo.multiple_rigs or
                 scene.nwo.invalid_root_bone or
                 scene.nwo.needs_pose_bones or
                 scene.nwo.armature_bad_transforms or

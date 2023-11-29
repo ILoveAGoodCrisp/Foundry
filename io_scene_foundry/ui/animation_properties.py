@@ -38,8 +38,6 @@ import bpy
 
 from io_scene_foundry.icons import get_icon_id
 
-from ..utils.nwo_utils import dot_partition, is_corinth
-
 
 class NWO_UL_AnimProps_Events(UIList):
     def draw_item(

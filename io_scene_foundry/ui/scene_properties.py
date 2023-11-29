@@ -350,13 +350,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     forward_direction: EnumProperty(
         name="Model Forward",
         options=set(),
-        description="Define the forward direction you are using for this model. By default Halo uses X forward. If you model is not x positive select the correct forward directiom.",
+        description="Define the forward direction you are using for this model. By default Halo uses X forward. If you model is not x positive select the correct forward direction",
         default="x",
         items=[
-            ("x", "X Postive", ""),
-            ("x-", "X Negative", ""),
-            ("y", "Y Postive", ""),
-            ("y-", "Y Negative", ""),
+            ("x", "X", "Model is facing X positive"),
+            ("x-", "-X", "Model is facing X negative"),
+            ("y", "Y", "Model is facing Y positive"),
+            ("y-", "-Y", "Model is facing Y negative"),
         ],
     )
 
@@ -691,22 +691,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     def poll_armature(self, object: bpy.types.Object):
         return object.type == 'ARMATURE' and object.visible_get() and object not in (self.main_armature, self.support_armature_a, self.support_armature_b, self.support_armature_c)
     
-    multiple_rigs: BoolProperty()
-    parent_rig: PointerProperty(
-        name="",
-        description="",
-        type=bpy.types.Object,
-        poll=poll_armature,
-    )
-    child_rig_1: PointerProperty(
-        name="",
-        description="",
-        type=bpy.types.Object,
-        poll=poll_armature,
-    )
-    child_rig_1_parent_bone: StringProperty()
-    child_rig_1_child_bone: StringProperty()
-    
     armature_has_parent: BoolProperty()
     armature_bad_transforms: BoolProperty()
     multiple_root_bones: BoolProperty()
@@ -776,3 +760,28 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     control_pedestal: StringProperty(name='Pedestal Control')
     control_aim: StringProperty(name='Aim Control')
+    
+    def scale_items(self, context):
+        items = []
+        items.append(('blender', 'Blender', "Blender scale, 1 meter is equal to 0.01 game world units or 1 blender unit", 'BLENDER', 0))
+        items.append(('wu', 'Game', "1 meter is equal to 1 in game world unit or 100 blender units. Use this when you want the units displayed in blender to match Sapien", get_icon_id('wu_scale'), 1))
+        items.append(('real', 'Real', "1 meter is equal to 0.328 in game world units or 32.8 blender units. Objects are scaled to their real life proportions. Use this when you want units displayed in blender to be accurate to real life object proportions i.e. The height of Masterchief displayed in Blender will match his lore height", get_icon_id("halo_scale"), 2))
+        return items
+    
+    # Scale
+    def scale_update(self, context):
+        match self.scale:
+            case 'blender':
+                bpy.ops.nwo.set_unit_scale(scale=1.0)
+            case 'wu':
+                bpy.ops.nwo.set_unit_scale(scale=0.01)
+            case 'real':
+                bpy.ops.nwo.set_unit_scale(scale=0.03048)
+    
+    scale: EnumProperty(
+        name="Scale",
+        options=set(),
+        description="Select the scale to apply to the scene",
+        items=scale_items,
+        update=scale_update
+    )
