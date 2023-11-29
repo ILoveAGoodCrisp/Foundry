@@ -79,15 +79,6 @@ render_mesh_types_full = [
     "_connected_geometry_mesh_type_water_surface"
 ]
 
-RENDER_ONLY_FACE_TYPES = (
-    "_connected_geometry_face_mode_render_only",
-    "_connected_geometry_face_mode_lightmap_only"
-)
-
-FORCE_INVIS_FACE_MODES = (
-    "_connected_geometry_face_mode_lightmap_only",
-)
-
 # Reach special materials
 
 INVISIBLE_SKY = "InvisibleSky"
@@ -1358,7 +1349,14 @@ class PrepareScene:
     def setup_instance_proxies(self, scenario, prefab, me, h4, linked_objects, scene_coll, context):
         if scenario or prefab:
             proxy_physics = me.nwo.proxy_physics
-            if proxy_physics is not None:
+            proxy_collision = me.nwo.proxy_collision
+            proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
+            
+            coll = proxy_collision is not None
+            phys = proxy_physics is not None
+            cookie = proxy_cookie_cutter is not None and not h4
+            
+            if phys:
                 proxy_physics.nwo.object_type = "_connected_geometry_object_type_mesh"
                 glob_mat_phys = proxy_physics.data.nwo.face_global_material_ui
                 if glob_mat_phys:
@@ -1375,8 +1373,8 @@ class PrepareScene:
                         self.set_reach_coll_materials(proxy_physics.data, bpy.data.materials)
 
 
-            proxy_collision = me.nwo.proxy_collision
-            if proxy_collision is not None:
+            
+            if coll:
                 proxy_collision.nwo.object_type = "_connected_geometry_object_type_mesh"
                 proxy_collision.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
                 glob_mat_coll = proxy_collision.data.nwo.face_global_material_ui
@@ -1384,7 +1382,7 @@ class PrepareScene:
                     proxy_collision.nwo.face_global_material = glob_mat_coll
                     self.global_materials.add(glob_mat_coll)
                 if h4:
-                    if proxy_physics:
+                    if phys:
                         proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_bullet_collision"
                     else:
                         proxy_collision.nwo.poop_collision_type = "_connected_geometry_poop_collision_type_default"
@@ -1393,17 +1391,15 @@ class PrepareScene:
                 elif proxy_collision.data.nwo.face_global_material_ui or proxy_collision.data.nwo.face_props:
                     self.set_reach_coll_materials(proxy_collision.data, bpy.data.materials)
 
-            proxy_cookie_cutter = me.nwo.proxy_cookie_cutter
-            if not h4 and proxy_cookie_cutter is not None:
+            
+            if cookie:
                 proxy_cookie_cutter.nwo.object_type = "_connected_geometry_object_type_mesh"
                 proxy_cookie_cutter.nwo.mesh_type = "_connected_geometry_mesh_type_cookie_cutter"
 
-            if proxy_physics is not None or proxy_collision is not None or proxy_cookie_cutter is not None:
-                poops = [o for o in linked_objects if o.nwo.mesh_type == "_connected_geometry_mesh_type_poop" and o.nwo.poop_render_only != "1"]
+            if phys or coll or cookie:
+                poops = [o for o in linked_objects if o.nwo.mesh_type == "_connected_geometry_mesh_type_poop"]
                 for o in poops:
-                    if proxy_collision is not None:
-                        if o.nwo.face_mode not in RENDER_ONLY_FACE_TYPES:
-                            o.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                    if coll:
                         if h4:
                             for s_ob in split_collision:
                                 o_collision = s_ob.copy()
@@ -1413,6 +1409,7 @@ class PrepareScene:
                                 o_collision.parent = o
                                 o_collision.matrix_world = o.matrix_world
                         else:
+                            o.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                             o_collision = proxy_collision.copy()
                             scene_coll.link(o_collision)
                             o_collision.nwo.permutation_name = o.nwo.permutation_name
@@ -1420,7 +1417,7 @@ class PrepareScene:
                             o_collision.parent = o
                             o_collision.matrix_world = o.matrix_world
 
-                    if proxy_physics is not None:
+                    if phys:
                         if h4:
                             for s_ob in split_physics:
                                 o_physics = s_ob.copy()
@@ -1438,13 +1435,21 @@ class PrepareScene:
                             o_physics.parent = o
                             o_physics.matrix_world = o.matrix_world
 
-                    if not h4 and proxy_cookie_cutter is not None:
+                    if cookie:
                         o_cookie_cutter = proxy_cookie_cutter.copy()
                         scene_coll.link(o_cookie_cutter)
                         o_cookie_cutter.nwo.permutation_name = o.nwo.permutation_name
                         o_cookie_cutter.nwo.region_name = o.nwo.region_name
                         o_cookie_cutter.parent = o
                         o_cookie_cutter.matrix_world = o.matrix_world
+                        
+                        
+                    # Correctly setup original coll type for poop if h4
+                    if h4:
+                        if coll:
+                            o.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_none'
+                        elif phys:
+                            o.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_bullet_collision'
 
     def apply_face_properties(self, context, export_obs, scene_coll, h4, scenario, prefab):
         mesh_obs_full = [ob for ob in export_obs if ob.type == "MESH"]
@@ -1526,7 +1531,7 @@ class PrepareScene:
             me_nwo = me.nwo
             ob_nwo = ob.nwo
             
-            if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision:
+            if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision and not me_nwo.render_only_ui:
                 self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context)
 
 

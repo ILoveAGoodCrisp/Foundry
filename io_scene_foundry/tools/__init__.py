@@ -1612,7 +1612,7 @@ class NWO_FoundryPanelProps(Panel):
   
         nwo = ob.data.nwo
         # Instance Proxy Operators
-        if ob.type != 'MESH' or ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_default" or not poll_ui(('SCENARIO', 'PREFAB')):
+        if ob.type != 'MESH' or ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_default" or not poll_ui(('SCENARIO', 'PREFAB')) or mesh_nwo.render_only_ui:
             return
         
         col.separator()
