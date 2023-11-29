@@ -850,7 +850,7 @@ class NWOMesh(NWOObject):
                         self.bungie_mesh_poop_collision_type
                         != "_connected_geometry_poop_collision_type_none"
                     ):
-                        if self.bungie_mesh_global_material:
+                        if getattr(self, 'bungie_mesh_global_material', 0):
                             self.bungie_mesh_poop_collision_override_global_material = '1'
 
                 if self.bungie_mesh_type == "_connected_geometry_mesh_type_poop":

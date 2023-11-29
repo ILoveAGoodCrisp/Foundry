@@ -1407,7 +1407,7 @@ def is_mesh(ob):
     return ob.type in VALID_MESHES
 
 def is_marker(ob):
-    return ob.type == 'EMPTY' and not ob.children and not library_instanced_collection(ob)
+    return ob.type == 'EMPTY' and not ob.children and not library_instanced_collection(ob) and ob.empty_display_type != "IMAGE"
 
 def is_frame(ob):
     return (ob.type == 'EMPTY' and ob.children) or ob.type == 'ARMATURE'

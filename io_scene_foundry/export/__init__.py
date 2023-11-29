@@ -469,57 +469,58 @@ class NWO_Export(NWO_Export_Scene):
                     scene_nwo_export.fix_bone_rotations,
                     scene_nwo_export.fast_animation_export
                 )
-                export = ProcessScene(
-                    context,
-                    self.report,
-                    sidecar_path,
-                    sidecar_path_full,
-                    self.asset,
-                    self.asset_path,
-                    nwo_scene,
-                    scene_nwo.asset_type,
-                    scene_nwo.output_biped,
-                    scene_nwo.output_crate,
-                    scene_nwo.output_creature,
-                    scene_nwo.output_device_control,
-                    scene_nwo.output_device_machine,
-                    scene_nwo.output_device_terminal,
-                    scene_nwo.output_device_dispenser,
-                    scene_nwo.output_effect_scenery,
-                    scene_nwo.output_equipment,
-                    scene_nwo.output_giant,
-                    scene_nwo.output_scenery,
-                    scene_nwo.output_vehicle,
-                    scene_nwo.output_weapon,
-                    scene_nwo_export.export_skeleton,
-                    scene_nwo_export.export_render,
-                    scene_nwo_export.export_collision,
-                    scene_nwo_export.export_physics,
-                    scene_nwo_export.export_markers,
-                    scene_nwo_export.export_animations,
-                    scene_nwo_export.export_structure,
-                    scene_nwo_export.export_design,
-                    scene_nwo_export.lightmap_structure,
-                    scene_nwo_export.import_to_game,
-                    scene_nwo_export.export_gr2_files,
-                    scene_nwo_export.import_force,
-                    scene_nwo_export.import_draft,
-                    scene_nwo_export.import_seam_debug,
-                    scene_nwo_export.import_skip_instances,
-                    scene_nwo_export.import_decompose_instances,
-                    scene_nwo_export.import_suppress_errors,
-                    scene_nwo_export.import_lighting,
-                    scene_nwo_export.import_meta_only,
-                    scene_nwo_export.import_disable_hulls,
-                    scene_nwo_export.import_disable_collision,
-                    scene_nwo_export.import_no_pca,
-                    scene_nwo_export.import_force_animations,
-                    scene_nwo_export.lightmap_quality,
-                    scene_nwo_export.lightmap_quality_h4,
-                    scene_nwo_export.lightmap_all_bsps,
-                    scene_nwo_export.lightmap_specific_bsp,
-                    scene_nwo_export.lightmap_region,
-                )
+                if not nwo_scene.no_export_objects:
+                    export = ProcessScene(
+                        context,
+                        self.report,
+                        sidecar_path,
+                        sidecar_path_full,
+                        self.asset,
+                        self.asset_path,
+                        nwo_scene,
+                        scene_nwo.asset_type,
+                        scene_nwo.output_biped,
+                        scene_nwo.output_crate,
+                        scene_nwo.output_creature,
+                        scene_nwo.output_device_control,
+                        scene_nwo.output_device_machine,
+                        scene_nwo.output_device_terminal,
+                        scene_nwo.output_device_dispenser,
+                        scene_nwo.output_effect_scenery,
+                        scene_nwo.output_equipment,
+                        scene_nwo.output_giant,
+                        scene_nwo.output_scenery,
+                        scene_nwo.output_vehicle,
+                        scene_nwo.output_weapon,
+                        scene_nwo_export.export_skeleton,
+                        scene_nwo_export.export_render,
+                        scene_nwo_export.export_collision,
+                        scene_nwo_export.export_physics,
+                        scene_nwo_export.export_markers,
+                        scene_nwo_export.export_animations,
+                        scene_nwo_export.export_structure,
+                        scene_nwo_export.export_design,
+                        scene_nwo_export.lightmap_structure,
+                        scene_nwo_export.import_to_game,
+                        scene_nwo_export.export_gr2_files,
+                        scene_nwo_export.import_force,
+                        scene_nwo_export.import_draft,
+                        scene_nwo_export.import_seam_debug,
+                        scene_nwo_export.import_skip_instances,
+                        scene_nwo_export.import_decompose_instances,
+                        scene_nwo_export.import_suppress_errors,
+                        scene_nwo_export.import_lighting,
+                        scene_nwo_export.import_meta_only,
+                        scene_nwo_export.import_disable_hulls,
+                        scene_nwo_export.import_disable_collision,
+                        scene_nwo_export.import_no_pca,
+                        scene_nwo_export.import_force_animations,
+                        scene_nwo_export.lightmap_quality,
+                        scene_nwo_export.lightmap_quality_h4,
+                        scene_nwo_export.lightmap_all_bsps,
+                        scene_nwo_export.lightmap_specific_bsp,
+                        scene_nwo_export.lightmap_region,
+                    )
             
             except Exception as e:
                 if type(e) == RuntimeError:
@@ -555,7 +556,11 @@ class NWO_Export(NWO_Export_Scene):
                     print_warning(
                     "\nEXPORT ABORTED. Please see above for details"
                 )
-
+            elif nwo_scene.no_export_objects:
+                final_report = "Export Cancelled"
+                report_type = "INFO"
+                print_warning('EXPORT CANCELLED')
+                print("Export cancelled because there are no Halo objects in the scene. Ensure at least one object is valid and has the export flag enabled")
             elif export.gr2_fail:
                 final_report = "GR2 Conversion Failed. Export Aborted"
                 report_type = "ERROR"

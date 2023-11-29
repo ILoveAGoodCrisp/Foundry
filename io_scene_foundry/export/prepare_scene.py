@@ -157,6 +157,7 @@ class PrepareScene:
         self.animation_armatures = {}
         self.arm_name = ""
         self.verbose_warnings = False # For outputting info about things we otherwise silently fix
+        self.no_export_objects = False
 
         default_region = context.scene.nwo.regions_table[0].name
         default_permutation = context.scene.nwo.permutations_table[0].name
@@ -236,6 +237,11 @@ class PrepareScene:
 
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
+        
+        if not export_obs:
+            # If there are no objects in the scene, abort the export
+            self.no_export_objects = True
+            return
         
         scenario_asset = sidecar_type == "SCENARIO"
 
