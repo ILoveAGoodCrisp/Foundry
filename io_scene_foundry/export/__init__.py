@@ -309,6 +309,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         if scene_nwo_export.export_gr2_files:
             box = layout.box()
             sub = box.column(heading="Export Flags")
+            col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
             if scene_nwo.asset_type in (('MODEL', 'SKY', 'FP ANIMATION')):
                 # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
                 col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
@@ -467,7 +468,8 @@ class NWO_Export(NWO_Export_Scene):
                     scene_nwo_export.export_all_perms,
                     scene_nwo_export.export_all_bsps,
                     scene_nwo_export.fix_bone_rotations,
-                    scene_nwo_export.fast_animation_export
+                    scene_nwo_export.fast_animation_export,
+                    scene_nwo_export.triangulate
                 )
                 if not nwo_scene.no_export_objects:
                     export = ProcessScene(

@@ -4074,6 +4074,7 @@ class NWO_HaloExportSettingsFlags(Panel):
             align=False,
         )
         col = flow.column()
+        col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
         if scene_nwo.asset_type in ('MODEL', 'SKY', 'FP ANIMATION'):
             # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
             col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
@@ -4165,6 +4166,12 @@ class NWO_HaloExport(Operator):
 
 
 class NWO_HaloExportPropertiesGroup(PropertyGroup):
+    triangulate: BoolProperty(
+        name="Triangulate",
+        description="Applies a triangulation modifier to all objects at export if they do not already have one",
+        default=False,
+        options=set(),
+    )
     fast_animation_export : BoolProperty(
         name="Fast Animation Export",
         description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects. You should ensure animations begin at frame 0 if using this option",

@@ -136,6 +136,7 @@ class PrepareScene:
         export_all_bsps,
         fix_bone_rotations,
         fast_animation_export,
+        triangulate,
     ):
         print("\nPreparing Export Scene")
         print(
@@ -237,11 +238,6 @@ class PrepareScene:
 
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
-        
-        if not export_obs:
-            # If there are no objects in the scene, abort the export
-            self.no_export_objects = True
-            return
         
         scenario_asset = sidecar_type == "SCENARIO"
 
@@ -408,6 +404,9 @@ class PrepareScene:
                     print_warning(f"{ob.name} has illegal marker type: [{nwo.marker_type_ui}]. Skipped")
                     self.unlink(ob)
                     continue
+                
+            if triangulate:
+                add_triangle_mod(ob)
 
             is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and self.has_halo_materials(nwo, h4)
 
@@ -574,6 +573,11 @@ class PrepareScene:
         # get new export_obs
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
+        
+        if not export_obs:
+            # If there are no objects in the scene, abort the export
+            self.no_export_objects = True
+            return
 
         # apply face layer properties
         self.apply_face_properties(
@@ -3716,3 +3720,13 @@ def get_area_info(context):
         if area.type == "VIEW_3D"
     ][0]
     return area, area.regions[-1], area.spaces.active
+
+
+def add_triangle_mod(ob: bpy.types.Object):
+    mods = ob.modifiers
+    for m in mods:
+        if m.type == 'TRIANGULATE': return
+        
+    tri_mod = mods.new('Triangulate', 'TRIANGULATE')
+    tri_mod.quad_method = 'FIXED'
+    tri_mod.keep_custom_normals = True
