@@ -147,25 +147,24 @@ class NWO_MeshTypes(Menu):
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Seam', icon_value=get_icon_id('seam')).m_type = 'seam'
             layout.operator('nwo.apply_type_mesh_single', text='Portal', icon_value=get_icon_id('portal')).m_type = 'portal'
-            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('affinity_photo')).m_type = 'lightmap_only'
+            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_only'
             layout.operator('nwo.apply_type_mesh_single', text='Water Surface', icon_value=get_icon_id('water')).m_type = 'water_surface'
-            layout.operator('nwo.apply_type_mesh_single', text='Water Physics', icon_value=get_icon_id('water_physics')).m_type = 'water_physics'
-            layout.operator('nwo.apply_type_mesh_single', text='Soft Ceiling', icon_value=get_icon_id('soft_ceiling')).m_type = 'soft_ceiling'
-            layout.operator('nwo.apply_type_mesh_single', text='Soft Kill', icon_value=get_icon_id('soft_kill')).m_type = 'soft_kill'
-            layout.operator('nwo.apply_type_mesh_single', text='Slip Surface', icon_value=get_icon_id('slip_surface')).m_type = 'slip_surface'
+            layout.operator('nwo.apply_type_mesh_single', text='Water Physics Volume', icon_value=get_icon_id('water_physics')).m_type = 'water_physics'
+            layout.operator('nwo.apply_type_mesh_single', text='Soft Ceiling Volume', icon_value=get_icon_id('soft_ceiling')).m_type = 'soft_ceiling'
+            layout.operator('nwo.apply_type_mesh_single', text='Soft Kill Volume', icon_value=get_icon_id('soft_kill')).m_type = 'soft_kill'
+            layout.operator('nwo.apply_type_mesh_single', text='Slip Surface Volume', icon_value=get_icon_id('slip_surface')).m_type = 'slip_surface'
             if h4:
                 layout.operator('nwo.apply_type_mesh_single', text='Lightmap Exclusion Volume', icon_value=get_icon_id('lightmap_exclude')).m_type = 'lightmap'
                 layout.operator('nwo.apply_type_mesh_single', text='Texture Streaming Volume', icon_value=get_icon_id('streaming')).m_type = 'streaming'
             else:
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Blocker', icon_value=get_icon_id('rain_blocker')).m_type = 'rain_blocker'
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
-                layout.operator('nwo.apply_type_mesh_single', text='Cookie Cutter', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
+                layout.operator('nwo.apply_type_mesh_single', text='Pathfinding Cutout Volume', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
                 layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'
         elif poll_ui("PREFAB"):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
-            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('affinity_photo')).m_type = 'lightmap_only'
-            layout.operator('nwo.apply_type_mesh_single', text='Invisible Wall', icon_value=get_icon_id('affinity_photo')).m_type = 'invisible_wall'
+            layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_only'
             
 class NWO_MarkerTypes(Menu):
     bl_label = "Marker Type"
@@ -561,118 +560,6 @@ class NWO_MeshFaceProps(NWO_PropPanel):
 
         # FACE LEVEL PROPERTIES
         # --------------------------------
-
-
-def toggle_override(context, option, bool_var):
-    ob = context.object
-    me = ob.data
-    ob_nwo = me.nwo
-    try:
-        item = ob_nwo.face_props[ob.face_maps.active.name]
-    except:
-        item = ob_nwo.face_props[ob.face_maps.active_index]
-
-    match option:
-        case "seam":
-            item.seam_override = bool_var
-        case "region":
-            item.region_name_override = bool_var
-        case "face_type":
-            item.face_type_override = bool_var
-        case "face_mode":
-            item.face_mode_override = bool_var
-        case "face_sides":
-            item.face_sides_override = bool_var
-        case "_connected_geometry_face_type_sky":
-            item.face_type_override = bool_var
-            item.face_type = "_connected_geometry_face_type_sky"
-        case "_connected_geometry_face_type_seam_sealer":
-            item.face_type_override = bool_var
-            item.face_type = "_connected_geometry_face_type_seam_sealer"
-        # case "_connected_geometry_face_mode_render_only":
-        #     item.face_mode_override = bool_var
-        #     item.face_mode = "_connected_geometry_face_mode_render_only"
-        # case "_connected_geometry_face_mode_collision_only":
-        #     item.face_mode_override = bool_var
-        #     item.face_mode = "_connected_geometry_face_mode_collision_only"
-        # case "_connected_geometry_face_mode_sphere_collision_only":
-        #     item.face_mode_override = bool_var
-        #     item.face_mode = "_connected_geometry_face_mode_sphere_collision_only"
-        # case "_connected_geometry_face_mode_lightmap_only":
-        #     item.face_mode_override = bool_var
-        #     item.face_mode = "_connected_geometry_face_mode_lightmap_only"
-        # case "_connected_geometry_face_mode_breakable":
-        #     item.face_mode_override = bool_var
-        #     item.face_mode = "_connected_geometry_face_mode_breakable"
-        case "_connected_geometry_face_sides_one_sided_transparent":
-            item.face_sides_override = bool_var
-            item.face_sides = "_connected_geometry_face_sides_one_sided_transparent"
-        case "_connected_geometry_face_sides_two_sided":
-            item.face_sides_override = bool_var
-            item.face_sides = "_connected_geometry_face_sides_two_sided"
-        case "_connected_geometry_face_sides_two_sided_transparent":
-            item.face_sides_override = bool_var
-            item.face_sides = "_connected_geometry_face_sides_two_sided_transparent"
-        case "_connected_geometry_face_sides_mirror":
-            item.face_sides_override = bool_var
-            item.face_sides = "_connected_geometry_face_sides_mirror"
-        case "_connected_geometry_face_sides_mirror_transparent":
-            item.face_sides_override = bool_var
-            item.face_sides = "_connected_geometry_face_sides_mirror_transparent"
-        case "_connected_geometry_face_sides_keep":
-            item.face_sides_override = bool_var
-            item.face_sides = "_connected_geometry_face_sides_keep"
-        case "_connected_geometry_face_sides_keep_transparent":
-            item.face_sides_override = bool_var
-            item.face_sides = "_connected_geometry_face_sides_keep_transparent"
-        case "face_draw_distance":
-            item.face_draw_distance_override = bool_var
-        case "texcoord_usage":
-            item.texcoord_usage_override = bool_var
-        case "face_global_material":
-            item.face_global_material_override = bool_var
-        case "ladder":
-            item.ladder_override = bool_var
-        case "slip_surface":
-            item.slip_surface_override = bool_var
-        case "decal_offset":
-            item.decal_offset_override = bool_var
-        case "group_transparents_by_plane":
-            item.group_transparents_by_plane_override = bool_var
-        case "no_shadow":
-            item.no_shadow_override = bool_var
-        case "precise_position":
-            item.precise_position_override = bool_var
-        case "no_lightmap":
-            item.no_lightmap_override = bool_var
-        case "no_pvs":
-            item.no_pvs_override = bool_var
-        # instances
-        case "instanced_collision":
-            item.instanced_collision_override = bool_var
-        case "instanced_physics":
-            item.instanced_physics_override = bool_var
-        case "cookie_cutter":
-            item.cookie_cutter_override = bool_var
-        # lightmap
-        case "lightmap_additive_transparency":
-            item.lightmap_additive_transparency_override = bool_var
-        case "lightmap_resolution_scale":
-            item.lightmap_resolution_scale_override = bool_var
-        case "lightmap_type":
-            item.lightmap_type_override = bool_var
-        case "lightmap_analytical_bounce_modifier":
-            item.lightmap_analytical_bounce_modifier_override = bool_var
-        case "lightmap_general_bounce_modifier":
-            item.lightmap_general_bounce_modifier_override = bool_var
-        case "lightmap_translucency_tint_color":
-            item.lightmap_translucency_tint_color_override = bool_var
-        case "lightmap_lighting_from_both_sides":
-            item.lightmap_lighting_from_both_sides_override = bool_var
-        # material lighting
-        case "emissive":
-            item.emissive_active = bool_var
-
 
 class NWO_FaceDefaultsToggle(NWO_Op):
     bl_idname = "nwo.toggle_defaults"

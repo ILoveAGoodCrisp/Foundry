@@ -874,7 +874,7 @@ class Sidecar:
                         network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
                 else:
                     if a_type == 'world':
-                        self.reach_world_animations.add(path[3])
+                        self.reach_world_animations.add(path[3].replace(' ', ':'))
                     elif movement == 'none':
                         network_attribs['ModelAnimationMovementData'] = "None"
                     elif movement == 'xy':

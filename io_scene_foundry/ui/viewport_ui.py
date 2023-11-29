@@ -68,189 +68,209 @@ class NWO_ApplyTypeMesh(NWO_Op):
         items = []
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
-        reach = not is_corinth(context)
-        if asset_type == "MODEL":
+        h4 = is_corinth(context)
+        if asset_type == 'MODEL':
+            items.append(
+                nwo_enum(
+                    "render", "Render", "Render only geometry", "render_geometry", 0
+                )
+            )
             items.append(
                 nwo_enum(
                     "collision",
                     "Collision",
                     "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player",
                     "collider",
-                    0,
+                    1,
                 )
             ),
+
             items.append(
                 nwo_enum(
                     "physics",
                     "Physics",
                     "Physics only geometry. Uses havok physics to interact with static and dynamic objects",
                     "physics",
-                    1,
+                    2,
                 )
             ),
-            items.append(
-                nwo_enum(
-                    "render", "Render", "Render only geometry", "render_geometry", 2
-                )
-            )
-
-        elif asset_type in ("SCENARIO", "PREFAB"):
-            items.append(
-                nwo_enum(
-                    "collision",
-                    "Collision",
-                    "Non rendered geometry which provides collision only",
-                    "collider",
-                    0,
-                )
-            ),
+        elif asset_type == 'SCENARIO':
             items.append(
                 nwo_enum(
                     "instance",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
-                    1,
+                    0,
                 )
             ),
-            if asset_type == "SCENARIO":
-                if not reach:
-                    descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
-                else:
-                    descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
-                items.append(
-                    nwo_enum("structure", "Structure", descrip, "structure", 2)
+            if h4:
+                descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
+            else:
+                descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
+            items.append(
+                nwo_enum("structure", "Structure", descrip, "structure", 1)
+            )
+            items.append(
+                nwo_enum(
+                    "collision",
+                    "Collision",
+                    "Non rendered geometry which provides collision only",
+                    "collider",
+                    2,
                 )
+            ),
+            items.append(
+                nwo_enum(
+                    "seam",
+                    "Seam",
+                    "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
+                    "seam",
+                    3,
+                )
+            )
+            items.append(
+                nwo_enum(
+                    "portal",
+                    "Portal",
+                    "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters.",
+                    "portal",
+                    4,
+                )
+            )
+            items.append(
+                nwo_enum(
+                    "lightmap_only",
+                    "Lightmap Only",
+                    "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
+                    "lightmap",
+                    5,
+                )
+            )
+            items.append(
+                nwo_enum(
+                    "water_surface",
+                    "Water Surface",
+                    "Plane which can cut through geometry to define a water surface",
+                    "water",
+                    6,
+                )
+            )
+            items.append(
+                nwo_enum(
+                    "water_physics",
+                    "Water Physics Volume",
+                    "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
+                    "water_physics",
+                    7,
+                )
+            )
+            items.append(
+                nwo_enum(
+                    "soft_ceiling",
+                    "Soft Ceiling Volume",
+                    "Soft barrier that blocks the player and player camera",
+                    "soft_ceiling",
+                    8,
+                )
+            )
+            items.append(
+                nwo_enum(
+                    "soft_kill",
+                    "Soft Kill Volume",
+                    "Defines a region where the player will be killed... softly",
+                    "soft_kill",
+                    9,
+                )
+            )
+            items.append(
+                nwo_enum(
+                    "slip_surface",
+                    "Slip Surface Volume",
+                    "Defines a region in which surfaces become slippery",
+                    "slip_surface",
+                    10,
+                )
+            )
+            if h4:
                 items.append(
                     nwo_enum(
-                        "seam",
-                        "Seam",
-                        "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
-                        "seam",
-                        3,
+                        "lightmap",
+                        "Lightmap Exclusion Volume",
+                        "Defines a region that should not be lightmapped",
+                        "lightmap_exclude",
+                        11,
                     )
                 )
+                stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.This is useful for performance if you have textures in areas of the map the player will not get close to"""
                 items.append(
-                    nwo_enum(
-                        "portal",
-                        "Portal",
-                        "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters.",
-                        "portal",
-                        4,
-                    )
+                    nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 12)
                 )
+            else:
                 items.append(
-                    nwo_enum(
-                        "lightmap_only",
-                        "Lightmap Only",
-                        "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
-                        "affinity_photo",
-                        5,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "water_surface",
-                        "Water Surface",
-                        "Plane which can cut through geometry to define a water surface",
-                        "water",
-                        6,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "water_physics",
-                        "Water Physics Volume",
-                        "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
-                        "water_physics",
-                        7,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "soft_ceiling",
-                        "Soft Ceiling Volume",
-                        "Soft barrier that blocks the player and player camera",
-                        "soft_ceiling",
-                        8,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "soft_kill",
-                        "Soft Kill Volume",
-                        "Defines a region where the player will be killed... softly",
-                        "soft_kill",
-                        9,
-                    )
-                )
-                items.append(
-                    nwo_enum(
-                        "slip_surface",
-                        "Slip Surface Volume",
-                        "Defines a region in which surfaces become slippery",
-                        "slip_surface",
-                        10,
-                    )
-                )
-                if reach:
-                    items.append(
-                        nwo_enum(
-                            "fog",
-                            "Fog",
-                            "Defines an area in a cluster which renders fog defined in the scenario tag",
-                            "fog",
-                            11,
-                        )
-                    )
-                    items.append(
-                        nwo_enum(
-                            "cookie_cutter",
-                            "Pathfinding Cutout Volume",
-                            "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
-                            "cookie_cutter",
-                            12,
-                        )
-                    ),
                     nwo_enum(
                         "rain_blocker",
                         "Rain Blocker Volume",
                         "Blocks rain from rendering in the region this volume occupies",
                         "rain_blocker",
+                        11,
+                    )
+                )
+                items.append(
+                    nwo_enum(
+                        "rain_sheet",
+                        "Rain Sheet",
+                        "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
+                        "rain_sheet",
+                        12,
+                    )
+                ),
+                items.append(
+                    nwo_enum(
+                        "cookie_cutter",
+                        "Pathfinding Cutout Volume",
+                        "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
+                        "cookie_cutter",
                         13,
-                    ),
-                    items.append(
-                        nwo_enum(
-                            "rain_sheet",
-                            "Rain Sheet",
-                            "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
-                            "rain_sheet",
-                            14,
-                        )
-                    ),
-                    # items.append(
-                    #     nwo_enum(
-                    #         "lightmap",
-                    #         "Lightmap Region",
-                    #         "Restricts lightmapping to this area when specified during lightmapping",
-                    #         "lightmap_region",
-                    #         0,
-                    #     )
-                    # )
-                else:
-                    items.append(
-                        nwo_enum(
-                            "lightmap",
-                            "Lightmap Exclusion Volume",
-                            "Defines a region that should not be lightmapped",
-                            "lightmap_exclude",
-                            11,
-                        )
                     )
-                    stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.This is useful for performance if you have textures in areas of the map the player will not get close to"""
-                    items.append(
-                        nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 12)
+                )
+                items.append(
+                    nwo_enum(
+                        "fog",
+                        "Fog",
+                        "Defines an area in a cluster which renders fog defined in the scenario tag",
+                        "fog",
+                        14,
                     )
+                )
+        elif asset_type == 'PREFAB':
+            items.append(
+                nwo_enum(
+                    "instance",
+                    "Instance",
+                    "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
+                    "instance",
+                    0,
+                )
+            ),
+            items.append(
+                nwo_enum(
+                    "collision",
+                    "Collision",
+                    "Non rendered geometry which provides collision only",
+                    "collider",
+                    2,
+                )
+            ),
+            items.append(
+                nwo_enum(
+                    "lightmap_only",
+                    "Lightmap Only",
+                    "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
+                    "lightmap",
+                    3,
+                )
+            )
 
         return items
 

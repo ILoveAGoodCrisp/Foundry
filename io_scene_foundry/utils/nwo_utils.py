@@ -1361,9 +1361,7 @@ def get_mesh_display(mesh_type):
         case '_connected_geometry_mesh_type_planar_fog_volume':
             return 'Fog Sheet', get_icon_id('fog')
         case '_connected_geometry_mesh_type_lightmap_only':
-            return 'Lightmap Only', get_icon_id('affinity_photo')
-        case '_connected_geometry_mesh_type_invisible_wall':
-            return 'Invisible Wall', get_icon_id('affinity_photo')
+            return 'Lightmap Only', get_icon_id('lightmap')
         case _:
             if poll_ui(('SCENARIO', 'PREFAB')):
                 return 'Instanced Geometry', get_icon_id('instance')
@@ -1420,19 +1418,19 @@ def is_light(ob):
 def is_camera(ob):
     return ob.type == 'CAMERA'
 
-def get_object_type(ob):
+def get_object_type(ob, get_ui_name=False):
     if is_mesh(ob):
-        return '_connected_geometry_object_type_mesh'
+        return 'Mesh' if get_ui_name else '_connected_geometry_object_type_mesh'
     elif is_marker(ob):
-        return '_connected_geometry_object_type_marker'
+        return 'Marker' if get_ui_name else '_connected_geometry_object_type_marker'
     elif is_frame(ob):
-        return '_connected_geometry_object_type_frame'
+        return 'Frame' if get_ui_name else '_connected_geometry_object_type_frame'
     elif is_light(ob):
-        return '_connected_geometry_object_type_light'
+        return 'Light' if get_ui_name else '_connected_geometry_object_type_light'
     elif is_camera(ob):
-        return '_connected_geometry_object_type_animation_camera'
+        return 'Camera' if get_ui_name else '_connected_geometry_object_type_animation_camera'
     else:
-        return '_connected_geometry_object_type_none'
+        return 'None' if get_ui_name else '_connected_geometry_object_type_none'
     
 def type_valid(m_type, asset_type=None, game_version=None):
     if asset_type is None:

@@ -31,7 +31,7 @@ from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO
 
 from io_scene_foundry.ui.collection_properties import NWO_CollectionPropertiesGroup
 from io_scene_foundry.ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
-from io_scene_foundry.utils.nwo_utils import is_marker, is_mesh
+from io_scene_foundry.utils.nwo_utils import get_marker_display, get_mesh_display, get_object_type, is_marker, is_mesh
 
 # from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
 from .templates import NWO_Op
@@ -424,14 +424,31 @@ class NWO_OpenAssetFoundry(NWO_Op):
 
 
 def object_context_apply_types(self, context):
-    # self.layout.separator()
     layout = self.layout
     asset_type = context.scene.nwo.asset_type
-    ob = context.object
+    layout.separator()
+    selection_count = len(context.selected_objects)
+    if selection_count > 1:
+        layout.label(text=f'{selection_count} Halo Objects Selected', icon_value=get_icon_id('category_object_properties_pinned'))
+    else:
+        ob = context.object
+        object_type = get_object_type(ob, True)
+        if object_type in ('Mesh', 'Marker'):
+            if object_type == 'Mesh':
+                type_name, type_icon = get_mesh_display(ob.nwo.mesh_type_ui)
+            elif object_type == 'Marker':
+                type_name, type_icon = get_marker_display(ob.nwo.marker_type_ui)
+            layout.label(text=f'Halo {object_type} ({type_name})', icon_value=type_icon)
+        elif object_type == 'Frame':
+            layout.label(text=f'Halo {object_type}', icon_value=get_icon_id('frame'))
+        elif object_type == 'Light':
+            layout.label(text=f'Halo {object_type}', icon='LIGHT')
+        else:
+            layout.label(text=f'Halo {object_type}')
+
     markers_valid = any([is_marker(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
     meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
     if markers_valid or meshes_valid:
-        layout.separator()
         if meshes_valid:
             layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Set Mesh Type", icon='MESH_CUBE')
             layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
