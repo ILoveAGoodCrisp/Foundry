@@ -407,7 +407,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
 
 def menu_func_export(self, context):
-    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Foundry Export")
+    self.layout.operator(NWO_Export_Scene.bl_idname, text="Halo Foundry Export", icon_value=get_icon_id('foundry'))
 
 class NWO_Export(NWO_Export_Scene):
     bl_idname = "nwo.export"

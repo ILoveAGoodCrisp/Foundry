@@ -127,6 +127,7 @@ HOTKEYS = [
     ("apply_marker_type", "CTRL+F"),
     ("halo_join", "ALT+J"),
     ("move_to_halo_collection", "ALT+M"),
+    ("show_foundry_panel", "F"),
 ]
 
 PANELS_PROPS = [
@@ -2569,6 +2570,7 @@ class NWO_FoundryPanelPopover(Operator, NWO_FoundryPanelProps):
     bl_label = "Foundry Panel"
     bl_idname = "nwo.show_foundry_panel"
     bl_description = "Loads the Foundry Panel at the position of the mouse cursor"
+    bl_icon = 'MESH'
     
     def execute(self, context):
         return context.window_manager.invoke_popup(self, width=450)
@@ -2594,6 +2596,8 @@ class NWO_HotkeyDescription(Operator):
                 return "Joins two or more mesh objects and merges Halo Face Properties"
             case "move_to_halo_collection":
                 return "Opens a dialog to specify a new halo collection to create, and then moves the selected objects into this collection"
+            case "show_foundry_panel":
+                return "Opens the Foundry Panel at the current mouse cursor position"
                 
 
     @staticmethod
