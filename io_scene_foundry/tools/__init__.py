@@ -27,6 +27,7 @@
 from math import radians
 import os
 import random
+import typing
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
@@ -147,8 +148,8 @@ from .instance_proxies import NWO_ProxyInstanceNew, NWO_ProxyInstanceCancel, NWO
 
 #######################################
 # NEW TOOL UI
-
-
+        
+        
 class NWO_FoundryPanelProps(Panel):
     bl_label = "Foundry Panel"
     bl_idname = "NWO_PT_FoundryPanelProps"
@@ -2563,6 +2564,14 @@ class NWO_FoundryPanelProps(Panel):
         else:
             col2.menu("NWO_MT_Permutations", text=true_permutation(nwo), icon_value=get_icon_id("permutation"))
         col.separator()
+
+class NWO_FoundryPanelPopover(Operator, NWO_FoundryPanelProps):
+    bl_label = "Foundry Panel"
+    bl_idname = "nwo.show_foundry_panel"
+    bl_description = "Loads the Foundry Panel at the position of the mouse cursor"
+    
+    def execute(self, context):
+        return context.window_manager.invoke_popup(self, width=450)
 
 class NWO_HotkeyDescription(Operator):
     bl_label = "Keyboard Shortcut Description"
@@ -6106,6 +6115,7 @@ classeshalo = (
     NWO_OT_PanelSet,
     NWO_OT_PanelUnpin,
     NWO_FoundryPanelProps,
+    NWO_FoundryPanelPopover,
     # NWO_FoundryPanelSetsViewer,
     NWO_HaloExport,
     NWO_HaloExportSettings,

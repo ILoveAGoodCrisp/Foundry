@@ -73,6 +73,13 @@ def register():
         alt=True,
     )
     keys.append((km, kmi))
+    
+    kmi = km.keymap_items.new(
+        idname="nwo.show_foundry_panel",
+        type="F",
+        value="PRESS",
+    )
+    keys.append((km, kmi))
 
     # OUTLINER
 
