@@ -117,9 +117,6 @@ class ManagedBlamNewBitmap(ManagedBlam):
         flags.SetBit("Ignore Curve Override", True)
         if self.bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
             self.Element_set_field_value(override_element, "bitmap format", "DXT5 (Compressed Color + Compressed 8-bit Alpha)")
-            # Reset node usage gets some overrides wrong for Material Map, so fix this
-            self.Element_set_field_value(override_element, "source gamma", "1")
-            self.Element_set_field_value(override_element, "bitmap curve", "linear")
         elif self.bitmap_type in ("ZBrush Bump Map (from Bump Map)", "Normal Map (aka zbump)", "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"):
             self.Element_set_field_value(override_element, "bitmap format", "DXN Compressed Normals (better)")
         # flags.SetBit("Dont Allow Size Optimization", True)
