@@ -1542,3 +1542,33 @@ def set_origin_to_centre(ob):
     ob.select_set(True)
     bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
     ob.select_set(False)
+    
+def path_as_tag_path_no_ext(path):
+    return dot_partition(path.replace(get_tags_path(), ''))
+
+def get_project_from_scene(scene):
+    scene_project = scene.nwo.scene_project
+    projects = get_prefs().projects
+    for p in projects:
+        if p.name == scene_project:
+            return p
+        
+    print("Failed to get project")
+    
+def material_read_only(path):
+    """Returns true if a material is read only aka in the project's protected list"""
+    # Return false immediately if user has disabled material protection
+    if not get_prefs().protect_materials: return False
+    # Ensure path is correctly sliced
+    path = path_as_tag_path_no_ext(path)
+    project = get_project_from_scene(bpy.context.scene)
+    protected_list = os.path.join(addon_root(), 'protected_tags', project.project_name, 'materials.txt')
+    if not os.path.exists(protected_list): return False
+    protected_materials = None
+    with open(protected_list, 'r') as f:
+        protected_materials = [line.rstrip('\n') for line in f]
+    if protected_materials is None: return False
+    for tag in protected_materials:
+        if path == tag:
+            return True
+    return False

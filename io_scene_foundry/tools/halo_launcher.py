@@ -501,8 +501,8 @@ def open_file_explorer(type, is_tags):
         asset_path = get_asset_path()
         if valid_nwo_asset():
             if is_tags:
-                os.startfile(tags_dir + asset_path)
-                return {"FINISHED"}
+                if os.path.exists(tags_dir + asset_path):
+                    os.startfile(tags_dir + asset_path)
             else:
                 os.startfile(data_dir + asset_path)
                 return {"FINISHED"}

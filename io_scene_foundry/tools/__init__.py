@@ -94,6 +94,7 @@ from io_scene_foundry.utils.nwo_utils import (
     library_instanced_collection,
     managed_blam_active,
     is_corinth,
+    material_read_only,
     nwo_asset_type,
     os_sep_partition,
     protected_material_name,
@@ -2033,6 +2034,9 @@ class NWO_FoundryPanelProps(Panel):
                         text="Open in Tag Editor"
                     )
                     col.separator()
+                    if material_read_only(nwo.shader_path):
+                        col.label(text=f"{txt} is read only")
+                        return
                     col.label(text=f'{txt} Export Tools')
                     col.prop(nwo, "uses_blender_nodes", text=f"Link Tag to Nodes", icon='NODETREE')
                     if nwo.uses_blender_nodes:
@@ -2513,6 +2517,8 @@ class NWO_FoundryPanelProps(Panel):
         # row.prop(prefs, "poop_default")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
+        row = box.row(align=True)
+        row.prop(prefs, "protect_materials")
         blend_prefs = context.preferences
         if blend_prefs.use_preferences_save and (not bpy.app.use_userpref_skip_save_on_exit):
             return

@@ -661,20 +661,24 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
 
     def get_maps(self):
         maps = []
-        node_tree = bpy.data.materials[self.blender_material].node_tree
-        shader_node = self.get_blender_shader(node_tree)
-        if not shader_node:
-            return
-        diffuse_map = self.get_diffuse_map(shader_node)
-        if diffuse_map:
-            maps.append(diffuse_map)
-        specular_map = self.get_specular_map(shader_node)
-        if specular_map and not hasattr(self, "specular_from_diff_alpha"):
-            maps.append(specular_map)
-        normal_map = self.get_normal_map(shader_node)
-        if normal_map:
-            maps.append(normal_map)
-        albedo_tint = self.get_albedo_tint(shader_node)
+        mat = bpy.data.materials[self.blender_material]
+        node_tree = mat.node_tree
+        if node_tree:
+            shader_node = self.get_blender_shader(node_tree)
+            if not shader_node:
+                return
+            diffuse_map = self.get_diffuse_map(shader_node)
+            if diffuse_map:
+                maps.append(diffuse_map)
+            specular_map = self.get_specular_map(shader_node)
+            if specular_map and not hasattr(self, "specular_from_diff_alpha"):
+                maps.append(specular_map)
+            normal_map = self.get_normal_map(shader_node)
+            if normal_map:
+                maps.append(normal_map)
+            albedo_tint = self.get_albedo_tint(shader_node)
+        else:
+            albedo_tint = self.get_albedo_tint_no_nodes(mat)
         if albedo_tint:
             maps.append(albedo_tint)
 
@@ -796,6 +800,28 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
             if input_name in i.name.lower():
                 if not i.links:
                     return i.default_value
+                
+    def get_albedo_tint_no_nodes(self, mat):
+        albedo_tint = {}
+        albedo_tint['parameter name'] = 'albedo_tint' if self.corinth else 'albedo_color'
+        albedo_tint['parameter type'] = "color" if self.corinth else "argb color"
+        tint_parameters = {}
+        color = mat.diffuse_color
+        if color is None: return
+        if self.corinth:
+            tint_parameters['color'] = color[:3]
+        else:
+            tint_parameters['color'] = color[:3]
+            tint_parameters['alpha'] = color[3]
+        if self.corinth:
+            albedo_tint['function parameters'] = tint_parameters
+        else:
+            albedo_tint['animated parameters'] = tint_parameters
+        if self.corinth:
+            self.corinth_extra_mapping = {}
+            self.corinth_extra_mapping['color'] = [str(color[3]), str(color[0]), str(color[1]), str(color[2])]
+        self.has_albedo = True
+        return albedo_tint
 
     def get_node_mapping(self, node):
         bitmap_mapping = {}

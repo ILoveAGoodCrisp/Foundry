@@ -31,6 +31,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_shader_name,
     get_tags_path,
     is_corinth,
+    material_read_only,
     os_sep_partition,
 )
 
@@ -40,9 +41,12 @@ def build_shader(material, corinth, folder="", report=None):
     if not get_shader_name(material):
         return {"FINISHED"}
     if material.name != material.name_full:
-        print("Material is linked, skipping")
+        print(f"{material.name} is linked, skipping")
         return {"FINISHED"}
     nwo = material.nwo
+    if material_read_only(nwo.shader_path):
+        print(f"{material.name} is read only, skipping")
+        return {'FINISHED'}
     if corinth:
         tag = ManagedBlamNewShader(material.name, nwo.material_shader, nwo.uses_blender_nodes, nwo.shader_path, folder if folder else nwo.shader_dir)
         nwo.shader_path = tag.path

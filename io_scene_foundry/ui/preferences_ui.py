@@ -363,22 +363,10 @@ class ToolkitLocationPreferences(AddonPreferences):
         ]
     )
     
-    # def update_poop_default(self, context):
-    #     if self.poop_default:
-    #         value = '_connected_geometry_mesh_type_poop'
-    #     else:
-    #         value = '_connected_geometry_mesh_type_default'
-    #     appdata = os.getenv('APPDATA')
-    #     foundry_folder = os.path.join(appdata, "FoundryHBCK")
-    #     mesh_file = os.path.join(foundry_folder, 'mesh_default.txt')
-    #     with open(mesh_file, 'w') as f:
-    #         f.write(value)
-    
-    poop_default : BoolProperty(
-        name="Instances Are Default",
-        description="Sets instances as the default mesh type when a scenario asset is loaded",
-        default=False,
-        # update=update_poop_default,
+    protect_materials: BoolProperty(
+        name="Protect Default Materials",
+        description="Prevents the material/shader tags that come bundeled with the Halo Editing Kits from being edited by Foundry",
+        default=True,
     )
 
     def draw(self, context):
@@ -428,3 +416,5 @@ class ToolkitLocationPreferences(AddonPreferences):
         # row.prop(prefs, "poop_default")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
+        row = box.row(align=True)
+        row.prop(prefs, "protect_materials")

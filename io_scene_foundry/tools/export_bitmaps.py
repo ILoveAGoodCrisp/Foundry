@@ -73,7 +73,7 @@ def export_bitmap(
     if image.name != image.name_full:
         print("Image is linked, skipping")
         return
-
+    
     data_dir = get_data_path()
     tags_dir = get_tags_path()
     asset_path = get_asset_path()
