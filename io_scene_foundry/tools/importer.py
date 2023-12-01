@@ -171,7 +171,6 @@ class NWOImporter():
         if self.poops:
             print("Fixing scale")
             stomp_scale_multi_user(self.poops)
-            enforce_uniformity(self.poops)
     
     def setup_amf_mesh(self, ob, is_model):
         name = dot_partition(ob.name)

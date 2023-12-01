@@ -38,6 +38,7 @@ from subprocess import Popen, check_call
 import random
 import importlib
 import xml.etree.ElementTree as ET
+import numpy as np
 
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_constants import COLLISION_MESH_TYPES, MAT_INVALID, MAT_INVISIBLE, MAT_SEAMSEALER, MAT_SKY, PROTECTED_MATERIALS, VALID_MESHES
@@ -1595,23 +1596,25 @@ def stomp_scale_multi_user(objects):
     mesh_ob_dict = {mesh: [ob for ob in objects if ob.data == mesh] for mesh in meshes}
     deselect_all_objects()
     for me in mesh_ob_dict.keys():
-        scales = set()
+        scales = []
         for ob in mesh_ob_dict[me]:
             abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
             if abs_scale == good_scale:
-                print(f"{me.name} has at least one object with good scale [{ob.name}]")
+                # print(f"{me.name} has at least one object with good scale [{ob.name}]")
                 scales.clear()
                 break
-            scales.add(abs(ob.scale.x))
+            scales.append(abs(ob.scale.x))
         if not scales: continue
-        basis_scale = min(scales)
+        basis_scale = np.median(scales)
         basis_ob = [ob for ob in mesh_ob_dict[me] if ob.scale.x == basis_scale][0]
         set_active_object(basis_ob)
         [ob.select_set(True) for ob in mesh_ob_dict[me]]
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         deselect_all_objects()
-            
-            
+        
+def get_scale_ratio(scale):
+    return round(scale.x / scale.y, 6), round(scale.y / scale.z, 6), round(scale.z / scale.x, 6)
+
 def enforce_uniformity(objects):
     """Check for non-uniform scale objects and split them into new meshes if needed with applied scale"""
     meshes = {ob.data for ob in objects}
@@ -1620,14 +1623,15 @@ def enforce_uniformity(objects):
     for me in mesh_ob_dict.keys():
         scale_ob_dict = {}
         for ob in mesh_ob_dict[me]:
-            scale = ob.scale.copy().freeze()
+            scale = ob.scale
             if scale.x == scale.y and scale.x == scale.z:
                 continue
-            if scale_ob_dict.get(scale, 0):
-                scale_ob_dict[scale].append(ob)
+            scale_ratio = get_scale_ratio(scale)
+            if scale_ob_dict.get(scale_ratio, 0):
+                scale_ob_dict[scale_ratio].append(ob)
             else:
-                scale_ob_dict[scale] = [ob]
-                
+                scale_ob_dict[scale_ratio] = [ob]
+    
     for k in scale_ob_dict:
         [ob.select_set(True) for ob in scale_ob_dict[k]]
         set_active_object(scale_ob_dict[k][0])

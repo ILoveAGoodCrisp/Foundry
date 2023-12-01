@@ -47,6 +47,7 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
+    enforce_uniformity,
     get_object_type,
     get_sky_perm,
     is_marker,
@@ -64,6 +65,7 @@ from ..utils.nwo_utils import (
     set_origin_to_centre,
     set_origin_to_floor,
     sort_alphanum,
+    stomp_scale_multi_user,
     true_region,
     true_permutation,
     type_valid,
@@ -595,7 +597,10 @@ class PrepareScene:
             export_obs = context.view_layer.objects[:]
             
             # Fix objects with bad scale values
-            self.fix_scale([ob for ob in export_obs if ob.type == 'MESH'])
+            poops, nonstandard_scale = self.fix_scale([ob for ob in export_obs if ob.type == 'MESH'])
+            if poops and nonstandard_scale:
+
+                stomp_scale_multi_user(poops)
 
             # print("cull_zero_face")
 
@@ -3472,17 +3477,19 @@ class PrepareScene:
         
     def fix_scale(self, mesh_objects):
         apply_targets = []
+        poops = []
+        linked_poops_with_nonstandard_scale = False
         for ob in mesh_objects:
             abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
+            is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' # only poops may be scaled
+            if is_poop:
+                poops.append(ob)
             if abs_scale != TARGET_SCALE:
-                is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' # only poops may be scaled
                 if ob.type == 'ARMATURE':
                     self.warning_hit = True
                     print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
-                elif ob.data.users > 1 and is_poop: 
-                    # Warn user if scale seems excessive
-                    if max(ob.scale) > 100:
-                        print_warning(f"{ob.name} has very high scale values: {ob.scale}")
+                elif ob.data.users > 1 and is_poop:
+                    linked_poops_with_nonstandard_scale = True
                     continue
                 elif ob.data.users > 1:
                     # Create new mesh data and apply scale
@@ -3498,6 +3505,8 @@ class PrepareScene:
             set_active_object(apply_targets[0])
             bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
             deselect_all_objects()
+            
+        return poops, linked_poops_with_nonstandard_scale
 
 
     # def set_bone_orient(self, b_name: str, objects: list):
