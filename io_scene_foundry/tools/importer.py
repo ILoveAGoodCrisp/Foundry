@@ -31,8 +31,10 @@ amf_module = importlib.import_module("Blender AMF2")
 
 import os
 import bpy
-from mathutils import Vector
 from io_scene_halo.file_jma.import_jma import load_file as import_jma
+from io_scene_foundry.utils.nwo_utils import MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, set_active_object, stomp_scale_multi_user, unlink
+
+pose_hints = ['aim', 'look', 'acc', 'steer']
 
 class NWO_Import(bpy.types.Operator):
     bl_label = "Importer"
@@ -44,7 +46,7 @@ class NWO_Import(bpy.types.Operator):
         return amf_addon_installed()
     
     filter_glob: bpy.props.StringProperty(
-        default="*.amf",
+        default="",
         options={"HIDDEN"},
     )
 
@@ -58,19 +60,33 @@ class NWO_Import(bpy.types.Operator):
         subtype='DIR_PATH'
     )
     
+    amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
         importer = NWOImporter(context, self.report, filepaths)
-        amf_files = importer.sorted_filepaths["amf"]
-        imported_amf_objects = importer.import_amf_files(amf_files)
-        if imported_amf_objects:
-            [ob.select_set(True) for ob in imported_amf_objects]
+        if self.amf_okay:
+            amf_files = importer.sorted_filepaths["amf"]
+            imported_amf_objects = importer.import_amf_files(amf_files)
+            if imported_amf_objects:
+                [ob.select_set(True) for ob in imported_amf_objects]
+        if self.legacy_okay:
+            jms_files = importer.sorted_filepaths["jms"]
+            jma_files = importer.sorted_filepaths["jma"]
+            # imported_jms_objects = importer.import_jms_files(jms_files)
+            imported_jma_animations = importer.import_jma_files(jma_files)
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        if amf_addon_installed():
+            self.amf_okay = True
+            self.filter_glob += "*.amf;"
+        if blender_toolset_installed():
+            self.legacy_okay = True
+            self.filter_glob += '*.jms;*ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx'
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
-
 
 class NWOImporter():
     def __init__(self, context, report, filepaths):
@@ -82,10 +98,14 @@ class NWOImporter():
         self.sorted_filepaths = self.group_filetypes()
     
     def group_filetypes(self):
-        filetype_dict = {"amf": [], "jma": []}
+        filetype_dict = {"amf": [], "jms": [], "jma": []}
         for path in self.filepaths:
             if path.lower().endswith('.amf'):
                 filetype_dict["amf"].append(path)
+            elif path.lower().endswith(('.jms', '.ass')):
+                filetype_dict["jms"].append(path)
+            elif path.lower().endswith(('.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx')):
+                filetype_dict["jma"].append(path)
                 
         return filetype_dict
         
@@ -115,10 +135,7 @@ class NWOImporter():
             
         ob.nwo.permutation_name_ui = permutation
     
-    # Legacy Animation Importer
-    
     # AMF Importer
-    
     def import_amf_files(self, amf_files):
         """Imports all amf files supplied"""
         for path in amf_files:
@@ -210,87 +227,70 @@ class NWOImporter():
                         elif hint_subtype in ('step', 'crouch', 'stand'):
                             nwo.marker_hint_height = hint_subtype
             
-            
-            
-        
-
 
 # Legacy Animation importer
 ######################################################################
-
-pose_hints = ['aim', 'look', 'acc', 'steer']
-
-def import_legacy_animations(context, filepaths, report):
-    """Imports all legacy animation files supplied"""
-    for path in filepaths:
-        import_legacy_animation(context, path, report)
+    def import_jma_files(self, jma_files):
+        """Imports all legacy animation files supplied"""
+        self.animations = []
+        scene_nwo = self.context.scene.nwo
+        if scene_nwo.main_armature:
+            arm = scene_nwo.main_armature
+        else:
+            arms = [ob for ob in bpy.context.view_layer.objects if ob.type == 'ARMATURE']
+            if arms:
+                arm = arms[0]
+            else:
+                arm_data = bpy.data.armatures.new('Armature')
+                arm = bpy.data.objects.new('Armature', arm_data)
+                self.context.scene.collection.objects.link(arm)
+            
+        arm.hide_set(False)
+        arm.hide_select = False
+        set_active_object(arm)
         
-    
-def import_legacy_animation(context, filepath, report):
-    import_jma(context, filepath, 'halo3', False, False, "", "", report)
-    filename = os.path.basename(filepath)
-    anim_name, extension = filename.split('.')
-    anim = bpy.data.actions.get(anim_name[:64], 0)
-    nwo = anim.nwo
-    if anim:
-        anim.use_fake_user = True
-        anim.use_frame_range = True
-        if len(filename) > 64:
-            nwo.name_override = anim_name
-        match extension.lower():
-            case 'jmm':
-                nwo.animation_type = 'base'
-                nwo.animation_movement_data = 'none'
-            case 'jma':
-                nwo.animation_type = 'base'
-                nwo.animation_movement_data = 'xy'
-            case 'jmt':
-                nwo.animation_type = 'base'
-                nwo.animation_movement_data = 'xyyaw'
-            case 'jmz':
-                nwo.animation_type = 'base'
-                nwo.animation_movement_data = 'xyzyaw'
-            case 'jmv':
-                nwo.animation_type = 'base'
-                nwo.animation_movement_data = 'full'
-            case 'jmw':
-                nwo.animation_type = 'world'
-            case 'jmo':
-                nwo.animation_type = 'overlay'
-                nwo.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
-            case 'jmr':
-                nwo.animation_type = 'replacement'
-            case 'jmrx':
-                nwo.animation_type = 'replacement'
-                nwo.animation_space = 'local'
- 
-
-    
-
-from io_scene_foundry.utils.nwo_utils import MutePrints, amf_addon_installed, any_partition, disable_prints, dot_partition, enable_prints, enforce_uniformity, stomp_scale_multi_user, unlink
-    
-
-# AMF Importer
-######################################################################
-
-
-         
-
-def amf_assign(context, report):
-    # Loop through scene objects and apply appropriate perm / region names
-    loop_count = 0
-    for ob in context.view_layer.objects:
-        true_name = dot_partition(ob.name)
-        if not true_name.startswith(("+", ":")) and ":" in true_name:
-            if true_name.rpartition(":")[0] != "":
-                ob.nwo.region_name = true_name.rpartition(":")[0]
-            if true_name.rpartition(":")[2] != "":
-                ob.nwo.permutation_name = true_name.rpartition(":")[2]
-            loop_count += 1
-
-    report(
-        {"INFO"},
-        f"Updated regions & permutations for {loop_count} AMF objects",
-    )
-
-    return {"FINISHED"}
+        for path in jma_files:
+            self.import_legacy_animation(path)
+            
+        return self.animations
+            
+        
+    def import_legacy_animation(self, path):
+        existing_animations = bpy.data.actions[:]
+        import_jma(self.context, path, 'halo3', False, False, "", "", self.report)
+        anim = [a for a in bpy.data.actions if a not in existing_animations][0]
+        self.animations.append(anim)
+        filename = os.path.basename(path)
+        anim_name, extension = filename.split('.')
+        nwo = anim.nwo
+        if anim:
+            anim.use_fake_user = True
+            anim.use_frame_range = True
+            if len(filename) > 64:
+                nwo.name_override = anim_name
+            match extension.lower():
+                case 'jmm':
+                    nwo.animation_type = 'base'
+                    nwo.animation_movement_data = 'none'
+                case 'jma':
+                    nwo.animation_type = 'base'
+                    nwo.animation_movement_data = 'xy'
+                case 'jmt':
+                    nwo.animation_type = 'base'
+                    nwo.animation_movement_data = 'xyyaw'
+                case 'jmz':
+                    nwo.animation_type = 'base'
+                    nwo.animation_movement_data = 'xyzyaw'
+                case 'jmv':
+                    nwo.animation_type = 'base'
+                    nwo.animation_movement_data = 'full'
+                case 'jmw':
+                    nwo.animation_type = 'world'
+                case 'jmo':
+                    nwo.animation_type = 'overlay'
+                    nwo.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
+                case 'jmr':
+                    nwo.animation_type = 'replacement'
+                case 'jmrx':
+                    nwo.animation_type = 'replacement'
+                    nwo.animation_space = 'local'

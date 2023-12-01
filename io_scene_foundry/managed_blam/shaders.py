@@ -258,7 +258,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
     def basic_shader(self, struct_render_method):
         maps = self.get_maps()
         if not maps:
-            return print("Cannot read Blender Material Nodes into tag. Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
+            return print(f"Cannot read Blender Material Nodes into tag. for {self.blender_material} Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
         if self.shader_type == ".shader":
             # Set up shader options
             block_options = struct_render_method.SelectField("options")
@@ -590,7 +590,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
     def basic_material(self, block_material_parameters, material_shader_path):
         maps = self.get_maps()
         if not maps:
-            return print("Cannot read Blender Material Nodes into tag, created empty tag instead. Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
+            return print(f"Cannot read Blender Material Nodes into tag for {self.blender_material}, created empty tag instead. Blender Material does not have a valid custom node group connected to the material output or does not have a BSDF node connected to the material output")
         if self.shader_type and os.path.exists(self.tags_dir + self.shader_type):
             material_shader_path.Path = self.TagPath_from_string(self.shader_type)
         else:
@@ -663,7 +663,7 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
         maps = []
         mat = bpy.data.materials[self.blender_material]
         node_tree = mat.node_tree
-        if node_tree:
+        if node_tree and node_tree.nodes:
             shader_node = self.get_blender_shader(node_tree)
             if not shader_node:
                 return

@@ -2385,15 +2385,20 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row()
         col = row.column()
         col.label(text=f"Importer")
-        if poll_ui('MODEL'):
-            if blender_toolset_installed():
-                col.operator('nwo.import_legacy_animation', text="Import Legacy Animations", icon='ANIM')
-            else:
-                col.label(text="Halo Blender Toolset required for legacy animations")
-                col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
-        if amf_addon_installed():
-            col.operator('nwo.import', text="Import AMF", icon_value=get_icon_id("amf"))
-        else:
+        amf_installed = amf_addon_installed()
+        toolset_installed = blender_toolset_installed()
+        # if poll_ui('MODEL'):
+        #     if blender_toolset_installed():
+        #         col.operator('nwo.import_legacy_animation', text="Import Legacy Animations", icon='ANIM')
+        #     else:
+        #         col.label(text="Halo Blender Toolset required for legacy animations")
+        #         col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
+        if amf_installed or toolset_installed:
+            col.operator('nwo.import', text="Import", icon='IMPORT')
+        if not toolset_installed:
+            col.label(text="Halo Blender Toolset required for import of legacy model and animation files")
+            col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
+        if not amf_installed:
             col.label(text="AMF Importer required to import amf files")
             col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
         
