@@ -935,6 +935,13 @@ def disable_prints():
 def enable_prints():
     """Enables console prints"""
     sys.stdout = sys.__stdout__
+    
+class MutePrints():
+    def __enter__(self):
+        disable_prints()
+        
+    def __exit__(self, exc_type, exc_value, traceback):
+        enable_prints()
 
 
 def data_relative(path: str) -> str:
@@ -1580,3 +1587,50 @@ def material_read_only(path):
         if path == tag:
             return True
     return False
+
+def stomp_scale_multi_user(objects):
+    """Checks that at least one user of a mesh has a uniform scale of 1,1,1. If not, applies scale to all linked objects, using the object with the smallest scale as a basis"""
+    good_scale = Vector.Fill(3, 1)
+    meshes = {ob.data for ob in objects}
+    mesh_ob_dict = {mesh: [ob for ob in objects if ob.data == mesh] for mesh in meshes}
+    deselect_all_objects()
+    for me in mesh_ob_dict.keys():
+        scales = set()
+        for ob in mesh_ob_dict[me]:
+            abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
+            if abs_scale == good_scale:
+                print(f"{me.name} has at least one object with good scale [{ob.name}]")
+                scales.clear()
+                break
+            scales.add(abs(ob.scale.x))
+        if not scales: continue
+        basis_scale = min(scales)
+        basis_ob = [ob for ob in mesh_ob_dict[me] if ob.scale.x == basis_scale][0]
+        set_active_object(basis_ob)
+        [ob.select_set(True) for ob in mesh_ob_dict[me]]
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        deselect_all_objects()
+            
+            
+def enforce_uniformity(objects):
+    """Check for non-uniform scale objects and split them into new meshes if needed with applied scale"""
+    meshes = {ob.data for ob in objects}
+    mesh_ob_dict = {mesh: [ob for ob in objects if ob.data == mesh] for mesh in meshes}
+    deselect_all_objects()
+    for me in mesh_ob_dict.keys():
+        scale_ob_dict = {}
+        for ob in mesh_ob_dict[me]:
+            scale = ob.scale.copy().freeze()
+            if scale.x == scale.y and scale.x == scale.z:
+                continue
+            if scale_ob_dict.get(scale, 0):
+                scale_ob_dict[scale].append(ob)
+            else:
+                scale_ob_dict[scale] = [ob]
+                
+    for k in scale_ob_dict:
+        [ob.select_set(True) for ob in scale_ob_dict[k]]
+        set_active_object(scale_ob_dict[k][0])
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
+        deselect_all_objects()
+        

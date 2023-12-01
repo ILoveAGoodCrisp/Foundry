@@ -3473,7 +3473,7 @@ class PrepareScene:
     def fix_scale(self, mesh_objects):
         apply_targets = []
         for ob in mesh_objects:
-            abs_scale = ob.matrix_world.to_scale()
+            abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
             if abs_scale != TARGET_SCALE:
                 is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' # only poops may be scaled
                 if ob.type == 'ARMATURE':

@@ -132,9 +132,11 @@ class NWOImporter():
         options = amf_module.ImportOptions()
         options.PREFIX_MARKER = ''
         options.MODE_SCALE = 'MAX'
-        amf_module.main(self.context, path, options)
-        new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         file_name = dot_partition(os.path.basename(path))
+        print(f"Importing AMF: {file_name}")
+        with MutePrints():
+            amf_module.main(self.context, path, options)
+        new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         self.process_amf_objects(new_objects, file_name)
         
     def process_amf_objects(self, objects, file_name):
@@ -156,7 +158,8 @@ class NWOImporter():
             new_coll.nwo.region = possible_bsp
             
         self.context.scene.collection.children.link(new_coll)
-        
+        self.poops = []
+        print("Setting object properties")
         for ob in objects:
             unlink(ob)
             new_coll.objects.link(ob)
@@ -164,6 +167,11 @@ class NWOImporter():
                 self.setup_amf_mesh(ob, is_model)
             elif ob.type == 'EMPTY':
                 self.setup_amf_marker(ob, is_model)
+                
+        if self.poops:
+            print("Fixing scale")
+            stomp_scale_multi_user(self.poops)
+            enforce_uniformity(self.poops)
     
     def setup_amf_mesh(self, ob, is_model):
         name = dot_partition(ob.name)
@@ -175,7 +183,9 @@ class NWOImporter():
         else:
             if name.startswith('Clusters'):
                 nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
-            
+            else:
+                self.poops.append(ob)
+                
         self.mesh_objects.append(ob)
         
     def setup_amf_marker(self, ob, is_model):
@@ -258,7 +268,7 @@ def import_legacy_animation(context, filepath, report):
 
     
 
-from io_scene_foundry.utils.nwo_utils import amf_addon_installed, any_partition, dot_partition, unlink
+from io_scene_foundry.utils.nwo_utils import MutePrints, amf_addon_installed, any_partition, disable_prints, dot_partition, enable_prints, enforce_uniformity, stomp_scale_multi_user, unlink
     
 
 # AMF Importer
