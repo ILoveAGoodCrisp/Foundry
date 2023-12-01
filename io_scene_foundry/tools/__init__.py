@@ -47,6 +47,7 @@ from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
 from io_scene_foundry.tools.clear_duplicate_materials import NWO_StompMaterials
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
+from io_scene_foundry.tools.importer import NWO_Import
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.sets_manager import NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
@@ -66,6 +67,7 @@ from .halo_launcher import NWO_MaterialGirl, open_file_explorer
 
 from io_scene_foundry.utils.nwo_utils import (
     addon_root,
+    amf_addon_installed,
     blender_toolset_installed,
     bpy_enum,
     deselect_all_objects,
@@ -2364,9 +2366,9 @@ class NWO_FoundryPanelProps(Panel):
     def draw_tools(self):
         box = self.box.box()
         self.draw_asset_shaders(box)
+        box = self.box.box()
+        self.draw_importer(box)
         if poll_ui(('MODEL', 'FP ANIMATION', 'SKY')):
-            box = self.box.box()
-            self.draw_importer(box)
             box = self.box.box()
             self.draw_rig_tools(box)
         elif poll_ui('SCENARIO'):
@@ -2383,11 +2385,17 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row()
         col = row.column()
         col.label(text=f"Importer")
-        if blender_toolset_installed():
-            col.operator('nwo.import_legacy_animation', text="Import Legacy Animations", icon='ANIM')
+        if poll_ui('MODEL'):
+            if blender_toolset_installed():
+                col.operator('nwo.import_legacy_animation', text="Import Legacy Animations", icon='ANIM')
+            else:
+                col.label(text="Halo Blender Toolset required for legacy animations")
+                col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
+        if amf_addon_installed():
+            col.operator('nwo.import', text="Import AMF", icon_value=get_icon_id("amf"))
         else:
-            col.label(text="Halo Blender Toolset required for legacy animations")
-            col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
+            col.label(text="AMF Importer required to import amf files")
+            col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
         
     def draw_rig_tools(self, box):
         row = box.row()
@@ -5934,7 +5942,7 @@ class NWO_ImportLegacyAnimation(Operator):
         arm.hide_set(False)
         arm.hide_select = False
         set_active_object(arm)
-        from io_scene_foundry.tools.import_legacy_animation import import_legacy_animations
+        from io_scene_foundry.tools.importer import import_legacy_animations
         filepaths = [self.directory + f.name for f in self.files]
         import_legacy_animations(context, filepaths, self.report)
         if old_active is not None:
@@ -6187,6 +6195,7 @@ classeshalo = (
     NWO_AddAimAnimation,
     NWO_MeshToMarker,
     NWO_StompMaterials,
+    NWO_Import,
 )
 
 

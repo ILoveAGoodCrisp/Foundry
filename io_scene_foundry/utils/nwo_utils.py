@@ -36,6 +36,7 @@ import os
 from os.path import exists as file_exists
 from subprocess import Popen, check_call
 import random
+import importlib
 import xml.etree.ElementTree as ET
 
 from io_scene_foundry.utils import nwo_globals
@@ -1454,6 +1455,13 @@ def get_arm_count(context: bpy.types.Context):
 def blender_toolset_installed():
     try:
         from io_scene_halo import bl_info
+        return True
+    except:
+        return False
+    
+def amf_addon_installed():
+    try:
+        amf_module = importlib.import_module("Blender AMF2")
         return True
     except:
         return False
