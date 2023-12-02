@@ -36,9 +36,9 @@ import os
 from os.path import exists as file_exists
 from subprocess import Popen, check_call
 import random
-import importlib
 import xml.etree.ElementTree as ET
 import numpy as np
+import addon_utils
 
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_constants import COLLISION_MESH_TYPES, MAT_INVALID, MAT_INVISIBLE, MAT_SEAMSEALER, MAT_SKY, PROTECTED_MATERIALS, VALID_MESHES
@@ -1461,18 +1461,21 @@ def get_arm_count(context: bpy.types.Context):
     return len(arms)
 
 def blender_toolset_installed():
-    try:
-        from io_scene_halo import bl_info
-        return True
-    except:
-        return False
+    script_dirs = bpy.utils.script_paths()
+    for dir in script_dirs:
+        if os.path.exists(os.path.join(dir, 'addons', 'io_scene_halo')):
+            return True
+    return False
     
 def amf_addon_installed():
-    try:
-        amf_module = importlib.import_module("Blender AMF2")
-        return True
-    except:
-        return False
+    script_dirs = bpy.utils.script_paths()
+    for dir in script_dirs:
+        if os.path.exists(os.path.join(dir, 'addons', 'Blender AMF2.py')):
+            return 'Blender AMF2'
+        elif os.path.exists(os.path.join(dir, 'addons', 'Blender_AMF2.py')):
+            return 'Blender_AMF2'
+        
+    return False
     
 def has_collision_type(ob: bpy.types.Object) -> bool:
     nwo = ob.nwo

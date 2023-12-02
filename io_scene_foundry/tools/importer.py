@@ -24,14 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-# main_script.py
-
-import importlib
-amf_module = importlib.import_module("Blender AMF2")
-
 import os
 import bpy
-from io_scene_halo.file_jma.import_jma import load_file as import_jma
+import addon_utils
 from io_scene_foundry.utils.nwo_utils import MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, set_active_object, stomp_scale_multi_user, unlink
 
 pose_hints = ['aim', 'look', 'acc', 'steer']
@@ -47,7 +42,7 @@ class NWO_Import(bpy.types.Operator):
     
     filter_glob: bpy.props.StringProperty(
         default="",
-        options={"HIDDEN"},
+        options={"HIDDEN", "SKIP_SAVE"},
     )
 
     files: bpy.props.CollectionProperty(
@@ -57,7 +52,8 @@ class NWO_Import(bpy.types.Operator):
     
     directory: bpy.props.StringProperty(
         name='Directory',
-        subtype='DIR_PATH'
+        subtype='DIR_PATH',
+        options={"HIDDEN", "SKIP_SAVE"},
     )
     
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
@@ -67,15 +63,26 @@ class NWO_Import(bpy.types.Operator):
         filepaths = [self.directory + f.name for f in self.files]
         importer = NWOImporter(context, self.report, filepaths)
         if self.amf_okay:
+            amf_module_name = amf_addon_installed()
+            amf_addon_enabled = addon_utils.check(amf_module_name)[0]
+            if not amf_addon_enabled:
+                addon_utils.enable(amf_module_name)
             amf_files = importer.sorted_filepaths["amf"]
             imported_amf_objects = importer.import_amf_files(amf_files)
+            if not amf_addon_enabled:
+                addon_utils.disable(amf_module_name)
             if imported_amf_objects:
                 [ob.select_set(True) for ob in imported_amf_objects]
         if self.legacy_okay:
+            toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
+            if not toolset_addon_enabled:
+                addon_utils.enable('io_scene_halo')
             jms_files = importer.sorted_filepaths["jms"]
             jma_files = importer.sorted_filepaths["jma"]
             # imported_jms_objects = importer.import_jms_files(jms_files)
             imported_jma_animations = importer.import_jma_files(jma_files)
+            if not toolset_addon_enabled:
+                addon_utils.disable('io_scene_halo')
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -99,7 +106,16 @@ class NWOImporter():
     
     def group_filetypes(self):
         filetype_dict = {"amf": [], "jms": [], "jma": []}
+        # Search for folders first and add their files to filepaths
+        folders = [path for path in self.filepaths if os.path.isdir(path)]
+        print(folders)
+        for f in folders:
+            for root, _, files in os.walk(f):
+                for file in files:
+                    self.filepaths.append(os.path.join(root, file))
+                
         for path in self.filepaths:
+            print(path)
             if path.lower().endswith('.amf'):
                 filetype_dict["amf"].append(path)
             elif path.lower().endswith(('.jms', '.ass')):
@@ -140,19 +156,16 @@ class NWOImporter():
         """Imports all amf files supplied"""
         for path in amf_files:
             self.import_amf_file(path)
-            
+        
         return self.mesh_objects.extend(self.marker_objects)
 
     def import_amf_file(self, path):
         # get all objects that exist prior to import
         pre_import_objects = bpy.data.objects[:]
-        options = amf_module.ImportOptions()
-        options.PREFIX_MARKER = ''
-        options.MODE_SCALE = 'MAX'
         file_name = dot_partition(os.path.basename(path))
         print(f"Importing AMF: {file_name}")
         with MutePrints():
-            amf_module.main(self.context, path, options)
+            bpy.ops.import_scene.amf(filepath=path, import_units='MAX')
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         self.process_amf_objects(new_objects, file_name)
         
@@ -257,7 +270,7 @@ class NWOImporter():
         
     def import_legacy_animation(self, path):
         existing_animations = bpy.data.actions[:]
-        import_jma(self.context, path, 'halo3', False, False, "", "", self.report)
+        bpy.ops.import_scene.jma(filepath=path)
         anim = [a for a in bpy.data.actions if a not in existing_animations][0]
         self.animations.append(anim)
         filename = os.path.basename(path)
