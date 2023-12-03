@@ -32,7 +32,7 @@ from io_scene_foundry.utils.nwo_utils import MutePrints, amf_addon_installed, bl
 pose_hints = ['aim', 'look', 'acc', 'steer']
 
 class NWO_Import(bpy.types.Operator):
-    bl_label = "Importer"
+    bl_label = "Import File(s)/Folder(s)"
     bl_idname = "nwo.import"
     bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA"
     

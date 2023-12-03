@@ -126,3 +126,9 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         get=get_shader_dir,
         set=set_shader_dir,
     )
+    
+    # LE MATERIAL PROPERTIES
+    
+    # face_sides: bpy.props.EnumProperty()
+    # collision_type: bpy.props.EnumProperty()
+    

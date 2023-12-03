@@ -151,7 +151,7 @@ class NWO_TagExplore(bpy.types.Operator):
 
     filter_glob: bpy.props.StringProperty(
         default="*",
-        options={"HIDDEN"},
+        options={"HIDDEN", "SKIP_SAVE"},
     )
 
     filepath: bpy.props.StringProperty(
@@ -185,35 +185,35 @@ class NWO_TagExplore(bpy.types.Operator):
 def get_glob_from_prop(prop):
     match prop:
         case 'marker_game_instance_tag_name_ui':
-            return "*.biped;*.crate;*.creature;*.device_*;*.effect_*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_l*;*.light"
+            return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light"
         case 'fog_appearance_tag_ui':
-            return "*.planar_"
+            return "*.pl*parameters"
         case 'marker_looping_effect_ui':
             return "*.effect"
         case 'marker_light_cone_tag_ui':
-            return "*.light_c"
+            return "*.light_cone"
         case 'marker_light_cone_curve_ui':
-            return "*.curve_"
+            return "*.curve_scalar"
         case 'light_tag_override':
             return "*.light"
         case 'light_shader_reference':
-            return "*.render_method_d"
+            return "*.re*definition"
         case 'light_gel_reference':
             return "*.bitmap"
         case 'light_lens_flare_reference':
-            return "*.lens_"
+            return "*.lens_flare"
         case 'render_model_path':
-            return "*.render_mo"
+            return "*.render_model"
         case 'collision_model_path':
-            return "*.collision_m"
+            return "*.collision_mo*"
         case 'animation_graph_path':
-            return "*.model_a"
+            return "*.model_*_graph"
         case 'physics_model_path':
-            return "*.physics"
+            return "*.physics_model"
         case 'fp_model_path':
-            return "*.render_mo"
+            return "*.render_model"
         case 'gun_model_path':
-            return "*.render_mo"
+            return "*.render_model"
         case 'shader_path':
             return "*.material;*.shader"
         case _:

@@ -91,12 +91,7 @@ from .object_ui import (
     NWO_MeshPropAddMenu,
     NWO_MeshPropAdd,
     NWO_MeshPropRemove,
-    NWO_MeshPropAddFaceMode,
-    NWO_MeshPropAddFaceSides,
-    NWO_MeshPropAddFlags,
     NWO_MeshPropAddLightmap,
-    NWO_MeshPropAddMaterialLighting,
-    NWO_MeshPropAddMisc,
     NWO_GlobalMaterialMenu,
     NWO_RegionList,
     NWO_GlobalMaterialRegionList,
@@ -106,8 +101,6 @@ from .object_ui import (
     NWO_BSPListSeam,
     NWO_MasterInstance,
     NWO_BoneProps,
-    # NWO_LightProps,
-    # NWO_LightPropsCycles,
 )
 
 from .materials_ui import NWO_MaterialOpenTag
@@ -165,189 +158,8 @@ from .preferences_ui import (
 
 from .image_properties import NWO_ImagePropertiesGroup
 
-mesh_type_items = [
-    (
-        "_connected_geometry_mesh_type_boundary_surface",
-        "Boundary Surface",
-        "Used in structure_design tags for soft_kill, soft_ceiling, and slip_sufaces. Only use when importing to a structure_design tag. Can be forced on with the prefixes: '+soft_ceiling', 'soft_kill', 'slip_surface'",
-    ),  # 0
-    (
-        "_connected_geometry_mesh_type_collision",
-        "Collision",
-        "Sets this mesh to have collision geometry only. Can be forced on with the prefix: '@'",
-    ),  # 1
-    (
-        "_connected_geometry_mesh_type_cookie_cutter",
-        "Cookie Cutter",
-        "Defines an area which ai will pathfind around. Can be forced on with the prefix: '+cookie'",
-    ),  # 2
-    (
-        "_connected_geometry_mesh_type_decorator",
-        "Decorator",
-        "Use this when making a decorator. Allows for different LOD levels to be set",
-    ),  # 3
-    (
-        "_connected_geometry_mesh_type_default",
-        "Default",
-        "By default this mesh type will be treated as render only geometry in models, and render + bsp collision geometry in structures",
-    ),  # 4
-    (
-        "_connected_geometry_mesh_type_poop",
-        "Instanced Geometry",
-        "Writes this mesh to a json file as instanced geometry. Can be forced on with the prefix: '%'",
-    ),  # 5
-    ("_connected_geometry_mesh_type_poop_marker", "Instanced Marker", ""),  # 6
-    (
-        "_connected_geometry_mesh_type_poop_rain_blocker",
-        "Rain Occluder",
-        "Rain is not rendered in the the volume this mesh occupies.",
-    ),  # 7
-    (
-        "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
-        "Vertical Rain Sheet",
-        "",
-    ),  # 8
-    (
-        "_connected_geometry_mesh_type_lightmap_region",
-        "Lightmap Region",
-        "Defines an area of a structure which should be lightmapped. Can be referenced when lightmapping",
-    ),  # 9
-    (
-        "_connected_geometry_mesh_type_object_instance",
-        "Object Instance",
-        "Writes this mesh to the json as an instanced object. Can be forced on with the prefix: '+flair'",
-    ),  # 10
-    (
-        "_connected_geometry_mesh_type_physics",
-        "Physics",
-        "Sets this mesh to have physics geometry only. Can be forced on with the prefix: '$'",
-    ),  # 11
-    (
-        "_connected_geometry_mesh_type_planar_fog_volume",
-        "Planar Fog Volume",
-        "Defines an area for a fog volume. The same logic as used for portals should be applied to these.  Can be forced on with the prefix: '+fog'",
-    ),  # 12
-    (
-        "_connected_geometry_mesh_type_portal",
-        "Portal",
-        "Cuts up a bsp and defines clusters. Can be forced on with the prefix '+portal'",
-    ),  # 13
-    (
-        "_connected_geometry_mesh_type_seam",
-        "Seam",
-        "Defines where two bsps meet. Its name should match the name of the bsp its in. Can be forced on with the prefix '+seam'",
-    ),  # 14
-    (
-        "_connected_geometry_mesh_type_water_physics_volume",
-        "Water Physics Volume",
-        "Defines an area where water physics should apply. Only use when importing to a structure_design tag. Can be forced on with the prefix: '+water'",
-    ),  # 15
-    (
-        "_connected_geometry_mesh_type_water_surface",
-        "Water Surface",
-        "Defines a mesh as a water surface. Can be forced on with the prefix: '",
-    ),  # 16
-    ("_connected_geometry_mesh_type_obb_volume", "OBB Volume", ""),  # 17
-    ("_connected_geometry_mesh_type_volume", "Volume", ""),
-    # These go unused in menus, and are instead set at export
-    ("_connected_geometry_mesh_type_poop_collision", "Poop Collision", ""),
-    ("_connected_geometry_mesh_type_poop_physics", "Poop Physics", ""),
-    ("_connected_geometry_mesh_type_render", "Render", ""),
-    ("_connected_geometry_mesh_type_structure", "Structure", ""),
-    ("_connected_geometry_mesh_type_default", "Default", ""),
-]
-
-volume_type_items = [
-    ("_connected_geometry_volume_type_soft_ceiling", "Soft Celing", ""),
-    ("_connected_geometry_volume_type_soft_kill", "Soft Kill", ""),
-    ("_connected_geometry_volume_type_slip_surface", "Slip Surface", ""),
-    ("_connected_geometry_volume_type_water_physics", "Water Physics", ""),
-    (
-        "_connected_geometry_volume_type_lightmap_exclude",
-        "Lightmap Exclusion",
-        "",
-    ),
-    ("_connected_geometry_volume_type_lightmap_region", "Lightmap Region", ""),
-    ("_connected_geometry_volume_type_streaming", "Streaming", ""),
-]
-
-marker_type_items = [
-    (
-        "_connected_geometry_marker_type_model",
-        "Model",
-        "Default marker type. Defines render_model markers for models, and structure markers for bsps",
-    ),
-    (
-        "_connected_geometry_marker_type_effects",
-        "Effects",
-        "Marker for effects only.",
-    ),
-    (
-        "_connected_geometry_marker_type_game_instance",
-        "Game Object",
-        "Game Instance marker. Used to create an instance of a tag in the bsp. Can be set with the prefix: ?",
-    ),
-    (
-        "_connected_geometry_marker_type_garbage",
-        "Garbage",
-        "marker to define position that garbage pieces should be created",
-    ),
-    ("_connected_geometry_marker_type_hint", "Hint", "Used for ai hints"),
-    (
-        "_connected_geometry_marker_type_pathfinding_sphere",
-        "Pathfinding Sphere",
-        "Used to create ai pathfinding spheres",
-    ),
-    (
-        "_connected_geometry_marker_type_physics_constraint",
-        "Physics Constraint",
-        "Used to define various types of physics constraints",
-    ),
-    (
-        "_connected_geometry_marker_type_physics_hinge_constraint",
-        "Hinge Constraint",
-        "Used to define various types of physics constraints",
-    ),
-    (
-        "_connected_geometry_marker_type_physics_socket_constraint",
-        "Socket Constraint",
-        "Used to define various types of physics constraints",
-    ),
-    (
-        "_connected_geometry_marker_type_target",
-        "Target",
-        "Defines the markers used in a model's targets'",
-    ),
-    (
-        "_connected_geometry_marker_type_water_volume_flow",
-        "Water Volume Flow",
-        "Used to define water flow for water physics volumes. For structure_design tags only",
-    ),
-    (
-        "_connected_geometry_marker_type_airprobe",
-        "Airprobe",
-        "Airprobes tell the game how to handle static lighting on dynamic objects",
-    ),
-    (
-        "_connected_geometry_marker_type_envfx",
-        "Environment Effect",
-        "Plays an effect on this point in the structure",
-    ),
-    (
-        "_connected_geometry_marker_type_lightCone",
-        "Light Cone",
-        "Creates a light cone with the defined parameters",
-    ),
-    ("_connected_geometry_marker_type_prefab", "Prefab", ""),
-    ("_connected_geometry_marker_type_cheap_light", "Cheap Light", ""),
-    ("_connected_geometry_marker_type_light", "Light", ""),
-    ("_connected_geometry_marker_type_falling_leaf", "Falling Leaf", ""),
-]
-
-
 def add_asset_open_in_foundry(self, context):
     self.layout.operator(NWO_OpenAssetFoundry.bl_idname, text="Open in Foundry")
-
 
 class NWO_OpenAssetFoundry(NWO_Op):
     bl_idname = "nwo.open_asset_foundry"
@@ -542,12 +354,7 @@ classes_nwo = (
     NWO_Animation_ListItems,
     NWO_AnimationRenamesItems,
     NWO_ActionPropertiesGroup,
-    NWO_MeshPropAddFaceMode,
-    NWO_MeshPropAddFaceSides,
-    NWO_MeshPropAddFlags,
-    NWO_MeshPropAddMisc,
     NWO_MeshPropAddLightmap,
-    NWO_MeshPropAddMaterialLighting,
     NWO_MeshPropAdd,
     NWO_MeshPropRemove,
     NWO_FacePropAddFaceMode,

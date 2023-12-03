@@ -560,7 +560,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
     
     animation_movement_data: EnumProperty(
         name='Movement',
-        description='Set how this animations moves the object in the world',
+        description='Set how this animation moves the object in worldspace',
         default="none",
         items=[
             (

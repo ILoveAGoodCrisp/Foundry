@@ -134,117 +134,6 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         options=set(),
     )
 
-    face_type_active: BoolProperty()
-    face_type_ui: EnumProperty(
-        name="Face Type",
-        options=set(),
-        update=update_face_type_ui,
-        description="Sets the face type for this mesh. Note that any override shaders will override the face type selected here for relevant materials",
-        items=[
-            (
-                "_connected_geometry_face_type_seam_sealer",
-                "Seam Sealer",
-                "Set mesh faces to have the special seam sealer property. Collsion only geometry",
-            ),
-            (
-                "_connected_geometry_face_type_sky",
-                "Sky",
-                "Set mesh faces to render the sky",
-            ),
-        ],
-    )
-
-    def update_face_mode_ui(self, context):
-        self.face_mode_active = True
-
-    def face_mode_items(self, context):
-        h4 = is_corinth(context)
-        items = []
-        items.append((
-            "_connected_geometry_face_mode_render_only",
-            "Render Only",
-            "Faces set to render only",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_collision_only",
-            "Collision Only",
-            "Faces set to collision only",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_sphere_collision_only",
-            "Sphere Collision Only",
-            "Faces set to sphere collision only. Only objects with physics models can collide with these faces",
-        ))
-        items.append((
-            "_connected_geometry_face_mode_lightmap_only",
-            "Lightmap Only",
-            "Faces set to only be used during lightmapping. They will otherwise have no render / collision geometry",
-        ))
-        if not h4:
-            items.append((
-            "_connected_geometry_face_mode_breakable",
-            "Breakable",
-            "Faces set to be breakable",
-            )),
-
-        return items
-
-    face_mode_ui_help : IntProperty()
-    face_mode_active: BoolProperty()
-    face_mode_ui: EnumProperty(
-        name="Face Mode",
-        update=update_face_mode_ui,
-        options=set(),
-        description="Sets face mode for this mesh",
-        items=face_mode_items,
-    )
-
-    def update_face_sides_ui(self, context):
-        self.face_sides_active = True
-
-    face_sides_active: BoolProperty()
-    face_sides_ui: EnumProperty(  # NOTE replaced by face_two_sided_ui
-        name="Face Sides",
-        options=set(),
-        update=update_face_sides_ui,
-        description="Sets the face sides for this mesh",
-        default="_connected_geometry_face_sides_one_sided",
-        items=[
-            (
-                "_connected_geometry_face_sides_one_sided",
-                "One Sided",
-                "Faces set to only render on one side (the direction of face normals)",
-            ),
-            (
-                "_connected_geometry_face_sides_one_sided_transparent",
-                "One Sided Transparent",
-                "Faces set to only render on one side (the direction of face normals), but also render geometry behind them",
-            ),
-            (
-                "_connected_geometry_face_sides_two_sided",
-                "Two Sided",
-                "Faces set to render on both sides",
-            ),
-            (
-                "_connected_geometry_face_sides_two_sided_transparent",
-                "Two Sided Transparent",
-                "Faces set to render on both sides and are transparent",
-            ),
-            ("_connected_geometry_face_sides_mirror", "Mirror", "H4+ only"),
-            (
-                "_connected_geometry_face_sides_mirror_transparent",
-                "Mirror Transparent",
-                "H4+ only",
-            ),
-            ("_connected_geometry_face_sides_keep", "Keep", "H4+ only"),
-            (
-                "_connected_geometry_face_sides_keep_transparent",
-                "Keep Transparent",
-                "H4+ only",
-            ),
-        ],
-    )
-
     face_two_sided_ui: BoolProperty(
         name="Two Sided",
         description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
@@ -268,56 +157,6 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         ]
     )
 
-    def update_face_draw_distance_ui(self, context):
-        self.face_draw_distance_active = True
-
-    face_draw_distance_active: BoolProperty()
-    face_draw_distance_ui: EnumProperty(
-        name="Face Draw Distance",
-        options=set(),
-        update=update_face_draw_distance_ui,
-        description="Select the draw distance for faces on this mesh",
-        default="_connected_geometry_face_draw_distance_normal",
-        items=[
-            ("_connected_geometry_face_draw_distance_normal", "Normal", ""),
-            ("_connected_geometry_face_draw_distance_detail_mid", "Mid", ""),
-            (
-                "_connected_geometry_face_draw_distance_detail_close",
-                "Close",
-                "",
-            ),
-        ],
-    )
-
-    def update_texcoord_usage_ui(self, context):
-        self.texcoord_usage_active = True
-
-    texcoord_usage_active: BoolProperty()
-    texcoord_usage_ui: EnumProperty(
-        name="Texture Coordinate Usage",
-        options=set(),
-        description="",
-        update=update_texcoord_usage_ui,
-        default="_connected_material_texcoord_usage_default",
-        items=[
-            ("_connected_material_texcoord_usage_default", "Default", ""),
-            ("_connected_material_texcoord_usage_none", "None", ""),
-            (
-                "_connected_material_texcoord_usage_anisotropic",
-                "Ansiotropic",
-                "",
-            ),
-        ],
-    )
-
-    sky_permutation_index_ui: IntProperty(
-        name="Sky Permutation Index",
-        options=set(),
-        description="Set the sky permutation index of this mesh. Only valid if the face type is sky",
-        min=0,
-        soft_max=10,
-    )
-
     ladder_ui: BoolProperty(
         name="Ladder",
         options=set(),
@@ -336,13 +175,6 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         options=set(),
         description="Enable to offset these faces so that they appear to be layered on top of another face",
         default=False,
-    )
-
-    group_transparents_by_plane_ui: BoolProperty(
-        name="Group Transparents By Plane",
-        options=set(),
-        description="Group transparent geometry by fitted planes",
-        default=True,
     )
     
     no_shadow_ui: BoolProperty(
@@ -367,12 +199,6 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         name="Invisible To PVS",
         options=set(),
         description="Mesh is unaffected by Potential Visbility Sets - the games render culling system",
-    )
-
-    uvmirror_across_entire_model_ui: BoolProperty(
-        name="UV Mirror Across Model",
-        options=set(),
-        default=False,
     )
     
     def update_lightmap_additive_transparency_ui(self, context):
@@ -441,14 +267,6 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
             ("_connected_material_lightmap_photon_fidelity_none", "None", ""),
         ],
     )
-
-    # Lightmap_Chart_Group: IntProperty(
-    #     name="Lightmap Chart Group",
-    #     options=set(),
-    #     description="",
-    #     default=3,
-    #     min=1,
-    # )
 
     def update_lightmap_type_ui(self, context):
         self.lightmap_type_active = True
@@ -1308,31 +1126,6 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ],
     )
 
-    mesh_compression_active: BoolProperty()
-    mesh_compression_ui: EnumProperty(
-        name="Mesh Compression",
-        options=set(),
-        description="Select if you want additional compression forced on/off to this mesh",
-        default="_connected_geometry_mesh_additional_compression_default",
-        items=[
-            (
-                "_connected_geometry_mesh_additional_compression_default",
-                "Default",
-                "Default",
-            ),
-            (
-                "_connected_geometry_mesh_additional_compression_force_off",
-                "Force Off",
-                "Force Off",
-            ),
-            (
-                "_connected_geometry_mesh_additional_compression_force_on",
-                "Force On",
-                "Force On",
-            ),
-        ],
-    )
-
     poop_lighting_items = [
         (
             "_connected_geometry_poop_lighting_default",
@@ -2158,16 +1951,12 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     face_type: StringProperty()
     face_mode: StringProperty()
     face_sides: StringProperty()
-    face_draw_distance: StringProperty()
-    texcoord_usage: StringProperty()
     region_name: StringProperty()
-    uvmirror_across_entire_model: StringProperty()
     face_global_material: StringProperty()
     sky_permutation_index: StringProperty()
     ladder: StringProperty()
     slip_surface: StringProperty()
     decal_offset: StringProperty()
-    group_transparents_by_plane: StringProperty()
     no_shadow: StringProperty()
     precise_position: StringProperty()
     no_lightmap: StringProperty()

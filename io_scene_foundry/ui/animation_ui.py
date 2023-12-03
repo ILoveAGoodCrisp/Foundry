@@ -550,6 +550,7 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
         nwo = action.nwo
         state = nwo.state.lower().strip(" :_,-")
         state = "idle" if state == "" else state
+        animation_name = nwo.name_override if nwo.name_override else action.name
         if nwo.created_with_foundry and state in action.name:
             self.state_type = nwo.state_type
             self.custom = nwo.custom
@@ -568,7 +569,7 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
 
         else:
             self.state_type = "custom"
-            self.custom = action.name
+            self.custom = animation_name
 
     def draw(self, context):
         self.draw_name(self.layout)
@@ -577,7 +578,8 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
         full_name = self.create_name()
         action = context.active_object.animation_data.action
         nwo = action.nwo
-        if full_name == action.name:
+        animation_name = nwo.name_override if nwo.name_override else action.name
+        if full_name == animation_name:
             self.report(
                 {"WARNING"},
                 f"Rename entry not created. Rename cannot match animation name",
