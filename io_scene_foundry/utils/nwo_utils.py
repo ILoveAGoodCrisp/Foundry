@@ -1609,7 +1609,11 @@ def stomp_scale_multi_user(objects):
             scales.append(abs(ob.scale.x))
         if not scales: continue
         basis_scale = np.median(scales)
-        basis_ob = [ob for ob in mesh_ob_dict[me] if ob.scale.x == basis_scale][0]
+        obs_matching_basis = [ob for ob in mesh_ob_dict[me] if abs(ob.scale.x) == basis_scale]
+        if obs_matching_basis:
+            basis_ob = obs_matching_basis[0]
+        else:
+            basis_ob = mesh_ob_dict[me][0]
         set_active_object(basis_ob)
         [ob.select_set(True) for ob in mesh_ob_dict[me]]
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)

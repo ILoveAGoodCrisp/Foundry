@@ -785,10 +785,6 @@ class NWOMesh(NWOObject):
             self.bungie_face_mode = self.halo.face_mode
         if self.halo.face_sides:
             self.bungie_face_sides = self.halo.face_sides
-        if self.halo.face_draw_distance:
-            self.bungie_face_draw_distance = self.halo.face_draw_distance
-        if self.halo.texcoord_usage:
-            self.bungie_texcoord_usage = self.halo.texcoord_usage
 
         if self.halo.ladder:
             self.bungie_ladder = self.halo.ladder
@@ -796,10 +792,6 @@ class NWOMesh(NWOObject):
             self.bungie_slip_surface = self.halo.slip_surface
         if self.halo.decal_offset:
             self.bungie_decal_offset = self.halo.decal_offset
-        if self.halo.group_transparents_by_plane:
-            self.bungie_group_transparents_by_plane = (
-                self.halo.group_transparents_by_plane
-            )
         if self.halo.no_shadow:
             self.bungie_no_shadow = self.halo.no_shadow
         if self.halo.precise_position:
