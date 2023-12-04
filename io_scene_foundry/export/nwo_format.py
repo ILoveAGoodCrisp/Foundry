@@ -305,14 +305,17 @@ class NWOLight(NWOObject):
                 self.light_dynamic_light_has_bounce()
             )
             # self.bungie_light_screenspace_light_has_specular = self.light_screenspace_light_has_specular()
-            self.bungie_light_light_tag_override = self.light_light_tag_override()
-            self.bungie_light_shader_reference = self.light_shader_reference()
-            self.bungie_light_gel_reference = self.light_gel_reference()
-            self.bungie_light_lens_flare_reference = self.light_lens_flare_reference()
+            if self.data.nwo.light_tag_override:
+                self.bungie_light_light_tag_override = self.light_light_tag_override()
+            if self.data.nwo.light_shader_reference:
+                self.bungie_light_shader_reference = self.light_shader_reference()
+            if self.data.nwo.light_gel_reference:
+                self.bungie_light_gel_reference = self.light_gel_reference()
+            if self.data.nwo.light_lens_flare_reference:
+                self.bungie_light_lens_flare_reference = self.light_lens_flare_reference()
+                
             self.bungie_light_volume_distance = self.light_volume_distance()
-            self.bungie_light_volume_intensity_scalar = (
-                self.light_volume_intensity_scala()
-            )
+            self.bungie_light_volume_intensity_scalar = self.light_volume_intensity_scalar()
 
         self.cleanup()
 
@@ -342,10 +345,7 @@ class NWOLight(NWOObject):
         return jstr(self.data.nwo.light_fade_end_distance)
 
     def light_color(self):
-        if self.not_bungie_game:
-            return color_3p_str(self.ob.data.color)
-        else:
-            return color_4p_str(self.ob.data.color)
+        return color_3p_str(self.ob.data.color)
 
     def light_intensity(self):
         if self.not_bungie_game:
@@ -373,7 +373,7 @@ class NWOLight(NWOObject):
         if self.not_bungie_game:
             return jstr(self.data.nwo.light_far_attenuation_endh4)
         else:
-            return jstr(self.data.nwo.light_far_attenuation_end)
+            return jstr(self.data.nwo.light_far_attenuation_end * 100)
 
     def light_near_attenuation_start(self):
         if self.not_bungie_game:
@@ -558,7 +558,7 @@ class NWOLight(NWOObject):
     def light_volume_distance(self):
         return jstr(self.data.nwo.light_volume_distance)
 
-    def light_volume_intensity_scala(self):
+    def light_volume_intensity_scalar(self):
         return jstr(self.data.nwo.light_volume_intensity)
 
 

@@ -170,7 +170,7 @@ class LightMapper:
         ]
         for p, log_filename in processes:
             if p.wait() != 0:
-                self.lightmap_message = f"Lightmapper failed during {stage}. See error log for details: {log_filename}"
+                self.lightmap_message = f"Lightmapper failed during {stage}. See error log for details: {log_filename}\nIf nothing is written to the above log, it may be that you have minimal space remaining on your disk drive"
                 self.lightmap_failed = True
                 return False
 
