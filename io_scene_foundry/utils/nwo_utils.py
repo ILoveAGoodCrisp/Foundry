@@ -1645,3 +1645,19 @@ def enforce_uniformity(objects):
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
         deselect_all_objects()
         
+        
+def calc_light_intensity(light_data):
+    if is_corinth():
+        div = 10
+    else:
+        div = 300
+    
+    if light_data.type == "SUN":
+        power = light_data.energy
+    else:
+        power = (light_data.energy / 0.03048**-2) / div
+    
+    # Tool can't read light info if power lower than 0.0001
+    power = max(0.0001, power)
+
+    return power

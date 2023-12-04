@@ -698,6 +698,8 @@ class NWO_FoundryPanelProps(Panel):
                 col.label(text="Light power is very low", icon='ERROR')
                 col.label(text="For best results match the power of the light in")
                 col.label(text="Cycles to how you'd like it to appear in game")
+            else:
+                col.prop(nwo, 'light_intensity', text="Intensity")
 
             if data.type == 'SPOT' and h4:
                 col.separator()
@@ -1141,6 +1143,8 @@ class NWO_FoundryPanelProps(Panel):
                 "_connected_geometry_marker_type_pathfinding_sphere",
             ):
                 if poll_ui(("MODEL", "SKY")):
+                    if nwo.marker_type_ui in ('_connected_geometry_marker_type_model', '_connected_geometry_marker_type_garbage', '_connected_geometry_marker_type_effects'):
+                        col.prop(nwo, 'marker_model_group', text="Marker Group")
                     row = col.row()
                     sub = col.row(align=True)
                     if not nwo.marker_all_regions_ui:

@@ -41,6 +41,7 @@ from ..icons import get_icon_id
 from ..utils.nwo_utils import (
     clean_tag_path,
     dot_partition,
+    calc_light_intensity,
     get_prop_from_collection,
     is_corinth,
     nwo_enum,
@@ -465,6 +466,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         ],
         options=set(),
     )
+    
     # MAIN
     proxy_instance: BoolProperty(
         name="Proxy Instance",
@@ -1513,6 +1515,23 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Associate this marker with all regions rather than a specific one",
         default=True,
     )
+    
+    def get_marker_model_group(self):
+        stripped_name = dot_partition(self.id_data.name).strip("#_?$-")
+        if self.marker_type_ui == '_connected_geometry_marker_type_effects':
+            if not stripped_name.startswith('fx_'):
+                return "fx_" + stripped_name
+        elif self.marker_type_ui == '_connected_geometry_marker_type_garbage':
+            if not stripped_name.startswith('garbage_'):
+                return "garbage_" + stripped_name
+                
+        return stripped_name
+    
+    marker_model_group: StringProperty(
+        name="Marker Group",
+        description="The group this marker is assigned to. Defined by the Blender object name, ignoring any characters after the last period (if any) and legacy object prefix/suffixes [#_?$-]",
+        get=get_marker_model_group,
+    )
 
     def game_instance_clean_tag_path(self, context):
         self["marker_game_instance_tag_name_ui"] = clean_tag_path(
@@ -2198,33 +2217,15 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         description="",
         default=False,
     )
-
-    # def get_blend_light_color(self):
-    #     ob = self.id_data
-    #     if ob.type == 'LIGHT':
-    #         return self.Light_Color
-    #     else:
-    #         return (1.0, 1.0, 1.0)
-
-    # Light_Color: FloatVectorProperty(
-    #     name="Light Color",
-    #     options=set(),
-    #     description="",
-    #     default=(1.0, 1.0, 1.0),
-    #     subtype='COLOR',
-    #     min=0.0,
-    #     max=1.0,
-    #     get=get_blend_light_color,
-    # )
+    
+    def get_light_intensity(self):
+        return calc_light_intensity(self.id_data)
 
     light_intensity: FloatProperty(
         name="Light Intensity",
         options=set(),
-        description="",
-        default=1,
-        min=0.0,
-        soft_max=10.0,
-        subtype="FACTOR",
+        description="The intensity of this light expressed in the units the game uses",
+        get=get_light_intensity,
     )
 
     light_use_clipping: BoolProperty(
