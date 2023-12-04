@@ -206,7 +206,7 @@ class NWOImporter():
         name = dot_partition(ob.name)
         nwo = ob.nwo
         if is_model:
-            permutation, region = name.split(':')
+            region, permutation = name.split(':')
             self.set_region(ob, region)
             self.set_permutation(ob, permutation)
         else:
