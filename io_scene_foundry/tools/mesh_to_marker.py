@@ -219,8 +219,8 @@ class NWO_MeshToMarker(bpy.types.Operator):
                     marker.parent_bone = ob.parent_bone
 
             marker.matrix_world = ob.matrix_world
-            marker.nwo.region_name_ui = ob.region_name_ui
-            marker.nwo.permutation_name_ui = ob.permutation_name_ui
+            marker.nwo.region_name_ui = ob.nwo.region_name_ui
+            marker.nwo.permutation_name_ui = ob.nwo.permutation_name_ui
             ob_length = max(ob.dimensions.x, ob.dimensions.y, ob.dimensions.z)
             if ob_length == ob.dimensions.x:
                 ob_length_scaled = ob_length / ob.scale.x
