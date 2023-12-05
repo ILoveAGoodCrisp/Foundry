@@ -90,7 +90,7 @@ class NWO_UL_Permutations(UIList):
             layout.label(text="", translate=False, icon_value=icon)
 
 class NWO_SetUnitScale(NWO_Op):
-    """Sets up the scene for Halo: Sets the unit scale to match Halo's and sets the frame rate to 30fps"""
+    """Sets up the scene for Halo: Sets the unit scale to match Halo"""
 
     bl_idname = "nwo.set_unit_scale"
     bl_label = "Set Halo Scene"
@@ -102,9 +102,6 @@ class NWO_SetUnitScale(NWO_Op):
         return context.scene
 
     def execute(self, context):
-        # Set the frame rate to 30
-        if self.scale != 1.0:
-            context.scene.render.fps = 30
         # define the Halo scale
         # Apply scale to clipping in all windows if halo_scale has not already been set
         current_scale = context.scene.unit_settings.scale_length
@@ -208,6 +205,8 @@ class NWO_AssetMaker(NWO_Op):
             os.makedirs(os.path.dirname(blend_save_path), True)
         else:
             blend_save_path = os.path.join(asset_folder, asset_name + ".blend")
+            
+        context.scene.render.fps = 30
 
         bpy.ops.wm.save_as_mainfile(filepath=blend_save_path)
 
