@@ -71,10 +71,6 @@ class NWOObject:
             # if self.bungie_object_type == "_connected_geometry_object_type_marker":
             #     self.bungie_local_space_matrix = "1.000000 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000 0.000000 1.000000 540.962188720703125 -8.136127471923828 63.72357177734375"
 
-    def sethalo(self, parameter, value):
-        setattr(self, f"{P}{parameter}", value)
-        # self.sethalo("object_type", self.object_type())
-
     def cleanup(self):
         del self.ob
         del self.data
@@ -90,7 +86,7 @@ class NWOObject:
         return self.halo.object_type
 
     def object_ID(self):
-        # Generate a seeded GUID based off object name. This way objects can retain their IDs and as blender objects must be unique, a unique ID is guaranteed.
+        # Generate a seeded GUID based off object name. This way objects can retain their IDs between exports and as blender object names must be unique, a unique ID is guaranteed.
         rnd = random.Random()
         rnd.seed(self.name)
         obj_id = str(uuid.UUID(int=rnd.getrandbits(128)))

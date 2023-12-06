@@ -215,6 +215,6 @@ def get_glob_from_prop(prop):
         case 'gun_model_path':
             return "*.render_model"
         case 'shader_path':
-            return "*.material;*.shader"
+            return "*.material;*.shade*"
         case _:
             return "*"
