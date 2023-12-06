@@ -51,7 +51,7 @@ class NWOObject:
         self.name = ob.name
         self.halo = ob.nwo
         self.sidecar_type = sidecar_type
-        self.not_bungie_game = is_corinth()
+        self.corinth = is_corinth()
         self.model_armature = model_armature
         self.world_frame = world_frame
         self.asset_name = asset_name
@@ -81,7 +81,7 @@ class NWOObject:
         del self.name
         del self.halo
         del self.sidecar_type
-        del self.not_bungie_game
+        del self.corinth
         del self.model_armature
         del self.world_frame
         del self.asset_name
@@ -223,7 +223,7 @@ class NWOLight(NWOObject):
         self.bungie_light_color = self.light_color()
         self.bungie_light_intensity = self.light_intensity()
 
-        if self.not_bungie_game:
+        if self.corinth:
             # H4 ONLY
             self.bungie_light_mode = self.light_mode()
             self.bungie_lighting_mode = self.lighting_mode()
@@ -326,7 +326,7 @@ class NWOLight(NWOObject):
         if light_type == "SUN":
             return "_connected_geometry_light_type_directional"
         elif light_type == "POINT":
-            if self.not_bungie_game:
+            if self.corinth:
                 return "_connected_geometry_light_type_point"
             else:
                 return "_connected_geometry_light_type_omni"
@@ -348,7 +348,7 @@ class NWOLight(NWOObject):
         return color_3p_str(self.ob.data.color)
 
     def light_intensity(self):
-        if self.not_bungie_game:
+        if self.corinth:
             div = 10
         else:
             div = 300
@@ -364,25 +364,25 @@ class NWOLight(NWOObject):
         return jstr(power)
 
     def light_far_attenuation_start(self):
-        if self.not_bungie_game:
+        if self.corinth:
             return jstr(self.data.nwo.light_far_attenuation_starth4)
         else:
             return jstr(self.data.nwo.light_far_attenuation_start * 100)
 
     def light_far_attenuation_end(self):
-        if self.not_bungie_game:
+        if self.corinth:
             return jstr(self.data.nwo.light_far_attenuation_endh4)
         else:
             return jstr(self.data.nwo.light_far_attenuation_end * 100)
 
     def light_near_attenuation_start(self):
-        if self.not_bungie_game:
+        if self.corinth:
             return jstr(self.data.nwo.light_near_attenuation_starth4)
         else:
             return jstr(self.data.nwo.light_near_attenuation_start * 100)
 
     def light_near_attenuation_end(self):
-        if self.not_bungie_game:
+        if self.corinth:
             return jstr(self.data.nwo.light_near_attenuation_endh4)
         else:
             return jstr(self.data.nwo.light_near_attenuation_end * 100)
@@ -586,7 +586,7 @@ class NWOFrame(NWOObject):
         self.bungie_frame_ID1 = self.frame_ID1()
         self.bungie_frame_ID2 = self.frame_ID2()
 
-        if self.not_bungie_game:
+        if self.corinth:
             self.bungie_frame_world = self.frame_world()
 
         self.cleanup()
@@ -637,7 +637,7 @@ class NWOMarker(NWOObject):
                 self.bungie_marker_game_instance_variant_name = (
                     self.halo.marker_game_instance_tag_variant_name
                 )
-            if self.not_bungie_game and self.halo.marker_game_instance_run_scripts:
+            if self.corinth and self.halo.marker_game_instance_run_scripts:
                 self.bungie_marker_game_instance_run_scripts = (
                     self.halo.marker_game_instance_run_scripts
                 )
@@ -711,7 +711,7 @@ class NWOMarker(NWOObject):
                     )
 
         # H4 only props
-        if self.not_bungie_game:
+        if self.corinth:
             # special game instance types
             if self.bungie_marker_type == "_connected_geometry_marker_type_cheap_light":
                 self.bungie_marker_cheap_light_tag_name = (
@@ -731,7 +731,7 @@ class NWOMarker(NWOObject):
 
             # h4 has hint length
             elif self.bungie_marker_type == "_connected_geometry_marker_type_hint":
-                if self.not_bungie_game and self.halo.marker_hint_length:
+                if self.corinth and self.halo.marker_hint_length:
                     self.bungie_marker_hint_length = self.halo.marker_hint_length
 
             # scenario place fx
@@ -775,7 +775,9 @@ class NWOMesh(NWOObject):
             self.bungie_face_region = self.halo.region_name
 
         # PROPS FOR MESH TYPES WHICH HAVE RENDERED FACES:
-        if self.halo.face_type:
+        if self.corinth and self.sidecar_type == 'SCENARIO' and self.bungie_mesh_type == '_connected_geometry_mesh_type_default':
+            self.bungie_face_type = '_connected_geometry_face_type_sky'
+        elif self.halo.face_type:
             self.bungie_face_type = self.halo.face_type
             
         if self.halo.sky_permutation_index:
@@ -796,13 +798,12 @@ class NWOMesh(NWOObject):
             self.bungie_no_shadow = self.halo.no_shadow
         if self.halo.precise_position:
             self.bungie_precise_position = self.halo.precise_position
+            self.bungie_mesh_additional_compression = '_connected_geometry_mesh_additional_compression_force_off'
             if self.bungie_mesh_type == "_connected_geometry_mesh_type_poop":
                 self.bungie_mesh_poop_precise_geometry = "1"
         if self.halo.mesh_tessellation_density:
             self.bungie_mesh_tessellation_density = self.halo.mesh_tessellation_density
-        if self.halo.mesh_compression:
-            self.bungie_mesh_additional_compression = self.halo.mesh_compression
-        if self.not_bungie_game:
+        if self.corinth:
             if self.halo.no_pvs:
                 self.bungie_invisible_to_pvs = self.halo.no_pvs
             if self.halo.no_lightmap:
@@ -828,13 +829,13 @@ class NWOMesh(NWOObject):
             "_connected_geometry_mesh_type_poop",
         ):
             if (
-                self.not_bungie_game
+                self.corinth
                 and self.bungie_mesh_type == "_connected_geometry_mesh_type_poop"
                 and self.halo.poop_rain_occluder == "1"
             ):
                 self.bungie_mesh_poop_is_rain_occluder = "1"
             else:
-                if self.not_bungie_game:
+                if self.corinth:
                     self.bungie_mesh_poop_collision_type = (
                         self.mesh_poop_collision_type()
                     )
@@ -868,7 +869,7 @@ class NWOMesh(NWOObject):
                     # self.bungie_mesh_poop_fade_range_end = self.mesh_poop_fade_range_end()
 
                     # This needs to be Reach only otherwise tool complains. However, the flag is still in use in the UI as it is instead used to set instanced collision type to none
-                    if self.halo.poop_render_only == "1" and not self.not_bungie_game:
+                    if self.halo.poop_render_only == "1" and not self.corinth:
                         self.bungie_mesh_poop_is_render_only = "1"
 
                     if self.halo.poop_chops_portals:
@@ -891,7 +892,7 @@ class NWOMesh(NWOObject):
                     # self.bungie_mesh_poop_predominant_shader_name = self.mesh_poop_predominant_shader_name()
                     # self.bungie_mesh_poop_light_channel_flags = self.mesh_poop_light_channel_flags()
                     # H4 only
-                    if self.not_bungie_game:
+                    if self.corinth:
                         if (
                             self.bungie_mesh_poop_imposter_policy
                             != "_connected_poop_instance_imposter_policy_never"
@@ -1009,7 +1010,7 @@ class NWOMesh(NWOObject):
             # self.bungie_lightmap_ignore_default_resolution_scale = "1"
             self.bungie_lightmap_resolution_scale = self.halo.lightmap_resolution_scale
         # self.bungie_lightmap_chart_group = self.lightmap_chart_group()
-        # if self.not_bungie_game:
+        # if self.corinth:
         #     self.bungie_lightmap_photon_fidelity = self.halo.lightmap_photon_fidelity
         if self.ob.data.nwo.lightmap_type_active:
             self.bungie_lightmap_type = self.halo.lightmap_type
@@ -1024,7 +1025,7 @@ class NWOMesh(NWOObject):
             )
         if self.ob.data.nwo.lightmap_lighting_from_both_sides_active:
             self.bungie_lightmap_lighting_from_both_sides = "1"
-            # if self.not_bungie_game:
+            # if self.corinth:
             #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
         # EMMISSIVE PROPERTIES
         if self.halo.material_lighting_emissive_power:

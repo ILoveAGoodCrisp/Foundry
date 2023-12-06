@@ -2002,14 +2002,7 @@ class PrepareScene:
                     nwo.decal_offset = "1"
                 # if asset_type in ('MODEL', 'SKY') and h4 and nwo_data.uvmirror_across_entire_model_ui:
                 #     nwo.uvmirror_across_entire_model = "1"
-            if asset_type in ("SCENARIO", "PREFAB"):
-                h4_structure = (
-                    h4
-                    and nwo.mesh_type == "_connected_geometry_mesh_type_default"
-                )
-                if h4_structure:
-                    nwo.face_type = "_connected_geometry_face_type_sky"
-                        
+            if asset_type in ("SCENARIO", "PREFAB"):   
                 if nwo_data.no_shadow_ui:
                     nwo.no_shadow = "1"
                 if h4:
@@ -2023,10 +2016,6 @@ class PrepareScene:
                     nwo.lightmap_resolution_scale = jstr(
                         nwo_data.lightmap_resolution_scale_ui
                     )
-                # if nwo.lightmap_photon_fidelity_active: TODO Restore this
-                #     nwo.lightmap_photon_fidelity = (
-                #         nwo.lightmap_photon_fidelity_ui
-                #     )
                 if nwo_data.lightmap_type_active:
                     nwo.lightmap_type = nwo_data.lightmap_type_ui
                 if nwo_data.lightmap_analytical_bounce_modifier_active:
@@ -3120,7 +3109,6 @@ class PrepareScene:
             nwo.object_type = '_connected_geometry_object_type_mesh'
             nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if h4:
-                nwo.face_type = '_connected_geometry_face_type_sky'
                 structure_mesh.materials.append(override_mat)
             else:
                 structure_mesh.materials.append(self.sky_mat)
