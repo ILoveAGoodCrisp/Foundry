@@ -27,7 +27,6 @@
 from math import radians
 import os
 import random
-import typing
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
@@ -690,55 +689,43 @@ class NWO_FoundryPanelProps(Panel):
 
             nwo = data.nwo
             col = flow.column()
+            if data.type == 'AREA':
+                col.label(text="Area lights not currently supported", icon="ERROR")
+                return
 
             col.prop(data, "color")
-            col.prop(data, "energy")
+            col.prop(nwo, 'light_intensity', text="Intensity")
             if data.energy < 11 and data.type != 'SUN':
                 # Warn user about low light power. Need the light scaled to Halo proportions
-                col.label(text="Light power is very low", icon='ERROR')
+                col.label(text="Light itensity is very low", icon='ERROR')
                 col.label(text="For best results match the power of the light in")
                 col.label(text="Cycles to how you'd like it to appear in game")
-            else:
-                col.prop(nwo, 'light_intensity', text="Intensity")
 
             if data.type == 'SPOT' and h4:
                 col.separator()
                 col.prop(data, "spot_size", text="Cone Size")
                 col.prop(data, "spot_blend", text="Cone Blend", slider=True)
                 col.prop(data, "show_cone")
-            elif data.type == 'AREA':
-                col.label(text="Area lights not currently supported", icon="ERROR")
-                return
 
             col.separator()
             if is_corinth(context):
-                # col.prop(ob_nwo, 'Light_Color', text='Color')
                 row = col.row()
                 row.prop(nwo, "light_mode", expand=True)
-                row = col.row()
-                row.prop(nwo, "light_lighting_mode", expand=True)
-                # col.prop(nwo, 'light_type_h4')
                 if data.type == "SPOT":
                     col.separator()
                     row = col.row()
                     row.prop(nwo, "light_cone_projection_shape", expand=True)
-                    # col.prop(nwo, 'light_inner_cone_angle')
-                    # col.prop(nwo, 'light_outer_cone_angle')
 
                 col.separator()
-                # col.prop(nwo, 'Light_IntensityH4')
-                if (
-                    nwo.light_lighting_mode
-                    == "_connected_geometry_lighting_mode_artistic"
-                ):
-                    col.prop(nwo, "light_near_attenuation_starth4", text='Attenuation Start')
-                    col.prop(nwo, "light_near_attenuation_endh4", text='Attenuation End')
-
+                
+                col.prop(nwo, "light_far_attenuation_start", text='Light Falloff Start')
+                col.prop(nwo, "light_far_attenuation_end", text='Light Falloff End')
+                
                 col.separator()
 
                 if nwo.light_mode == "_connected_geometry_light_mode_dynamic":
-                    col.prop(nwo, "light_far_attenuation_starth4", text='Camera Fade Start')
-                    col.prop(nwo, "light_far_attenuation_endh4", text='Camera Fade End')
+                    col.prop(nwo, "light_camera_fade_start", text='Camera Fade Start')
+                    col.prop(nwo, "light_camera_fade_end", text='Camera Fade End')
 
                     col.separator()
 
@@ -765,8 +752,6 @@ class NWO_FoundryPanelProps(Panel):
                         col.prop(nwo, "light_specular_power")
                         col.prop(nwo, "light_specular_intensity")
 
-                    # col = layout.column(heading="Flags")
-                    # sub = col.column(align=True)
                 else:
                     row = col.row()
                     row.prop(nwo, "light_jitter_quality", expand=True)
@@ -778,30 +763,15 @@ class NWO_FoundryPanelProps(Panel):
                     col.prop(nwo, "light_amplification_factor")
 
                     col.separator()
-                    # col.prop(nwo, 'light_attenuation_near_radius')
-                    # col.prop(nwo, 'light_attenuation_far_radius')
-                    # col.prop(nwo, 'light_attenuation_power')
-                    # col.prop(nwo, 'light_tag_name')
                     col.prop(nwo, "light_indirect_only")
                     col.prop(nwo, "light_static_analytic")
 
-                # col.prop(nwo, 'light_intensity_off', text='Light Intensity Set Via Tag')
-                # if nwo.light_lighting_mode == '_connected_geometry_lighting_mode_artistic':
-                #     col.prop(nwo, 'near_attenuation_end_off', text='Near Attenuation Set Via Tag')
-                # if nwo.light_type_h4 == '_connected_geometry_light_type_spot':
-                #     col.prop(nwo, 'outer_cone_angle_off', text='Outer Cone Angle Set Via Tag')
-
-                # col.prop(nwo, 'Light_Fade_Start_Distance')
-                # col.prop(nwo, 'Light_Fade_End_Distance')
                 
 
             else:
-                # col.prop(nwo, "light_type_override", text="Type")
 
                 col.prop(nwo, "light_game_type", text="Game Type")
                 col.prop(nwo, "light_shape", text="Shape")
-                # col.prop(nwo, 'Light_Color', text='Color')
-                # col.prop(nwo, "light_intensity", text="Intensity")
 
                 col.separator()
 
@@ -863,12 +833,12 @@ class NWO_FoundryPanelProps(Panel):
                 col.prop(
                     nwo,
                     "light_near_attenuation_start",
-                    text="Near Attenuation Start",
+                    text="Light Activation Start",
                 )
                 col.prop(
                     nwo,
                     "light_near_attenuation_end",
-                    text="Near Attenuation End",
+                    text="Light Activation End",
                 )
 
                 col.separator()
@@ -876,9 +846,9 @@ class NWO_FoundryPanelProps(Panel):
                 col.prop(
                     nwo,
                     "light_far_attenuation_start",
-                    text="Far Attenuation Start",
+                    text="Light Falloff Start",
                 )
-                col.prop(nwo, "light_far_attenuation_end", text="Far Attenuation End")
+                col.prop(nwo, "light_far_attenuation_end", text="Light Falloff End")
 
                 col.separator()
                 row = col.row()
@@ -2954,6 +2924,10 @@ class NWO_ScaleModels_Add(Operator, AddObjectHelper):
     bl_label = "Halo Scale Model"
     bl_options = {"REGISTER", "UNDO"}
     bl_description = "Create a new Halo Scale Model Object"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT'
 
     game: EnumProperty(
         default="reach",
@@ -4780,304 +4754,6 @@ class NWO_CopyHaloProps(Panel):
         col.scale_y = 1.5
         col.operator("nwo.props_copy")
 
-
-class NWO_CopyHaloProps_Copy(Operator):
-    """Copies all halo properties from the active object to selected objects"""
-
-    bl_idname = "nwo.props_copy"
-    bl_label = "Copy Properties"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Copy Halo Properties from the active object to selected objects"
-
-    @classmethod
-    def poll(cls, context):
-        return len(context.selected_objects) > 1
-
-    def execute(self, context):
-        from .copy_props import CopyProps
-
-        return CopyProps(
-            self.report,
-            context.view_layer.objects.active,
-            context.selected_objects,
-        )
-
-
-class NWO_AMFHelper(Panel):
-    bl_label = "Object Importer"
-    bl_idname = "NWO_PT_AMFHelper"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_PropertiesManager"
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("import_helper"))
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.operator("nwo.amf_assign")
-
-
-class NWO_AMFHelper_Assign(Operator):
-    """Sets regions and permutations for all scene objects which use the AMF naming convention [region:permutation]"""
-
-    bl_idname = "nwo.amf_assign"
-    bl_label = "Set Regions/Perms"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Sets regions and permutations for all scene objects which use the AMF naming convention [region:permutation]"
-
-    @classmethod
-    def poll(cls, context):
-        return (
-            context.active_object is not None
-            and context.object.type == "MESH"
-            and context.object.mode == "OBJECT"
-        )
-
-    def execute(self, context):
-        from .amf_helper import amf_assign
-
-        return amf_assign(context, self.report)
-
-
-class NWO_JMSHelper(Panel):
-    bl_label = "JMS Helper"
-    bl_idname = "NWO_PT_JMSHelper"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_PropertiesManager"
-
-    @classmethod
-    def poll(cls, context):
-        return False
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.operator("nwo.jms_assign", text="JMS -> Foundry")
-
-
-class NWO_JMSHelper_Assign(Operator):
-    """Splits the active object into it's face maps and assigns a new name for each new object to match the AMF naming convention, as well as setting the proper region & permutation. Collision and physics prefixes are retained"""
-
-    bl_idname = "nwo.jms_assign"
-    bl_label = "JMS -> NWO Asset"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Splits the active object into it's face maps and assigns a new name for each new object to match the AMF naming convention, as well as setting the proper region & permutation. Collision and physics prefixes are retained"
-
-    @classmethod
-    def poll(cls, context):
-        return (
-            context.active_object is not None
-            and context.object.type == "MESH"
-            and context.object.mode == "OBJECT"
-        )
-
-    def execute(self, context):
-        from .jms_helper import jms_assign
-
-        return jms_assign(context, self.report)
-
-
-class NWO_AMFHelper(Panel):
-    bl_label = "Object Importer"
-    bl_idname = "NWO_PT_AMFHelper"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_PropertiesManager"
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("import_helper"))
-
-    def draw(self, context):
-        layout = self.layout
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.operator("nwo.amf_assign")
-
-class NWO_AnimationTools(Panel):
-    bl_label = "Halo Animation Tools"
-    bl_idname = "NWO_PT_AnimationTools"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    # bl_options = {'DEFAULT_CLOSED'}
-    bl_category = "Foundry"
-
-    def draw(self, context):
-        layout = self.layout
-
-
-class NWO_GunRigMaker(Panel):
-    bl_label = "Rig gun to FP Arms"
-    bl_idname = "NWO_PT_GunRigMaker"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_AnimationTools"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.operator("nwo.build_rig")
-
-
-class NWO_GunRigMaker_Start(Operator):
-    """Joins a gun armature to an first person armature and builds an appropriate rig. Ensure both the FP and Gun rigs are selected before use"""
-
-    bl_idname = "nwo.build_rig"
-    bl_label = "Rig Gun to FP"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Joins a gun armature to an first person armature and builds an appropriate rig. Ensure both the FP and Gun rigs are selected before use"
-
-    @classmethod
-    def poll(cls, context):
-        return (
-            context.active_object is not None
-            and context.object.type == "ARMATURE"
-            and context.object.mode == "OBJECT"
-            and len(context.selected_objects) > 1
-        )
-
-    def execute(self, context):
-        from .rig_gun_to_fp import build_rig
-
-        return build_rig(self.report, context.selected_objects)
-
-
-class NWO_MaterialsManager(Panel):
-    bl_label = "Halo Material Tools"
-    bl_idname = "NWO_PT_MaterialTools"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    # bl_options = {'DEFAULT_CLOSED'}
-    bl_category = "Foundry"
-
-    def draw(self, context):
-        layout = self.layout
-
-
-class NWO_BitmapExport(Panel):
-    bl_label = "Bitmap Exporter"
-    bl_idname = "NWO_PT_BitmapExport"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_MaterialTools"
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("texture_export"))
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo_bitmap_export = scene.nwo_bitmap_export
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.scale_y = 1.5
-        col.operator("nwo.export_bitmaps")
-        col.separator()
-        col = flow.column(heading="Overwrite")
-        col.prop(scene_nwo_bitmap_export, "overwrite", text="Existing")
-        row = col.row()
-        row.prop(scene_nwo_bitmap_export, "bitmaps_selection", expand=True)
-        col.prop(scene_nwo_bitmap_export, "export_type")
-
-class NWO_Shader(Panel):
-    bl_label = "Shader Exporter"
-    bl_idname = "NWO_PT_Shader"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_MaterialTools"
-
-    @classmethod
-    def poll(cls, context):
-        return not is_corinth()
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("material_exporter"))
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        nwo_shader_build = scene.nwo_shader_build
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.scale_y = 1.5
-        if is_corinth():
-            col.operator("nwo.build_shader", text="Build Materials")
-        else:
-            col.operator("nwo.build_shader", text="Build Shaders")
-        col.separator()
-        col = flow.column(heading="Update")
-        col.prop(nwo_shader_build, "update", text="Existing")
-        row = col.row()
-        row.prop(nwo_shader_build, "material_selection", expand=True)
-
-
-class NWO_Material(NWO_Shader):
-    bl_label = "Material Exporter"
-    bl_idname = "NWO_PT_Material"
-
-    @classmethod
-    def poll(cls, context):
-        return is_corinth(context)
-
 class NWO_Shader_BuildSingle(Operator):
     bl_idname = "nwo.build_shader_single"
     bl_label = ""
@@ -6143,7 +5819,6 @@ classeshalo = (
     NWO_OT_PanelUnpin,
     NWO_FoundryPanelProps,
     NWO_FoundryPanelPopover,
-    # NWO_FoundryPanelSetsViewer,
     NWO_HaloExport,
     NWO_HaloExportSettings,
     NWO_HaloExportSettingsScope,
@@ -6159,28 +5834,14 @@ classeshalo = (
     NWO_HaloLauncher_Sapien,
     NWO_HaloLauncher_TagTest,
     NWO_HaloLauncherPropertiesGroup,
-    # NWO_PropertiesManager,
-    # NWO_CollectionManager,
     NWO_CollectionManager_CreateMove,
     NWO_CollectionManager_Create,
-    # NWO_CopyHaloProps,
-    # NWO_CopyHaloProps_Copy, #unregistered until this operator is fixed
     NWO_AutoSeam,
-    # NWO_MaterialsManager,
-    # NWO_MaterialFinder,
     NWO_ShaderFinder,
     NWO_ShaderFinder_FindSingle,
     NWO_ShaderFinder_Find,
     NWO_HaloShaderFinderPropertiesGroup,
-    # NWO_AMFHelper,
-    NWO_AMFHelper_Assign,
-    # NWO_JMSHelper,
-    # NWO_JMSHelper_Assign,
-    # NWO_AnimationTools,
-    # NWO_ArmatureCreator,
     NWO_ArmatureCreator_Create,
-    # NWO_Material,
-    # NWO_Shader,
     NWO_ListMaterialShaders,
     NWO_Shader_BuildSingle,
     NWO_ShaderPropertiesGroup,
@@ -6193,8 +5854,6 @@ classeshalo = (
     NWO_ProjectChooser,
     NWO_ProjectChooserMenuDisallowNew,
     NWO_ProjectChooserMenu,
-    # NWO_GunRigMaker,
-    # NWO_GunRigMaker_Start,
     NWO_DuplicateMaterial,
     NWO_AddPoseBones,
     NWO_ValidateRig,

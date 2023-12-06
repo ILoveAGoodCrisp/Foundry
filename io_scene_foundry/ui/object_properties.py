@@ -39,6 +39,7 @@ from bpy.types import PropertyGroup
 import bpy
 from ..icons import get_icon_id
 from ..utils.nwo_utils import (
+    calc_light_energy,
     clean_tag_path,
     dot_partition,
     calc_light_intensity,
@@ -2134,51 +2135,61 @@ class NWO_LightPropertiesGroup(PropertyGroup):
             ("_connected_geometry_light_shape_rectangle", "Rectangle", ""),
         ],
     )
-
-    light_near_attenuation: BoolProperty(
-        name="Light Uses Near Attenuation",
-        options=set(),
-        description="",
-        default=True,
-    )
-
-    light_far_attenuation: BoolProperty(
-        name="Light Uses Far Attenuation",
-        options=set(),
-        description="",
-        default=True,
-    )
+    
+    def update_light_near_attenuation_start(self, context):
+        if self.light_near_attenuation_start > self.light_near_attenuation_end:
+            self.light_near_attenuation_end = self.light_near_attenuation_start
 
     light_near_attenuation_start: FloatProperty(
-        name="Light Near Attenuation Start Distance",
+        name="Light Activation Start",
         options=set(),
-        description="The power of the light remains zero up until this point  (in world units)",
+        description="The power of the light remains zero up until this point (in world units)",
         default=0,
         min=0,
+        update=update_light_near_attenuation_start,
     )
+    
+    def update_light_near_attenuation_end(self, context):
+        if self.light_near_attenuation_end > self.light_far_attenuation_start:
+            self.light_far_attenuation_start = self.light_near_attenuation_end
+        elif self.light_near_attenuation_end < self.light_near_attenuation_start:
+            self.light_near_attenuation_start = self.light_near_attenuation_end
 
     light_near_attenuation_end: FloatProperty(
-        name="Light Near Attenuation End Distance",
+        name="Light Activation End",
         options=set(),
-        description="From the starting near attenuation, light power gradually increases up until the end point  (in world units)",
+        description="From the light activation start, light power gradually increases up until the end point (in world units).",
         default=0,
         min=0,
+        update=update_light_near_attenuation_end,
     )
+    
+    def update_light_far_attenuation_start(self, context):
+        if self.light_far_attenuation_start > self.light_far_attenuation_end:
+            self.light_far_attenuation_end = self.light_far_attenuation_start
+        elif self.light_far_attenuation_start < self.light_near_attenuation_end:
+            self.light_near_attenuation_end = self.light_far_attenuation_start
 
     light_far_attenuation_start: FloatProperty(
-        name="Light Near Attenuation Start Distance",
+        name="Light Falloff Start",
         options=set(),
         description="After this point, the light will begin to lose power (in world units)",
-        default=5,
+        default=0,
         min=0,
+        update=update_light_far_attenuation_start,
     )
+    
+    def update_light_far_attenuation_end(self, context):
+        if self.light_far_attenuation_end < self.light_far_attenuation_start:
+            self.light_far_attenuation_start = self.light_far_attenuation_end
 
     light_far_attenuation_end: FloatProperty(
-        name="Light Near Attenuation Start Distance",
+        name="Light Falloff End",
         options=set(),
-        description="From the far attenuation start, the light will gradually lose power until it reaches zero by the end point (in world units)",
-        default=10,
+        description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point (in world units). Setting this to 0 will let the game automatically calculate light falloff based on intensity",
+        default=0,
         min=0,
+        update=update_light_far_attenuation_end,
     )
 
     light_volume_distance: FloatProperty(
@@ -2220,13 +2231,23 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     
     def get_light_intensity(self):
         return calc_light_intensity(self.id_data)
+    
+    def set_light_intensity(self, value):
+        self['light_intensity_value'] = value
+        
+    def update_light_intensity(self, context):
+        self.id_data.energy = calc_light_energy(self.id_data, self.light_intensity_value)
 
     light_intensity: FloatProperty(
         name="Light Intensity",
         options=set(),
         description="The intensity of this light expressed in the units the game uses",
         get=get_light_intensity,
+        set=set_light_intensity,
+        update=update_light_intensity,
     )
+    
+    light_intensity_value: FloatProperty(options={'HIDDEN'})
 
     light_use_clipping: BoolProperty(
         name="Light Uses Clipping",
@@ -2471,60 +2492,6 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         description="",
     )
 
-    # def get_light_type_h4(self):
-    #     light_type = self.id_data.data.type
-    #     if light_type == 'SUN':
-    #         return 2
-    #     elif light_type == 'POINT':
-    #         return 0
-    #     else:
-    #         return 1
-
-    # # def set_light_type_h4(self, value):
-    # #     self["light_type_h4"] = value
-
-    # light_type_h4: EnumProperty(
-    #     name = "Light Type",
-    #     options=set(),
-    #     description = "",
-    #     get=get_light_type_h4,
-    #     # set=set_light_type_h4,
-    #     default = "_connected_geometry_light_type_point",
-    #     items=[ ('_connected_geometry_light_type_point', "Point", ""),
-    #             ('_connected_geometry_light_type_spot', "Spot", ""),
-    #             # ('_connected_geometry_light_type_directional', "Directional", ""),
-    #             ('_connected_geometry_light_type_sun', "Sun", ""),
-    #            ]
-    #     )
-
-    # def get_light_outer_cone_angle(self):
-    #     return max(160, radians(self.id_data.data.spot_size))
-
-    # light_outer_cone_angle: FloatProperty(
-    #     name="Outer Cone Angle",
-    #     options=set(),
-    #     description="",
-    #     default=80,
-    #     min=0.0,
-    #     max=160.0,
-    #     get=get_light_outer_cone_angle,
-    # )
-
-    light_lighting_mode: EnumProperty(
-        name="Lighting Mode",
-        options=set(),
-        description="",
-        default="_connected_geometry_lighting_mode_artistic",
-        items=[
-            ("_connected_geometry_lighting_mode_artistic", "Artistic", ""),
-            (
-                "_connected_geometry_lighting_physically_correct",
-                "Physically Correct",
-                "",
-            ),
-        ],
-    )
-
     light_specular_power: FloatProperty(
         name="Specular Power",
         options=set(),
@@ -2540,19 +2507,22 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         default=0,
         min=0.0,
     )
-
-    # def get_light_inner_cone_angle(self):
-    #     return max(160, radians(self.id_data.data.spot_size))
-
-    # light_inner_cone_angle: FloatProperty(
-    #     name="Inner Cone Angle",
-    #     options=set(),
-    #     description="",
-    #     default=50,
-    #     min=0.0,
-    #     max=160,
-    #     get=get_light_inner_cone_angle,
-    # )
+    
+    light_camera_fade_start: FloatProperty(
+        name="Camera Fade Start",
+        description="Distance at which this light begins to fade from the camera view",
+        options=set(),
+        default=0,
+        min=0,
+    )
+    
+    light_camera_fade_end: FloatProperty(
+        name="Camera Fade End",
+        description="Distance at which this light is completely invisible from the camera view",
+        options=set(),
+        default=0,
+        min=0,
+    )
 
     light_cinema: EnumProperty(
         name="Cinematic Render",
@@ -2763,68 +2733,6 @@ class NWO_LightPropertiesGroup(PropertyGroup):
             ("_connected_geometry_light_mode_analytic", "Analytic", ""),
         ],
     )
-
-    light_near_attenuation_starth4: FloatProperty(
-        name="Attenuation Start Distance",
-        options=set(),
-        description="",
-        default=0.2,
-        min=0,
-    )
-
-    light_near_attenuation_endh4: FloatProperty(
-        name="Attenuation End Distance",
-        options=set(),
-        description="",
-        default=10,
-        min=0,
-    )
-
-    light_far_attenuation_starth4: FloatProperty(
-        name="Camera Distance Fade Start",
-        options=set(),
-        description="",
-        default=0,
-        min=0,
-    )
-
-    light_far_attenuation_endh4: FloatProperty(
-        name="Camera Distance Fade End",
-        options=set(),
-        description="",
-        default=0,
-        min=0,
-    )
-
-    # def update_blend_light_intensity_h4(self, context):
-    #     print("updooting")
-    #     ob = self.id_data
-    #     if ob.type == 'LIGHT':
-    #         if ob.data.type == 'SUN':
-    #             ob.data.energy = self.Light_IntensityH4
-    #         else:
-    #             ob.data.energy = self.Light_IntensityH4 * 10 * context.scene.unit_settings.scale_length ** -2 # mafs. Gets around unit scale altering the light intensity to unwanted values
-
-    # def get_light_intensity_h4(self):
-    #     if  self.id_data.type == 'LIGHT':
-    #         return (self.id_data.data.energy / 0.03048 ** -2) / 10
-    #     else:
-    #         50
-
-    # # def set_light_intensity_h4(self, value):
-    # #     self["Light_IntensityH4"] = value
-
-    # Light_IntensityH4: FloatProperty(
-    #     name="Light Intensity",
-    #     options=set(),
-    #     description="",
-    #     default=50,
-    #     min=0.0,
-    #     # get=get_light_intensity_h4,
-    #     # set=set_light_intensity_h4,
-    #     get=get_light_intensity_h4
-    # )
-
 
 # BONE PROPS
 # ----------------------------------------------------------

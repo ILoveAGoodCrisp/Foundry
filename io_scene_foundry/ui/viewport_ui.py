@@ -584,3 +584,14 @@ class NWO_ApplyTypeMarkerSingle(NWO_ApplyTypeMarker):
             ob.empty_display_type = display_type
         apply_prefix(ob, self.m_type, prefix_setting)
         return {"FINISHED"}
+
+class NWO_AddHaloLight(bpy.types.Operator):
+    bl_idname = "nwo.add_halo_light"
+    bl_label = "Add Halo Light"
+    bl_description = "Adds a light with power scaled to Halo's scale"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        bpy.ops.object.light_add(radius=1/context.scene.unit_settings.scale_length)
+        context.object.data.energy = 80729.3359375
+        return {"FINISHED"}

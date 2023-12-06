@@ -222,15 +222,21 @@ class NWOLight(NWOObject):
         if self.corinth:
             # H4 ONLY
             self.bungie_light_mode = self.light_mode()
-            self.bungie_lighting_mode = self.lighting_mode()
-            self.bungie_light_near_attenuation_start = (
-                self.light_near_attenuation_start()
-            )
-            self.bungie_light_near_attenuation_end = self.light_near_attenuation_end()
-            self.bungie_light_fade_start_distance = self.light_fade_start_distance()
-            self.bungie_light_fade_out_distance = self.light_fade_out_distance()
-            self.bungie_light_far_attenuation_start = self.light_far_attenuation_start()
-            self.bungie_light_far_attenuation_end = self.light_far_attenuation_end()
+            # H4 uses near_attenuation for general light fallout, and far_attenuation for camera fade on dynamic lights
+            self.bungie_light_near_attenuation_start = jstr(self.data.nwo.light_far_attenuation_start)
+            self.bungie_light_near_attenuation_end = jstr(self.data.nwo.light_far_attenuation_end)
+            self.bungie_light_far_attenuation_start = jstr(self.data.nwo.light_camera_fade_start)
+            self.bungie_light_far_attenuation_end = jstr(self.data.nwo.light_camera_fade_end)
+            
+            if float(self.bungie_light_near_attenuation_end):
+                self.bungie_lighting_mode = '_connected_geometry_lighting_mode_artistic'
+            else:
+                self.bungie_lighting_mode = '_connected_geometry_lighting_physically_correct'
+            
+            # Need to set these values else Tool won't write the light data. They do nothing else
+            # self.bungie_light_fade_start_distance = "0"
+            # self.bungie_light_fade_out_distance = "0"
+            
             # self.bungie_light_is_uber_light = self.is_uber_light()
             # self.bungie_light_indirect_only = self.light_indirect_only()
             # self.bungie_light_attenuation_near_radius = self.light_attenuation_near_radius()
@@ -269,20 +275,19 @@ class NWOLight(NWOObject):
             # self.bungie_light_tag_name = self.light_tag_name()
         else:
             # REACH ONLY
-            self.bungie_light_type_version = "1"
             self.bungie_light_game_type = self.light_game_type()
             self.bungie_light_shape = self.light_shape()
-            self.bungie_light_near_attenuation_start = (
-                self.light_near_attenuation_start()
-            )
+            self.bungie_light_near_attenuation_start = self.light_near_attenuation_start()
             self.bungie_light_near_attenuation_end = self.light_near_attenuation_end()
-            self.bungie_light_fade_start_distance = self.light_fade_start_distance()
-            self.bungie_light_fade_out_distance = self.light_fade_out_distance()
+            # self.bungie_light_fade_start_distance = self.light_fade_start_distance()
+            # self.bungie_light_fade_out_distance = self.light_fade_out_distance()
             self.bungie_light_far_attenuation_start = self.light_far_attenuation_start()
             self.bungie_light_far_attenuation_end = self.light_far_attenuation_end()
-            # self.bungie_light_use_near_attenuation = "1" # self.light_use_near_attenuation()
-            # self.bungie_light_use_far_attenuation = "1" #self.light_use_far_attenuation()
             self.bungie_light_ignore_bsp_visibility = self.light_ignore_bsp_visibility()
+            if float(self.bungie_light_far_attenuation_end):
+                self.bungie_light_type_version = "1"
+                if float(self.bungie_light_near_attenuation_end):
+                    self.bungie_light_use_near_attenuation = "1"
             # self.bungie_light_clipping_size_x_pos = None # not setting these currently
             # self.bungie_light_clipping_size_y_pos = None
             # self.bungie_light_clipping_size_z_pos = None
@@ -334,12 +339,6 @@ class NWOLight(NWOObject):
             self.data.nwo.light_sub_type == "_connected_geometry_lighting_sub_type_uber"
         )
 
-    def light_fade_start_distance(self):
-        return jstr(self.data.nwo.light_fade_start_distance)
-
-    def light_fade_out_distance(self):
-        return jstr(self.data.nwo.light_fade_end_distance)
-
     def light_color(self):
         return color_3p_str(self.ob.data.color)
 
@@ -361,25 +360,25 @@ class NWOLight(NWOObject):
 
     def light_far_attenuation_start(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_far_attenuation_starth4)
+            return jstr(self.data.nwo.light_far_attenuation_start)
         else:
             return jstr(self.data.nwo.light_far_attenuation_start * 100)
 
     def light_far_attenuation_end(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_far_attenuation_endh4)
+            return jstr(self.data.nwo.light_far_attenuation_end)
         else:
             return jstr(self.data.nwo.light_far_attenuation_end * 100)
 
     def light_near_attenuation_start(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_near_attenuation_starth4)
+            return jstr(self.data.nwo.light_near_attenuation_start)
         else:
             return jstr(self.data.nwo.light_near_attenuation_start * 100)
 
     def light_near_attenuation_end(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_near_attenuation_endh4)
+            return jstr(self.data.nwo.light_near_attenuation_end)
         else:
             return jstr(self.data.nwo.light_near_attenuation_end * 100)
 
@@ -409,9 +408,6 @@ class NWOLight(NWOObject):
 
     def light_attenuation_power(self):
         return jstr(self.data.nwo.light_attenuation_power)
-
-    def lighting_mode(self):
-        return self.data.nwo.light_lighting_mode
 
     def specular_power(self):
         return jstr(self.data.nwo.light_specular_power)

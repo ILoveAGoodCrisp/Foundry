@@ -1647,17 +1647,17 @@ def enforce_uniformity(objects):
         
         
 def calc_light_intensity(light_data):
-    if is_corinth():
-        div = 10
-    else:
-        div = 300
-    
     if light_data.type == "SUN":
-        power = light_data.energy
-    else:
-        power = (light_data.energy / 0.03048**-2) / div
+        return light_data.energy
     
-    # Tool can't read light info if power lower than 0.0001
-    power = max(0.0001, power)
+    intensity = (light_data.energy / 0.03048**-2) / (10 if is_corinth() else 300)
+    
+    return intensity
 
-    return power
+def calc_light_energy(light_data, intensity):
+    if light_data.type == "SUN":
+        return intensity
+    
+    energy = intensity * (0.03048 ** -2) * (10 if is_corinth() else 300)
+    
+    return energy
