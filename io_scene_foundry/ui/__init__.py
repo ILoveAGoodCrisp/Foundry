@@ -133,6 +133,7 @@ from .scene_properties import NWO_Asset_ListItems, NWO_BSP_ListItems, NWO_Global
 from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_UL_Permutations, NWO_UL_Regions
 
 from .viewport_ui import (
+    NWO_AddHaloLight,
     NWO_ApplyTypeMarkerSingle,
     NWO_ApplyTypeMesh,
     NWO_ApplyTypeMeshSingle,
@@ -389,6 +390,7 @@ classes_nwo = (
     NWO_HaloMaterialTilingNode,
     NWO_MeshTypes,
     NWO_MarkerTypes,
+    NWO_AddHaloLight,
 )
 
 def register():

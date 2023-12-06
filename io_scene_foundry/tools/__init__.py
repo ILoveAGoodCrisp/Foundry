@@ -3084,6 +3084,13 @@ def add_halo_scale_model_button(self, context):
         text="Halo Scale Model",
         icon_value=get_icon_id("biped"),
     )
+    
+def add_halo_light_button(self, context):
+    self.layout.operator(
+        'nwo.add_halo_light',
+        text="Halo Light",
+        icon='LIGHT',
+    )
 
 def add_halo_armature_buttons(self, context):
     self.layout.operator("nwo.armature_create", text="Halo Skeleton", icon_value=get_icon_id("rig_creator"))
@@ -5874,6 +5881,7 @@ def register():
     bpy.types.VIEW3D_HT_tool_header.append(draw_foundry_toolbar)
     bpy.types.NODE_HT_header.append(draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.append(add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_light_add.append(add_halo_light_button)
     bpy.types.VIEW3D_MT_armature_add.append(add_halo_armature_buttons)
     bpy.types.OUTLINER_HT_header.append(create_halo_collection)
     bpy.types.VIEW3D_MT_object.append(add_halo_join)
@@ -5900,6 +5908,7 @@ def unregister():
     bpy.types.VIEW3D_HT_tool_header.remove(draw_foundry_toolbar)
     bpy.types.NODE_HT_header.remove(draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_light_add.remove(add_halo_light_button)
     bpy.types.VIEW3D_MT_armature_add.remove(add_halo_armature_buttons)
     bpy.types.VIEW3D_MT_object.remove(add_halo_join)
     bpy.types.OUTLINER_HT_header.remove(create_halo_collection)

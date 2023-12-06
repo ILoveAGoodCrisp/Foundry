@@ -28,8 +28,9 @@ import bpy
 from bpy.types import Context, OperatorProperties
 
 from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
-from io_scene_foundry.utils.nwo_utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_region
+from io_scene_foundry.utils.nwo_utils import calc_light_energy, closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_region
 from .templates import NWO_Op
+from bpy_extras.object_utils import AddObjectHelper, object_data_add
 
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES 
 
@@ -585,13 +586,41 @@ class NWO_ApplyTypeMarkerSingle(NWO_ApplyTypeMarker):
         apply_prefix(ob, self.m_type, prefix_setting)
         return {"FINISHED"}
 
-class NWO_AddHaloLight(bpy.types.Operator):
+class NWO_AddHaloLight(bpy.types.Operator, AddObjectHelper):
     bl_idname = "nwo.add_halo_light"
     bl_label = "Add Halo Light"
     bl_description = "Adds a light with power scaled to Halo's scale"
     bl_options = {"REGISTER", "UNDO"}
+    
+    type: bpy.props.EnumProperty(
+        name="Type",
+        items=[
+            ('POINT', 'Point', ""),
+            ('SUN', 'Sun', ""),
+            ('SPOT', 'Spot', ""),
+        ]
+    )
+    
+    intensity: bpy.props.FloatProperty(min=0)
+    
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT'
+    
+    def make_light(self, context):
+        name = f'halo_{self.type.lower()}_light'
+        data = bpy.data.lights.new(name, type=self.type)
+        data.energy = calc_light_energy(data, self.intensity)
+        return data
 
     def execute(self, context):
-        bpy.ops.object.light_add(radius=1/context.scene.unit_settings.scale_length)
-        context.object.data.energy = 80729.3359375
+        if not self.intensity:
+            if is_corinth(context):
+                self.intensity = 30
+            else:
+                self.intensity = 1
+        
+        data = self.make_light(context)
+        object_data_add(context, data, operator=self)
+        
         return {"FINISHED"}
