@@ -911,8 +911,9 @@ class NWO_FoundryPanelProps(Panel):
             col = flow.column()
             col.use_property_split = True
             self.draw_table_menus(col, nwo, ob)
-            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_decorator":
+            if poll_ui('DECORATOR SET'):
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
+                return
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
