@@ -49,6 +49,7 @@ from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.importer import NWO_Import
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
+from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetSky
 from io_scene_foundry.tools.sets_manager import NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu
@@ -480,7 +481,10 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
             row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
             
-            self.draw_rig_ui(context, nwo)  
+            self.draw_rig_ui(context, nwo) 
+            
+        elif poll_ui('SCENARIO'):
+            col.operator("nwo.new_sky", text="Add to New Sky to Scenario") 
             
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
@@ -1993,6 +1997,7 @@ class NWO_FoundryPanelProps(Panel):
                             col.label(text='Maximum Sky Permutation Index is 31', icon='ERROR')
                         else:
                             col.label(text=f"Sky Permutation {str(sky_perm)}")
+                    col.operator("nwo.set_sky", text="Set Sky Permutation")
             elif nwo.rendered:
                 col.label(text=f"{txt} Path")
                 row = col.row(align=True)
@@ -5871,8 +5876,9 @@ classeshalo = (
     NWO_MeshToMarker,
     NWO_StompMaterials,
     NWO_Import,
+    NWO_SetSky,
+    NWO_NewSky,
 )
-
 
 def register():
     for clshalo in classeshalo:
