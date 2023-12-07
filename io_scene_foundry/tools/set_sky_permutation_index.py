@@ -57,7 +57,6 @@ class NWO_NewSky(bpy.types.Operator):
     bl_idname = "nwo.new_sky"
     bl_label = "New Sky"
     bl_description = "Adds a new sky to the scenario skies palette"
-    bl_options = {"UNDO"}
     
     filter_glob: bpy.props.StringProperty(
         default="*.scenery",
@@ -98,7 +97,7 @@ class NWO_SetSky(bpy.types.Operator):
     bl_idname = "nwo.set_sky"
     bl_label = "Set Sky"
     bl_description = "Selects the sky to use for this material"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
     
     def skies_items(self, context):
         items = []
@@ -145,7 +144,7 @@ class NWO_SetDefaultSky(NWO_SetSky):
     bl_idname = "nwo.set_default_sky"
     bl_label = "Set BSP Sky"
     bl_description = "Sets the sky for this BSP"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = set()
     
     type: bpy.props.StringProperty(options={'HIDDEN', 'SKIP_SAVE'}, default='bsp')
 
