@@ -49,8 +49,8 @@ from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.importer import NWO_Import
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
-from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetSky
-from io_scene_foundry.tools.sets_manager import NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
+from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
+from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu
@@ -175,6 +175,7 @@ class NWO_FoundryPanelProps(Panel):
         self.h4 = is_corinth(context)
         self.scene = context.scene
         nwo = self.scene.nwo
+        self.asset_type = nwo.asset_type
         if context.scene.nwo.instance_proxy_running:    
             box = layout.box()
             ob = context.object
@@ -483,9 +484,6 @@ class NWO_FoundryPanelProps(Panel):
             
             self.draw_rig_ui(context, nwo) 
             
-        elif poll_ui('SCENARIO'):
-            col.operator("nwo.new_sky", text="Add to New Sky to Scenario") 
-            
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
         box.label(text="Model Rig")
@@ -583,6 +581,9 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column(align=True)
         col.operator("nwo.region_add", text="", icon="ADD").set_object_prop = False
         col.operator("nwo.region_remove", icon="REMOVE", text="")
+        if self.asset_type == 'SCENARIO':
+            col.separator()
+            col.menu('NWO_MT_BSPContextMenu', text="", icon='DOWNARROW_HLT')
         col.separator()
         col.operator("nwo.region_move", text="", icon="TRIA_UP").direction = 'up'
         col.operator("nwo.region_move", icon="TRIA_DOWN", text="").direction = 'down'
@@ -594,7 +595,7 @@ class NWO_FoundryPanelProps(Panel):
 
         sub = row.row(align=True)
         sub.operator("nwo.region_select", text="Select").select = True
-        sub.operator("nwo.region_select", text="Deselect").select = False
+        sub.operator("nwo.region_select", text="Deselect").select = False  
 
         # Permutations
         box = self.box.box()
@@ -662,24 +663,18 @@ class NWO_FoundryPanelProps(Panel):
         data = ob.data
 
         halo_light = ob.type == 'LIGHT'
+        has_mesh_types = is_mesh(ob) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB'))
+        has_marker_types = is_marker(ob) and poll_ui(('MODEL', 'SKY', 'SCENARIO', 'PREFAB'))
 
-        if halo_light:
+        # Check if this is a linked collection
+        if library_instanced_collection(ob):
+            row.label(text='Instanced Collection', icon='OUTLINER_OB_GROUP_INSTANCE')
+            row = box.row()
+            row.label(text=f'{ob.name} will be unpacked at export')
+            return
+
+        elif halo_light:
             row.prop(data, "type", expand=True)
-        else:
-            # Check if this is a linked collection
-            if library_instanced_collection(ob):
-                row.label(text='Instanced Collection', icon='OUTLINER_OB_GROUP_INSTANCE')
-                row = box.row()
-                row.label(text=f'{ob.name} will be unpacked at export')
-                return
-            display_name, icon_id = get_mesh_display(nwo.mesh_type_ui)
-            row.menu('NWO_MT_MeshTypes', text=display_name, icon_value=icon_id)
-            if not type_valid(nwo.mesh_type_ui):
-                row = box.row()
-                row.label(text="Mesh Type Invalid for Asset/Game", icon='ERROR')
-                return
-
-        if halo_light:
             col = box.column()
             col.use_property_split = True
             self.draw_table_menus(col, nwo, ob)
@@ -887,6 +882,10 @@ class NWO_FoundryPanelProps(Panel):
                 # col.prop(nwo, 'Light_Clipping_Size_Z_Neg', text='Clipping Size Z Backward')
 
         elif is_mesh(ob):
+            if has_mesh_types:
+                display_name, icon_id = get_mesh_display(nwo.mesh_type_ui)
+                row.menu('NWO_MT_MeshTypes', text=display_name, icon_value=icon_id)
+                
             # SPECIFIC MESH PROPS
             flow = box.grid_flow(
                 row_major=True,
@@ -910,12 +909,17 @@ class NWO_FoundryPanelProps(Panel):
             )
             col = flow.column()
             col.use_property_split = True
-            self.draw_table_menus(col, nwo, ob)
-            if poll_ui('DECORATOR SET'):
+            if self.asset_type == 'DECORATOR SET':
+                col.label(text="Decorator")
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
                 return
+            elif self.asset_type == 'PARTICLE MODEL':
+                col.label(text="Particle Model")
+                return
+            
+            self.draw_table_menus(col, nwo, ob)
 
-            elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
+            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_portal":
@@ -5877,8 +5881,12 @@ classeshalo = (
     NWO_MeshToMarker,
     NWO_StompMaterials,
     NWO_Import,
+    NWO_SetDefaultSky,
     NWO_SetSky,
     NWO_NewSky,
+    NWO_BSPContextMenu,
+    NWO_BSPInfo,
+    NWO_BSPSetLightmapRes,
 )
 
 def register():

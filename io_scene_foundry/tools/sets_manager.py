@@ -27,8 +27,10 @@
 '''Handles bpy operators and functions for the Sets Manager panel'''
 
 import bpy
+from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.managed_blam.scenario import ScenarioTag
 
-from io_scene_foundry.utils.nwo_utils import poll_ui, true_permutation, true_region
+from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui, true_permutation, true_region, valid_nwo_asset
 
 # Parent Classes
 class TableEntryAdd(bpy.types.Operator):
@@ -764,3 +766,130 @@ def true_table_entry(nwo, ob_prop_str):
         return true_region(nwo)
     elif ob_prop_str == "permutation_name_ui":
         return true_permutation(nwo)
+    
+    
+# COOL TOOLS MENU
+class NWO_BSPContextMenu(bpy.types.Menu):
+    bl_idname = "NWO_MT_BSPContextMenu"
+    bl_label = "BSP Context Menu"
+        
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("nwo.print_bsp_info", text="Show BSP Info", icon='INFO')
+        layout.operator("nwo.set_bsp_lightmap_res", text="Set BSP Lightmap Resolution", icon='OUTLINER_DATA_LIGHTPROBE')
+        if is_corinth(context):
+            layout.operator("nwo.set_default_sky", text="Set BSP Sky", icon_value=get_icon_id("sky"))
+        
+        
+class NWO_BSPInfo(bpy.types.Operator):
+    bl_idname = "nwo.print_bsp_info"
+    bl_label = "Show BSP Info"
+    bl_description = "Outputs information about the selected BSP"
+    
+    @classmethod
+    def poll(cls, context):
+        return poll_ui(('SCENARIO',)) and valid_nwo_asset(context)
+        
+    def execute(self, context):
+        self.info = None
+        nwo = context.scene.nwo
+        bsp = nwo.regions_table[nwo.regions_table_active_index].name
+        with ScenarioTag() as scenario:
+            self.info = scenario.get_bsp_info(bsp)
+        
+        if self.info is None:
+            self.report({'WARNING'}, f"BSP {bsp} does not exist in scenario tag. You may need to export this scene")
+            return {'CANCELLED'}
+        return context.window_manager.invoke_popup(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        for k, v in self.info.items():
+            layout.label(text=f'{k}: {v}')
+            
+class NWO_BSPSetLightmapRes(bpy.types.Operator):
+    bl_idname = "nwo.set_bsp_lightmap_res"
+    bl_label = "Set BSP Lightmap Resolution"
+    bl_description = "Sets the lightmap resolution (size class) for this BSP. If this is a H4+ project, then it also allows you set the refinement size class"
+    
+    def size_class_items(self, context):
+        items = []
+        if is_corinth(context):
+            items.append(("0", "32x32", ""))
+            items.append(("1", "64x64", ""))
+            items.append(("2", "128x128", ""))
+            items.append(("3", "256x256", ""))
+            items.append(("4", "512x512", ""))
+            items.append(("5", "768x768", ""))
+            items.append(("6", "1024x1024", ""))
+            items.append(("7", "1280x1280", ""))
+            items.append(("8", "1536x1536", ""))
+            items.append(("9", "1792x1792", ""))
+            items.append(("10", "2048x2048", ""))
+            items.append(("11", "2304x2304", ""))
+            items.append(("12", "2560x2560", ""))
+            items.append(("13", "2816x2816", ""))
+            items.append(("14", "3072x3072", ""))
+        else:
+            items.append(("0", "256x256", ""))
+            items.append(("1", "512x512", ""))
+            items.append(("2", "768x768", ""))
+            items.append(("3", "1024x1024", ""))
+            items.append(("4", "1280x1280", ""))
+            items.append(("5", "1536x1536", ""))
+            items.append(("6", "1792x1792", ""))
+            
+        return items
+    
+    size_class: bpy.props.EnumProperty(
+        name="Lightmap Resolution",
+        items=size_class_items
+    )
+    
+    def refinement_size_class_items(self, context):
+        items=[
+            ("0", "4096x1024", ""),
+            ("1", "1024x1024", ""),
+            ("2", "2048x1024", ""),
+            ("3", "6144x1024", ""),
+        ]
+        
+        return items
+    
+    refinement_size_class: bpy.props.EnumProperty(
+        name="Lightmap Refinement",
+        items=refinement_size_class_items,
+    )
+    
+    @classmethod
+    def poll(cls, context):
+        return poll_ui(('SCENARIO',)) and valid_nwo_asset(context)
+        
+    def execute(self, context):
+        self.info = None
+        nwo = context.scene.nwo
+        bsp = nwo.regions_table[nwo.regions_table_active_index].name
+        with ScenarioTag() as scenario:
+            success = scenario.set_bsp_lightmap_res(bsp, int(self.size_class), int(self.refinement_size_class))
+            if success:
+                scenario.save()
+            else:
+                self.report({'WARNING'}, f"BSP {bsp} does not exist in scenario tag. You may need to export this scene")
+                return {'CANCELLED'}
+        
+        if is_corinth(context):
+            self.report({'INFO'}, f"Set lightmap resolution of {self.size_class_items(context)[int(self.size_class)][1]} and refinement class of {self.refinement_size_class_items(context)[int(self.refinement_size_class)][1]}")
+        else:
+            self.report({'INFO'}, f"Set lightmap resolution of {self.size_class}")
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "size_class", text="Resolution")
+        if is_corinth(context):
+            layout.prop(self, "refinement_size_class", text="Refinement")

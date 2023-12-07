@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from io_scene_foundry.managed_blam import MB
 import logging
 import traceback
 from io_scene_foundry.utils import nwo_globals
@@ -316,7 +317,7 @@ class Tag():
     # TAG HELPER FUNCTIONS
     #######################
 
-    def get_tag_and_path(self, user_path):
+    def get_tag_and_path(self, user_path) -> tuple[MB.TagFile, str]:
         """Return the tag and bungie tag path for tag creation"""
         relative_path, tag_ext = self.get_path_and_ext(user_path)
         tag = Halo.Tags.TagFile()
@@ -406,6 +407,16 @@ class Tag():
         if always_string:
             return str(value)
         return value
+    
+    def Element_get_enum_as_string(self, element, field_name: str):
+        """Returns the value of an enum field as a string"""
+        field = element.SelectField(field_name)
+        field_type_str = str(field.FieldType)
+        assert(field_type_str.endswith("Enum")), f"Element_get_enum_as_string supplied a {field_type_str} instead of an enum"
+        value = field.Value
+        items = [i.EnumName for i in field.Items]
+        value_string = items[value]
+        return value_string
     
     def TagPath_from_string(self, path: str):
         """Returns a Bungie TagPath from the given tag filepath. Filepath must include file extension"""
