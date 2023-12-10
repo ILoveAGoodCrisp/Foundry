@@ -24,18 +24,5 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from dataclasses import dataclass
-
-@dataclass
-class TagField:
-    FieldName: str
-    FieldPath: str
-
-@dataclass
-class TagFile:
-    Checksum: int
-    Elements: list
-    FieldPath: str
-    
-    def SelectField(tagfield_name: str) -> TagField:
-        """Returns the tag field at the given path"""
+class GameColor: pass
+class GamePoint2d: pass

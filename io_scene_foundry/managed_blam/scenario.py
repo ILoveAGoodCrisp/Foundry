@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.managed_blam import Tag
+from io_scene_foundry.managed_blam.Tags import *
 import os
 from io_scene_foundry.utils import nwo_utils
 
@@ -40,6 +41,7 @@ class ScenarioTag(Tag):
         
     def _get_bsp_from_name(self, bsp_name: str):
         for element in self.block_bsps.Elements:
+            element: TagElement
             bsp_reference = self.Element_get_field_value(element, "structure bsp")
             full_bsp_name = nwo_utils.dot_partition(os.path.basename(bsp_reference.ToString()))
             short_bsp_name = full_bsp_name.split(self.asset_name + '_')[1]

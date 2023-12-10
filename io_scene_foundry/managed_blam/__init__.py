@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.managed_blam import MB
+from io_scene_foundry.managed_blam.Tags import *
 import logging
 import traceback
 from io_scene_foundry.utils import nwo_globals
@@ -48,6 +48,7 @@ import ctypes
 last_saved_tag = None
 
 Halo = None
+Tags = TagsNameSpace()
 
 class ManagedBlam():
     """Helper class for loading and saving tags"""
@@ -317,11 +318,11 @@ class Tag():
     # TAG HELPER FUNCTIONS
     #######################
 
-    def get_tag_and_path(self, user_path) -> tuple[MB.TagFile, str]:
+    def get_tag_and_path(self, user_path) -> tuple[TagFile, TagPath]:
         """Return the tag and bungie tag path for tag creation"""
         relative_path, tag_ext = self.get_path_and_ext(user_path)
-        tag = Halo.Tags.TagFile()
-        tag_path = Halo.Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
+        tag = Tags.TagFile()
+        tag_path = Tags.TagPath.FromPathAndExtension(relative_path, tag_ext)
         return tag, tag_path
 
     def get_path_and_ext(self, user_path):
@@ -559,6 +560,8 @@ class ManagedBlam_Init(Operator):
                     Halo.ManagedBlamSystem.Start(
                         get_project_path(), callback, startup_parameters
                     )
+                    global Tags
+                    Tags = Halo.Tags
                 except:
                     print("ManagedBlam already initialised. Skipping")
                     return {"CANCELLED"}
