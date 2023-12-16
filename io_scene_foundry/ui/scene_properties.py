@@ -697,6 +697,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     invalid_root_bone: BoolProperty()
     needs_pose_bones: BoolProperty()
     too_many_bones: BoolProperty()
+    bone_names_too_long: BoolProperty()
+    pose_bones_bad_transforms: BoolProperty()
     
     # RIG PROPS
     main_armature: PointerProperty(
