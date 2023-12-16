@@ -32,7 +32,8 @@ from os import path
 import csv
 from math import radians
 from mathutils import Matrix, Vector
-from io_scene_foundry.managed_blam.objects import ManagedBlamGetNodeOrder
+from io_scene_foundry.managed_blam.render_model import RenderModelTag
+from io_scene_foundry.managed_blam.animation import AnimationTag
 
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.utils.nwo_constants import MAT_INVISIBLE, MAT_SEAMSEALER, MAT_SKY, RENDER_MESH_TYPES, VALID_MESHES
@@ -2426,11 +2427,9 @@ class PrepareScene:
 
     def fix_parenting(self, model_armature, export_obs):
         bones = model_armature.data.bones
-        for b in bones:
-            if b.use_deform:
-                root_bone = b
-                root_bone_name = b.name
-                break
+        valid_bone_names = [b.name for b in bones if b.use_deform]
+        if valid_bone_names:
+            root_bone_name = valid_bone_names[0]
         else:
             root_bone_name = bones[0].name
             bones[0].use_deform = True
@@ -2442,7 +2441,6 @@ class PrepareScene:
         warn = False
         for ob in export_obs:
             nwo = ob.nwo
-            frame = nwo.object_type == "_connected_geometry_object_type_frame"
             marker = nwo.object_type == "_connected_geometry_object_type_marker"
             physics = nwo.mesh_type == "_connected_geometry_mesh_type_physics"
             if ob.parent is None:
@@ -2455,9 +2453,14 @@ class PrepareScene:
                     warn = True
                     ob.parent_type = "BONE"
                     ob.parent_bone = root_bone_name
-                    # if not (marker or frame):
                     world = ob.matrix_world.copy()
-                    ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
+                    if ob.parent_bone in valid_bone_names:
+                        ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
+                    else:
+                        self.warning_hit = True
+                        print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {root_bone_name}')
+                        ob.parent_bone = root_bone_name
+                        ob.matrix_parent_inverse = bones[root_bone_name].matrix_local.inverted()
                     ob.matrix_world = world
                     if marker:
                         print_warning(
@@ -2483,9 +2486,15 @@ class PrepareScene:
             else:
                 # Ensure parent inverse matrix set
                 # If we don't do this, object can be offset in game
-                #if not (marker or frame):
                 world = ob.matrix_world.copy()
-                ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
+                if ob.parent_bone in valid_bone_names:
+                    ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
+                else:
+                    self.warning_hit = True
+                    print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {root_bone_name}')
+                    ob.parent_bone = root_bone_name
+                    ob.matrix_parent_inverse = bones[root_bone_name].matrix_local.inverted()
+
                 ob.matrix_world = world
 
             if ob.parent_type == "BONE":
@@ -2493,7 +2502,6 @@ class PrepareScene:
                     for mod in ob.modifiers:
                         if mod.type == "ARMATURE":
                             ob.modifiers.remove(mod)
-                            break
 
         # bones = model_armature.data.edit_bones
         # mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
@@ -2589,24 +2597,40 @@ class PrepareScene:
         def sorting_key(value):
             return nodes_order.get(value.name, len(nodes))
         
-        graph_override = context.scene.nwo.animation_graph_path
+        scene_nwo = context.scene.nwo
+        if scene_nwo.render_model_path:
+            node_order_source = scene_nwo.render_model_path
+            node_order_source_is_model = True
+        else:
+            node_order_source = scene_nwo.animation_graph_path
+            node_order_source_is_model = False
+            
         fp_model = context.scene.nwo.fp_model_path
         gun_model = context.scene.nwo.gun_model_path
-        if asset_type == 'MODEL' and graph_override and graph_override.endswith(".model_animation_graph"):
-            full_graph_path = get_tags_path() + graph_override
-            if os.path.exists(full_graph_path):
-                nodes = ManagedBlamGetNodeOrder(graph_override, True).nodes
+        if asset_type == 'MODEL' and node_order_source:
+            if os.path.exists(get_tags_path() + node_order_source):
+                if node_order_source_is_model:
+                    with RenderModelTag(path=node_order_source, hide_prints=True) as render_model:
+                        nodes = render_model.get_nodes()
+                else:
+                    with AnimationTag(path=node_order_source, hide_prints=True) as animation:
+                        nodes = animation.get_nodes()
+                        
                 nodes_order = {v: i for i, v in enumerate(nodes)}
                 bone_list = sorted(bone_list, key=sorting_key)
             else:
-                print_warning("Model Animation Graph override supplied but tag path does not exist")
+                if node_order_source_is_model:
+                    print_warning("Render Model path supplied but file does not exist")
+                else:
+                    print_warning("Model Animation Graph path supplied but file does not exist")  
                 self.warning_hit = True
         
         elif asset_type == 'FP ANIMATION' and (fp_model or gun_model):
             if gun_model:
                 full_gun_model_path = get_tags_path() + gun_model
                 if os.path.exists(full_gun_model_path):
-                    nodes = ManagedBlamGetNodeOrder(gun_model).nodes
+                    with RenderModelTag(path=gun_model, hide_prints=True) as render_model:
+                        nodes = render_model.get_nodes()
                     # add a 1000 to each index to ensure gun bones sorted last
                     nodes_order_gun = {v: i + 1000 for i, v in enumerate(nodes)}
                 else:
@@ -2615,7 +2639,8 @@ class PrepareScene:
             if fp_model:
                 full_fp_model_path = get_tags_path() + fp_model
                 if os.path.exists(full_fp_model_path):
-                    nodes = ManagedBlamGetNodeOrder(fp_model).nodes
+                    with RenderModelTag(path=fp_model, hide_prints=True) as render_model:
+                        nodes = render_model.get_nodes()
                     nodes_order_fp = {v: i for i, v in enumerate(nodes)}
                 else:
                     print_warning("FP Render Model supplied but tag path does not exist")
@@ -2683,21 +2708,18 @@ class PrepareScene:
     ):
         node_props = {}
 
-        node_props.update(
-            {"bungie_object_type": "_connected_geometry_object_type_frame"}
-        ),
-        node_props.update({"bungie_frame_ID1": FrameID1}),
-        node_props.update({"bungie_frame_ID2": FrameID2}),
+        node_props["bungie_object_type"] = '_connected_geometry_object_type_frame'
+        node_props["bungie_frame_ID1"] = FrameID1
+        node_props["bungie_frame_ID2"] = FrameID2
 
         if object_space_node:
-            node_props.update({"bungie_is_object_space_offset_node": "1"}),
+            node_props["bungie_is_object_space_offset_node"] = "1"
         if replacement_correction_node:
-            node_props.update({"bungie_is_replacement_correction_node": "1"}),
+            node_props["bungie_is_replacement_correction_node"] = "1"
         if fik_anchor_node:
-            node_props.update({"bungie_is_fik_anchor_node": "1"}),
+            node_props["bungie_is_fik_anchor_node"] = "1"
 
-        node_props.update({"bungie_object_animates": "1"}),
-        #node_props.update({"halo_export": "1"}),
+        node_props["bungie_object_animates"] = '1'
 
         return node_props
 

@@ -69,7 +69,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
 
     material_shader : StringProperty(
         name="Material Shader",
-        description="Tag relative path to a material shader. Generated material tag will use this material shader",
+        description="Tag relative path to a material shader. Generated material tag will use this material shader. Leave blank to let the material exporter choose the best material_shader based on the current material node setup",
         options=set(),
         update=update_material_shader,
     )
@@ -126,6 +126,13 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         get=get_shader_dir,
         set=set_shader_dir,
     )
+    
+    # Export Material props
+    
+    uses_alpha: BoolProperty(
+        name="Alpha"
+    )
+    
     
     # LE MATERIAL PROPERTIES
     

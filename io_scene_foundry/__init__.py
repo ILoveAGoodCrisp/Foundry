@@ -123,7 +123,7 @@ else:
                 context.scene.nwo.scene_project = projects[0].name
 
         # Handle old scenes with aleady existing regions/perms/global materials
-        update_tables_from_objects(context)
+        # update_tables_from_objects(context)
 
         # Add default sets if needed
         scene_nwo = context.scene.nwo
@@ -136,9 +136,6 @@ else:
             default_permutation = scene_nwo.permutations_table.add()
             default_permutation.old = "default"
             default_permutation.name = "default"
-            
-        for ob in bpy.data.objects:
-            ob.nwo.mesh_type_ui_help_bool = True
             
         # prefs = get_prefs()
         # if prefs.poop_default:

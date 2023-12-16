@@ -26,7 +26,7 @@
 
 import os
 import bpy
-from io_scene_foundry.managed_blam.bitmaps import ManagedBlamNewBitmap
+from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_asset_path,
@@ -128,12 +128,15 @@ def export_bitmap(
 
     # Store processes
     if image.nwo.filepath and os.path.exists(data_dir + image.nwo.filepath):
-        bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.nwo.filepath).path
-        path = dot_partition(image.nwo.filepath)
+        path_no_ext = dot_partition(image.nwo.filepath)
+        bitmap_path = path_no_ext + '.bitmap'
+        with BitmapTag(path=bitmap_path) as bitmap:
+            bitmap.new_bitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type)
+
         if is_corinth():
-            process = run_tool(["reimport-bitmaps-single", path, "default"], False, False)
+            process = run_tool(["reimport-bitmaps-single", path_no_ext, "default"], False, False)
         else:
-            process = run_tool(["reimport-bitmaps-single", path], False, False)
+            process = run_tool(["reimport-bitmaps-single", path_no_ext], False, False)
     else:
         if report:
             report({'ERROR'}, f"{image.name} has no data filepath. Cannot build bitmap")
@@ -146,6 +149,6 @@ def export_bitmap(
         if folder:
             return process
         else:
-            return bitmap
+            return bitmap_path
     else:
         report({"INFO"}, "Bitmap Export Complete")

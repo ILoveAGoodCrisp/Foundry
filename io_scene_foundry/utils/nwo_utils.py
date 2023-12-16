@@ -47,7 +47,7 @@ import requests
 
 from io_scene_foundry.utils.nwo_constants import object_asset_validation, object_game_validation
 
-
+HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 ###########
 ##GLOBALS##
 ###########
@@ -278,7 +278,9 @@ def select_all_objects():
     bpy.ops.object.select_all(action="SELECT")
 
 
-def set_active_object(ob):
+def set_active_object(ob: bpy.types.Object):
+    ob.hide_select = False
+    ob.hide_set(False)
     bpy.context.view_layer.objects.active = ob
 
 
@@ -952,6 +954,13 @@ def data_relative(path: str) -> str:
     """
     return path.replace(get_data_path(), "")
 
+def tag_relative(path: str) -> str:
+    """
+    Takes a full system path to a location within
+    the tags folder and returns the tags relative path
+    """
+    return path.replace(get_tags_path(), "")
+
 
 def update_progress(job_title, progress):
     if progress <= 1:
@@ -1093,7 +1102,7 @@ def foundry_update_check(current_version):
     update_url = 'https://api.github.com/repos/iloveagoodcrisp/foundry-halo-blender-creation-kit/releases'
     if not bpy.app.background:
         try:
-            response = requests.get(update_url, timeout=6)
+            response = requests.get(update_url, timeout=1)
             releases = response.json()
             latest_release = releases[0]
             latest_version = latest_release['tag_name']
@@ -1152,13 +1161,13 @@ def set_object_mode(context):
 def get_prefs():
     return bpy.context.preferences.addons["io_scene_foundry"].preferences
 
-def is_halo_node(node: bpy.types.Node, valid_inputs: list) -> bool:
+def is_halo_mapping_node(node: bpy.types.Node) -> bool:
     """Given a Node and a list of valid inputs (each a string), checks if the given Node has exactly the inputs supplied"""
     inputs = node.inputs
-    if len(inputs) != len(valid_inputs):
+    if len(inputs) != len(HALO_SCALE_NODE):
         return False
     for i in node.inputs:
-        if i.name in valid_inputs: continue
+        if i.name in HALO_SCALE_NODE: continue
         return False
     return True
 
@@ -1661,3 +1670,132 @@ def calc_light_energy(light_data, intensity):
     energy = intensity * (0.03048 ** -2) * (10 if is_corinth() else 300)
     
     return energy
+
+def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
+    """Gets the BSDF shader node from a node tree"""
+    output = None
+    shaders = []
+    for node in node_tree.nodes:
+        if node.type == "OUTPUT_MATERIAL":
+            output = node
+        elif node.type.startswith("BSDF"):
+            shaders.append(node)
+    # Get the shader plugged into the output
+    if output is None:
+        return
+    for s in shaders:
+        outputs = s.outputs
+        if not outputs:
+            return
+        links = outputs[0].links
+        if not links:
+            return
+        if links[0].to_node == output:
+            return s
+
+    return
+
+def find_mapping_node(node: bpy.types.Node) -> bpy.types.Node | None:
+    links = node.inputs['Vector'].links
+    if not links: return
+    scale_node = links[0].from_node
+    if scale_node.type == 'MAPPING' or is_halo_mapping_node(scale_node):
+        return scale_node
+
+def find_linked_node(start_node: bpy.types.Node, input_name: str, node_type: str) -> bpy.types.Node:
+    """Using the given node as a base, finds the first node from the given input that matches the given node type"""
+    for i in start_node.inputs:
+        if input_name in i.name.lower():
+            if i.links:
+                input = i
+                break
+            else:
+                return
+    else:
+        return
+    
+    node, _ = find_node_in_chain(node_type, input.links[0].from_node)
+    if node:
+        return node
+    
+def find_node_in_chain(node_type: str, node: bpy.types.Node, group_output_input=None, group_node=None) -> tuple[bpy.types.Node, bpy.types.Node]:
+    if node.type == node_type:
+        return node, group_node
+    
+    elif node.type == 'GROUP':
+        group_nodes = node.node_tree.nodes
+        for n in group_nodes:
+            if n.type == 'GROUP_OUTPUT':
+                for i in n.inputs:
+                    if i.name == group_output_input:
+                        links = i.links
+                        if links:
+                            for l in links:
+                                new_node = l.from_node
+                                valid_node, group_node = find_node_in_chain(node_type, new_node, group_output_input, node)
+                                if valid_node:
+                                    return valid_node, group_node
+                                break
+                break
+            
+    for input in node.inputs:
+        for link in input.links:
+            next_node = link.from_node
+            if next_node.type == 'GROUP':
+                valid_node, group_node = find_node_in_chain(node_type, next_node, link.from_socket.name, node)
+            else:
+                valid_node, group_node = find_node_in_chain(node_type, next_node, group_output_input)
+            if valid_node:
+                return valid_node, group_node
+    
+    return None, None
+            
+def get_material_albedo(source: bpy.types.Material | bpy.types.Node, input=None) -> tuple[float, float, float, float]:
+    """Returns the albedo tint of a material as a tuple in the form RGBA directly from the material or from the given node"""
+    col = [1, 1, 1]
+    if type(source) == bpy.types.Material:
+        col = source.diffuse_color
+    else:
+        if input:
+            color_node = find_linked_node(source, input.name.lower(), 'RGB')
+        else:
+            color_node = find_linked_node(source, 'color', 'RGB')
+        if color_node:
+            col = color_node.color
+        if input:
+            col = input.default_value
+        else:
+            for i in source.inputs:
+                if 'color' in i.name.lower():
+                    col = i.default_value
+                    break
+                
+    return col[:3] # Only 3 since we don't care about the alpha
+            
+def get_rig(context, return_mutliple=False) -> bpy.types.Object | None | list[bpy.types.Object]:
+    """Gets the main armature from the scene (or tries to)"""
+    scene_nwo = context.scene.nwo
+    ob = context.object
+    if scene_nwo.main_armature:
+        return scene_nwo.main_armature
+    obs = export_objects()
+    rigs = [ob for ob in obs if ob.type == 'ARMATURE']
+    if not rigs:
+        return
+    elif len(rigs) > 1 and return_mutliple:
+        return rigs
+    if ob in rigs:
+        scene_nwo.main_armature = ob
+        return ob
+    else:
+        scene_nwo.main_armature = rigs[0]
+        return rigs[0]
+    
+def find_file_in_directory(root_dir, filename) -> str:
+    """Finds the first file in the current and sub-directories matching the given filename. If none found, returns an empty string"""
+    for root, _, files in os.walk(root_dir):
+        for file in files:
+            if file == filename:
+                return os.path.join(root, file)
+            
+    return ''

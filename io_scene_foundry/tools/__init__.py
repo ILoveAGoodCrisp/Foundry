@@ -54,7 +54,6 @@ from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo,
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu
-from io_scene_foundry.tools.get_global_materials import NWO_GetGlobalMaterials
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
 from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList, NWO_TagExplore
 from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
@@ -81,6 +80,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_marker_display,
     get_mesh_display,
     get_prefs,
+    get_rig,
     get_sky_perm,
     get_special_mat,
     get_tags_path,
@@ -126,11 +126,11 @@ ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 update_str, update_needed = foundry_update_check(nwo_globals.version)
 
 HOTKEYS = [
-    ("apply_mesh_type", "SHIFT+F"),
-    ("apply_marker_type", "CTRL+F"),
+    ("show_foundry_panel", "SHIFT+F"),
+    ("apply_mesh_type", "CTRL+F"),
+    ("apply_marker_type", "ALT+F"),
     ("halo_join", "ALT+J"),
     ("move_to_halo_collection", "ALT+M"),
-    ("show_foundry_panel", "F"),
 ]
 
 PANELS_PROPS = [
@@ -4832,9 +4832,9 @@ class NWO_AddPoseBones(Operator):
     has_control_bone: BoolProperty()
     skip_invoke: BoolProperty()
     
-    @classmethod
-    def poll(cls, context):
-        return context.scene.nwo.main_armature
+    # @classmethod
+    # def poll(cls, context):
+    #     return context.scene.nwo.main_armature
     
     def new_bone(self, arm, parent_name, bone_name):
         parent_edit = arm.data.edit_bones.get(parent_name)
@@ -4924,7 +4924,7 @@ class NWO_AddPoseBones(Operator):
         
     def execute(self, context):
         scene_nwo = context.scene.nwo
-        arm = scene_nwo.main_armature
+        arm = get_rig(context)
         bones = arm.data.bones
         for b in bones:
             if b.use_deform and not b.parent:
@@ -5006,18 +5006,10 @@ class NWO_ValidateRig(Operator):
     bl_idname = 'nwo.validate_rig'
     bl_label = 'Validate Rig'
     bl_description = 'Runs a number of checks on the model armature, highlighting issues and providing fixes'
-    
-    def get_rig(self, scene_nwo):
-        if scene_nwo.main_armature:
-            return scene_nwo.main_armature
-        obs = export_objects()
-        rigs = [ob for ob in obs if ob.type == 'ARMATURE']
-        if not rigs:
-            return
-        elif len(rigs) > 1:
-            return rigs
-        scene_nwo.main_armature = rigs[0]
-        return rigs[0]
+    # TODO #
+    # ensure good aim/pitch bone transforms. 
+    # check for null references in the rig scene props, strip em if null.
+    # Warn user if bone names longer than 31 chars
     
     def get_root_bone(self, rig, scene):
         root_bones = [b for b in rig.data.bones if b.use_deform and not b.parent]
@@ -5081,6 +5073,10 @@ class NWO_ValidateRig(Operator):
                                     (0.0, 0.0, 0.0, 1.0)))
             
     def complete_validation(self):
+        if self.rig_was_unselectable:
+            self.rig.hide_select = True
+        if self.rig_was_hidden:
+            self.rig.hide_set(True)
         if self.old_active:
             set_active_object(self.old_active)
         if self.old_mode:
@@ -5110,12 +5106,14 @@ class NWO_ValidateRig(Operator):
     def execute(self, context):
         self.old_mode = context.mode
         self.old_active = context.object
+        self.rig_was_unselectable = False
+        self.rig_was_hidden = False
         set_object_mode(context)
         scene = context.scene
         scene_nwo = scene.nwo
-        rig = self.get_rig(scene_nwo)
-        multi_rigs = type(rig) == list
-        no_rig = rig is None
+        self.rig = get_rig(context, True)
+        multi_rigs = type(self.rig) == list
+        no_rig = self.rig is None
         if no_rig or multi_rigs:
             if multi_rigs:
                 self.report({'WARNING'}, 'Multiple armatures in scene. Please declare the main armature in the Asset Editor')
@@ -5130,25 +5128,27 @@ class NWO_ValidateRig(Operator):
                 
             return self.complete_validation()
         
-        if rig.parent:
+        if self.rig.parent:
             scene.nwo.armature_has_parent = True
             self.report({'WARNING'}, 'Armature is parented')
         else:
             scene.nwo.armature_has_parent = False
         
-        if self.armature_transforms_valid(rig):
+        if self.armature_transforms_valid(self.rig):
             scene.nwo.armature_bad_transforms = False
         else:
             scene.nwo.armature_bad_transforms = True
             self.report({'WARNING'}, 'Rig has bad transforms')
         
-        set_active_object(rig)
+        self.rig_was_unselectable = self.rig.hide_select
+        self.rig_was_hidden = self.rig.hide_get()
+        set_active_object(self.rig)
         
-        if rig.data.library:
-            self.report({'INFO'}, f"{rig} is linked from another scene, further validation cancelled")
+        if self.rig.data.library:
+            self.report({'INFO'}, f"{self.rig} is linked from another scene, further validation cancelled")
             return self.complete_validation()
         
-        root_bone_name = self.get_root_bone(rig, scene)
+        root_bone_name = self.get_root_bone(self.rig, scene)
         if root_bone_name is None:
             self.report({'WARNING'}, 'Multiple root bones in armature. Export will fail. Ensure only one bone in the armature has no parent (or set additional root bones as non-deform bones)')
             scene.nwo.multiple_root_bones = True
@@ -5156,7 +5156,7 @@ class NWO_ValidateRig(Operator):
         else:
             scene.nwo.multiple_root_bones = False
         
-        if self.validate_root_rot(rig, root_bone_name, scene):
+        if self.validate_root_rot(self.rig, root_bone_name, scene):
             scene.nwo.invalid_root_bone = False
         else:
             self.report({'WARNING'}, f'Root bone [{root_bone_name}] has non-standard transforms. This may cause issues at export')
@@ -5168,7 +5168,7 @@ class NWO_ValidateRig(Operator):
         else:
             scene.nwo.needs_pose_bones = False
             
-        if self.too_many_bones(rig):
+        if self.too_many_bones(self.rig):
             scene.nwo.too_many_bones = True
             self.report({'WARNING'}, "Rig has more than 253 bones")
         else:
@@ -5495,27 +5495,27 @@ class NWO_AddAimAnimation(Operator):
             pitch.rotation_euler = [0, 0, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 4)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            yaw.rotation_euler = [0, 0, radians(-135)]
+            yaw.rotation_euler = [0, 0, radians(225)]
             pitch.rotation_euler = [0, 0, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 5)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            yaw.rotation_euler = [0, 0, radians(-90)]
+            yaw.rotation_euler = [0, 0, radians(270)]
             pitch.rotation_euler = [0, 0, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 6)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            yaw.rotation_euler = [0, 0, radians(-45)]
+            yaw.rotation_euler = [0, 0, radians(315)]
             pitch.rotation_euler = [0, 0, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 7)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            yaw.rotation_euler = [0, 0, 0]
+            yaw.rotation_euler = [0, 0, radians(360)]
             pitch.rotation_euler = [0, 0, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            yaw.rotation_euler = [0, 0, 0]
+            yaw.rotation_euler = [0, 0, radians(360)]
             pitch.rotation_euler = [0, self.max_pitch, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            yaw.rotation_euler = [0, 0, 0]
+            yaw.rotation_euler = [0, 0, radians(360)]
             pitch.rotation_euler = [0, -self.max_pitch, 0]
             yaw.keyframe_insert(data_path='rotation_euler', frame=start + 10)
             pitch.keyframe_insert(data_path='rotation_euler', frame=start + 10)
@@ -5531,17 +5531,17 @@ class NWO_AddAimAnimation(Operator):
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
             aim.rotation_euler = [0, 0, radians(180)]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 4)
-            aim.rotation_euler = [0, 0, radians(-135)]
+            aim.rotation_euler = [0, 0, radians(225)]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 5)
-            aim.rotation_euler = [0, 0, radians(-90)]
+            aim.rotation_euler = [0, 0, radians(270)]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 6)
-            aim.rotation_euler = [0, 0, radians(-45)]
+            aim.rotation_euler = [0, 0, radians(315)]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
-            aim.rotation_euler = [0, 0, 0]
+            aim.rotation_euler = [0, 0, radians(360)]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
-            aim.rotation_euler = [0, self.max_pitch, 0]
+            aim.rotation_euler = [0, self.max_pitch, radians(360)]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
-            aim.rotation_euler = [0, -self.max_pitch, 0]
+            aim.rotation_euler = [0, -self.max_pitch, radians(360)]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 10)
             
         return start + 10
@@ -5820,7 +5820,6 @@ classeshalo = (
     NWO_MaterialGirl,
     NWO_OpenFoundationTag,
     NWO_ExportBitmapsSingle,
-    NWO_GetGlobalMaterials,
     NWO_GetModelVariants,
     NWO_GetTagsList,
     NWO_TagExplore,

@@ -25,7 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 import bpy
 import os
-from io_scene_foundry.managed_blam.objects import ManagedBlamGetModelFromObject, ManagedBlamGetModelVariants
+from io_scene_foundry.managed_blam.model import ModelTag
+from io_scene_foundry.managed_blam.object import ObjectTag
 
 from io_scene_foundry.utils.nwo_utils import get_tags_path
 
@@ -40,10 +41,12 @@ class NWO_GetModelVariants(bpy.types.Operator):
         return context.object.nwo.marker_game_instance_tag_name_ui
     
     def variant_items(self, context):
-        model_tag = ManagedBlamGetModelFromObject(context.object.nwo.marker_game_instance_tag_name_ui).model_tag_path
+        with ObjectTag(path=context.object.nwo.marker_game_instance_tag_name_ui) as object:
+            model_tag = object.get_model_tag_path()
         if model_tag is None:
             return [("default", "default", "")]
-        variants = ManagedBlamGetModelVariants(model_tag).variants
+        with ModelTag() as model:
+            variants = model.get_model_variants()
         if not variants:
             return [("default", "default", "")]
         items = []

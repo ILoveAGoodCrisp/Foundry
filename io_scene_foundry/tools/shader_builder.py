@@ -25,7 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 import bpy
 import os
-from io_scene_foundry.managed_blam.shaders import ManagedBlamNewShader
+from io_scene_foundry.managed_blam.shader import ShaderTag
+from io_scene_foundry.managed_blam.material import MaterialTag
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_shader_name,
@@ -47,14 +48,18 @@ def build_shader(material, corinth, folder="", report=None):
     if material_read_only(nwo.shader_path):
         print(f"{material.name} is read only, skipping")
         return {'FINISHED'}
-    if corinth:
-        tag = ManagedBlamNewShader(material.name, nwo.material_shader, nwo.uses_blender_nodes, nwo.shader_path, folder if folder else nwo.shader_dir)
-        nwo.shader_path = tag.path
-        if report is not None:
-            report({'INFO'}, f"Created Material Tag for {material.name}")
+    if nwo.shader_path:
+        shader_path = nwo.shader_path
     else:
-        tag = ManagedBlamNewShader(material.name, nwo.shader_type, nwo.uses_blender_nodes, nwo.shader_path, folder if folder else nwo.shader_dir)
-        nwo.shader_path = tag.path
+        shader_dir = folder if folder else nwo.shader_dir
+        shader_name = get_shader_name(material)
+        shader_path = os.path.join(shader_dir, shader_name)
+    if corinth:
+        with MaterialTag(path=shader_path) as tag:
+            nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes, material_shader=nwo.material_shader)
+    else:
+        with ShaderTag(path=shader_path) as tag:
+            nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes)
         if report is not None:
             report({'INFO'}, f"Created Shader Tag for {material.name}")
 

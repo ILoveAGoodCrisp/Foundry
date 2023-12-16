@@ -24,13 +24,16 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import bpy
-from io_scene_foundry.managed_blam.globals import ManagedBlamGetGlobalMaterials
+from io_scene_foundry.managed_blam import Tag
 
-class NWO_GetGlobalMaterials(bpy.types.Operator):
-    bl_label = "Global Materials Get"
-    bl_idname = "nwo.get_global_materials"
-
-    def execute(self, context):
-        materials = ManagedBlamGetGlobalMaterials()
-        return {'FINISHED'}
+class RenderMethodOptionTag(Tag):
+    tag_ext = 'render_method_option'
+    
+    def _read_fields(self):
+        self.block_parameters = self.tag.SelectField("Block:parameters")
+        
+    def read_options(self):
+        parameters = {}
+        for e in self.block_parameters.Elements:
+            parameters[e.SelectField('parameter name').GetStringData()] = [e.SelectField('parameter ui override name').GetStringData(), e.SelectField('parameter type').Value]
+        return parameters

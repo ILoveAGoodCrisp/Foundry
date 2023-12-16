@@ -26,11 +26,9 @@
 
 from io_scene_foundry import managed_blam
 from io_scene_foundry.tools.export_bitmaps import export_bitmap
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_valid_shader_name, is_halo_node, os_sep_partition, print_warning, remove_chars, space_partition
+from io_scene_foundry.utils.nwo_utils import dot_partition, get_valid_shader_name, os_sep_partition, print_warning, remove_chars, space_partition
 import os
 import bpy
-
-HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 
 all_material_shaders = []
 global_material_shader = None
@@ -846,18 +844,18 @@ class ManagedBlamNewShader(managed_blam.ManagedBlam):
                 bitmap_mapping['scale y'] = sca_y
                 bitmap_mapping['translation x'] = loc_x
                 bitmap_mapping['translation y'] = loc_y
-        elif is_halo_node(scale_node, HALO_SCALE_NODE):
-            sca_x = scale_node.inputs['Scale X'].default_value
-            sca_y = scale_node.inputs['Scale Y'].default_value
-            if self.corinth:
-                self.corinth_extra_mapping['real'] = str(sca_x)
-                self.corinth_extra_mapping['vector'] = [str(sca_y), 0, 0]
-                bitmap_mapping['scale u'] = sca_x
-                bitmap_mapping['scale v'] = sca_y
-            else:
-                bitmap_mapping['scale uniform'] = scale_node.inputs['Scale Multiplier'].default_value
-                bitmap_mapping['scale x'] = sca_x
-                bitmap_mapping['scale y'] = sca_y
+        # elif (scale_node, HALO_SCALE_NODE):
+        #     sca_x = scale_node.inputs['Scale X'].default_value
+        #     sca_y = scale_node.inputs['Scale Y'].default_value
+        #     if self.corinth:
+        #         self.corinth_extra_mapping['real'] = str(sca_x)
+        #         self.corinth_extra_mapping['vector'] = [str(sca_y), 0, 0]
+        #         bitmap_mapping['scale u'] = sca_x
+        #         bitmap_mapping['scale v'] = sca_y
+        #     else:
+        #         bitmap_mapping['scale uniform'] = scale_node.inputs['Scale Multiplier'].default_value
+        #         bitmap_mapping['scale x'] = sca_x
+        #         bitmap_mapping['scale y'] = sca_y
 
         return bitmap_mapping
 

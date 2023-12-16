@@ -33,20 +33,25 @@ MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpa
 all_material_shaders = []
 
 def node_context_menu(self, context):
-    entry_name = 'Halo Shaders'
+    
+    layout = self.layout
+    layout.separator()
+    layout.operator('nwo.halo_material_tile_node', text='Halo Texture Tiling Node')
     if is_corinth(context):
         entry_name = 'Halo Material Shaders'
     else:
+        entry_name = 'Halo Shaders'
         return # temp as Reach custom shaders not implemented
-    layout = self.layout
-    layout.separator()
     layout.operator_menu_enum('nwo.halo_material_nodes', 'node', text=entry_name)
-    layout.operator('nwo.halo_material_tile_node', text='Halo Texture Tiling Node')
 
 class NWO_HaloMaterialTilingNode(bpy.types.Operator):
     bl_idname = 'nwo.halo_material_tile_node'
     bl_label = ''
     bl_description = 'Adds a Halo texture tiling node. This node should plug into the vector input of an image texture node'
+    
+    @classmethod
+    def poll(cls, context):
+        return context.material and context.material.use_nodes and context.space_data.type == 'NODE_EDITOR'
 
     def execute(self, context):
         tiling_node = 'Texture Tiling'
@@ -66,12 +71,10 @@ class NWO_HaloMaterialNodes(bpy.types.Operator):
     bl_idname = 'nwo.halo_material_nodes'
     bl_label = ''
     bl_description = 'Adds a Halo Material Node. This should plug into the Surface input of the Material Output node'
-    
-    def halo_material_exists(self, h4, mat):
 
-            
-        return 
-
+    @classmethod
+    def poll(cls, context):
+        return context.material and context.material.use_nodes and context.space_data.type == 'NODE_EDITOR'
 
     def nodes_items(self, context):
         items = []

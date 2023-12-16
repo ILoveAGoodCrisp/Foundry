@@ -24,9 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.managed_blam.globals import ManagedBlamGetGlobalMaterials
-from io_scene_foundry.utils.nwo_constants import VALID_MESHES
+from io_scene_foundry.managed_blam.globals import GlobalsTag
 from .templates import NWO_Op, NWO_PropPanel
 from ..utils.nwo_utils import (
     bpy_enum_list,
@@ -459,10 +459,8 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
         if global_mats_items:
             return global_mats_items
         global_mats_items = []
-        global_materials = []
-        tag_global_materials = ManagedBlamGetGlobalMaterials()
-        for glob_mat in tag_global_materials.global_materials:
-            global_materials.append(glob_mat)
+        with GlobalsTag(path=os.path.join('globals', 'globals.globals'), tag_must_exist=True) as globals:
+            global_materials = globals.get_global_materials()
 
         global_materials.sort()
         for mat in global_materials:

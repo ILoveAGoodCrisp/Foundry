@@ -30,131 +30,6 @@ from dataclasses import dataclass
 from enum import Enum
 from io_scene_foundry.managed_blam.Game import GameColor, GamePoint2d
 
-# Empty classes to prevent ref errors
-class CacheFile: pass
-class CacheFileHeaderInfo: pass
-class CinematicBsp: pass
-class CinematicScene: pass
-class FunctionEditorParameter: pass
-class FunctionEditorSerialized: pass
-class GameBitmap: pass
-class GameDesignerZoneInfo: pass
-class GameRenderGeometry: pass
-class GameRenderGeometryInfo: pass
-class GameRenderMaterialInfo: pass
-class GameRenderModel: pass
-class GameRenderModelBitmapInfo: pass
-class GameRenderModelInfo: pass
-class GameRenderModelVariationInfo: pass
-class GameScenario: pass
-class ITagElementCollection: pass
-class ITagElementContainer: pass
-class ITagFieldInlined: pass
-class ITagFieldSelector: pass
-class ITagFieldSerializable: pass
-class ObjectFunctionStringEditor: pass
-class PolyartImporterMB: pass
-class TagAlternateStream: pass
-class TagElement: pass
-class TagElementDefinition: pass
-class TagField: pass
-class TagFieldArray: pass
-class TagFieldArrayElement: pass
-class TagFieldBlock: pass
-class TagFieldBlockElement: pass
-class TagFieldBlockElementCollection: pass
-class TagFieldBlockFlags: pass
-class TagFieldBlockIndex: pass
-class TagFieldCustom: pass
-class TagFieldCustomAuthoredLightProbe: pass
-class TagFieldCustomCinematicDynamicLight: pass
-class TagFieldCustomCinematicFrame: pass
-class TagFieldCustomCinematicLoopScene: pass
-class TagFieldCustomCinematicLoopShot: pass
-class TagFieldCustomCinematicPlayback: pass
-class TagFieldCustomCinematicShotFlags: pass
-class TagFieldCustomCinematicVMFLight: pass
-class TagFieldCustomEditorCommand: pass
-class TagFieldCustomFunctionEditor: pass
-class TagFieldCustomHologramLight: pass
-class TagFieldCustomScenarioAndZoneSet: pass
-class TagFieldCustomSlider: pass
-class TagFieldCustomTagGroupTemplate: pass
-class TagFieldCustomToolCommand: pass
-class TagFieldData: pass
-class TagFieldDefinition: pass
-class TagFieldElement: pass
-class TagFieldElementArray: pass
-class TagFieldElementArrayInteger: pass
-class TagFieldElementArraySingle: pass
-class TagFieldElementInteger: pass
-class TagFieldElementLongString: pass
-class TagFieldElementOldStringID: pass
-class TagFieldElementSingle: pass
-class TagFieldElementString: pass
-class TagFieldElementStringID: pass
-class TagFieldElementStringIDWithMenu: pass
-class TagFieldElementStringNormal: pass
-class TagFieldElementTag: pass
-class TagFieldElementUnsignedInteger: pass
-class TagFieldEnum: pass
-class TagFieldExplanation: pass
-class TagFieldFlags: pass
-class TagFieldInterop: pass
-class TagFieldNameInfo: pass
-class TagFieldPath: pass
-class TagFieldReference: pass
-class TagFieldResource: pass
-class TagFieldStringMenu: pass
-class TagFieldStringMenuItem: pass
-class TagFieldStruct: pass
-class TagFieldStructElement: pass
-class TagFieldVertexBuffer: pass
-class TagFile: pass
-class TagFileElement: pass
-class TagGroupType: pass
-class TagLoadException: pass
-class TagPath: pass
-class TagReference: pass
-class TagReferenceDefinition: pass
-class TagSaveException: pass
-class TagSoundPlayFraction: pass
-class TagSoundPlayFractionCollection: pass
-class TagSystem: pass
-class TagTemplate: pass
-class TagTemplateCategory: pass
-class TagTemplateLayout: pass
-class TagTemplateMenu: pass
-class TagTemplateMenuItem: pass
-class TagTemplateParameter: pass
-class TagTemplateParameterHelp: pass
-class TagUnitTest: pass
-class TagUseException: pass
-class TagValue: pass
-class TagValueArrayInteger: pass
-class TagValueArraySingle: pass
-class TagValueCustom: pass
-class TagValueCustomFunctionEditor: pass
-class TagValueCustomToolCommand: pass
-class TagValueEnum: pass
-class TagValueEnumItem: pass
-class TagValueExplanation: pass
-class TagValueFlagItem: pass
-class TagValueFlags: pass
-class TagValueInteger: pass
-class TagValueReference: pass
-class TagValueSimple: pass
-class TagValueSimpleArray: pass
-class TagValueSingle: pass
-class TagValueString: pass
-class TagValueStringID: pass
-class TagValueStringIDWithMenu: pass
-class TagValueStringLong: pass
-class TagValueStringNormal: pass
-class TagValueUnsignedInteger: pass
-class VectorartImporterMB: pass
-class VectorHudData: pass
-
 # Extras that we need
 
 class Bitmap: pass 
@@ -459,7 +334,7 @@ class VectorHudPathStretchType(Enum):
  
 # helper classes. Never to be called, but saves code duplication.
 class _IEnumerator:
-    def GetEnumerator(self) -> list[TagField]:
+    def GetEnumerator(self) -> list['TagField']:
         """"""
     def GetEnumeratorNonGeneric(self) -> Enum:
         """"""
@@ -489,9 +364,9 @@ class _HashEquals:
         """"""
 
 class _GetParent:
-    def GetParent(self) -> ITagFieldSelector:
+    def GetParent(self) -> 'ITagFieldSelector':
         """"""
-    def GetParentElement(self) -> TagElement:
+    def GetParentElement(self) -> 'TagElement':
         """"""
         
 class _ToString:
@@ -514,12 +389,12 @@ class _ValueStringArray:
     def SetValueString(self, value: list[str]) -> bool:
         """"""
 
- # Actual classes
+# Actual classes
 class CacheFile():
     HeaderSize: int
     def __init__(self):
         pass
-    def GetHeaderInfo(self, headerData: bytes) -> CacheFileHeaderInfo:
+    def GetHeaderInfo(self, headerData: bytes) -> 'CacheFileHeaderInfo':
         pass
 
 class CacheFileHeaderInfo:
@@ -554,11 +429,11 @@ class GameBitmap(_IDisposable):
     SequenceIndex: int
     SpriteFrameIndex: int
     Width: int
-    def __init__(self, bitmapTag: TagFile, sequenceIndex: int, spriteFrameIndex: int, showMipLevels: bool, use: GameBitmapUse):
+    def __init__(self, bitmapTag: 'TagFile', sequenceIndex: int, spriteFrameIndex: int, showMipLevels: bool, use: GameBitmapUse):
         pass
-    def __init__(self, bitmapTag: TagFile, sequenceIndex: int, spriteFrameIndex: int, use: bool):
+    def __init__(self, bitmapTag: 'TagFile', sequenceIndex: int, spriteFrameIndex: int, use: bool):
         pass
-    def __init__(self, bitmapTag: TagFile, sequenceIndex: int, spriteFrameIndex: int):
+    def __init__(self, bitmapTag: 'TagFile', sequenceIndex: int, spriteFrameIndex: int):
         pass
     def GetBitmap(self, channel: GameBitmapChannel) -> Bitmap:
         """"""
@@ -566,13 +441,13 @@ class GameBitmap(_IDisposable):
         """"""
     def GetBitmapArgb(self, channel: GameBitmapChannel) -> bytes:
         """"""
-    def GetSequenceCount(self, bitmapTag: TagFile) -> int:
+    def GetSequenceCount(self, bitmapTag: 'TagFile') -> int:
         """"""
-    def GetSpriteFrameCount(self, bitmapTag: TagFile, use: GameBitmapUse, sequenceIndex: int) -> int:
+    def GetSpriteFrameCount(self, bitmapTag: 'TagFile', use: GameBitmapUse, sequenceIndex: int) -> int:
         """"""
-    def GetSpriteSeparation(self, bitmapTag: TagFile) -> int:
+    def GetSpriteSeparation(self, bitmapTag: 'TagFile') -> int:
         """"""
-    def IsSpritePlate(self, bitmapTag: TagFile, sequenceIndex: int) -> bool:
+    def IsSpritePlate(self, bitmapTag: 'TagFile', sequenceIndex: int) -> bool:
         """"""
     
 class GameDesignerZoneInfo:
@@ -584,11 +459,11 @@ class GameDesignerZoneInfo:
 class GameRenderGeometry:
     def __init__(self):
         pass
-    def GetMeshInfo(self, renderGeometryBloc: TagFieldStruct, meshIndex: int) -> GameRenderGeometryInfo:
+    def GetMeshInfo(self, renderGeometryBloc: 'TagFieldStruct', meshIndex: int) -> 'GameRenderGeometryInfo':
         """"""
-    def GetMeshInfo(self, renderGeometryBloc: TagFieldStruct) -> GameRenderGeometryInfo:
+    def GetMeshInfo(self, renderGeometryBloc: 'TagFieldStruct') -> 'GameRenderGeometryInfo':
         """"""
-    def GetModelInfo(self, tag_path: str) -> GameRenderModelInfo:
+    def GetModelInfo(self, tag_path: str) -> 'GameRenderModelInfo':
         """"""
     
 class GameRenderGeometryInfo:
@@ -599,7 +474,7 @@ class GameRenderGeometryInfo:
     triangle_count: int
     vertex_bytes: int
     vertex_count: int
-    vertex_tpye: int
+    vertex_type: int
     def __init__(self):
         pass
     
@@ -613,15 +488,15 @@ class GameRenderMaterialInfo:
 class GameRenderModel:
     def __init__(self):
         pass
-    def GetNodeIndiciesFromMesh(self, rawDataBlock: TagFieldBlock, meshIndex: int) -> bytes:
+    def GetNodeIndiciesFromMesh(self, rawDataBlock: 'TagFieldBlock', meshIndex: int) -> bytes:
         """"""
-    def GetNodeWeightsFromMesh(self, rawDataBlock: TagFieldBlock, meshIndex: int) -> list[float]:
+    def GetNodeWeightsFromMesh(self, rawDataBlock: 'TagFieldBlock', meshIndex: int) -> list[float]:
         """"""
-    def GetNormalsFromMesh(self, rawDataBlock: TagFieldBlock, meshIndex: int) -> list[float]:
+    def GetNormalsFromMesh(self, rawDataBlock: 'TagFieldBlock', meshIndex: int) -> list[float]:
         """"""
-    def GetPositionsFromMesh(self, rawDataBlock: TagFieldBlock, meshIndex: int) -> list[float]:
+    def GetPositionsFromMesh(self, rawDataBlock: 'TagFieldBlock', meshIndex: int) -> list[float]:
         """"""
-    def GetTexCoordsFromMesh(self, rawDataBlock: TagFieldBlock, meshIndex: int) -> list[float]:
+    def GetTexCoordsFromMesh(self, rawDataBlock: 'TagFieldBlock', meshIndex: int) -> list[float]:
         """"""
     
 class GameRenderModelBitmapInfo:
@@ -652,7 +527,7 @@ class GameRenderModelInfo:
     texture_bytes: int
     total_bytes: int
     total_geo: GameRenderGeometryInfo
-    variations: list[GameRenderModelVariationInfo]
+    variations: list['GameRenderModelVariationInfo']
     def __init__(self):
         pass
     
@@ -677,13 +552,13 @@ class GameScenario:
  
 class ITagElementCollection(list):
     Count: int
-    def this(self, element_index: int) -> TagElement:
+    def this(self, element_index: int) -> 'TagElement':
         """Returns the tag element of the given index"""
         
 class ITagElementContainer:
     Elements: ITagElementCollection
     IsRoot: bool
-    def GetParentElement(self) -> TagElement:
+    def GetParentElement(self) -> 'TagElement':
         """"""
         
 class ITagFieldInlined:
@@ -693,11 +568,14 @@ class ITagFieldInlined:
         """"""
         
 class ITagFieldSelector:
-    def SelectField(self, fieldPath: str) -> TagField:
+    @staticmethod
+    def SelectField(fieldPath: str) -> 'TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags':
         """"""
-    def SelectFields(self, fieldPath: str) -> list[TagField]:
+    @staticmethod
+    def SelectFields(fieldPath: str) -> list['TagField']:
         """"""
-    def SelectFieldType(self, fieldPath: str) -> TagField:
+    @staticmethod
+    def SelectFieldType(fieldPath: str) -> 'TagField':
         """"""
         
 class ITagFieldSerializable:
@@ -707,7 +585,7 @@ class ITagFieldSerializable:
         """"""
 
 class ObjectFunctionStringEditor:
-    def __init__(self, tag_file: TagFile):
+    def __init__(self, tag_file: 'TagFile'):
         pass
     def GetMenuEntryId(self, parent_menu_entry_id: int, entry_index: int) -> int:
         """"""
@@ -724,48 +602,43 @@ class PolyartImporterMB:
     NumberOfIndices: int
     NumberOfVertices: int
     ResourceSize: int
-    def __init__(self, tag_file: TagFile):
+    def __init__(self, tag_file: 'TagFile'):
         pass
     def Import(dataFilename: str):
         """Imports a polyart asset from the given source fbx file"""
-        
-class TagAlternateStream(TagFieldBlock):
-    IsRoot: bool
-    def __init__(self, tag_file: TagFile, block: int, locator_offset: int):
-        pass
 
 class TagElement(ITagFieldSelector, ITagFieldSerializable, _IEnumerator):
-    ElementDefinition: TagElementDefinition
+    ElementDefinition: 'TagElementDefinition'
     ElementHeaderText: str
     ElementIndex: int
     FieldPath: str
     FieldPathWithoutIndexes: str
-    Fields: list[TagField]
+    Fields: list['TagField']
     Size: int
     def GetParentContainer(self) -> ITagElementContainer:
         """"""
-    def GetTagFieldPath(self) -> TagFieldPath:
+    def GetTagFieldPath(self) -> 'TagFieldPath':
         """"""
     
 class TagElementDefinition:
     ElementSize: int
-    Fields: list[TagFieldDefinition]
+    Fields: list['TagFieldDefinition']
     def Equals(self, other: object) -> bool:
         """"""
     def GetHashCode(self) -> int:
         """"""
-
+@dataclass
 class TagField(ITagFieldSerializable, _GetParent, _HashEquals, _ToString):
     Address: int
     Description: str
     DisplayName: str
-    FieldDefinition: TagFieldDefinition
+    FieldDefinition: 'TagFieldDefinition'
     FieldName: str
     FieldPath: str
     FieldPathWithoutIndexes: str
     FieldSubtype: str
     FieldType: TagFieldType
-    File: TagFile
+    File: 'TagFile'
     ReadOnly: bool
     Size: int
     SupportsFastIndividualFieldPreview: bool
@@ -775,7 +648,7 @@ class TagField(ITagFieldSerializable, _GetParent, _HashEquals, _ToString):
         """"""
     def GetRawData(self) -> bytes:
         """"""
-    def GetTagFieldPath(self) -> TagFieldPath:
+    def GetTagFieldPath(self) -> 'TagFieldPath':
         """"""
     def __init__(self):
         pass
@@ -799,7 +672,7 @@ class TagFieldBlock(TagField, ITagElementContainer, ITagFieldSerializable, _IEnu
     IsWideByDefault: bool
     MaximumElementCount: int
     Size: int
-    def AddElement(self) -> TagFieldBlockElement:
+    def AddElement(self) -> 'TagFieldBlockElement':
         """Adds an element to the block and returns it"""
     def ClipboardContainsBlockElement(self) -> bool:
         """"""
@@ -809,9 +682,9 @@ class TagFieldBlock(TagField, ITagElementContainer, ITagFieldSerializable, _IEnu
         """"""
     def CopyEntireTagBlock(self):
         """"""
-    def DuplicateElement(self, elementIndex: int) -> TagFieldBlockElement:
+    def DuplicateElement(self, elementIndex: int) -> 'TagFieldBlockElement':
         """"""
-    def InsertElement(self, elementIndex: int) -> TagFieldBlockElement:
+    def InsertElement(self, elementIndex: int) -> 'TagFieldBlockElement':
         """"""
     def PasteAppendElement(self):
         """"""
@@ -827,6 +700,11 @@ class TagFieldBlock(TagField, ITagElementContainer, ITagFieldSerializable, _IEnu
         """"""
     def RemoveElement(self, elementIndex: int):
         """"""
+ 
+class TagAlternateStream(TagFieldBlock):
+    IsRoot: bool
+    def __init__(self, tag_file: 'TagFile', block: int, locator_offset: int):
+        pass
  
 class TagFieldBlockElement(TagElement, ITagFieldSerializable, _ToString):
     ElementDefinition: TagElementDefinition
@@ -884,7 +762,7 @@ class TagFieldCustomCinematicFrame(TagFieldCustom):
     MinFrame: int
     
 class TagFieldCustomCinematicLoopScene(TagFieldCustom):
-    def GetLoopText(self, cinematicPath: TagPath) -> str:
+    def GetLoopText(self, cinematicPath: 'TagPath') -> str:
         """"""
     def GetStopCinematicText(self) -> str:
         """"""
@@ -978,7 +856,7 @@ class TagFieldCustomEditorCommand(TagFieldCustom):
     
 class TagFieldCustomFunctionEditor(TagFieldCustom):
     FunctionName: str
-    Value: TagValueCustomFunctionEditor
+    Value: 'TagValueCustomFunctionEditor'
 
 class TagFieldCustomHologramLight(TagFieldCustom):
     pass
@@ -987,7 +865,7 @@ class TagFieldCustomScenarioAndZoneSet(TagFieldCustom):
     Items: list[str]
     ScenarioPath: str
     ZoneSet: int
-    def SetScenarioPath(self, tagPath: TagPath):
+    def SetScenarioPath(self, tagPath: 'TagPath'):
         """"""
         
 class TagFieldCustomSlider(TagFieldCustom):
@@ -1018,7 +896,7 @@ class TagFieldData(TagField):
         
 class TagFieldDefinition(_HashEquals):
     Element: TagElementDefinition
-    FieldInfo: TagFieldNameInfo
+    FieldInfo: 'TagFieldNameInfo'
     FieldSize: int
     FieldSubtype: str
     FieldType: TagFieldType
@@ -1039,9 +917,6 @@ class TagFieldElementArraySingle(TagFieldElementArray, _StringDataArray):
         
 class TagFieldElementInteger(TagFieldElement):
     Data: int
-        
-class TagFieldElementLongString(TagFieldElementString):
-    pass
 
 class TagFieldElementOldStringID(TagFieldElement):
     Data: str
@@ -1054,12 +929,15 @@ class TagFieldElementString(TagFieldElement):
     Data: str
     MaxLength: int
     
+class TagFieldElementLongString(TagFieldElementString):
+    pass
+    
 class TagFieldElementStringID(TagFieldElement):
     Data: str
     MaxLength: int
     
 class TagFieldElementStringIDWithMenu(TagFieldElementStringID):
-    ContextMenu: TagFieldStringMenu
+    ContextMenu: 'TagFieldStringMenu'
     MenuType: TagFieldStringMenuType
 
 class TagFieldElementStringNormal(TagFieldElementString):
@@ -1074,7 +952,7 @@ class TagFieldElementUnsignedInteger(TagFieldElement):
 
 class TagFieldEnum(TagField):
     BitCount: int
-    Items: list[TagValueEnumItem]
+    Items: list['TagValueEnumItem']
     Value: int
     def SetValue(self, itemName: str):
         """"""
@@ -1084,7 +962,7 @@ class TagFieldExplanation(TagField):
 
 class TagFieldFlags(TagField):
     BitCount: int
-    Items: list[TagValueFlagItem]
+    Items: list['TagValueFlagItem']
     RawValue: int
     def SetBit(self, flagName: str, value: bool):
         """"""
@@ -1106,18 +984,18 @@ class TagFieldNameInfo:
         """"""
 
 class TagFieldPath(_HashEquals, _ToString):
-    Field: TagFieldPath
+    Field: 'TagFieldPath'
     FieldIndex: int
     FieldName: str
     FieldType: TagFieldType
     Name: str
     NameWithoutIndexes: str
-    Parent: TagFieldPath
+    Parent: 'TagFieldPath'
     Path: str
     PathWithoutIndexes: str
-    def __init__(self, name: str, type: TagFieldType, index: int, parent: TagFieldPath):
+    def __init__(self, name: str, type: TagFieldType, index: int, parent: 'TagFieldPath'):
         pass
-    def __init__(self, name: str, type: TagFieldType, parent: TagFieldPath):
+    def __init__(self, name: str, type: TagFieldType, parent: 'TagFieldPath'):
         pass
     def __init__(self, name: str, type: TagFieldType, index: int):
         pass
@@ -1127,36 +1005,36 @@ class TagFieldPath(_HashEquals, _ToString):
         """"""
     def Clone(typeString: str) -> object:
         """"""
-    def Combine(start: TagFieldPath, end: TagFieldPath) -> TagFieldPath:
+    def Combine(start: 'TagFieldPath', end: 'TagFieldPath') -> 'TagFieldPath':
         """"""
-    def GrandestParent(path: TagFieldPath) -> TagFieldPath:
+    def GrandestParent(path: 'TagFieldPath') -> 'TagFieldPath':
         """"""
-    def Parse(fullPath: str) -> TagFieldPath:
+    def Parse(fullPath: str) -> 'TagFieldPath':
         """"""
-    def ParseTagFieldPath(path: str) -> TagFieldPath:
+    def ParseTagFieldPath(path: str) -> 'TagFieldPath':
         """"""
-    def ParseTagFieldType(typeString: str) -> TagFieldPath:
+    def ParseTagFieldType(typeString: str) -> 'TagFieldPath':
         """"""
-    def RemoveGrandestParent(path: TagFieldPath) -> TagFieldPath:
+    def RemoveGrandestParent(path: 'TagFieldPath') -> 'TagFieldPath':
         """"""
 
 class TagFieldReference(TagField):
-    Definition: TagReferenceDefinition
-    Path: TagPath
-    Reference: TagReference
+    Definition: 'TagReferenceDefinition'
+    Path: 'TagPath'
+    Reference: 'TagReference'
     
 class TagFieldResource(TagField):
     pass
 
 class TagFieldStringMenu:
-    RootMenuItem: TagFieldStringMenuItem
+    RootMenuItem: 'TagFieldStringMenuItem'
     def RefreshMenuItems(self):
         """"""
         
 class TagFieldStringMenuItem:
-    Items: list[TagFieldStringMenuItem]
+    Items: list['TagFieldStringMenuItem']
     MenuType: StringMenuItemType
-    Parent: TagFieldStringMenuItem
+    Parent: 'TagFieldStringMenuItem'
     Text: str
 
 class TagFieldStruct(TagField, ITagElementContainer, ITagFieldInlined, ITagFieldSerializable, _IEnumerator):
@@ -1182,13 +1060,13 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     IsFutureVersion: bool
     IsReadOnly: bool
     IsRoot: bool
-    Path: TagPath
+    Path: 'TagPath'
     Root: TagElement
     RootDefinition: TagElementDefinition
     Size: int
-    def __init__(self, tagPath: TagPath, isWeak: bool):
+    def __init__(self, tagPath: 'TagPath', isWeak: bool):
         pass
-    def __init__(self, tagPath: TagPath):
+    def __init__(self, tagPath: 'TagPath'):
         pass
     def __init__(self):
         pass
@@ -1196,7 +1074,7 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     def CalculateFieldChecksum() -> int:
         """"""
     @staticmethod
-    def Copy() -> TagFile:
+    def Copy() -> 'TagFile':
         """"""
     @staticmethod
     def DoesAlternateStreamExist(type: TagAlternateStreamType) -> bool:
@@ -1208,7 +1086,7 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     def GetAlternateStreamTypes() -> list[TagAlternateStreamType]:
         """"""
     @staticmethod
-    def GetChecksum(tagPath: TagPath) -> int:
+    def GetChecksum(tagPath: 'TagPath') -> int:
         """"""
     @staticmethod
     def GetOrCreateAlternateStrea(type: TagAlternateStreamType) -> ITagFieldSelector:
@@ -1217,23 +1095,23 @@ class TagFile(ITagFieldSelector, ITagElementContainer, ITagFieldSerializable, _I
     def GetTagFieldPath() -> TagFieldPath:
         """"""
     @staticmethod
-    def Load(tagPath: TagPath):
+    def Load(tagPath: 'TagPath'):
         """Loads a tag for editing/reading"""
     @staticmethod
-    def New(tagPath: TagPath):
+    def New(tagPath: 'TagPath'):
         """Creates a new TagFile instance. Saves a new tag when Save() called"""
     @staticmethod
-    def Save(tagPath: TagPath):
+    def Save(tagPath: 'TagPath'):
         """Saves the loaded tag"""
     @staticmethod
-    def SaveAs(tagPath: TagPath):
+    def SaveAs(tagPath: 'TagPath'):
         """Saves the loaded tag to the given TagPath and loads it"""
     @staticmethod
-    def SaveAsCopy(tagPath: TagPath):
+    def SaveAsCopy(tagPath: 'TagPath'):
         """Saves the loaded tag to the given TagPath, keeping the original loaded"""
     @staticmethod
-    def SelectField(fieldPath: str) -> TagField:
-        """Gets the TagField at the given path"""
+    def SelectField(fieldPath: str) -> 'TagField | TagFieldBlock | TagFieldCustom | TagFieldElementString | TagFieldElementStringID | TagFieldReference | TagFieldEnum | TagElement | TagFieldFlags':
+        """"""
     @staticmethod
     def SelectFields(fieldPath: str) -> list[TagField]:
         """Gets the TagFields at the given path"""
@@ -1264,15 +1142,15 @@ class TagGroupType:
     HasPostprocessProc: bool
     HasTagReferenceFields: bool
     ParentGroupTag: bool
-    def GetDefinition(self, groupType: str) -> TagGroupType:
+    def GetDefinition(self, groupType: str) -> 'TagGroupType':
         """"""
-    def GetDefinition(self, groupType: str) -> TagGroupType:
+    def GetDefinition(self, groupType: str) -> 'TagGroupType':
         """"""
     def GetExtensionFromGroupType(self, groupType: str) -> str:
         """"""
     def GetGroupTypeFromExtension(self, extension: str) -> str:
         """"""
-    def GetTagGroups(self) -> list[TagGroupType]:
+    def GetTagGroups(self) -> list['TagGroupType']:
         """"""
     def GroupTypeHasTagReferenceFields(self, groupType: str) -> bool:
         """"""
@@ -1295,13 +1173,13 @@ class TagPath(_HashEquals, _ToString):
     ShortNameWithExtension: str
     Type: str
     @staticmethod
-    def FromFilename(filename: str) -> TagPath:
+    def FromFilename(filename: str) -> 'TagPath':
         """Returns a TagPath from a full filepath"""
     @staticmethod
-    def FromPathAndExtension(tagPath: str, extension: str) -> TagPath:
+    def FromPathAndExtension(tagPath: str, extension: str) -> 'TagPath':
         """Returns a TagPath from the tags relative filepath to a file without extension, plus extension"""
     @staticmethod
-    def FromPathAndType(tagPath: str, type: str) -> TagPath:
+    def FromPathAndType(tagPath: str, type: str) -> 'TagPath':
         """Returns a TagPath from the tags relative filepath to a file without extension, plus the tag type"""
     @staticmethod
     def IsTagFileAccessible() -> bool:
@@ -1361,14 +1239,14 @@ class TagSystem:
         
 class TagTemplate(_IDisposable):
     ShowTemplateReference: bool
-    TemplateReference: TagValueReference
+    TemplateReference: 'TagValueReference'
     def __init__(self, tagFile: TagFile, templateField: TagFieldCustomTagGroupTemplate):
         pass
     def __init__(self, tagFile: TagFile):
         pass
     def GetIsTagTemplate(self, groupTag: str) -> bool:
         """"""
-    def GetLayout(self) -> TagTemplateLayout:
+    def GetLayout(self) -> 'TagTemplateLayout':
         """"""
     def ShowTagTemplateByDefault(self, groupTag: str) -> bool:
         """"""
@@ -1377,38 +1255,38 @@ class TagTemplate(_IDisposable):
 class TagTemplateCategory:
     Explanation: str
     Name: str
-    Parameters: list[TagTemplateParameter]
+    Parameters: list['TagTemplateParameter']
     
 class TagTemplateLayout(_IDisposable):
     Categories: list[TagTemplateCategory]
     Dependencies: list[TagReference]
     
 class TagTemplateMenu:
-    Items: list[TagTemplateMenuItem]
-    def MenuItemClicked(self, menuItem: TagTemplateMenuItem):
+    Items: list['TagTemplateMenuItem']
+    def MenuItemClicked(self, menuItem: 'TagTemplateMenuItem'):
         """"""
-    def MenuPopup(self, menuItem: TagTemplateMenuItem):
+    def MenuPopup(self, menuItem: 'TagTemplateMenuItem'):
         """"""
         
 class TagTemplateMenuItem:
-    Items: list[TagTemplateMenuItem]
+    Items: list['TagTemplateMenuItem']
     MenuType: TagTemplateMenuType
-    Parent: TagTemplateMenuItem
+    Parent: 'TagTemplateMenuItem'
     Text: str
     
 class TagTemplateParameter:
     CausesTemplateReload: bool
-    DefaultParameterHelp: TagTemplateParameterHelp
-    DefaultValue: TagValue
-    HeaderHelp: TagTemplateParameterHelp
+    DefaultParameterHelp: 'TagTemplateParameterHelp'
+    DefaultValue: 'TagValue'
+    HeaderHelp: 'TagTemplateParameterHelp'
     MaxValue: float
     MinValue: float
     Name: str
-    ParameterHelp: TagTemplateParameterHelp
+    ParameterHelp: 'TagTemplateParameterHelp'
     TicksFromMinToMaxValue: int
     UIFlags: list[TagTemplateFieldUI]
     UnfriendlyName: str
-    Value: TagValue
+    Value: 'TagValue'
     def ClearValue(self):
         """"""
     def CreateValue(self):
@@ -1449,18 +1327,6 @@ class TagValue:
         pass
     def OnValueChanged(self, args: None):
         """"""
-
-class TagValueArrayInteger(TagValueSimpleArray, _ValueStringArray):
-    Count: int
-    Value: list[int]
-    def __init__(self, type: e_tag_field, data: None, definition: None, id: int):
-        pass
-
-class TagValueArraySingle(TagValueSimpleArray, _ValueStringArray):
-    Count: int
-    Value: list[int]
-    def __init__(self, type: e_tag_field, data: None, definition: None, id: int):
-        pass
     
 class TagValueCustom(TagValue):
     CustomType: TagFieldCustomType
@@ -1582,7 +1448,7 @@ class TagValueCustomToolCommand(TagValueCustom):
 class TagValueEnum(TagValue):
     BitCount: int
     EnumDefinition: s_string_list_definition
-    Items: list[TagValueEnumItem]
+    Items: list['TagValueEnumItem']
     Value: int
     
 class TagValueEnumItem(_ToString):
@@ -1617,11 +1483,6 @@ class TagValueFlags(TagValue):
         """"""
     def TestBit(self, flagName: str) -> bool:
         """"""
-        
-class TagValueInteger(TagValueSimple, _ValueString):
-    Value: int
-    def __init__(self, type: e_tag_field, data: None, definition: None, id: int):
-        pass
 
 class TagValueReference(TagValue):
     Definition: TagReferenceDefinition
@@ -1635,6 +1496,23 @@ class TagValueSimple(TagValue, _ValueString):
         pass
     
 class TagValueSimpleArray(TagValue, _ValueStringArray):
+    def __init__(self, type: e_tag_field, data: None, definition: None, id: int):
+        pass
+    
+class TagValueInteger(TagValueSimple, _ValueString):
+    Value: int
+    def __init__(self, type: e_tag_field, data: None, definition: None, id: int):
+        pass
+    
+class TagValueArrayInteger(TagValueSimpleArray, _ValueStringArray):
+    Count: int
+    Value: list[int]
+    def __init__(self, type: e_tag_field, data: None, definition: None, id: int):
+        pass
+
+class TagValueArraySingle(TagValueSimpleArray, _ValueStringArray):
+    Count: int
+    Value: list[int]
     def __init__(self, type: e_tag_field, data: None, definition: None, id: int):
         pass
 
@@ -1743,8 +1621,6 @@ class VectorHudData:
 class TagsNameSpace:
     CacheFile = CacheFile
     CacheFileHeaderInfo = CacheFileHeaderInfo
-    CinematicBsp = CinematicBsp
-    CinematicScene = CinematicScene
     FunctionEditorParameter = FunctionEditorParameter
     FunctionEditorSerialized = FunctionEditorSerialized
     GameBitmap = GameBitmap
@@ -1839,7 +1715,6 @@ class TagsNameSpace:
     TagTemplateParameter = TagTemplateParameter
     TagTemplateParameterHelp = TagTemplateParameterHelp
     TagUnitTest = TagUnitTest
-    TagUseException = TagUseException
     TagValue = TagValue
     TagValueArrayInteger = TagValueArrayInteger
     TagValueArraySingle = TagValueArraySingle

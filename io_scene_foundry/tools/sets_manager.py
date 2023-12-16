@@ -871,9 +871,7 @@ class NWO_BSPSetLightmapRes(bpy.types.Operator):
         bsp = nwo.regions_table[nwo.regions_table_active_index].name
         with ScenarioTag() as scenario:
             success = scenario.set_bsp_lightmap_res(bsp, int(self.size_class), int(self.refinement_size_class))
-            if success:
-                scenario.save()
-            else:
+            if not success:
                 self.report({'WARNING'}, f"BSP {bsp} does not exist in scenario tag. You may need to export this scene")
                 return {'CANCELLED'}
         

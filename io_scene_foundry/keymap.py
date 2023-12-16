@@ -53,7 +53,6 @@ def register():
         type="F",
         value="PRESS",
         ctrl=True,
-        shift=False,
     )
     keys.append((km, kmi))
 
@@ -61,8 +60,7 @@ def register():
         idname="nwo.apply_types_marker_pie",
         type="F",
         value="PRESS",
-        ctrl=False,
-        shift=True,
+        alt=True,
     )
     keys.append((km, kmi))
 
@@ -78,6 +76,7 @@ def register():
         idname="nwo.show_foundry_panel",
         type="F",
         value="PRESS",
+        shift=True,
     )
     keys.append((km, kmi))
 

@@ -107,7 +107,7 @@ class NWO_ImagePropertiesGroup(bpy.types.PropertyGroup):
 
     reexport_tiff : bpy.props.BoolProperty(
         name="Re-Export TIFF",
-        description="Bitmap exporter will skip exporting a new TIFF file provided one already exists, is not packed data in this blend, and is located within the data directory",
+        description="Forces this bitmap's source file (TIFF) to be re-exported. By default the Bitmap exporter will skip exporting a new TIFF file provided the following conditions are met: a TIFF file already exists, is not packed data in this blend, and is located within the data directory",
     )
 
     filepath : bpy.props.StringProperty()

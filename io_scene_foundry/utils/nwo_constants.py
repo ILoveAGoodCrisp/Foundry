@@ -35,6 +35,9 @@ TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_g
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
 
 # MATERIALS
+
+MATERIAL_SHADERS_DIR = r'shaders\material_shaders'
+
 # Protected material names, we never let the user set shader paths for these
 PROTECTED_MATERIALS = (
     "+sky",

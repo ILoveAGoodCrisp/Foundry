@@ -32,7 +32,6 @@ from ..utils.nwo_utils import (
     dot_partition,
     is_corinth,
     color_3p_str,
-    color_4p_str,
     bool_str,
     jstr,
     radius_str,

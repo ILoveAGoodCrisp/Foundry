@@ -30,7 +30,7 @@ import os
 import threading
 import time
 import bpy
-from io_scene_foundry.managed_blam.bitmaps import ManagedBlamNewBitmap
+from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
@@ -274,14 +274,17 @@ class NWO_FarmShaders(bpy.types.Operator):
             job = f"-- Created Tag:"
 
         if not bitmap_path or bitmap_path not in self.exported_bitmaps:
-            bitmap = ManagedBlamNewBitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, tiff_path).path
-            path = dot_partition(image.nwo.filepath)
-            self.exported_bitmaps.append(bitmap)
-            print(f"{job} {bitmap}")
+            path_no_ext = dot_partition(image.nwo.filepath)
+            bitmap_path = path_no_ext + '.bitmap'
+            with BitmapTag(path=bitmap_path) as bitmap:
+                bitmap.new_bitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type)
+                
+            self.exported_bitmaps.append(bitmap_path)
+            print(f"{job} {bitmap_path}")
             while self.running_check > self.thread_max * 2:
                 time.sleep(0.1)
 
-            thread = threading.Thread(target=self.export_bitmap, args=(path,))
+            thread = threading.Thread(target=self.export_bitmap, args=(path_no_ext,))
             thread.start()
             self.first_bitmap = False
 

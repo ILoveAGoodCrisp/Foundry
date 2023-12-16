@@ -25,24 +25,20 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.managed_blam.Tags import *
 import os
 from io_scene_foundry.utils import nwo_utils
 
 class ScenarioTag(Tag):
+    tag_ext = 'scenario'
         
-    def _get_path(self):
-        return os.path.join(self.asset_dir, self.asset_name + '.scenario')
-        
-    def _read_blocks(self):
+    def _read_fields(self):
         self.block_skies = self.tag.SelectField("Block:skies")
         self.block_object_names = self.tag.SelectField("Block:object names")
         self.block_bsps = self.tag.SelectField("Block:structure bsps")
         
     def _get_bsp_from_name(self, bsp_name: str):
         for element in self.block_bsps.Elements:
-            element: TagElement
-            bsp_reference = self.Element_get_field_value(element, "structure bsp")
+            bsp_reference = element.SelectField('structure bsp').Path
             full_bsp_name = nwo_utils.dot_partition(os.path.basename(bsp_reference.ToString()))
             short_bsp_name = full_bsp_name.split(self.asset_name + '_')[1]
             if short_bsp_name == bsp_name:
@@ -52,15 +48,15 @@ class ScenarioTag(Tag):
         
     def _sky_name_from_element(self, element):
         # Check if we can retrieve the name from the object names block
-        object_names_block_index = self.Element_get_field_value(element, "name")
+        object_names_block_index = element.SelectField('name').Value
         if object_names_block_index:
             object_names_element = self.block_object_names.Elements[object_names_block_index]
-            object_name = self.Element_get_field_value(object_names_element, "name")
+            object_name = object_names_element.SelectField('name').GetStringData()
             if object_name:
                 return object_name
         
         # If we haven't yet found the name, just take the tag name
-        sky_tag_path = self.Element_get_field_value(element, "sky")
+        sky_tag_path = element.SelectField('sky').Path
         if not sky_tag_path: return
         return nwo_utils.dot_partition(os.path.basename(sky_tag_path.ToString()))
     
@@ -77,12 +73,12 @@ class ScenarioTag(Tag):
     def add_new_sky(self, path: str) -> tuple[str, int]:
         """Appends a new entry to the scenario skies block, adding a reference to the given sky scenery tag path"""
         new_sky_element = self.block_skies.AddElement()
-        self.Element_set_field_value(new_sky_element, "sky", self.TagPath_from_string(path))
+        new_sky_element.SelectField('sky').Path = self._TagPath_from_string(path)
         new_object_name_element = self.block_object_names.AddElement()
         sky_name = nwo_utils.dot_partition(os.path.basename(path))
-        self.Element_set_field_value(new_object_name_element, "name", sky_name)
-        self.Element_set_field_value(new_sky_element, "name", new_object_name_element.ElementIndex)
-        
+        new_object_name_element.SelectField('name').SetStringData(sky_name)
+        new_sky_element.SelectField('name').Value = new_object_name_element.ElementIndex
+        self.tag_has_changes = True
         return sky_name, new_sky_element.ElementIndex
     
     def set_bsp_default_sky(self, bsp_name: str, sky_index: int):
@@ -91,12 +87,12 @@ class ScenarioTag(Tag):
         bsp_element = self._get_bsp_from_name(bsp_name)
         if bsp_element is None: return
         # Check current sky to see if we need to update it
-        sky_block_index = self.Element_get_field_value(bsp_element, "default sky")
+        sky_block_index = bsp_element.SelectField('default sky').GetStringData()
         if sky_block_index == sky_index:
             print("Default sky already set to this")
         else:
-            self.Element_set_field_value(bsp_element, "default sky", sky_index)
-        
+            bsp_element.SelectField('default sky').SetStringData(sky_index)
+        self.tag_has_changes = True
         return self._sky_name_from_element(self.block_skies.Elements[sky_index])
         
     def set_bsp_lightmap_res(self, bsp_name: str, size_class: int, refinement_class: int) -> bool:
@@ -106,29 +102,21 @@ class ScenarioTag(Tag):
         bsp_element.SelectField('size class').Value = size_class
         if self.corinth:
             bsp_element.SelectField('refinement size class').Value = refinement_class
-            
+        self.tag_has_changes = True
         return True
-        
         
     def get_bsp_info(self, bsp_name: str) -> dict:
         """Returns interesting information about this BSP in a dict"""
         bsp_info_dict = {}
         bsp_element = self._get_bsp_from_name(bsp_name)
         if bsp_element is None: return
-        bsp_info_dict["Lightmapper Size Class"] = self.Element_get_enum_as_string(bsp_element, "size class")
+        bsp_info_dict["Lightmapper Size Class"] = self._Element_get_enum_as_string(bsp_element, "size class")
         if self.corinth:
-            bsp_info_dict["Lightmapper Refinement Class"] = self.Element_get_enum_as_string(bsp_element, "refinement size class")
-        sky_index = self.Element_get_field_value(bsp_element, "default sky")
+            bsp_info_dict["Lightmapper Refinement Class"] = self._Element_get_enum_as_string(bsp_element, "refinement size class")
+        sky_index = bsp_element.SelectField('default sky').GetStringData()
         if sky_index == -1:
             bsp_info_dict["Default Sky"] = "None"
         else:
             bsp_info_dict["Default Sky"] = self._sky_name_from_element(self.block_skies.Elements[sky_index])
         
-        return bsp_info_dict
-        
-        
-                
-        
-        
-                
-            
+        return bsp_info_dict            

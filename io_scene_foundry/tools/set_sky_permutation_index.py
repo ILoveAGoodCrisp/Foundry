@@ -42,7 +42,10 @@ def set_default_sky(context, report, sky_index):
     return {"FINISHED"}
 
 def new_sky_material(context, report, sky_index, sky_name=None):
-    mat_name = '+sky' + str(sky_index)
+    if sky_index > -1:
+        mat_name = '+sky' + str(sky_index)
+    else:
+        mat_name = '+sky'
     mat = bpy.data.materials.get(mat_name, 0)
     if not mat:
         mat = bpy.data.materials.new(mat_name)
@@ -102,9 +105,9 @@ class NWO_SetSky(bpy.types.Operator):
     def skies_items(self, context):
         items = []
         if self.type == 'material':
-            items.append(("none", "Use BSP Default Sky", "", "", 0))
+            items.append(("-1", "Default", "", "", 0))
         else:
-            items.append(("none", "None", "", "", 0))
+            items.append(("-1", "None", "", "", 0))
         # Read the skies block
         with ScenarioTag() as scenario:
             skies = scenario.get_skies_mapping()

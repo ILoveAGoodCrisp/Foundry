@@ -25,14 +25,24 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from io_scene_foundry.managed_blam import Tag
-import os
+from io_scene_foundry.managed_blam.render_method_option import RenderMethodOptionTag
 
-class GlobalsTag(Tag):
-    tag_ext = 'globals'
-    needs_explicit_path = True
+class RenderMethodDefinitionTag(Tag):
+    tag_ext = 'render_method_definition'
     
     def _read_fields(self):
-        self.block_materials = self.tag.SelectField("Block:materials")
+        self.block_categories = self.tag.SelectField("Block:categories")
         
-    def get_global_materials(self):
-        return [e.SelectField('name').GetStringData() for e in self.block_materials.Elements]
+    def get_categories(self):
+        categories = {}
+        for e in self.block_categories.Elements:
+            e_options = e.Elements
+            options_dict = {}
+            for e_option in e_options:
+                with RenderMethodOptionTag() as render_method_option:
+                    option_parameters = render_method_option.read_options()
+                options_dict[e_option.SelectField("option name").GetStringData()] = option_parameters
+                
+            categories[e.Fields[0].Value] = options_dict
+            
+        return categories

@@ -31,10 +31,10 @@ import os
 import json
 import multiprocessing
 import threading
-from io_scene_foundry.managed_blam.animation import ManagedBlamReachWorldAnimations
 
-from io_scene_foundry.managed_blam.node_usage import ManagedBlamNodeUsage
-from io_scene_foundry.managed_blam.objects import ManagedBlamModelOverride, ManagedBlamSetStructureMetaRef
+from io_scene_foundry.managed_blam.animation import AnimationTag
+from io_scene_foundry.managed_blam.render_model import RenderModelTag
+from io_scene_foundry.managed_blam.model import ModelTag
 from .format_json import NWOJSON
 from ..utils.nwo_utils import (
     data_relative,
@@ -1109,9 +1109,8 @@ class ProcessScene:
         )
         # Update/ set up Node Usage block of the model_animation_graph
         if node_usage_set:
-            disable_prints()
-            ManagedBlamNodeUsage(scene_nwo, nwo_scene.skeleton_bones)
-            enable_prints()
+            with AnimationTag(hide_prints=False) as animation:
+                animation.set_node_usages(nwo_scene.skeleton_bones)
             print("--- Updated Animation Node Usages")
 
     def managed_blam_post_import_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name, reach_world_animations):
@@ -1141,22 +1140,19 @@ class ProcessScene:
         # If this model has lighting, add a reference to the structure_meta tag in the render_model
         if h4_model_lighting:
             meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
-            disable_prints()
-            ManagedBlamSetStructureMetaRef(meta_path)
-            enable_prints()
+            with RenderModelTag(hide_prints=False) as render_model:
+                render_model.set_structure_meta_ref(meta_path)
             print("--- Added Structure Meta Reference to Render Model")
 
         # Apply model overrides if any
         if model_override:
-            disable_prints()
-            ManagedBlamModelOverride(nwo.render_model_path, nwo.collision_model_path, nwo.physics_model_path, nwo.animation_graph_path)
-            enable_prints()
+            with ModelTag(hide_prints=True) as model:
+                model.set_model_overrides(nwo.render_model_path, nwo.collision_model_path, nwo.animation_graph_path, nwo.physics_model_path)
             print("--- Applied Model Overrides")
             
         if reach_world_animations:
-            disable_prints()
-            ManagedBlamReachWorldAnimations(reach_world_animations)
-            enable_prints()
+            with AnimationTag(hide_prints=True) as animation:
+                animation.set_world_animations(reach_world_animations)
             print("--- Setup World Animations")
             
 
