@@ -133,6 +133,7 @@ class Sidecar:
         metadata = ET.Element("Metadata")
         # set a boolean to check if game is h4+ or not
         not_bungo_game = is_corinth()
+        self.gr2_name = 'null_render_corinth.gr2' if is_corinth() else 'null_render_omaha.gr2'
         self.write_header(metadata)
         if sidecar_type == "MODEL":
             self.get_object_output_types(
@@ -239,7 +240,6 @@ class Sidecar:
             self.write_prefab_contents(metadata, sidecar_paths, asset_name)
 
         elif sidecar_type == "FP ANIMATION":
-            self.add_null_render(asset_path)
             self.write_fp_animation_contents(
                 metadata, sidecar_paths, asset_path, asset_name
             )
@@ -264,22 +264,6 @@ class Sidecar:
                 + part2
             )
             xfile.close()
-
-    def add_null_render(self, asset_path):
-        null_gr2_path = os.path.join(asset_path, "export", "models", "null_render.gr2")
-        if not os.path.exists(null_gr2_path):
-            # copy the null gr2 from io_scene_nwo to act as the render model
-            try:
-                script_folder_path = os.path.dirname(os.path.dirname(__file__))
-                null_gr2 = os.path.join(
-                    script_folder_path,
-                    "export",
-                    "resources",
-                    "null_render.gr2",
-                )
-                shutil.copy(null_gr2, null_gr2_path)
-            except:
-                print("Unable to copy null gr2 from io_scene_foundry to asset folder")
 
     def write_header(self, metadata):
         header = ET.SubElement(metadata, "Header")
@@ -554,20 +538,8 @@ class Sidecar:
         ##### RENDER #####
         object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
         render_paths = sidecar_paths.get("render")
-        if render_paths is None:
-            # NULL RENDER
-            self.add_null_render(asset_path)
-            network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
-            ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-            ET.SubElement(network, "IntermediateFile").text = os.path.join(
-                asset_path.replace(get_data_path(), ""),
-                "export",
-                "models",
-                "null_render.gr2",
-            )
-        else:
-            for path in render_paths:
-                self.write_network_files(object, path)
+        for path in render_paths:
+            self.write_network_files(object, path)
 
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
@@ -811,15 +783,10 @@ class Sidecar:
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=asset_name, Type="model")
         object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
-
+        path = sidecar_paths.get("render")[0]
         network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else os.path.join(asset_path, asset_name)    
-        ET.SubElement(network, "IntermediateFile").text = os.path.join(
-            asset_path.replace(get_data_path(), ""),
-            "export",
-            "models",
-            "null_render.gr2",
-        )
+        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
+        ET.SubElement(network, "IntermediateFile").text = path[2]
 
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path

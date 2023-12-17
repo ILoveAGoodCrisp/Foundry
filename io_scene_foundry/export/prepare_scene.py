@@ -756,6 +756,11 @@ class PrepareScene:
 
         # Set timeline range for use during animation export
         self.timeline_start, self.timeline_end = self.set_timeline_range(context)
+        
+        if not self.render and sidecar_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL", "FP ANIMATION"):
+            self.render = [self.add_null_render(scene_coll, default_region, default_permutation)]
+            context.view_layer.update()
+            export_obs = context.view_layer.objects[:]
 
         # rotate the model armature if needed
         if export_gr2_files:
@@ -3272,7 +3277,7 @@ class PrepareScene:
         self.structure_bsps = set()
 
     def halo_objects(self, asset_type, export_obs, h4):
-        render_asset = asset_type not in ("SCENARIO", "PREFAB")
+        render_asset = asset_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL")
 
         for ob in export_obs:
             nwo = ob.nwo
@@ -3517,6 +3522,25 @@ class PrepareScene:
             deselect_all_objects()
             
         return poops, linked_poops_with_nonstandard_scale
+    
+    def add_null_render(self, scene_coll, default_region, default_permutation):
+        verts = [Vector((-32, -32, 0.0)), Vector((32, -32, 0.0)), Vector((-32, 32, 0.0))]
+        faces = [[0, 1, 2]]
+        me = bpy.data.meshes.new('null')
+        me.from_pydata(verts, [], faces)
+        me.materials.append(self.invisible_mat)
+        ob = bpy.data.objects.new('null', me)
+        scene_coll.link(ob)
+        if self.model_armature:
+            ob.parent = self.model_armature
+            ob.parent_type = 'BONE'
+            ob.parent_bone = [b.name for b in self.model_armature.data.bones if b.use_deform][0]
+        ob.nwo.object_type = '_connected_geometry_object_type_mesh'
+        ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
+        ob.nwo.region_name  = default_region
+        ob.nwo.permutation_name  = default_permutation
+        return ob
+
 
 
     # def set_bone_orient(self, b_name: str, objects: list):

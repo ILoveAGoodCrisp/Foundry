@@ -250,22 +250,22 @@ class ProcessScene:
                 "MODEL",
                 "FP ANIMATION",
             ):  # Added FP animation to this. FP animation only exports the skeleton and animations
+                # Must always export a render model
+                if nwo_scene.render:
+                    self.export_model(
+                        context,
+                        asset_path,
+                        asset,
+                        "render",
+                        nwo_scene.render,
+                        nwo_scene.render_perms,
+                        nwo_scene.selected_perms,
+                        nwo_scene.model_armature,
+                        sidecar_type,
+                        nwo_scene,
+                        export_render,
+                    )
                 if sidecar_type == "MODEL":
-                    if nwo_scene.render:
-                        self.export_model(
-                            context,
-                            asset_path,
-                            asset,
-                            "render",
-                            nwo_scene.render,
-                            nwo_scene.render_perms,
-                            nwo_scene.selected_perms,
-                            nwo_scene.model_armature,
-                            sidecar_type,
-                            nwo_scene,
-                            export_render,
-                        )
-
                     if nwo_scene.collision:
                         self.export_model(
                             context,
@@ -324,6 +324,7 @@ class ProcessScene:
                             nwo_scene,
                             True,
                         )
+                    
 
                 fbx_path, json_path, gr2_path = self.get_path(
                     asset_path, asset, "skeleton", None, None, None
