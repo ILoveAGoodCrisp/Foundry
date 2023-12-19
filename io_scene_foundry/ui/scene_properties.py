@@ -787,3 +787,5 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         items=scale_items,
         update=scale_update
     )
+    
+    export_in_progress: BoolProperty()

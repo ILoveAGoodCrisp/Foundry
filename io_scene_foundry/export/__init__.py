@@ -152,6 +152,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             self.game_path_not_set = True
 
     def execute(self, context):
+        context.scene.nwo.export_in_progress = True
         if self.game_path_not_set:
             self.report(
                 {"WARNING"},
@@ -625,6 +626,7 @@ class NWO_Export(NWO_Export_Scene):
 
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
+        context.scene.nwo.export_in_progress = False
         return {"FINISHED"}
 
 def ExportSettingsFromSidecar(sidecar_filepath):

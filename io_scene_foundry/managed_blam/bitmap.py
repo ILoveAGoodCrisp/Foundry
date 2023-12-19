@@ -28,7 +28,13 @@ import os
 from io_scene_foundry.managed_blam import Tag
 import clr
 clr.AddReference('System.Drawing')
-from System.Drawing.Imaging import ImageFormat
+# from System.Drawing.Imaging import ImageFormat, ImageLockMode
+# from System.Drawing import Rectangle
+from System import Array, Byte
+from System.Runtime.InteropServices import Marshal
+from System.Drawing import Rectangle
+from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat
+
 tiff_format = ImageFormat.Tiff
 
 class BitmapTag(Tag):
@@ -124,11 +130,34 @@ class BitmapTag(Tag):
             
         self.tag_has_changes = True
         
-    def save_to_tiff(self):
+    def save_to_tiff(self, blue_channel_fix=False):
         game_bitmap = self._GameBitmap()
         bitmap = game_bitmap.GetBitmap()
+        game_bitmap.Dispose()
+        if blue_channel_fix:
+            if bitmap.PixelFormat == PixelFormat.Format32bppArgb:
+                bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
+                stride = bitmap_data.Stride
+                total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
+                rgbValues = Array.CreateInstance(Byte, total_bytes)
+                Marshal.Copy(bitmap_data.Scan0, rgbValues, 0, total_bytes)
+
+                for i in range(0, total_bytes, 4):
+                    y, x = divmod(i // 4, stride // 4)
+                    rgbValues[i] = 255
+
+                Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
+                bitmap.UnlockBits(bitmap_data)
+                print("unlocked!", bitmap)
+                    
         tiff_path = self.data_dir + self.tag.Path.RelativePath + '.tiff'
         tiff_dir = os.path.dirname(tiff_path)
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
         bitmap.Save(tiff_path, tiff_format)
+        bitmap.Dispose()
+        print("saved!", tiff_path)
+        return tiff_path
+    
+    def normal_type(self):
+        return 'opengl' if self.longenum_usage.Value == 36 else 'directx'

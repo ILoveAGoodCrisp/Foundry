@@ -112,6 +112,7 @@ else:
     def load_handler(dummy):
         context = bpy.context
         context.scene.nwo.shader_sync_active = False
+        context.scene.nwo.export_in_progress = False
         # Add projects
         projects = setup_projects_list()
         if not context.scene.nwo.scene_project and projects:

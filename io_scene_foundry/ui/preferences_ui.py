@@ -368,6 +368,12 @@ class ToolkitLocationPreferences(AddonPreferences):
         description="Prevents the material/shader tags that come bundeled with the Halo Editing Kits from being edited by Foundry",
         default=True,
     )
+    
+    update_materials_on_shader_path: BoolProperty(
+        name="Update Blender Materials from Shader Path",
+        description="Enable to automatically import required bitmaps and generate a new node tree for the selected blender material using the referenced shader/material tag",
+        default=False,
+    )
 
     def draw(self, context):
         prefs = self
@@ -418,3 +424,5 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
         row = box.row(align=True)
         row.prop(prefs, "protect_materials")
+        row = box.row(align=True)
+        row.prop(prefs, "update_materials_on_shader_path")

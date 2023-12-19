@@ -24,9 +24,11 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from mathutils import Vector
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.managed_blam.Tags import TagsNameSpace
 import os
+from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.export_bitmaps import export_bitmap
 from io_scene_foundry.utils import nwo_utils
 import bpy
@@ -48,6 +50,9 @@ class ShaderTag(Tag):
     
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
+        self.block_parameters = self.render_method.SelectField("parameters")
+        self.block_options = self.render_method.SelectField('options')
+        self.reference = self.render_method.SelectField('reference')
     
     def _get_info(self):
         global global_render_method_definition
@@ -123,13 +128,11 @@ class ShaderTag(Tag):
         self.tag_has_changes = True
             
     def _build_basic(self, map):
-        block_options = self.render_method.SelectField('options')
-        albedo = block_options.Elements[0].SelectField('short')
-        bump_mapping = block_options.Elements[1].SelectField('short')
-        alpha_test = block_options.Elements[2].SelectField('short')
-        specular_mask = block_options.Elements[3].SelectField('short')
+        albedo = self.block_options.Elements[0].SelectField('short')
+        bump_mapping = self.block_options.Elements[1].SelectField('short')
+        alpha_test = self.block_options.Elements[2].SelectField('short')
+        specular_mask = self.block_options.Elements[3].SelectField('short')
         # Set up shader parameters
-        self.block_parameters = self.render_method.SelectField("parameters")
         spec_alpha_from_diffuse = False
         if map.get('diffuse', 0):
             if int(albedo.GetStringData()) == 2 or int(albedo.GetStringData()) == -1: # if is constant color or none
@@ -294,3 +297,241 @@ class ShaderTag(Tag):
                 return int(bool(input.default_value))
             case 'color':
                 return nwo_utils.get_material_albedo(self.group_node, input)
+            
+            
+    # READING
+    def to_nodes(self, blender_material):
+        shader_path: str = blender_material.nwo.shader_path
+        if shader_path.endswith('.shader'):
+            self._build_nodes_basic(blender_material)
+        else:
+            print('Shader type not supported')
+            
+    def _option_value_from_index(self, index):
+        option_enum = int(self.block_options.Elements[index].Fields[0].GetStringData())
+        if option_enum == -1 and self.reference.Path:
+            with ShaderTag(path=self.reference.Path) as shader:
+                return shader._option_value_from_index(index)
+        else:
+            return option_enum
+        
+    def _mapping_from_parameter_name(self, name):
+        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if element is None:
+            if self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader._mapping_from_parameter_name(name)
+            else:
+                return
+            
+        block_animated_parameters = element.SelectField(self.function_parameters)
+        mapping = {}
+        for e in block_animated_parameters.Elements:
+            type = e.Fields[0].Value
+            value = e.SelectField(self.animated_function).Value
+            match type:
+                case 2:
+                    mapping['scale_uni'] = value.ClampRangeMin
+                case 3:
+                    mapping['scale_x'] = value.ClampRangeMin
+                case 4:
+                    mapping['scale_y'] = value.ClampRangeMin
+                case 5:
+                    mapping['offset_x'] = value.ClampRangeMin
+                case 6:
+                    mapping['offset_y'] = value.ClampRangeMin
+                    
+        return mapping
+        
+    def _image_from_parameter_name(self, name, blue_channel_fix=False):
+        """Saves an image (or gets the already existing one) from a shader parameter element"""
+        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if element is None:
+            if self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader._image_from_parameter_name(name)
+            else:
+                return
+        bitmap_path = element.SelectField('bitmap').Path
+        if not bitmap_path:
+            return
+        system_bitmap_path = self.tags_dir + bitmap_path.RelativePathWithExtension
+        image_path = ''
+        if not os.path.exists(system_bitmap_path):
+            return
+        system_tiff_path = self.data_dir + bitmap_path.RelativePath + '.tiff'
+        if os.path.exists(system_tiff_path):
+            image_path = system_tiff_path
+        else:
+            with BitmapTag(path=bitmap_path) as bitmap:
+                image_path = bitmap.save_to_tiff(blue_channel_fix)
+                if not image_path: return
+    
+        return bpy.data.images.load(filepath=image_path, check_existing=True)
+    
+    def _normal_type_from_parameter_name(self, name):
+        if not self.corinth:
+            return 'directx' # Reach normals are always directx
+        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        bitmap_path = element.SelectField('bitmap').Path
+        system_bitmap_path = self.tags_dir + bitmap_path.RelativePathWithExtension
+        if not os.path.exists(system_bitmap_path):
+            return
+        with BitmapTag(path=bitmap_path) as bitmap:
+            return bitmap.normal_type()
+    
+    def _color_from_parameter_name(self, name):
+        color = [1, 1, 1, 1]
+        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if element is None:
+            if self.reference.Path:
+                with ShaderTag(path=self.reference.Path) as shader:
+                    return shader._color_from_parameter_name(name)
+            else:
+                return
+            
+        block_animated_parameters = element.SelectField(self.function_parameters)
+        color_element = self._Element_from_field_value(block_animated_parameters, 'type', 1)
+        if color_element:
+            game_color = color_element.SelectField(self.animated_function).Value.GetColor(0)
+            if game_color.ColorMode == 1: # Is HSV
+                game_color = game_color.ToRgb()
+                
+            color = [game_color.Red, game_color.Green, game_color.Blue, game_color.Alpha]
+        
+        return color
+    
+    def _build_nodes_basic(self, blender_material: bpy.types.Material):
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        # Clear it out
+        nodes.clear()
+        # Make the BSDF and Output
+        output = nodes.new(type='ShaderNodeOutputMaterial')
+        output.location = Vector((300, 0))
+        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+        tree.links.new(input=output.inputs[0], output=bsdf.outputs[0])
+        albedo_enum = self._option_value_from_index(0)
+        bump_mapping_enum = self._option_value_from_index(1)
+        alpha_test = self._option_value_from_index(2)
+        specular_mask_enum = self._option_value_from_index(3)
+        diffuse = None
+        normal = None
+        specular = None
+        if albedo_enum == 2:
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
+        else:
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('base_map'), mapping=self._mapping_from_parameter_name('base_map'))
+            if not diffuse.data:
+                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
+
+        if bump_mapping_enum > 0:
+            normal = BSDFParameter(tree, bsdf, bsdf.inputs['Normal'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('bump_map', True), special_type=self._normal_type_from_parameter_name('bump_map'), mapping=self._mapping_from_parameter_name('bump_map'))
+            if normal.data:
+                normal.data.colorspace_settings.name = 'Non-Color'
+            else:
+                normal = None
+                
+        if specular_mask_enum == 3:
+            specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_mask_texture'), mapping=self._mapping_from_parameter_name('specular_mask_texture'))
+            if specular.data:
+                specular.data.colorspace_settings.name = 'Non-Color'
+            else:
+                specular = None
+        elif specular_mask_enum > 0 and diffuse and type(diffuse.data) == bpy.types.Image:
+            diffuse.special_type = 'diffspec'
+            
+        if diffuse:
+            diffuse.build(Vector((-300, 100)))
+        if normal:
+            normal.build()
+        if specular:
+            specular.build(Vector((-300, -800)))
+            
+            
+class BSDFParameter():
+    """Representation of a Halo Shader parameter element in Blender node form"""
+    tree: bpy.types.NodeTree
+    main_node: bpy.types.Node
+    input: bpy.types.NodeInputs
+    link_node_type: str
+    data: any # The data this node holds such an image or color
+    default_value: any # The fallback data to set for the input if no data
+    mapping: list # Mapping is [loc_x, loc_y, sca_x, sca_y]
+    special_type: str # from opengl, directx, diffspec
+    
+    def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], special_type=None):
+        self.tree = tree
+        self.main_node = main_node
+        self.input = input
+        self.link_node_type = link_node_type
+        self.data = data
+        self.default_value = default_value
+        self.mapping = mapping
+        self.special_type = special_type
+        
+    
+    def build(self, vector=Vector((0, 0))):
+        if not (self.data or self.default_value):
+            print("No data and no default value")
+            return
+        
+        output_index = 0
+        data_node = self.tree.nodes.new(self.link_node_type)
+        data_node.location = vector
+        if self.link_node_type == 'ShaderNodeTexImage':
+            data_node.image = self.data
+        elif self.link_node_type == 'ShaderNodeRGB':
+            data_node.outputs[0].default_value = self.data
+        
+        if self.special_type in ('opengl', 'directx'):
+            normal_map_node = self.tree.nodes.new('ShaderNodeNormalMap')
+            normal_map_node.location = Vector((-200, -400))
+            self.tree.links.new(input=self.input, output=normal_map_node.outputs[0])
+            if self.special_type == 'opengl':
+                data_node.location.x = normal_map_node.location.x - 300
+                data_node.location.y = normal_map_node.location.y
+                self.tree.links.new(input=normal_map_node.inputs[1], output=data_node.outputs[0])
+            else:
+                combine_rgb = self.tree.nodes.new('ShaderNodeCombineColor')
+                combine_rgb.location.x = normal_map_node.location.x - 200
+                combine_rgb.location.y = normal_map_node.location.y
+                self.tree.links.new(input=normal_map_node.inputs[1], output=combine_rgb.outputs[0])
+                invert_color = self.tree.nodes.new('ShaderNodeInvert')
+                invert_color.location.x = combine_rgb.location.x - 200
+                invert_color.location.y = combine_rgb.location.y + 80
+                self.tree.links.new(input=combine_rgb.inputs[1], output=invert_color.outputs[0])
+                separate_rgb = self.tree.nodes.new('ShaderNodeSeparateColor')
+                separate_rgb.location.x = invert_color.location.x - 200
+                separate_rgb.location.y = combine_rgb.location.y
+                self.tree.links.new(input=combine_rgb.inputs[0], output=separate_rgb.outputs[0])
+                self.tree.links.new(input=invert_color.inputs[1], output=separate_rgb.outputs[1])
+                self.tree.links.new(input=combine_rgb.inputs[2], output=separate_rgb.outputs[2])
+                
+                self.tree.links.new(input=separate_rgb.inputs[0], output=data_node.outputs[0])
+                data_node.location.x = separate_rgb.location.x - 300
+                data_node.location.y = separate_rgb.location.y
+                
+        else:
+            self.tree.links.new(input=self.input, output=data_node.outputs[output_index])
+            if self.special_type == 'diffspec':
+                self.tree.links.new(input=self.main_node.inputs['Specular IOR Level'], output=data_node.outputs[1])
+            
+            
+        if self.mapping:
+            mapping_node = self.tree.nodes.new('ShaderNodeGroup')
+            mapping_node.node_tree = nwo_utils.add_node_from_resources('Texture Tiling')
+            mapping_node.location.x = data_node.location.x - 300
+            mapping_node.location.y = data_node.location.y
+            scale_uni = self.mapping.get('scale_uni', 0)
+            if scale_uni:
+                mapping_node.inputs[0].default_value = scale_uni
+            scale_x = self.mapping.get('scale_x', 0)
+            if scale_x:
+                mapping_node.inputs[1].default_value = scale_x
+            scale_y = self.mapping.get('scale_y', 0)
+            if scale_y:
+                mapping_node.inputs[2].default_value = scale_y
+                
+            self.tree.links.new(input=data_node.inputs[0], output=mapping_node.outputs[0])

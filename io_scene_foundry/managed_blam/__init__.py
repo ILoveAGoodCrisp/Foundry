@@ -329,20 +329,24 @@ class Tag():
             enable_prints()
 
     def _find_tag(self):
-        # If path isn't set by now, assume it is in the asset folder with the asset name
-        if self.path:
-            # Enforce extension if tag has one defined
-            if self.tag_ext:
-                self.path = dot_partition(self.path) + '.' + self.tag_ext
-        else:
-            self.path = os.path.join(self.asset_dir, self.asset_name + '.' + self.tag_ext)
-
-        self.system_path = self.tags_dir + self.path
-        
+        is_TagPath = False
         if type(self.path) == str:
-            self.tag, self.tag_path = self._get_tag_and_path()
+            # If path isn't set by now, assume it is in the asset folder with the asset name
+            if self.path:
+                # Enforce extension if tag has one defined
+                if self.tag_ext:
+                    self.path = dot_partition(self.path) + '.' + self.tag_ext
+            else:
+                self.path = os.path.join(self.asset_dir, self.asset_name + '.' + self.tag_ext)
+
+            self.system_path = self.tags_dir + self.path
+            
         else:
-            self.tag = self.path
+            # Assume we have instead be given a TagPath
+            self.system_path = self.tags_dir + self.path.RelativePathWithExtension
+            is_TagPath = True
+        
+        self.tag, self.tag_path = self._get_tag_and_path(is_TagPath)
             
     def save(self):
         self.tag.Save()
@@ -350,10 +354,15 @@ class Tag():
     # TAG HELPER FUNCTIONS
     #######################
 
-    def _get_tag_and_path(self) -> tuple[TagFile, TagPath]:
+    def _get_tag_and_path(self, is_TagPath) -> tuple[TagFile, TagPath]:
         """Return the tag and bungie tag path for tag creation"""
         tag = Tags.TagFile()
-        tag_path = Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(self.path))
+        if is_TagPath:
+            tag_path = self.path
+            # convert path to a str
+            self.path = tag_path.RelativePathWithExtension
+        else:
+            tag_path = Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(self.path))
             
         return tag, tag_path
 

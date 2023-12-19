@@ -26,9 +26,7 @@
 
 import bpy
 import os
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_tags_path, is_corinth
-
-MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'resources', 'materials')
+from io_scene_foundry.utils.nwo_utils import add_node_from_resources, dot_partition, get_tags_path, is_corinth
 
 all_material_shaders = []
 
@@ -55,10 +53,7 @@ class NWO_HaloMaterialTilingNode(bpy.types.Operator):
 
     def execute(self, context):
         tiling_node = 'Texture Tiling'
-        lib_blend = os.path.join(MATERIAL_RESOURCES, 'shared_nodes.blend')
-        with bpy.data.libraries.load(lib_blend, link=True) as (_, data_to):
-            if not bpy.data.node_groups.get(tiling_node, 0):
-                data_to.node_groups = [tiling_node]
+        add_node_from_resources(tiling_node)
 
         if bpy.data.node_groups.get(tiling_node, 0):
             bpy.ops.node.add_node('INVOKE_DEFAULT', use_transform=True, settings=[{"name":"node_tree", "value":f"bpy.data.node_groups['{tiling_node}']"}], type="ShaderNodeGroup")

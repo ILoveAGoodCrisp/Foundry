@@ -52,6 +52,7 @@ from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
 from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
+from io_scene_foundry.tools.shader_reader import NWO_ShaderToNodes
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu
 from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
@@ -250,7 +251,8 @@ class NWO_FoundryPanelProps(Panel):
 
                 if panel_expanded:
                     draw_panel = getattr(self, f"draw_{p}")
-                    draw_panel()
+                    if callable(draw_panel):
+                        draw_panel()
 
     def draw_scene_properties(self):
         box = self.box.box()
@@ -2019,6 +2021,7 @@ class NWO_FoundryPanelProps(Panel):
                         icon_value=get_icon_id("foundation"),
                         text="Open in Tag Editor"
                     )
+                    col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL')
                     col.separator()
                     if material_read_only(nwo.shader_path):
                         col.label(text=f"{txt} is read only")
@@ -2521,6 +2524,8 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
         row = box.row(align=True)
         row.prop(prefs, "protect_materials")
+        row = box.row(align=True)
+        row.prop(prefs, "update_materials_on_shader_path")
         blend_prefs = context.preferences
         if blend_prefs.use_preferences_save and (not bpy.app.use_userpref_skip_save_on_exit):
             return
@@ -5328,16 +5333,7 @@ class NWO_FixRootBone(Operator):
     
     def execute(self, context):
         scene = context.scene
-        obs = export_objects()
-        rigs = [ob for ob in obs if ob.type == 'ARMATURE']
-        if not rigs:
-            return {'CANCELLED'}
-        elif len(rigs) > 1:
-            if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
-                arm = scene.nwo.parent_rig
-            else:
-                return {'CANCELLED'}
-        arm = rigs[0]
+        arm = get_rig(context)
         root_bones = [b for b in arm.data.bones if b.use_deform and not b.parent]
         if len(root_bones) > 1:
             return {'CANCELLED'}
@@ -6029,6 +6025,7 @@ classeshalo = (
     NWO_BSPContextMenu,
     NWO_BSPInfo,
     NWO_BSPSetLightmapRes,
+    NWO_ShaderToNodes,
 )
 
 def register():
