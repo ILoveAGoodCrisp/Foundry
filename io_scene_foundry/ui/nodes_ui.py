@@ -26,7 +26,7 @@
 
 import bpy
 import os
-from io_scene_foundry.utils.nwo_utils import add_node_from_resources, dot_partition, get_tags_path, is_corinth
+from io_scene_foundry.utils.nwo_utils import MATERIAL_RESOURCES, add_node_from_resources, dot_partition, get_tags_path, is_corinth
 
 all_material_shaders = []
 
@@ -49,7 +49,7 @@ class NWO_HaloMaterialTilingNode(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.material and context.material.use_nodes and context.space_data.type == 'NODE_EDITOR'
+        return context.space_data.type == 'NODE_EDITOR' and context.material and context.material.use_nodes
 
     def execute(self, context):
         tiling_node = 'Texture Tiling'
@@ -69,7 +69,7 @@ class NWO_HaloMaterialNodes(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.material and context.material.use_nodes and context.space_data.type == 'NODE_EDITOR'
+        return context.space_data.type == 'NODE_EDITOR' and context.material and context.material.use_nodes
 
     def nodes_items(self, context):
         items = []

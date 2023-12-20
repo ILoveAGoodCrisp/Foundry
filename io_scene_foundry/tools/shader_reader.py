@@ -43,7 +43,7 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         if not mat: return
         shader_path = mat.nwo.shader_path
         full_path = nwo_utils.get_tags_path() + shader_path
-        return os.path.exists(full_path) and shader_path.endswith(('.shader', '.material')) and not nwo_utils.is_corinth(context) # temp until h4 implemented
+        return not context.scene.nwo.export_in_progress and os.path.exists(full_path) and shader_path.endswith(('.shader', '.material')) and not nwo_utils.is_corinth(context) # temp until h4 implemented
 
     def execute(self, context):
         mat = context.object.active_material

@@ -302,7 +302,7 @@ class ShaderTag(Tag):
     # READING
     def to_nodes(self, blender_material):
         shader_path: str = blender_material.nwo.shader_path
-        if shader_path.endswith('.shader'):
+        if shader_path.endswith(self.tag_ext):
             self._build_nodes_basic(blender_material)
         else:
             print('Shader type not supported')

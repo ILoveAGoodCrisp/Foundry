@@ -30,7 +30,7 @@ import bmesh
 import bpy
 from os import path
 import csv
-from math import radians
+from math import degrees, radians
 from mathutils import Matrix, Vector
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
@@ -381,9 +381,13 @@ class PrepareScene:
             
             elif nwo.object_type == '_connected_geometry_object_type_mesh':
                 if type_valid(nwo.mesh_type_ui, sidecar_type, game_version):
-                    if not self.setup_mesh_properties(ob, nwo.mesh_type_ui, sidecar_type, h4, nwo):
+                    if self.setup_mesh_properties(ob, nwo.mesh_type_ui, sidecar_type, h4, nwo):
+                        if triangulate:
+                            add_triangle_mod(ob)
+                    else:
                         self.unlink(ob)
                         continue
+                    
                 else:
                     self.warning_hit = True
                     print_warning(f"{ob.name} has illegal mesh type: [{nwo.mesh_type_ui}]. Skipped")
@@ -398,9 +402,6 @@ class PrepareScene:
                     print_warning(f"{ob.name} has illegal marker type: [{nwo.marker_type_ui}]. Skipped")
                     self.unlink(ob)
                     continue
-                
-            if triangulate:
-                add_triangle_mod(ob)
 
             is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and self.has_halo_materials(nwo, h4)
 
@@ -1919,7 +1920,7 @@ class PrepareScene:
             
         elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
             nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
-            nwo.water_volume_flow_direction = jstr(nwo.water_volume_flow_direction_ui)
+            nwo.water_volume_flow_direction = jstr(degrees(nwo.water_volume_flow_direction_ui))
             nwo.water_volume_flow_velocity = jstr(nwo.water_volume_flow_velocity_ui)
             nwo.water_volume_fog_murkiness = jstr(nwo.water_volume_fog_murkiness_ui)
             if h4:

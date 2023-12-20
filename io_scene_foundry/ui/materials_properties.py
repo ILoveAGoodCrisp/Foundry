@@ -34,7 +34,7 @@ from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, get
 class NWO_MaterialPropertiesGroup(PropertyGroup):
     def update_shader(self, context):
         self["shader_path"] = clean_tag_path(self["shader_path"]).strip('"')
-        if not context.scene.nwo.export_in_progress and get_prefs().update_materials_on_shader_path and os.path.exists(get_tags_path() + self.shader_path) and bpy.ops.nwo.shader_to_nodes.poll():
+        if get_prefs().update_materials_on_shader_path and bpy.ops.nwo.shader_to_nodes.poll():
             bpy.ops.nwo.shader_to_nodes()
 
     shader_path: StringProperty(

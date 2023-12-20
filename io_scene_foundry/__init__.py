@@ -39,7 +39,7 @@ bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
     "version": (343, 7, 343),
-    "blender": (3, 6, 1),
+    "blender": (4, 0, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer: BUILD_VERSION_STR",
     "warning": "",
@@ -48,9 +48,9 @@ bl_info = {
     "category": "Export",
 }
 
-#check that version is 3.6.1 or greater
-if bpy.app.version < (3, 6, 1):
-    raise Warning("Blender version must be 3.6.1 or greater to use Foundry")
+#check that version is 4.0.0 or greater
+if bpy.app.version < (4, 0, 0):
+    raise Warning("Blender version must be 4.0.0 or greater to use Foundry")
 else:
     from io_scene_foundry.utils import nwo_globals
 
