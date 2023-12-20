@@ -330,7 +330,6 @@ class PrepareScene:
         export_obs = context.view_layer.objects[:]
 
         # establish region/global mats sets
-        has_regions = sidecar_type in ("MODEL", "SKY")
         has_global_mats = sidecar_type in ("MODEL", "SCENARIO", "PREFAB")
 
         self.regions = {r.name for r in context.scene.nwo.regions_table}
@@ -406,19 +405,7 @@ class PrepareScene:
             is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and self.has_halo_materials(nwo, h4)
 
             # add region/global_mat to sets
-            uses_global_mat = (
-                has_global_mats
-                and nwo.mesh_type
-                in (
-                    "_connected_geometry_mesh_type_collision",
-                    "_connected_geometry_mesh_type_physics"
-                    "_connected_geometry_mesh_type_poop",
-                    "_connected_geometry_mesh_type_poop_collision",
-                )
-                or scenario_asset
-                and not h4
-                and nwo.mesh_type == "_connected_geometry_mesh_type_default"
-            )
+            uses_global_mat = has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or scenario_asset and not h4 and nwo.mesh_type == "_connected_geometry_mesh_type_default")
 
             if uses_global_mat:
                 self.global_materials.add(nwo.face_global_material)
@@ -625,6 +612,8 @@ class PrepareScene:
             for idx, global_material in enumerate(global_materials)
             if global_material
         }
+        
+        print(self.global_materials_dict)
 
         # get all objects that we plan to export later
         self.halo_objects_init()
