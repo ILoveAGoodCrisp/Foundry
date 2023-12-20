@@ -26,6 +26,7 @@
 
 import os
 import bpy
+from io_scene_foundry.managed_blam.material import MaterialTag
 from io_scene_foundry.managed_blam.shader import ShaderTag
 from io_scene_foundry.utils import nwo_utils
 
@@ -43,10 +44,14 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         if not mat: return
         shader_path = mat.nwo.shader_path
         full_path = nwo_utils.get_tags_path() + shader_path
-        return not context.scene.nwo.export_in_progress and os.path.exists(full_path) and shader_path.endswith(('.shader', '.material')) and not nwo_utils.is_corinth(context) # temp until h4 implemented
+        return not context.scene.nwo.export_in_progress and os.path.exists(full_path) and shader_path.endswith(('.shader', '.material'))
 
     def execute(self, context):
         mat = context.object.active_material
-        with ShaderTag(path=mat.nwo.shader_path) as shader:
-            shader.to_nodes(mat)
+        if nwo_utils.is_corinth(context):
+            with MaterialTag(path=mat.nwo.shader_path) as material:
+                material.to_nodes(mat)
+        else:
+            with ShaderTag(path=mat.nwo.shader_path) as shader:
+                shader.to_nodes(mat)
         return {"FINISHED"}

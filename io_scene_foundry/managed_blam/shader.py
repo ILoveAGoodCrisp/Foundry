@@ -302,7 +302,7 @@ class ShaderTag(Tag):
     # READING
     def to_nodes(self, blender_material):
         shader_path: str = blender_material.nwo.shader_path
-        if shader_path.endswith(self.tag_ext):
+        if shader_path.endswith('.' + self.tag_ext):
             self._build_nodes_basic(blender_material)
         else:
             print('Shader type not supported')
@@ -318,7 +318,7 @@ class ShaderTag(Tag):
     def _mapping_from_parameter_name(self, name):
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         if element is None:
-            if self.reference.Path:
+            if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._mapping_from_parameter_name(name)
             else:
@@ -347,7 +347,7 @@ class ShaderTag(Tag):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         if element is None:
-            if self.reference.Path:
+            if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._image_from_parameter_name(name)
             else:
@@ -373,10 +373,12 @@ class ShaderTag(Tag):
         if not self.corinth:
             return 'directx' # Reach normals are always directx
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if element is None:
+            return 'opengl'
         bitmap_path = element.SelectField('bitmap').Path
         system_bitmap_path = self.tags_dir + bitmap_path.RelativePathWithExtension
         if not os.path.exists(system_bitmap_path):
-            return
+            return 'opengl'
         with BitmapTag(path=bitmap_path) as bitmap:
             return bitmap.normal_type()
     
@@ -384,7 +386,7 @@ class ShaderTag(Tag):
         color = [1, 1, 1, 1]
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
         if element is None:
-            if self.reference.Path:
+            if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
                     return shader._color_from_parameter_name(name)
             else:
@@ -401,6 +403,18 @@ class ShaderTag(Tag):
         
         return color
     
+    def _set_alpha(self, alpha_type, blender_material):
+        if alpha_type:
+            if alpha_type == 'clip':
+                blender_material.blend_method = 'CLIP'
+                blender_material.shadow_method = 'CLIP'
+            else:
+                blender_material.blend_method = 'BLEND'
+                blender_material.shadow_method = 'HASHED'
+        else:
+            blender_material.blend_method = 'OPAQUE'
+            blender_material.shadow_method = 'OPAQUE'
+    
     def _build_nodes_basic(self, blender_material: bpy.types.Material):
         blender_material.use_nodes = True
         tree = blender_material.node_tree
@@ -415,6 +429,7 @@ class ShaderTag(Tag):
         albedo_enum = self._option_value_from_index(0)
         bump_mapping_enum = self._option_value_from_index(1)
         alpha_test = self._option_value_from_index(2)
+        alpha_type = ''
         specular_mask_enum = self._option_value_from_index(3)
         diffuse = None
         normal = None
@@ -422,7 +437,7 @@ class ShaderTag(Tag):
         if albedo_enum == 2:
             diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
         else:
-            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('base_map'), mapping=self._mapping_from_parameter_name('base_map'))
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('base_map'), mapping=self._mapping_from_parameter_name('base_map'), alpha=alpha_type)
             if not diffuse.data:
                 diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
 
@@ -449,6 +464,9 @@ class ShaderTag(Tag):
         if specular:
             specular.build(Vector((-300, -800)))
             
+        self._set_alpha(alpha_type, blender_material)
+            
+            
             
 class BSDFParameter():
     """Representation of a Halo Shader parameter element in Blender node form"""
@@ -461,7 +479,7 @@ class BSDFParameter():
     mapping: list # Mapping is [loc_x, loc_y, sca_x, sca_y]
     special_type: str # from opengl, directx, diffspec
     
-    def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], special_type=None):
+    def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], special_type=None, alpha=None):
         self.tree = tree
         self.main_node = main_node
         self.input = input
@@ -470,6 +488,7 @@ class BSDFParameter():
         self.default_value = default_value
         self.mapping = mapping
         self.special_type = special_type
+        self.alpha = alpha
         
     
     def build(self, vector=Vector((0, 0))):
@@ -517,6 +536,8 @@ class BSDFParameter():
             self.tree.links.new(input=self.input, output=data_node.outputs[output_index])
             if self.special_type == 'diffspec':
                 self.tree.links.new(input=self.main_node.inputs['Specular IOR Level'], output=data_node.outputs[1])
+            if self.alpha:
+                self.tree.links.new(input=self.main_node.inputs['Alpha'], output=data_node.outputs[1])
             
             
         if self.mapping:

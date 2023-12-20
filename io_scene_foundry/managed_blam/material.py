@@ -24,8 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from mathutils import Vector
 from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
-from io_scene_foundry.managed_blam.shader import ShaderTag
+from io_scene_foundry.managed_blam.shader import BSDFParameter, ShaderTag
 from io_scene_foundry.utils import nwo_utils
 import bpy
 
@@ -160,3 +161,69 @@ class MaterialTag(ShaderTag):
                 element.SelectField('vector').SetStringData(str(mapping.get(self.scale_v), str(mapping.get(self.translation_u)), str(mapping.get(self.translation_v))))
             else:
                 element.SelectField('vector').SetStringData(str(mapping.get(self.scale_v)), '0', '0')
+                
+                
+                
+    # READING
+    
+    def _alpha_type(self, material_shader_name):
+        if self.alpha_blend_mode.Value != 0:
+            return 'blend'
+        elif 'clip' in material_shader_name:
+            return 'clip'
+        else:
+            return ''
+    
+    def _build_nodes_basic(self, blender_material: bpy.types.Material):
+        blender_material.use_nodes = True
+        tree = blender_material.node_tree
+        nodes = tree.nodes
+        # Clear it out
+        nodes.clear()
+        # Make the BSDF and Output
+        output = nodes.new(type='ShaderNodeOutputMaterial')
+        output.location = Vector((300, 0))
+        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+        tree.links.new(input=output.inputs[0], output=bsdf.outputs[0])
+        diffuse = None # has a parameter named color_map
+        normal = None # has a parameter named normal_map
+        specular = None # has a parameter named normal_map
+        if self.reference_material_shader:
+            material_shader_name = nwo_utils.os_sep_partition(self.reference_material_shader.Path.RelativePath, True)
+        else:
+            material_shader_name = ''
+        print(material_shader_name)
+        alpha_type = self._alpha_type(material_shader_name)
+        if 'constant' in material_shader_name:
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint'))
+        else:
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('color_map'), mapping=self._mapping_from_parameter_name('color_map'), alpha=alpha_type)
+            if not diffuse.data:
+                diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_tint'))
+                
+        if not diffuse.data:
+            diffuse = None
+
+        normal = BSDFParameter(tree, bsdf, bsdf.inputs['Normal'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('normal_map', True), special_type=self._normal_type_from_parameter_name('normal_map'), mapping=self._mapping_from_parameter_name('normal_map'))
+        if normal.data:
+            normal.data.colorspace_settings.name = 'Non-Color'
+        else:
+            normal = None
+                
+        if 'diffspec' in material_shader_name and type(diffuse.data) == bpy.types.Image:
+            diffuse.special_type = 'diffspec'
+        else:
+            specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_map'), mapping=self._mapping_from_parameter_name('specular_map'))
+            if specular.data:
+                specular.data.colorspace_settings.name = 'Non-Color'
+            else:
+                specular = None
+            
+        if diffuse:
+            diffuse.build(Vector((-300, 100)))
+        if normal:
+            normal.build()
+        if specular:
+            specular.build(Vector((-600, -100)))
+            
+        self._set_alpha(alpha_type, blender_material)
