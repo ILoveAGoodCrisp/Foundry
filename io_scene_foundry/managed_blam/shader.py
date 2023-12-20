@@ -414,6 +414,14 @@ class ShaderTag(Tag):
         else:
             blender_material.blend_method = 'OPAQUE'
             blender_material.shadow_method = 'OPAQUE'
+            
+    def _alpha_type(self, alpha_test, blend_mode):
+        if blend_mode > 0:
+            return 'blend'
+        elif alpha_test > 0:
+            return 'clip'
+        else:
+            return ''
     
     def _build_nodes_basic(self, blender_material: bpy.types.Material):
         blender_material.use_nodes = True
@@ -428,21 +436,26 @@ class ShaderTag(Tag):
         tree.links.new(input=output.inputs[0], output=bsdf.outputs[0])
         albedo_enum = self._option_value_from_index(0)
         bump_mapping_enum = self._option_value_from_index(1)
-        alpha_test = self._option_value_from_index(2)
-        alpha_type = ''
+        alpha_test_enum = self._option_value_from_index(2)
         specular_mask_enum = self._option_value_from_index(3)
+        self_illumination_enum = self._option_value_from_index(6)
+        blend_mode_enum = self._option_value_from_index(7)
+        alpha_blend_source_enum = self._option_value_from_index(11)
+        alpha_type = self._alpha_type(alpha_test_enum, blend_mode_enum)
         diffuse = None
         normal = None
         specular = None
+        self_illum = None
+        alpha = None
         if albedo_enum == 2:
             diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
         else:
-            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('base_map'), mapping=self._mapping_from_parameter_name('base_map'), alpha=alpha_type)
+            diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeTexImage', data=self._image_from_parameter_name('base_map'), mapping=self._mapping_from_parameter_name('base_map'), diffalpha=bool(alpha_type))
             if not diffuse.data:
                 diffuse = BSDFParameter(tree, bsdf, bsdf.inputs[0], 'ShaderNodeRGB', data=self._color_from_parameter_name('albedo_color'))
 
         if bump_mapping_enum > 0:
-            normal = BSDFParameter(tree, bsdf, bsdf.inputs['Normal'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('bump_map', True), special_type=self._normal_type_from_parameter_name('bump_map'), mapping=self._mapping_from_parameter_name('bump_map'))
+            normal = BSDFParameter(tree, bsdf, bsdf.inputs['Normal'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('bump_map', True), normal_type=self._normal_type_from_parameter_name('bump_map'), mapping=self._mapping_from_parameter_name('bump_map'))
             if normal.data:
                 normal.data.colorspace_settings.name = 'Non-Color'
             else:
@@ -455,14 +468,39 @@ class ShaderTag(Tag):
             else:
                 specular = None
         elif specular_mask_enum > 0 and diffuse and type(diffuse.data) == bpy.types.Image:
-            diffuse.special_type = 'diffspec'
+            diffuse.diffspec = True
+            
+        if self_illumination_enum > 0:
+            if self_illumination_enum == 4 and diffuse and type(diffuse.data) == bpy.types.Image:
+                diffuse.diffillum = True
+            else:
+                self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('self_illum_map'), mapping=self._mapping_from_parameter_name('self_illum_map'))
+            if self_illum.data:
+                bsdf.inputs['Emission Strength'].default_value = 1
+                intensity_element = self._Element_from_field_value(self.block_parameters, 'parameter name', 'self_illum_intensity')
+                if intensity_element:
+                    value_element = self._Element_from_field_value(intensity_element.SelectField('animated parameters'), 'type', 0)
+                    if value_element:
+                        bsdf.inputs['Emission Strength'].default_value = value_element.SelectField(self.animated_function).Value.ClampRangeMin
+            else:
+                self_illum = None
+                
+        if alpha_type:
+            if alpha_blend_source_enum > 1:
+                alpha = BSDFParameter(tree, bsdf, bsdf.inputs['Alpha'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('opacity_texture'), mapping=self._mapping_from_parameter_name('opacity_texture'))
+            else:
+                diffuse.diffalpha = True
             
         if diffuse:
-            diffuse.build(Vector((-300, 100)))
+            diffuse.build(Vector((-300, 400)))
         if normal:
             normal.build()
         if specular:
-            specular.build(Vector((-300, -800)))
+            specular.build(Vector((-300, -200)))
+        if self_illum:
+            self_illum.build(Vector((-300, -500)))
+        if alpha:
+            alpha.build(Vector((-600, 300)))
             
         self._set_alpha(alpha_type, blender_material)
             
@@ -474,12 +512,13 @@ class BSDFParameter():
     main_node: bpy.types.Node
     input: bpy.types.NodeInputs
     link_node_type: str
-    data: any # The data this node holds such an image or color
-    default_value: any # The fallback data to set for the input if no data
-    mapping: list # Mapping is [loc_x, loc_y, sca_x, sca_y]
-    special_type: str # from opengl, directx, diffspec
+    data: any
+    default_value: any
+    mapping: list
+    normal_type: str
+    alpha: str
     
-    def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], special_type=None, alpha=None):
+    def __init__(self, tree, main_node, input, link_node_type, data=None, default_value=None, mapping=[], normal_type='', diffalpha=False, diffillum=False, diffspec=False):
         self.tree = tree
         self.main_node = main_node
         self.input = input
@@ -487,8 +526,10 @@ class BSDFParameter():
         self.data = data
         self.default_value = default_value
         self.mapping = mapping
-        self.special_type = special_type
-        self.alpha = alpha
+        self.normal_type = normal_type
+        self.diffalpha = diffalpha
+        self.diffillum = diffillum
+        self.diffspec = diffspec
         
     
     def build(self, vector=Vector((0, 0))):
@@ -504,11 +545,11 @@ class BSDFParameter():
         elif self.link_node_type == 'ShaderNodeRGB':
             data_node.outputs[0].default_value = self.data
         
-        if self.special_type in ('opengl', 'directx'):
+        if self.normal_type in ('opengl', 'directx'):
             normal_map_node = self.tree.nodes.new('ShaderNodeNormalMap')
-            normal_map_node.location = Vector((-200, -400))
+            normal_map_node.location = Vector((-200, 100))
             self.tree.links.new(input=self.input, output=normal_map_node.outputs[0])
-            if self.special_type == 'opengl':
+            if self.normal_type == 'opengl':
                 data_node.location.x = normal_map_node.location.x - 300
                 data_node.location.y = normal_map_node.location.y
                 self.tree.links.new(input=normal_map_node.inputs[1], output=data_node.outputs[0])
@@ -534,9 +575,11 @@ class BSDFParameter():
                 
         else:
             self.tree.links.new(input=self.input, output=data_node.outputs[output_index])
-            if self.special_type == 'diffspec':
+            if self.diffspec:
                 self.tree.links.new(input=self.main_node.inputs['Specular IOR Level'], output=data_node.outputs[1])
-            if self.alpha:
+            if self.diffillum:
+                self.tree.links.new(input=self.main_node.inputs['Emission Color'], output=data_node.outputs[1])
+            if self.diffalpha:
                 self.tree.links.new(input=self.main_node.inputs['Alpha'], output=data_node.outputs[1])
             
             
