@@ -371,7 +371,7 @@ class ToolkitLocationPreferences(AddonPreferences):
     
     update_materials_on_shader_path: BoolProperty(
         name="Update Blender Materials from Shader Path",
-        description="Enable to automatically import required bitmaps and generate a new node tree for the selected blender material using the referenced shader/material tag",
+        description="Enable to automatically generate new Material Nodes whenever a valid Material Shader Path is set",
         default=False,
     )
 
