@@ -61,8 +61,9 @@ class NWO_Import(bpy.types.Operator):
     
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
+        extensions = set([path.rpartition('.')[2] for path in filepaths])
         importer = NWOImporter(context, self.report, filepaths)
-        if self.amf_okay:
+        if 'amf' in extensions and self.amf_okay:
             amf_module_name = amf_addon_installed()
             amf_addon_enabled = addon_utils.check(amf_module_name)[0]
             if not amf_addon_enabled:

@@ -126,12 +126,19 @@ class ShaderTag(Tag):
             self._build_basic(get_basic_mapping(self.blender_material))
         
         self.tag_has_changes = True
+        
+    def _alpha_type_from_blender_material(self):
+        pass
             
     def _build_basic(self, map):
         albedo = self.block_options.Elements[0].SelectField('short')
         bump_mapping = self.block_options.Elements[1].SelectField('short')
         alpha_test = self.block_options.Elements[2].SelectField('short')
         specular_mask = self.block_options.Elements[3].SelectField('short')
+        self_illumination_enum = self._option_value_from_index(6)
+        blend_mode_enum = self._option_value_from_index(7)
+        alpha_blend_source_enum = self._option_value_from_index(11)
+        # alpha_type = self._alpha_type_from_blender_material(alpha_test_enum, blend_mode_enum)
         # Set up shader parameters
         spec_alpha_from_diffuse = False
         if map.get('diffuse', 0):
@@ -475,7 +482,7 @@ class ShaderTag(Tag):
                 diffuse.diffillum = True
             else:
                 self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('self_illum_map'), mapping=self._mapping_from_parameter_name('self_illum_map'))
-            if self_illum.data:
+            if self_illum and self_illum.data:
                 bsdf.inputs['Emission Strength'].default_value = 1
                 intensity_element = self._Element_from_field_value(self.block_parameters, 'parameter name', 'self_illum_intensity')
                 if intensity_element:
@@ -488,7 +495,7 @@ class ShaderTag(Tag):
         if alpha_type:
             if alpha_blend_source_enum > 1:
                 alpha = BSDFParameter(tree, bsdf, bsdf.inputs['Alpha'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('opacity_texture'), mapping=self._mapping_from_parameter_name('opacity_texture'))
-            else:
+            elif diffuse and diffuse.data and type(diffuse.data) == bpy.types.Image:
                 diffuse.diffalpha = True
             
         if diffuse:

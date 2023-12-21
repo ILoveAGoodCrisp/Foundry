@@ -35,23 +35,30 @@ class NWO_ShaderToNodes(bpy.types.Operator):
     bl_label = "Convert Shader to Blender Material Nodes"
     bl_description = "Builds a new node tree for the active material based on the referenced shader/material tag. Will import required bitmaps"
     bl_options = {"UNDO"}
+    
+    mat_name: bpy.props.StringProperty()
 
     @classmethod
     def poll(cls, context):
-        ob = context.object
-        if not ob: return
-        mat = context.object.active_material
-        if not mat: return
-        shader_path = mat.nwo.shader_path
-        full_path = nwo_utils.get_tags_path() + shader_path
-        return not context.scene.nwo.export_in_progress and os.path.exists(full_path) and shader_path.endswith(('.shader', '.material'))
+        return not context.scene.nwo.export_in_progress
 
     def execute(self, context):
-        mat = context.object.active_material
+        mat = bpy.data.materials.get(self.mat_name, 0)
+        if not mat:
+            self.report({'ERROR'}, "Material not supplied")
+            return {"CANCELLED"}
+        shader_path = mat.nwo.shader_path
+        full_path = nwo_utils.get_tags_path() + shader_path
+        if not os.path.exists(full_path):
+            self.report({'ERROR'}, "Tag not found")
+            return {"CANCELLED"}
+        if not shader_path.endswith(('.shader', '.material')):
+            self.report({'ERROR'}, f'Tag Type [{nwo_utils.dot_partition(shader_path, True)}] is not supported')
+            return {"CANCELLED"}
         if nwo_utils.is_corinth(context):
-            with MaterialTag(path=mat.nwo.shader_path) as material:
+            with MaterialTag(path=shader_path) as material:
                 material.to_nodes(mat)
         else:
-            with ShaderTag(path=mat.nwo.shader_path) as shader:
+            with ShaderTag(path=shader_path) as shader:
                 shader.to_nodes(mat)
         return {"FINISHED"}

@@ -35,7 +35,7 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
     def update_shader(self, context):
         self["shader_path"] = clean_tag_path(self["shader_path"]).strip('"')
         if get_prefs().update_materials_on_shader_path and bpy.ops.nwo.shader_to_nodes.poll():
-            bpy.ops.nwo.shader_to_nodes()
+            bpy.ops.nwo.shader_to_nodes(mat_name=self.id_data.name)
 
     shader_path: StringProperty(
         name="Shader Path",
@@ -130,10 +130,6 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
     )
     
     # Export Material props
-    
-    uses_alpha: BoolProperty(
-        name="Alpha"
-    )
     
     
     # LE MATERIAL PROPERTIES

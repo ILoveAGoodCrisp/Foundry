@@ -2021,7 +2021,10 @@ class NWO_FoundryPanelProps(Panel):
                         icon_value=get_icon_id("foundation"),
                         text="Open in Tag Editor"
                     )
-                    col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL')
+                    shader_path = mat.nwo.shader_path
+                    full_path = get_tags_path() + shader_path
+                    if os.path.exists(full_path) and shader_path.endswith(('.shader', '.material')):
+                        col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL').mat_name = mat.name
                     col.separator()
                     if material_read_only(nwo.shader_path):
                         col.label(text=f"{txt} is read only")
