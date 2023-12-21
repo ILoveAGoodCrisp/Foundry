@@ -94,19 +94,20 @@ class MaterialTag(ShaderTag):
     def _build_basic(self, map):
         # Set up shader parameters
         spec_alpha_from_diffuse = False
+        si_alpha_from_diffuse = False
         if map.get('diffuse', 0):
             element = self._setup_parameter(map['diffuse'], 'color_map', 'bitmap')
             if element:
                 mapping = self._setup_function_parameters(map['diffuse'], element, 'bitmap')
                 self._finalize_material_parameters(mapping, element)
             self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'albedo_tint')
-            diff_outputs = map['diffuse'].outputs
-            for i in diff_outputs:
-                if i.name.lower() == 'alpha' and i.links:
-                    for l in i.links:
-                        if 'specular' in l.to_socket.name.lower():
-                            spec_alpha_from_diffuse = True
-                            break
+            diff_alpha_output: bpy.types.NodeInputs = map['diffuse'].outputs[1]
+            if diff_alpha_output.links:
+                for l in diff_alpha_output.links:
+                    if l.to_socket.name.lower() == 'specular ior level':
+                        spec_alpha_from_diffuse = True
+                    if l.to_socket.name.lower() == 'emission color':
+                        si_alpha_from_diffuse = True
                 
         elif map.get('albedo_tint', 0):
             element = self._setup_parameter(map['albedo_tint'], 'albedo_tint', 'color')
@@ -126,6 +127,36 @@ class MaterialTag(ShaderTag):
         else:
             self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'specular_map')
             
+        if si_alpha_from_diffuse:
+            element = self._setup_parameter(map['diffuse'], 'control_map_spglrf', 'bitmap')
+            if element:
+                mapping = self._setup_function_parameters(map['diffuse'], element, 'bitmap')
+                self._finalize_material_parameters(mapping, element)
+        else:
+            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'control_map_spglrf')
+            
+        if map.get('self_illum', 0):
+            element = self._setup_parameter(map['self_illum'], 'selfillum_mod_map', 'bitmap')
+            if element:
+                mapping = self._setup_function_parameters(map['self_illum'], element, 'bitmap')
+                self._finalize_material_parameters(mapping, element)
+            element = self._setup_parameter(map['self_illum'], 'selfillum_map', 'bitmap')
+            if element:
+                mapping = self._setup_function_parameters(map['self_illum'], element, 'bitmap')
+                self._finalize_material_parameters(mapping, element)
+        else:
+            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'selfillum_mod_map')
+            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'selfillum_map')
+        
+        if si_alpha_from_diffuse or map.get('self_illum', 0):
+            si_intensity = map['bsdf'].inputs['Emission Strength'].default_value
+            element = self._setup_parameter(si_intensity, 'si_intensity', 'real')
+            if element:
+                mapping = self._setup_function_parameters(si_intensity, element, 'real')
+                self._finalize_material_parameters(mapping, element)
+        else:
+            self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'si_intensity')
+            
         if map.get('normal', 0):
             element = self._setup_parameter(map['normal'], 'normal_map', 'bitmap')
             if element:
@@ -134,7 +165,8 @@ class MaterialTag(ShaderTag):
         else:
             self._Element_remove_if_needed(self.block_parameters, 'parameter name', 'normal_map')
             
-        if self.blender_material.nwo.uses_alpha and self.alpha_blend_mode.Value == 0:
+            
+        if self.alpha_type == 'blend' and self.alpha_blend_mode.Value == 0:
             self.alpha_blend_mode.Value = 3
         elif self.alpha_blend_mode.Value == 3:
             self.alpha_blend_mode.Value = 0
@@ -142,9 +174,21 @@ class MaterialTag(ShaderTag):
         if self.material_shader:
             self.reference_material_shader.Path = self._TagPath_from_string(self.material_shader)
         elif map.get('albedo_tint', 0) and not map.get('specular', 0) and not map.get('normal', 0):
-            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_constant.material_shader')
+            if self.alpha_type == 'clip':
+                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_constant_clip.material_shader')
+            else:
+                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_constant.material_shader')
+        elif si_alpha_from_diffuse:
+            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_ca_blinn_diffspec_selfillum.material_shader')
         elif spec_alpha_from_diffuse:
-            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_ca_blinn_diffspec.material_shader')
+            if self.alpha_type == 'clip':
+                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_ca_blinn_diffspec_clip.material_shader')
+            else:
+                self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_ca_blinn_diffspec.material_shader')
+        elif map.get('self_illum', 0):
+            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_blinn_selfillum_mod.material_shader')
+        elif self.alpha_type == 'clip':
+            self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_blinn_clip.material_shader')
         else:
             self.reference_material_shader.Path = self._TagPath_from_string(r'shaders\material_shaders\materials\srf_blinn.material_shader')
             
@@ -161,8 +205,6 @@ class MaterialTag(ShaderTag):
                 element.SelectField('vector').SetStringData(str(mapping.get(self.scale_v), str(mapping.get(self.translation_u)), str(mapping.get(self.translation_v))))
             else:
                 element.SelectField('vector').SetStringData(str(mapping.get(self.scale_v)), '0', '0')
-                
-                
                 
     # READING
     
