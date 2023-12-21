@@ -48,6 +48,8 @@ class ShaderTag(Tag):
     animated_function = 'animation function'
     color_parameter_type = 'argb color'
     
+    self_illum_map_names = 'meter_map', 'self_illum_map'
+    
     def _read_fields(self):
         self.render_method = self.tag.SelectField("Struct:render_method").Elements[0]
         self.block_parameters = self.render_method.SelectField("parameters")
@@ -93,6 +95,7 @@ class ShaderTag(Tag):
         return self.tag.Path.RelativePathWithExtension
         
     def _edit_tag(self):
+        self.alpha_type = self._alpha_type_from_blender_material()
         if self.custom:
             self._get_info()
             self._build_custom()
@@ -108,6 +111,7 @@ class ShaderTag(Tag):
                         if albedo_tint:
                             maps['albedo_tint'] = albedo_tint
                         return maps
+                    maps['bsdf'] = shader_node
                     diffuse = nwo_utils.find_linked_node(shader_node, 'base color', 'TEX_IMAGE')
                     if diffuse:
                         maps['diffuse'] = diffuse
@@ -117,6 +121,12 @@ class ShaderTag(Tag):
                     normal = nwo_utils.find_linked_node(shader_node, 'normal', 'TEX_IMAGE')
                     if normal:
                         maps['normal'] = normal
+                    self_illum = nwo_utils.find_linked_node(shader_node, 'emission color', 'TEX_IMAGE')
+                    if self_illum:
+                        maps['self_illum'] = self_illum
+                    alpha = nwo_utils.find_linked_node(shader_node, 'alpha', 'TEX_IMAGE')
+                    if alpha and alpha not in maps.values():
+                        maps['alpha'] = alpha
                     if diffuse is None:
                         albedo_tint = nwo_utils.get_material_albedo(shader_node)
                         if albedo_tint:
@@ -128,32 +138,39 @@ class ShaderTag(Tag):
         self.tag_has_changes = True
         
     def _alpha_type_from_blender_material(self):
-        pass
+        blend_mode = self.blender_material.blend_method
+        match blend_mode:
+            case 'OPAQUE':
+                return ''
+            case 'CLIP':
+                return 'clip'
+            
+        return 'blend'
             
     def _build_basic(self, map):
         albedo = self.block_options.Elements[0].SelectField('short')
         bump_mapping = self.block_options.Elements[1].SelectField('short')
         alpha_test = self.block_options.Elements[2].SelectField('short')
         specular_mask = self.block_options.Elements[3].SelectField('short')
-        self_illumination_enum = self._option_value_from_index(6)
-        blend_mode_enum = self._option_value_from_index(7)
-        alpha_blend_source_enum = self._option_value_from_index(11)
-        # alpha_type = self._alpha_type_from_blender_material(alpha_test_enum, blend_mode_enum)
+        self_illumination = self.block_options.Elements[6].SelectField('short')
+        blend_mode = self.block_options.Elements[7].SelectField('short')
+        alpha_blend_source = self.block_options.Elements[11].SelectField('short')
         # Set up shader parameters
         spec_alpha_from_diffuse = False
+        si_alpha_from_diffuse = False
         if map.get('diffuse', 0):
             if int(albedo.GetStringData()) == 2 or int(albedo.GetStringData()) == -1: # if is constant color or none
                 albedo.SetStringData('0') # sets default
             element = self._setup_parameter(map['diffuse'], 'base_map', 'bitmap')
             if element:
                 self._setup_function_parameters(map['diffuse'], element, 'bitmap')
-            diff_outputs: bpy.types.NodeInputs = map['diffuse'].outputs
-            for i in diff_outputs:
-                if i.links:
-                    for l in i.links:
-                        if l.from_socket.name.lower() == 'alpha':
+                diff_alpha_output: bpy.types.NodeInputs = map['diffuse'].outputs[1]
+                if diff_alpha_output.links:
+                    for l in diff_alpha_output.links:
+                        if l.to_socket.name.lower() == 'specular ior level':
                             spec_alpha_from_diffuse = True
-                            break
+                        if l.to_socket.name.lower() == 'emission color':
+                            si_alpha_from_diffuse = True
                 
         elif map.get('albedo_tint', 0):
             albedo.SetStringData('2') # constant color
@@ -171,6 +188,26 @@ class ShaderTag(Tag):
         else:
             specular_mask.SetStringData('-1')
             
+        if si_alpha_from_diffuse:
+            print("AYYY")
+            self_illumination.SetStringData('4') # self illum mask from diffuse
+        elif map.get('self_illum', 0):
+            print("awdadawdwa")
+            si_enum = int(self_illumination.GetStringData())
+            if si_enum < 1 or si_enum == 4:
+                self_illumination.SetStringData('1') # simple
+            element = self._setup_parameter(map['self_illum'], 'self_illum_map', 'bitmap')
+            if element:
+                self._setup_function_parameters(map['self_illum'], element, 'bitmap')
+                
+        if si_alpha_from_diffuse or map.get('self_illum', 0):
+            si_intensity = map['bsdf'].inputs['Emission Strength'].default_value
+            element = self._setup_parameter(si_intensity, 'self_illum_intensity', 'real')
+            if element:
+                self._setup_function_parameters(si_intensity, element, 'real')
+        else:
+            self_illumination.SetStringData('-1')
+            
         if map.get('normal', 0):
             if int(bump_mapping.GetStringData()) < 1:
                 bump_mapping.SetStringData('1') # standard
@@ -180,10 +217,25 @@ class ShaderTag(Tag):
         elif int(bump_mapping.GetStringData()) > 0:
             bump_mapping.SetStringData('-1') # none
             
-        if self.blender_material.nwo.uses_alpha:
+        if self.alpha_type == 'clip' and map.get('alpha', 0):
             alpha_test.SetStringData('1')
+            element = self._setup_parameter(map['alpha'], 'alpha_test_map', 'bitmap')
+            if element:
+                self._setup_function_parameters(map['alpha'], element, 'bitmap')
+        elif self.alpha_type == 'blend':
+            alpha_test.SetStringData('-1')
+            if int(blend_mode.GetStringData()) < 1:
+                blend_mode.SetStringData('3')
+            if map.get('alpha', 0):
+                if int(alpha_blend_source.GetStringData()) != 4:
+                    alpha_blend_source.SetStringData('3') if map.get('alpha').inputs[0].links else alpha_blend_source.SetStringData('2')
+                element = self._setup_parameter(map['alpha'], 'opacity_map', 'bitmap')
+                if element:
+                    self._setup_function_parameters(map['alpha'], element, 'bitmap')
         else:
             alpha_test.SetStringData('-1')
+            blend_mode.SetStringData('-1')
+            alpha_blend_source.SetStringData('-1')
           
     def _setup_parameter(self, source, parameter_name, parameter_type):
         element = self._Element_from_field_value(self.block_parameters, 'parameter name', parameter_name)
@@ -252,6 +304,8 @@ class ShaderTag(Tag):
                     mapping[self.scale_v] = scale_node.inputs['Scale Y'].default_value * factor
             case 'color':
                 mapping['color'] = source
+            case 'real':
+                mapping['value'] = source
 
         return mapping
         
@@ -323,7 +377,12 @@ class ShaderTag(Tag):
             return option_enum
         
     def _mapping_from_parameter_name(self, name):
-        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        else:
+            for n in name:
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
         if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
@@ -334,9 +393,9 @@ class ShaderTag(Tag):
         block_animated_parameters = element.SelectField(self.function_parameters)
         mapping = {}
         for e in block_animated_parameters.Elements:
-            type = e.Fields[0].Value
+            f_type = e.Fields[0].Value
             value = e.SelectField(self.animated_function).Value
-            match type:
+            match f_type:
                 case 2:
                     mapping['scale_uni'] = value.ClampRangeMin
                 case 3:
@@ -352,7 +411,12 @@ class ShaderTag(Tag):
         
     def _image_from_parameter_name(self, name, blue_channel_fix=False):
         """Saves an image (or gets the already existing one) from a shader parameter element"""
-        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        else:
+            for n in name:
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
         if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
@@ -379,7 +443,12 @@ class ShaderTag(Tag):
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
             return 'directx' # Reach normals are always directx
-        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        else:
+            for n in name:
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
         if element is None:
             return 'opengl'
         bitmap_path = element.SelectField('bitmap').Path
@@ -391,7 +460,12 @@ class ShaderTag(Tag):
     
     def _color_from_parameter_name(self, name):
         color = [1, 1, 1, 1]
-        element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        if type(name) == str:
+            element = self._Element_from_field_value(self.block_parameters, 'parameter name', name)
+        else:
+            for n in name:
+                 element = self._Element_from_field_value(self.block_parameters, 'parameter name', n)
+                 if element: break
         if element is None:
             if not self.corinth and self.reference.Path:
                 with ShaderTag(path=self.reference.Path) as shader:
@@ -481,7 +555,7 @@ class ShaderTag(Tag):
             if self_illumination_enum == 4 and diffuse and type(diffuse.data) == bpy.types.Image:
                 diffuse.diffillum = True
             else:
-                self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('self_illum_map'), mapping=self._mapping_from_parameter_name('self_illum_map'))
+                self_illum = BSDFParameter(tree, bsdf, bsdf.inputs['Emission Color'], 'ShaderNodeTexImage', data=self._image_from_parameter_name(self.self_illum_map_names), mapping=self._mapping_from_parameter_name(self.self_illum_map_names))
             if self_illum and self_illum.data:
                 bsdf.inputs['Emission Strength'].default_value = 1
                 intensity_element = self._Element_from_field_value(self.block_parameters, 'parameter name', 'self_illum_intensity')

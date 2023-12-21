@@ -66,6 +66,7 @@ from io_scene_foundry.utils import nwo_globals
 from .halo_launcher import NWO_MaterialGirl, open_file_explorer
 
 from io_scene_foundry.utils.nwo_utils import (
+    ExportManager,
     addon_root,
     amf_addon_installed,
     blender_toolset_installed,
@@ -4797,13 +4798,14 @@ class NWO_Shader_BuildSingle(Operator):
         return context.object and context.object.active_material and not protected_material_name(context.object.active_material.name)
     
     def execute(self, context):
-        nwo = context.object.active_material.nwo
-        nwo.uses_blender_nodes = self.linked_to_blender
-        return build_shader(
-            context.object.active_material,
-            is_corinth(context),
-            report=self.report,
-        )
+        with ExportManager():
+            nwo = context.object.active_material.nwo
+            nwo.uses_blender_nodes = self.linked_to_blender
+            return build_shader(
+                context.object.active_material,
+                is_corinth(context),
+                report=self.report,
+            )
     
     @classmethod
     def description(cls, context, properties) -> str:

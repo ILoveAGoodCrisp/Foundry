@@ -45,15 +45,15 @@ class NWO_ShaderToNodes(bpy.types.Operator):
     def execute(self, context):
         mat = bpy.data.materials.get(self.mat_name, 0)
         if not mat:
-            self.report({'ERROR'}, "Material not supplied")
+            self.report({'WARNING'}, "Material not supplied")
             return {"CANCELLED"}
         shader_path = mat.nwo.shader_path
         full_path = nwo_utils.get_tags_path() + shader_path
         if not os.path.exists(full_path):
-            self.report({'ERROR'}, "Tag not found")
+            self.report({'WARNING'}, "Tag not found")
             return {"CANCELLED"}
         if not shader_path.endswith(('.shader', '.material')):
-            self.report({'ERROR'}, f'Tag Type [{nwo_utils.dot_partition(shader_path, True)}] is not supported')
+            self.report({'WARNING'}, f'Tag Type [{nwo_utils.dot_partition(shader_path, True)}] is not supported')
             return {"CANCELLED"}
         if nwo_utils.is_corinth(context):
             with MaterialTag(path=shader_path) as material:

@@ -943,10 +943,18 @@ def enable_prints():
 class MutePrints():
     def __enter__(self):
         disable_prints()
+        return self
         
     def __exit__(self, exc_type, exc_value, traceback):
         enable_prints()
-
+        
+class ExportManager():
+    def __enter__(self):
+        bpy.context.scene.nwo.export_in_progress = True
+        return self
+        
+    def __exit__(self, exc_type, exc_value, traceback):
+        bpy.context.scene.nwo.export_in_progress = False
 
 def data_relative(path: str) -> str:
     """

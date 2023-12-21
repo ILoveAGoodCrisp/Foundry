@@ -34,7 +34,7 @@ from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, run_tool, update_job, update_job_count, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, run_tool, update_job, update_job_count, update_progress
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -85,148 +85,149 @@ class NWO_FarmShaders(bpy.types.Operator):
         return False
 
     def execute(self, context):
-        self.corinth = is_corinth(context)
-        self.thread_max = multiprocessing.cpu_count()
-        self.running_check = 0
-        self.bitmap_processes = 0
-        self.exported_bitmaps = []
-        shaders = {}
-        shaders['new'] = []
-        shaders['update'] = []
-        bitmaps = {}
-        bitmaps['new'] = []
-        bitmaps['update'] = []
-        self.tags_dir = get_tags_path()
-        self.data_dir = get_data_path()
-        self.asset_path = get_asset_path()
-        tag_type = 'Material' if self.corinth else 'Shader'
-        if not managed_blam_active():
-            bpy.ops.managed_blam.init()
-        start = time.perf_counter()
-        settings = context.scene.nwo
-        os.system("cls")
-        if context.scene.nwo_export.show_output:
-            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
-            context.scene.nwo_export.show_output = False
+        with ExportManager():
+            self.corinth = is_corinth(context)
+            self.thread_max = multiprocessing.cpu_count()
+            self.running_check = 0
+            self.bitmap_processes = 0
+            self.exported_bitmaps = []
+            shaders = {}
+            shaders['new'] = []
+            shaders['update'] = []
+            bitmaps = {}
+            bitmaps['new'] = []
+            bitmaps['update'] = []
+            self.tags_dir = get_tags_path()
+            self.data_dir = get_data_path()
+            self.asset_path = get_asset_path()
+            tag_type = 'Material' if self.corinth else 'Shader'
+            if not managed_blam_active():
+                bpy.ops.managed_blam.init()
+            start = time.perf_counter()
+            settings = context.scene.nwo
+            os.system("cls")
+            if context.scene.nwo_export.show_output:
+                bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+                context.scene.nwo_export.show_output = False
 
-        export_title = f"►►► {tag_type.upper()} FARM ◄◄◄"
+            export_title = f"►►► {tag_type.upper()} FARM ◄◄◄"
 
-        print(export_title)
-        shader_names = set()
-        for mat in bpy.data.materials:
-            # Check if material is library linked
-            if mat.name != mat.name_full:
-                continue
-            mat_nwo = mat.nwo
-            # Skip if either declared as not a shader or is a grease pencil material
-            if not mat_nwo.rendered or mat.is_grease_pencil:
-                continue
-            s_name = get_shader_name(mat)
-            if s_name in shader_names:
-                continue
-            shader_names.add(s_name)
-            if mat_nwo.shader_path and os.path.exists(self.tags_dir + mat_nwo.shader_path):
-                if mat_nwo.uses_blender_nodes:
-                    shaders['update'].append(mat)
+            print(export_title)
+            shader_names = set()
+            for mat in bpy.data.materials:
+                # Check if material is library linked
+                if mat.name != mat.name_full:
+                    continue
+                mat_nwo = mat.nwo
+                # Skip if either declared as not a shader or is a grease pencil material
+                if not mat_nwo.rendered or mat.is_grease_pencil:
+                    continue
+                s_name = get_shader_name(mat)
+                if s_name in shader_names:
+                    continue
+                shader_names.add(s_name)
+                if mat_nwo.shader_path and os.path.exists(self.tags_dir + mat_nwo.shader_path):
+                    if mat_nwo.uses_blender_nodes:
+                        shaders['update'].append(mat)
+                else:
+                    shaders['new'].append(mat)
+
+            if settings.shaders_scope == 'all':
+                valid_shaders = shaders['new'] + shaders['update']
+            elif settings.shaders_scope == "new":
+                valid_shaders = shaders['new']
             else:
-                shaders['new'].append(mat)
+                valid_shaders = shaders['update']
+            # create a list of non-duplicate bitmaps
 
-        if settings.shaders_scope == 'all':
-            valid_shaders = shaders['new'] + shaders['update']
-        elif settings.shaders_scope == "new":
-            valid_shaders = shaders['new']
-        else:
-            valid_shaders = shaders['update']
-        # create a list of non-duplicate bitmaps
+            for image in bpy.data.images:
+                if image.name != image.name_full:
+                    continue
+                if dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
+                    print_warning(f"{image.name} looks like a duplicate image, skipping")
+                    continue
+                if not settings.all_bitmaps and not self.image_in_valid_node(image, valid_shaders):
+                    continue
+                bitmap = image.nwo
+                bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
+                if not os.path.exists(self.tags_dir + bitmap_path):
+                    bitmap_path = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + '.bitmap'
+                if os.path.exists(self.tags_dir + bitmap_path):
+                    if image.nwo.export:
+                        bitmaps['update'].append(image)
+                else:
+                    bitmaps['new'].append(image)
 
-        for image in bpy.data.images:
-            if image.name != image.name_full:
-                continue
-            if dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
-                print_warning(f"{image.name} looks like a duplicate image, skipping")
-                continue
-            if not settings.all_bitmaps and not self.image_in_valid_node(image, valid_shaders):
-                continue
-            bitmap = image.nwo
-            bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
-            if not os.path.exists(self.tags_dir + bitmap_path):
-                bitmap_path = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + '.bitmap'
-            if os.path.exists(self.tags_dir + bitmap_path):
-                if image.nwo.export:
-                    bitmaps['update'].append(image)
+            if settings.bitmaps_scope == 'all':
+                valid_bitmaps = bitmaps['new'] + bitmaps['update']
+            elif settings.bitmaps_scope == "new":
+                valid_bitmaps = bitmaps['new']
             else:
-                bitmaps['new'].append(image)
+                valid_bitmaps = bitmaps['update']
 
-        if settings.bitmaps_scope == 'all':
-            valid_bitmaps = bitmaps['new'] + bitmaps['update']
-        elif settings.bitmaps_scope == "new":
-            valid_bitmaps = bitmaps['new']
-        else:
-            valid_bitmaps = bitmaps['update']
-
-        if settings.farm_type == "both" or settings.farm_type == "bitmaps":
-            bitmap_folder = settings.bitmaps_dir
-            # Create a bitmap folder in the asset directory
-            if bitmap_folder:
-                self.bitmaps_data_dir = os.path.join(self.data_dir + bitmap_folder)
-            else:
-                self.bitmaps_data_dir = os.path.join(self.data_dir + self.asset_path, "bitmaps")
-            print("\nStarting Bitmap Export")
-            print(
-                "-----------------------------------------------------------------------\n"
-            )
-            bitmap_count = len(valid_bitmaps)
-            print(f"{bitmap_count} bitmaps in scope")
-            print(f"Bitmaps Directory = {bitmap_folder}\n")
-            for idx, bitmap in enumerate(valid_bitmaps):
-                tiff_path = self.export_tiff_if_needed(bitmap, self.bitmaps_data_dir, settings.link_bitmaps)
-                if tiff_path:
-                    self.thread_bitmap_export(bitmap, tiff_path)
-            self.report({'INFO'}, f"Exported {bitmap_count} Bitmaps")
-
-            # Wait for Bitmap export to finish
-            print("")
-            job = "Reimporting Source Tiffs"
-            spinner = itertools.cycle(["|", "/", "—", "\\"])
-            total_p = self.bitmap_processes
-            while self.running_check:
-                update_job_count(
-                    job, next(spinner), total_p - self.running_check, total_p
+            if settings.farm_type == "both" or settings.farm_type == "bitmaps":
+                bitmap_folder = settings.bitmaps_dir
+                # Create a bitmap folder in the asset directory
+                if bitmap_folder:
+                    self.bitmaps_data_dir = os.path.join(self.data_dir + bitmap_folder)
+                else:
+                    self.bitmaps_data_dir = os.path.join(self.data_dir + self.asset_path, "bitmaps")
+                print("\nStarting Bitmap Export")
+                print(
+                    "-----------------------------------------------------------------------\n"
                 )
-                time.sleep(0.1)
-            update_job_count(job, "", total_p, total_p)
+                bitmap_count = len(valid_bitmaps)
+                print(f"{bitmap_count} bitmaps in scope")
+                print(f"Bitmaps Directory = {bitmap_folder}\n")
+                for idx, bitmap in enumerate(valid_bitmaps):
+                    tiff_path = self.export_tiff_if_needed(bitmap, self.bitmaps_data_dir, settings.link_bitmaps)
+                    if tiff_path:
+                        self.thread_bitmap_export(bitmap, tiff_path)
+                self.report({'INFO'}, f"Exported {bitmap_count} Bitmaps")
 
-        if settings.farm_type == "both" or settings.farm_type == "shaders":
-            print(f"\nStarting {tag_type}s Export")
+                # Wait for Bitmap export to finish
+                print("")
+                job = "Reimporting Source Tiffs"
+                spinner = itertools.cycle(["|", "/", "—", "\\"])
+                total_p = self.bitmap_processes
+                while self.running_check:
+                    update_job_count(
+                        job, next(spinner), total_p - self.running_check, total_p
+                    )
+                    time.sleep(0.1)
+                update_job_count(job, "", total_p, total_p)
+
+            if settings.farm_type == "both" or settings.farm_type == "shaders":
+                print(f"\nStarting {tag_type}s Export")
+                print(
+                    "-----------------------------------------------------------------------\n"
+                )
+                shader_count = len(valid_shaders)
+                print(f"{shader_count} {tag_type}s in Scope")
+                print(f"{tag_type}s Directory = {settings.shaders_dir}\n")
+                job = f"Exporting {tag_type}s"
+                for idx, shader in enumerate(valid_shaders):
+                    update_progress(job, idx / shader_count)
+                    shader.nwo.uses_blender_nodes = settings.link_shaders
+                    if settings.default_material_shader and os.path.exists(self.tags_dir + settings.default_material_shader):
+                        shader.nwo.material_shader = settings.default_material_shader
+                    build_shader(shader, self.corinth, settings.shaders_dir)
+                update_progress(job, 1)
+                self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
+
+            end = time.perf_counter()
+
+            print(
+                "\n-----------------------------------------------------------------------"
+            )
+            print(f"{tag_type} Farm Completed in {round(end - start, 3)} seconds")
+
             print(
                 "-----------------------------------------------------------------------\n"
             )
-            shader_count = len(valid_shaders)
-            print(f"{shader_count} {tag_type}s in Scope")
-            print(f"{tag_type}s Directory = {settings.shaders_dir}\n")
-            job = f"Exporting {tag_type}s"
-            for idx, shader in enumerate(valid_shaders):
-                update_progress(job, idx / shader_count)
-                shader.nwo.uses_blender_nodes = settings.link_shaders
-                if settings.default_material_shader and os.path.exists(self.tags_dir + settings.default_material_shader):
-                    shader.nwo.material_shader = settings.default_material_shader
-                build_shader(shader, self.corinth, settings.shaders_dir)
-            update_progress(job, 1)
-            self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
 
-        end = time.perf_counter()
-
-        print(
-            "\n-----------------------------------------------------------------------"
-        )
-        print(f"{tag_type} Farm Completed in {round(end - start, 3)} seconds")
-
-        print(
-            "-----------------------------------------------------------------------\n"
-        )
-
-        self.report({'INFO'}, "Farm Complete")
-
+            self.report({'INFO'}, "Farm Complete")
+        
         return {'FINISHED'}
     
     def export_tiff_if_needed(self, image, bitmaps_data_dir, export_tiff):

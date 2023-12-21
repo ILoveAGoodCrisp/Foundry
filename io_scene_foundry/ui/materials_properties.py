@@ -34,8 +34,12 @@ from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, get
 class NWO_MaterialPropertiesGroup(PropertyGroup):
     def update_shader(self, context):
         self["shader_path"] = clean_tag_path(self["shader_path"]).strip('"')
-        if get_prefs().update_materials_on_shader_path and bpy.ops.nwo.shader_to_nodes.poll():
+        shader_path = self.shader_path
+        full_path = get_tags_path() + shader_path
+        if get_prefs().update_materials_on_shader_path and self.prev_shader_path != self.shader_path and os.path.exists(full_path) and bpy.ops.nwo.shader_to_nodes.poll():
             bpy.ops.nwo.shader_to_nodes(mat_name=self.id_data.name)
+            
+        self.prev_shader_path = self.shader_path
 
     shader_path: StringProperty(
         name="Shader Path",
@@ -43,6 +47,8 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         update=update_shader,
         options=set(),
     )
+    
+    prev_shader_path: StringProperty()
 
     rendered: BoolProperty(default=True)
 

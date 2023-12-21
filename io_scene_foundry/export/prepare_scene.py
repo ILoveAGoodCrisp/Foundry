@@ -612,8 +612,6 @@ class PrepareScene:
             for idx, global_material in enumerate(global_materials)
             if global_material
         }
-        
-        print(self.global_materials_dict)
 
         # get all objects that we plan to export later
         self.halo_objects_init()
