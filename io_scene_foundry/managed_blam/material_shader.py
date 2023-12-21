@@ -37,3 +37,6 @@ class MaterialShaderTag(Tag):
         for e in self.block_parameters.Elements:
             parameters[e.SelectField('parameter name').GetStringData()] = [e.SelectField('display name').DataAsText, self._Element_get_enum_as_string(e, 'parameter type')]
         return parameters
+    
+    def read_parameters_list(self):
+        return [e.SelectField('parameter name').GetStringData() for e in self.block_parameters.Elements]

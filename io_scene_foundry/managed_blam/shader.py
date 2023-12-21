@@ -494,7 +494,7 @@ class ShaderTag(Tag):
         if diffuse:
             diffuse.build(Vector((-300, 400)))
         if normal:
-            normal.build()
+            normal.build(Vector((-200, 100)))
         if specular:
             specular.build(Vector((-300, -200)))
         if self_illum:
@@ -547,7 +547,7 @@ class BSDFParameter():
         
         if self.normal_type in ('opengl', 'directx'):
             normal_map_node = self.tree.nodes.new('ShaderNodeNormalMap')
-            normal_map_node.location = Vector((-200, 100))
+            normal_map_node.location = vector
             self.tree.links.new(input=self.input, output=normal_map_node.outputs[0])
             if self.normal_type == 'opengl':
                 data_node.location.x = normal_map_node.location.x - 300
