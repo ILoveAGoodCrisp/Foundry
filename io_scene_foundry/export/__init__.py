@@ -30,7 +30,7 @@ bl_info = {
     "name": "Halo Tag Export",
     "author": "Crisp",
     "version": (1, 0, 0),
-    "blender": (3, 6, 1),
+    "blender": (4, 0, 0),
     "location": "File > Export",
     "category": "Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
@@ -549,7 +549,7 @@ class NWO_Export(NWO_Export_Scene):
                 final_report = "Export Failed"
                 report_type = "ERROR"
                 print_warning(
-                    "\nTag Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n"
+                    "\ Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n"
                 )
                 print_error(
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
