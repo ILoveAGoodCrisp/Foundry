@@ -26,14 +26,6 @@
 
 import os
 from io_scene_foundry.managed_blam import Tag
-import clr
-clr.AddReference('System.Drawing')
-from System import Array, Byte
-from System.Runtime.InteropServices import Marshal
-from System.Drawing import Rectangle
-from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat
-
-tiff_format = ImageFormat.Tiff
 
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
@@ -129,6 +121,15 @@ class BitmapTag(Tag):
         self.tag_has_changes = True
         
     def save_to_tiff(self, blue_channel_fix=False):
+        import clr
+        clr.AddReference('System.Drawing')
+        from System import Array, Byte
+        from System.Runtime.InteropServices import Marshal
+        from System.Drawing import Rectangle
+        from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat
+
+        tiff_format = ImageFormat.Tiff
+        
         game_bitmap = self._GameBitmap()
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()

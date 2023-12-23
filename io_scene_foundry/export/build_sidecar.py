@@ -170,8 +170,6 @@ class Sidecar:
                 + part2
             )
             xfile.close()
-            
-        return self
 
     def write_header(self, metadata):
         header = ET.SubElement(metadata, "Header")
