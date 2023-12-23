@@ -28,8 +28,6 @@ import os
 from io_scene_foundry.managed_blam import Tag
 import clr
 clr.AddReference('System.Drawing')
-# from System.Drawing.Imaging import ImageFormat, ImageLockMode
-# from System.Drawing import Rectangle
 from System import Array, Byte
 from System.Runtime.InteropServices import Marshal
 from System.Drawing import Rectangle

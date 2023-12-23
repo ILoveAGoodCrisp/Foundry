@@ -444,6 +444,78 @@ class NWO_FoundryPanelProps(Panel):
                 # text="",
                 icon_value=get_icon_id("equipment"),
             )
+            
+            col.separator()
+            
+            row = col.row(align=True)
+            row.prop(nwo, 'template_model', icon_value=get_icon_id('model'))
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_model"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_model'
+            if nwo.output_biped:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_biped', icon_value=get_icon_id('biped'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_biped"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_biped'
+            if nwo.output_crate:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_crate', icon_value=get_icon_id('crate'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_crate"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_crate'
+            if nwo.output_creature:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_creature', icon_value=get_icon_id('creature'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_creature"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_creature'
+            if nwo.output_device_control:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_device_control', icon_value=get_icon_id('device_control'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_control"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_control'
+            if nwo.output_device_dispenser:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_device_dispenser', icon_value=get_icon_id('device_dispenser'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_dispenser"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_dispenser'
+            if nwo.output_device_machine:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_device_machine', icon_value=get_icon_id('device_machine'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_machine"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_machine'
+            if nwo.output_device_terminal:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_device_terminal', icon_value=get_icon_id('device_terminal'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_terminal"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_terminal'
+            if nwo.output_effect_scenery:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_effect_scenery', icon_value=get_icon_id('effect_scenery'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_effect_scenery"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_effect_scenery'
+            if nwo.output_equipment:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_equipment', icon_value=get_icon_id('equipment'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_equipment"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_equipment'
+            if nwo.output_giant:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_giant', icon_value=get_icon_id('giant'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_giant"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_giant'
+            if nwo.output_scenery:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_scenery', icon_value=get_icon_id('scenery'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_scenery"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_scenery'
+            if nwo.output_vehicle:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_vehicle', icon_value=get_icon_id('vehicle'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_vehicle"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_vehicle'
+            if nwo.output_weapon:
+                row = col.row(align=True)
+                row.prop(nwo, 'template_weapon', icon_value=get_icon_id('weapon'))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_weapon"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_weapon'
 
             box = self.box.box()
             box.label(text="Model Overrides")

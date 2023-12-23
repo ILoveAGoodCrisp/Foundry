@@ -29,7 +29,9 @@ import os
 from io_scene_foundry.utils.nwo_utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
 global_items = {}
-scene_props = ('render_model_path', 'collision_model_path', 'physics_model_path', 'animation_graph_path', 'fp_model_path', 'gun_model_path')
+scene_props = ('render_model_path', 'collision_model_path', 'physics_model_path', 'animation_graph_path', 'fp_model_path', 'gun_model_path', 'template_model',
+               'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
+               'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon')
 
 class NWO_GetTagsList(bpy.types.Operator):
     bl_label = ""
@@ -114,8 +116,34 @@ def extensions_from_type(list_type):
             return (".render_model")
         case 'shader_path':
             return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', 'shader_water')
-        case _:
-            return (".scenery")
+        case 'template_model':
+            return (".model")
+        case 'template_biped':
+            return (".biped")
+        case 'template_crate':
+            return ('.crate')
+        case 'template_creature':
+            return ('.creature')
+        case 'template_device_control':
+            return ('.device_control')
+        case 'template_device_dispenser':
+            return ('.device_dispenser')
+        case 'template_device_machine':
+            return ('.device_machine')
+        case 'template_device_terminal':
+            return ('.device_terminal')
+        case 'template_effect_scenery':
+            return ('.effect_scenery')
+        case 'template_equipment':
+            return ('.equipment')
+        case 'template_giant':
+            return ('.giant')
+        case 'template_scenery':
+            return ('.scenery')
+        case 'template_vehicle':
+            return ('.vehicle')
+        case 'template_weapon':
+            return ('.weapon')
         
 def walk_tags_dir(tags_dir, ext_list):
     tags_set = set()
@@ -216,5 +244,33 @@ def get_glob_from_prop(prop):
             return "*.render_model"
         case 'shader_path':
             return "*.material;*.shade*"
+        case 'template_model':
+            return ("*.model")
+        case 'template_biped':
+            return ("*.biped")
+        case 'template_crate':
+            return ('*.crate')
+        case 'template_creature':
+            return ('*.creature')
+        case 'template_device_control':
+            return ('*.device_con*')
+        case 'template_device_dispenser':
+            return ('*.device_d*')
+        case 'template_device_machine':
+            return ('*.device_ma*')
+        case 'template_device_terminal':
+            return ('*.device_te*')
+        case 'template_effect_scenery':
+            return ('*.effect_sc*')
+        case 'template_equipment':
+            return ('*.equipment')
+        case 'template_giant':
+            return ('*.giant')
+        case 'template_scenery':
+            return ('*.scenery')
+        case 'template_vehicle':
+            return ('*.vehicle')
+        case 'template_weapon':
+            return ('*.weapon')
         case _:
             return "*"

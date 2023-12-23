@@ -48,7 +48,6 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
-    enforce_uniformity,
     get_object_type,
     get_sky_perm,
     is_marker,
@@ -119,29 +118,7 @@ TARGET_SCALE = Vector.Fill(3, 1)
 #####################################################################################
 # MAIN CLASS
 class PrepareScene:
-    def __init__(
-        self,
-        context,
-        asset,
-        sidecar_type,
-        export_animations,
-        export_gr2_files,
-        export_all_perms,
-        export_all_bsps,
-        fix_bone_rotations,
-        fast_animation_export,
-        triangulate,
-    ):
-        print("\nPreparing Export Scene")
-        print(
-            "-----------------------------------------------------------------------\n"
-        )
-        # time it!
-        # NOTE skipping timing as export is really fast now
-        # start = time.perf_counter()
-        # NOTE forcing fix_bone_rotations to false as it currently causes issues
-        fix_bone_rotations = False
-        
+    def __init__(self):  
         self.warning_hit = False
         self.bsps_with_structure = set()
         self.pedestal = None
@@ -153,7 +130,16 @@ class PrepareScene:
         self.arm_name = ""
         self.verbose_warnings = False # For outputting info about things we otherwise silently fix
         self.no_export_objects = False
-
+        
+    def prepare_scene(self, context, asset, asset_type, scene_nwo_export):
+        print("\nPreparing Export Scene")
+        print(
+            "-----------------------------------------------------------------------\n"
+        )
+        # time it!
+        # NOTE skipping timing as export is really fast now
+        # start = time.perf_counter()
+        
         default_region = context.scene.nwo.regions_table[0].name
         default_permutation = context.scene.nwo.permutations_table[0].name
 
@@ -213,11 +199,11 @@ class PrepareScene:
         
         # Combine Armatures is possible
         scene_nwo = context.scene.nwo
-        if sidecar_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
+        if asset_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
             self.consolidate_rig(scene_nwo)
 
         # unlink non export objects
-        if sidecar_type == "FP ANIMATION":
+        if asset_type == "FP ANIMATION":
             non_export_obs = [ob for ob in all_obs if ob.type != "ARMATURE"]
         else:
             non_export_obs = [
@@ -233,7 +219,7 @@ class PrepareScene:
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
         
-        scenario_asset = sidecar_type == "SCENARIO"
+        scenario_asset = asset_type == "SCENARIO"
 
         scene_coll = context.scene.collection.objects
 
@@ -330,7 +316,7 @@ class PrepareScene:
         export_obs = context.view_layer.objects[:]
 
         # establish region/global mats sets
-        has_global_mats = sidecar_type in ("MODEL", "SCENARIO", "PREFAB")
+        has_global_mats = asset_type in ("MODEL", "SCENARIO", "PREFAB")
 
         self.regions = {r.name for r in context.scene.nwo.regions_table}
         self.global_materials = {"default"}
@@ -379,9 +365,9 @@ class PrepareScene:
                 continue
             
             elif nwo.object_type == '_connected_geometry_object_type_mesh':
-                if type_valid(nwo.mesh_type_ui, sidecar_type, game_version):
-                    if self.setup_mesh_properties(ob, nwo.mesh_type_ui, sidecar_type, h4, nwo):
-                        if triangulate:
+                if type_valid(nwo.mesh_type_ui, asset_type, game_version):
+                    if self.setup_mesh_properties(ob, nwo.mesh_type_ui, asset_type, h4, nwo):
+                        if scene_nwo_export.triangulate:
                             add_triangle_mod(ob)
                     else:
                         self.unlink(ob)
@@ -394,8 +380,8 @@ class PrepareScene:
                     continue
                 
             elif nwo.object_type == '_connected_geometry_object_type_marker':
-                if type_valid(nwo.marker_type_ui, sidecar_type, game_version):
-                    self.setup_marker_properties(ob, nwo.marker_type_ui, sidecar_type, h4, nwo)
+                if type_valid(nwo.marker_type_ui, asset_type, game_version):
+                    self.setup_marker_properties(ob, nwo.marker_type_ui, asset_type, h4, nwo)
                 else:
                     self.warning_hit = True
                     print_warning(f"{ob.name} has illegal marker type: [{nwo.marker_type_ui}]. Skipped")
@@ -410,10 +396,10 @@ class PrepareScene:
             if uses_global_mat:
                 self.global_materials.add(nwo.face_global_material)
 
-            if export_gr2_files:
+            if scene_nwo_export.export_gr2_files:
                 if is_mesh_loose:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
-                    does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or sidecar_type != 'SCENARIO'
+                    does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or asset_type != 'SCENARIO'
                     self.fix_materials(
                         ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render, does_not_support_sky, scene_coll
                     )
@@ -431,8 +417,8 @@ class PrepareScene:
         self.selected_perms = set()
         self.selected_bsps = set()
 
-        sel_perms = export_all_perms == "selected"
-        sel_bsps = export_all_bsps == "selected"
+        sel_perms = scene_nwo_export.export_all_perms == "selected"
+        sel_bsps = scene_nwo_export.export_all_bsps == "selected"
 
         if sel_perms or sel_bsps:
             for ob in objects_selection:
@@ -563,14 +549,14 @@ class PrepareScene:
 
         # apply face layer properties
         self.apply_face_properties(
-            context, export_obs, scene_coll, h4, sidecar_type == "SCENARIO",  sidecar_type == "PREFAB"
+            context, export_obs, scene_coll, h4, asset_type == "SCENARIO",  asset_type == "PREFAB"
         )
         # print("face_props_applied")
 
         # get new export_obs from split meshes
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
-        if export_gr2_files:
+        if scene_nwo_export.export_gr2_files:
             # poop proxy madness
             # self.setup_poop_proxies(export_obs, h4)
             # print("poop_proxies") 
@@ -588,11 +574,8 @@ class PrepareScene:
             # Fix objects with bad scale values
             poops, nonstandard_scale = self.fix_scale([ob for ob in export_obs if ob.type == 'MESH'])
             if poops and nonstandard_scale:
-
                 stomp_scale_multi_user(poops)
-
-            # print("cull_zero_face")
-
+                
         # Update tables from any new set entries created during export
         update_tables_from_objects(context)
         # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
@@ -615,7 +598,7 @@ class PrepareScene:
 
         # get all objects that we plan to export later
         self.halo_objects_init()
-        self.halo_objects(sidecar_type, export_obs, h4)
+        self.halo_objects(asset_type, export_obs, h4)
         # print("halo_objects")
 
         context.view_layer.update()
@@ -629,7 +612,7 @@ class PrepareScene:
         self.skeleton_bones = {}
         self.current_action = None
 
-        if sidecar_type in ("MODEL", "SKY", "FP ANIMATION"):
+        if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
             forward = context.scene.nwo.forward_direction
             self.model_armature = self.get_scene_armature(
                 export_obs, asset, context.scene.nwo
@@ -649,7 +632,7 @@ class PrepareScene:
 
                 self.remove_relative_parenting(export_obs)
 
-                if self.model_armature and sidecar_type != "FP ANIMATION":
+                if self.model_armature and asset_type != "FP ANIMATION":
                     # unlink any unparented objects from the scene
                     warn = False
                     for ob in export_obs:
@@ -670,10 +653,10 @@ class PrepareScene:
                     self.fix_parenting(self.model_armature, export_obs)
 
                 # set bone names equal to their name overrides (if not blank)
-                if export_gr2_files and self.model_armature:
+                if scene_nwo_export.export_gr2_files and self.model_armature:
                     # self.set_bone_names(self.model_armature.data.bones) NOTE no longer renaming bones
                     self.skeleton_bones = self.get_bone_list(
-                        self.model_armature, h4, context, sidecar_type
+                        self.model_armature, h4, context, asset_type
                     )
                 
                 # Blender can print unecessary warnings here, so hide em
@@ -701,67 +684,66 @@ class PrepareScene:
                     else:
                         self.pedestal_matrix = PEDESTAL_MATRIX_Y_NEGATIVE
                     
-                    if fix_bone_rotations:
-                        set_active_object(self.model_armature)
-                        self.model_armature.select_set(True)
-                        bpy.ops.object.editmode_toggle()
-                        edit_bones = self.model_armature.data.edit_bones
-                        if self.pedestal:
-                            edit_pedestal = edit_bones[self.pedestal]
-                            if edit_pedestal.matrix != self.pedestal_matrix:
-                                self.old_pedestal_mat = edit_pedestal.matrix.copy()
-                                edit_pedestal.matrix = self.pedestal_matrix
-                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_pedestal, export_obs)
-                        if self.aim_pitch:
-                            edit_aim_pitch = edit_bones[self.aim_pitch]
-                            if edit_aim_pitch.matrix != self.pedestal_matrix:
-                                self.old_aim_pitch_mat = edit_aim_pitch.matrix.copy()
-                                edit_aim_pitch.matrix = self.pedestal_matrix
-                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_pitch, export_obs)
-                        if self.aim_yaw:
-                            edit_aim_yaw = edit_bones[self.aim_yaw]
-                            if edit_aim_yaw.matrix != self.pedestal_matrix:
-                                self.old_aim_yaw_mat = edit_aim_yaw.matrix.copy()
-                                edit_aim_yaw.matrix = self.pedestal_matrix
-                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_yaw, export_obs)
-                        if self.gun:
-                            edit_gun = edit_bones[self.gun]
-                            if edit_gun.matrix != self.pedestal_matrix:
-                                self.old_gun_mat = edit_gun.matrix.copy()
-                                edit_gun.matrix = self.pedestal_matrix
-                                # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
+                    # if fix_bone_rotations:
+                    #     set_active_object(self.model_armature)
+                    #     self.model_armature.select_set(True)
+                    #     bpy.ops.object.editmode_toggle()
+                    #     edit_bones = self.model_armature.data.edit_bones
+                    #     if self.pedestal:
+                    #         edit_pedestal = edit_bones[self.pedestal]
+                    #         if edit_pedestal.matrix != self.pedestal_matrix:
+                    #             self.old_pedestal_mat = edit_pedestal.matrix.copy()
+                    #             edit_pedestal.matrix = self.pedestal_matrix
+                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_pedestal, export_obs)
+                    #     if self.aim_pitch:
+                    #         edit_aim_pitch = edit_bones[self.aim_pitch]
+                    #         if edit_aim_pitch.matrix != self.pedestal_matrix:
+                    #             self.old_aim_pitch_mat = edit_aim_pitch.matrix.copy()
+                    #             edit_aim_pitch.matrix = self.pedestal_matrix
+                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_pitch, export_obs)
+                    #     if self.aim_yaw:
+                    #         edit_aim_yaw = edit_bones[self.aim_yaw]
+                    #         if edit_aim_yaw.matrix != self.pedestal_matrix:
+                    #             self.old_aim_yaw_mat = edit_aim_yaw.matrix.copy()
+                    #             edit_aim_yaw.matrix = self.pedestal_matrix
+                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_yaw, export_obs)
+                    #     if self.gun:
+                    #         edit_gun = edit_bones[self.gun]
+                    #         if edit_gun.matrix != self.pedestal_matrix:
+                    #             self.old_gun_mat = edit_gun.matrix.copy()
+                    #             edit_gun.matrix = self.pedestal_matrix
+                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
 
-                        bpy.ops.object.editmode_toggle()
-                        self.model_armature.select_set(False)
-                        # if restore_matrices:
-                        #     for ob, mat in ob_mat_dict.items():
-                        #         ob.matrix_basis = mat
+                    #     bpy.ops.object.editmode_toggle()
+                    #     self.model_armature.select_set(False)
+                    #     # if restore_matrices:
+                    #     #     for ob, mat in ob_mat_dict.items():
+                    #     #         ob.matrix_basis = mat
 
         # print("armature")
-        elif sidecar_type == 'SCENARIO':
+        elif asset_type == 'SCENARIO':
             if self.generate_structure(export_obs, scene_coll, context.scene.nwo, override_mat, h4):
                 context.view_layer.update()
 
         # Set timeline range for use during animation export
         self.timeline_start, self.timeline_end = self.set_timeline_range(context)
         
-        if not self.render and sidecar_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL", "FP ANIMATION"):
+        if not self.render and asset_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL", "FP ANIMATION"):
             self.render = [self.add_null_render(scene_coll, default_region, default_permutation)]
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
 
         # rotate the model armature if needed
-        if export_gr2_files:
+        if scene_nwo_export.export_gr2_files:
             if self.model_armature:
                 self.fix_armature_rotation(
                     self.model_armature,
-                    sidecar_type,
+                    asset_type,
                     forward,
-                    export_animations,
+                    scene_nwo_export.export_animations,
                     self.current_action,
                     scene_coll,
                     export_obs,
-                    fast_animation_export,
                 )
 
             # unlink current action and reset pose transforms
@@ -779,7 +761,7 @@ class PrepareScene:
             self.set_animation_overrides(self.model_armature)
 
         # get the max LOD count in the scene if we're exporting a decorator
-        self.lods = self.get_decorator_lods(sidecar_type == "DECORATOR SET")
+        self.lods = self.get_decorator_lods(asset_type == "DECORATOR SET")
 
         if self.warning_hit:
             print_warning(
@@ -1755,20 +1737,19 @@ class PrepareScene:
     def fix_armature_rotation(
         self,
         armature,
-        sidecar_type,
+        asset_type,
         forward,
         export_animations,
         current_action,
         scene_coll,
         export_obs,
-        fast_animation_export
     ):
         # Used to check if the model had a forward direction that wasn't x positive before baking
         # now however, just doing this always to simplify things
         # Doing this lets us ignore everything but the armature at animation export
-        if sidecar_type in ("MODEL", "FP ANIMATION"):
+        if asset_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
-            if export_animations != "NONE" and bpy.data.actions and not fast_animation_export:
+            if export_animations != "NONE" and bpy.data.actions:
                 self.bake_animations(
                     armature,
                     export_animations,

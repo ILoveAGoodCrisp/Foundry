@@ -33,32 +33,48 @@ from ..utils.nwo_utils import (
     print_warning,
     run_tool,
     run_tool_sidecar,
+    copy_file,
 )
 
+def set_template(scene_nwo, tags_dir, new_tag_path_name, tag_type):
+    if tag_type == 'model' or getattr(scene_nwo, 'output_' + tag_type):
+        relative_path = getattr(scene_nwo, 'template_' + tag_type)
+        expected_asset_path = new_tag_path_name + tag_type
+        if relative_path and not os.path.exists(expected_asset_path):
+            full_path = tags_dir + relative_path
+            if os.path.exists(full_path):
+                copy_file(full_path, expected_asset_path)
+                print(f'- Loaded {tag_type} tag template')
+            else:
+                print_warning(f'Tried to set up template for {tag_type} tag but given template tag [{full_path}] does not exist')
 
-def import_sidecar(
-    sidecar_type,
-    sidecar_path,
-    asset_path,
-    asset_name,
-    import_force,
-    import_draft,
-    import_seam_debug,
-    import_skip_instances,
-    import_decompose_instances,
-    import_suppress_errors,
-    import_lighting,
-    import_meta_only,
-    import_disable_hulls,
-    import_disable_collision,
-    import_no_pca,
-    import_force_animations,
-    model_lighting,
-    selected_bsps,
-):
+def setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth):
+    new_tag_path_name = tag_path + '.'
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'model')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'biped')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'crate')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'creature')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'device_control')
+    if is_corinth:
+        set_template(scene_nwo, tags_dir, new_tag_path_name, 'device_dispenser')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'device_machine')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'device_terminal')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'effect_scenery')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'equipment')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'giant')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'scenery')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'vehicle')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'weapon')
+
+
+def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_export, scene_nwo, model_lighting, selected_bsps):
     print("\n\nBuilding Tags")
     print("-----------------------------------------------------------------------\n")
-    # time.sleep(0.5)
+    tags_dir = get_tags_path()
+    data_dir = get_data_path()
+    tag_folder_path = asset_path.replace(data_dir, tags_dir)
+    tag_path = os.path.join(tag_folder_path, asset_name)
+    setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth())
     faux_process = None
     if model_lighting:
         faux_process = run_tool(
@@ -80,29 +96,27 @@ def import_sidecar(
             *get_import_flags(
                 asset_name,
                 selected_bsps,
-                import_force,
-                import_draft,
-                import_seam_debug,
-                import_skip_instances,
-                import_decompose_instances,
-                import_suppress_errors,
-                import_lighting,
-                import_meta_only,
-                import_disable_hulls,
-                import_disable_collision,
-                import_no_pca,
-                import_force_animations,
+                scene_nwo_export.import_force,
+                scene_nwo_export.import_draft,
+                scene_nwo_export.import_seam_debug,
+                scene_nwo_export.import_skip_instances,
+                scene_nwo_export.import_decompose_instances,
+                scene_nwo_export.import_suppress_errors,
+                scene_nwo_export.import_lighting,
+                scene_nwo_export.import_meta_only,
+                scene_nwo_export.import_disable_hulls,
+                scene_nwo_export.import_disable_collision,
+                scene_nwo_export.import_no_pca,
+                scene_nwo_export.import_force_animations,
             ),
         ],
         asset_path,
     )
-    if sidecar_type == "FP ANIMATION":
+    if asset_type == "FP ANIMATION":
         cull_unused_tags(sidecar_path.rpartition("\\")[0], asset_name)
 
     if faux_process is not None:
         faux_process.wait()
-        tag_folder_path = asset_path.replace(get_data_path(), get_tags_path())
-        tag_path = os.path.join(tag_folder_path, asset_name)
         scenario = f"{tag_path}.scenario"
         bsp = f"{tag_path}.scenario_structure_bsp"
         seams = f"{tag_path}.structure_seams"

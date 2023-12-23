@@ -438,6 +438,148 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=False,
         options=set(),
     )
+    
+    def template_model_clean_tag_path(self, context):
+        self["template_model"] = clean_tag_path(
+            self["template_model"],
+            "model"
+        ).strip('"')
+    def template_biped_clean_tag_path(self, context):
+        self["template_biped"] = clean_tag_path(
+            self["template_biped"],
+            "biped"
+        ).strip('"')
+    def template_crate_clean_tag_path(self, context):
+        self["template_crate"] = clean_tag_path(
+            self["template_crate"],
+            "crate"
+        ).strip('"')
+    def template_creature_clean_tag_path(self, context):
+        self["template_creature"] = clean_tag_path(
+            self["template_creature"],
+            "creature"
+        ).strip('"')
+    def template_device_control_clean_tag_path(self, context):
+        self["template_device_control"] = clean_tag_path(
+            self["template_device_control"],
+            "device_control"
+        ).strip('"')
+    def template_device_dispenser_clean_tag_path(self, context):
+        self["template_device_dispenser"] = clean_tag_path(
+            self["template_device_dispenser"],
+            "device_dispenser"
+        ).strip('"')
+    def template_device_machine_clean_tag_path(self, context):
+        self["template_device_machine"] = clean_tag_path(
+            self["template_device_machine"],
+            "device_machine"
+        ).strip('"')
+    def template_device_terminal_clean_tag_path(self, context):
+        self["template_device_terminal"] = clean_tag_path(
+            self["template_device_terminal"],
+            "device_terminal"
+        ).strip('"')
+    def template_effect_scenery_clean_tag_path(self, context):
+        self["template_effect_scenery"] = clean_tag_path(
+            self["template_effect_scenery"],
+            "effect_scenery"
+        ).strip('"')
+    def template_equipment_clean_tag_path(self, context):
+        self["template_equipment"] = clean_tag_path(
+            self["template_equipment"],
+            "equipment"
+        ).strip('"')
+    def template_giant_clean_tag_path(self, context):
+        self["template_giant"] = clean_tag_path(
+            self["template_giant"],
+            "giant"
+        ).strip('"')
+    def template_scenery_clean_tag_path(self, context):
+        self["template_scenery"] = clean_tag_path(
+            self["template_scenery"],
+            "scenery"
+        ).strip('"')
+    def template_vehicle_clean_tag_path(self, context):
+        self["template_vehicle"] = clean_tag_path(
+            self["template_vehicle"],
+            "vehicle"
+        ).strip('"')
+    def template_weapon_clean_tag_path(self, context):
+        self["template_weapon"] = clean_tag_path(
+            self["template_weapon"],
+            "weapon"
+        ).strip('"')
+    
+    template_model: StringProperty(
+        name="Model Template",
+        description="Tag relative path to the model tag to use as a base if this asset does not already have one",
+        update=template_model_clean_tag_path,
+    )
+    template_biped: StringProperty(
+        name="Biped Template",
+        description="Tag relative path to the biped tag to use as a base if this asset does not already have one",
+        update=template_biped_clean_tag_path,
+    )
+    template_crate: StringProperty(
+        name="Crate Template",
+        description="Tag relative path to the crate tag to use as a base if this asset does not already have one",
+        update=template_crate_clean_tag_path,
+    )
+    template_creature: StringProperty(
+        name="Creature Template",
+        description="Tag relative path to the creature tag to use as a base if this asset does not already have one",
+        update=template_creature_clean_tag_path,
+    )
+    template_device_control: StringProperty(
+        name="Device Control Template",
+        description="Tag relative path to the device_control tag to use as a base if this asset does not already have one",
+        update=template_device_control_clean_tag_path,
+    )
+    template_device_dispenser: StringProperty(
+        name="Device Dispenser Template",
+        description="Tag relative path to the device_dispenser tag to use as a base if this asset does not already have one",
+        update=template_device_dispenser_clean_tag_path,
+    )
+    template_device_machine: StringProperty(
+        name="Device Machine Template",
+        description="Tag relative path to the device_machine tag to use as a base if this asset does not already have one",
+        update=template_device_machine_clean_tag_path,
+    )
+    template_device_terminal: StringProperty(
+        name="Device Terminal Template",
+        description="Tag relative path to the device_terminal tag to use as a base if this asset does not already have one",
+        update=template_device_terminal_clean_tag_path,
+    )
+    template_effect_scenery: StringProperty(
+        name="Effect Scenery Template",
+        description="Tag relative path to the effect_scenery tag to use as a base if this asset does not already have one",
+        update=template_effect_scenery_clean_tag_path,
+    )
+    template_equipment: StringProperty(
+        name="Equipment Template",
+        description="Tag relative path to the equipment tag to use as a base if this asset does not already have one",
+        update=template_equipment_clean_tag_path,
+    )
+    template_giant: StringProperty(
+        name="Giant Template",
+        description="Tag relative path to the giant tag to use as a base if this asset does not already have one",
+        update=template_giant_clean_tag_path,
+    )
+    template_scenery: StringProperty(
+        name="Scenery Template",
+        description="Tag relative path to the scenery tag to use as a base if this asset does not already have one",
+        update=template_scenery_clean_tag_path,
+    )
+    template_vehicle: StringProperty(
+        name="Vehicle Template",
+        description="Tag relative path to the vehicle tag to use as a base if this asset does not already have one",
+        update=template_vehicle_clean_tag_path,
+    )
+    template_weapon: StringProperty(
+        name="Weapon Template",
+        description="Tag relative path to the weapon tag to use as a base if this asset does not already have one",
+        update=template_weapon_clean_tag_path,
+    )
 
     light_tools_active: BoolProperty()
     light_tools_pinned: BoolProperty()

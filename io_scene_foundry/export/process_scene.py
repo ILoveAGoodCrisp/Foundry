@@ -31,6 +31,8 @@ import os
 import json
 import multiprocessing
 import threading
+from io_scene_foundry.export.tag_builder import build_tags
+from io_scene_foundry.export.lightmapper import run_lightmapper
 
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
@@ -56,173 +58,14 @@ from ..utils.nwo_utils import (
 
 
 class ProcessScene:
-    def __init__(
-        self,
-        context,
-        report,
-        sidecar_path,
-        sidecar_path_full,
-        asset,
-        asset_path,
-        nwo_scene,
-        sidecar_type,
-        output_biped,
-        output_crate,
-        output_creature,
-        output_device_control,
-        output_device_machine,
-        output_device_terminal,
-        output_device_dispenser,
-        output_effect_scenery,
-        output_equipment,
-        output_giant,
-        output_scenery,
-        output_vehicle,
-        output_weapon,
-        export_skeleton,
-        export_render,
-        export_collision,
-        export_physics,
-        export_markers,
-        export_animations,
-        export_structure,
-        export_design,
-        lightmap_structure,
-        import_to_game,
-        export_gr2_files,
-        import_force,
-        import_draft,
-        import_seam_debug,
-        import_skip_instances,
-        import_decompose_instances,
-        import_suppress_errors,
-        import_lighting,
-        import_meta_only,
-        import_disable_hulls,
-        import_disable_collision,
-        import_no_pca,
-        import_force_animations,
-        lightmap_quality,
-        lightmap_quality_h4,
-        lightmap_all_bsps,
-        lightmap_specific_bsp,
-        lightmap_region,
-    ):
+    def __init__(self):
         self.gr2_fail = False
         self.lightmap_failed = False
         self.lightmap_message = ""
         self.sidecar_import_failed = False
         self.sidecar_import_error = ""
         self.thread_max = multiprocessing.cpu_count()
-        self.process(
-            context,
-            report,
-            sidecar_path,
-            sidecar_path_full,
-            asset,
-            asset_path,
-            nwo_scene,
-            sidecar_type,
-            output_biped,
-            output_crate,
-            output_creature,
-            output_device_control,
-            output_device_machine,
-            output_device_terminal,
-            output_device_dispenser,
-            output_effect_scenery,
-            output_equipment,
-            output_giant,
-            output_scenery,
-            output_vehicle,
-            output_weapon,
-            export_skeleton,
-            export_render,
-            export_collision,
-            export_physics,
-            export_markers,
-            export_animations,
-            export_structure,
-            export_design,
-            lightmap_structure,
-            import_to_game,
-            export_gr2_files,
-            import_force,
-            import_draft,
-            import_seam_debug,
-            import_skip_instances,
-            import_decompose_instances,
-            import_suppress_errors,
-            import_lighting,
-            import_meta_only,
-            import_disable_hulls,
-            import_disable_collision,
-            import_no_pca,
-            import_force_animations,
-            lightmap_quality,
-            lightmap_quality_h4,
-            lightmap_all_bsps,
-            lightmap_specific_bsp,
-            lightmap_region,
-        )
-
-    def process(
-        self,
-        context,
-        report,
-        sidecar_path,
-        sidecar_path_full,
-        asset,
-        asset_path,
-        nwo_scene,
-        sidecar_type,
-        output_biped,
-        output_crate,
-        output_creature,
-        output_device_control,
-        output_device_machine,
-        output_device_terminal,
-        output_device_dispenser,
-        output_effect_scenery,
-        output_equipment,
-        output_giant,
-        output_scenery,
-        output_vehicle,
-        output_weapon,
-        export_skeleton,
-        export_render,
-        export_collision,
-        export_physics,
-        export_markers,
-        export_animations,
-        export_structure,
-        export_design,
-        lightmap_structure,
-        import_to_game,
-        export_gr2_files,
-        import_force,
-        import_draft,
-        import_seam_debug,
-        import_skip_instances,
-        import_decompose_instances,
-        import_suppress_errors,
-        import_lighting,
-        import_meta_only,
-        import_disable_hulls,
-        import_disable_collision,
-        import_no_pca,
-        import_force_animations,
-        lightmap_quality,
-        lightmap_quality_h4,
-        lightmap_all_bsps,
-        lightmap_specific_bsp,
-        lightmap_region,
-    ):
-
-        reports = []
-        gr2_count = 0
-        h4 = is_corinth(context)
-
+        
         self.gr2_processes = 0
         self.delay = 0
         self.running_check = 0
@@ -230,11 +73,19 @@ class ProcessScene:
         self.export_paths = []
         self.sidecar_paths_design = {}
         self.asset_has_animations = False
-        if export_gr2_files:
-            self.p_queue = []
-            self.max_export = 0.5
-            self.first_gr2 = True
-            self.skeleton_only = False
+        
+        self.p_queue = []
+        self.max_export = 0.5
+        self.first_gr2 = True
+        self.skeleton_only = False
+        
+        
+    
+    def process_scene(self, context, sidecar_path, sidecar_path_full, asset, asset_path, asset_type, nwo_scene, scene_nwo_export, scene_nwo):
+        reports = []
+        gr2_count = 0
+        h4 = is_corinth(context)
+        if scene_nwo_export.export_gr2_files:
             print("\n\nStarting Models Export")
             print(
                 "-----------------------------------------------------------------------\n"
@@ -246,7 +97,7 @@ class ProcessScene:
             os.makedirs(models_dir, exist_ok=True)
             os.makedirs(export_dir, exist_ok=True)
 
-            if sidecar_type in (
+            if asset_type in (
                 "MODEL",
                 "FP ANIMATION",
             ):  # Added FP animation to this. FP animation only exports the skeleton and animations
@@ -261,11 +112,11 @@ class ProcessScene:
                         nwo_scene.render_perms,
                         nwo_scene.selected_perms,
                         nwo_scene.model_armature,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
-                        export_render,
+                        scene_nwo_export.export_render,
                     )
-                if sidecar_type == "MODEL":
+                if asset_type == "MODEL":
                     if nwo_scene.collision:
                         self.export_model(
                             context,
@@ -276,9 +127,9 @@ class ProcessScene:
                             nwo_scene.collision_perms,
                             nwo_scene.selected_perms,
                             nwo_scene.model_armature,
-                            sidecar_type,
+                            asset_type,
                             nwo_scene,
-                            export_collision,
+                            scene_nwo_export.export_collision,
                         )
 
                     if nwo_scene.physics:
@@ -291,9 +142,9 @@ class ProcessScene:
                             nwo_scene.physics_perms,
                             nwo_scene.selected_perms,
                             nwo_scene.model_armature,
-                            sidecar_type,
+                            asset_type,
                             nwo_scene,
-                            export_physics,
+                            scene_nwo_export.export_physics,
                         )
 
                     if nwo_scene.markers:
@@ -306,9 +157,9 @@ class ProcessScene:
                             None,
                             None,
                             nwo_scene.model_armature,
-                            sidecar_type,
+                            asset_type,
                             nwo_scene,
-                            export_markers,
+                            scene_nwo_export.export_markers,
                         )
                     if nwo_scene.lighting:
                         self.export_model(
@@ -320,7 +171,7 @@ class ProcessScene:
                             None,
                             None,
                             nwo_scene.model_armature,
-                            sidecar_type,
+                            asset_type,
                             nwo_scene,
                             True,
                         )
@@ -330,7 +181,7 @@ class ProcessScene:
                     asset_path, asset, "skeleton", None, None, None
                 )
 
-                if nwo_scene.model_armature and export_skeleton:
+                if nwo_scene.model_armature and scene_nwo_export.export_skeleton:
                     export_obs = [nwo_scene.model_armature]
 
                     override = context.copy()
@@ -353,7 +204,7 @@ class ProcessScene:
                             if self.export_json(
                                 json_path,
                                 export_obs,
-                                sidecar_type,
+                                asset_type,
                                 asset,
                                 nwo_scene,
                             ):
@@ -389,7 +240,7 @@ class ProcessScene:
                     and bpy.data.actions
                     and nwo_scene.model_armature.animation_data
                 ):
-                    if export_animations != "NONE":
+                    if scene_nwo_export.export_animations != "NONE":
                         self.remove_all_but_armatures(nwo_scene)
 
                         timeline = context.scene
@@ -420,9 +271,9 @@ class ProcessScene:
                                 None,
                                 animation_name,
                             )
-                            if export_animations != "NONE":
+                            if scene_nwo_export.export_animations != "NONE":
                                 if (
-                                    export_animations == "ALL"
+                                    scene_nwo_export.export_animations == "ALL"
                                     or nwo_scene.current_action == action
                                 ):
                                     job = f"--- {animation_name}"
@@ -469,7 +320,7 @@ class ProcessScene:
                                             if self.export_json(
                                                 json_path,
                                                 export_obs,
-                                                sidecar_type,
+                                                asset_type,
                                                 asset,
                                                 nwo_scene,
                                             ):
@@ -514,7 +365,7 @@ class ProcessScene:
                                     ]
                                 ]
 
-            elif sidecar_type == "SCENARIO":
+            elif asset_type == "SCENARIO":
                 if nwo_scene.structure:
                     self.export_bsp(
                         context,
@@ -526,9 +377,9 @@ class ProcessScene:
                         nwo_scene.structure_perms,
                         nwo_scene.selected_perms,
                         nwo_scene.selected_bsps,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
-                        export_structure,
+                        scene_nwo_export.export_structure,
                     )
 
                 if nwo_scene.design:
@@ -542,12 +393,12 @@ class ProcessScene:
                         nwo_scene.design_perms,
                         nwo_scene.selected_perms,
                         nwo_scene.selected_bsps,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
-                        export_design,
+                        scene_nwo_export.export_design,
                     )
 
-            elif sidecar_type == "SKY":
+            elif asset_type == "SKY":
                 if nwo_scene.render:
                     self.export_model(
                         context,
@@ -558,9 +409,9 @@ class ProcessScene:
                         None,
                         None,
                         nwo_scene.model_armature,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
-                        export_render,
+                        scene_nwo_export.export_render,
                     )
                 if nwo_scene.lighting:
                     self.export_model(
@@ -572,12 +423,12 @@ class ProcessScene:
                         None,
                         None,
                         nwo_scene.model_armature,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
                         True,
                     )
 
-            elif sidecar_type == "DECORATOR SET":
+            elif asset_type == "DECORATOR SET":
                 if nwo_scene.render:
                     self.export_model(
                         context,
@@ -588,12 +439,12 @@ class ProcessScene:
                         None,
                         None,
                         None,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
-                        export_render,
+                        scene_nwo_export.export_render,
                     )
 
-            elif sidecar_type == "PREFAB":
+            elif asset_type == "PREFAB":
                 if nwo_scene.structure:
                     self.export_model(
                         context,
@@ -604,7 +455,7 @@ class ProcessScene:
                         None,
                         None,
                         None,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
                         True,
                     )
@@ -620,66 +471,22 @@ class ProcessScene:
                         None,
                         None,
                         None,
-                        sidecar_type,
+                        asset_type,
                         nwo_scene,
-                        export_render,
+                        scene_nwo_export.export_render,
                     )
 
             from .build_sidecar import Sidecar
-
-            sidecar_result = Sidecar(
-                context,
-                sidecar_path,
-                sidecar_path_full,
-                asset_path,
-                asset,
-                nwo_scene,
-                self.sidecar_paths,
-                self.sidecar_paths_design,
-                sidecar_type,
-                output_biped,
-                output_crate,
-                output_creature,
-                output_device_control,
-                output_device_dispenser,
-                output_device_machine,
-                output_device_terminal,
-                output_effect_scenery,
-                output_equipment,
-                output_giant,
-                output_scenery,
-                output_vehicle,
-                output_weapon,
-            )
+            
+            sidecar = Sidecar(asset_path, asset, asset_type)
+            sidecar.build(context, sidecar_path, sidecar_path_full, nwo_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo)
 
             # make another sidecar to generate model lighting files
             if nwo_scene.lighting:
-                Sidecar(
-                    context,
-                    sidecar_path,
-                    sidecar_path_full,
-                    asset_path,
-                    asset,
-                    nwo_scene,
-                    self.sidecar_paths,
-                    self.sidecar_paths_design,
-                    "MODEL SCENARIO",
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                    False,
-                )
+                lighting_sidecar = Sidecar(asset_path, asset, "MODEL SCENARIO")
+                lighting_sidecar.build(context, sidecar_path, sidecar_path_full, nwo_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo, True)
 
-            reports.append(sidecar_result.message)
+            reports.append(sidecar.message)
             print("\n\nBuilding Intermediary Files")
             print(
                 "-----------------------------------------------------------------------\n"
@@ -741,41 +548,20 @@ class ProcessScene:
 
             reports.append("Exported " + str(gr2_count) + " GR2 Files")
 
-            from .export_tag import import_sidecar
-
             tag_folder_path = asset_path.replace(get_data_path(), get_tags_path())
             scenery_path = os.path.join(tag_folder_path, f"{asset}.scenery")
-            no_top_level_tag = hasattr(sidecar_result, "no_top_level_tag") and not os.path.exists(scenery_path)
+            no_top_level_tag = hasattr(sidecar, "no_top_level_tag") and not os.path.exists(scenery_path)
 
-            if export_gr2_files and os.path.exists(sidecar_path_full):
-                self.managed_blam_pre_import_tasks(nwo_scene, export_animations, context.scene.nwo)
-                export_failed, error = import_sidecar(
-                    sidecar_type,
-                    sidecar_path,
-                    asset_path,
-                    asset,
-                    import_force,
-                    import_draft,
-                    import_seam_debug,
-                    import_skip_instances,
-                    import_decompose_instances,
-                    import_suppress_errors,
-                    import_lighting,
-                    import_meta_only,
-                    import_disable_hulls,
-                    import_disable_collision,
-                    import_no_pca,
-                    import_force_animations,
-                    bool(nwo_scene.lighting),
-                    nwo_scene.selected_bsps,
-                )
+            if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
+                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo)
+                export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(nwo_scene.lighting), nwo_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
                     self.sidecar_import_error = error
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_post_import_tasks(context, nwo_scene, sidecar_type, asset_path.replace(get_data_path(), ""), asset, sidecar_result.reach_world_animations)
+                    self.managed_blam_post_import_tasks(context, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -784,36 +570,26 @@ class ProcessScene:
                 if os.path.exists(scenery_path):
                     os.remove(scenery_path)
 
-        should_lightmap = lightmap_structure and (
-            sidecar_type == "SCENARIO" or (h4 and sidecar_type in ("MODEL", "SKY"))
+        should_lightmap = scene_nwo_export.lightmap_structure and (
+            asset_type == "SCENARIO" or (h4 and asset_type in ("MODEL", "SKY"))
         )
 
         if should_lightmap:
-            from .run_lightmapper import run_lightmapper
-
             lightmap_results = run_lightmapper(
                 h4,
                 nwo_scene.structure,
                 asset,
-                lightmap_quality,
-                lightmap_quality_h4,
-                lightmap_all_bsps,
-                lightmap_specific_bsp,
-                lightmap_region,
-                sidecar_type in ("MODEL", "SKY") and h4)
+                scene_nwo_export.lightmap_quality,
+                scene_nwo_export.lightmap_quality_h4,
+                scene_nwo_export.lightmap_all_bsps,
+                scene_nwo_export.lightmap_specific_bsp,
+                scene_nwo_export.lightmap_region,
+                asset_type in ("MODEL", "SKY") and h4)
 
             self.lightmap_message = lightmap_results.lightmap_message
 
             if lightmap_results.lightmap_failed:
                 self.lightmap_failed = True
-
-        # final_report = ""
-        # for idx, r in enumerate(reports):
-        #     final_report = final_report + str(r)
-        #     if idx + 1 < len(reports):
-        #         final_report = final_report + " | "
-
-        # return final_report
 
     def export_model(
         self,
@@ -825,7 +601,7 @@ class ProcessScene:
         obs_perms,
         sel_perms,
         model_armature,
-        sidecar_type,
+        asset_type,
         nwo_scene,
         export_check,
     ):
@@ -891,7 +667,7 @@ class ProcessScene:
                             fbx_path,
                         ):
                             if self.export_json(
-                                json_path, export_obs, sidecar_type, asset, nwo_scene
+                                json_path, export_obs, asset_type, asset, nwo_scene
                             ):
                                 self.export_gr2(fbx_path, json_path, gr2_path)
                             else:
@@ -931,7 +707,7 @@ class ProcessScene:
         obs_perms,
         sel_perms,
         sel_bsps,
-        sidecar_type,
+        asset_type,
         nwo_scene,
         export_check,
     ):
@@ -975,7 +751,7 @@ class ProcessScene:
                                 if self.export_json(
                                     json_path,
                                     export_obs,
-                                    sidecar_type,
+                                    asset_type,
                                     asset,
                                     nwo_scene,
                                 ):
@@ -1114,10 +890,10 @@ class ProcessScene:
                 animation.set_node_usages(nwo_scene.skeleton_bones)
             print("--- Updated Animation Node Usages")
 
-    def managed_blam_post_import_tasks(self, context, nwo_scene, sidecar_type, asset_path, asset_name, reach_world_animations):
+    def managed_blam_post_import_tasks(self, context, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations):
         nwo = context.scene.nwo
-        model_sky = sidecar_type in ('MODEL', 'SKY')
-        model = sidecar_type == 'MODEL'
+        model_sky = asset_type in ('MODEL', 'SKY')
+        model = asset_type == 'MODEL'
         h4_model_lighting = (nwo_scene.lighting and is_corinth(context) and model_sky)
         model_override = (
             (nwo.render_model_path and model)
@@ -1290,11 +1066,11 @@ class ProcessScene:
     #####################################################################################
     # JSON
 
-    def export_json(self, json_path, export_obs, sidecar_type, asset_name, nwo_scene):
+    def export_json(self, json_path, export_obs, asset_type, asset_name, nwo_scene):
         """Exports a json file by passing the currently selected objects to the NWOJSON class, and then writing the resulting dictionary to a .json file"""
         json_props = NWOJSON(
             export_obs,
-            sidecar_type,
+            asset_type,
             nwo_scene.model_armature,
             None,
             asset_name,

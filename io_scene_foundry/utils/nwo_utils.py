@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import winreg
@@ -1820,3 +1821,6 @@ def add_node_from_resources(name):
 
 def rgb_to_float_list(red, green, blue):
     return [red / 255, green / 255, blue / 255]
+
+def copy_file(from_path, to_path):
+    shutil.copyfile(from_path, to_path)
