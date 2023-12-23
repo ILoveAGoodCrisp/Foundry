@@ -272,11 +272,13 @@ class ShaderTag(Tag):
         nwo = image.nwo
         if nwo.filepath:
             bitmap = nwo_utils.dot_partition(nwo.filepath) + ".bitmap"
+            print("bitmap path from nwo.filepath", self.tags_dir + bitmap)
             if os.path.exists(self.tags_dir + bitmap):
                 return bitmap
             
         if image.filepath and os.path.exists(image.filepath_from_user()):
-            bitmap = nwo_utils.dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + ".bitmap"
+            bitmap = nwo_utils.dot_partition(image.filepath_from_user().lower().replace(self.data_dir, "")) + ".bitmap"
+            print("bitmap path from filepath_from_user", self.tags_dir + bitmap)
             if os.path.exists(self.tags_dir + bitmap):
                 return bitmap
 

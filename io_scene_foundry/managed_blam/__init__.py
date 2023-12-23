@@ -120,20 +120,28 @@ class Tag():
 
     def _find_tag(self):
         is_TagPath = False
+        print('tags dir', self.tags_dir)
+        print('data dir', self.data_dir)
         if type(self.path) == str:
             # If path isn't set by now, assume it is in the asset folder with the asset name
             if self.path:
+                print("path", self.path)
                 # Enforce extension if tag has one defined
                 if self.tag_ext:
                     self.path = dot_partition(self.path) + '.' + self.tag_ext
+                    print("path_with_ext", self.path)
             else:
                 self.path = os.path.join(self.asset_dir, self.asset_name + '.' + self.tag_ext)
+                print("assumed_path", self.path)
 
             self.system_path = self.tags_dir + self.path
+            print("system_path", self.system_path)
             
         else:
             # Assume we have instead be given a TagPath
+            print("pathp[TagPath]", self.path.RelativePathWithExtension)
             self.system_path = self.tags_dir + self.path.RelativePathWithExtension
+            print("system_path[TagPath]", self.system_path)
             is_TagPath = True
         
         self.tag, self.tag_path = self._get_tag_and_path(is_TagPath)
