@@ -299,8 +299,19 @@ def get_asset_info(filepath):
 
 def get_asset_path():
     """Returns the path to the asset folder."""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0].lower()
+    asset_path = os_sep_partition(relative_path(bpy.context.scene.nwo_halo_launcher.sidecar_path))
     return asset_path
+
+def relative_path(path: str):
+    """Gets the tag/data relative path of the given filepath"""
+    tags_path = get_tags_path()
+    data_path = get_data_path()
+    if path.lower().startswith(tags_path):
+        return path.lower().rpartition(tags_path)[2]
+    elif path.lower().startswith(data_path):
+        return path.lower().rpartition(data_path)[2]
+    
+    return path.lower()
 
 
 def get_asset_path_full(tags=False):
@@ -405,7 +416,7 @@ def clean_tag_path(path, file_ext=None):
         #     # strip following backslash
         #     path = path.strip('\\')
         # attempt to make path tag relative
-        path = path.replace(get_tags_path().lower(), "")
+        path = relative_path(path)
         # return the new path in lower case
         return path
     else:

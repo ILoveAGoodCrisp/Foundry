@@ -34,7 +34,7 @@ from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import ExportManager, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, run_tool, update_job, update_job_count, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -105,6 +105,8 @@ class NWO_FarmShaders(bpy.types.Operator):
                 bpy.ops.managed_blam.init()
             start = time.perf_counter()
             settings = context.scene.nwo
+            shaders_dir = relative_path(settings.shaders_dir)
+            bitmaps_dir = relative_path(settings.bitmaps_dir)
             os.system("cls")
             if context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -166,10 +168,9 @@ class NWO_FarmShaders(bpy.types.Operator):
                 valid_bitmaps = bitmaps['update']
 
             if settings.farm_type == "both" or settings.farm_type == "bitmaps":
-                bitmap_folder = settings.bitmaps_dir
                 # Create a bitmap folder in the asset directory
-                if bitmap_folder:
-                    self.bitmaps_data_dir = os.path.join(self.data_dir + bitmap_folder)
+                if bitmaps_dir:
+                    self.bitmaps_data_dir = os.path.join(self.data_dir + bitmaps_dir)
                 else:
                     self.bitmaps_data_dir = os.path.join(self.data_dir + self.asset_path, "bitmaps")
                 print("\nStarting Bitmap Export")
@@ -178,7 +179,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 )
                 bitmap_count = len(valid_bitmaps)
                 print(f"{bitmap_count} bitmaps in scope")
-                print(f"Bitmaps Directory = {bitmap_folder}\n")
+                print(f"Bitmaps Directory = {relative_path(self.bitmaps_data_dir)}\n")
                 for idx, bitmap in enumerate(valid_bitmaps):
                     tiff_path = self.export_tiff_if_needed(bitmap, self.bitmaps_data_dir, settings.link_bitmaps)
                     if tiff_path:
@@ -202,16 +203,21 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
+                if not shaders_dir:
+                    if self.asset_path:
+                        shaders_dir = os.path.join(self.asset_path, "materials" if self.corinth else 'shaders')
+                    else:
+                        shaders_dir = "materials" if self.corinth else 'shaders'
                 shader_count = len(valid_shaders)
                 print(f"{shader_count} {tag_type}s in Scope")
-                print(f"{tag_type}s Directory = {settings.shaders_dir}\n")
+                print(f"{tag_type}s Directory = {shaders_dir}\n")
                 job = f"Exporting {tag_type}s"
                 for idx, shader in enumerate(valid_shaders):
                     update_progress(job, idx / shader_count)
                     shader.nwo.uses_blender_nodes = settings.link_shaders
                     if settings.default_material_shader and os.path.exists(self.tags_dir + settings.default_material_shader):
                         shader.nwo.material_shader = settings.default_material_shader
-                    build_shader(shader, self.corinth, settings.shaders_dir)
+                    build_shader(shader, self.corinth, shaders_dir)
                 update_progress(job, 1)
                 self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
 

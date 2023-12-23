@@ -71,6 +71,7 @@ from io_scene_foundry.utils.nwo_utils import (
     amf_addon_installed,
     blender_toolset_installed,
     bpy_enum,
+    clean_tag_path,
     deselect_all_objects,
     dot_partition,
     export_objects,
@@ -3598,10 +3599,15 @@ class NWO_HaloLauncher_TagTest(Operator):
 
 
 class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
+    
+    def update_sidecar_path(self, context):
+        self["sidecar_path"] = clean_tag_path(self["sidecar_path"]).strip('"')
+    
     sidecar_path: StringProperty(
         name="",
         description="",
         default="",
+        update=update_sidecar_path,
     )
     asset_name: StringProperty(
         name="",
