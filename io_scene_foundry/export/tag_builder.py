@@ -74,7 +74,8 @@ def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_expor
     data_dir = get_data_path()
     tag_folder_path = asset_path.replace(data_dir, tags_dir)
     tag_path = os.path.join(tag_folder_path, asset_name)
-    setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth())
+    if asset_type == 'MODEL':
+        setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth())
     faux_process = None
     if model_lighting:
         faux_process = run_tool(
