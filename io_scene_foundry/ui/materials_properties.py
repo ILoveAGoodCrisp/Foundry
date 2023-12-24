@@ -50,8 +50,6 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
     
     prev_shader_path: StringProperty()
 
-    rendered: BoolProperty(default=True)
-
     def recursive_image_search_object(self, tree_owner, object):
         nodes = tree_owner.node_tree.nodes
         for n in nodes:

@@ -28,6 +28,7 @@ import bpy
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_tags_path,
+    has_shader_path,
     is_corinth,
     relative_path,
     shader_exts,
@@ -126,9 +127,7 @@ def scan_tree(shaders_dir, shaders):
 
 
 def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False, set_non_export=False):
-    materials = [
-        mat for mat in materials_all if mat.nwo.rendered and not mat.grease_pencil
-    ]
+    materials = [mat for mat in materials_all if has_shader_path(mat)]
     shaders = set()
     update_count = 0
     no_path_materials = []

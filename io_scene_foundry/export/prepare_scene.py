@@ -34,9 +34,9 @@ from math import degrees, radians
 from mathutils import Matrix, Vector
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
-
+from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.tools.shader_finder import find_shaders
-from io_scene_foundry.utils.nwo_constants import MAT_INVISIBLE, MAT_SEAMSEALER, MAT_SKY, RENDER_MESH_TYPES, VALID_MESHES
+from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from ..utils.nwo_utils import (
     bool_str,
     closest_bsp_object,
@@ -50,6 +50,7 @@ from ..utils.nwo_utils import (
     enable_prints,
     get_object_type,
     get_sky_perm,
+    has_shader_path,
     is_marker,
     is_mesh,
     jstr,
@@ -57,8 +58,8 @@ from ..utils.nwo_utils import (
     layer_faces,
     library_instanced_collection,
     print_warning,
+    relative_path,
     set_active_object,
-    is_shader,
     get_tags_path,
     is_corinth,
     set_object_mode,
@@ -73,12 +74,14 @@ from ..utils.nwo_utils import (
     update_progress,
     update_tables_from_objects,
     vector_str,
+    special_material_names,
+    convention_material_names,
 )
 
-render_mesh_types_full = [
-    "_connected_geometry_mesh_type_default",
+render_mesh_types = [
     "_connected_geometry_mesh_type_poop",
     "_connected_geometry_mesh_type_water_surface"
+    "_connected_geometry_mesh_type_decorator"
 ]
 
 # Reach special materials
@@ -145,6 +148,10 @@ class PrepareScene:
 
         h4 = is_corinth(context)
         game_version = 'corinth' if h4 else 'reach'
+        
+        global render_mesh_types
+        if not h4 or asset_type in ('MODEL', 'SKY'):
+            render_mesh_types.append('_connected_geometry_mesh_type_default')
 
         # Exit local view. Must do this otherwise fbx export will fail.
         self.exit_local_view(context)
@@ -252,65 +259,42 @@ class PrepareScene:
         materials = bpy.data.materials
 
         # create fixup materials
-        override_mat = materials.get("+override")
-        if override_mat is None:
-            override_mat = materials.new("+override")
-        override_mat.nwo.rendered = False
-            
-        self.invisible_mat = materials.get(MAT_INVISIBLE)
-        if self.invisible_mat is None:
-            self.invisible_mat = materials.new(MAT_INVISIBLE)
-        invisible_mats = [mat for mat in materials if mat.name.startswith(MAT_INVISIBLE)]
-        for mat in invisible_mats:
-            mat.nwo.rendered = True
+        for sm in special_materials:
+            m = materials.get(sm.name)
+            if not m:
+                m = materials.new(sm.name)
             if h4:
-                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
+                m.nwo.shader_path = sm.shader_path + '.material' # No support for material face props in H4, so always a material
             else:
-                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.shader"
-            
-        self.seamsealer_mat = materials.get(MAT_SEAMSEALER)
-        if self.seamsealer_mat is None:
-            self.seamsealer_mat = materials.new(MAT_SEAMSEALER)
-        seamsealer_mats = [mat for mat in materials if mat.name.startswith(MAT_SEAMSEALER)]
-        for mat in seamsealer_mats:
-            mat.nwo.rendered = True
-            if h4:
-                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
-            else:
-                mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_seam_sealer.override"
-        
-        self.sky_mat = materials.get(MAT_SKY)
-        if self.sky_mat is None:
-            self.sky_mat = materials.new(MAT_SKY)
-        sky_mats = [mat for mat in materials if mat.name.startswith(MAT_SKY)]
-        for mat in sky_mats:
-            mat.nwo.rendered = True
-            if h4:
-                mat.nwo.shader_path = r"objects\levels\shared\shaders\invisible.material"
-            else:
-                mat.nwo.shader_path = r"bungie_face_type=_connected_geometry_face_type_sky.override"
-            
-        invalid_mat = materials.get("+invalid")
-        if invalid_mat is None:
-            invalid_mat = materials.new("+invalid")
-        invalid_mat.nwo.rendered = True
-        if h4:
-            invalid_mat.nwo.shader_path = r"shaders\invalid.material"
-        else:
-            invalid_mat.nwo.shader_path = r"shaders\invalid.shader"
-            
-        water_surface_mat = materials.get("+water")
-        if water_surface_mat is None:
-            water_surface_mat = materials.new("+water")
-        water_surface_mat.nwo.rendered = True
+                m.nwo.shader_path = sm.shader_path + '.override' if sm.is_face_property else '.shader' 
+            match sm.name:
+                case '+invisible':
+                    self.invisible_mat = m
+                case '+invalid':
+                    self.invalid_mat = m
+                case '+missing':
+                    self.missing_mat = m
+                case '+seamsealer':
+                    self.seamsealer_mat = m
+                case '+sky':
+                    self.sky_mat = m
+                case '+collision':
+                    self.collision_mat = m
+                case '+sphere_collision':
+                    self.sphere_collision_mat = m
+                    
+        # Not avalialbe to user, but creating this to ensure water renders
+        self.water_surface_mat = materials.get("+water")
+        if self.water_surface_mat is None:
+            self.water_surface_mat = materials.new("+water")
         if h4:
             h2a_water = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
             if os.path.exists(get_tags_path() + h2a_water):
-                water_surface_mat.nwo.shader_path = h2a_water
+                self.water_surface_mat.nwo.shader_path = h2a_water
             else:
-                water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
+                self.water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
         else:
-            water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
+            self.water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
 
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
@@ -388,7 +372,7 @@ class PrepareScene:
                     self.unlink(ob)
                     continue
 
-            is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and self.has_halo_materials(nwo, h4)
+            is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type in render_mesh_types
 
             # add region/global_mat to sets
             uses_global_mat = has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or scenario_asset and not h4 and nwo.mesh_type == "_connected_geometry_mesh_type_default")
@@ -401,7 +385,7 @@ class PrepareScene:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
                     does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or asset_type != 'SCENARIO'
                     self.fix_materials(
-                        ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render, does_not_support_sky, scene_coll
+                        ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
                     )
                 # print("fix_materials")
                 
@@ -429,50 +413,47 @@ class PrepareScene:
 
                 if sel_bsps:
                     self.selected_bsps.add(nwo.region_name)
-
-        # loop through each material to check if find_shaders is needed
+                    
+        self.null_path_materials = []
+        self.invalid_path_materials = []
         for idx, mat in enumerate(self.used_materials):
             mat_nwo = mat.nwo
-            if (
-                not mat.is_grease_pencil
-                and mat_nwo.rendered
-                and not mat_nwo.shader_path
-            ):
-                self.warning_hit = True
-                print("")
-
-                if h4:
-                    print_warning("Scene has empty Halo material tag paths")
-                    job = "Fixing Empty Material Paths"
-                else:
-                    print_warning("Scene has empty Halo shader tag paths")
-                    job = "Fixing Empty Shader Paths"
-
-                update_job(job, 0)
-                no_path_materials = find_shaders(self.used_materials, h4)
-                update_job(job, 1)
-                if no_path_materials:
+            if has_shader_path(mat):
+                # Enforce relativity
+                mat_nwo.shader_path = relative_path(mat_nwo.shader_path)
+                if not mat_nwo.shader_path:
+                    self.null_path_materials.append(mat)
+                    self.warning_hit = True
                     if h4:
-                        print_warning(
-                            "Unable to find material tag paths for the following Blender materials:"
-                        )
+                        mat.nwo.shader_path = self.missing_mat.nwo.shader_path
                     else:
-                        print_warning(
-                            "Unable to find shader tag paths for the following Blender materials:"
-                        )
-                    for m in no_path_materials:
-                        print_warning(m)
+                        mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
+                        
+                elif not os.path.exists(get_tags_path() + mat_nwo.shader_path):
+                    self.invalid_path_materials.append(mat)
+                    self.warning_hit = True
                     if h4:
-                        print_warning(
-                            "\nThese materials should either be given paths to Halo material tags, or specified as a Blender only material (by using the checkbox in Halo Material Paths)\n"
-                        )
+                        mat.nwo.shader_path = self.missing_mat.nwo.shader_path
                     else:
-                        print_warning(
-                            "\nThese materials should either be given paths to Halo shader tags, or specified as a Blender only material (by using the checkbox in Halo Shader Paths)\n"
-                        )
-                break
-
-        # print("found_shaders")
+                        mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
+                
+        if self.null_path_materials:
+            if h4:
+                print_warning("\nFound blender materials with empty material tag paths:")
+            else:
+                print_warning("\nFound blender materials with empty shader tag paths:")
+                
+            for m in self.null_path_materials:
+                print_warning(f'  {m.name}')
+                
+        if self.invalid_path_materials:
+            if h4:
+                print_warning("\nFound blender materials with invalid material tag paths:")
+            else:
+                print_warning("\nFound blender materials with invalid shader tag paths:")
+                
+            for m in self.invalid_path_materials:
+                print_warning(f'  {m.name}')
 
         # build seams
         if self.seams:
@@ -722,7 +703,7 @@ class PrepareScene:
 
         # print("armature")
         elif asset_type == 'SCENARIO':
-            if self.generate_structure(export_obs, scene_coll, context.scene.nwo, override_mat, h4):
+            if self.generate_structure(export_obs, scene_coll, context.scene.nwo, h4):
                 context.view_layer.update()
 
         # Set timeline range for use during animation export
@@ -961,7 +942,7 @@ class PrepareScene:
 
         if justified:
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
-            render_mesh = ob.nwo.mesh_type in render_mesh_types_full
+            render_mesh = ob.nwo.mesh_type in render_mesh_types
             is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
             if (
                 is_poop and not h4
@@ -1184,10 +1165,10 @@ class PrepareScene:
 
         # Handle face sides, game wants an enum but Foundry uses flags
         face_sides_value = "_connected_geometry_face_sides_"
-        has_transparency = face_props.face_transparent_override and mesh_props.mesh_type in RENDER_MESH_TYPES
+        has_transparency = face_props.face_transparent_override and mesh_props.mesh_type in render_mesh_types
         if face_props.face_two_sided_override:
             # Only h4+ support properties for the backside face
-            if h4 and mesh_props.mesh_type in RENDER_MESH_TYPES:
+            if h4 and mesh_props.mesh_type in render_mesh_types:
                 face_sides_value += face_props.face_two_sided_type_ui
             else:
                 face_sides_value += "two_sided"
@@ -1950,10 +1931,10 @@ class PrepareScene:
             if nwo.mesh_type != "_connected_geometry_mesh_type_physics":
                 # Handle face sides, game wants an enum but Foundry uses flags
                 face_sides_value = "_connected_geometry_face_sides_"
-                has_transparency = nwo_data.face_transparent_ui and nwo.mesh_type in RENDER_MESH_TYPES
+                has_transparency = nwo_data.face_transparent_ui and nwo.mesh_type in render_mesh_types
                 if nwo_data.face_two_sided_ui:
                     # Only h4+ support properties for the backside face
-                    if not h4 or nwo.mesh_type not in RENDER_MESH_TYPES:
+                    if not h4 or nwo.mesh_type not in render_mesh_types:
                         face_sides_value += "two_sided"
                     else:
                         face_sides_value += nwo_data.face_two_sided_type_ui
@@ -2709,28 +2690,6 @@ class PrepareScene:
 
         return frameIDList
 
-    def ApplyPredominantShaderNames(self, poops):
-        for ob in poops:
-            ob.nwo.poop_predominant_shader_name = self.GetProminantShaderName(ob)
-
-    def GetProminantShaderName(self, ob):
-        predominant_shader = ""
-        slots = ob.material_slots
-        for s in slots:
-            material = s.material
-            if is_shader(material):
-                shader_path = material.nwo.shader_path
-                if shader_path.rpartition(".")[0] != "":
-                    shader_path = shader_path.rpartition(".")[0]
-                shader_path.replace(get_tags_path(), "")
-                shader_path.replace(get_tags_path().lower(), "")
-                shader_type = material.nwo.Shader_Type
-                predominant_shader = f"{shader_path}.{shader_type}"
-                break
-
-        return predominant_shader
-
-
     def setup_poop_proxies(self, export_obs, h4):
         poops = [
             ob
@@ -2876,19 +2835,8 @@ class PrepareScene:
         return child_ob_set
 
     def fix_materials(
-        self, ob, me, nwo, override_mat, invalid_mat, water_surface_mat, h4, is_halo_render, does_not_support_sky, scene_coll
+        self, ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
     ):
-        if h4:
-            render_mesh_types = (
-                "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_decorator",
-            )
-        else:
-            render_mesh_types = (
-                "_connected_geometry_mesh_type_default",
-                "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_decorator",
-            )
         # fix multi user materials
         slots = ob.material_slots
         materials = me.materials
@@ -2897,7 +2845,7 @@ class PrepareScene:
         if me.nwo.face_global_material_ui and nwo.reach_poop_collision:
             self.set_reach_coll_materials(me, scene_mats, True)
         else:
-            self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me, does_not_support_sky, scene_coll, h4)
+            self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4)
 
     def set_reach_coll_materials(self, me, scene_mats, mesh_level=False):
         # handle reach poop collision material assignment
@@ -2914,10 +2862,8 @@ class PrepareScene:
             tag_path = f"levels\\reference\\sound\\shaders\\bsp_{mesh_global_mat}.shader"
             full_tag_path = get_tags_path() + tag_path
             if os.path.exists(full_tag_path):
-                coll_mat.nwo.rendered = True
                 coll_mat.nwo.shader_path = tag_path
             else:
-                coll_mat.nwo.rendered = False
                 self.warning_hit = True
                 print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {mesh_global_mat} prefixed with 'bsp_'")
 
@@ -2942,7 +2888,6 @@ class PrepareScene:
             tag_path = f"levels\\reference\\sound\\shaders\\bsp_{l.face_global_material_ui}.shader"
             full_tag_path = get_tags_path() + tag_path
             if os.path.exists(full_tag_path):
-                coll_face_mat.nwo.rendered = True
                 coll_face_mat.nwo.shader_path = tag_path
                 me.materials.append(coll_face_mat)
                 mat_dict = {mat: i for i, mat in enumerate(me.materials)}
@@ -2950,21 +2895,27 @@ class PrepareScene:
                     f.material_index = mat_dict[coll_face_mat]
 
             else:
-                coll_face_mat.nwo.rendered = False
                 self.warning_hit = True
                 print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {l.face_global_material_ui} prefixed with 'bsp_'")
 
         bm.to_mesh(me)
         bm.free()
 
-    def loop_and_fix_slots(self, slots, is_halo_render, mats, ob, nwo, render_mesh_types, invalid_mat, water_surface_mat, override_mat, materials, me, does_not_support_sky, scene_coll, h4):
+    def loop_and_fix_slots(self, slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4):
         slots_to_remove = []
         is_true_mesh = ob.type == 'MESH'
         for idx, slot in enumerate(slots):
             if slot.material:
-                if not h4 and slot.material.name.startswith(MAT_SKY) and does_not_support_sky:
-                    slot.material = self.seamsealer_mat
-                if is_halo_render:
+                if slot.material.name in special_material_names:
+                    if h4 and slot.material.name not in ('+invisible', '+invalid', '+missing'):
+                        slot.material = self.invisible_mat
+                    elif not h4 and slot.material.name.startswith('+sky') and does_not_support_sky:
+                        slot.material = self.seamsealer_mat
+                    elif not h4 and slot.material.name == '+missing':
+                        slot.material = self.invalid_mat
+                elif slot.material.name in convention_material_names:
+                    slot.material = self.invisible_mat
+                elif is_halo_render:
                     self.used_materials.add(slot.material)
                 s_name = slot.material.name
                 if s_name not in mats.keys():
@@ -2981,11 +2932,11 @@ class PrepareScene:
                     bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
             else:
                 if nwo.mesh_type in render_mesh_types:
-                    slot.material = invalid_mat
+                    slot.material = self.invalid_mat
                 elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-                    slot.material = water_surface_mat
+                    slot.material = self.water_surface_mat
                 else:
-                    slot.material = override_mat
+                    slot.material = self.invisible_mat
 
         while slots_to_remove:
             materials.pop(index=slots_to_remove[0])
@@ -2995,13 +2946,13 @@ class PrepareScene:
         if not slots:
             # append the new material to the object
             if nwo.mesh_type in render_mesh_types:
-                me.materials.append(invalid_mat)
+                me.materials.append(self.invalid_mat)
             elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-                me.materials.append(water_surface_mat)
+                me.materials.append(self.water_surface_mat)
             else:
-                me.materials.append(override_mat)
+                me.materials.append(self.invisible_mat)
         elif not h4:
-            sky_slots = [s for s in ob.material_slots if s.material.name.startswith(MAT_SKY)]
+            sky_slots = [s for s in ob.material_slots if s.material.name.startswith('+sky')]
             # Loop through slots with sky material, if a permutation is given we need to make a new mesh
             if not sky_slots: return
             # If there's only one sky material can skip face split code below
@@ -3039,7 +2990,7 @@ class PrepareScene:
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
 
                     
-    def generate_structure(self, export_obs, scene_coll, scene_nwo, override_mat, h4):
+    def generate_structure(self, export_obs, scene_coll, scene_nwo, h4):
         bsps_in_need = [bsp for bsp in self.structure_bsps if bsp not in self.bsps_with_structure]
         if not bsps_in_need:
             return False
@@ -3105,7 +3056,7 @@ class PrepareScene:
             nwo.object_type = '_connected_geometry_object_type_mesh'
             nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if h4:
-                structure_mesh.materials.append(override_mat)
+                structure_mesh.materials.append(self.invisible_mat)
             else:
                 structure_mesh.materials.append(self.sky_mat)
             nwo.region_name = bsp
@@ -3336,24 +3287,6 @@ class PrepareScene:
         # copy = ob.copy()
         # copy.nwo.mesh_type = '_connected_geometry_mesh_type_lightprobevolume'
         # scene_coll.link(copy)
-
-
-    def has_halo_materials(self, nwo, h4):
-        if h4:
-            render_mesh_types = (
-                "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_decorator",
-                "_connected_geometry_mesh_type_water_surface"
-            )
-        else:
-            render_mesh_types = (
-                "_connected_geometry_mesh_type_default",
-                "_connected_geometry_mesh_type_poop",
-                "_connected_geometry_mesh_type_decorator",
-                "_connected_geometry_mesh_type_water_surface"
-            )
-        
-        return nwo.mesh_type in render_mesh_types
     
     def counter_matrix(self, mat_old, mat_new, bone, objects):
         old_rot = mat_old.to_quaternion()

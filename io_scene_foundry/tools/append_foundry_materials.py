@@ -28,19 +28,7 @@
 import bpy
 
 from io_scene_foundry.utils import nwo_utils
-
-class SpecialMaterial:
-    def __init__(self, name: str, games: list, asset_types: list, color: list[float]):
-        self.name = name
-        self.games = games
-        self.asset_types = asset_types
-        self.color = color
-    
-invisible = SpecialMaterial('+invisible', ['reach', 'h4'], ['MODEL', 'SKY', 'SCENARIO', 'PREFAB'], [1, 1, 1, 0])
-seamsealer = SpecialMaterial('+seamsealer', ['reach',], ['SCENARIO',], [1, 1, 1, 0.05])
-sky = SpecialMaterial('+sky', ['reach',], ['SCENARIO',], [0.5, 0.7, 1, 0.05])
-
-special_materials = invisible, seamsealer, sky
+from io_scene_foundry.utils.nwo_materials import special_materials
 
 class NWO_AppendFoundryMaterials(bpy.types.Operator):
     bl_idname = "nwo.append_foundry_materials"
@@ -57,8 +45,13 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
             if game in m.games and asset_type in m.asset_types and not blender_materials.get(m.name):
                 mat = blender_materials.new(m.name)
                 mat.use_fake_user = True
-                mat.use_nodes = False
                 mat.diffuse_color = m.color
+                mat.use_nodes = True
+                bsdf = mat.node_tree.nodes[0]
+                bsdf.inputs[0].default_value = m.color
+                bsdf.inputs[4].default_value = m.color[3]
+                mat.blend_method = 'BLEND'
+                mat.shadow_method = 'NONE'
                 count += 1
         
         if count == 0:

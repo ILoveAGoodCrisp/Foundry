@@ -70,6 +70,7 @@ all_prefixes = set(all_prefixes)
 
 import bpy
 from io_scene_foundry.utils.nwo_utils import is_corinth
+from io_scene_foundry.utils.nwo_materials import convention_materials
 
 special_materials = (
     "InvisibleSky",
@@ -101,120 +102,27 @@ def clear_special_mats(materials):
             materials.pop(index=idx)
             clear_special_mats(materials)
 
-
-def halo_material_color(material, color):
-    """Sets the material to the specifier color in both viewport and shader, setting alpha if appropriate"""
-    material.use_nodes = True
-    # viewport
-    material.diffuse_color = color
-    # shader
-    material.node_tree.nodes[0].inputs[0].default_value = color
-    if color[3] < 1.0:
-        material.blend_method = "BLEND"
-
-    material.use_nodes = False
-
-
 def halo_material(mat_name):
     """Adds a halo material to the blend if it doesn't exist and applies settings, then returning the material"""
     # first check if the material already exists
-    materials = bpy.data.materials
-    material_names = (mat.name for mat in materials)
-    if mat_name in material_names:
-        return materials[mat_name]
+    mat = bpy.data.materials.get(mat_name)
+    if mat: return mat
     # if not, make it, apply settings, and return it
-    new_material = materials.new(mat_name)
-    match mat_name:
-        case "InvisibleSky":
-            halo_material_color(
-                new_material, (0.8, 0.8, 0.8, 0.0)
-            )  # light turqouise with 90% opacity
-
-        case "Physics":
-            halo_material_color(
-                new_material, (0.0, 0.0, 1.0, 0.2)
-            )  # medium blue with 20% opacity
-
-        case "Seam":
-            halo_material_color(
-                new_material, (0.39, 1.0, 0.39, 0.4)
-            )  # light green with 40% opacity
-
-        case "Portal":
-            halo_material_color(
-                new_material, (0.78, 0.69, 0.15, 0.4)
-            )  # yellow with 40% opacity
-
-        case "Collision":
-            halo_material_color(
-                new_material, (0.0, 1.0, 0.0, 0.2)
-            )  # green with 20% opacity
-
-        case "PlayCollision":
-            halo_material_color(
-                new_material, (1.0, 0.5, 0.0, 0.2)
-            )  # orange with 20% opacity
-
-        case "WallCollision":
-            halo_material_color(
-                new_material, (0.0, 0.8, 0.0, 0.2)
-            )  # green with 20% opacity
-
-        case "BulletCollision":
-            halo_material_color(
-                new_material, (0.0, 0.8, 0.8, 0.2)
-            )  # cyan with 20% opacity
-
-        case "CookieCutter":
-            halo_material_color(
-                new_material, (1.0, 0.1, 0.9, 0.2)
-            )  # pink with 20% opacity
-
-        case "Fog":
-            halo_material_color(
-                new_material, (0.3, 0.3, 1.0, 0.2)
-            )  # purply-blue with 20% opacity
-
-        case "RainBlocker":
-            halo_material_color(
-                new_material, (0.3, 0.3, 1.0, 1.0)
-            )  # blue with 100% opacity
-
-        case "RainSheet":
-            halo_material_color(
-                new_material, (0.3, 0.3, 1.0, 1.0)
-            )  # blue with 100% opacity
-
-        case "WaterVolume":
-            halo_material_color(
-                new_material, (0.0, 0.0, 1.0, 0.9)
-            )  # deep blue with 90% opacity
-
-        case "Structure":
-            halo_material_color(
-                new_material, (0.0, 0.0, 1.0, 0.9)
-            )  # champion orange with 90% opacity
-        case "Volume":
-            halo_material_color(
-                new_material, (0.0, 0.0, 1.0, 0.9)
-            )  # champion orange with 90% opacity
-
-        case "SoftCeiling":
-            halo_material_color(
-                new_material, (0.51, 0.364, 0.118, 0.9)
-            )  # orange with 90% opacity
-
-        case "SoftKill":
-            halo_material_color(
-                new_material, (0.51, 0.02, 0.06, 0.9)
-            )  # blood red with 90% opacity
-
-        case "SlipSurface":
-            halo_material_color(
-                new_material, (0.317, 0.51, 0.226, 0.9)
-            )  # dull green with 90% opacity
-
-    new_material.nwo.rendered = False
+    for m in convention_materials:
+        if m.name == mat_name:
+            convention = m
+            break
+    else:
+        raise ValueError(f"halo material of name {mat_name} does not exist in nwo_materials.py")
+    
+    new_material = bpy.data.materials.new(mat_name)
+    new_material.diffuse_color = convention.color
+    new_material.use_nodes = True
+    bsdf = new_material.node_tree.nodes[0]
+    bsdf.inputs[0].default_value = convention.color
+    bsdf.inputs[4].default_value = convention.color[3]
+    new_material.blend_method = 'BLEND'
+    new_material.shadow_method = 'NONE'
 
     return new_material
 
@@ -225,19 +133,12 @@ def cleanup_empty_slots(slots):
         slot_mat = slot.material
         if slot_mat:
             continue
-
-        if "invalid" not in materials:
-            invalid_mat = materials.new("invalid")
-            if h4:
-                invalid_mat.nwo.shader_path = r"shaders\invalid.material"
-            else:
-                invalid_mat.nwo.shader_path = r"shaders\invalid.shader"
-        else:
-            invalid_mat = materials.get("invalid")
+        
+        invalid_mat = materials.get('+invalid')
+        if not invalid_mat:
+            invalid_mat = materials.new("+invalid")
 
         slot.material = invalid_mat
-
-
 
 def apply_props_material(ob, mat_name):
     if mat_name != "":

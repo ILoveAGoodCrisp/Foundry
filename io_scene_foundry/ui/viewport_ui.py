@@ -338,13 +338,11 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 material = "WaterVolume"
             case "streaming":
                 mesh_type = "_connected_geometry_mesh_type_streaming"
-                material = "Volume"
+                material = "StreamingVolume"
             case "lightmap":
                 if is_corinth(context):
                     mesh_type = "_connected_geometry_mesh_type_lightmap_exclude"
-                else:
-                    mesh_type = "_connected_geometry_mesh_type_lightmap_region"
-                material = "Volume"
+                    material = "LightmapExcludeVolume"
 
             case "cookie_cutter":
                 mesh_type = "_connected_geometry_mesh_type_cookie_cutter"

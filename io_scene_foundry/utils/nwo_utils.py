@@ -39,10 +39,10 @@ from subprocess import Popen, check_call
 import random
 import xml.etree.ElementTree as ET
 import numpy as np
-import addon_utils
 
 from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.utils.nwo_constants import COLLISION_MESH_TYPES, MAT_INVALID, MAT_INVISIBLE, MAT_SEAMSEALER, MAT_SKY, PROTECTED_MATERIALS, VALID_MESHES
+from io_scene_foundry.utils.nwo_constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES
+from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
 from ..icons import get_icon_id
 import requests
 
@@ -50,37 +50,13 @@ from io_scene_foundry.utils.nwo_constants import object_asset_validation, object
 
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'resources', 'materials')
+
+special_material_names = [m.name for m in special_materials]
+convention_material_names = [m.name for m in convention_materials]
+
 ###########
 ##GLOBALS##
 ###########
-
-# Material Prefixes #
-special_materials = (
-    "+collision",
-    "+physics",
-    "+portal",
-    "+seamsealer",
-    "+sky",
-    "+slip_surface",
-    "+soft_ceiling",
-    "+soft_kill",
-    "+weatherpoly",
-    "+override",
-)
-special_materials_h4 = (
-    "+sky",
-    "+physics",
-    "+seam",
-    "+portal",
-    "+collision",
-    "+player_collision",
-    "+wall_collision",
-    "+bullet_collision",
-    "+cookie_cutter",
-    "+rain_blocker",
-    "+water_volume",
-    "+structure",
-)
 
 # Enums #
 special_mesh_types = (
@@ -693,19 +669,6 @@ def get_prop_from_collection(ob, valid_type):
             
     return ''
 
-
-# returns true if this material is a halo shader
-def is_shader(mat):
-    halo_mat = mat.nwo
-    shader_path_not_empty = True if halo_mat.shader_path != "" else False
-    no_material_override = True if halo_mat.material_override == "NONE" else False
-    no_special_material_name = (
-        True if not mat.name.lower().startswith(special_materials) else False
-    )
-
-    return shader_path_not_empty and no_material_override and no_special_material_name
-
-
 def print_warning(string="Warning"):
     print("\033[93m" + string + "\033[0m")
 
@@ -1081,14 +1044,17 @@ def has_face_props(ob) -> bool:
         and ob.nwo.mesh_type_ui in valid_mesh_types
     )
 
+def has_shader_path(mat):
+    """Returns whether the given material supports shader paths"""
+    name = mat.name
+    return not (mat.grease_pencil or name.startswith('+sky') or name in special_material_names or name in convention_material_names)
 
 def get_halo_material_count() -> tuple:
     count = 0
     total = 0
     for mat in bpy.data.materials:
         nwo = mat.nwo
-        if mat.grease_pencil or not nwo.rendered:
-            continue
+        if not has_shader_path(mat): continue
         nwo = mat.nwo
         if nwo.shader_path:
             count += 1
@@ -1519,26 +1485,6 @@ def has_collision_type(ob: bpy.types.Object) -> bool:
     if is_instance_or_structure_proxy(ob):
         return True
     return False
-
-def get_special_mat(mat: bpy.types.Material) -> str:
-    name = mat.name
-    invis_only = is_corinth() or not poll_ui('SCENARIO')
-    if name.startswith(MAT_SEAMSEALER):
-        if invis_only:
-            return 'invisible'
-        else:
-            return 'seamsealer'
-    elif name.startswith(MAT_SKY):
-        if invis_only:
-            return 'invisible'
-        else:
-            return 'sky'
-    elif name.startswith(MAT_INVISIBLE):
-        return 'invisible'
-    elif name.startswith(MAT_INVALID):
-        return 'invalid'
-    
-    return ''
 
 def get_sky_perm(mat: bpy.types.Material) -> int:
     name = mat.name

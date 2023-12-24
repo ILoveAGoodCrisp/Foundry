@@ -62,7 +62,7 @@ class Tag():
     def __init__(self, path="", hide_prints=False, tag_must_exist=False):
         self.tag_must_exist = tag_must_exist
         if self.needs_explicit_path and not path:
-            raise "Class needs explicit path declared but none given"
+            raise ValueError("Class needs explicit path declared but none given")
         self.hide_prints = hide_prints
         if hide_prints:
             disable_prints()
@@ -89,7 +89,7 @@ class Tag():
         if os.path.exists(self.system_path):
             self.tag.Load(self.tag_path)
         elif self.tag_must_exist:
-            raise f"No file exists for {self.path}, but this {self.__class__} has been told one must exist"
+            raise ValueError(f"No file exists for {self.path}, but this {self.__class__} has been told one must exist")
         else:
             self.tag.New(self.tag_path)
             self.tag_is_new = True

@@ -42,6 +42,7 @@ from bpy.props import (
     PointerProperty,
 )
 from mathutils import Matrix
+from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMaterials
 from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
@@ -87,7 +88,6 @@ from io_scene_foundry.utils.nwo_utils import (
     get_prefs,
     get_rig,
     get_sky_perm,
-    get_special_mat,
     get_tags_path,
     has_collision_type,
     has_face_props,
@@ -106,6 +106,7 @@ from io_scene_foundry.utils.nwo_utils import (
     os_sep_partition,
     protected_material_name,
     recursive_image_search,
+    relative_path,
     set_active_object,
     set_object_mode,
     true_permutation,
@@ -2015,9 +2016,6 @@ class NWO_FoundryPanelProps(Panel):
         if mat:
             txt = "Halo Material" if h4 else "Halo Shader"
             nwo = mat.nwo
-            col2 = row.column()
-            col2.alignment = "RIGHT"
-            col2.prop(nwo, "rendered", text="Export")
 
         is_sortable = len(ob.material_slots) > 1
         rows = 3
@@ -2064,15 +2062,20 @@ class NWO_FoundryPanelProps(Panel):
         if mat:
             tag_type = "Material" if h4 else "Shader"
             col = box.column()
-            special_type = get_special_mat(mat)
-            if special_type:
-                if special_type == 'invisible':
+            if mat.name in [m.name for m in special_materials] or mat.name.startswith('+sky'):
+                if mat.name == '+invisible':
                     col.label(text=f'Invisible {tag_type} applied')
-                elif special_type == 'seamsealer':
-                    col.label(text=f'SeamSealer Material applied')
-                elif special_type == 'invalid':
+                elif mat.name == '+invalid':
                     col.label(text=f'Default Invalid {tag_type} applied')
-                elif special_type == 'sky':
+                elif mat.name == '+missing':
+                    col.label(text=f'Default Missing {tag_type} applied')
+                elif mat.name == '+seamsealer':
+                    col.label(text=f'SeamSealer Material applied')
+                elif mat.name == '+collision':
+                    col.label(text=f'Collision Material applied')
+                elif mat.name == '+sphere_collision':
+                    col.label(text=f'Sphere Collision Material applied')
+                else:
                     col.label(text=f'Sky Material applied')
                     sky_perm = get_sky_perm(mat)
                     if sky_perm > -1:
@@ -2081,14 +2084,17 @@ class NWO_FoundryPanelProps(Panel):
                         else:
                             col.label(text=f"Sky Permutation {str(sky_perm)}")
                     col.operator("nwo.set_sky", text="Set Sky Permutation")
-            elif nwo.rendered:
+                return
+            elif mat.name in [m.name for m in convention_materials]:
+                return col.label(text=f'Non-Rendered {tag_type} applied')
+            else:
                 col.label(text=f"{txt} Path")
                 row = col.row(align=True)
                 row.prop(nwo, "shader_path", text="", icon_value=get_icon_id("tags"))
                 row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "shader_path"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'shader_path'
-                has_valid_path = nwo.shader_path and os.path.exists(get_tags_path() + nwo.shader_path)
+                has_valid_path = nwo.shader_path and os.path.exists(get_tags_path() + relative_path(nwo.shader_path))
                 if has_valid_path:
                     col.separator()
                     # row.scale_y = 1.5
@@ -2136,12 +2142,6 @@ class NWO_FoundryPanelProps(Panel):
                             row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
                         else:
                             col_props.prop(nwo, "shader_type", text="Shader Type")
-
-            else:
-                if self.bl_idname == "NWO_PT_MaterialPanel":
-                    col.label(text=f"Not a {txt}")
-                else:
-                    col.label(text=f"Not a {txt}")
 
             # TEXTURE PROPS
             # First validate if Material has images
