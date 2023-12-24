@@ -30,49 +30,134 @@ import os
 import threading
 import time
 import bpy
+from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import ExportManager, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_nwo_asset
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
-
-class NWO_ShaderFarmPopover(bpy.types.Panel):
-    bl_label = "Shader Farm Settings"
-    bl_idname = "NWO_PT_ShaderFarmPopover"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "WINDOW"
-    bl_options = {"INSTANCED"}
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        nwo = scene.nwo
-        tag_type = "Material" if is_corinth(context) else "Shader"
-        col = layout.column()
-        col.prop(nwo, "farm_type", text="Type")
-        col.separator()
-        if nwo.farm_type in ("both", "shaders"):
-            col.label(text=f"{tag_type} Settings")
-            col.prop(nwo, "shaders_scope", text="Scope")
-            col.prop(nwo, "shaders_dir", text="Folder")
-            if is_corinth(context):
-                row = col.row(align=True)
-                row.prop(nwo, "default_material_shader", text="Shader")
-                row.operator("nwo.get_material_shaders", text="", icon="VIEWZOOM").batch_panel = True
-            col.prop(nwo, "link_shaders", text="Build Shaders from Blender Nodes")
-            col.separator()
-        if nwo.farm_type in ("both", "bitmaps"):
-            col.label(text=f"Bitmaps Settings")
-            col.prop(nwo, "bitmaps_scope", text="Scope")
-            col.prop(nwo, "bitmaps_dir", text="Folder")
-            col.prop(nwo, "link_bitmaps", text="Re-Export Existing TIFFs")
-            col.prop(nwo, "all_bitmaps", text="Include All Blender Scene Images")
 
 class NWO_FarmShaders(bpy.types.Operator):
     bl_label = "Shader Farm"
     bl_idname = "nwo.shader_farm"
+    bl_description = "Builds shader/material tags for all valid blender materials. Will export all necessary bitmaps"
+    
+    def update_shaders_dir(self, context):
+        self["shaders_dir"] = clean_tag_path(self["shaders_dir"]).strip('"')
+
+    def get_shaders_dir(self):
+        context = bpy.context
+        is_asset = valid_nwo_asset(context)
+        if is_asset:
+            return self.get("shaders_dir", os.path.join(get_asset_path(), "materials" if is_corinth(context) else "shaders"))
+        return self.get("shaders_dir", "")
+    
+    def set_shaders_dir(self, value):
+        self['shaders_dir'] = value
+
+    shaders_dir : bpy.props.StringProperty(
+        name="Shaders Directory",
+        description="Specifies the directory to export shaders/materials. Defaults to the asset materials/shaders folder",
+        options=set(),
+        update=update_shaders_dir,
+        get=get_shaders_dir,
+        set=set_shaders_dir,
+    )
+
+    def update_bitmaps_dir(self, context):
+        self["bitmaps_dir"] = clean_tag_path(self["bitmaps_dir"]).strip('"')
+
+    def get_bitmaps_dir(self):
+        context = bpy.context
+        is_asset = valid_nwo_asset(context)
+        if is_asset:
+            return self.get("bitmaps_dir", os.path.join(get_asset_path(), "bitmaps"))
+        return self.get("bitmaps_dir", "")
+    
+    def set_bitmaps_dir(self, value):
+        self['bitmaps_dir'] = value
+
+    bitmaps_dir : bpy.props.StringProperty(
+        name="Bitmaps Directory",
+        description="Specifies where the exported bitmaps (and tiffs, if they exist) should be saved. Defaults to the asset bitmaps folder",
+        update=update_bitmaps_dir,
+        get=get_bitmaps_dir,
+        set=set_bitmaps_dir,
+    )
+
+    def farm_type_items(self, context):
+        tag_type = "Materials" if is_corinth(context) else "Shaders"
+        items = [
+            ("both", f"{tag_type} & Bitmaps", ""),
+            ("shaders", f"{tag_type}", ""),
+            ("bitmaps", "Bitmaps", ""),
+        ]
+
+        return items
+
+    farm_type : bpy.props.EnumProperty(
+        name="Type",
+        items=farm_type_items,
+    )
+
+    shaders_scope : bpy.props.EnumProperty(
+        name="Shaders",
+        items=[
+            ("all", "All", ""),
+            ("new", "New Only", ""),
+            ("update", "Update Only", ""),
+        ]
+    )
+
+    bitmaps_scope : bpy.props.EnumProperty(
+        name="Bitmaps",
+        items=[
+            ("all", "All", ""),
+            ("new", "New Only", ""),
+            ("update", "Update Only", ""),
+        ]
+    )
+
+    link_shaders : bpy.props.BoolProperty(
+        name="Build Shaders from Blender Nodes",
+        description="Build shader/material tags using Blender material node trees. If disabled, the farm will instead create empty shader/material tags",
+        default=True,
+    )
+    link_bitmaps : bpy.props.BoolProperty(
+        name="Re-Export Existing TIFFs",
+        description="Build Shader/Material tags using Blender Material nodes",
+        default=False,
+    )
+
+    all_bitmaps : bpy.props.BoolProperty(
+        name="Include All Blender Scene Images",
+        description="Includes all blender scene images in scope even if they are not present in any material nodes"
+    )
+
+    def update_default_material_shader(self, context):
+        self["default_material_shader"] = clean_tag_path(self["default_material_shader"]).strip('"')
+        
+    def get_default_material_shader(self):
+        from io_scene_foundry.tools.shader_builder import material_shader_path
+        return material_shader_path
+            
+    def set_default_material_shader(self, value):
+        from io_scene_foundry.tools import shader_builder
+        shader_builder.material_shader_path = value
+        self['default_material_shader'] = value
+
+    default_material_shader : bpy.props.StringProperty(
+        name="Material Shader",
+        description="Path to the material shader to use for all materials (does not overwrite custom node group defined material shaders)",
+        update=update_default_material_shader,
+        get=get_default_material_shader,
+        set=set_default_material_shader,
+    )
+    
+    def invoke(self, context: bpy.types.Context, _):
+        return context.window_manager.invoke_props_dialog(self, width=800)
 
     def image_in_valid_node(self, image, materials):
         for mat in materials:
@@ -304,4 +389,27 @@ class NWO_FarmShaders(bpy.types.Operator):
         else:
             run_tool(["reimport-bitmaps-single", bitmap_path], False, True)
         self.running_check -= 1
+        
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        tag_type = "Material" if is_corinth(context) else "Shader"
+        col = layout.column()
+        col.prop(self, "farm_type", text="Type")
+        col.separator()
+        if self.farm_type in ("both", "shaders"):
+            col.prop(self, "shaders_scope", text=f"{tag_type}s Scope")
+            col.prop(self, "shaders_dir", text=f"{tag_type}s Export Folder", icon='FILE_FOLDER')
+            if is_corinth(context):
+                row = col.row(align=True)
+                row.prop(self, "default_material_shader", text="Material Shader (Optional)", icon_value=get_icon_id('tags'))
+                row.operator("nwo.get_material_shaders", text="", icon="VIEWZOOM").batch_panel = True                
+            col.prop(self, "link_shaders", text="Build Shaders from Blender Nodes")
+            col.separator()
+        if self.farm_type in ("both", "bitmaps"):
+            col.prop(self, "bitmaps_scope", text="Bitmaps Scope")
+            col.prop(self, "bitmaps_dir", text="Bitmaps Export Folder", icon='FILE_FOLDER')
+            col.prop(self, "link_bitmaps", text="Re-Export Existing TIFFs")
+            col.prop(self, "all_bitmaps", text="Include All Blender File Images")
+
 

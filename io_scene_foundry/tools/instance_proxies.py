@@ -30,7 +30,7 @@ import bmesh
 import bpy
 from io_scene_foundry.tools.property_apply import apply_props_material
 
-from io_scene_foundry.utils.nwo_utils import deselect_all_objects, is_corinth, layer_faces, set_active_object, set_object_mode, unlink
+from io_scene_foundry.utils.nwo_utils import deselect_all_objects, get_foundry_storage_scene, is_corinth, layer_faces, set_active_object, set_object_mode, unlink
 
 class NWO_ProxyInstanceEdit(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_edit"
@@ -242,10 +242,7 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         # self.scene_coll.link(ob)
         ob.nwo.proxy_parent = self.parent.data
         ob.nwo.proxy_type = proxy_type
-        proxy_scene = bpy.data.scenes.get('foundry_instance_proxies')
-        if proxy_scene is None:
-            proxy_scene =  bpy.data.scenes.new('foundry_instance_proxies')
-            proxy_scene.nwo.storage_only = True
+        proxy_scene = get_foundry_storage_scene()
         proxy_scene.collection.objects.link(ob)
         setattr(self.parent.data.nwo, f"proxy_{proxy_type}", ob)
         if proxy_type == "collision":

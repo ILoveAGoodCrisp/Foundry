@@ -24,12 +24,96 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 import os
+import bpy
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     get_tags_path,
     is_corinth,
+    relative_path,
     shader_exts,
 )
+
+class NWO_ShaderFinder_Find(bpy.types.Operator):
+    bl_idname = "nwo.shader_finder"
+    bl_label = "Shader Finder"
+    bl_description = 'Searches the tags folder (or the specified sub-directory) for shader/material tags and applies all that match blender material names'
+    bl_options = {"REGISTER", "UNDO"}
+    
+    shaders_dir: bpy.props.StringProperty(
+        name="Shaders Directory",
+        description="Leave blank to search the entire tags folder for shaders or input a directory path to specify the folder (and sub-folders) to search for shaders. May be a full system path or tag relative path",
+        default="",
+    )
+    overwrite_existing: bpy.props.BoolProperty(
+        name="Overwrite Shader Paths",
+        options=set(),
+        description="Overwrite material/shader tag paths even if they're not empty",
+        default=False,
+    )
+    set_non_export: bpy.props.BoolProperty(
+        name="Set Non Export",
+        options=set(),
+        description="Disables the export property for materials that Foundry could not find a tag path for",
+        default=False,
+    )
+    
+    def invoke(self, context: bpy.types.Context, _):
+        return context.window_manager.invoke_props_dialog(self, width=600)
+
+    def execute(self, context):
+        return find_shaders(
+            bpy.data.materials,
+            is_corinth(context),
+            self.report,
+            self.shaders_dir,
+            self.overwrite_existing,
+            self.set_non_export,
+        )
+
+    @classmethod
+    def description(cls, context: bpy.types.Context, properties: bpy.types.OperatorProperties) -> str:
+        if is_corinth():
+            return "Searches the tags folder for Materials (or only the specified directory) and applies all that match blender material names"
+        else:
+            return "Searches the tags folder for Shaders (or only the specified directory) and applies all that match blender material names"
+        
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "shaders_dir", text="Limit Search to Directory (Optional)", icon='FILE_FOLDER')
+        layout.prop(
+            self,
+            "overwrite_existing",
+            text="Overwrite Existing Paths",
+        )
+        layout.prop(
+            self,
+            "set_non_export",
+            text="Disable export if no tag path found",
+        )
+
+class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
+    bl_idname = "nwo.shader_finder_single"
+    bl_description = 'Finds the first shader/material tag'
+    
+    def invoke(self, context: bpy.types.Context, _):
+        return self.execute(context)
+
+    def execute(self, context):
+        scene = context.scene
+        return find_shaders(
+            [context.object.active_material],
+            is_corinth(context),
+            self.report,
+            overwrite=True,
+        )
+    
+    @classmethod
+    def description(cls, context: bpy.types.Context, properties: bpy.types.OperatorProperties) -> str:
+        if is_corinth():
+            return "Returns the path of the first Material tag which matches the name of the active Blender material"
+        else:
+            return "Returns the path of the first Shader tag which matches the name of the active Blender material"
 
 
 def scan_tree(shaders_dir, shaders):
@@ -52,7 +136,8 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
 
     if not shaders_dir:
         # clean shaders directory path
-        shaders_dir = shaders_dir.replace('"', "").strip("\\").replace(tags_path, "")
+        shaders_dir = shaders_dir.replace('"', "").strip("\\")
+        shaders_dir = relative_path(shaders_dir)
 
     # verify that the path created actually exists
     shaders_dir = os.path.join(tags_path, shaders_dir)

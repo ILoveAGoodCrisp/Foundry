@@ -37,6 +37,7 @@ from io_scene_foundry.utils.nwo_utils import (
 )
 
 global_material_shaders = []
+material_shader_path = ""
 
 def build_shader(material, corinth, folder="", report=None):
     if not get_shader_name(material):
@@ -70,6 +71,7 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
     bl_label = "Get Material Shaders"
     bl_options = {"UNDO"}
     bl_property = "shader_info"
+    batch_instance = None
 
     batch_panel : bpy.props.BoolProperty()
 
@@ -104,9 +106,10 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
         items=shader_info_items,
     )
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context):
         if self.batch_panel:
-            context.scene.nwo.default_material_shader = self.shader_info
+            global material_shader_path
+            material_shader_path = self.shader_info
         else:
             context.object.active_material.nwo.material_shader = self.shader_info
         return {"FINISHED"}

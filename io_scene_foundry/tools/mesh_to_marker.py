@@ -28,7 +28,7 @@ import bpy
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
+from io_scene_foundry.utils.nwo_utils import get_foundry_storage_scene, is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
 
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'
@@ -239,6 +239,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
                 # mesh_ob = bpy.data.objects.new(original_name + '_TEMP', ob.data)
                 unlink(ob)
                 secret_coll = bpy.data.collections.new(original_name)
+                get_foundry_storage_scene().collection.children.link(secret_coll)
                 secret_coll.objects.link(ob)
                 marker.instance_type = 'COLLECTION'
                 marker.instance_collection = secret_coll

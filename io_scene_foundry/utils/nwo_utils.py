@@ -1837,3 +1837,26 @@ def rgb_to_float_list(red, green, blue):
 
 def copy_file(from_path, to_path):
     shutil.copyfile(from_path, to_path)
+    
+def get_foundry_storage_scene() -> bpy.types.Scene:
+    """Returns the Foundry storage scene, creating it if it does not exist"""
+    storage_scene = bpy.data.scenes.get('foundry_object_storage')
+    if storage_scene is None:
+        storage_scene =  bpy.data.scenes.new('foundry_object_storage')
+        storage_scene.nwo.storage_only = True
+        
+    return storage_scene
+
+def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
+    """Returns a material name with legacy halo naming conventions stripped and ignoring .00X blender duplicate names"""
+    """Tries to find a shader match. Includes logic for filtering out legacy material name prefixes/suffixes"""
+    partitioned = dot_partition(name)
+    if not strip_legacy_halo_names:
+        return partitioned
+    parts = partitioned.split(" ")
+    if len(parts) > 1:
+        material_name = parts[1]
+    else:
+        material_name = parts[0]
+    # ignore material suffixes
+    return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['") # excluding 0 here as it can interfere with normal naming convention

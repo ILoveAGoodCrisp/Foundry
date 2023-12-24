@@ -43,15 +43,17 @@ from bpy.props import (
 )
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
+from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMaterials
 from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
-from io_scene_foundry.tools.clear_duplicate_materials import NWO_StompMaterials
+from io_scene_foundry.tools.clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.importer import NWO_Import
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
 from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
-from io_scene_foundry.tools.shader_farm import NWO_FarmShaders, NWO_ShaderFarmPopover
+from io_scene_foundry.tools.shader_farm import NWO_FarmShaders
+from io_scene_foundry.tools.shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
 from io_scene_foundry.tools.shader_reader import NWO_ShaderToNodes
 from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu
 from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu
@@ -2510,21 +2512,13 @@ class NWO_FoundryPanelProps(Panel):
             icon='CHECKMARK' if total == count else 'ERROR'
         )
         row = col.row(align=True)
-        col1 = row.column(align=True)
-        col2 = row.column(align=True)
-        col2.alignment = "RIGHT"
-        col1.operator(
-            "nwo.shader_finder",
-            text=f"Find Missing {shader_type}s",
-            icon_value=get_icon_id("material_finder"),
-        )
-        col2.popover(panel=NWO_ShaderFinder.bl_idname, text="")
-        col1.separator()
-        col2.separator()
-        col1.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
-        col2.popover(panel=NWO_ShaderFarmPopover.bl_idname, text="")
-        col1.separator()
+        col.operator("nwo.shader_finder", text=f"Find Missing {shader_type}s", icon_value=get_icon_id("material_finder"))
+        col.operator("nwo.shader_farm", text=f"Batch Build {shader_type}s", icon_value=get_icon_id("material_exporter"))
+        col.separator()
         col.operator("nwo.stomp_materials", text=f"Remove Duplicate Materials", icon='X')
+        col.operator("nwo.clear_shader_paths", text=f"Clear {shader_type} paths", icon='X')
+        col.separator()
+        col.operator("nwo.append_foundry_materials", text="Append Special Materials", icon='ADD')
         if h4:
             col.separator()
             col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=get_icon_id("foundation"))
@@ -3946,110 +3940,6 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
         description="Name of Blender blender text editor file to get custom init lines from. If no such text exists, instead looks in the root editing kit for an init.txt with this name. If this doesn't exist, then the actual text is used instead",
         default="",
     )
-
-
-#######################################
-# SHADER FINDER TOOL
-
-
-class NWO_ShaderFinder(Panel):
-    bl_label = "Shader Finder"
-    bl_idname = "NWO_PT_ShaderFinder"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "WINDOW"
-    bl_options = {"INSTANCED"}
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo_shader_finder = scene.nwo_shader_finder
-
-        col = layout.column(heading="Shaders Directory (Optional)")
-        col.prop(scene_nwo_shader_finder, "shaders_dir", text="")
-        col.prop(
-            scene_nwo_shader_finder,
-            "overwrite_existing",
-            text="Overwrite Existing Paths",
-        )
-        col.prop(
-            scene_nwo_shader_finder,
-            "set_non_export",
-            text="Disable export if no tag path found",
-        )
-
-
-
-class NWO_ShaderFinder_Find(Operator):
-    bl_idname = "nwo.shader_finder"
-    bl_label = ""
-    bl_description = 'Searches the tags folder for shaders (or the specified directory) and applies all that match blender material names'
-    bl_options = {"UNDO"}
-
-    def execute(self, context):
-        scene = context.scene
-        scene_nwo_shader_finder = scene.nwo_shader_finder
-        from .shader_finder import find_shaders
-
-        return find_shaders(
-            bpy.data.materials,
-            is_corinth(),
-            self.report,
-            scene_nwo_shader_finder.shaders_dir,
-            scene_nwo_shader_finder.overwrite_existing,
-            scene_nwo_shader_finder.set_non_export,
-        )
-
-    @classmethod
-    def description(cls, context: Context, properties: OperatorProperties) -> str:
-        if is_corinth():
-            return "Searches the tags folder for Materials (or only the specified directory) and applies all that match blender material names"
-        else:
-            return "Searches the tags folder for Shaders (or only the specified directory) and applies all that match blender material names"
-
-class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
-    bl_idname = "nwo.shader_finder_single"
-    bl_description = ''
-
-    def execute(self, context):
-        scene = context.scene
-        scene_nwo_shader_finder = scene.nwo_shader_finder
-        from .shader_finder import find_shaders
-
-        return find_shaders(
-            [context.object.active_material],
-            is_corinth(),
-            self.report,
-            scene_nwo_shader_finder.shaders_dir,
-            True,
-            False,
-        )
-    
-    @classmethod
-    def description(cls, context: Context, properties: OperatorProperties) -> str:
-        if is_corinth():
-            return "Returns the path of the first Material tag which matches the name of the active Blender material"
-        else:
-            return "Returns the path of the first Shader tag which matches the name of the active Blender material"
-
-class NWO_HaloShaderFinderPropertiesGroup(PropertyGroup):
-    shaders_dir: StringProperty(
-        name="Shaders Directory",
-        description="Leave blank to search the entire tags folder for shaders or input a directory path to specify the folder (and sub-folders) to search for shaders",
-        default="",
-    )
-    overwrite_existing: BoolProperty(
-        name="Overwrite Shader Paths",
-        options=set(),
-        description="Overwrite material shader paths even if they're not blank",
-        default=False,
-    )
-    set_non_export: BoolProperty(
-        name="Set Non Export",
-        options=set(),
-        description="Disables the export property for materials that Foundry could not find a tag path for",
-        default=False,
-    )
-
 
 #######################################
 # HALO EXPORT TOOL
@@ -6074,17 +5964,14 @@ classeshalo = (
     NWO_CollectionManager_CreateMove,
     NWO_CollectionManager_Create,
     NWO_AutoSeam,
-    NWO_ShaderFinder,
     NWO_ShaderFinder_FindSingle,
     NWO_ShaderFinder_Find,
-    NWO_HaloShaderFinderPropertiesGroup,
     NWO_ArmatureCreator_Create,
     NWO_ListMaterialShaders,
     NWO_Shader_BuildSingle,
     NWO_ShaderPropertiesGroup,
     NWO_ScaleModels_Add,
     NWO_JoinHalo,
-    NWO_ShaderFarmPopover,
     NWO_FarmShaders,
     NWO_MaterialSyncStart,
     NWO_MaterialSyncEnd,
@@ -6109,6 +5996,8 @@ classeshalo = (
     NWO_BSPInfo,
     NWO_BSPSetLightmapRes,
     NWO_ShaderToNodes,
+    NWO_AppendFoundryMaterials,
+    NWO_ClearShaderPaths,
 )
 
 def register():
@@ -6126,11 +6015,6 @@ def register():
         type=NWO_HaloLauncherPropertiesGroup,
         name="Halo Launcher",
         description="Launches stuff",
-    )
-    bpy.types.Scene.nwo_shader_finder = PointerProperty(
-        type=NWO_HaloShaderFinderPropertiesGroup,
-        name="Shader Finder",
-        description="Find Shaders",
     )
     bpy.types.Scene.nwo_export = PointerProperty(
         type=NWO_HaloExportPropertiesGroup, name="Halo Export", description=""
@@ -6150,7 +6034,6 @@ def unregister():
     bpy.types.VIEW3D_MT_object.remove(add_halo_join)
     bpy.types.OUTLINER_HT_header.remove(create_halo_collection)
     del bpy.types.Scene.nwo_halo_launcher
-    del bpy.types.Scene.nwo_shader_finder
     del bpy.types.Scene.nwo_export
     del bpy.types.Scene.nwo_shader_build
     for clshalo in classeshalo:
