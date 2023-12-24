@@ -165,8 +165,9 @@ class BitmapTag(Tag):
     def normal_type(self):
         return 'opengl' if self.longenum_usage.Value == 36 else 'directx'
     
+    def has_bitmap_data(self):
+        return self.block_bitmaps.Elements.Count
+    
     def used_as_normal_map(self):
-        if self.block_bitmaps.Elements:
-            bm = self.block_bitmaps.Elements[0]
-            return bm.SelectField('format').Value == 38
-        return False
+        bm = self.block_bitmaps.Elements[0]
+        return bm.SelectField('format').Value == 38

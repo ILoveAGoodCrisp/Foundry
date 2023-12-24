@@ -25,13 +25,14 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+import time
 import bpy
 import addon_utils
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, get_tags_path, is_corinth, set_active_object, stomp_scale_multi_user, unlink
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, get_tags_path, is_corinth, relative_path, set_active_object, stomp_scale_multi_user, unlink, update_progress
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -108,7 +109,16 @@ class NWO_Import(bpy.types.Operator):
         filepaths = [self.directory + f.name for f in self.files]
         extensions = set([path.rpartition('.')[2] for path in filepaths])
         corinth = is_corinth(context)
+        start = time.perf_counter()
+        self.nothing_imported = False
         with ExportManager():
+            os.system("cls")
+            if context.scene.nwo_export.show_output:
+                bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+                context.scene.nwo_export.show_output = False
+
+            export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
+            print(export_title)
             if self.scope == 'models':
                 imported_objects: list[bpy.types.Material] = []
                 importer = NWOImporter(context, self.report, filepaths)
@@ -150,13 +160,33 @@ class NWO_Import(bpy.types.Operator):
                                         tag_to_nodes(corinth, mat, shader_path)
                     
             elif self.scope == 'images':
+                if not self.directory.startswith(get_tags_path()):
+                    self.report({'WARNING'}, "Can only extract bitmaps from the current project's tags folder")
+                    return {'CANCELLED'}
                 importer = NWOImporter(context, self.report, filepaths)
                 bitmap_files = importer.sorted_filepaths["bitmap"]
-                extracted_bitmaps = importer.extract_bitmaps(bitmap_files, self.extracted_bitmap_format)
-                if self.import_images_to_blender:
-                    importer.load_bitmaps(extracted_bitmaps, self.images_fake_user)
-                            
-                self.report({'INFO'}, f"Extracted {'and imported' if self.import_images_to_blender else ''} {len(bitmap_files)}")
+                if not bitmap_files:
+                    self.nothing_imported = True
+                else:
+                    extracted_bitmaps = importer.extract_bitmaps(bitmap_files, self.extracted_bitmap_format)
+                    if self.import_images_to_blender:
+                        importer.load_bitmaps(extracted_bitmaps, self.images_fake_user)
+                                
+                    self.report({'INFO'}, f"Extracted {'and imported' if self.import_images_to_blender else ''} {len(bitmap_files)}")
+        
+        end = time.perf_counter()
+        if self.nothing_imported:
+            print("No Folders/Filepaths supplied")
+            self.report({'WARNING'}, "Nothing imported. No filepaths/folders supplied")
+        else:
+            print(
+                "\n-----------------------------------------------------------------------"
+            )
+            print(f"Import Completed in {round(end - start, 3)} seconds")
+
+            print(
+                "-----------------------------------------------------------------------\n"
+            )
             
         return {'FINISHED'}
     
@@ -247,16 +277,36 @@ class NWOImporter():
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
+        print("\nExtracting Bitmaps")
+        print(
+            "-----------------------------------------------------------------------\n"
+        )
         extracted_bitmaps = []
-        for fp in bitmap_files:
-            with BitmapTag(path=fp) as bitmap:
-                extracted_bitmaps.append(bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format))
-                
+        job = "Progress"
+        bitmap_count = len(bitmap_files)
+        for idx, fp in enumerate(bitmap_files):
+            update_progress(job, idx / bitmap_count)
+            with BitmapTag(path=fp, hide_prints=True) as bitmap:
+                if not bitmap.has_bitmap_data(): continue
+                image_path = bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format)
+                # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
+                extracted_bitmaps.append(image_path)
+        update_progress(job, 1)
+        print(f"\nExtracted {len(extracted_bitmaps)} bitmaps")
         return extracted_bitmaps
     
     def load_bitmaps(self, image_paths, fake_user):
-            for path in image_paths:
-                bpy.data.images.load(filepath=path, check_existing=True).use_fake_user = fake_user
+        print("\nLoading Bitmaps")
+        print(
+            "-----------------------------------------------------------------------\n"
+        )
+        job = "Progress"
+        image_paths_count = len(image_paths)
+        for idx, path in enumerate(image_paths):
+            update_progress(job, idx / image_paths_count)
+            bpy.data.images.load(filepath=path, check_existing=True).use_fake_user = fake_user
+            
+        update_progress(job, 1)
     
     # AMF Importer
     def import_amf_files(self, amf_files):
