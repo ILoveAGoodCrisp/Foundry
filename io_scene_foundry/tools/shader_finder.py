@@ -51,12 +51,6 @@ class NWO_ShaderFinder_Find(bpy.types.Operator):
         description="Overwrite material/shader tag paths even if they're not empty",
         default=False,
     )
-    set_non_export: bpy.props.BoolProperty(
-        name="Set Non Export",
-        options=set(),
-        description="Disables the export property for materials that Foundry could not find a tag path for",
-        default=False,
-    )
     
     def invoke(self, context: bpy.types.Context, _):
         return context.window_manager.invoke_props_dialog(self, width=600)
@@ -64,11 +58,9 @@ class NWO_ShaderFinder_Find(bpy.types.Operator):
     def execute(self, context):
         return find_shaders(
             bpy.data.materials,
-            is_corinth(context),
             self.report,
             self.shaders_dir,
             self.overwrite_existing,
-            self.set_non_export,
         )
 
     @classmethod
@@ -87,11 +79,6 @@ class NWO_ShaderFinder_Find(bpy.types.Operator):
             "overwrite_existing",
             text="Overwrite Existing Paths",
         )
-        layout.prop(
-            self,
-            "set_non_export",
-            text="Disable export if no tag path found",
-        )
 
 class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
     bl_idname = "nwo.shader_finder_single"
@@ -104,7 +91,6 @@ class NWO_ShaderFinder_FindSingle(NWO_ShaderFinder_Find):
         scene = context.scene
         return find_shaders(
             [context.object.active_material],
-            is_corinth(context),
             self.report,
             overwrite=True,
         )
@@ -126,7 +112,7 @@ def scan_tree(shaders_dir, shaders):
     return shaders
 
 
-def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False, set_non_export=False):
+def find_shaders(materials_all, report=None, shaders_dir="", overwrite=False):
     materials = [mat for mat in materials_all if has_shader_path(mat)]
     shaders = set()
     update_count = 0
@@ -153,16 +139,9 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
                     update_count += 1
                 elif no_path:
                     no_path_materials.append(mat.name)
-                    if report is None:
-                        if h4:
-                            mat.nwo.shader_path = r"shaders\missing.material"
-                        else:
-                            mat.nwo.shader_path = r"shaders\invalid.shader"
-                    elif set_non_export:
-                        mat.nwo.rendered = False
 
     if report is not None:
-        if no_path_materials and not set_non_export:
+        if no_path_materials:
             report({"WARNING"}, "Missing material paths:")
             for m in no_path_materials:
                 report({"ERROR"}, m)
@@ -186,7 +165,7 @@ def find_shaders(materials_all, h4, report=None, shaders_dir="", overwrite=False
                     {"WARNING"},
                     f"Couldn't find paths for {len(no_path_materials)} materials. Click here for details",
                 )
-        elif no_path_materials and set_non_export:
+        elif no_path_materials:
             report(
                 {"INFO"},
                 f"Updated {update_count} material paths, and disabled export property for {len(no_path_materials)} materials",

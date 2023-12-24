@@ -55,10 +55,14 @@ class NWO_ShaderToNodes(bpy.types.Operator):
         if not shader_path.endswith(('.shader', '.material')):
             self.report({'WARNING'}, f'Tag Type [{nwo_utils.dot_partition(shader_path, True)}] is not supported')
             return {"CANCELLED"}
-        if nwo_utils.is_corinth(context):
-            with MaterialTag(path=shader_path) as material:
-                material.to_nodes(mat)
-        else:
-            with ShaderTag(path=shader_path) as shader:
-                shader.to_nodes(mat)
+        tag_to_nodes(nwo_utils.is_corinth(context), mat, shader_path)
         return {"FINISHED"}
+
+def tag_to_nodes(corinth: bool, mat: bpy.types.Material, tag_path: str):
+    """Turns a shader/material tag into blender material nodes"""
+    if corinth:
+        with MaterialTag(path=tag_path) as material:
+            material.to_nodes(mat)
+    else:
+        with ShaderTag(path=tag_path) as shader:
+            shader.to_nodes(mat)

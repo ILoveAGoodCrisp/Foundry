@@ -2460,7 +2460,7 @@ class NWO_FoundryPanelProps(Panel):
         #         col.label(text="Halo Blender Toolset required for legacy animations")
         #         col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
         if amf_installed or toolset_installed:
-            col.operator('nwo.import', text="Import", icon='IMPORT')
+            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT')
         if not toolset_installed:
             col.label(text="Halo Blender Toolset required for import of legacy model and animation files")
             col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET

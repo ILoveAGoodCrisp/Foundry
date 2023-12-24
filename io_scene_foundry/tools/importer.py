@@ -27,14 +27,19 @@
 import os
 import bpy
 import addon_utils
-from io_scene_foundry.utils.nwo_utils import MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, set_active_object, stomp_scale_multi_user, unlink
+from io_scene_foundry.tools.shader_finder import find_shaders
+from io_scene_foundry.tools.shader_reader import tag_to_nodes
+from io_scene_foundry.utils.nwo_constants import VALID_MESHES
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, is_corinth, set_active_object, stomp_scale_multi_user, unlink
 
-pose_hints = ['aim', 'look', 'acc', 'steer']
+pose_hints = 'aim', 'look', 'acc', 'steer'
+legacy_model_formats = '.jms', '.ass'
+legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
 
 class NWO_Import(bpy.types.Operator):
     bl_label = "Import File(s)/Folder(s)"
     bl_idname = "nwo.import"
-    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA"
+    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, bitmap"
     
     @classmethod
     def poll(cls, context):
@@ -56,34 +61,74 @@ class NWO_Import(bpy.types.Operator):
         options={"HIDDEN", "SKIP_SAVE"},
     )
     
+    find_shader_paths: bpy.props.BoolProperty(
+        name="Find Shader Paths",
+        description="Searches the tags folder after import and tries to find shader/material tags which match the name of importer materials",
+        default=True,
+    )
+    build_blender_materials: bpy.props.BoolProperty(
+        name="Generate Blender Materials",
+        description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
+        default=True,
+    )
+    
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
+    
+    scope: bpy.props.StringProperty(
+        name="Scope",
+        default='models',
+        options={"HIDDEN", "SKIP_SAVE"}
+    )
     
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
         extensions = set([path.rpartition('.')[2] for path in filepaths])
-        importer = NWOImporter(context, self.report, filepaths)
-        if 'amf' in extensions and self.amf_okay:
-            amf_module_name = amf_addon_installed()
-            amf_addon_enabled = addon_utils.check(amf_module_name)[0]
-            if not amf_addon_enabled:
-                addon_utils.enable(amf_module_name)
-            amf_files = importer.sorted_filepaths["amf"]
-            imported_amf_objects = importer.import_amf_files(amf_files)
-            if not amf_addon_enabled:
-                addon_utils.disable(amf_module_name)
-            if imported_amf_objects:
-                [ob.select_set(True) for ob in imported_amf_objects]
-        if self.legacy_okay:
-            toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
-            if not toolset_addon_enabled:
-                addon_utils.enable('io_scene_halo')
-            jms_files = importer.sorted_filepaths["jms"]
-            jma_files = importer.sorted_filepaths["jma"]
-            # imported_jms_objects = importer.import_jms_files(jms_files)
-            imported_jma_animations = importer.import_jma_files(jma_files)
-            if not toolset_addon_enabled:
-                addon_utils.disable('io_scene_halo')
+        corinth = is_corinth(context)
+        with ExportManager():
+            if self.scope == 'models':
+                imported_objects: list[bpy.types.Material] = []
+                importer = NWOImporter(context, self.report, filepaths)
+                if 'amf' in extensions and self.amf_okay:
+                    amf_module_name = amf_addon_installed()
+                    amf_addon_enabled = addon_utils.check(amf_module_name)[0]
+                    if not amf_addon_enabled:
+                        addon_utils.enable(amf_module_name)
+                    amf_files = importer.sorted_filepaths["amf"]
+                    imported_amf_objects = importer.import_amf_files(amf_files)
+                    
+                    if not amf_addon_enabled:
+                        addon_utils.disable(amf_module_name)
+                    if imported_amf_objects:
+                        imported_objects.extend(imported_amf_objects)
+                        [ob.select_set(True) for ob in imported_amf_objects]
+                if self.legacy_okay and any([ext.startswith('jm') for ext in extensions]) or 'ass' in extensions:
+                    toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
+                    if not toolset_addon_enabled:
+                        addon_utils.enable('io_scene_halo')
+                    jms_files = importer.sorted_filepaths["jms"]
+                    jma_files = importer.sorted_filepaths["jma"]
+                    # imported_jms_objects = importer.import_jms_files(jms_files)
+                    imported_jma_animations = importer.import_jma_files(jma_files)
+                    if not toolset_addon_enabled:
+                        addon_utils.disable('io_scene_halo')
+                
+                if self.find_shader_paths and imported_objects:
+                    imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
+                    if imported_meshes:
+                        mesh_material_groups = [me.materials for me in imported_meshes]
+                        materials = set(material for mesh_materials in mesh_material_groups for material in mesh_materials)
+                        if materials:
+                            find_shaders(materials)
+                            if self.build_blender_materials:
+                                for mat in materials:
+                                    shader_path = mat.nwo.shader_path
+                                    if shader_path:
+                                        tag_to_nodes(corinth, mat, shader_path)
+                    
+            elif self.scope == 'images':
+                pass
+            
         return {'FINISHED'}
     
     def invoke(self, context, event):
@@ -95,6 +140,14 @@ class NWO_Import(bpy.types.Operator):
             self.filter_glob += '*.jms;*ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx'
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.scale_y = 1.25
+        tag_type = 'material' if is_corinth(context) else 'shader'
+        layout.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
+        if self.find_shader_paths:
+            layout.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
 
 class NWOImporter():
     def __init__(self, context, report, filepaths):
@@ -109,19 +162,17 @@ class NWOImporter():
         filetype_dict = {"amf": [], "jms": [], "jma": []}
         # Search for folders first and add their files to filepaths
         folders = [path for path in self.filepaths if os.path.isdir(path)]
-        print(folders)
         for f in folders:
             for root, _, files in os.walk(f):
                 for file in files:
                     self.filepaths.append(os.path.join(root, file))
                 
         for path in self.filepaths:
-            print(path)
             if path.lower().endswith('.amf'):
                 filetype_dict["amf"].append(path)
-            elif path.lower().endswith(('.jms', '.ass')):
+            elif path.lower().endswith(legacy_model_formats):
                 filetype_dict["jms"].append(path)
-            elif path.lower().endswith(('.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx')):
+            elif path.lower().endswith(legacy_animation_formats):
                 filetype_dict["jma"].append(path)
                 
         return filetype_dict
@@ -155,10 +206,12 @@ class NWOImporter():
     # AMF Importer
     def import_amf_files(self, amf_files):
         """Imports all amf files supplied"""
+        self.amf_marker_objects = []
+        self.amf_mesh_objects = []
         for path in amf_files:
             self.import_amf_file(path)
-        
-        return self.mesh_objects.extend(self.marker_objects)
+            
+        return self.amf_mesh_objects + self.amf_marker_objects
 
     def import_amf_file(self, path):
         # get all objects that exist prior to import
@@ -189,7 +242,7 @@ class NWOImporter():
             new_coll.nwo.region = possible_bsp
             
         self.context.scene.collection.children.link(new_coll)
-        self.poops = []
+        self.amf_poops = []
         print("Setting object properties")
         for ob in objects:
             unlink(ob)
@@ -199,24 +252,28 @@ class NWOImporter():
             elif ob.type == 'EMPTY':
                 self.setup_amf_marker(ob, is_model)
                 
-        if self.poops:
+        if self.amf_poops:
             print("Fixing scale")
-            stomp_scale_multi_user(self.poops)
+            stomp_scale_multi_user(self.amf_poops)
     
     def setup_amf_mesh(self, ob, is_model):
         name = dot_partition(ob.name)
         nwo = ob.nwo
         if is_model:
-            region, permutation = name.split(':')
-            self.set_region(ob, region)
-            self.set_permutation(ob, permutation)
+            if name.startswith('Instances:'):
+                # Need to implement this
+                pass
+            else:
+                region, permutation = name.split(':')
+                self.set_region(ob, region)
+                self.set_permutation(ob, permutation)
         else:
             if name.startswith('Clusters'):
                 nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
             else:
-                self.poops.append(ob)
+                self.amf_poops.append(ob)
                 
-        self.mesh_objects.append(ob)
+        self.amf_mesh_objects.append(ob)
         
     def setup_amf_marker(self, ob, is_model):
         name = dot_partition(ob.name)
@@ -240,6 +297,8 @@ class NWOImporter():
                             nwo.marker_hint_side = hint_subtype
                         elif hint_subtype in ('step', 'crouch', 'stand'):
                             nwo.marker_hint_height = hint_subtype
+                            
+        self.amf_marker_objects.append(ob)
             
 
 # Legacy Animation importer

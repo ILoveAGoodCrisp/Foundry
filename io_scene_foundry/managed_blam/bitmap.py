@@ -120,15 +120,13 @@ class BitmapTag(Tag):
             
         self.tag_has_changes = True
         
-    def save_to_tiff(self, blue_channel_fix=False):
+    def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
         import clr
         clr.AddReference('System.Drawing')
         from System import Array, Byte
         from System.Runtime.InteropServices import Marshal
         from System.Drawing import Rectangle
         from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat
-
-        tiff_format = ImageFormat.Tiff
         
         game_bitmap = self._GameBitmap()
         bitmap = game_bitmap.GetBitmap()
@@ -150,7 +148,16 @@ class BitmapTag(Tag):
         tiff_dir = os.path.dirname(tiff_path)
         if not os.path.exists(tiff_dir):
             os.makedirs(tiff_dir, exist_ok=True)
-        bitmap.Save(tiff_path, tiff_format)
+        match format:
+            case 'bmp':
+                bitmap.Save(tiff_path, ImageFormat.Bmp)
+            case 'png':
+                bitmap.Save(tiff_path, ImageFormat.Png)
+            case 'jpeg':
+                bitmap.Save(tiff_path, ImageFormat.Jpeg)
+            case 'tiff':
+                bitmap.Save(tiff_path, ImageFormat.Tiff)
+                
         bitmap.Dispose()
         return tiff_path
     
