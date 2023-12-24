@@ -2467,6 +2467,8 @@ class NWO_FoundryPanelProps(Panel):
         if not amf_installed:
             col.label(text="AMF Importer required to import amf files")
             col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
+            
+        col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'images'
         
     def draw_rig_tools(self, box):
         row = box.row()

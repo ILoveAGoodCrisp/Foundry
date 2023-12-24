@@ -27,10 +27,11 @@
 import os
 import bpy
 import addon_utils
+from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, is_corinth, set_active_object, stomp_scale_multi_user, unlink
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, get_tags_path, is_corinth, set_active_object, stomp_scale_multi_user, unlink
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -67,9 +68,31 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     build_blender_materials: bpy.props.BoolProperty(
-        name="Generate Blender Materials",
+        name="Generate Materials",
         description="Builds Blender material nodes for materials based off their shader/material tags (if found)",
         default=True,
+    )
+    
+    import_images_to_blender: bpy.props.BoolProperty(
+        name="Import to Blend",
+        description="Imports images into the blender after extracting bitmaps from the game",
+        default=True,
+    )
+    images_fake_user: bpy.props.BoolProperty(
+        name="Set Fake User",
+        description="Sets the fake user property on imported images",
+        default=True,
+    )
+    extracted_bitmap_format: bpy.props.EnumProperty(
+        name="Image Format",
+        description="Sets format to save the extracted bitmap as",
+        items=[
+            ("tiff", "TIFF", ""),
+            ("png", "PNG", ""),
+            ("jped", "JPEG", ""),
+            ("bmp", "BMP", ""),
+            
+        ]
     )
     
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
@@ -127,27 +150,44 @@ class NWO_Import(bpy.types.Operator):
                                         tag_to_nodes(corinth, mat, shader_path)
                     
             elif self.scope == 'images':
-                pass
+                importer = NWOImporter(context, self.report, filepaths)
+                bitmap_files = importer.sorted_filepaths["bitmap"]
+                extracted_bitmaps = importer.extract_bitmaps(bitmap_files, self.extracted_bitmap_format)
+                if self.import_images_to_blender:
+                    importer.load_bitmaps(extracted_bitmaps, self.images_fake_user)
+                            
+                self.report({'INFO'}, f"Extracted {'and imported' if self.import_images_to_blender else ''} {len(bitmap_files)}")
             
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        if amf_addon_installed():
-            self.amf_okay = True
-            self.filter_glob += "*.amf;"
-        if blender_toolset_installed():
-            self.legacy_okay = True
-            self.filter_glob += '*.jms;*ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx'
+        if self.scope == 'images':
+            self.directory = get_tags_path()
+            self.filter_glob += "*.bitmap;"
+        else:
+            if amf_addon_installed():
+                self.amf_okay = True
+                self.filter_glob += "*.amf;"
+            if blender_toolset_installed():
+                self.legacy_okay = True
+                self.filter_glob += '*.jms;*ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx'
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
         layout.scale_y = 1.25
-        tag_type = 'material' if is_corinth(context) else 'shader'
-        layout.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
-        if self.find_shader_paths:
-            layout.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+        if self.scope == 'images':
+            layout.prop(self, 'extracted_bitmap_format')
+            layout.prop(self, 'import_images_to_blender')
+            if self.import_images_to_blender:
+                layout.prop(self, 'images_fake_user')
+        else:
+            tag_type = 'material' if is_corinth(context) else 'shader'
+            layout.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
+            if self.find_shader_paths:
+                layout.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
 
 class NWOImporter():
     def __init__(self, context, report, filepaths):
@@ -159,7 +199,7 @@ class NWOImporter():
         self.sorted_filepaths = self.group_filetypes()
     
     def group_filetypes(self):
-        filetype_dict = {"amf": [], "jms": [], "jma": []}
+        filetype_dict = {"amf": [], "jms": [], "jma": [], "bitmap": []}
         # Search for folders first and add their files to filepaths
         folders = [path for path in self.filepaths if os.path.isdir(path)]
         for f in folders:
@@ -174,6 +214,8 @@ class NWOImporter():
                 filetype_dict["jms"].append(path)
             elif path.lower().endswith(legacy_animation_formats):
                 filetype_dict["jma"].append(path)
+            elif path.lower().endswith('.bitmap'):
+                filetype_dict["bitmap"].append(path)
                 
         return filetype_dict
         
@@ -202,6 +244,19 @@ class NWOImporter():
             entry.name = permutation
             
         ob.nwo.permutation_name_ui = permutation
+        
+    # Bitmap Import
+    def extract_bitmaps(self, bitmap_files, image_format):
+        extracted_bitmaps = []
+        for fp in bitmap_files:
+            with BitmapTag(path=fp) as bitmap:
+                extracted_bitmaps.append(bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format))
+                
+        return extracted_bitmaps
+    
+    def load_bitmaps(self, image_paths, fake_user):
+            for path in image_paths:
+                bpy.data.images.load(filepath=path, check_existing=True).use_fake_user = fake_user
     
     # AMF Importer
     def import_amf_files(self, amf_files):

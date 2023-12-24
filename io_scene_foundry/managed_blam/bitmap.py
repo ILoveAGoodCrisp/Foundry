@@ -34,6 +34,7 @@ class BitmapTag(Tag):
         self.longenum_usage = self.tag.SelectField('LongEnum:Usage')
         self.charenum_usage = self.tag.SelectField('CharEnum:curve mode')
         self.block_usage_override = self.tag.SelectField("Block:usage override")
+        self.block_bitmaps = self.tag.SelectField("Block:bitmaps")
         
     def new_bitmap(self, bitmap_name, bitmap_type):
         def get_type_from_name(bitmap_name):
@@ -163,3 +164,9 @@ class BitmapTag(Tag):
     
     def normal_type(self):
         return 'opengl' if self.longenum_usage.Value == 36 else 'directx'
+    
+    def used_as_normal_map(self):
+        if self.block_bitmaps.Elements:
+            bm = self.block_bitmaps.Elements[0]
+            return bm.SelectField('format').Value == 38
+        return False
