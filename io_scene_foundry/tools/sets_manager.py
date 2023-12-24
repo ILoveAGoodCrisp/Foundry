@@ -242,7 +242,16 @@ class TableEntryHide(bpy.types.Operator):
         should_hide = entry.hidden
         available_objects = context.view_layer.objects
         entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
-        [ob.hide_set(should_hide) for ob in entry_objects]
+        regions_table = getattr(nwo, 'regions_table')
+        permutations_table = getattr(nwo, 'permutations_table')
+        # Only unhide objects if both region and permutation are set to unhidden
+        for ob in entry_objects:
+            if should_hide == False:
+                if get_entry(regions_table, true_region(ob.nwo)).hidden or get_entry(permutations_table, true_permutation(ob.nwo)).hidden:
+                    continue
+                
+            ob.hide_set(should_hide)
+
         return {'FINISHED'}
     
 class TableEntryHideSelect(bpy.types.Operator):
@@ -257,7 +266,13 @@ class TableEntryHideSelect(bpy.types.Operator):
         should_hide_select = entry.hide_select
         available_objects = context.view_layer.objects
         entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
+        regions_table = getattr(nwo, 'regions_table')
+        permutations_table = getattr(nwo, 'permutations_table')
         for ob in entry_objects:
+            if should_hide_select == False:
+                if get_entry(regions_table, true_region(ob.nwo)).hide_select or get_entry(permutations_table, true_permutation(ob.nwo)).hide_select:
+                    continue
+                
             ob.hide_select = should_hide_select
         return {'FINISHED'}
 
