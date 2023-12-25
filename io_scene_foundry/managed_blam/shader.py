@@ -431,14 +431,20 @@ class ShaderTag(Tag):
         if not os.path.exists(system_bitmap_path):
             return
         system_tiff_path = self.data_dir + bitmap_path.RelativePath + '.tiff'
-        if os.path.exists(system_tiff_path):
-            image_path = system_tiff_path
-        else:
-            with BitmapTag(path=bitmap_path) as bitmap:
+        with BitmapTag(path=bitmap_path) as bitmap:
+            is_non_color = bitmap.is_linear()
+            if os.path.exists(system_tiff_path):
+                image_path = system_tiff_path
+            else:
                 image_path = bitmap.save_to_tiff(blue_channel_fix)
-                if not image_path: return
-    
-        return bpy.data.images.load(filepath=image_path, check_existing=True)
+
+            image = bpy.data.images.load(filepath=image_path, check_existing=True)
+            if is_non_color:
+                image.colorspace_settings.name = 'Non-Color'
+            else:
+                image.alpha_mode = 'CHANNEL_PACKED'
+                
+            return image
     
     def _normal_type_from_parameter_name(self, name):
         if not self.corinth:
@@ -537,16 +543,12 @@ class ShaderTag(Tag):
 
         if bump_mapping_enum > 0:
             normal = BSDFParameter(tree, bsdf, bsdf.inputs['Normal'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('bump_map', True), normal_type=self._normal_type_from_parameter_name('bump_map'), mapping=self._mapping_from_parameter_name('bump_map'))
-            if normal.data:
-                normal.data.colorspace_settings.name = 'Non-Color'
-            else:
+            if not normal.data:
                 normal = None
                 
         if specular_mask_enum == 3:
             specular = BSDFParameter(tree, bsdf, bsdf.inputs['Specular IOR Level'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('specular_mask_texture'), mapping=self._mapping_from_parameter_name('specular_mask_texture'))
-            if specular.data:
-                specular.data.colorspace_settings.name = 'Non-Color'
-            else:
+            if not specular.data:
                 specular = None
         elif specular_mask_enum > 0 and diffuse and type(diffuse.data) == bpy.types.Image:
             diffuse.diffspec = True

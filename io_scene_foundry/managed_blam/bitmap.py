@@ -26,6 +26,7 @@
 
 import os
 from io_scene_foundry.managed_blam import Tag
+from io_scene_foundry.utils.nwo_utils import print_warning
 
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
@@ -122,44 +123,47 @@ class BitmapTag(Tag):
         self.tag_has_changes = True
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
-        import clr
-        clr.AddReference('System.Drawing')
-        from System import Array, Byte
-        from System.Runtime.InteropServices import Marshal
-        from System.Drawing import Rectangle
-        from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat
-        
-        game_bitmap = self._GameBitmap()
-        bitmap = game_bitmap.GetBitmap()
-        game_bitmap.Dispose()
-        if blue_channel_fix:
-            if bitmap.PixelFormat == PixelFormat.Format32bppArgb:
-                bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
-                total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
-                rgbValues = Array.CreateInstance(Byte, total_bytes)
-                Marshal.Copy(bitmap_data.Scan0, rgbValues, 0, total_bytes)
+        try:
+            import clr
+            clr.AddReference('System.Drawing')
+            from System import Array, Byte
+            from System.Runtime.InteropServices import Marshal
+            from System.Drawing import Rectangle
+            from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat
+            game_bitmap = self._GameBitmap()
+            bitmap = game_bitmap.GetBitmap()
+            game_bitmap.Dispose()
+            if blue_channel_fix:
+                if bitmap.PixelFormat == PixelFormat.Format32bppArgb:
+                    bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
+                    total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
+                    rgbValues = Array.CreateInstance(Byte, total_bytes)
+                    Marshal.Copy(bitmap_data.Scan0, rgbValues, 0, total_bytes)
 
-                for i in range(0, total_bytes, 4):
-                    rgbValues[i] = 255
+                    for i in range(0, total_bytes, 4):
+                        rgbValues[i] = 255
 
-                Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
-                bitmap.UnlockBits(bitmap_data)
+                    Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
+                    bitmap.UnlockBits(bitmap_data)
+                        
+            tiff_path = self.data_dir + self.tag.Path.RelativePath + '.tiff'
+            tiff_dir = os.path.dirname(tiff_path)
+            if not os.path.exists(tiff_dir):
+                os.makedirs(tiff_dir, exist_ok=True)
+            match format:
+                case 'bmp':
+                    bitmap.Save(tiff_path, ImageFormat.Bmp)
+                case 'png':
+                    bitmap.Save(tiff_path, ImageFormat.Png)
+                case 'jpeg':
+                    bitmap.Save(tiff_path, ImageFormat.Jpeg)
+                case 'tiff':
+                    bitmap.Save(tiff_path, ImageFormat.Tiff)
                     
-        tiff_path = self.data_dir + self.tag.Path.RelativePath + '.tiff'
-        tiff_dir = os.path.dirname(tiff_path)
-        if not os.path.exists(tiff_dir):
-            os.makedirs(tiff_dir, exist_ok=True)
-        match format:
-            case 'bmp':
-                bitmap.Save(tiff_path, ImageFormat.Bmp)
-            case 'png':
-                bitmap.Save(tiff_path, ImageFormat.Png)
-            case 'jpeg':
-                bitmap.Save(tiff_path, ImageFormat.Jpeg)
-            case 'tiff':
-                bitmap.Save(tiff_path, ImageFormat.Tiff)
-                
-        bitmap.Dispose()
+            bitmap.Dispose()
+        except:
+            print_warning(f"Failed to Extract Bitmap from {self.tag_path.RelativePathWithExtension}")
+            return
         return tiff_path
     
     def normal_type(self):
@@ -167,6 +171,10 @@ class BitmapTag(Tag):
     
     def has_bitmap_data(self):
         return self.block_bitmaps.Elements.Count
+    
+    def is_linear(self):
+        bm = self.block_bitmaps.Elements[0]
+        return bm.SelectField('curve').Value == 3
     
     def used_as_normal_map(self):
         bm = self.block_bitmaps.Elements[0]

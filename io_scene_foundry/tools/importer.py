@@ -32,7 +32,7 @@ from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, get_tags_path, is_corinth, relative_path, set_active_object, stomp_scale_multi_user, unlink, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, dot_partition, get_tags_path, is_corinth, print_warning, relative_path, set_active_object, stomp_scale_multi_user, unlink, update_progress
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -111,71 +111,78 @@ class NWO_Import(bpy.types.Operator):
         corinth = is_corinth(context)
         start = time.perf_counter()
         self.nothing_imported = False
+        self.user_cancelled = False
         with ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 context.scene.nwo_export.show_output = False
-
-            export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
-            print(export_title)
-            if self.scope == 'models':
-                imported_objects: list[bpy.types.Material] = []
-                importer = NWOImporter(context, self.report, filepaths)
-                if 'amf' in extensions and self.amf_okay:
-                    amf_module_name = amf_addon_installed()
-                    amf_addon_enabled = addon_utils.check(amf_module_name)[0]
-                    if not amf_addon_enabled:
-                        addon_utils.enable(amf_module_name)
-                    amf_files = importer.sorted_filepaths["amf"]
-                    imported_amf_objects = importer.import_amf_files(amf_files)
+            try:
+                export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
+                print(export_title)
+                if self.scope == 'models':
+                    imported_objects: list[bpy.types.Material] = []
+                    importer = NWOImporter(context, self.report, filepaths)
+                    if 'amf' in extensions and self.amf_okay:
+                        amf_module_name = amf_addon_installed()
+                        amf_addon_enabled = addon_utils.check(amf_module_name)[0]
+                        if not amf_addon_enabled:
+                            addon_utils.enable(amf_module_name)
+                        amf_files = importer.sorted_filepaths["amf"]
+                        imported_amf_objects = importer.import_amf_files(amf_files)
+                        
+                        if not amf_addon_enabled:
+                            addon_utils.disable(amf_module_name)
+                        if imported_amf_objects:
+                            imported_objects.extend(imported_amf_objects)
+                            [ob.select_set(True) for ob in imported_amf_objects]
+                    if self.legacy_okay and any([ext.startswith('jm') for ext in extensions]) or 'ass' in extensions:
+                        toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
+                        if not toolset_addon_enabled:
+                            addon_utils.enable('io_scene_halo')
+                        jms_files = importer.sorted_filepaths["jms"]
+                        jma_files = importer.sorted_filepaths["jma"]
+                        # imported_jms_objects = importer.import_jms_files(jms_files)
+                        imported_jma_animations = importer.import_jma_files(jma_files)
+                        if not toolset_addon_enabled:
+                            addon_utils.disable('io_scene_halo')
                     
-                    if not amf_addon_enabled:
-                        addon_utils.disable(amf_module_name)
-                    if imported_amf_objects:
-                        imported_objects.extend(imported_amf_objects)
-                        [ob.select_set(True) for ob in imported_amf_objects]
-                if self.legacy_okay and any([ext.startswith('jm') for ext in extensions]) or 'ass' in extensions:
-                    toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
-                    if not toolset_addon_enabled:
-                        addon_utils.enable('io_scene_halo')
-                    jms_files = importer.sorted_filepaths["jms"]
-                    jma_files = importer.sorted_filepaths["jma"]
-                    # imported_jms_objects = importer.import_jms_files(jms_files)
-                    imported_jma_animations = importer.import_jma_files(jma_files)
-                    if not toolset_addon_enabled:
-                        addon_utils.disable('io_scene_halo')
-                
-                if self.find_shader_paths and imported_objects:
-                    imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
-                    if imported_meshes:
-                        mesh_material_groups = [me.materials for me in imported_meshes]
-                        materials = set(material for mesh_materials in mesh_material_groups for material in mesh_materials)
-                        if materials:
-                            find_shaders(materials)
-                            if self.build_blender_materials:
-                                for mat in materials:
-                                    shader_path = mat.nwo.shader_path
-                                    if shader_path:
-                                        tag_to_nodes(corinth, mat, shader_path)
-                    
-            elif self.scope == 'images':
-                if not self.directory.startswith(get_tags_path()):
-                    self.report({'WARNING'}, "Can only extract bitmaps from the current project's tags folder")
-                    return {'CANCELLED'}
-                importer = NWOImporter(context, self.report, filepaths)
-                bitmap_files = importer.sorted_filepaths["bitmap"]
-                if not bitmap_files:
-                    self.nothing_imported = True
-                else:
-                    extracted_bitmaps = importer.extract_bitmaps(bitmap_files, self.extracted_bitmap_format)
-                    if self.import_images_to_blender:
-                        importer.load_bitmaps(extracted_bitmaps, self.images_fake_user)
-                                
-                    self.report({'INFO'}, f"Extracted {'and imported' if self.import_images_to_blender else ''} {len(bitmap_files)}")
+                    if self.find_shader_paths and imported_objects:
+                        imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
+                        if imported_meshes:
+                            mesh_material_groups = [me.materials for me in imported_meshes]
+                            materials = set(material for mesh_materials in mesh_material_groups for material in mesh_materials)
+                            if materials:
+                                find_shaders(materials)
+                                if self.build_blender_materials:
+                                    for mat in materials:
+                                        shader_path = mat.nwo.shader_path
+                                        if shader_path:
+                                            tag_to_nodes(corinth, mat, shader_path)
+                        
+                elif self.scope == 'images':
+                    if not self.directory.startswith(get_tags_path()):
+                        self.report({'WARNING'}, "Can only extract bitmaps from the current project's tags folder")
+                        return {'CANCELLED'}
+                    importer = NWOImporter(context, self.report, filepaths)
+                    bitmap_files = importer.sorted_filepaths["bitmap"]
+                    if not bitmap_files:
+                        self.nothing_imported = True
+                    else:
+                        extracted_bitmaps = importer.extract_bitmaps(bitmap_files, self.extracted_bitmap_format)
+                        if self.import_images_to_blender:
+                            importer.load_bitmaps(extracted_bitmaps, self.images_fake_user)
+                                    
+                        self.report({'INFO'}, f"Extracted {'and imported' if self.import_images_to_blender else ''} {len(bitmap_files)} bitmaps")
+                        
+            except KeyboardInterrupt:
+                print_warning("\nIMPORT CANCELLED BY USER")
+                self.user_cancelled = True
         
         end = time.perf_counter()
-        if self.nothing_imported:
+        if self.user_cancelled:
+            self.report({'WARNING'}, "Import cancelled by user")
+        elif self.nothing_imported:
             print("No Folders/Filepaths supplied")
             self.report({'WARNING'}, "Nothing imported. No filepaths/folders supplied")
         else:
@@ -206,9 +213,9 @@ class NWO_Import(bpy.types.Operator):
     
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = True
         layout.scale_y = 1.25
         if self.scope == 'images':
+            layout.use_property_split = True
             layout.prop(self, 'extracted_bitmap_format')
             layout.prop(self, 'import_images_to_blender')
             if self.import_images_to_blender:
@@ -281,16 +288,20 @@ class NWOImporter():
         print(
             "-----------------------------------------------------------------------\n"
         )
-        extracted_bitmaps = []
+        extracted_bitmaps = {}
         job = "Progress"
         bitmap_count = len(bitmap_files)
         for idx, fp in enumerate(bitmap_files):
             update_progress(job, idx / bitmap_count)
-            with BitmapTag(path=fp, hide_prints=True) as bitmap:
+            bitmap_name = os.path.basename(fp)
+            if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
+            with BitmapTag(path=fp) as bitmap:
                 if not bitmap.has_bitmap_data(): continue
+                is_non_color = bitmap.is_linear()
                 image_path = bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format)
-                # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
-                extracted_bitmaps.append(image_path)
+                if image_path:
+                    # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
+                    extracted_bitmaps[image_path] = is_non_color
         update_progress(job, 1)
         print(f"\nExtracted {len(extracted_bitmaps)} bitmaps")
         return extracted_bitmaps
@@ -302,9 +313,14 @@ class NWOImporter():
         )
         job = "Progress"
         image_paths_count = len(image_paths)
-        for idx, path in enumerate(image_paths):
+        for idx, (path, is_non_color) in enumerate(image_paths.items()):
             update_progress(job, idx / image_paths_count)
-            bpy.data.images.load(filepath=path, check_existing=True).use_fake_user = fake_user
+            image = bpy.data.images.load(filepath=path, check_existing=True)
+            image.use_fake_user = fake_user
+            if is_non_color:
+                image.colorspace_settings.name = 'Non-Color'
+            else:
+                image.alpha_mode = 'CHANNEL_PACKED'
             
         update_progress(job, 1)
     

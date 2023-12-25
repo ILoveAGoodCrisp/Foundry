@@ -93,7 +93,8 @@ class Tag():
         else:
             self.tag.New(self.tag_path)
             self.tag_is_new = True
-            
+        
+        assert(self.tag_path.IsTagFileAccessible()), f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}"
             
         self._read_fields()
         if self.tag_is_new:
@@ -413,7 +414,7 @@ class ManagedBlam_Init(Operator):
             nwo_globals.clr_installed = True
             if not self.install_only:
                 # Initialise ManagedBlam
-                print("Initialising ManagedBlam...")
+                # print("Initialising ManagedBlam...")
                 global Halo
                 Halo = Bungie
                 try:
@@ -429,7 +430,7 @@ class ManagedBlam_Init(Operator):
                     print("ManagedBlam already initialised Once. Skipping")
                     return {"CANCELLED"}
                 else:
-                    print("Success!")
+                    # print("Success!")
                     nwo_globals.mb_active = True
                     nwo_globals.mb_path = mb_path
 
