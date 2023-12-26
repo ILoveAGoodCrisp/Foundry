@@ -47,7 +47,7 @@ class NWOJSON(dict):
         world_frame,
         asset_name,
         bone_list,
-        regions_table,
+        regions,
         global_materials_dict,
     ):
         self.objects = objects
@@ -57,7 +57,7 @@ class NWOJSON(dict):
         self.world_frame = world_frame
         self.asset_name = asset_name
         self.bone_list = bone_list
-        self.regions_table = regions_table
+        self.regions = regions
         self.global_materials_dict = global_materials_dict
         self.string_table = self.build_string_table()
         self.nodes_properties, self.meshes_properties = self.build_nodes_meshes_properties()
@@ -103,8 +103,7 @@ class NWOJSON(dict):
 
     def get_regions(self):
         keep_regions = []
-        region_names = [region.name for region in self.regions_table]
-        for name in region_names:
+        for name in self.regions:
             for ob in self.objects:
                 if name not in keep_regions and ob.nwo.region_name == name:
                     keep_regions.append(name)

@@ -70,7 +70,6 @@ from ..utils.nwo_utils import (
     true_region,
     true_permutation,
     type_valid,
-    update_job,
     update_progress,
     update_tables_from_objects,
     vector_str,
@@ -143,8 +142,25 @@ class PrepareScene:
         # NOTE skipping timing as export is really fast now
         # start = time.perf_counter()
         
-        default_region = context.scene.nwo.regions_table[0].name
-        default_permutation = context.scene.nwo.permutations_table[0].name
+        self.supports_regions_and_perms = asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB')
+        
+        self.validated_regions = set()
+        self.validated_permutations = set()
+        
+        if self.supports_regions_and_perms:
+            self.regions = [entry.name for entry in context.scene.nwo.regions_table]
+            self.permutations = [entry.name for entry in context.scene.nwo.permutations_table]
+        else:
+            self.regions = ['default']
+            self.permutations = ['default']
+            self.validated_regions.add('default')
+            self.validated_permutations.add('default')
+            
+        self.default_region = self.regions[0]
+        self.default_permutation = self.permutations[0]
+        
+        self.reg_name = 'BSP' if asset_type in ('SCENARIO', 'PREFAB') else 'region'
+        self.perm_name = 'layer' if asset_type in ('SCENARIO', 'PREFAB') else 'permutation'
 
         h4 = is_corinth(context)
         game_version = 'corinth' if h4 else 'reach'
@@ -302,7 +318,6 @@ class PrepareScene:
         # establish region/global mats sets
         has_global_mats = asset_type in ("MODEL", "SCENARIO", "PREFAB")
 
-        self.regions = {r.name for r in context.scene.nwo.regions_table}
         self.global_materials = {"default"}
         self.seams = []
 
@@ -331,13 +346,33 @@ class PrepareScene:
                 halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
                 halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
                 ob.matrix_world = blend_matrix @ halo_x_rot @ halo_z_rot
+                
+            if asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB'):
+                nwo.permutation_name_ui = self.default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
+                nwo.region_name_ui = self.default_permutation if not nwo.region_name_ui else nwo.region_name_ui
 
-            nwo.permutation_name_ui = default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
-            nwo.region_name_ui = default_permutation if not nwo.region_name_ui else nwo.region_name_ui
-
-            # cast ui props to export props
-            nwo.permutation_name = true_permutation(nwo)
-            nwo.region_name = true_region(nwo)
+                # cast ui props to export props
+                if self.supports_regions_and_perms:
+                    reg = true_region(nwo)
+                    if reg in self.regions:
+                        self.validated_regions.add(reg)
+                        nwo.region_name = true_region(nwo)
+                    else:
+                        self.warning_hit = True
+                        print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                        nwo.permutation_name = self.default_permutation
+                        
+                    perm = true_permutation(nwo)
+                    if perm in self.permutations:
+                        self.validated_permutations.add(perm)
+                        nwo.permutation_name = true_permutation(nwo)
+                    else:
+                        self.warning_hit = True
+                        print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
+                        nwo.permutation_name = self.default_permutation
+                else:
+                    nwo.region_name = 'default'
+                    nwo.permutation_name = 'default'
 
             self.strip_prefix(ob, protected_names)
             # if not_bungie_game():
@@ -558,12 +593,11 @@ class PrepareScene:
                 stomp_scale_multi_user(poops)
                 
         # Update tables from any new set entries created during export
-        update_tables_from_objects(context)
+        # update_tables_from_objects(context)
         # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
         # regions = [region for region in self.regions if region]
         # self.regions_dict = {region: str(idx) for idx, region in enumerate(regions)}
         # Now just using the scene regions table
-        self.regions_table = context.scene.nwo.regions_table
 
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
         global_materials = ["default"]
@@ -584,10 +618,6 @@ class PrepareScene:
 
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
-
-        # order bsps
-        self.structure_bsps = sort_alphanum(self.structure_bsps)
-        self.design_bsps = sort_alphanum(self.design_bsps)
 
         self.model_armature = None
         self.skeleton_bones = {}
@@ -703,14 +733,14 @@ class PrepareScene:
 
         # print("armature")
         elif asset_type == 'SCENARIO':
-            if self.generate_structure(export_obs, scene_coll, context.scene.nwo, h4):
+            if self.generate_structure(export_obs, scene_coll, h4):
                 context.view_layer.update()
 
         # Set timeline range for use during animation export
         self.timeline_start, self.timeline_end = self.set_timeline_range(context)
         
         if not self.render and asset_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL", "FP ANIMATION"):
-            self.render = [self.add_null_render(scene_coll, default_region, default_permutation)]
+            self.render = [self.add_null_render(scene_coll)]
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
 
@@ -743,10 +773,39 @@ class PrepareScene:
 
         # get the max LOD count in the scene if we're exporting a decorator
         self.lods = self.get_decorator_lods(asset_type == "DECORATOR SET")
+        
+        # Validate regions and perms
+        null_regions = [r for r in self.regions if r not in self.validated_regions]
+        if null_regions:
+            self.warning_hit = True
+            print('')
+            for r in null_regions:
+                print_warning(f'No export object has {self.reg_name}: {r}')
+                
+            self.regions = [r for r in self.regions if r not in null_regions]
+            
+        null_permutations = [p for p in self.permutations if p not in self.validated_permutations]
+        if null_permutations:
+            self.warning_hit = True
+            print('')
+            for p in null_permutations:
+                print_warning(f'No export object has {self.perm_name}: {p}')
+                
+            self.permutations = [p for p in self.permutations if p not in null_permutations]
+            
+        # Order these to match regions/perms table
+        if len(self.structure_bsps) > 1:
+            self.structure_bsps = [b for b in self.regions if b in self.structure_bsps]
+        if len(self.structure_perms) > 1:
+            self.structure_perms = [l for l in self.permutations if l in self.structure_perms]
+        if len(self.design_bsps) > 1:
+            self.design_bsps = [b for b in self.regions if b in self.design_bsps]
+        if len(self.design_perms) > 1:
+            self.design_perms = [l for l in self.permutations if l in self.design_perms]
 
         if self.warning_hit:
             print_warning(
-                "\nScene has issues that that have been temporarily resolved for export. These should be fixed for subsequent exports"
+                "\nScene has issues that should be resolved for subsequent exports"
             )
             print_warning("Please see above output for details")
 
@@ -1183,8 +1242,15 @@ class PrepareScene:
         
 
         if face_props.region_name_override:
-            mesh_props.region_name = face_props.region_name_ui
-            self.regions.add(mesh_props.region_name)
+            reg = face_props.region_name_ui
+            
+            if reg in self.regions:
+                self.validated_regions.add(reg)
+                mesh_props.region_name = reg
+            else:
+                self.warning_hit = True
+                print_warning(f"Object [{ob.name}] has {self.reg_name} face property [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                mesh_props.region_name = self.default_region
 
         if face_props.face_global_material_override:
             mesh_props.face_global_material = face_props.face_global_material_ui
@@ -2990,11 +3056,11 @@ class PrepareScene:
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
 
                     
-    def generate_structure(self, export_obs, scene_coll, scene_nwo, h4):
+    def generate_structure(self, export_obs, scene_coll, h4):
         bsps_in_need = [bsp for bsp in self.structure_bsps if bsp not in self.bsps_with_structure]
         if not bsps_in_need:
             return False
-        default_bsp_part = scene_nwo.regions_table[0].name
+        default_bsp_part = self.default_region
         for bsp in bsps_in_need:
             bsp_obs = [ob for ob in export_obs if ob.nwo.region_name == bsp]
             min_x, min_y, min_z, max_x, max_y, max_z = 0, 0, 0, 0, 0, 400
@@ -3189,12 +3255,12 @@ class PrepareScene:
         self.physics_perms = set()
 
         self.design = []
-        self.design_perms = set()
         self.design_bsps = set()
+        self.design_perms = set()
 
         self.structure = []
-        self.structure_perms = set()
         self.structure_bsps = set()
+        self.structure_perms = set()
 
     def halo_objects(self, asset_type, export_obs, h4):
         render_asset = asset_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL")
@@ -3204,6 +3270,7 @@ class PrepareScene:
             object_type = nwo.object_type
             mesh_type = nwo.mesh_type
             permutation = nwo.permutation_name
+            region = nwo.region_name
 
             if render_asset:
                 default = mesh_type in (
@@ -3247,17 +3314,14 @@ class PrepareScene:
                     self.unlink(ob)
 
             else:
-                bsp = nwo.region_name
                 if design:
                     self.design.append(ob)
+                    self.design_bsps.add(region)
                     self.design_perms.add(permutation)
-                    if asset_type == 'SCENARIO':
-                        self.design_bsps.add(bsp)
                 else:
                     self.structure.append(ob)
+                    self.structure_bsps.add(region)
                     self.structure_perms.add(permutation)
-                    if asset_type == 'SCENARIO':
-                        self.structure_bsps.add(bsp)
 
     def create_bsp_box(self, scene_coll):
         me = bpy.data.meshes.new("bsp_box")
@@ -3425,7 +3489,7 @@ class PrepareScene:
             
         return poops, linked_poops_with_nonstandard_scale
     
-    def add_null_render(self, scene_coll, default_region, default_permutation):
+    def add_null_render(self, scene_coll):
         verts = [Vector((-32, -32, 0.0)), Vector((32, -32, 0.0)), Vector((-32, 32, 0.0))]
         faces = [[0, 1, 2]]
         me = bpy.data.meshes.new('null')
@@ -3439,8 +3503,8 @@ class PrepareScene:
             ob.parent_bone = [b.name for b in self.model_armature.data.bones if b.use_deform][0]
         ob.nwo.object_type = '_connected_geometry_object_type_mesh'
         ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
-        ob.nwo.region_name  = default_region
-        ob.nwo.permutation_name  = default_permutation
+        ob.nwo.region_name  = self.default_region
+        ob.nwo.permutation_name  = self.default_permutation
         return ob
 
 

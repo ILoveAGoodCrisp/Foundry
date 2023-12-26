@@ -136,7 +136,7 @@ class NWO_Import(bpy.types.Operator):
                         if imported_amf_objects:
                             imported_objects.extend(imported_amf_objects)
                             [ob.select_set(True) for ob in imported_amf_objects]
-                    if self.legacy_okay and any([ext.startswith('jm') for ext in extensions]) or 'ass' in extensions:
+                    if self.legacy_okay and any([ext in ('jms', 'ass', 'jmm', 'jma', 'jmt', 'jmz', 'jmv', 'jmw', 'jmo', 'jmr', 'jmrx') for ext in extensions]):
                         toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
                         if not toolset_addon_enabled:
                             addon_utils.enable('io_scene_halo')

@@ -371,14 +371,14 @@ class ProcessScene:
                         context,
                         asset_path,
                         asset,
-                        nwo_scene.structure_bsps,
-                        "bsp",
+                        False,
                         nwo_scene.structure,
-                        nwo_scene.structure_perms,
                         nwo_scene.selected_perms,
                         nwo_scene.selected_bsps,
                         asset_type,
                         nwo_scene,
+                        nwo_scene.structure_bsps,
+                        nwo_scene.structure_perms,
                         scene_nwo_export.export_structure,
                     )
 
@@ -387,14 +387,14 @@ class ProcessScene:
                         context,
                         asset_path,
                         asset,
-                        nwo_scene.design_bsps,
-                        "design",
+                        True,
                         nwo_scene.design,
-                        nwo_scene.design_perms,
                         nwo_scene.selected_perms,
                         nwo_scene.selected_bsps,
                         asset_type,
                         nwo_scene,
+                        nwo_scene.design_bsps,
+                        nwo_scene.design_perms,
                         scene_nwo_export.export_design,
                     )
 
@@ -611,24 +611,24 @@ class ProcessScene:
             perms = ["default"]
 
         for perm in perms:
-            fbx_path, json_path, gr2_path = self.get_path(
-                asset_path, asset, type, perm, None, None
-            )
+            fbx_path, json_path, gr2_path = self.get_path(asset_path, asset, type, perm, None, None)
+            sidecar_data =  [data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path), perm]
+            if type in self.sidecar_paths.keys():
+                self.sidecar_paths[type].append(sidecar_data)
+            else:
+                self.sidecar_paths[type] = [sidecar_data]
+                
             if not sel_perms or perm in sel_perms:
                 if model_armature:
                     if obs_perms:
-                        export_obs = [
-                            ob for ob in objects if ob.nwo.permutation_name == perm
-                        ]
+                        export_obs = [ob for ob in objects if ob.nwo.permutation_name == perm]
                         export_obs.append(model_armature)
                     else:
                         export_obs = [ob for ob in objects]
                         export_obs.append(model_armature)
                 else:
                     if obs_perms:
-                        export_obs = [
-                            ob for ob in objects if ob.nwo.permutation_name == perm
-                        ]
+                        export_obs = [ob for ob in objects if ob.nwo.permutation_name == perm]
                     else:
                         export_obs = [ob for ob in objects]
 
@@ -677,55 +677,40 @@ class ProcessScene:
 
                         update_job(job, 1)
 
-                if type in self.sidecar_paths.keys():
-                    self.sidecar_paths[type].append(
-                        [
-                            data_relative(fbx_path),
-                            data_relative(json_path),
-                            data_relative(gr2_path),
-                            perm,
-                        ]
-                    )
-                else:
-                    self.sidecar_paths[type] = [
-                        [
-                            data_relative(fbx_path),
-                            data_relative(json_path),
-                            data_relative(gr2_path),
-                            perm,
-                        ]
-                    ]
-
     def export_bsp(
         self,
         context,
         asset_path,
         asset,
-        obs_bsps,
-        type,
+        is_design,
         objects,
-        obs_perms,
         sel_perms,
         sel_bsps,
         asset_type,
         nwo_scene,
+        bsps,
+        layers,
         export_check,
     ):
-        for bsp in obs_bsps:
-            for perm in obs_perms:
-                fbx_path, json_path, gr2_path = self.get_path(
-                    asset_path, asset, type, perm, bsp, None
-                )
+        type_name = 'design' if is_design else 'bsp'
+        for bsp in bsps:
+            for perm in layers:
+                export_obs = [ob for ob in objects if ob.nwo.permutation_name == perm and (ob.nwo.region_name == bsp)]
+                if not export_obs: continue
+                fbx_path, json_path, gr2_path = self.get_path(asset_path, asset, type, perm, bsp, None)
+                sidecar_data =  [data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path), perm]
+                if is_design:
+                    if bsp in self.sidecar_paths_design.keys():
+                        self.sidecar_paths_design[bsp].append(sidecar_data)
+                    else:
+                        self.sidecar_paths_design[bsp] = [sidecar_data]
+                else:
+                    if bsp in self.sidecar_paths.keys():
+                        self.sidecar_paths[bsp].append(sidecar_data)
+                    else:
+                        self.sidecar_paths[bsp] = [sidecar_data]
+                        
                 if (not sel_bsps or bsp in sel_bsps) and (not sel_perms or perm in sel_perms):
-                    export_obs = [
-                        ob
-                        for ob in objects
-                        if ob.nwo.permutation_name == perm and (ob.nwo.region_name == bsp)
-                    ]
-
-                    if not export_obs:
-                        continue
-
                     if export_check and export_obs:
                         override = context.copy()
                         area = [
@@ -738,9 +723,9 @@ class ProcessScene:
 
                         with context.temp_override(**override):
                             if perm == "default":
-                                print_text = f"{bsp} {type}"
+                                print_text = f"{bsp} {type_name}"
                             else:
-                                print_text = f"{bsp} {perm} {type}"
+                                print_text = f"{bsp} {perm} {type_name}"
 
                             job = f"--- {print_text}"
                             update_job(job, 0)
@@ -757,52 +742,13 @@ class ProcessScene:
                                 ):
                                     self.export_gr2(fbx_path, json_path, gr2_path)
                                 else:
-                                    return f"Failed to export {perm} {type} model JSON: {json_path}"
+                                    return f"Failed to export {perm} {type_name} model JSON: {json_path}"
                             else:
                                 return (
-                                    f"Failed to export {perm} {type} model FBX: {fbx_path}"
+                                    f"Failed to export {perm} {type_name} model FBX: {fbx_path}"
                                 )
 
                             update_job(job, 1)
-
-                if type == "design":
-                    if bsp in self.sidecar_paths_design.keys():
-                        self.sidecar_paths_design[bsp].append(
-                            [
-                                data_relative(fbx_path),
-                                data_relative(json_path),
-                                data_relative(gr2_path),
-                                perm,
-                            ]
-                        )
-                    else:
-                        self.sidecar_paths_design[bsp] = [
-                            [
-                                data_relative(fbx_path),
-                                data_relative(json_path),
-                                data_relative(gr2_path),
-                                perm,
-                            ]
-                        ]
-                else:
-                    if bsp in self.sidecar_paths.keys():
-                        self.sidecar_paths[bsp].append(
-                            [
-                                data_relative(fbx_path),
-                                data_relative(json_path),
-                                data_relative(gr2_path),
-                                perm,
-                            ]
-                        )
-                    else:
-                        self.sidecar_paths[bsp] = [
-                            [
-                                data_relative(fbx_path),
-                                data_relative(json_path),
-                                data_relative(gr2_path),
-                                perm,
-                            ]
-                        ]
 
     def get_path(self, asset_path, asset_name, tag_type, perm="", bsp="", animation=""):
         """Gets an appropriate new path for the exported fbx file"""
@@ -1075,7 +1021,7 @@ class ProcessScene:
             None,
             asset_name,
             nwo_scene.skeleton_bones,
-            nwo_scene.regions_table,
+            nwo_scene.regions,
             nwo_scene.global_materials_dict,
         )
         with open(json_path, "w") as j:

@@ -115,8 +115,9 @@ class Sidecar:
         self.write_face_collections(
             metadata,
             not_bungo_game,
-            nwo_scene.regions_table,
+            nwo_scene.regions,
             nwo_scene.global_materials_dict,
+            context,
         )
 
         if self.asset_type == "MODEL":
@@ -347,8 +348,9 @@ class Sidecar:
         self,
         metadata,
         not_bungie_game,
-        regions_table,
+        regions,
         global_materials_dict,
+        context,
     ):  # FaceCollections is where regions and global materials are defined in the sidecar.
         faceCollections = ET.SubElement(metadata, "FaceCollections")
 
@@ -362,35 +364,41 @@ class Sidecar:
                 Description="BSPs",
             )
 
+            # FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
+            # using_default_bsp = 'default' in regions
+            # if 
+
+            # ET.SubElement(
+            #     FaceCollectionsEntries,
+            #     "FaceCollectionEntry",
+            #     Index="0",
+            #     Name="default",
+            #     Active=str(using_default_bsp).lower(),
+            # )
+            
             FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
-            using_default_bsp = False
-            for ob in bpy.context.view_layer.objects:
-                bsp = ob.nwo.region_name
-                if bsp == "default":
-                    using_default_bsp = True
-                    break
+            for idx, bsp in enumerate(regions):
+                ET.SubElement(
+                    FaceCollectionsEntries,
+                    "FaceCollectionEntry",
+                    Index=str(idx),
+                    Name=bsp,
+                    Active=self.region_active_state(context, bsp),
+                )
 
-            ET.SubElement(
-                FaceCollectionsEntries,
-                "FaceCollectionEntry",
-                Index="0",
-                Name="default",
-                Active=str(using_default_bsp).lower(),
-            )
-
-            count = 1
-            for ob in bpy.context.view_layer.objects:
-                bsp = ob.nwo.region_name
-                if bsp not in bsp_list:
-                    ET.SubElement(
-                        FaceCollectionsEntries,
-                        "FaceCollectionEntry",
-                        Index=str(count),
-                        Name=bsp,
-                        Active="true",
-                    )
-                    bsp_list.append(bsp)
-                    count += 1
+            # count = 1
+            # for ob in bpy.context.view_layer.objects:
+            #     bsp = ob.nwo.region_name
+            #     if bsp not in bsp_list:
+            #         ET.SubElement(
+            #             FaceCollectionsEntries,
+            #             "FaceCollectionEntry",
+            #             Index=str(count),
+            #             Name=bsp,
+            #             Active="true",
+            #         )
+            #         bsp_list.append(bsp)
+            #         count += 1
 
         if self.asset_type in ("MODEL", "SKY"):
             f1 = ET.SubElement(
@@ -402,13 +410,13 @@ class Sidecar:
             )
 
             FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
-            for region in regions_table:
+            for idx, region in enumerate(regions):
                 ET.SubElement(
                     FaceCollectionsEntries,
                     "FaceCollectionEntry",
-                    Index=str(regions_table.keys().index(region.name)),
-                    Name=region.name,
-                    Active="true" if region.active else "false",
+                    Index=str(idx),
+                    Name=region,
+                    Active=self.region_active_state(context, region),
                 )
 
         if self.asset_type in ("MODEL", "SCENARIO", "PREFAB", "SKY"):
@@ -546,8 +554,7 @@ class Sidecar:
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
         scene_bsps = [b for b in nwo_scene.structure_bsps if b != "shared"]
-        shared = len(scene_bsps) != len(nwo_scene.structure_bsps)
-
+        shared = len(scene_bsps) != len(nwo_scene.regions)
         for bsp in scene_bsps:
             content = ET.SubElement(
                 contents, "Content", Name=f"{self.asset_name}_{bsp}", Type="bsp"
@@ -579,6 +586,7 @@ class Sidecar:
         scene_design = nwo_scene.design_bsps
 
         for bsp in scene_design:
+            bsp_paths = design_paths.get(bsp)
             content = ET.SubElement(
                 contents,
                 "Content",
@@ -589,7 +597,7 @@ class Sidecar:
                 content, "ContentObject", Name="", Type="structure_design"
             )
 
-            bsp_paths = design_paths.get(bsp)
+            if not bsp_paths: continue
             for path in bsp_paths:
                 self.write_network_files_bsp(object, path, self.asset_name, bsp)
 
@@ -792,3 +800,7 @@ class Sidecar:
             ET.SubElement(
                 output, "OutputTag", Type="model_animation_graph"
             ).text = self.tag_path
+
+    def region_active_state(self, context, region_name):
+        region = context.scene.nwo.regions_table[region_name]
+        return 'true' if region.active else 'false'
