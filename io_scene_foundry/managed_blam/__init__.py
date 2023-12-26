@@ -256,8 +256,8 @@ class Tag():
     
     def _TagPath_from_string(self, path: str) -> TagPath:
         """Returns a Bungie TagPath from the given tag filepath. Filepath must include file extension"""
-        relative_path = path.replace(self.tags_dir, '')
-        return Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(relative_path))
+        rel_path = relative_path(path)
+        return Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(rel_path))
     
     def _TagPath(self) -> TagPath:
         """Returns a new TagPath instance"""

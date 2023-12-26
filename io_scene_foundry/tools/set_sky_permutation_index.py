@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 import bpy
 from io_scene_foundry.utils import nwo_utils
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
@@ -80,8 +81,12 @@ class NWO_NewSky(bpy.types.Operator):
     
     def execute(self, context):
         # Read the skies block
+        rel_path = nwo_utils.relative_path(self.filepath)
+        if not os.path.exists(nwo_utils.get_tags_path() + rel_path):
+            self.report({'WARNING'}, f"Failed to add Sky. Given path is not located inside of project tags folder\nProject: {nwo_utils.get_project_path()}\nSky Tag Path: {self.filepath}")
+            return {'CANCELLED'}
         with ScenarioTag() as scenario:
-            sky_name, sky_index = scenario.add_new_sky(self.filepath)
+            sky_name, sky_index = scenario.add_new_sky(rel_path)
             scenario.save()
         if self.type == 'material' and NWO_SetSky.poll(context):
             return new_sky_material(context, self.report, sky_index, sky_name)

@@ -563,6 +563,13 @@ class NWO_FoundryPanelProps(Panel):
             
             self.draw_rig_ui(context, nwo) 
             
+        elif nwo.asset_type == "SCENARIO":
+            box = self.box.box()
+            col = box.column()
+            row = col.row(align=True)
+            row.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+            
+            
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
         box.label(text="Model Rig")
