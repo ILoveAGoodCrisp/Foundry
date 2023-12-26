@@ -87,11 +87,14 @@ class ScenarioTag(Tag):
         bsp_element = self._get_bsp_from_name(bsp_name)
         if bsp_element is None: return
         # Check current sky to see if we need to update it
-        sky_block_index = bsp_element.SelectField('default sky').GetStringData()
+        print(bsp_element)
+        for f in bsp_element.Fields:
+            print(f.DisplayName)
+        sky_block_index = bsp_element.SelectField('default sky').Value
         if sky_block_index == sky_index:
             print("Default sky already set to this")
         else:
-            bsp_element.SelectField('default sky').SetStringData(sky_index)
+            bsp_element.SelectField('default sky').Value = sky_index
         self.tag_has_changes = True
         return self._sky_name_from_element(self.block_skies.Elements[sky_index])
         

@@ -71,7 +71,7 @@ class NWO_UL_Regions(UIList):
             row.alignment = 'RIGHT'
             row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
             row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
-            if data.asset_type in ('MODEL', 'SKY') or (is_corinth(context) and data.asset_type == 'SCENARIO'):
+            if data.asset_type in ('MODEL', 'SKY'):
                 row.prop(item, "active", text="", icon='CHECKBOX_HLT' if item.active else 'CHECKBOX_DEHLT', emboss=False)
         else:
             layout.label(text="", translate=False, icon_value=icon)

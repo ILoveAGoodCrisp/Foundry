@@ -354,15 +354,15 @@ class Sidecar:
     ):  # FaceCollections is where regions and global materials are defined in the sidecar.
         faceCollections = ET.SubElement(metadata, "FaceCollections")
 
-        if self.asset_type == "SCENARIO" and not_bungie_game:
-            bsp_list = ["default", ""]
-            f1 = ET.SubElement(
-                faceCollections,
-                "FaceCollection",
-                Name="connected_geometry_bsp_table",
-                StringTable="connected_geometry_bsp_table",
-                Description="BSPs",
-            )
+        # if self.asset_type == "SCENARIO" and not_bungie_game:
+        #     bsp_list = ["default", ""]
+        #     f1 = ET.SubElement(
+        #         faceCollections,
+        #         "FaceCollection",
+        #         Name="connected_geometry_bsp_table",
+        #         StringTable="connected_geometry_bsp_table",
+        #         Description="BSPs",
+        #     )
 
             # FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
             # using_default_bsp = 'default' in regions
@@ -376,15 +376,15 @@ class Sidecar:
             #     Active=str(using_default_bsp).lower(),
             # )
             
-            FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
-            for idx, bsp in enumerate(regions):
-                ET.SubElement(
-                    FaceCollectionsEntries,
-                    "FaceCollectionEntry",
-                    Index=str(idx),
-                    Name=bsp,
-                    Active=self.region_active_state(context, bsp),
-                )
+            # FaceCollectionsEntries = ET.SubElement(f1, "FaceCollectionEntries")
+            # for idx, bsp in enumerate(regions):
+            #     ET.SubElement(
+            #         FaceCollectionsEntries,
+            #         "FaceCollectionEntry",
+            #         Index=str(idx),
+            #         Name=bsp,
+            #         Active=self.region_active_state(context, bsp),
+            #     )
 
             # count = 1
             # for ob in bpy.context.view_layer.objects:
