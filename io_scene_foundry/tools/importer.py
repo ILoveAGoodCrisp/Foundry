@@ -74,6 +74,11 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     
+    legacy_fix_rotations: bpy.props.BoolProperty(
+        name="Fix Rotations",
+        description="Rotates imported bones by 90 degrees on the Z Axis",
+    )
+    
     import_images_to_blender: bpy.props.BoolProperty(
         name="Import to Blend",
         description="Imports images into the blender after extracting bitmaps from the game",
@@ -225,15 +230,21 @@ class NWO_Import(bpy.types.Operator):
             layout.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
             if self.find_shader_paths:
                 layout.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+            
+            box = layout.box()
+            box.label(text="JMA/JMS/ASS Settings")
+            box.prop(self, 'legacy_fix_rotations', text='Fix Rotations')
 
 class NWOImporter():
-    def __init__(self, context, report, filepaths):
+    def __init__(self, context, report, filepaths, legacy_fix_rotations):
         self.filepaths = filepaths
         self.context = context
         self.report = report
         self.mesh_objects = []
         self.marker_objects = []
         self.sorted_filepaths = self.group_filetypes()
+        
+        self.legacy_fix_rotations = legacy_fix_rotations
     
     def group_filetypes(self):
         filetype_dict = {"amf": [], "jms": [], "jma": [], "bitmap": []}
@@ -451,7 +462,7 @@ class NWOImporter():
         
     def import_legacy_animation(self, path):
         existing_animations = bpy.data.actions[:]
-        bpy.ops.import_scene.jma(filepath=path)
+        bpy.ops.import_scene.jma(filepath=path, fix_rotations=self.legacy_fix_rotations)
         anim = [a for a in bpy.data.actions if a not in existing_animations][0]
         self.animations.append(anim)
         filename = os.path.basename(path)
