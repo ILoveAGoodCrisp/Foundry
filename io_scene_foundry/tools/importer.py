@@ -63,6 +63,12 @@ class NWO_Import(bpy.types.Operator):
         options={"HIDDEN", "SKIP_SAVE"},
     )
     
+    filepath: bpy.props.StringProperty(
+        name='Filepath',
+        subtype='FILE_PATH',
+        options={"HIDDEN", "SKIP_SAVE"},
+    )
+    
     find_shader_paths: bpy.props.BoolProperty(
         name="Find Shader Paths",
         description="Searches the tags folder after import and tries to find shader/material tags which match the name of importer materials",
@@ -203,6 +209,8 @@ class NWO_Import(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        self.directory = ''
+        self.filepath = ''
         if self.scope == 'images':
             self.directory = get_tags_path()
             self.filter_glob += "*.bitmap;"

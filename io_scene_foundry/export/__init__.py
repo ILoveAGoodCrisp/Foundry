@@ -462,10 +462,9 @@ class NWO_Export(NWO_Export_Scene):
             try:
                 nwo_scene = PrepareScene()
                 nwo_scene.prepare_scene(context, self.asset, scene_nwo.asset_type, scene_nwo_export)
-                if not nwo_scene.no_export_objects:
+                if not nwo_scene.too_many_root_bones and not nwo_scene.no_export_objects:
                     export_process = ProcessScene()
                     export_process.process_scene(context, sidecar_path, sidecar_path_full, self.asset, self.asset_path, scene_nwo.asset_type, nwo_scene, scene_nwo_export, scene_nwo)
-                    
             
             except Exception as e:
                 if type(e) == RuntimeError:
@@ -496,6 +495,9 @@ class NWO_Export(NWO_Export_Scene):
                     print_warning(
                     "\nEXPORT ABORTED. Please see above for details"
                 )
+            elif nwo_scene.too_many_root_bones:
+                print_warning('EXPORT CANCELLED')
+                print("Export cancelled because the main armature has multiple deform root bones.")
             elif nwo_scene.no_export_objects:
                 print_warning('EXPORT CANCELLED')
                 print("Export cancelled because there are no Halo objects in the scene. Ensure at least one object is valid and has the export flag enabled")

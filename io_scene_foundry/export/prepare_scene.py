@@ -57,6 +57,7 @@ from ..utils.nwo_utils import (
     layer_face_count,
     layer_faces,
     library_instanced_collection,
+    print_error,
     print_warning,
     relative_path,
     set_active_object,
@@ -65,13 +66,11 @@ from ..utils.nwo_utils import (
     set_object_mode,
     set_origin_to_centre,
     set_origin_to_floor,
-    sort_alphanum,
     stomp_scale_multi_user,
     true_region,
     true_permutation,
     type_valid,
     update_progress,
-    update_tables_from_objects,
     vector_str,
     special_material_names,
     convention_material_names,
@@ -132,6 +131,7 @@ class PrepareScene:
         self.arm_name = ""
         self.verbose_warnings = False # For outputting info about things we otherwise silently fix
         self.no_export_objects = False
+        self.too_many_root_bones = False
         
     def prepare_scene(self, context, asset, asset_type, scene_nwo_export):
         print("\nPreparing Export Scene")
@@ -666,6 +666,10 @@ class PrepareScene:
                 # set bone names equal to their name overrides (if not blank)
                 if scene_nwo_export.export_gr2_files and self.model_armature:
                     # self.set_bone_names(self.model_armature.data.bones) NOTE no longer renaming bones
+                    root_bones = [b for b in self.model_armature.data.bones if b.use_deform and not b.parent]
+                    if len(root_bones) > 1:
+                        self.too_many_root_bones = True
+                        return
                     self.skeleton_bones = self.get_bone_list(
                         self.model_armature, h4, context, asset_type
                     )
@@ -2417,6 +2421,9 @@ class PrepareScene:
     # ARMATURE FUNCTIONS
     def get_scene_armature(self, export_obs, asset, scene_nwo):
         arm_name = f"{asset}_world"
+        old_ob = bpy.data.objects.get(arm_name)
+        if old_ob:
+            old_ob.name += "__OLD__"
         self.arm_name = arm_name
         arm = None
         if scene_nwo.main_armature:
@@ -2428,6 +2435,7 @@ class PrepareScene:
         
         if arm is not None:
             arm.name = arm_name
+            scene_nwo.main_armature = arm
             return arm
     
     def get_bone_names(self, export_obs, scene_nwo):
