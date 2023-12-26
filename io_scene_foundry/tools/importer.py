@@ -112,13 +112,13 @@ class NWO_Import(bpy.types.Operator):
     
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
-        extensions = set([path.rpartition('.')[2] for path in filepaths])
+        extensions = set([path.rpartition('.')[2].lower() for path in filepaths])
         corinth = is_corinth(context)
         start = time.perf_counter()
         self.nothing_imported = False
         self.user_cancelled = False
         with ExportManager():
-            os.system("cls")
+            # os.system("cls")
             if context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 context.scene.nwo_export.show_output = False
