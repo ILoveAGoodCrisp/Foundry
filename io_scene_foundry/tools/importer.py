@@ -148,7 +148,7 @@ class NWO_Import(bpy.types.Operator):
                         jms_files = importer.sorted_filepaths["jms"]
                         jma_files = importer.sorted_filepaths["jma"]
                         # imported_jms_objects = importer.import_jms_files(jms_files)
-                        imported_jma_animations = importer.import_jma_files(jma_files)
+                        imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
                         if not toolset_addon_enabled:
                             addon_utils.disable('io_scene_halo')
                     
@@ -236,15 +236,13 @@ class NWO_Import(bpy.types.Operator):
             box.prop(self, 'legacy_fix_rotations', text='Fix Rotations')
 
 class NWOImporter():
-    def __init__(self, context, report, filepaths, legacy_fix_rotations):
+    def __init__(self, context, report, filepaths):
         self.filepaths = filepaths
         self.context = context
         self.report = report
         self.mesh_objects = []
         self.marker_objects = []
         self.sorted_filepaths = self.group_filetypes()
-        
-        self.legacy_fix_rotations = legacy_fix_rotations
     
     def group_filetypes(self):
         filetype_dict = {"amf": [], "jms": [], "jma": [], "bitmap": []}
@@ -435,7 +433,7 @@ class NWOImporter():
 
 # Legacy Animation importer
 ######################################################################
-    def import_jma_files(self, jma_files):
+    def import_jma_files(self, jma_files, legacy_fix_rotations):
         """Imports all legacy animation files supplied"""
         self.animations = []
         scene_nwo = self.context.scene.nwo
@@ -455,14 +453,14 @@ class NWOImporter():
         set_active_object(arm)
         
         for path in jma_files:
-            self.import_legacy_animation(path)
+            self.import_legacy_animation(path, legacy_fix_rotations)
             
         return self.animations
             
         
-    def import_legacy_animation(self, path):
+    def import_legacy_animation(self, path, legacy_fix_rotations):
         existing_animations = bpy.data.actions[:]
-        bpy.ops.import_scene.jma(filepath=path, fix_rotations=self.legacy_fix_rotations)
+        bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
         anim = [a for a in bpy.data.actions if a not in existing_animations][0]
         self.animations.append(anim)
         filename = os.path.basename(path)
