@@ -121,7 +121,7 @@ from bpy_extras.object_utils import AddObjectHelper
 
 is_blender_startup = True
 
-FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/tools/foundry"
+FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/community-tools/foundry"
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
 
 BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Development-Toolset/releases"
@@ -2537,7 +2537,7 @@ class NWO_FoundryPanelProps(Panel):
         box_websites = self.box.box()
         box_websites.label(text="Foundry Documentation")
         col = box_websites.column()
-        col.operator("nwo.open_url", text="Getting Started", icon_value=get_icon_id("c20_reclaimers")).url = FOUNDRY_DOCS
+        col.operator("nwo.open_url", text="Documentation", icon_value=get_icon_id("c20_reclaimers")).url = FOUNDRY_DOCS
         col.operator("nwo.open_url", text="Github", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
 
         box_hotkeys = self.box.box()
