@@ -146,8 +146,6 @@ class NWO_SetTimeline(bpy.types.Operator):
     
     def execute(self, context):
         action = context.object.animation_data.action
-        if not action.use_frame_range:
-            return {'CANCELLED'}
         scene = context.scene
         scene.frame_start = int(action.frame_start)
         if self.exclude_first_frame:
