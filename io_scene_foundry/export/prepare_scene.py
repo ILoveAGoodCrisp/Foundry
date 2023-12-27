@@ -219,9 +219,12 @@ class PrepareScene:
         # Scale it all!
         scene_nwo = context.scene.nwo
         
-        if scene_nwo.export_scale == 'blender':
+        if scene_nwo.export_scale == 'wu':
             for ob in bpy.data.objects:
                 ob.scale *= 100
+        elif scene_nwo.export_scale == 'real':
+            for ob in bpy.data.objects:
+                ob.scale *= (1 / 0.03048)
 
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects

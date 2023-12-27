@@ -318,10 +318,6 @@ class NWO_FoundryPanelProps(Panel):
         row = col.row()
         row.scale_y = 1.1
 
-        # if unit_scale == 1.0:
-        #     row.operator("nwo.set_unit_scale", text="Set Halo Scale", icon_value=get_icon_id("halo_scale")).scale = 0.03048
-        # else:
-        #     row.operator("nwo.set_unit_scale", text="Set Default Scale", icon="BLENDER").scale = 1.0
         row.prop(scene.nwo, 'view_scale', text='View Scale', expand=True)
         row = col.row()
         row.prop(scene.nwo, 'export_scale', text='Export Scale', expand=True)

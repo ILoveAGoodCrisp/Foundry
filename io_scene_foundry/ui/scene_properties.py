@@ -847,7 +847,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     # Scale
     def scale_update(self, context):
-        match self.scale:
+        match self.view_scale:
             case 'blender':
                 bpy.ops.nwo.set_unit_scale(scale=1.0)
             case 'wu':
@@ -865,8 +865,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def export_scale_items(self, context):
         items=[
-            ('halo', 'Halo', "Export the scene at its current scale", get_icon_id('wu_scale'), 0),
-            ('blender', 'Blender', "Export scene at x100 its current scale. (The result is that 1 meter in default Blender units equals 1 meter in game)", 'BLENDER', 1),
+            ('blender', 'Blender', "", 'BLENDER', 0),
+            ('wu', 'Game', "", get_icon_id('wu_scale'), 1),
+            ('real', 'Real', "", get_icon_id('halo_scale'), 2),
         ]
         
         return items
