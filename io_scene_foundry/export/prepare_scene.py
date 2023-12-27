@@ -218,13 +218,18 @@ class PrepareScene:
         
         # Scale it all!
         scene_nwo = context.scene.nwo
-        
+        my_scale = 1
         if scene_nwo.export_scale == 'wu':
-            for ob in bpy.data.objects:
-                ob.scale *= 100
+            my_scale = 100
         elif scene_nwo.export_scale == 'real':
-            for ob in bpy.data.objects:
-                ob.scale *= (1 / 0.03048)
+            my_scale = (1 / 0.03048)
+        
+        if scene_nwo.export_scale == 'real' or scene_nwo.export_scale == 'wu':
+            [ob.select_set(True) for ob in bpy.data.objects]
+            context.scene.cursor.location = Vector((0, 0, 0))
+            context.scene.tool_settings.transform_pivot_point = 'CURSOR'
+            bpy.ops.transform.resize(value=(my_scale, my_scale, my_scale), orient_type='GLOBAL', orient_matrix=((1, 0, 0), (0, 1, 0), (0, 0, 1)), orient_matrix_type='GLOBAL', mirror=False, use_proportional_edit=False, proportional_edit_falloff='SMOOTH', proportional_size=1, use_proportional_connected=False, use_proportional_projected=False, snap=False, snap_elements={'INCREMENT'}, use_snap_project=False, snap_target='CLOSEST', use_snap_self=True, use_snap_edit=True, use_snap_nonedit=True, use_snap_selectable=False, alt_navigation=True)
+            [ob.select_set(False) for ob in bpy.data.objects]
 
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
