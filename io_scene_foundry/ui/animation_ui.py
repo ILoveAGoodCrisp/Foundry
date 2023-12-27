@@ -154,6 +154,8 @@ class NWO_SetTimeline(bpy.types.Operator):
         if self.exclude_last_frame:
             scene.frame_end -= 1
             
+        scene.frame_current = scene.frame_start
+            
         return {'FINISHED'}
     
     def draw(self, context):
