@@ -30,7 +30,18 @@ import bpy
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui, true_permutation, true_region, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
+
+class NWO_UpdateSets(bpy.types.Operator):
+    bl_idname = "nwo.update_sets"
+    bl_label = "Update Sets From Scene"
+    bl_description = "Updates the regions and permutations tables from scene objects. Use this if you're opening an older Foundry Blender scene and have a mismatch between object regions/permutations and the sets manager tables"
+    bl_options = {"UNDO"}
+
+    def execute(self, context):
+        update_tables_from_objects(context)
+        self.report({'INFO'}, "Update Complete")
+        return {"FINISHED"}
 
 # Parent Classes
 class TableEntryAdd(bpy.types.Operator):

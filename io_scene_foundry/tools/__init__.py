@@ -52,7 +52,7 @@ from io_scene_foundry.tools.importer import NWO_Import
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
-from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle
+from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders
 from io_scene_foundry.tools.shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
 from io_scene_foundry.tools.shader_reader import NWO_ShaderToNodes
@@ -644,6 +644,7 @@ class NWO_FoundryPanelProps(Panel):
         col.prop_search(nwo, "node_usage_damage_root_right_foot", nwo.main_armature.data, "bones")
 
     def draw_sets_manager(self):
+        self.box.operator('nwo.update_sets', icon='FILE_REFRESH')
         box = self.box.box()
         nwo = self.scene.nwo
         context = self.context
@@ -6020,6 +6021,7 @@ classeshalo = (
     NWO_ShaderToNodes,
     NWO_AppendFoundryMaterials,
     NWO_ClearShaderPaths,
+    NWO_UpdateSets,
 )
 
 def register():
