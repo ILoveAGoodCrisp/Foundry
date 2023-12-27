@@ -37,6 +37,7 @@ from io_scene_foundry.export.lightmapper import run_lightmapper
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.model import ModelTag
+from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from .format_json import NWOJSON
 from ..utils.nwo_utils import (
     data_relative,
@@ -554,6 +555,11 @@ class ProcessScene:
 
             if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
                 self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo)
+                set_better_lm_res = False
+                if asset_type == 'SCENARIO':
+                    scenario_path = os.path.join(tag_folder_path, f"{asset}.scenario")
+                    if not os.path.exists(scenario_path):
+                        set_better_lm_res = True
                 export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(nwo_scene.lighting), nwo_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
@@ -561,7 +567,7 @@ class ProcessScene:
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_post_import_tasks(context, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations)
+                    self.managed_blam_post_import_tasks(context, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations, set_better_lm_res)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -836,7 +842,7 @@ class ProcessScene:
                 animation.set_node_usages(nwo_scene.skeleton_bones)
             print("--- Updated Animation Node Usages")
 
-    def managed_blam_post_import_tasks(self, context, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations):
+    def managed_blam_post_import_tasks(self, context, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, set_better_lm_res):
         nwo = context.scene.nwo
         model_sky = asset_type in ('MODEL', 'SKY')
         model = asset_type == 'MODEL'
@@ -851,6 +857,7 @@ class ProcessScene:
             h4_model_lighting
             or model_override
             or reach_world_animations
+            or set_better_lm_res
         )
         if not mb_justified:
             return
@@ -877,6 +884,13 @@ class ProcessScene:
             with AnimationTag(hide_prints=True) as animation:
                 animation.set_world_animations(reach_world_animations)
             print("--- Setup World Animations")
+            
+        if set_better_lm_res:
+            lm_value = 6 if is_corinth(context) else 3
+            with ScenarioTag(hide_prints=True) as scenario:
+                for bsp in nwo_scene.structure_bsps:
+                    scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
+            print("--- Set Lightmapper size class to 1k")
             
 
     def any_node_usage_override(self, nwo):
