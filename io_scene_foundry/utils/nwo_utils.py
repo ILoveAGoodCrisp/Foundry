@@ -32,7 +32,7 @@ import winreg
 import zipfile
 import bpy
 import platform
-from mathutils import Vector
+from mathutils import Matrix, Vector
 import os
 from os.path import exists as file_exists
 from subprocess import Popen, check_call
@@ -1806,3 +1806,13 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
         material_name = parts[0]
     # ignore material suffixes
     return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['") # excluding 0 here as it can interfere with normal naming convention
+
+def reset_to_basis(keep_animation=False):
+    animated_objects = [ob for ob in bpy.data.objects if ob.animation_data]
+    for ob in animated_objects:
+        if not keep_animation:
+            ob.animation_data.action = None
+        ob.matrix_basis = Matrix()
+        if ob.type == 'ARMATURE':
+            for bone in ob.pose.bones:
+                bone.matrix_basis = Matrix()

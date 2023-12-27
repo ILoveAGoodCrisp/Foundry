@@ -25,10 +25,9 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import math
-from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui
+from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui, reset_to_basis
 from .templates import NWO_Op, NWO_PropPanel
 import bpy
 
@@ -93,14 +92,7 @@ class NWO_DeleteAnimation(bpy.types.Operator):
             name = str(action.name)
             bpy.data.actions.remove(action)
             self.report({"INFO"}, f"Deleted animation: {name}")
-            
-            animated_objects = [ob for ob in bpy.data.objects if ob.animation_data]
-            for ob in animated_objects:
-                ob.animation_data.action = None
-                ob.matrix_basis = Matrix()
-                if ob.type == 'ARMATURE':
-                    for bone in ob.pose.bones:
-                        bone.matrix_basis = Matrix()
+            reset_to_basis()
         
         if bpy.data.actions and current_action_index >= len(bpy.data.actions):
             context.object.animation_data.action = bpy.data.actions[-1]
@@ -121,13 +113,7 @@ class NWO_UnlinkAnimation(bpy.types.Operator):
 
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
-        animated_objects = [ob for ob in bpy.data.objects if ob.animation_data]
-        for ob in animated_objects:
-            ob.animation_data.action = None
-            ob.matrix_basis = Matrix()
-            if ob.type == 'ARMATURE':
-                for bone in ob.pose.bones:
-                    bone.matrix_basis = Matrix()
+        reset_to_basis()
                     
         return {"FINISHED"}
     
@@ -385,6 +371,11 @@ class NWO_NewAnimation(NWO_Op):
     custom: bpy.props.StringProperty(name="Custom")
 
     fp_animation: bpy.props.BoolProperty()
+    
+    keep_current_pose: bpy.props.BoolProperty(
+        name="Keep Current Pose",
+        description="Keeps the current pose of the object instead of resetting it to the models rest pose",
+    )
 
     def __init__(self):
         self.fp_animation = poll_ui("FP ANIMATION")
@@ -394,6 +385,8 @@ class NWO_NewAnimation(NWO_Op):
     def execute(self, context):
         full_name = self.create_name()
         # Create the animation
+        if not self.keep_current_pose:
+            reset_to_basis()
         animation = bpy.data.actions.new(full_name)
         animation.use_frame_range = True
         animation.use_fake_user = True
@@ -431,7 +424,6 @@ class NWO_NewAnimation(NWO_Op):
         nwo.variant = self.variant
 
         nwo.created_with_foundry = True
-        context.scene.nwo.active_action_index = bpy.data.actions.values().index(animation)
         self.report({"INFO"}, f"Created animation: {full_name}")
         return {"FINISHED"}
 
@@ -445,6 +437,7 @@ class NWO_NewAnimation(NWO_Op):
         col.use_property_split = True
         col.prop(self, "frame_start", text="First Frame")
         col.prop(self, "frame_end", text="Last Frame")
+        col.prop(self, "keep_current_pose")
         layout.label(text="Animation Format")
         row = layout.row()
         row.use_property_split = True

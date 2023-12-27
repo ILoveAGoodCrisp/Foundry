@@ -37,7 +37,7 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
+from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_prefs, is_corinth, poll_ui, reset_to_basis, valid_nwo_asset
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
@@ -154,6 +154,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         if self.active_action_index > -1:
             for ob in bpy.data.objects:
                 if ob.animation_data:
+                    reset_to_basis(True)
                     ob.animation_data.action = bpy.data.actions[self.active_action_index]
 
             if get_prefs().sync_timeline_range:
