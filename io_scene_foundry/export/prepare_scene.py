@@ -282,7 +282,7 @@ class PrepareScene:
             if h4:
                 m.nwo.shader_path = sm.shader_path + '.material' # No support for material face props in H4, so always a material
             else:
-                m.nwo.shader_path = sm.shader_path + '.override' if sm.is_face_property else '.shader' 
+                m.nwo.shader_path = sm.shader_path + '.override' if sm.is_face_property else sm.shader_path + '.shader' 
             match sm.name:
                 case '+invisible':
                     self.invisible_mat = m
