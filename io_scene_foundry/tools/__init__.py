@@ -2267,7 +2267,12 @@ class NWO_FoundryPanelProps(Panel):
             return
         elif not action.use_frame_range:
             col.label(text="Animation excluded from export")
-            return
+            col.separator()
+            
+        if not action.use_fake_user:
+            col.label(text="Fake User Not Set, Animation may be lost on Blender close", icon='ERROR')
+            col.prop(action, 'use_fake_user', text="Enable Fake User", icon='FAKE_USER_OFF')
+            col.separator()
         
         nwo = action.nwo
         col.separator()

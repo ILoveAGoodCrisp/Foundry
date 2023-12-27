@@ -680,6 +680,8 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         row = layout.row()
         row.scale_x = 1.5
         row.prop(item, "name", text="", emboss=False)
+        if not item.use_fake_user:
+            row.label(icon='ERROR')
         row = layout.row()
         row.label(text=str(math.floor(item.frame_start)) + '-' + str(math.floor(item.frame_end)))
         anim_type_display = nwo.animation_type
