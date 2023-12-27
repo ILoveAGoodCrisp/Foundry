@@ -33,6 +33,7 @@ class AnimationTag(Tag):
         self.block_animations = self.tag.SelectField("definitions[0]/Block:animations")
         self.block_skeleton_nodes = self.tag.SelectField("definitions[0]/Block:skeleton nodes")
         self.block_node_usages = self.tag.SelectField("definitions[0]/Block:node usage")
+        self.block_modes = self.tag.SelectField("Struct:content[0]/Block:modes")
         
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').SetStringData('6')
@@ -135,4 +136,10 @@ class AnimationTag(Tag):
             
     def get_nodes(self):
         return [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
-	
+    
+    def read_all_modes(self):
+        print(self.tag.Path.RelativePath)
+        print('-'*100)
+        for e in self.block_modes.Elements:
+            print(e.SelectField('label').GetStringData())
+        print('\n\n\n')

@@ -57,7 +57,6 @@ from ..utils.nwo_utils import (
     layer_face_count,
     layer_faces,
     library_instanced_collection,
-    print_error,
     print_warning,
     relative_path,
     set_active_object,
@@ -216,12 +215,19 @@ class PrepareScene:
 
         context.view_layer.update()
         # print("make_local")
+        
+        # Scale it all!
+        scene_nwo = context.scene.nwo
+        
+        if scene_nwo.export_scale == 'blender':
+            for ob in bpy.data.objects:
+                ob.scale *= 100
 
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
         
         # Combine Armatures is possible
-        scene_nwo = context.scene.nwo
+        
         if asset_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
             self.consolidate_rig(scene_nwo)
 
@@ -812,7 +818,7 @@ class PrepareScene:
                 "\nScene has issues that should be resolved for subsequent exports"
             )
             print_warning("Please see above output for details")
-
+        
         # end = time.perf_counter()
         # print(f"\nScene Prepared in {end - start} seconds")
         # time.sleep(3)

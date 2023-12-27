@@ -855,12 +855,27 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             case 'real':
                 bpy.ops.nwo.set_unit_scale(scale=0.03048)
     
-    scale: EnumProperty(
-        name="Scale",
+    view_scale: EnumProperty(
+        name="View Scale",
         options=set(),
         description="Select the scale to apply to the scene",
         items=scale_items,
         update=scale_update
+    )
+    
+    def export_scale_items(self, context):
+        items=[
+            ('halo', 'Halo', "Export the scene at its current scale", get_icon_id('wu_scale'), 0),
+            ('blender', 'Blender', "Export scene at x100 its current scale. (The result is that 1 meter in default Blender units equals 1 meter in game)", 'BLENDER', 1),
+        ]
+        
+        return items
+    
+    export_scale: EnumProperty(
+        name="Export Scale",
+        options=set(),
+        description="Select the scale to be applied to this scene at export. Halo scale exports the model as is from the blend scene. Blender scale multiplies object scale by 100 at export",
+        items=export_scale_items,
     )
     
     export_in_progress: BoolProperty()
