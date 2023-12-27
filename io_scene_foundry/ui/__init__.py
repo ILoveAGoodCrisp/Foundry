@@ -123,6 +123,7 @@ from .animation_ui import (
     NWO_NewAnimation,
     NWO_DeleteAnimation,
     NWO_SetTimeline,
+    NWO_UL_AnimationList,
     NWO_UnlinkAnimation,
     NWO_List_Add_Animation_Rename,
     NWO_UL_AnimationRename,
@@ -393,6 +394,7 @@ classes_nwo = (
     NWO_MarkerTypes,
     NWO_AddHaloLight,
     NWO_UpdateLayersFaceCount,
+    NWO_UL_AnimationList,
 )
 
 def register():

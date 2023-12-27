@@ -374,6 +374,12 @@ class ToolkitLocationPreferences(AddonPreferences):
         description="Enable to automatically generate new Material Nodes whenever a valid Material Shader Path is set",
         default=False,
     )
+    
+    sync_timeline_range: BoolProperty(
+        name="Update Timeline Range on Switching Animation",
+        description="Sets the scene timeline to match the start and end frame range of the current animation if using the Foundry Animation Panel to switch animations",
+        default=True,
+    )
 
     def draw(self, context):
         prefs = self
@@ -426,3 +432,5 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.prop(prefs, "protect_materials")
         row = box.row(align=True)
         row.prop(prefs, "update_materials_on_shader_path")
+        row = box.row(align=True)
+        row.prop(prefs, "sync_timeline_range")

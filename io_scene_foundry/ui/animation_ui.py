@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import math
 from mathutils import Matrix
 from io_scene_foundry.icons import get_icon_id
 
@@ -79,16 +80,33 @@ class NWO_DeleteAnimation(bpy.types.Operator):
     bl_idname = "nwo.delete_animation"
     bl_description = "Deletes a Halo Animation from the blend file"
     bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.active_action_index > -1
 
     def execute(self, context):
-        context.scene.tool_settings.use_keyframe_insert_auto = False
-        arm = context.object
-        action = arm.animation_data.action
-        name = str(action.name)
-        bpy.data.actions.remove(action)
-        self.report({"INFO"}, f"Deleted animation: {name}")
-        for bone in arm.pose.bones:
-            bone.matrix_basis = Matrix()
+        context.scene.tool_settings.use_keyframe_insert_auto = False        
+        action = context.object.animation_data.action
+        current_action_index = bpy.data.actions.values().index(action)
+        if action:
+            name = str(action.name)
+            bpy.data.actions.remove(action)
+            self.report({"INFO"}, f"Deleted animation: {name}")
+            
+            animated_objects = [ob for ob in bpy.data.objects if ob.animation_data]
+            for ob in animated_objects:
+                ob.animation_data.action = None
+                ob.matrix_basis = Matrix()
+                if ob.type == 'ARMATURE':
+                    for bone in ob.pose.bones:
+                        bone.matrix_basis = Matrix()
+        
+        if bpy.data.actions and current_action_index >= len(bpy.data.actions):
+            context.object.animation_data.action = bpy.data.actions[-1]
+        elif bpy.data.actions:
+            context.object.animation_data.action = bpy.data.actions[current_action_index]
+        
         return {"FINISHED"}
     
 class NWO_UnlinkAnimation(bpy.types.Operator):
@@ -96,13 +114,21 @@ class NWO_UnlinkAnimation(bpy.types.Operator):
     bl_idname = "nwo.unlink_animation"
     bl_description = "Unlinks a Halo Animation"
     bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.active_action_index > -1
 
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
-        arm = context.object
-        arm.animation_data.action = None
-        for bone in arm.pose.bones:
-            bone.matrix_basis = Matrix()
+        animated_objects = [ob for ob in bpy.data.objects if ob.animation_data]
+        for ob in animated_objects:
+            ob.animation_data.action = None
+            ob.matrix_basis = Matrix()
+            if ob.type == 'ARMATURE':
+                for bone in ob.pose.bones:
+                    bone.matrix_basis = Matrix()
+                    
         return {"FINISHED"}
     
 class NWO_SetTimeline(bpy.types.Operator):
@@ -116,7 +142,7 @@ class NWO_SetTimeline(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == 'ARMATURE'
+        return context.scene.nwo.active_action_index > -1
     
     def execute(self, context):
         action = context.object.animation_data.action
@@ -374,7 +400,8 @@ class NWO_NewAnimation(NWO_Op):
         animation.frame_start = self.frame_start
         animation.frame_end = self.frame_end
         ob = context.object
-        ob.animation_data_create()
+        if not ob.animation_data:
+            ob.animation_data_create()
         ob.animation_data.action = animation
         nwo = animation.nwo
         nwo.animation_type = self.animation_type
@@ -404,7 +431,7 @@ class NWO_NewAnimation(NWO_Op):
         nwo.variant = self.variant
 
         nwo.created_with_foundry = True
-
+        context.scene.nwo.active_action_index = bpy.data.actions.values().index(animation)
         self.report({"INFO"}, f"Created animation: {full_name}")
         return {"FINISHED"}
 
@@ -598,7 +625,6 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
         self.report({"INFO"}, f"Created rename: {full_name}")
         return {"FINISHED"}
 
-
 class NWO_List_Remove_Animation_Rename(NWO_Op):
     """Remove an Item from the UIList"""
 
@@ -638,3 +664,56 @@ class NWO_UL_AnimationRename(bpy.types.UIList):
         index,
     ):
         layout.prop(item, "rename_name", text="", emboss=False, icon_value=get_icon_id("animation_rename"))
+
+class NWO_UL_AnimationList(bpy.types.UIList):
+    # Constants (flags)
+    # Be careful not to shadow FILTER_ITEM (i.e. UIList().bitflag_filter_item)!
+    # E.g. VGROUP_EMPTY = 1 << 0
+
+    # Custom properties, saved with .blend file. E.g.
+    # use_filter_empty = bpy.props.BoolProperty(name="Filter Empty", default=False, options=set(),
+    #                                           description="Whether to filter empty vertex groups")
+
+    # Called for each drawn item.
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
+        nwo = item.nwo
+        row = layout.row()
+        row.scale_x = 1.5
+        row.prop(item, "name", text="", emboss=False)
+        row = layout.row()
+        row.label(text=str(math.floor(item.frame_start)) + '-' + str(math.floor(item.frame_end)))
+        anim_type_display = nwo.animation_type
+        if anim_type_display == 'base' and nwo.animation_movement_data != 'none':
+            anim_type_display += f'[{nwo.animation_movement_data}]'
+        elif anim_type_display == 'overlay' and nwo.animation_is_pose:
+            anim_type_display += '[pose]'
+        elif anim_type_display == 'replacement':
+            anim_type_display += f'[{nwo.animation_space}]'
+        row.label(text=anim_type_display)
+        row.prop(item, 'use_frame_range', text="", icon='CHECKBOX_HLT' if item.use_frame_range else 'CHECKBOX_DEHLT', emboss=False)
+            
+
+    # # Called once to draw filtering/reordering options.
+    # def draw_filter(self, context, layout):
+    #     # Nothing much to say here, it's usual UI code...
+    #     pass
+
+    # # Called once to filter/reorder items.
+    # def filter_items(self, context, data, propname):
+    #     # This function gets the collection property (as the usual tuple (data, propname)), and must return two lists:
+    #     # * The first one is for filtering, it must contain 32bit integers were self.bitflag_filter_item marks the
+    #     #   matching item as filtered (i.e. to be shown), and 31 other bits are free for custom needs. Here we use the
+    #     #   first one to mark VGROUP_EMPTY.
+    #     # * The second one is for reordering, it must return a list containing the new indices of the items (which
+    #     #   gives us a mapping org_idx -> new_idx).
+    #     # Please note that the default UI_UL_list defines helper functions for common tasks (see its doc for more info).
+    #     # If you do not make filtering and/or ordering, return empty list(s) (this will be more efficient than
+    #     # returning full lists doing nothing!).
+
+    #     # Default return values.
+    #     flt_flags = []
+    #     flt_neworder = []
+
+    #     # Do filtering/reordering here...
+
+    #     return flt_flags, flt_neworder

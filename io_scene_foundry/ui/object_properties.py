@@ -443,7 +443,7 @@ class NWO_MarkerPermutationItems(PropertyGroup):
 
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
-class NWO_ObjectPropertiesGroup(PropertyGroup):    
+class NWO_ObjectPropertiesGroup(PropertyGroup):
     ### PROXY
     proxy_parent: PointerProperty(type=bpy.types.Mesh)
     proxy_type : StringProperty()

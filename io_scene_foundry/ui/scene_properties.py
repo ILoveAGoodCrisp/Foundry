@@ -37,7 +37,7 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_asset_path, is_corinth, poll_ui, valid_nwo_asset
+from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_prefs, is_corinth, poll_ui, valid_nwo_asset
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
@@ -149,6 +149,39 @@ class NWO_Asset_ListItems(PropertyGroup):
 
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
+    # ANIMATION
+    def update_active_action_index(self, context):
+        if self.active_action_index > -1:
+            for ob in bpy.data.objects:
+                if ob.animation_data:
+                    ob.animation_data.action = bpy.data.actions[self.active_action_index]
+
+            if get_prefs().sync_timeline_range:
+                bpy.ops.nwo.set_timeline('INVOKE_DEFAULT')
+            
+    def get_active_action_index(self):
+        if not bpy.context.object.animation_data.action:
+            return -1
+        real_action_index = bpy.data.actions.values().index(bpy.context.object.animation_data.action)
+        if self.old_active_action_index != real_action_index:
+            self.old_active_action_index = real_action_index
+            return real_action_index
+        else:
+            return self.old_active_action_index
+    
+    def set_active_action_index(self, value):
+        bpy.context.object.animation_data.action = bpy.data.actions[value]
+        self.old_active_action_index = value
+    
+    active_action_index: IntProperty(
+        update=update_active_action_index,
+        get=get_active_action_index,
+        set=set_active_action_index,
+    )
+    
+    old_active_action_index: IntProperty()
+    
+    # MB
     mb_startup: BoolProperty(
         name="ManagedBlam on Startup",
         description="Runs ManagedBlam.dll on Blender startup, this will lock the selected game on startup. Disable and and restart blender if you wish to change the selected game.",

@@ -57,13 +57,6 @@ class NWO_UL_AnimProps_Events(UIList):
     #     elif self.layout_type == 'GRID':
     #         layout.alignment = 'CENTER'
     #         layout.label(text="", icon_value=icon)
-    
-#############################################################
-# ANIMATION LIST
-#############################################################
-
-class NWO_AnimationList(PropertyGroup):
-    animation: bpy.props.PointerProperty(type=bpy.types.Action)
 
 #############################################################
 # ANIMATION RENAMES
