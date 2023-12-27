@@ -176,13 +176,6 @@ class NWO_UL_FacePropList(bpy.types.UIList):
     ):
         face_layer = item
         if face_layer:
-            if context.mode == "EDIT_MESH":
-                bm = bmesh.from_edit_mesh(context.object.data)
-            else:
-                bm = bmesh.new()
-                bm.from_mesh(context.object.data)
-
-            layer = bm.faces.layers.int.get(face_layer.layer_name)
             row = layout.row()
             row.scale_x = 0.25
             row.prop(face_layer, "layer_color", text="")
@@ -190,7 +183,7 @@ class NWO_UL_FacePropList(bpy.types.UIList):
             row.prop(face_layer, "name", text="", emboss=False, icon_value=icon)
             row = layout.row()
             row.alignment = "RIGHT"
-            f_count = layer_face_count(bm, layer)
+            f_count = item.face_count
             if f_count:
                 row.label(text=f"{str(f_count)}  ")
             else:

@@ -4088,9 +4088,9 @@ class NWO_HaloExportSettingsFlags(Panel):
         )
         col = flow.column()
         col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
-        if scene_nwo.asset_type in ('MODEL', 'SKY', 'FP ANIMATION'):
-            # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
-            col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
+        # if scene_nwo.asset_type in ('MODEL', 'SKY', 'FP ANIMATION'):
+        #     # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
+        #     col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
@@ -4185,12 +4185,12 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         default=False,
         options=set(),
     )
-    fast_animation_export : BoolProperty(
-        name="Fast Animation Export",
-        description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects. You should ensure animations begin at frame 0 if using this option",
-        default=False,
-        options=set(),
-    )
+    # fast_animation_export : BoolProperty(
+    #     name="Fast Animation Export",
+    #     description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects. You should ensure animations begin at frame 0 if using this option",
+    #     default=False,
+    #     options=set(),
+    # )
     export_gr2_files: BoolProperty(
         name="Export GR2 Files",
         default=True,

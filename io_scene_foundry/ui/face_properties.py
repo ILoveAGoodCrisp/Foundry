@@ -23,7 +23,6 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
-
 from bpy.types import PropertyGroup
 from bpy.props import (
     StringProperty,
@@ -33,12 +32,14 @@ from bpy.props import (
     EnumProperty,
     FloatVectorProperty,
 )
-from ..utils.nwo_utils import bpy_enum_seam, is_corinth, true_region
+from ..utils.nwo_utils import bpy_enum_seam, is_corinth, layer_face_count, true_region
 
 
 class NWO_FaceProperties_ListItems(PropertyGroup):
     layer_name: StringProperty()
-    face_count: IntProperty(options=set())
+    face_count: IntProperty(
+        options=set(),
+    )
     layer_color: FloatVectorProperty(
         subtype="COLOR_GAMMA",
         size=3,
