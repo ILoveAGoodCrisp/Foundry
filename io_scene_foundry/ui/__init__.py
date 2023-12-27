@@ -62,6 +62,7 @@ from .face_ui import (
     NWO_RegionListFace,
     NWO_GlobalMaterialRegionListFace,
     NWO_GlobalMaterialMenuFace,
+    NWO_UpdateLayersFaceCount,
 )
 
 from .face_properties import NWO_FaceProperties_ListItems
@@ -391,6 +392,7 @@ classes_nwo = (
     NWO_MeshTypes,
     NWO_MarkerTypes,
     NWO_AddHaloLight,
+    NWO_UpdateLayersFaceCount,
 )
 
 def register():

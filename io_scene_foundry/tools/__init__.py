@@ -1734,7 +1734,7 @@ class NWO_FoundryPanelProps(Panel):
         nwo = ob.data.nwo
 
         box.label(text="Face Properties", icon='FACE_MAPS')
-
+        box.operator('nwo.update_layers_face_count', text="Refresh Face Counts", icon='FILE_REFRESH')
         if len(nwo.face_props) <= 0 and context.mode != "EDIT_MESH":
             flow = box.grid_flow(
                 row_major=True,

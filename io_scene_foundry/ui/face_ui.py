@@ -188,6 +188,29 @@ class NWO_UL_FacePropList(bpy.types.UIList):
                 row.label(text=f"{str(f_count)}  ")
             else:
                 row.label(text=f"Not Assigned  ")
+                
+class NWO_UpdateLayersFaceCount(bpy.types.Operator):
+    bl_idname = "nwo.update_layers_face_count"
+    bl_label = "Refresh Face Counts"
+    bl_description = "Refreshes the face counts of all face property layers in case they are out of sync"
+    bl_options = {'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object
+
+    def execute(self, context):
+        if context.mode == "EDIT_MESH":
+            bm = bmesh.from_edit_mesh(context.object.data)
+        else:
+            bm = bmesh.new()
+            bm.from_mesh(context.object.data)
+
+        for face_layer in context.object.data.nwo.face_props:
+            face_layer.face_count = layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+            
+        return {"FINISHED"}
+
 
 
 def toggle_override(context, option, bool_var):
