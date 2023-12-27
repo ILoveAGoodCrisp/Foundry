@@ -2266,7 +2266,7 @@ class NWO_FoundryPanelProps(Panel):
             col.label(text="No Active Animation Selected")
             return
         elif not action.use_frame_range:
-            col.label(text="Animation excluded from export")
+            col.label(text="Animation excluded from export", icon='ERROR')
             col.separator()
             
         if not action.use_fake_user:
