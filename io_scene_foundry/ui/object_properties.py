@@ -24,6 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import random
+import uuid
 from .face_properties import NWO_FaceProperties_ListItems
 from bpy.props import (
     IntProperty,
@@ -1898,6 +1900,21 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=False,
+    )
+    
+    # GETTER PROPS
+    def get_object_id(self):
+        current_id = self.get('object_id', 0)
+        if current_id:
+            return current_id
+        
+        rnd = random.Random()
+        id = str(uuid.UUID(int=rnd.getrandbits(128)))
+        self['object_id'] = id
+        return id
+    
+    ObjectID: StringProperty(
+        get=get_object_id,
     )
 
     # EXPORT ONLY PROPS

@@ -2066,7 +2066,7 @@ class NWO_FoundryPanelProps(Panel):
         if mat:
             tag_type = "Material" if h4 else "Shader"
             col = box.column()
-            if mat.name in [m.name for m in special_materials] or mat.name.startswith('+sky'):
+            if nwo.SpecialMaterial:
                 if mat.name == '+invisible':
                     col.label(text=f'Invisible {tag_type} applied')
                 elif mat.name == '+invalid':
@@ -2089,7 +2089,7 @@ class NWO_FoundryPanelProps(Panel):
                             col.label(text=f"Sky Permutation {str(sky_perm)}")
                     col.operator("nwo.set_sky", text="Set Sky Permutation")
                 return
-            elif mat.name in [m.name for m in convention_materials]:
+            elif nwo.ConventionMaterial:
                 return col.label(text=f'Non-Rendered {tag_type} applied')
             else:
                 col.label(text=f"{txt} Path")

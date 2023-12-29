@@ -29,6 +29,7 @@ import bpy
 from bpy.types import PropertyGroup
 from bpy.props import StringProperty, BoolProperty
 from io_scene_foundry.utils.nwo_utils import clean_tag_path, get_asset_path, get_prefs, get_tags_path, is_corinth, valid_nwo_asset
+from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
 
 
 class NWO_MaterialPropertiesGroup(PropertyGroup):
@@ -131,6 +132,32 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         update=update_shader_dir,
         get=get_shader_dir,
         set=set_shader_dir,
+    )
+    
+    def get_special_material(self):
+        material_name: str = self.id_data.name
+        return material_name.startswith(tuple([m.name for m in special_materials]))
+    
+    SpecialMaterial: BoolProperty(
+        options={'HIDDEN', 'SKIP_SAVE'},
+        get=get_special_material,
+    )
+    
+    def get_convention_material(self):
+        material_name: str = self.id_data.name
+        return material_name.startswith(tuple([m.name for m in convention_materials]))
+    
+    ConventionMaterial: BoolProperty(
+        options={'HIDDEN', 'SKIP_SAVE'},
+        get=get_convention_material,
+    )
+    
+    def get_render_material(self):
+        return not (self.id_data.is_grease_pencil or self.SpecialMaterial or self.ConventionMaterial)
+    
+    RenderMaterial: BoolProperty(
+        options={'HIDDEN', 'SKIP_SAVE'},
+        get=get_render_material,
     )
     
     # Export Material props

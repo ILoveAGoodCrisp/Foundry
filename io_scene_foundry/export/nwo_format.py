@@ -59,7 +59,7 @@ class NWOObject:
             "_connected_geometry_object_type_animation_control",
             "_connected_geometry_object_type_animation_event",
         ):
-            self.bungie_object_ID = self.object_ID()
+            self.bungie_object_ID = self.halo.ObjectID
         # self.halo_export = '1'
         if self.bungie_object_type == "_connected_geometry_object_type_frame":
             self.bungie_object_animates = self.object_animates()

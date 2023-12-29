@@ -189,9 +189,8 @@ class NWO_FarmShaders(bpy.types.Operator):
             if not managed_blam_active():
                 bpy.ops.managed_blam.init()
             start = time.perf_counter()
-            settings = context.scene.nwo
-            shaders_dir = relative_path(settings.shaders_dir)
-            bitmaps_dir = relative_path(settings.bitmaps_dir)
+            shaders_dir = relative_path(self.shaders_dir)
+            bitmaps_dir = relative_path(self.bitmaps_dir)
             os.system("cls")
             if context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -203,12 +202,10 @@ class NWO_FarmShaders(bpy.types.Operator):
             shader_names = set()
             for mat in bpy.data.materials:
                 # Check if material is library linked
-                if mat.name != mat.name_full:
-                    continue
+                if mat.name != mat.name_full: continue
                 mat_nwo = mat.nwo
                 # Skip if either declared as not a shader or is a grease pencil material
-                if not mat_nwo.rendered or mat.is_grease_pencil:
-                    continue
+                if not mat_nwo.RenderMaterial: continue
                 s_name = get_shader_name(mat)
                 if s_name in shader_names:
                     continue
@@ -219,9 +216,9 @@ class NWO_FarmShaders(bpy.types.Operator):
                 else:
                     shaders['new'].append(mat)
 
-            if settings.shaders_scope == 'all':
+            if self.shaders_scope == 'all':
                 valid_shaders = shaders['new'] + shaders['update']
-            elif settings.shaders_scope == "new":
+            elif self.shaders_scope == "new":
                 valid_shaders = shaders['new']
             else:
                 valid_shaders = shaders['update']
@@ -233,7 +230,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 if dot_partition(image.name).endswith(BLENDER_IMAGE_FORMATS):
                     print_warning(f"{image.name} looks like a duplicate image, skipping")
                     continue
-                if not settings.all_bitmaps and not self.image_in_valid_node(image, valid_shaders):
+                if not self.all_bitmaps and not self.image_in_valid_node(image, valid_shaders):
                     continue
                 bitmap = image.nwo
                 bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
@@ -245,14 +242,14 @@ class NWO_FarmShaders(bpy.types.Operator):
                 else:
                     bitmaps['new'].append(image)
 
-            if settings.bitmaps_scope == 'all':
+            if self.bitmaps_scope == 'all':
                 valid_bitmaps = bitmaps['new'] + bitmaps['update']
-            elif settings.bitmaps_scope == "new":
+            elif self.bitmaps_scope == "new":
                 valid_bitmaps = bitmaps['new']
             else:
                 valid_bitmaps = bitmaps['update']
 
-            if settings.farm_type == "both" or settings.farm_type == "bitmaps":
+            if self.farm_type == "both" or self.farm_type == "bitmaps":
                 # Create a bitmap folder in the asset directory
                 if bitmaps_dir:
                     self.bitmaps_data_dir = os.path.join(self.data_dir + bitmaps_dir)
@@ -266,7 +263,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(f"{bitmap_count} bitmaps in scope")
                 print(f"Bitmaps Directory = {relative_path(self.bitmaps_data_dir)}\n")
                 for idx, bitmap in enumerate(valid_bitmaps):
-                    tiff_path = self.export_tiff_if_needed(bitmap, self.bitmaps_data_dir, settings.link_bitmaps)
+                    tiff_path = self.export_tiff_if_needed(bitmap, self.bitmaps_data_dir, self.link_bitmaps)
                     if tiff_path:
                         self.thread_bitmap_export(bitmap, tiff_path)
                 self.report({'INFO'}, f"Exported {bitmap_count} Bitmaps")
@@ -283,7 +280,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                     time.sleep(0.1)
                 update_job_count(job, "", total_p, total_p)
 
-            if settings.farm_type == "both" or settings.farm_type == "shaders":
+            if self.farm_type == "both" or self.farm_type == "shaders":
                 print(f"\nStarting {tag_type}s Export")
                 print(
                     "-----------------------------------------------------------------------\n"
@@ -299,9 +296,9 @@ class NWO_FarmShaders(bpy.types.Operator):
                 job = f"Exporting {tag_type}s"
                 for idx, shader in enumerate(valid_shaders):
                     update_progress(job, idx / shader_count)
-                    shader.nwo.uses_blender_nodes = settings.link_shaders
-                    if settings.default_material_shader and os.path.exists(self.tags_dir + settings.default_material_shader):
-                        shader.nwo.material_shader = settings.default_material_shader
+                    shader.nwo.uses_blender_nodes = self.link_shaders
+                    if self.default_material_shader and os.path.exists(self.tags_dir + self.default_material_shader):
+                        shader.nwo.material_shader = self.default_material_shader
                     build_shader(shader, self.corinth, shaders_dir)
                 update_progress(job, 1)
                 self.report({'INFO'}, f"Exported {shader_count} {tag_type}s")
