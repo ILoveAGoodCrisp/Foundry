@@ -853,9 +853,15 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def scale_items(self, context):
         items = []
-        items.append(('meters', 'Meters', "1 meter in Blender is equal to 1 meter in game", 'BLENDER', 0))
+        items.append(('meters', 'Blender', "1 meter in Blender is equal to 1 meter in game", 'BLENDER', 0))
         items.append(('halo', 'Halo', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
-        items.append(('legacy', 'Legacy', "Scene is exported without accounting for Halo scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down", get_icon_id("halo_scale"), 2))
+        items.append(('legacy', '3DS Max', "Scene is exported without accounting for Halo scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down", get_icon_id("halo_scale"), 2))
+        return items
+    
+    def scale_display_items(self, context):
+        items = []
+        items.append(('meters', 'Meters', "1 meter in Blender is equal to 1 meter in game", 'BLENDER', 0))
+        items.append(('halo', 'World Units', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
         return items
     
     scale: EnumProperty(
@@ -866,17 +872,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         update=scale_update,
     )
     
-    def scale_items(self, context):
-        items = []
-        items.append(('meters', 'Meters', "1 meter in Blender is equal to 1 meter in game", 'BLENDER', 0))
-        items.append(('halo', 'Halo', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
-        items.append(('legacy', 'Legacy', "Scene is exported without accounting for Halo scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down", get_icon_id("halo_scale"), 2))
-        return items
-    
-    world_units_scale: BoolProperty(
-        name="Show as World Units",
+    scale_display: EnumProperty(
+        name="Scale Display",
         options=set(),
-        description="Blender Unit Scale",
+        description="Select whether to display scale as meters or world units",
+        items=scale_display_items,
         update=scale_update,
     )
     

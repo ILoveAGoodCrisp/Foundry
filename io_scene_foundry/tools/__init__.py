@@ -319,7 +319,7 @@ class NWO_FoundryPanelProps(Panel):
         row.scale_y = 1.1
         row.prop(scene.nwo, 'scale', text='Scale', expand=True)
         row = col.row()
-        row.prop(scene.nwo, 'world_units_scale', expand=True)
+        row.prop(scene.nwo, 'scale_display', text='Scale Display', expand=True)
         if nwo.asset_type in ("MODEL", "FP ANIMATION"):
             row = col.row()
             row.prop(nwo, "forward_direction", text="Model Forward", expand=True)
