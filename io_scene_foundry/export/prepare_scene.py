@@ -219,9 +219,9 @@ class PrepareScene:
         
         # Scale objects
         export_scale = 1
-        if scene_nwo.export_scale == 'wu':
+        if scene_nwo.scale == 'halo':
             export_scale = 100
-        elif scene_nwo.export_scale == 'real':
+        elif scene_nwo.scale == 'meters':
             export_scale = (1 / 0.03048)
         
         if export_scale != 1:

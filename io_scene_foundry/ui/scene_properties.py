@@ -840,43 +840,21 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def scale_items(self, context):
         items = []
-        items.append(('blender', 'Blender', "Blender scale, 1 meter is equal to 0.01 game world units or 1 blender unit", 'BLENDER', 0))
-        items.append(('wu', 'Game', "1 meter is equal to 1 in game world unit or 100 blender units. Use this when you want the units displayed in blender to match Sapien", get_icon_id('wu_scale'), 1))
-        items.append(('real', 'Real', "1 meter is equal to 0.328 in game world units or 32.8 blender units. Objects are scaled to their real life proportions. Use this when you want units displayed in blender to be accurate to real life object proportions i.e. The height of Masterchief displayed in Blender will match his lore height", get_icon_id("halo_scale"), 2))
+        items.append(('meters', 'Meters', "1 meter in Blender is equal to 1 meter in game", 'BLENDER', 0))
+        items.append(('halo', 'Halo', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
+        items.append(('legacy', 'Legacy', "Scene is exported without accounting for Halo scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down", get_icon_id("halo_scale"), 2))
         return items
     
     # Scale
     def scale_update(self, context):
-        match self.view_scale:
-            case 'blender':
-                bpy.ops.nwo.set_unit_scale(scale=1.0)
-            case 'wu':
-                bpy.ops.nwo.set_unit_scale(scale=0.01)
-            case 'real':
-                bpy.ops.nwo.set_unit_scale(scale=0.03048)
+        bpy.ops.nwo.set_unit_scale(scale=0.3048 if self.view_scale == 'legacy' else 1)
     
-    view_scale: EnumProperty(
-        name="View Scale",
+    scale: EnumProperty(
+        name="Scale",
         options=set(),
-        description="Select the scale to apply to the scene",
+        description="Select the scaling for this asset. Scale is applied at export to ensure units displayed in Blender match with in game units",
         items=scale_items,
         update=scale_update
-    )
-    
-    def export_scale_items(self, context):
-        items=[
-            ('blender', 'Blender', "", 'BLENDER', 0),
-            ('wu', 'Game', "", get_icon_id('wu_scale'), 1),
-            ('real', 'Real', "", get_icon_id('halo_scale'), 2),
-        ]
-        
-        return items
-    
-    export_scale: EnumProperty(
-        name="Export Scale",
-        options=set(),
-        description="Select the scale to be applied to this scene at export. Halo scale exports the model as is from the blend scene. Blender scale multiplies object scale by 100 at export",
-        items=export_scale_items,
     )
     
     export_in_progress: BoolProperty()
