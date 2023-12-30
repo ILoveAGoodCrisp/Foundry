@@ -133,14 +133,17 @@ class NWO_SetTimeline(bpy.types.Operator):
     def execute(self, context):
         action = context.object.animation_data.action
         scene = context.scene
-        scene.frame_start = int(action.frame_start)
-        if self.exclude_first_frame:
-            scene.frame_start += 1
-        scene.frame_end = int(action.frame_end)
-        if self.exclude_last_frame:
-            scene.frame_end -= 1
-            
-        scene.frame_current = scene.frame_start
+        start_frame = int(action.frame_start)
+        end_frame = int(action.frame_end)
+        if (end_frame - start_frame) > 0:
+            scene.frame_start = int(action.frame_start)
+            if self.exclude_first_frame:
+                scene.frame_start += 1
+            scene.frame_end = int(action.frame_end)
+            if self.exclude_last_frame:
+                scene.frame_end -= 1
+                
+            scene.frame_current = scene.frame_start
             
         return {'FINISHED'}
     

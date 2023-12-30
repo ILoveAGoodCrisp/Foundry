@@ -269,7 +269,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(f"{bitmap_count} bitmaps in scope")
                 print(f"Bitmaps Directory = {relative_path(self.bitmaps_data_dir)}\n")
                 for idx, bitmap in enumerate(valid_bitmaps):
-                    tiff_path = self.export_tiff_if_needed(bitmap, self.bitmaps_data_dir, self.link_bitmaps)
+                    tiff_path = self.export_tiff_if_needed(bitmap)
                     if tiff_path:
                         self.thread_bitmap_export(bitmap, tiff_path)
                 self.report({'INFO'}, f"Exported {bitmap_count} Bitmaps")
