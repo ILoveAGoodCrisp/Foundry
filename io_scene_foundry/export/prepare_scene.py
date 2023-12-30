@@ -35,7 +35,6 @@ from mathutils import Matrix, Vector
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
-from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from ..utils.nwo_utils import (
     bool_str,
@@ -164,6 +163,8 @@ class PrepareScene:
         h4 = is_corinth(context)
         game_version = 'corinth' if h4 else 'reach'
         
+        scene_nwo = context.scene.nwo
+        
         global render_mesh_types
         if not h4 or asset_type in ('MODEL', 'SKY'):
             render_mesh_types.append('_connected_geometry_mesh_type_default')
@@ -216,21 +217,56 @@ class PrepareScene:
         context.view_layer.update()
         # print("make_local")
         
-        # Scale it all!
-        scene_nwo = context.scene.nwo
-        my_scale = 1
+        # Scale objects
+        export_scale = 1
         if scene_nwo.export_scale == 'wu':
-            my_scale = 100
+            export_scale = 100
         elif scene_nwo.export_scale == 'real':
-            my_scale = (1 / 0.03048)
+            export_scale = (1 / 0.03048)
         
-        if scene_nwo.export_scale == 'real' or scene_nwo.export_scale == 'wu':
-            [ob.select_set(True) for ob in bpy.data.objects]
-            context.scene.cursor.location = Vector((0, 0, 0))
-            context.scene.tool_settings.transform_pivot_point = 'CURSOR'
-            bpy.ops.transform.resize(value=(my_scale, my_scale, my_scale), orient_type='GLOBAL', orient_matrix=((1, 0, 0), (0, 1, 0), (0, 0, 1)), orient_matrix_type='GLOBAL', mirror=False, use_proportional_edit=False, proportional_edit_falloff='SMOOTH', proportional_size=1, use_proportional_connected=False, use_proportional_projected=False, snap=False, snap_elements={'INCREMENT'}, use_snap_project=False, snap_target='CLOSEST', use_snap_self=True, use_snap_edit=True, use_snap_nonedit=True, use_snap_selectable=False, alt_navigation=True)
-            [ob.select_set(False) for ob in bpy.data.objects]
-
+        if export_scale != 1:
+            armatures = []
+            for ob in bpy.data.objects:
+                loc, rot, sca = ob.matrix_world.decompose()
+                loc *= export_scale
+                ob.location *= export_scale
+                if ob.type == 'EMPTY':
+                    ob.empty_display_size *= export_scale
+                elif ob.type == 'ARMATURE':
+                    armatures.append(ob)
+                elif ob.type not in ('MESH', 'CURVE', 'FONT', 'ARMATURE'):
+                    sca *= export_scale
+                
+                ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+                    
+            for curve in bpy.data.curves:
+                curve.size *= export_scale
+                    
+            for mesh in bpy.data.meshes:
+                for vert in mesh.vertices:
+                    vert.co *= export_scale
+                    
+            for arm in armatures:
+                # get all objects with this armature as a parent as to fix parenting
+                ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
+                data: bpy.types.Armature = arm.data
+                set_active_object(arm)
+                bpy.ops.object.editmode_toggle()
+                for edit_bone in data.edit_bones:
+                    edit_bone.tail *= export_scale
+                    edit_bone.head *= export_scale
+                    
+                bpy.ops.object.editmode_toggle()
+                
+                for ob, matrix in ob_matrix_dict.items():
+                    ob.matrix_world = matrix
+                    
+            for action in bpy.data.actions:
+                for fcurve in action.fcurves:
+                    if fcurve.data_path.endswith('location'):
+                        for keyframe_point in fcurve.keyframe_points:
+                            keyframe_point.co[1] *= export_scale
+            
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
         
@@ -602,7 +638,7 @@ class PrepareScene:
             export_obs = context.view_layer.objects[:]
             
             # Fix objects with bad scale values
-            poops, nonstandard_scale = self.fix_scale([ob for ob in export_obs if ob.type == 'MESH'])
+            poops, nonstandard_scale = self.fix_scale(export_obs)
             if poops and nonstandard_scale:
                 stomp_scale_multi_user(poops)
                 
@@ -3488,10 +3524,10 @@ class PrepareScene:
             if is_poop:
                 poops.append(ob)
             if abs_scale != TARGET_SCALE:
-                if ob.type == 'ARMATURE':
-                    self.warning_hit = True
-                    print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
-                elif ob.data.users > 1 and is_poop:
+                # if ob.type == 'ARMATURE':
+                #     self.warning_hit = True
+                #     print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
+                if ob.data.users > 1 and is_poop:
                     linked_poops_with_nonstandard_scale = True
                     continue
                 elif ob.data.users > 1:

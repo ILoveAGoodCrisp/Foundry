@@ -1074,6 +1074,23 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Controls whether this object is exported or not",
         options=set(),
     )
+    
+    # def get_export_type(self):
+    #     ob = self.id_data
+    #     nwo = ob.nwo
+    #     if not nwo.export_this:
+    #         return 'no_export_this'
+    #     elif 
+    
+    # export_type: EnumProperty(get=get_export_type,
+    #     items=[
+    #         ('yes', '', ''),
+    #         ('no_export_this', '', ''),
+    #         ('no_exclude_collection', '', ''),
+    #         ('no_invalid_object_type', '', ''),
+    #     ]
+    #     options={'HIDDEN' ,'SKIP_SAVe'}
+    # )
 
     # OBJECT LEVEL PROPERTIES
 
@@ -1849,6 +1866,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Define the name of the region these faces should be associated with",
         get=get_region_name_ui,
         set=set_region_name_ui,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def get_region_from_collection(self):
@@ -1859,6 +1877,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Face Region",
         description="Define the region for this mesh",
         get=get_region_from_collection,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def get_permutation_name_ui(self):
@@ -1883,6 +1902,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Define the permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
         get=get_permutation_name_ui,
         set=set_permutation_name_ui,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     def get_permutation_from_collection(self):
@@ -1893,6 +1913,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Permutation",
         description="Define the permutation of this object. Leave blank for default",
         get=get_permutation_from_collection,
+        override={'LIBRARY_OVERRIDABLE'},
     )
 
     is_pca_ui: BoolProperty(

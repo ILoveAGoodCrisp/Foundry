@@ -242,7 +242,7 @@ class ProcessScene:
                     and nwo_scene.model_armature.animation_data
                 ):
                     if scene_nwo_export.export_animations != "NONE":
-                        self.remove_all_but_armatures(nwo_scene)
+                        # self.remove_all_but_armatures(nwo_scene)
 
                         timeline = context.scene
                         print("\n\nStarting Animations Export")

@@ -35,7 +35,7 @@ from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import ExportManager, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import ExportManager, asset_path_from_blend_location, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_nwo_asset
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -185,6 +185,7 @@ class NWO_FarmShaders(bpy.types.Operator):
             self.tags_dir = get_tags_path()
             self.data_dir = get_data_path()
             self.asset_path = get_asset_path()
+            blend_asset_path = asset_path_from_blend_location()
             tag_type = 'Material' if self.corinth else 'Shader'
             if not managed_blam_active():
                 bpy.ops.managed_blam.init()
@@ -253,8 +254,13 @@ class NWO_FarmShaders(bpy.types.Operator):
                 # Create a bitmap folder in the asset directory
                 if bitmaps_dir:
                     self.bitmaps_data_dir = os.path.join(self.data_dir + bitmaps_dir)
-                else:
+                elif self.asset_path:
                     self.bitmaps_data_dir = os.path.join(self.data_dir + self.asset_path, "bitmaps")
+                elif blend_asset_path:
+                    self.bitmaps_data_dir = os.path.join(blend_asset_path, 'bitmaps')
+                else:
+                    self.bitmaps_data_dir = self.data_dir + "bitmaps"
+                    
                 print("\nStarting Bitmap Export")
                 print(
                     "-----------------------------------------------------------------------\n"
@@ -288,6 +294,8 @@ class NWO_FarmShaders(bpy.types.Operator):
                 if not shaders_dir:
                     if self.asset_path:
                         shaders_dir = os.path.join(self.asset_path, "materials" if self.corinth else 'shaders')
+                    elif blend_asset_path:
+                        shaders_dir = os.path.join(blend_asset_path, "materials" if self.corinth else 'shaders')
                     else:
                         shaders_dir = "materials" if self.corinth else 'shaders'
                 shader_count = len(valid_shaders)
@@ -318,11 +326,9 @@ class NWO_FarmShaders(bpy.types.Operator):
         
         return {'FINISHED'}
     
-    def export_tiff_if_needed(self, image, bitmaps_data_dir, export_tiff):
+    def export_tiff_if_needed(self, image):
         image.nwo.source_name = dot_partition(image.name) + ".tif"
-        job = f"-- Tiff Export: {image.nwo.source_name}"
         user_path = image.filepath_from_user()
-        nwo_full_filepath = self.data_dir + image.nwo.filepath
         is_tiff = image.file_format == 'TIFF'
         if is_tiff and user_path and user_path.startswith(self.data_dir) and os.path.exists(user_path):
             image.nwo.filepath = user_path.replace(self.data_dir, "")
@@ -340,7 +346,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                     return print_warning(f"{image.name} has no data. Cannot export Tif")
         else:
             if image.has_data:
-                image.nwo.filepath = save_image_as(image, bitmaps_data_dir, tiff_name=image.nwo.source_name)
+                image.nwo.filepath = save_image_as(image, self.bitmaps_data_dir, tiff_name=image.nwo.source_name)
             else:
                 return print_warning(f"{image.name} has no data. Cannot export Tif")
                 

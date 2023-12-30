@@ -1816,3 +1816,10 @@ def reset_to_basis(keep_animation=False):
         if ob.type == 'ARMATURE':
             for bone in ob.pose.bones:
                 bone.matrix_basis = Matrix()
+                
+def asset_path_from_blend_location() -> str | None:
+    blend_path = bpy.data.filepath.lower()
+    data_path = get_data_path()
+    if blend_path.startswith(data_path):
+        return os.path.dirname(blend_path).replace(data_path, '')
+    return None
