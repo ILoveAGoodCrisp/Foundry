@@ -847,7 +847,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     # Scale
     def scale_update(self, context):
-        bpy.ops.nwo.set_unit_scale(scale=0.3048 if self.view_scale == 'legacy' else 1)
+        bpy.ops.nwo.set_unit_scale(scale=0.3048 if self.scale == 'legacy' else 1)
     
     scale: EnumProperty(
         name="Scale",
