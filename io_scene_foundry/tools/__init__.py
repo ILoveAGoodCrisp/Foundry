@@ -320,6 +320,9 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(scene.nwo, 'scale', text='Scale', expand=True)
         row = col.row()
         row.prop(scene.nwo, 'scale_display', text='Scale Display', expand=True)
+        if scene.nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
+            row = col.row()
+            row.label(text='World Units only accurate when Unit Length is Meters', icon='ERROR')
         if nwo.asset_type in ("MODEL", "FP ANIMATION"):
             row = col.row()
             row.prop(nwo, "forward_direction", text="Model Forward", expand=True)

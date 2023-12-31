@@ -860,7 +860,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     def scale_display_items(self, context):
         items = []
-        items.append(('meters', 'Meters', "1 meter in Blender is equal to 1 meter in game", 'BLENDER', 0))
+        unit_length: str = context.scene.unit_settings.length_unit
+        items.append(('meters', unit_length.title(), "1 meter in Blender is equal to 1 meter in game", 'BLENDER', 0))
         items.append(('halo', 'World Units', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
         return items
     
