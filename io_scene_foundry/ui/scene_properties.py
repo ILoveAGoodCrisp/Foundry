@@ -848,7 +848,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             case 'halo':
                 scene_scale = 1 if world_units else 3.048
             case 'legacy':
-                scene_scale = 0.01 if world_units else 0.3048
+                scene_scale = 0.01 if world_units else 0.03048
             
         bpy.ops.nwo.set_unit_scale(scale=scene_scale)
         
