@@ -270,6 +270,7 @@ class PrepareScene:
                     should_be_hidden = True
                     
                 if not arm.visible_get():
+                    self.unlink(arm)
                     scene_coll.link(arm)
                     should_be_unlinked = True
                     
