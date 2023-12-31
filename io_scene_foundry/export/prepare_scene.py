@@ -216,7 +216,7 @@ class PrepareScene:
 
         context.view_layer.update()
         # print("make_local")
-        
+        scene_coll = context.scene.collection.objects
         # Scale objects
         self.export_scale = 1
         if scene_nwo.scale == 'meters':
@@ -260,9 +260,19 @@ class PrepareScene:
                 light.nwo.light_fade_end_distance *= self.export_scale
                     
             for arm in armatures:
+                should_be_hidden = False
+                should_be_unlinked = False
                 # get all objects with this armature as a parent as to fix parenting
                 ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
                 data: bpy.types.Armature = arm.data
+                if arm.hide_get():
+                    arm.hide_set(False)
+                    should_be_hidden = True
+                    
+                if not arm.visible_get():
+                    scene_coll.link(arm)
+                    should_be_unlinked = True
+                    
                 set_active_object(arm)
                 bpy.ops.object.editmode_toggle()
                 for edit_bone in data.edit_bones:
@@ -270,6 +280,12 @@ class PrepareScene:
                     edit_bone.head *= self.export_scale
                     
                 bpy.ops.object.editmode_toggle()
+                
+                if should_be_hidden:
+                    arm.hide_set(True)
+                    
+                if should_be_unlinked:
+                    self.unlink(arm)
                 
                 for ob, matrix in ob_matrix_dict.items():
                     ob.matrix_world = matrix
@@ -306,8 +322,6 @@ class PrepareScene:
         export_obs = context.view_layer.objects[:]
         
         scenario_asset = asset_type == "SCENARIO"
-
-        scene_coll = context.scene.collection.objects
 
         protected_names = self.get_bone_names(export_obs, context.scene.nwo)
         # build proxy instances from structure
