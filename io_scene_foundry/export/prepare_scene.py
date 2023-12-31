@@ -3514,27 +3514,28 @@ class PrepareScene:
         bpy.ops.object.posemode_toggle()
         arm.select_set(False)
         
-    def fix_scale(self, mesh_objects):
+    def fix_scale(self, objects):
         apply_targets = []
         poops = []
         linked_poops_with_nonstandard_scale = False
-        for ob in mesh_objects:
+        for ob in objects:
             abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
             is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' # only poops may be scaled
             if is_poop:
                 poops.append(ob)
             if abs_scale != TARGET_SCALE:
-                # if ob.type == 'ARMATURE':
-                #     self.warning_hit = True
-                #     print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
-                if ob.data.users > 1 and is_poop:
-                    linked_poops_with_nonstandard_scale = True
-                    continue
-                elif ob.data.users > 1:
-                    # Create new mesh data and apply scale
-                    if self.verbose_warnings:
-                        print_warning(f'{ob.name} has scale values of: {ob.scale}. New mesh data created')
-                    ob.data = ob.data.copy()
+                if ob.type == 'ARMATURE':
+                    self.warning_hit = True
+                    print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
+                elif ob.data and ob.data.users:
+                    if ob.data.users > 1 and is_poop:
+                        linked_poops_with_nonstandard_scale = True
+                        continue
+                    elif ob.data.users > 1:
+                        # Create new mesh data and apply scale
+                        if self.verbose_warnings:
+                            print_warning(f'{ob.name} has scale values of: {ob.scale}. New mesh data created')
+                        ob.data = ob.data.copy()
                 apply_targets.append(ob)
                 if self.verbose_warnings:
                     print_warning(f'Applying scale to {ob.name}')
