@@ -82,6 +82,7 @@ from io_scene_foundry.utils.nwo_utils import (
     foundry_update_check,
     get_arm_count,
     get_data_path,
+    get_export_scale,
     get_halo_material_count,
     get_marker_display,
     get_mesh_display,
@@ -778,8 +779,10 @@ class NWO_FoundryPanelProps(Panel):
                 return
 
             col.prop(data, "color")
+            col.prop(data, "energy")
             col.prop(nwo, 'light_intensity', text="Intensity")
-            if data.energy < 11 and data.type != 'SUN':
+            scaled_energy = data.energy * get_export_scale(context)
+            if scaled_energy < 11 and data.type != 'SUN':
                 # Warn user about low light power. Need the light scaled to Halo proportions
                 col.label(text="Light itensity is very low", icon='ERROR')
                 col.label(text="For best results match the power of the light in")
@@ -1733,7 +1736,8 @@ class NWO_FoundryPanelProps(Panel):
         nwo = ob.data.nwo
 
         box.label(text="Face Properties", icon='FACE_MAPS')
-        box.operator('nwo.update_layers_face_count', text="Refresh Face Counts", icon='FILE_REFRESH')
+        if nwo.face_props:
+            box.operator('nwo.update_layers_face_count', text="Refresh Face Counts", icon='FILE_REFRESH')
         if len(nwo.face_props) <= 0 and context.mode != "EDIT_MESH":
             flow = box.grid_flow(
                 row_major=True,

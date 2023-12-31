@@ -1823,3 +1823,17 @@ def asset_path_from_blend_location() -> str | None:
     if blend_path.startswith(data_path):
         return os.path.dirname(blend_path).replace(data_path, '')
     return None
+
+def get_export_scale(context) -> int:
+    export_scale = 1
+    scene_nwo = context.scene.nwo
+    if scene_nwo.scale == 'halo':
+        export_scale = 100
+    elif scene_nwo.scale == 'meters':
+        export_scale = (1 / 0.03048)
+        
+    return export_scale
+
+def wu(meters) -> int:
+    '''Converts a meter to a world unit'''
+    return meters * 3.048

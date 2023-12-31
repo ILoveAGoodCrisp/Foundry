@@ -218,33 +218,46 @@ class PrepareScene:
         # print("make_local")
         
         # Scale objects
-        export_scale = 1
-        if scene_nwo.scale == 'halo':
-            export_scale = 100
-        elif scene_nwo.scale == 'meters':
-            export_scale = (1 / 0.03048)
+        self.export_scale = 1
+        if scene_nwo.scale == 'meters':
+            self.export_scale = (1 / 0.03048)
         
-        if export_scale != 1:
+        if self.export_scale != 1:
             armatures = []
+            scale_matrix = Matrix.Scale(self.export_scale, 4)
             for ob in bpy.data.objects:
                 loc, rot, sca = ob.matrix_world.decompose()
-                loc *= export_scale
-                ob.location *= export_scale
+                loc *= self.export_scale
                 if ob.type == 'EMPTY':
-                    ob.empty_display_size *= export_scale
+                    ob.empty_display_size *= self.export_scale
                 elif ob.type == 'ARMATURE':
                     armatures.append(ob)
-                elif ob.type not in ('MESH', 'CURVE', 'FONT', 'ARMATURE'):
-                    sca *= export_scale
                 
                 ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
                     
             for curve in bpy.data.curves:
-                curve.size *= export_scale
+                if hasattr(curve, 'size'):
+                    curve.size *= self.export_scale
+                else:
+                    curve.transform(scale_matrix)
+                
+            for metaball in bpy.data.metaballs:
+                metaball.transform(scale_matrix)
+                
+            for lattice in bpy.data.lattices:
+                lattice.transform(scale_matrix)
                     
             for mesh in bpy.data.meshes:
-                for vert in mesh.vertices:
-                    vert.co *= export_scale
+                mesh.transform(scale_matrix)
+                
+            for light in bpy.data.lights:
+                light.energy *= self.export_scale ** 2
+                light.nwo.light_far_attenuation_start *= self.export_scale
+                light.nwo.light_far_attenuation_end *= self.export_scale
+                light.nwo.light_near_attenuation_start *= self.export_scale
+                light.nwo.light_near_attenuation_end *= self.export_scale
+                light.nwo.light_fade_start_distance *= self.export_scale
+                light.nwo.light_fade_end_distance *= self.export_scale
                     
             for arm in armatures:
                 # get all objects with this armature as a parent as to fix parenting
@@ -253,8 +266,8 @@ class PrepareScene:
                 set_active_object(arm)
                 bpy.ops.object.editmode_toggle()
                 for edit_bone in data.edit_bones:
-                    edit_bone.tail *= export_scale
-                    edit_bone.head *= export_scale
+                    edit_bone.tail *= self.export_scale
+                    edit_bone.head *= self.export_scale
                     
                 bpy.ops.object.editmode_toggle()
                 
@@ -265,7 +278,7 @@ class PrepareScene:
                 for fcurve in action.fcurves:
                     if fcurve.data_path.endswith('location'):
                         for keyframe_point in fcurve.keyframe_points:
-                            keyframe_point.co[1] *= export_scale
+                            keyframe_point.co[1] *= self.export_scale
             
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
@@ -1363,10 +1376,10 @@ class PrepareScene:
         # emissive props
         if face_props.emissive_override:
             mesh_props.material_lighting_attenuation_falloff = jstr(
-                face_props.material_lighting_attenuation_falloff_ui
+                face_props.material_lighting_attenuation_falloff_ui * self.export_scale * 100
             )
             mesh_props.material_lighting_attenuation_cutoff = jstr(
-                face_props.material_lighting_attenuation_cutoff_ui
+                face_props.material_lighting_attenuation_cutoff_ui * self.export_scale * 100
             )
             mesh_props.material_lighting_emissive_focus = jstr(
                 face_props.material_lighting_emissive_focus_ui
@@ -1379,11 +1392,11 @@ class PrepareScene:
             )
             if h4:
                 mesh_props.material_lighting_emissive_power = jstr(
-                    face_props.material_lighting_emissive_power_ui / 20
+                    face_props.material_lighting_emissive_power_ui * self.export_scale / 20
                 )
             else:
                 mesh_props.material_lighting_emissive_power = jstr(
-                    face_props.material_lighting_emissive_power_ui
+                    face_props.material_lighting_emissive_power_ui * self.export_scale
                 )
             mesh_props.material_lighting_emissive_quality = jstr(
                 face_props.material_lighting_emissive_quality_ui
@@ -2113,10 +2126,10 @@ class PrepareScene:
                     )
                 if nwo_data.emissive_active:
                     nwo.material_lighting_attenuation_falloff = jstr(
-                        nwo_data.material_lighting_attenuation_falloff_ui * 100
+                        nwo_data.material_lighting_attenuation_falloff_ui * self.export_scale
                     )
                     nwo.material_lighting_attenuation_cutoff = jstr(
-                        nwo_data.material_lighting_attenuation_cutoff_ui * 100
+                        nwo_data.material_lighting_attenuation_cutoff_ui * self.export_scale
                     )
                     nwo.material_lighting_emissive_focus = jstr(
                         nwo_data.material_lighting_emissive_focus_ui

@@ -49,6 +49,7 @@ from ..utils.nwo_utils import (
     is_corinth,
     nwo_enum,
     poll_ui,
+    wu,
 )
 
 # def get_default_mesh_type():
@@ -356,9 +357,11 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_attenuation_cutoff_ui: FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
-        description="Determines how far light travels before it stops (in world units)",
+        description="Determines how far light travels before it stops",
         min=0,
-        default=2,
+        default=wu(2),
+        subtype='DISTANCE',
+        unit='LENGTH',
     )
 
     lighting_attenuation_enabled: BoolProperty(
@@ -371,9 +374,11 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_attenuation_falloff_ui: FloatProperty(
         name="Material Lighting Attenuation Falloff",
         options=set(),
-        description="Determines how far light travels before its power begins to falloff (in world units)",
+        description="Determines how far light travels before its power begins to falloff",
         min=0,
-        default=1,
+        default=wu(1),
+        subtype='DISTANCE',
+        unit='LENGTH',
     )
 
     material_lighting_emissive_focus_active: BoolProperty()
@@ -409,6 +414,8 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         description="",
         min=0,
         default=10,
+        subtype='POWER',
+        unit='POWER',
         update=update_emissive,
     )
 
@@ -2180,9 +2187,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_near_attenuation_start: FloatProperty(
         name="Light Activation Start",
         options=set(),
-        description="The power of the light remains zero up until this point (in world units)",
+        description="The power of the light remains zero up until this point",
         default=0,
         min=0,
+        subtype='DISTANCE',
+        unit='LENGTH',
         update=update_light_near_attenuation_start,
     )
     
@@ -2195,9 +2204,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_near_attenuation_end: FloatProperty(
         name="Light Activation End",
         options=set(),
-        description="From the light activation start, light power gradually increases up until the end point (in world units).",
+        description="From the light activation start, light power gradually increases up until the end point",
         default=0,
         min=0,
+        subtype='DISTANCE',
+        unit='LENGTH',
         update=update_light_near_attenuation_end,
     )
     
@@ -2210,9 +2221,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_far_attenuation_start: FloatProperty(
         name="Light Falloff Start",
         options=set(),
-        description="After this point, the light will begin to lose power (in world units)",
+        description="After this point, the light will begin to lose power",
         default=0,
         min=0,
+        subtype='DISTANCE',
+        unit='LENGTH',
         update=update_light_far_attenuation_start,
     )
     
@@ -2223,9 +2236,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_far_attenuation_end: FloatProperty(
         name="Light Falloff End",
         options=set(),
-        description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point (in world units). Setting this to 0 will let the game automatically calculate light falloff based on intensity",
+        description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point. Setting this to 0 will let the game automatically calculate light falloff based on intensity",
         default=0,
         min=0,
+        subtype='DISTANCE',
+        unit='LENGTH',
         update=update_light_far_attenuation_end,
     )
 
@@ -2248,15 +2263,19 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_fade_start_distance: FloatProperty(
         name="Light Fade Out Start",
         options=set(),
-        description="The light starts to fade out when the camera is x world units away",
-        default=100.0,
+        description="The light starts to fade out when the camera is x units away",
+        default=wu(100),
+        subtype='DISTANCE',
+        unit='LENGTH',
     )
 
     light_fade_end_distance: FloatProperty(
         name="Light Fade Out End",
         options=set(),
-        description="The light completely fades out when the camera is x world units away",
-        default=150.0,
+        description="The light completely fades out when the camera is x units away",
+        default=wu(150),
+        subtype='DISTANCE',
+        unit='LENGTH',
     )
 
     light_ignore_bsp_visibility: BoolProperty(
