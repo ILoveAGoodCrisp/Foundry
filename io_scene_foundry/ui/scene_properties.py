@@ -841,15 +841,20 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # Scale
     def scale_update(self, context):
         scene_scale = 1
+        world_units = self.scale_display == 'halo'
         match self.scale:
             case 'meters':
-                scene_scale = 3.048 if self.world_units_scale else 1
+                scene_scale = 3.048 if world_units else 1
             case 'halo':
-                scene_scale = 1 if self.world_units_scale else 3.048
+                scene_scale = 1 if world_units else 3.048
             case 'legacy':
-                scene_scale = 0.01 if self.world_units_scale else 0.3048
+                scene_scale = 0.01 if world_units else 0.3048
             
         bpy.ops.nwo.set_unit_scale(scale=scene_scale)
+        
+        if self.scale_display == 'halo':
+            context.scene.unit_settings.system = 'METRIC'
+            context.scene.unit_settings.length_unit = 'METERS'
     
     def scale_items(self, context):
         items = []

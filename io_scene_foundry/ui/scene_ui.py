@@ -99,33 +99,26 @@ class NWO_SetUnitScale(NWO_Op):
     scale: bpy.props.FloatProperty(
         description="The scene scaling to apply. If using Meters or Halo scaling, this defaults to 1, otherwise 0.3048. Note that changing this value does not affect export scaling"
     )
-    
-    update_scene : BoolProperty(
-        name="Update Scene Scale",
-        description="Set whether updating scale should influence the current scene unit scaling",
-        default=True,
-    )
 
     @classmethod
     def poll(self, context):
         return context.scene
 
     def execute(self, context):
-        if self.update_scene:
-            # define the Halo scale
-            # Apply scale to clipping in all windows if halo_scale has not already been set
-            current_scale = context.scene.unit_settings.scale_length
-            scale_ratio = current_scale / self.scale
-            for workspace in bpy.data.workspaces:
-                for screen in workspace.screens:
-                    for area in screen.areas:
-                        if area.type == "VIEW_3D":
-                            for space in area.spaces:
-                                if space.type == "VIEW_3D":
-                                    space.clip_start = space.clip_start * scale_ratio
-                                    space.clip_end = space.clip_end * scale_ratio
-            # Set halo scale
-            context.scene.unit_settings.scale_length = self.scale
+        # define the Halo scale
+        # Apply scale to clipping in all windows if halo_scale has not already been set
+        current_scale = context.scene.unit_settings.scale_length
+        scale_ratio = current_scale / self.scale
+        for workspace in bpy.data.workspaces:
+            for screen in workspace.screens:
+                for area in screen.areas:
+                    if area.type == "VIEW_3D":
+                        for space in area.spaces:
+                            if space.type == "VIEW_3D":
+                                space.clip_start = space.clip_start * scale_ratio
+                                space.clip_end = space.clip_end * scale_ratio
+        # Set halo scale
+        context.scene.unit_settings.scale_length = self.scale
         return {"FINISHED"}
     
     def draw(self, context):
