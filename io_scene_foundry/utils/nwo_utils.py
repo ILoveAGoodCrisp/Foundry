@@ -1287,20 +1287,24 @@ def setup_projects_list(skip_registry_check=False, report=None):
 
 def update_tables_from_objects(context):
     regions_table = context.scene.nwo.regions_table
-    region_names = {e.name for e in regions_table}
+    region_names = [e.name for e in regions_table]
     permutations_table = context.scene.nwo.permutations_table
-    permutation_names = {e.name for e in permutations_table}
+    permutation_names = [e.name for e in permutations_table]
     scene_obs = context.scene.objects
     for ob in scene_obs:
         ob_region = true_region(ob.nwo)
-        if ob_region not in region_names:
+        if not ob_region:
+            ob.nwo.region_name_ui = region_names[0]
+        elif ob_region not in region_names:
             new_region = regions_table.add()
             new_region.name = ob_region
             region_names.add(ob_region)
             ob.nwo.region_name_ui = ob_region
 
         ob_permutation = true_permutation(ob.nwo)
-        if ob_permutation not in permutation_names:
+        if not ob_permutation:
+            ob.nwo.permutation_name_ui = permutation_names[0]
+        elif ob_permutation not in permutation_names:
             new_permutation = permutations_table.add()
             new_permutation.name = ob_permutation
             permutation_names.add(ob_permutation)
