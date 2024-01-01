@@ -27,7 +27,7 @@
 import bpy
 from bpy_extras.object_utils import object_data_add
 import os
-from mathutils import Vector # Don't remove this!!
+from mathutils import Matrix, Vector # Don't remove this!!
 import zipfile
 
 
@@ -80,6 +80,8 @@ def write_data(self, context, model, file):
 
     mesh = bpy.data.meshes.new(name=model)
     mesh.from_pydata(verts, [], faces)
+    if context.scene.nwo.scale == 'meters':
+        mesh.transform(Matrix.Scale(0.03048, 4))
     for face in mesh.polygons:
         face.use_smooth = True
     mesh.use_auto_smooth = True

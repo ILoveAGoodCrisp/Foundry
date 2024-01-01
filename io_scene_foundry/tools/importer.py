@@ -250,6 +250,7 @@ class NWOImporter():
         self.report = report
         self.mesh_objects = []
         self.marker_objects = []
+        self.scale = 0.03048 if context.scene.nwo.scale == 'meters' else 1
         self.sorted_filepaths = self.group_filetypes()
     
     def group_filetypes(self):
@@ -357,7 +358,7 @@ class NWOImporter():
         file_name = dot_partition(os.path.basename(path))
         print(f"Importing AMF: {file_name}")
         with MutePrints():
-            bpy.ops.import_scene.amf(filepath=path, import_units='MAX')
+            bpy.ops.import_scene.amf(filepath=path, import_units='METERS' if self.scale < 1 else 'MAX')
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         self.process_amf_objects(new_objects, file_name)
         
