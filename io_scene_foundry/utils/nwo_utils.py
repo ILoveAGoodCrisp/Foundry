@@ -1860,7 +1860,7 @@ def scale_scene(context: bpy.types.Context, scale_factor):
     scene_coll = context.scene.collection.objects
     scale_matrix = Matrix.Scale(scale_factor, 4)
     for ob in bpy.data.objects:
-        ob: bpy.types.Object
+        # ob: bpy.types.Object
         loc, rot, sca = ob.matrix_world.decompose()
         loc *= scale_factor
         if ob.rotation_mode == 'Quaternion':
@@ -1981,6 +1981,8 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             arm.pose.use_mirror_x = False
         
         for pose_bone in arm.pose.bones:
+            # pose_bone: bpy.types.PoseBone
+            pose_bone.matrix_basis = Matrix()
             pose_bone.custom_shape_translation *= scale_factor
             pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
             
