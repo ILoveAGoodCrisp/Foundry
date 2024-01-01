@@ -80,7 +80,7 @@ def write_data(self, context, model, file):
 
     mesh = bpy.data.meshes.new(name=model)
     mesh.from_pydata(verts, [], faces)
-    if context.scene.nwo.scale == 'meters':
+    if context.scene.nwo.scale == 'blender':
         mesh.transform(Matrix.Scale(0.03048, 4))
     for face in mesh.polygons:
         face.use_smooth = True

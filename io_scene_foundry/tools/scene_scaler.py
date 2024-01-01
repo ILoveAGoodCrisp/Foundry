@@ -69,6 +69,7 @@ class NWO_ScaleScene(bpy.types.Operator):
         old_mode = context.mode
         old_object = context.object
         old_selection = context.selected_objects
+        animation_index = None
         if bpy.ops.nwo.unlink_animation.poll():
             animation_index = context.scene.nwo.active_action_index
             bpy.ops.nwo.unlink_animation()
@@ -84,8 +85,9 @@ class NWO_ScaleScene(bpy.types.Operator):
             bpy.ops.object.editmode_toggle()
         if old_mode == 'POSE':
             bpy.ops.object.posemode_toggle()
-            
-        context.scene.nwo.active_action_index = animation_index
+        
+        if animation_index:
+            context.scene.nwo.active_action_index = animation_index
         return {"FINISHED"}
     
     def invoke(self, context: bpy.types.Context, _):

@@ -1855,6 +1855,25 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             armatures.append(ob)
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+        
+        for mod in ob.modifiers:
+            match mod.type:
+                case 'BEVEL':
+                    mod.width *= scale_factor
+                case 'CAST':
+                    mod.radius *= scale_factor
+                case 'SHRINKWRAP':
+                    mod.offset *= scale_factor
+                case 'WAVE':
+                    mod.offset *= scale_factor
+                    mod.height *= scale_factor
+                    mod.width *= scale_factor
+                    
+        for con in ob.constraints:
+            match con.type:
+                case 'LIMIT_DISTANCE':
+                    con.distance *= scale_factor
+                
             
     for curve in bpy.data.curves:
         if hasattr(curve, 'size'):
@@ -1884,6 +1903,9 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         light.nwo.light_fade_end_distance *= scale_factor
             
     for arm in armatures:
+        if arm.name != arm.name_full:
+            print_warning(f'Cannot scale {arm.name} because it is library linked to this Blend')
+            continue
         should_be_hidden = False
         should_be_unlinked = False
         # get all objects with this armature as a parent as to fix parenting
@@ -1918,6 +1940,13 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         for pose_bone in arm.pose.bones:
             pose_bone.custom_shape_translation *= scale_factor
             pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
+            
+            for con in pose_bone.constraints:
+                match con.type:
+                    case 'LIMIT_DISTANCE':
+                        con.distance *= scale_factor
+                    case 'LIMIT_LOCATION':
+                        con.min_x *= scale_factor
             
         bpy.ops.object.posemode_toggle()
         
