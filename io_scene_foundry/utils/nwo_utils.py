@@ -1841,3 +1841,105 @@ def get_export_scale(context) -> int:
 def wu(meters) -> int:
     '''Converts a meter to a world unit'''
     return meters * 3.048
+
+def scale_scene(context: bpy.types.Context, scale_factor):
+    armatures = []
+    scene_coll = context.scene.collection.objects
+    scale_matrix = Matrix.Scale(scale_factor, 4)
+    for ob in bpy.data.objects:
+        loc, rot, sca = ob.matrix_world.decompose()
+        loc *= scale_factor
+        if ob.type == 'EMPTY':
+            ob.empty_display_size *= scale_factor
+        elif ob.type == 'ARMATURE':
+            armatures.append(ob)
+        
+        ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+            
+    for curve in bpy.data.curves:
+        if hasattr(curve, 'size'):
+            curve.size *= scale_factor
+        else:
+            curve.transform(scale_matrix)
+        
+    for metaball in bpy.data.metaballs:
+        metaball.transform(scale_matrix)
+        
+    for lattice in bpy.data.lattices:
+        lattice.transform(scale_matrix)
+            
+    for mesh in bpy.data.meshes:
+        mesh.transform(scale_matrix)
+        
+    for camera in bpy.data.cameras:
+        camera.display_size *= scale_factor
+        
+    for light in bpy.data.lights:
+        light.energy *= scale_factor ** 2
+        light.nwo.light_far_attenuation_start *= scale_factor
+        light.nwo.light_far_attenuation_end *= scale_factor
+        light.nwo.light_near_attenuation_start *= scale_factor
+        light.nwo.light_near_attenuation_end *= scale_factor
+        light.nwo.light_fade_start_distance *= scale_factor
+        light.nwo.light_fade_end_distance *= scale_factor
+            
+    for arm in armatures:
+        should_be_hidden = False
+        should_be_unlinked = False
+        # get all objects with this armature as a parent as to fix parenting
+        ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
+        data: bpy.types.Armature = arm.data
+        if arm.hide_get():
+            arm.hide_set(False)
+            should_be_hidden = True
+            
+        if not arm.visible_get():
+            unlink(arm)
+            scene_coll.link(arm)
+            should_be_unlinked = True
+            
+        set_active_object(arm)
+        bpy.ops.object.editmode_toggle()
+        edit_bones = data.edit_bones
+        connected_bones = [b for b in edit_bones if b.use_connect] 
+        for edit_bone in connected_bones:
+            edit_bone.use_connect = False
+            
+        for edit_bone in edit_bones:
+            edit_bone.transform(scale_matrix)
+            # edit_bone.tail *= scale_factor
+            # edit_bone.head *= scale_factor
+            
+        for edit_bone in connected_bones:
+            edit_bone.use_connect = True
+        
+        bpy.ops.object.posemode_toggle()
+        
+        for pose_bone in arm.pose.bones:
+            pose_bone.custom_shape_translation *= scale_factor
+            pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
+            
+        bpy.ops.object.posemode_toggle()
+        
+        for bone in data.bones:
+            bone.bbone_x *= scale_factor
+            bone.bbone_z *= scale_factor
+        
+        if should_be_hidden:
+            arm.hide_set(True)
+            
+        if should_be_unlinked:
+            unlink(arm)
+        
+        for ob, matrix in ob_matrix_dict.items(): 
+            ob.matrix_world = matrix
+
+    for action in bpy.data.actions:
+        for fcurve in action.fcurves:
+            if fcurve.data_path.endswith('location'):
+                for keyframe_point in fcurve.keyframe_points:
+                    keyframe_point.co[1] *= scale_factor
+                    
+                fcurve.keyframe_points.handles_recalc()
+                    
+    

@@ -58,6 +58,7 @@ from ..utils.nwo_utils import (
     library_instanced_collection,
     print_warning,
     relative_path,
+    scale_scene,
     set_active_object,
     get_tags_path,
     is_corinth,
@@ -217,85 +218,10 @@ class PrepareScene:
         context.view_layer.update()
         # print("make_local")
         scene_coll = context.scene.collection.objects
-        # Scale objects
-        self.export_scale = 1
-        if scene_nwo.scale == 'meters':
-            self.export_scale = (1 / 0.03048)
         
-        if self.export_scale != 1:
-            armatures = []
-            scale_matrix = Matrix.Scale(self.export_scale, 4)
-            for ob in bpy.data.objects:
-                loc, rot, sca = ob.matrix_world.decompose()
-                loc *= self.export_scale
-                if ob.type == 'EMPTY':
-                    ob.empty_display_size *= self.export_scale
-                elif ob.type == 'ARMATURE':
-                    armatures.append(ob)
-                
-                ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
-                    
-            for curve in bpy.data.curves:
-                if hasattr(curve, 'size'):
-                    curve.size *= self.export_scale
-                else:
-                    curve.transform(scale_matrix)
-                
-            for metaball in bpy.data.metaballs:
-                metaball.transform(scale_matrix)
-                
-            for lattice in bpy.data.lattices:
-                lattice.transform(scale_matrix)
-                    
-            for mesh in bpy.data.meshes:
-                mesh.transform(scale_matrix)
-                
-            for light in bpy.data.lights:
-                light.energy *= self.export_scale ** 2
-                light.nwo.light_far_attenuation_start *= self.export_scale
-                light.nwo.light_far_attenuation_end *= self.export_scale
-                light.nwo.light_near_attenuation_start *= self.export_scale
-                light.nwo.light_near_attenuation_end *= self.export_scale
-                light.nwo.light_fade_start_distance *= self.export_scale
-                light.nwo.light_fade_end_distance *= self.export_scale
-                    
-            for arm in armatures:
-                should_be_hidden = False
-                should_be_unlinked = False
-                # get all objects with this armature as a parent as to fix parenting
-                ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
-                data: bpy.types.Armature = arm.data
-                if arm.hide_get():
-                    arm.hide_set(False)
-                    should_be_hidden = True
-                    
-                if not arm.visible_get():
-                    self.unlink(arm)
-                    scene_coll.link(arm)
-                    should_be_unlinked = True
-                    
-                set_active_object(arm)
-                bpy.ops.object.editmode_toggle()
-                for edit_bone in data.edit_bones:
-                    edit_bone.tail *= self.export_scale
-                    edit_bone.head *= self.export_scale
-                    
-                bpy.ops.object.editmode_toggle()
-                
-                if should_be_hidden:
-                    arm.hide_set(True)
-                    
-                if should_be_unlinked:
-                    self.unlink(arm)
-                
-                for ob, matrix in ob_matrix_dict.items():
-                    ob.matrix_world = matrix
-                    
-            for action in bpy.data.actions:
-                for fcurve in action.fcurves:
-                    if fcurve.data_path.endswith('location'):
-                        for keyframe_point in fcurve.keyframe_points:
-                            keyframe_point.co[1] *= self.export_scale
+        # Scale objects
+        if scene_nwo.scale == 'blender':
+            scale_scene(context, (1 / 0.03048))
             
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects

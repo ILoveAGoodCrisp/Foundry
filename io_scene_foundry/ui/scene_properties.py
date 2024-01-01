@@ -841,31 +841,31 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # Scale
     def scale_update(self, context):
         scene_scale = 1
-        world_units = self.scale_display == 'halo'
+        world_units = self.scale_display == 'world_units'
         match self.scale:
-            case 'meters':
+            case 'blender':
                 scene_scale = (1 / 3.048) if world_units else 1
-            case 'legacy':
+            case 'max':
                 scene_scale = 0.01 if world_units else 0.03048
             
         bpy.ops.nwo.set_unit_scale(scale=scene_scale)
         
-        if self.scale_display == 'halo':
+        if self.scale_display == 'world_units':
             context.scene.unit_settings.system = 'METRIC'
             context.scene.unit_settings.length_unit = 'METERS'
     
     def scale_items(self, context):
         items = []
-        items.append(('meters', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
+        items.append(('blender', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
         # items.append(('halo', 'Halo', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('halo_scale'), 1))
-        items.append(('legacy', '3DS Max', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("3ds_max"), 2))
+        items.append(('max', '3DS Max', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("3ds_max"), 2))
         return items
     
     def scale_display_items(self, context):
         items = []
         unit_length: str = context.scene.unit_settings.length_unit
-        items.append(('meters', unit_length.title(), "Meters displayed in Blender are equal to 0.328 in game world units", 'MOD_LENGTH', 0))
-        items.append(('halo', 'World Units', "Meters displayed in Blender are equal to in game world units i.e. 1 Meter = 1 World Unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
+        items.append(('meters', unit_length.title(), "Meters displayed in Blender are equal to 0.328 in game world units", 'DRIVER_DISTANCE', 0))
+        items.append(('world_units', 'World Units', "Meters displayed in Blender are equal to in game world units i.e. 1 Meter = 1 World Unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('wu_scale'), 1))
         return items
     
     scale: EnumProperty(

@@ -42,6 +42,7 @@ from bpy.props import (
     PointerProperty,
 )
 from mathutils import Matrix
+from io_scene_foundry.tools.scene_scaler import NWO_ScaleScene
 from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMaterials
@@ -316,10 +317,13 @@ class NWO_FoundryPanelProps(Panel):
         else:
             row.operator("managed_blam.init", text="Initialize ManagedBlam", icon_value=get_icon_id("managed_blam_off"))
         col.separator()
+        col.operator('nwo.scale_scene', text='Scale Scene', icon='MOD_LENGTH')
+        col.separator()
         row = col.row()
         row.scale_y = 1.1
         row.prop(scene.nwo, 'scale', text='Scale', expand=True)
         row = col.row()
+        row.scale_y = 1.1
         row.prop(scene.nwo, 'scale_display', text='Scale Display', expand=True)
         if scene.nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
             row = col.row()
@@ -2272,6 +2276,7 @@ class NWO_FoundryPanelProps(Panel):
             col.separator()
             
         if not action.use_fake_user:
+            col.alert = True
             col.label(text="Fake User Not Set, Animation may be lost on Blender close", icon='ERROR')
             col.prop(action, 'use_fake_user', text="Enable Fake User", icon='FAKE_USER_OFF')
             col.separator()
@@ -6029,6 +6034,7 @@ classeshalo = (
     NWO_AppendFoundryMaterials,
     NWO_ClearShaderPaths,
     NWO_UpdateSets,
+    NWO_ScaleScene,
 )
 
 def register():
