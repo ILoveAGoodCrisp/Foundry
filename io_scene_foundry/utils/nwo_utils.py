@@ -1842,6 +1842,19 @@ def wu(meters) -> int:
     '''Converts a meter to a world unit'''
     return meters * 3.048
 
+def exit_local_view(context):
+    for area in context.screen.areas:
+        if area.type == "VIEW_3D":
+            space = area.spaces[0]
+            if space.local_view:
+                for region in area.regions:
+                    if region.type == "WINDOW":
+                        override = context.copy()
+                        override["area"] = area
+                        override["region"] = region
+                        with context.temp_override(**override):
+                            bpy.ops.view3d.localview()
+
 def scale_scene(context: bpy.types.Context, scale_factor):
     armatures = []
     scene_coll = context.scene.collection.objects
@@ -1860,6 +1873,8 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             match mod.type:
                 case 'BEVEL':
                     mod.width *= scale_factor
+                case 'DISPLACE':
+                    mod.strength *= scale_factor
                 case 'CAST':
                     mod.radius *= scale_factor
                 case 'SHRINKWRAP':
@@ -1872,6 +1887,17 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         for con in ob.constraints:
             match con.type:
                 case 'LIMIT_DISTANCE':
+                    con.distance *= scale_factor
+                case 'LIMIT_LOCATION':
+                    con.min_x *= scale_factor
+                    con.min_y *= scale_factor
+                    con.min_z *= scale_factor
+                    con.max_x *= scale_factor
+                    con.max_y *= scale_factor
+                    con.max_z *= scale_factor
+                case 'STRETCH_TO':
+                    con.rest_length *= scale_factor
+                case 'SHRINKWRAP':
                     con.distance *= scale_factor
                 
             
@@ -1906,6 +1932,11 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         if arm.name != arm.name_full:
             print_warning(f'Cannot scale {arm.name} because it is library linked to this Blend')
             continue
+        
+        uses_mirror = bool(arm.pose.use_mirror_x)
+        if uses_mirror:
+            arm.pose.use_mirror_x = False
+            
         should_be_hidden = False
         should_be_unlinked = False
         # get all objects with this armature as a parent as to fix parenting
@@ -1947,12 +1978,24 @@ def scale_scene(context: bpy.types.Context, scale_factor):
                         con.distance *= scale_factor
                     case 'LIMIT_LOCATION':
                         con.min_x *= scale_factor
+                        con.min_y *= scale_factor
+                        con.min_z *= scale_factor
+                        con.max_x *= scale_factor
+                        con.max_y *= scale_factor
+                        con.max_z *= scale_factor
+                    case 'STRETCH_TO':
+                        con.rest_length *= scale_factor
+                    case 'SHRINKWRAP':
+                        con.distance *= scale_factor
             
         bpy.ops.object.posemode_toggle()
         
         for bone in data.bones:
             bone.bbone_x *= scale_factor
             bone.bbone_z *= scale_factor
+            
+        if uses_mirror:
+            arm.pose.use_mirror_x = True
         
         if should_be_hidden:
             arm.hide_set(True)

@@ -66,6 +66,7 @@ class NWO_ScaleScene(bpy.types.Operator):
     )
     
     def execute(self, context):
+        nwo_utils.exit_local_view(context)
         old_mode = context.mode
         old_object = context.object
         old_selection = context.selected_objects

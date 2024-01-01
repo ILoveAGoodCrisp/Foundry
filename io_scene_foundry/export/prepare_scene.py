@@ -47,6 +47,7 @@ from ..utils.nwo_utils import (
     disable_prints,
     dot_partition,
     enable_prints,
+    exit_local_view,
     get_object_type,
     get_sky_perm,
     has_shader_path,
@@ -171,7 +172,7 @@ class PrepareScene:
             render_mesh_types.append('_connected_geometry_mesh_type_default')
 
         # Exit local view. Must do this otherwise fbx export will fail.
-        self.exit_local_view(context)
+        exit_local_view(context)
         # print("exit_local_view")
 
         # Force set object mode
@@ -2342,19 +2343,6 @@ class PrepareScene:
 
     def get_current_action(self, model_armature):
         return model_armature.animation_data.action
-
-    def exit_local_view(self, context):
-        for area in context.screen.areas:
-            if area.type == "VIEW_3D":
-                space = area.spaces[0]
-                if space.local_view:
-                    for region in area.regions:
-                        if region.type == "WINDOW":
-                            override = context.copy()
-                            override["area"] = area
-                            override["region"] = region
-                            with context.temp_override(**override):
-                                bpy.ops.view3d.localview()
 
     def rotate_scene(self, objects):
         angle_z = radians(90)
