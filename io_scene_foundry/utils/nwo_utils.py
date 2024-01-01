@@ -1933,10 +1933,10 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         light.nwo.light_fade_end_distance *= scale_factor
             
     for arm in armatures:
-        set_active_object(arm)
-        if not bpy.ops.object.editmode_toggle.poll():
+        if arm.library or arm.data.library:
             print_warning(f'Cannot scale {arm.name}')
             continue
+        
         should_be_hidden = False
         should_be_unlinked = False
         data: bpy.types.Armature = arm.data
@@ -1948,6 +1948,8 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             unlink(arm)
             scene_coll.link(arm)
             should_be_unlinked = True
+            
+        set_active_object(arm)
         
         # get all objects with this armature as a parent as to fix parenting
         ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
