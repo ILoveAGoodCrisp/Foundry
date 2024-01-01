@@ -1933,14 +1933,8 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         light.nwo.light_fade_end_distance *= scale_factor
             
     for arm in armatures:
-        if arm.name != arm.name_full:
-            print_warning(f'Cannot scale {arm.name} because it is library linked to this Blend')
-            continue
-            
         should_be_hidden = False
         should_be_unlinked = False
-        # get all objects with this armature as a parent as to fix parenting
-        ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
         data: bpy.types.Armature = arm.data
         if arm.hide_get():
             arm.hide_set(False)
@@ -1952,7 +1946,14 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             should_be_unlinked = True
             
         set_active_object(arm)
-        bpy.ops.object.editmode_toggle()
+        if not bpy.ops.object.editmode_toggle.poll():
+            print_warning(f'Cannot scale {arm.name}')
+            continue
+        
+        # get all objects with this armature as a parent as to fix parenting
+        ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
+        
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         
         uses_edit_mirror = bool(arm.data.use_mirror_x)
         if uses_edit_mirror:
@@ -1974,7 +1975,7 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         if uses_edit_mirror:
             arm.data.use_mirror_x = True
         
-        bpy.ops.object.posemode_toggle()
+        bpy.ops.object.mode_set(mode='POSE', toggle=False)
         
         uses_pose_mirror = bool(arm.pose.use_mirror_x)
         if uses_pose_mirror:
@@ -2005,7 +2006,7 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         if uses_pose_mirror:
             arm.pose.use_mirror_x = True
             
-        bpy.ops.object.posemode_toggle()
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         
         for bone in data.bones:
             bone.bbone_x *= scale_factor

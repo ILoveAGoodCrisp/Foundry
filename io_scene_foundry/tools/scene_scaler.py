@@ -71,13 +71,13 @@ class NWO_ScaleScene(bpy.types.Operator):
         old_object = context.object
         old_selection = context.selected_objects
         animation_index = None
+        context.scene.tool_settings.use_keyframe_insert_auto = False
         if bpy.ops.nwo.unlink_animation.poll():
             animation_index = context.scene.nwo.active_action_index
             bpy.ops.nwo.unlink_animation()
         nwo_utils.set_object_mode(context)
         nwo_utils.scale_scene(context, self.scale_factor)
         
-        context.scene.nwo.scale = self.scale
         if old_object:
             nwo_utils.set_active_object(old_object)
         [ob.select_set(True) for ob in old_selection]
@@ -86,6 +86,8 @@ class NWO_ScaleScene(bpy.types.Operator):
             bpy.ops.object.editmode_toggle()
         if old_mode == 'POSE':
             bpy.ops.object.posemode_toggle()
+            
+        context.scene.nwo.scale = self.scale
         
         if animation_index:
             context.scene.nwo.active_action_index = animation_index

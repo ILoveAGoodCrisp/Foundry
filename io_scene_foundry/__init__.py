@@ -143,7 +143,7 @@ else:
         
         if blend_path:
             blend_year_last_saved = datetime.utcfromtimestamp(os.path.getmtime(blend_path)).strftime('%Y')
-            if blend_year_last_saved < 2024:
+            if int(blend_year_last_saved) < 2024:
                 # old scene, assume 3DS Max Scale
                 scene_nwo.scale = 'max'
             
