@@ -1863,7 +1863,7 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         # ob: bpy.types.Object
         loc, rot, sca = ob.matrix_world.decompose()
         loc *= scale_factor
-        if ob.rotation_mode == 'Quaternion':
+        if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion
         else:
             rot = ob.rotation_euler
