@@ -32,7 +32,7 @@ import winreg
 import zipfile
 import bpy
 import platform
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, Quaternion
 import os
 from os.path import exists as file_exists
 from subprocess import Popen, check_call
@@ -1860,8 +1860,13 @@ def scale_scene(context: bpy.types.Context, scale_factor):
     scene_coll = context.scene.collection.objects
     scale_matrix = Matrix.Scale(scale_factor, 4)
     for ob in bpy.data.objects:
+        ob: bpy.types.Object
         loc, rot, sca = ob.matrix_world.decompose()
         loc *= scale_factor
+        if ob.rotation_mode == 'Quaternion':
+            rot = ob.rotation_quaternion
+        else:
+            rot = ob.rotation_euler
         if ob.type == 'EMPTY':
             ob.empty_display_size *= scale_factor
         elif ob.type == 'ARMATURE':
