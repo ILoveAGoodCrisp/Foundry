@@ -35,13 +35,13 @@ class NWO_ScaleScene(bpy.types.Operator):
     
     scale_factor: bpy.props.FloatProperty(
         default=1,
-        description='Scale factor to apply to the scene'
+        description='Scale factor to apply to the scene. Change this to override the default set by the Blender/3DS Max Scale'
         )
     
     def scale_items(self, context):
         items = []
-        items.append(('blender', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
-        items.append(('max', '3DS Max', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", nwo_utils.get_icon_id("3ds_max"), 2))
+        items.append(('blender', 'Blender', "Scales the scene by a factor of roughly 32.8", 'BLENDER', 0))
+        items.append(('max', '3DS Max', "Scales the scene by a factor of roughly 0.03", nwo_utils.get_icon_id("3ds_max"), 2))
         return items
     
     def update_scale(self, context):

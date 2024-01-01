@@ -130,7 +130,7 @@ from .animation_ui import (
     NWO_List_Remove_Animation_Rename,
 )
 
-from .scene_properties import NWO_Asset_ListItems, NWO_BSP_ListItems, NWO_GlobalMaterial_ListItems, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
+from .scene_properties import NWO_BSP_ListItems, NWO_GlobalMaterial_ListItems, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
 
 from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_UL_Permutations, NWO_UL_Regions
 
@@ -320,7 +320,6 @@ classes_nwo = (
     NWO_NewAnimation,
     NWO_DeleteAnimation,
     NWO_UnlinkAnimation,
-    NWO_Asset_ListItems,
     NWO_UL_AnimationRename,
     NWO_ScenePropertiesGroup,
     NWO_SetUnitScale,

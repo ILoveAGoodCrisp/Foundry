@@ -25,8 +25,10 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import ctypes
+import os
 import bpy
 from bpy.app.handlers import persistent
+from datetime import datetime
 
 from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink
 
@@ -115,9 +117,10 @@ else:
         context.scene.nwo.export_in_progress = False
         # Add projects
         projects = setup_projects_list()
+        blend_path = bpy.data.filepath
         if not context.scene.nwo.scene_project and projects:
             for p in projects:
-                if bpy.data.filepath.startswith(p.project_path):
+                if blend_path.startswith(p.project_path):
                     context.scene.nwo.scene_project = p.name
                     break
             else:
@@ -137,6 +140,12 @@ else:
             default_permutation = scene_nwo.permutations_table.add()
             default_permutation.old = "default"
             default_permutation.name = "default"
+        
+        if blend_path:
+            blend_year_last_saved = datetime.utcfromtimestamp(os.path.getmtime(blend_path)).strftime('%Y')
+            if blend_year_last_saved < 2024:
+                # old scene, assume 3DS Max Scale
+                scene_nwo.scale = 'max'
             
         # prefs = get_prefs()
         # if prefs.poop_default:

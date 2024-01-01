@@ -108,44 +108,44 @@ class NWO_GlobalMaterial_ListItems(PropertyGroup):
 def prefab_warning(self, context):
     self.layout.label(text=f"Halo Reach does not support prefab assets")
 
-class NWO_Asset_ListItems(PropertyGroup):
-    def GetSharedAssetName(self):
-        name = self.shared_asset_path
-        name = name.rpartition("\\")[2]
-        name = name.rpartition(".sidecar.xml")[0]
+# class NWO_Asset_ListItems(PropertyGroup):
+#     def GetSharedAssetName(self):
+#         name = self.shared_asset_path
+#         name = name.rpartition("\\")[2]
+#         name = name.rpartition(".sidecar.xml")[0]
 
-        return name
+#         return name
 
-    shared_asset_name: StringProperty(
-        get=GetSharedAssetName,
-    )
+#     shared_asset_name: StringProperty(
+#         get=GetSharedAssetName,
+#     )
 
-    shared_asset_path: StringProperty()
+#     shared_asset_path: StringProperty()
 
-    shared_asset_types = [
-        ("BipedAsset", "Biped", ""),
-        ("CrateAsset", "Crate", ""),
-        ("CreatureAsset", "Creature", ""),
-        ("Device_ControlAsset", "Device Control", ""),
-        ("Device_MachineAsset", "Device Machine", ""),
-        ("Device_TerminalAsset", "Device Terminal", ""),
-        ("Effect_SceneryAsset", "Effect Scenery", ""),
-        ("EquipmentAsset", "Equipment", ""),
-        ("GiantAsset", "Giant", ""),
-        ("SceneryAsset", "Scenery", ""),
-        ("VehicleAsset", "Vehicle", ""),
-        ("WeaponAsset", "Weapon", ""),
-        ("ScenarioAsset", "Scenario", ""),
-        ("Decorator_SetAsset", "Decorator Set", ""),
-        ("Particle_ModelAsset", "Particle Model", ""),
-    ]
+#     shared_asset_types = [
+#         ("BipedAsset", "Biped", ""),
+#         ("CrateAsset", "Crate", ""),
+#         ("CreatureAsset", "Creature", ""),
+#         ("Device_ControlAsset", "Device Control", ""),
+#         ("Device_MachineAsset", "Device Machine", ""),
+#         ("Device_TerminalAsset", "Device Terminal", ""),
+#         ("Effect_SceneryAsset", "Effect Scenery", ""),
+#         ("EquipmentAsset", "Equipment", ""),
+#         ("GiantAsset", "Giant", ""),
+#         ("SceneryAsset", "Scenery", ""),
+#         ("VehicleAsset", "Vehicle", ""),
+#         ("WeaponAsset", "Weapon", ""),
+#         ("ScenarioAsset", "Scenario", ""),
+#         ("Decorator_SetAsset", "Decorator Set", ""),
+#         ("Particle_ModelAsset", "Particle Model", ""),
+#     ]
 
-    shared_asset_type: EnumProperty(
-        name="Type",
-        default="BipedAsset",
-        options=set(),
-        items=shared_asset_types,
-    )
+#     shared_asset_type: EnumProperty(
+#         name="Type",
+#         default="BipedAsset",
+#         options=set(),
+#         items=shared_asset_types,
+#     )
 
 
 class NWO_ScenePropertiesGroup(PropertyGroup):
@@ -189,15 +189,15 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
     )
 
-    shared_assets: CollectionProperty(
-        type=NWO_Asset_ListItems,
-    )
+    # shared_assets: CollectionProperty(
+    #     type=NWO_Asset_ListItems,
+    # )
 
-    shared_assets_index: IntProperty(
-        name="Index for Shared Asset",
-        default=0,
-        min=0,
-    )
+    # shared_assets_index: IntProperty(
+    #     name="Index for Shared Asset",
+    #     default=0,
+    #     min=0,
+    # )
 
     def items_mesh_type_ui(self, context):
         """Function to handle context for mesh enum lists"""
