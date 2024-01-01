@@ -1985,7 +1985,8 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             # pose_bone: bpy.types.PoseBone
             pose_bone.matrix_basis = Matrix()
             pose_bone.custom_shape_translation *= scale_factor
-            pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
+            if pose_bone.use_custom_shape_bone_size:
+                pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
             
             for con in pose_bone.constraints:
                 match con.type:
