@@ -1899,7 +1899,6 @@ def scale_scene(context: bpy.types.Context, scale_factor):
                     con.rest_length *= scale_factor
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
-                
             
     for curve in bpy.data.curves:
         if hasattr(curve, 'size'):
@@ -1932,10 +1931,6 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         if arm.name != arm.name_full:
             print_warning(f'Cannot scale {arm.name} because it is library linked to this Blend')
             continue
-        
-        uses_mirror = bool(arm.pose.use_mirror_x)
-        if uses_mirror:
-            arm.pose.use_mirror_x = False
             
         should_be_hidden = False
         should_be_unlinked = False
@@ -1953,6 +1948,11 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             
         set_active_object(arm)
         bpy.ops.object.editmode_toggle()
+        
+        uses_edit_mirror = bool(arm.data.use_mirror_x)
+        if uses_edit_mirror:
+            arm.data.use_mirror_x = False
+        
         edit_bones = data.edit_bones
         connected_bones = [b for b in edit_bones if b.use_connect] 
         for edit_bone in connected_bones:
@@ -1965,8 +1965,15 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             
         for edit_bone in connected_bones:
             edit_bone.use_connect = True
+    
+        if uses_edit_mirror:
+            arm.data.use_mirror_x = True
         
         bpy.ops.object.posemode_toggle()
+        
+        uses_pose_mirror = bool(arm.pose.use_mirror_x)
+        if uses_pose_mirror:
+            arm.pose.use_mirror_x = False
         
         for pose_bone in arm.pose.bones:
             pose_bone.custom_shape_translation *= scale_factor
@@ -1987,15 +1994,15 @@ def scale_scene(context: bpy.types.Context, scale_factor):
                         con.rest_length *= scale_factor
                     case 'SHRINKWRAP':
                         con.distance *= scale_factor
+
+        if uses_pose_mirror:
+            arm.pose.use_mirror_x = True
             
         bpy.ops.object.posemode_toggle()
         
         for bone in data.bones:
             bone.bbone_x *= scale_factor
             bone.bbone_z *= scale_factor
-            
-        if uses_mirror:
-            arm.pose.use_mirror_x = True
         
         if should_be_hidden:
             arm.hide_set(True)
