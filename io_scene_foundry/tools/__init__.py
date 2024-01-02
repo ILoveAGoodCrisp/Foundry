@@ -783,7 +783,7 @@ class NWO_FoundryPanelProps(Panel):
 
             col.prop(data, "color")
             col.prop(data, "energy")
-            col.prop(nwo, 'light_intensity', text="Intensity")
+            # col.prop(nwo, 'light_intensity', text="Intensity")
             scaled_energy = data.energy * get_export_scale(context)
             if scaled_energy < 11 and data.type != 'SUN':
                 # Warn user about low light power. Need the light scaled to Halo proportions
@@ -2613,14 +2613,14 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
         row = box.row(align=True, heading="Tool Version")
         row.prop(prefs, "tool_type", expand=True)
-        row = box.row(align=True)
-        row.prop(prefs, "apply_prefix")
+        row = box.row(align=True, heading="Default Scene Matrix")
+        row.prop(prefs, "scene_matrix", expand=True)
+        row = box.row(align=True, heading="Default Object Prefixes")
+        row.prop(prefs, "apply_prefix", expand=True)
         row = box.row(align=True)
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)
         row.prop(prefs, "apply_empty_display")
-        # row = box.row(align=True)
-        # row.prop(prefs, "poop_default")
         row = box.row(align=True)
         row.prop(prefs, "toolbar_icons_only", text="Foundry Toolbar Icons Only")
         row = box.row(align=True)

@@ -30,7 +30,7 @@ import bpy
 from bpy.app.handlers import persistent
 from datetime import datetime
 
-from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink
+from io_scene_foundry.utils.nwo_utils import get_prefs, setup_projects_list, unlink
 
 old_snapshot = {}
 old_x = None
@@ -140,12 +140,6 @@ else:
             default_permutation = scene_nwo.permutations_table.add()
             default_permutation.old = "default"
             default_permutation.name = "default"
-        
-        if blend_path:
-            blend_year_last_saved = datetime.utcfromtimestamp(os.path.getmtime(blend_path)).strftime('%Y')
-            if int(blend_year_last_saved) < 2024:
-                # old scene, assume 3DS Max Scale
-                scene_nwo.scale = 'max'
             
         # prefs = get_prefs()
         # if prefs.poop_default:

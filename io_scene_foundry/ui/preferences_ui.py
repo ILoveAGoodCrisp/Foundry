@@ -380,6 +380,36 @@ class ToolkitLocationPreferences(AddonPreferences):
         description="Sets the scene timeline to match the start and end frame range of the current animation if using the Foundry Animation Panel to switch animations",
         default=True,
     )
+    
+    def scene_matrix_items(self, context):
+        return [
+            ("blender", "Blender", "", "BLENDER", 0),
+            ("halo", "Halo", "", get_icon_id('halo_scale'), 1),
+        ]
+        
+    def update_scene_matrix(self, context):
+        appdata = os.getenv('APPDATA')
+        foundry_folder = os.path.join(appdata, "FoundryHBCK")
+
+        if not os.path.exists(foundry_folder):
+            os.makedirs(foundry_folder, exist_ok=True)
+            if not os.path.exists(foundry_folder):
+                return print("Failed to make foundry folder")
+        
+        matrix_file = os.path.join(foundry_folder, 'matrix_halo.txt')
+        if os.path.exists(matrix_file) and self.scene_matrix != 'halo':
+            os.remove(matrix_file)
+        elif not os.path.exists(matrix_file) and self.scene_matrix == 'halo':
+            with open(matrix_file, 'w') as file:
+                pass
+            
+    
+    scene_matrix: EnumProperty(
+        name="Default Scene Matrix",
+        description="Set whether by default Foundry loads a scene matrix designed to work at Blender's scale and forward direction, or Halo's.",
+        items=scene_matrix_items,
+        update=update_scene_matrix,
+    )
 
     def draw(self, context):
         prefs = self
@@ -418,8 +448,10 @@ class ToolkitLocationPreferences(AddonPreferences):
         col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
         row = box.row(align=True, heading="Tool Version")
         row.prop(prefs, "tool_type", expand=True)
-        row = box.row(align=True)
-        row.prop(prefs, "apply_prefix")
+        row = box.row(align=True, heading="Default Scene Matrix")
+        row.prop(prefs, "scene_matrix", expand=True)
+        row = box.row(align=True, heading="Default Object Prefixes")
+        row.prop(prefs, "apply_prefix", expand=True)
         row = box.row(align=True)
         row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
         row = box.row(align=True)

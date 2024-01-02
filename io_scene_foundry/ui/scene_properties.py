@@ -37,7 +37,23 @@ from bpy.props import (
 from bpy.types import PropertyGroup
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_asset_path, get_prefs, is_corinth, poll_ui, reset_to_basis, valid_nwo_asset
+from ..utils.nwo_utils import clean_tag_path, get_prefs, is_corinth, poll_ui, reset_to_basis
+
+def get_matrix_settings():
+    appdata = os.getenv('APPDATA')
+    foundry_folder = os.path.join(appdata, "FoundryHBCK")
+
+    if not os.path.exists(foundry_folder):
+        return print("No Foundry Folder")
+    
+    matrix_file = os.path.join(foundry_folder, 'matrix_halo.txt')
+    if os.path.exists(matrix_file):
+        return 'max', 'x'
+    else:
+        return 'blender', 'y-'
+    
+
+default_scale, default_forward = get_matrix_settings()
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
@@ -385,7 +401,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Scene Forward",
         options=set(),
         description="Define the forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
-        default="y-",
+        default=default_forward,
         items=[
             ("y-", "-Y", "Model is facing Y negative"),
             ("y", "Y", "Model is facing Y positive"),
@@ -858,7 +874,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         items = []
         items.append(('blender', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
         # items.append(('halo', 'Halo', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('halo_scale'), 1))
-        items.append(('max', '3DS Max', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("3ds_max"), 2))
+        items.append(('max', '3DS Max', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("3ds_max"), 1))
         return items
     
     def scale_display_items(self, context):
@@ -870,6 +886,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     scale: EnumProperty(
         name="Scale",
+        default=1 if default_scale == 'max' else 0,
         options=set(),
         description="Select the scaling for this asset. Scale is applied at export to ensure units displayed in Blender match with in game units",
         items=scale_items,

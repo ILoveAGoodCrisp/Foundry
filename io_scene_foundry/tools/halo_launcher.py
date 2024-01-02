@@ -439,16 +439,6 @@ def launch_game(is_sapien, settings, filepath):
                 f'run_game_scripts {"1" if settings.run_game_scripts else "0"}\n'
             )
 
-            if not is_sapien:
-                if using_filepath:
-                    file.write(
-                        f'game_start "{filepath.replace(get_tags_path(), "").rpartition(".")[0]}"\n'
-                    )
-                else:
-                    file.write(
-                        f'game_start "{get_tag_if_exists(asset_path, asset_name, "scenario").replace(get_tags_path(), "").rpartition(".")[0]}"\n'
-                    )
-
             if settings.initial_zone_set != "":
                 file.write(f"game_initial_zone_set {settings.initial_zone_set}\n")
             elif settings.initial_bsp != "" and h4_plus:
@@ -481,6 +471,17 @@ def launch_game(is_sapien, settings, filepath):
                             file.write(f"{line}\n")
                     else:
                         file.write(f"{settings.custom_functions}\n")
+                        
+                        
+            if not is_sapien:
+                if using_filepath:
+                    file.write(
+                        f'game_start "{filepath.replace(get_tags_path(), "").rpartition(".")[0]}"\n'
+                    )
+                else:
+                    file.write(
+                        f'game_start "{get_tag_if_exists(asset_path, asset_name, "scenario").replace(get_tags_path(), "").rpartition(".")[0]}"\n'
+                    )
 
     run_ek_cmd(args, True)
 
