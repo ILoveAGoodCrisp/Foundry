@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 import json
+from math import radians
 import pathlib
 import shutil
 import subprocess
@@ -32,7 +33,7 @@ import winreg
 import zipfile
 import bpy
 import platform
-from mathutils import Matrix, Vector, Quaternion
+from mathutils import Euler, Matrix, Vector, Quaternion
 import os
 from os.path import exists as file_exists
 from subprocess import Popen, check_call
@@ -1862,14 +1863,18 @@ class NodeChild():
         self.parent_bone: str = None
         self.matrix: Matrix = None
         # self.group: str = None
-        
 
-def scale_scene(context: bpy.types.Context, scale_factor):
+def scale_scene(context: bpy.types.Context, scale_factor, rotation):
     # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
     armatures = []
     scene_coll = context.scene.collection.objects
+    axis_z = (0, 0, 1)
+    pivot = Vector((0.0, 0.0, 0.0))
+    rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
+    pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
     scale_matrix = Matrix.Scale(scale_factor, 4)
-    bone_parented_objects = {}
+    transform_matrix = rotation_matrix @ scale_matrix
+    parented_objects = {}
     for ob in bpy.data.objects:
         if ob.parent and ((ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE') or (ob.parent_type == 'OBJECT' and ob.parent.type != 'ARMATURE')):
             child_ob = NodeChild(ob)
@@ -1879,38 +1884,48 @@ def scale_scene(context: bpy.types.Context, scale_factor):
                 child_ob.parent_bone = ob.parent_bone
                 # child_ob.group += f'-:--:-{ob.parent_bone}'
                 
-            bone_parented_objects[ob] = child_ob
+            parented_objects[ob] = child_ob
     
-    if bone_parented_objects:
+    if parented_objects:
         override = context.copy()
-        override['selected_objects'] = list(bone_parented_objects.keys())
-        override['selected_editable_objects'] = list(bone_parented_objects.keys())
-        override['active_object'] = list(bone_parented_objects.keys())[0]
+        override['selected_objects'] = list(parented_objects.keys())
+        override['selected_editable_objects'] = list(parented_objects.keys())
+        override['active_object'] = list(parented_objects.keys())[0]
         area, area_region, area_space = get_area_info(context)
         override["area"] = area
         override["region"] = area_region
         override["space_data"] = area_space
         with context.temp_override(**override):
-            # print(list(bone_parented_objects.keys()))
-            print(context.selected_objects)
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
     for ob in bpy.data.objects:
-        # ob: bpy.types.Object
-        loc, rot, sca = ob.matrix_world.decompose()
+        no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
+        loc, _, sca = ob.matrix_world.decompose()
         loc *= scale_factor
+        if rotation:
+            loc = pivot_matrix @ loc
         if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion
         else:
             rot = ob.rotation_euler
+                
+        if no_data_transform:
+            rot.rotate(rotation_matrix)
+        
+        # Lights need scaling to have correct display 
+        if ob.type == 'LIGHT':
+            sca *= scale_factor
+            
         if ob.type == 'EMPTY':
             ob.empty_display_size *= scale_factor
+            
         elif ob.type == 'ARMATURE':
             armatures.append(ob)
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
-        if bone_parented_objects.get(ob, 0):
-            bone_parented_objects[ob].matrix = ob.matrix_world
+            
+        if parented_objects.get(ob, 0):
+            parented_objects[ob].matrix = ob.matrix_world
         
         for mod in ob.modifiers:
             match mod.type:
@@ -1946,17 +1961,17 @@ def scale_scene(context: bpy.types.Context, scale_factor):
     for curve in bpy.data.curves:
         if hasattr(curve, 'size'):
             curve.size *= scale_factor
-        else:
-            curve.transform(scale_matrix)
+            
+        curve.transform(transform_matrix)
         
     for metaball in bpy.data.metaballs:
-        metaball.transform(scale_matrix)
+        metaball.transform(transform_matrix)
         
     for lattice in bpy.data.lattices:
-        lattice.transform(scale_matrix)
+        lattice.transform(transform_matrix)
             
     for mesh in bpy.data.meshes:
-        mesh.transform(scale_matrix)
+        mesh.transform(transform_matrix)
         
     for camera in bpy.data.cameras:
         camera.display_size *= scale_factor
@@ -2001,7 +2016,7 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             edit_bone.use_connect = False
             
         for edit_bone in edit_bones:
-            edit_bone.transform(scale_matrix)
+            edit_bone.transform(transform_matrix)
             
         for edit_bone in connected_bones:
             edit_bone.use_connect = True
@@ -2053,9 +2068,9 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         if should_be_unlinked:
             unlink(arm)
     
-    # child_groups = set([child.group for child in bone_parented_objects.values()])
+    # child_groups = set([child.group for child in parented_objects.values()])
     # for group in child_groups:
-    #     children = [child.ob for child in bone_parented_objects.values() if child.group == group]
+    #     children = [child.ob for child in parented_objects.values() if child.group == group]
     #     if not children: continue
     #     override = context.copy()
     #     override['selected_objects'] = children
@@ -2078,7 +2093,7 @@ def scale_scene(context: bpy.types.Context, scale_factor):
     #     with context.temp_override(**override):
     #         bpy.ops.object.parent_set(type=parent_type, keep_transform=True)
     
-    for child in bone_parented_objects.values():
+    for child in parented_objects.values():
         child.ob.parent = child.parent
         if child.parent_bone:
             child.ob.parent_bone = child.parent_bone
@@ -2102,5 +2117,31 @@ def get_area_info(context):
         if area.type == "VIEW_3D"
     ][0]
     return area, area.regions[-1], area.spaces.active
-                    
+
+def blender_halo_rotation_diff(direction):
+    """Returns the rotation (radians) needed to go from the current blender forward to Halo X forward"""
+    match direction:
+        case "y":
+            return radians(-90)
+        case "y-":
+            return radians(90)
+        case "x-":
+            return radians(180)
+            
+    return 0
+
+def blender_rotation_diff(direction, scene_direction):
+    """Returns the rotation (radians) needed to go from the current blender forward to the selected forward"""
+    rot = blender_halo_rotation_diff(scene_direction)
+    match direction:
+        case "y":
+            return rot - radians(-90)
+        case "y-":
+            return rot - radians(90) - rot
+        case "x-":
+            return rot - radians(180)
+        case "x":
+            return rot - 0
+            
+    return 0
     

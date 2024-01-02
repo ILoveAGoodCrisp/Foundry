@@ -382,9 +382,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
 
     forward_direction: EnumProperty(
-        name="Model Forward",
+        name="Scene Forward",
         options=set(),
-        description="Define the forward direction you are using for this model. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -y in Blender will face x in game",
+        description="Define the forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
         default="y-",
         items=[
             ("y-", "-Y", "Model is facing Y negative"),

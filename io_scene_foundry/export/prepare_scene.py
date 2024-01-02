@@ -37,6 +37,7 @@ from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from ..utils.nwo_utils import (
+    blender_halo_rotation_diff,
     bool_str,
     closest_bsp_object,
     color_3p_str,
@@ -222,8 +223,10 @@ class PrepareScene:
         scene_coll = context.scene.collection.objects
         
         # Scale objects
-        if scene_nwo.scale == 'blender':
-            scale_scene(context, (1 / 0.03048))
+        scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
+        rotation = blender_halo_rotation_diff(scene_nwo.forward_direction)
+        if scale_factor != 1 or rotation:
+            scale_scene(context, scale_factor, rotation)
             
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
@@ -1829,12 +1832,12 @@ class PrepareScene:
             self.remove_constraints(self.model_armature)
             # apply rotation based on selected forward direction
             # context.scene.frame_current = 0
-            if forward == "y":
-                self.z_rotate_and_apply(armature, -90, export_obs)
-            elif forward == "y-":
-                self.z_rotate_and_apply(armature, 90, export_obs)
-            elif forward == "x-":
-                self.z_rotate_and_apply(armature, 180, export_obs)
+            # if forward == "y":
+            #     self.z_rotate_and_apply(armature, -90, export_obs)
+            # elif forward == "y-":
+            #     self.z_rotate_and_apply(armature, 90, export_obs)
+            # elif forward == "x-":
+            #     self.z_rotate_and_apply(armature, 180, export_obs)
             
 
     def set_bone_names(self, bones):

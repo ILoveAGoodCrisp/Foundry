@@ -30,42 +30,66 @@ from io_scene_foundry.utils import nwo_utils
 class NWO_ScaleScene(bpy.types.Operator):
     bl_idname = "nwo.scale_scene"
     bl_label = "Scale Scene"
-    bl_description = "Scales the blender scene"
-    bl_options = {"UNDO"}
+    bl_description = "Scales and rotates the blender scene"
+    bl_options = {"REGISTER","UNDO"}
     
     scale_factor: bpy.props.FloatProperty(
         default=1,
+        options={'SKIP_SAVE'},
         description='Scale factor to apply to the scene. Change this to override the default set by the Blender/3DS Max Scale'
         )
     
     def scale_items(self, context):
         items = []
-        items.append(('blender', 'Blender', "Scales the scene by a factor of roughly 32.8", 'BLENDER', 0))
-        items.append(('max', '3DS Max', "Scales the scene by a factor of roughly 0.03", nwo_utils.get_icon_id("3ds_max"), 2))
+        items.append(('none', 'None', "Does not scale the scene", 'MATPLANE', 0))
+        items.append(('blender', 'To Blender', "Scales the scene by a factor of roughly 32.8", 'BLENDER', 1))
+        items.append(('max', 'To 3DS Max', "Scales the scene by a factor of roughly 0.03", nwo_utils.get_icon_id("3ds_max"), 2))
+        items.append(('custom', 'Custom', "Scales the scene by the given factor", 'FULLSCREEN_ENTER', 3))
         return items
-    
-    def update_scale(self, context):
-        scene_scale = context.scene.nwo.scale
-        if self.scale == 'blender':
-            if scene_scale == 'blender':
-                self.scale_factor = 1
-            else:
-                self.scale_factor = 0.03048
-        else:
-            if scene_scale == 'blender':
-                self.scale_factor = (1 / 0.03048)
-            else:
-                self.scale_factor = 1
     
     scale: bpy.props.EnumProperty(
         name="Scale",
-        options=set(),
+        options={'SKIP_SAVE'},
         description="Select the scaling for this asset. Scale is applied at export to ensure units displayed in Blender match with in game units",
         items=scale_items,
-        update=update_scale,
+    )
+    
+    def update_forward(self, context):
+        rot = nwo_utils.blender_rotation_diff(self.forward, context.scene.nwo.forward_direction)
+        self.rotation = rot
+    
+    forward: bpy.props.EnumProperty(
+        name="Scene Forward",
+        options={'SKIP_SAVE'},
+        description="Define the forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
+        default="y-",
+        items=[
+            ("y-", "-Y", "Model is facing Y negative"),
+            ("y", "Y", "Model is facing Y positive"),
+            ("x-", "-X", "Model is facing X negative"),
+            ("x", "X", "Model is facing X positive"),   
+        ],
+        update=update_forward,
+    )
+    
+    rotation: bpy.props.FloatProperty(
+        name='Rotation',
+        options={'SKIP_SAVE'},
+        subtype='ANGLE',
     )
     
     def execute(self, context):
+        if self.scale == 'none':
+            self.scale_factor = 1
+        elif self.scale == 'blender':
+            self.scale_factor = 0.03048
+        elif self.scale == 'max':
+            self.scale_factor = (1 / 0.03048)
+        
+        if not (self.scale_factor != 1 or self.rotation):
+            self.report({'INFO'}, "No scaling or rotation applied")
+            return {'CANCELLED'}
+            
         nwo_utils.exit_local_view(context)
         old_mode = context.mode
         old_object = context.object
@@ -77,8 +101,8 @@ class NWO_ScaleScene(bpy.types.Operator):
             bpy.ops.nwo.unlink_animation()
         nwo_utils.set_object_mode(context)
         nwo_utils.deselect_all_objects()
-        nwo_utils.scale_scene(context, self.scale_factor)
-        
+        nwo_utils.scale_scene(context, self.scale_factor, self.rotation)
+
         if old_object:
             nwo_utils.set_active_object(old_object)
         [ob.select_set(True) for ob in old_selection]
@@ -87,23 +111,24 @@ class NWO_ScaleScene(bpy.types.Operator):
             bpy.ops.object.editmode_toggle()
         if old_mode == 'POSE':
             bpy.ops.object.posemode_toggle()
-            
-        context.scene.nwo.scale = self.scale
+        
+        if self.scale == 'blender' or self.scale == 'max':
+            context.scene.nwo.scale = self.scale
+        context.scene.nwo.forward_direction = self.forward
         
         if animation_index:
             context.scene.nwo.active_action_index = animation_index
         return {"FINISHED"}
     
     def invoke(self, context: bpy.types.Context, _):
-        if context.scene.nwo.scale == 'blender':
-            self.scale = 'max'
-        else:
-            self.scale = 'blender'
-            
+        self.forward = context.scene.nwo.forward_direction
         return context.window_manager.invoke_props_dialog(self)
             
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
         layout.prop(self, 'scale', text='New Scale')
-        layout.prop(self, 'scale_factor', text='Scale Factor')
+        if self.scale == 'custom':
+            layout.prop(self, 'scale_factor', text='Scale Factor')
+        layout.prop(self, 'forward')
+        layout.prop(self, 'rotation')

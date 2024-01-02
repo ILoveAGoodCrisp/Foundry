@@ -92,9 +92,9 @@ class NWO_UL_Permutations(UIList):
 
 class NWO_SetUnitScale(NWO_Op):
     """Sets up the scene for Halo: Sets the unit scale to match Halo"""
-
     bl_idname = "nwo.set_unit_scale"
     bl_label = "Set Scale"
+    bl_options = {'REGISTER', 'UNDO'}
 
     scale: bpy.props.FloatProperty(
         description="The scene scaling to apply. If using Meters or Halo scaling, this defaults to 1, otherwise 0.3048. Note that changing this value does not affect export scaling"

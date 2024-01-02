@@ -317,7 +317,7 @@ class NWO_FoundryPanelProps(Panel):
         else:
             row.operator("managed_blam.init", text="Initialize ManagedBlam", icon_value=get_icon_id("managed_blam_off"))
         col.separator()
-        col.operator('nwo.scale_scene', text='Scale Scene', icon='MOD_LENGTH')
+        col.operator('nwo.scale_scene', text='Scale/Rotate Scene', icon='MOD_LENGTH')
         col.separator()
         row = col.row()
         row.scale_y = 1.1
@@ -328,9 +328,8 @@ class NWO_FoundryPanelProps(Panel):
         if scene.nwo.scale_display == 'halo' and scene.unit_settings.length_unit != 'METERS':
             row = col.row()
             row.label(text='World Units only accurate when Unit Length is Meters', icon='ERROR')
-        if nwo.asset_type in ("MODEL", "FP ANIMATION"):
-            row = col.row()
-            row.prop(nwo, "forward_direction", text="Model Forward", expand=True)
+        row = col.row()
+        row.prop(nwo, "forward_direction", text="Scene Forward", expand=True)
 
     def draw_asset_editor(self):
         box = self.box.box()
@@ -4984,6 +4983,8 @@ class NWO_AddPoseBones(Operator):
                 return {'FINISHED'}
                 
             bone_shape = [ob for ob in context.view_layer.objects if ob not in existing_obs][0]
+            if scene_nwo.scale == 'blender':
+                bone_shape.data.transform(Matrix.Scale(0.03048, 4))
             bone_shape.select_set(False)
             bone_shape.nwo.export_this = False
             arm.select_set(True)
@@ -5469,6 +5470,8 @@ class NWO_AddPedestalControl(Operator):
                 return {'FINISHED'}
                 
             bone_shape = [ob for ob in context.view_layer.objects if ob not in existing_obs][0]
+            if scene_nwo.scale == 'blender':
+                bone_shape.data.transform(Matrix.Scale(0.03048, 4))
             bone_shape.select_set(False)
             bone_shape.nwo.export_this = False
             arm.select_set(True)
