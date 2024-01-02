@@ -222,10 +222,10 @@ class NWOLight(NWOObject):
             # H4 ONLY
             self.bungie_light_mode = self.light_mode()
             # H4 uses near_attenuation for general light fallout, and far_attenuation for camera fade on dynamic lights
-            self.bungie_light_near_attenuation_start = jstr(self.data.nwo.light_far_attenuation_start)
-            self.bungie_light_near_attenuation_end = jstr(self.data.nwo.light_far_attenuation_end)
-            self.bungie_light_far_attenuation_start = jstr(self.data.nwo.light_camera_fade_start)
-            self.bungie_light_far_attenuation_end = jstr(self.data.nwo.light_camera_fade_end)
+            self.bungie_light_near_attenuation_start = jstr(self.data.nwo.light_far_attenuation_start * 0.03048)
+            self.bungie_light_near_attenuation_end = jstr(self.data.nwo.light_far_attenuation_end * 0.03048)
+            self.bungie_light_far_attenuation_start = jstr(self.data.nwo.light_camera_fade_start * 0.03048)
+            self.bungie_light_far_attenuation_end = jstr(self.data.nwo.light_camera_fade_end * 0.03048)
             
             if float(self.bungie_light_near_attenuation_end):
                 self.bungie_lighting_mode = '_connected_geometry_lighting_mode_artistic'
@@ -365,21 +365,21 @@ class NWOLight(NWOObject):
 
     def light_far_attenuation_end(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_far_attenuation_end)
+            return jstr(self.data.nwo.light_far_attenuation_end * 0.03048)
         else:
-            return jstr(self.data.nwo.light_far_attenuation_end * 100)
+            return jstr(self.data.nwo.light_far_attenuation_end * 100 * 0.03048)
 
     def light_near_attenuation_start(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_near_attenuation_start)
+            return jstr(self.data.nwo.light_near_attenuation_start * 0.03048)
         else:
-            return jstr(self.data.nwo.light_near_attenuation_start * 100)
+            return jstr(self.data.nwo.light_near_attenuation_start * 100 * 0.03048)
 
     def light_near_attenuation_end(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_near_attenuation_end)
+            return jstr(self.data.nwo.light_near_attenuation_end * 0.03048)
         else:
-            return jstr(self.data.nwo.light_near_attenuation_end * 100)
+            return jstr(self.data.nwo.light_near_attenuation_end * 100 * 0.03048)
 
     def light_mode(self):
         return self.data.nwo.light_mode
