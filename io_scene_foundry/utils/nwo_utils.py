@@ -1931,6 +1931,12 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         light.nwo.light_near_attenuation_end *= scale_factor
         light.nwo.light_fade_start_distance *= scale_factor
         light.nwo.light_fade_end_distance *= scale_factor
+    
+    ob_matrix_dict = {}
+    # get all objects with this armature as a parent as to fix parenting
+    for ob in bpy.data.objects:
+        if ob.parent and ob.parent.type == 'ARMATURE':
+            ob_matrix_dict[ob] = ob.matrix_world.copy()
             
     for arm in armatures:
         if arm.library or arm.data.library:
@@ -1950,9 +1956,6 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             should_be_unlinked = True
             
         set_active_object(arm)
-        
-        # get all objects with this armature as a parent as to fix parenting
-        ob_matrix_dict = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
         
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         
@@ -2020,8 +2023,8 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         if should_be_unlinked:
             unlink(arm)
         
-        for ob, matrix in ob_matrix_dict.items(): 
-            ob.matrix_world = matrix
+    for ob, matrix in ob_matrix_dict.items(): 
+        ob.matrix_world = matrix
 
     for action in bpy.data.actions:
         for fcurve in action.fcurves:
