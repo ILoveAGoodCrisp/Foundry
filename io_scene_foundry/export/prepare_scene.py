@@ -3728,15 +3728,6 @@ def matrices_equal(mat_1, mat_2):
                 return False
     return True
 
-def get_area_info(context):
-    area = [
-        area
-        for area in context.screen.areas
-        if area.type == "VIEW_3D"
-    ][0]
-    return area, area.regions[-1], area.spaces.active
-
-
 def add_triangle_mod(ob: bpy.types.Object):
     mods = ob.modifiers
     for m in mods:

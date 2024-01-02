@@ -1861,6 +1861,7 @@ class NodeChild():
         self.parent: bpy.types.Object = None
         self.parent_bone: str = None
         self.matrix: Matrix = None
+        # self.group: str = None
         
 
 def scale_scene(context: bpy.types.Context, scale_factor):
@@ -1870,15 +1871,29 @@ def scale_scene(context: bpy.types.Context, scale_factor):
     scale_matrix = Matrix.Scale(scale_factor, 4)
     bone_parented_objects = {}
     for ob in bpy.data.objects:
-        if ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE' and ob.parent_bone:
+        if ob.parent and ((ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE') or (ob.parent_type == 'OBJECT' and ob.parent.type != 'ARMATURE')):
             child_ob = NodeChild(ob)
             child_ob.parent = ob.parent
-            child_ob.parent_bone = ob.parent_bone
+            # child_ob.group = ob.parent.name
+            if ob.parent_type == 'BONE' and ob.parent_bone:
+                child_ob.parent_bone = ob.parent_bone
+                # child_ob.group += f'-:--:-{ob.parent_bone}'
+                
             bone_parented_objects[ob] = child_ob
-            ob.select_set(True)
-            
-    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-    deselect_all_objects()
+    
+    if bone_parented_objects:
+        override = context.copy()
+        override['selected_objects'] = list(bone_parented_objects.keys())
+        override['selected_editable_objects'] = list(bone_parented_objects.keys())
+        override['active_object'] = list(bone_parented_objects.keys())[0]
+        area, area_region, area_space = get_area_info(context)
+        override["area"] = area
+        override["region"] = area_region
+        override["space_data"] = area_space
+        with context.temp_override(**override):
+            # print(list(bone_parented_objects.keys()))
+            print(context.selected_objects)
+            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
     for ob in bpy.data.objects:
         # ob: bpy.types.Object
@@ -2037,10 +2052,36 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             
         if should_be_unlinked:
             unlink(arm)
+    
+    # child_groups = set([child.group for child in bone_parented_objects.values()])
+    # for group in child_groups:
+    #     children = [child.ob for child in bone_parented_objects.values() if child.group == group]
+    #     if not children: continue
+    #     override = context.copy()
+    #     override['selected_objects'] = children
+    #     override['selected_editable_objects'] = children
+    #     area, area_region, area_space = get_area_info(context)
+    #     override["area"] = area
+    #     override["region"] = area_region
+    #     override["space_data"] = area_space
+    #     if '-:--:-' in group:
+    #         armature_name, bone_name = group.split('-:--:-')
+    #         armature = bpy.data.objects.get(armature_name)
+    #         bone = armature.data.bones.get(bone_name)
+    #         override['active_object'] = armature
+    #         override['active_bone'] = bone
+    #         parent_type = 'BONE'
+    #     else:
+    #         override['active_object'] = bpy.data.objects.get(group)
+    #         parent_type = 'OBJECT'
         
+    #     with context.temp_override(**override):
+    #         bpy.ops.object.parent_set(type=parent_type, keep_transform=True)
+    
     for child in bone_parented_objects.values():
         child.ob.parent = child.parent
-        child.ob.parent_bone = child.parent_bone
+        if child.parent_bone:
+            child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
 
     for action in bpy.data.actions:
@@ -2050,5 +2091,13 @@ def scale_scene(context: bpy.types.Context, scale_factor):
                     keyframe_point.co[1] *= scale_factor
                     
                 fcurve.keyframe_points.handles_recalc()
+                
+def get_area_info(context):
+    area = [
+        area
+        for area in context.screen.areas
+        if area.type == "VIEW_3D"
+    ][0]
+    return area, area.regions[-1], area.spaces.active
                     
     
