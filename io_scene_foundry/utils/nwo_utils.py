@@ -2087,6 +2087,9 @@ def scale_scene(context: bpy.types.Context, scale_factor):
     for action in bpy.data.actions:
         for fcurve in action.fcurves:
             if fcurve.data_path.endswith('location'):
+                for mod in fcurve.modifiers:
+                    if mod.type == 'NOISE':
+                        mod.strength *= scale_factor
                 for keyframe_point in fcurve.keyframe_points:
                     keyframe_point.co[1] *= scale_factor
                     
