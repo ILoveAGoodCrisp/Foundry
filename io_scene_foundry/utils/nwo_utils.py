@@ -1854,11 +1854,32 @@ def exit_local_view(context):
                         override["region"] = region
                         with context.temp_override(**override):
                             bpy.ops.view3d.localview()
+                            
+class NodeChild():
+    def __init__(self, ob):
+        self.ob: bpy.types.Object = ob
+        self.parent: bpy.types.Object = None
+        self.parent_bone: str = None
+        self.matrix: Matrix = None
+        
 
 def scale_scene(context: bpy.types.Context, scale_factor):
+    # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
     armatures = []
     scene_coll = context.scene.collection.objects
     scale_matrix = Matrix.Scale(scale_factor, 4)
+    bone_parented_objects = {}
+    for ob in bpy.data.objects:
+        if ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE' and ob.parent_bone:
+            child_ob = NodeChild(ob)
+            child_ob.parent = ob.parent
+            child_ob.parent_bone = ob.parent_bone
+            bone_parented_objects[ob] = child_ob
+            ob.select_set(True)
+            
+    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+    deselect_all_objects()
+    
     for ob in bpy.data.objects:
         # ob: bpy.types.Object
         loc, rot, sca = ob.matrix_world.decompose()
@@ -1873,6 +1894,8 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             armatures.append(ob)
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+        if bone_parented_objects.get(ob, 0):
+            bone_parented_objects[ob].matrix = ob.matrix_world
         
         for mod in ob.modifiers:
             match mod.type:
@@ -1931,12 +1954,6 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         light.nwo.light_near_attenuation_end *= scale_factor
         light.nwo.light_fade_start_distance *= scale_factor
         light.nwo.light_fade_end_distance *= scale_factor
-    
-    ob_matrix_dict = {}
-    # get all objects with this armature as a parent as to fix parenting
-    for ob in bpy.data.objects:
-        if ob.parent and ob.parent.type == 'ARMATURE':
-            ob_matrix_dict[ob] = ob.matrix_world.copy()
             
     for arm in armatures:
         if arm.library or arm.data.library:
@@ -1970,8 +1987,6 @@ def scale_scene(context: bpy.types.Context, scale_factor):
             
         for edit_bone in edit_bones:
             edit_bone.transform(scale_matrix)
-            # edit_bone.tail *= scale_factor
-            # edit_bone.head *= scale_factor
             
         for edit_bone in connected_bones:
             edit_bone.use_connect = True
@@ -2023,8 +2038,10 @@ def scale_scene(context: bpy.types.Context, scale_factor):
         if should_be_unlinked:
             unlink(arm)
         
-    for ob, matrix in ob_matrix_dict.items(): 
-        ob.matrix_world = matrix
+    for child in bone_parented_objects.values():
+        child.ob.parent = child.parent
+        child.ob.parent_bone = child.parent_bone
+        child.ob.matrix_world = child.matrix
 
     for action in bpy.data.actions:
         for fcurve in action.fcurves:

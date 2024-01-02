@@ -76,6 +76,7 @@ class NWO_ScaleScene(bpy.types.Operator):
             animation_index = context.scene.nwo.active_action_index
             bpy.ops.nwo.unlink_animation()
         nwo_utils.set_object_mode(context)
+        nwo_utils.deselect_all_objects()
         nwo_utils.scale_scene(context, self.scale_factor)
         
         if old_object:

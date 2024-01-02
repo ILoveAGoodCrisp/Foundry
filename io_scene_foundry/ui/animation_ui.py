@@ -672,12 +672,15 @@ class NWO_UL_AnimationList(bpy.types.UIList):
 
     # Called for each drawn item.
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
+        if not item.use_fake_user:
+            row = layout.row()
+            row.alert = True
+            row.label(icon='ERROR')
+            
         nwo = item.nwo
         row = layout.row()
         row.scale_x = 1.5
         row.prop(item, "name", text="", emboss=False)
-        if not item.use_fake_user:
-            row.label(icon='ERROR')
         row = layout.row()
         row.label(text=str(math.floor(item.frame_start)) + '-' + str(math.floor(item.frame_end)))
         anim_type_display = nwo.animation_type

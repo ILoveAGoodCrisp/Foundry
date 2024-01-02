@@ -2276,7 +2276,6 @@ class NWO_FoundryPanelProps(Panel):
             col.separator()
             
         if not action.use_fake_user:
-            col.alert = True
             col.label(text="Fake User Not Set, Animation may be lost on Blender close", icon='ERROR')
             col.prop(action, 'use_fake_user', text="Enable Fake User", icon='FAKE_USER_OFF')
             col.separator()
@@ -2820,11 +2819,7 @@ class NWO_SelectArmature(Operator):
                 self.report({'WARNING'}, "No Armature in Scene")
                 return {'CANCELLED'}
             elif len(rigs) > 1:
-                if scene.nwo.parent_rig and scene.nwo.parent_rig.type == 'ARMATURE':
-                    arm = scene.nwo.parent_rig
-                else:
-                    self.report({'WARNING'}, "Multiple Armatures found. Please validate rig under Foundry Tools > Rig Tools")
-                    return {'CANCELLED'}
+                self.report({'WARNING'}, "Multiple Armatures found. Please validate rig under Foundry Tools > Rig Tools")
             arm = rigs[0]
         deselect_all_objects()
         arm.hide_set(False)
@@ -2834,8 +2829,6 @@ class NWO_SelectArmature(Operator):
         self.report({'INFO'}, F"Selected {arm.name}")
 
         return {'FINISHED'}
-
-
 
 class NWO_FoundryPanelSetsViewer(Panel):
     bl_label = "Halo Sets Viewer"
