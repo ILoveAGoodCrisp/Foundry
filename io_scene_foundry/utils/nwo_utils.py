@@ -1832,9 +1832,7 @@ def asset_path_from_blend_location() -> str | None:
 def get_export_scale(context) -> int:
     export_scale = 1
     scene_nwo = context.scene.nwo
-    if scene_nwo.scale == 'halo':
-        export_scale = 100
-    elif scene_nwo.scale == 'meters':
+    if scene_nwo.scale == 'blender':
         export_scale = (1 / 0.03048)
         
     return export_scale
