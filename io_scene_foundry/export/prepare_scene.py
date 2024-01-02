@@ -48,6 +48,7 @@ from ..utils.nwo_utils import (
     dot_partition,
     enable_prints,
     exit_local_view,
+    get_area_info,
     get_object_type,
     get_sky_perm,
     has_shader_path,
