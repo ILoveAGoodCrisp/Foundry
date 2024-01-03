@@ -1810,21 +1810,12 @@ class PrepareScene:
         if asset_type in ("MODEL", "FP ANIMATION"):
             # bake animation to avoid issues on armature rotation
             if export_animations != "NONE" and bpy.data.actions:
-                self.bake_animations(
-                    armature,
-                    export_animations,
-                    current_action,
-                    scene_coll,
-                )
-            else:
-                if hasattr(self, "old_pedestal_mat"):
-                    self.counter_matrix(self.old_pedestal_mat, self.pedestal_matrix, self.pedestal, export_obs)
-                if hasattr(self, "old_aim_pitch_mat"):
-                    self.counter_matrix(self.old_aim_pitch_mat, self.pedestal_matrix, self.aim_pitch, export_obs)
-                if hasattr(self, "old_aim_yaw_mat"):
-                    self.counter_matrix(self.old_aim_yaw_mat, self.pedestal_matrix, self.aim_yaw, export_obs)
-                if hasattr(self, "old_gun_mat"):
-                    self.counter_matrix(self.old_gun_mat, self.pedestal_matrix, self.gun, export_obs)
+                # Force the keyframes to start at frame 0
+                for animation in bpy.data.actions:
+                    frame_diff = int(animation.frame_start)
+                    for fcurve in animation.fcurves:
+                        for kfp in fcurve.keyframe_points:
+                            kfp.co[0] -= frame_diff
                 self.animation_arm = self.model_armature.copy()
                 self.animation_arm.data = self.model_armature.data.copy()
                 scene_coll.link(self.animation_arm)

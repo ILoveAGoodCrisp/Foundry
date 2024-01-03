@@ -1956,6 +1956,18 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
                     con.rest_length *= scale_factor
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
+                # case 'CHILD_OF':
+                #     if con.inverse_matrix != Matrix.Identity(4) and con.target:
+                #         target = con.target
+                #         if con.subtarget:
+                #             target_matrix = target.data.bones[con.subtarget].matrix_local
+                #         else:
+                #             target_matrix = target.matrix_world
+                            
+                #         con.inverse_matrix = target_matrix.inverted()
+                            
+                        
+
             
     for curve in bpy.data.curves:
         if hasattr(curve, 'size'):
@@ -2006,6 +2018,7 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
             should_be_hidden = True
             
         if not arm.visible_get():
+            original_collections = arm.users_collection
             unlink(arm)
             scene_coll.link(arm)
             should_be_unlinked = True
@@ -2060,6 +2073,16 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
                         con.rest_length *= scale_factor
                     case 'SHRINKWRAP':
                         con.distance *= scale_factor
+                    case 'CHILD_OF':
+                        if con.inverse_matrix != Matrix.Identity(4) and con.target:
+                            target = con.target
+                            if con.subtarget:
+                                target_matrix = target.data.bones[con.subtarget].matrix_local
+                            else:
+                                target_matrix = target.matrix_world
+                                
+                            con.inverse_matrix = target_matrix.inverted()
+                            
 
         if uses_pose_mirror:
             arm.pose.use_mirror_x = True
@@ -2075,13 +2098,17 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
             
         if should_be_unlinked:
             unlink(arm)
+            if original_collections:
+                for coll in original_collections:
+                    coll.objects.link(arm)
+    
     
     for child in parented_objects.values():
         child.ob.parent = child.parent
         if child.parent_bone:
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
-
+    
     for action in bpy.data.actions:
         for fcurve in action.fcurves:
             if fcurve.data_path.endswith('location'):
