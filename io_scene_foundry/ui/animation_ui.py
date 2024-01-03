@@ -125,6 +125,7 @@ class NWO_SetTimeline(bpy.types.Operator):
     
     exclude_first_frame: bpy.props.BoolProperty()
     exclude_last_frame: bpy.props.BoolProperty()
+    use_self_props: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
     
     @classmethod
     def poll(cls, context):
@@ -133,20 +134,33 @@ class NWO_SetTimeline(bpy.types.Operator):
     def execute(self, context):
         action = context.object.animation_data.action
         scene = context.scene
+        scene_nwo = scene.nwo
+        
         start_frame = int(action.frame_start)
+        if self.use_self_props:
+            final_start_frame = start_frame + self.exclude_first_frame
+            scene_nwo.exclude_first_frame = self.exclude_first_frame
+        else:
+            final_start_frame = start_frame + scene_nwo.exclude_first_frame
+            
         end_frame = int(action.frame_end)
+        if self.use_self_props:
+            final_end_frame = end_frame + self.exclude_last_frame
+            scene_nwo.exclude_last_frame = self.exclude_last_frame
+        else:
+            final_end_frame = end_frame + scene_nwo.exclude_last_frame
+            
         if (end_frame - start_frame) > 0:
-            scene.frame_start = int(action.frame_start)
-            if self.exclude_first_frame:
-                scene.frame_start += 1
-            scene.frame_end = int(action.frame_end)
-            if self.exclude_last_frame:
-                scene.frame_end -= 1
-                
-            scene.frame_current = scene.frame_start
+            scene.frame_start = final_start_frame
+            scene.frame_end = final_end_frame
+            scene.frame_current = final_start_frame
             
         return {'FINISHED'}
     
+    def invoke(self, context, _):
+        self.use_self_props = True
+        return self.execute(context)
+        
     def draw(self, context):
         layout = self.layout
         layout.prop(self, 'exclude_first_frame', text="Exclude First Frame")

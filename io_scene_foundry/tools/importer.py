@@ -172,7 +172,7 @@ class NWO_Import(bpy.types.Operator):
                         
                         # Return to our scale
                         if needs_scaling:
-                            transform_scene(context, scale_factor, rotation)
+                            transform_scene(context, scale_factor, blender_rotation_diff('x', context.scene.nwo.forward_direction))
                     
                     if self.find_shader_paths and imported_objects:
                         print('Updating shader tag paths for imported objects')
@@ -491,7 +491,7 @@ class NWOImporter():
         
     def import_legacy_animation(self, path, legacy_fix_rotations):
         existing_animations = bpy.data.actions[:]
-        print(f"Importing Animation: {dot_partition(os.path.basename(path))}")
+        print(f"\nImporting Animation: {dot_partition(os.path.basename(path))}")
         bpy.ops.import_scene.jma(filepath=path, fix_rotations=False)
         if bpy.data.actions:
             anim = [a for a in bpy.data.actions if a not in existing_animations][0]

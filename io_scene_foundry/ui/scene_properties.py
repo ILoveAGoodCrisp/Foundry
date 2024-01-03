@@ -174,7 +174,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                     ob.animation_data.action = bpy.data.actions[self.active_action_index]
 
             if get_prefs().sync_timeline_range:
-                bpy.ops.nwo.set_timeline('INVOKE_DEFAULT')
+                bpy.ops.nwo.set_timeline()
             
     def get_active_action_index(self):
         if not bpy.context.object or not bpy.context.object.animation_data or not bpy.context.object.animation_data.action:
@@ -197,6 +197,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     old_active_action_index: IntProperty()
+    
+    exclude_first_frame: BoolProperty()
+    exclude_last_frame: BoolProperty()
     
     # MB
     mb_startup: BoolProperty(
