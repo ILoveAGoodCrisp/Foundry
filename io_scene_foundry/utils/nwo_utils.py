@@ -1599,7 +1599,7 @@ def stomp_scale_multi_user(objects):
             basis_ob = mesh_ob_dict[me][0]
         set_active_object(basis_ob)
         [ob.select_set(True) for ob in mesh_ob_dict[me]]
-        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
         deselect_all_objects()
         
 def get_scale_ratio(scale):
