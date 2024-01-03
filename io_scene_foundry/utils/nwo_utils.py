@@ -1866,7 +1866,7 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
     # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
     armatures = []
     scene_coll = context.scene.collection.objects
-    axis_z = (0, 0, 1)
+    axis_z = Vector((0, 0, 1))
     pivot = Vector((0.0, 0.0, 0.0))
     rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
     pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
@@ -1898,16 +1898,17 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
     
     for ob in bpy.data.objects:
         no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
-        loc, _, sca = ob.matrix_world.decompose()
-        loc *= scale_factor
-        if rotation:
-            loc = pivot_matrix @ loc
+        loc, rot, sca = ob.matrix_world.decompose()
         if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion
         else:
             rot = ob.rotation_euler
-                
-        if no_data_transform:
+            
+        loc *= scale_factor
+        if rotation:
+            loc = pivot_matrix @ loc
+            
+        if ob.type != 'ARMATURE':
             rot.rotate(rotation_matrix)
         
         # Lights need scaling to have correct display 
@@ -1921,7 +1922,7 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
             armatures.append(ob)
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
-            
+
         if parented_objects.get(ob, 0):
             parented_objects[ob].matrix = ob.matrix_world
         
@@ -1960,16 +1961,25 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
         if hasattr(curve, 'size'):
             curve.size *= scale_factor
             
-        curve.transform(transform_matrix)
+        curve.transform(scale_matrix)
+        curve.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
+        curve.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+        curve.nwo.material_lighting_emissive_power_ui *= scale_factor
         
     for metaball in bpy.data.metaballs:
-        metaball.transform(transform_matrix)
+        metaball.transform(scale_matrix)
+        metaball.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
+        metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+        metaball.nwo.material_lighting_emissive_power_ui *= scale_factor
         
     for lattice in bpy.data.lattices:
-        lattice.transform(transform_matrix)
-            
+        lattice.transform(scale_matrix)
+    
     for mesh in bpy.data.meshes:
-        mesh.transform(transform_matrix)
+        mesh.transform(scale_matrix)
+        mesh.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
+        mesh.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+        mesh.nwo.material_lighting_emissive_power_ui *= scale_factor
         
     for camera in bpy.data.cameras:
         camera.display_size *= scale_factor
@@ -2066,31 +2076,6 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
         if should_be_unlinked:
             unlink(arm)
     
-    # child_groups = set([child.group for child in parented_objects.values()])
-    # for group in child_groups:
-    #     children = [child.ob for child in parented_objects.values() if child.group == group]
-    #     if not children: continue
-    #     override = context.copy()
-    #     override['selected_objects'] = children
-    #     override['selected_editable_objects'] = children
-    #     area, area_region, area_space = get_area_info(context)
-    #     override["area"] = area
-    #     override["region"] = area_region
-    #     override["space_data"] = area_space
-    #     if '-:--:-' in group:
-    #         armature_name, bone_name = group.split('-:--:-')
-    #         armature = bpy.data.objects.get(armature_name)
-    #         bone = armature.data.bones.get(bone_name)
-    #         override['active_object'] = armature
-    #         override['active_bone'] = bone
-    #         parent_type = 'BONE'
-    #     else:
-    #         override['active_object'] = bpy.data.objects.get(group)
-    #         parent_type = 'OBJECT'
-        
-    #     with context.temp_override(**override):
-    #         bpy.ops.object.parent_set(type=parent_type, keep_transform=True)
-    
     for child in parented_objects.values():
         child.ob.parent = child.parent
         if child.parent_bone:
@@ -2135,7 +2120,7 @@ def blender_rotation_diff(direction, scene_direction):
         case "y":
             return rot - radians(-90)
         case "y-":
-            return rot - radians(90) - rot
+            return rot - radians(90)
         case "x-":
             return rot - radians(180)
         case "x":

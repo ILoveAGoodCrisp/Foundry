@@ -349,8 +349,8 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
 
     # MATERIAL LIGHTING PROPERTIES
 
-    def update_emissive(self, context):
-        self.emissive_active = True
+    # def update_emissive(self, context):
+    #     self.emissive_active = True
 
     emissive_active: BoolProperty()
     material_lighting_attenuation_active: BoolProperty()
@@ -416,7 +416,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         default=10,
         subtype='POWER',
         unit='POWER',
-        update=update_emissive,
+        # update=update_emissive,
     )
 
     material_lighting_emissive_quality_active: BoolProperty()

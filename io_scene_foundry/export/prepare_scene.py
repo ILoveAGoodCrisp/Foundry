@@ -1322,10 +1322,10 @@ class PrepareScene:
         # emissive props
         if face_props.emissive_override:
             mesh_props.material_lighting_attenuation_falloff = jstr(
-                face_props.material_lighting_attenuation_falloff_ui * self.export_scale * 100
+                face_props.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * 0.328084
             )
             mesh_props.material_lighting_attenuation_cutoff = jstr(
-                face_props.material_lighting_attenuation_cutoff_ui * self.export_scale * 100
+                face_props.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * 0.328084
             )
             mesh_props.material_lighting_emissive_focus = jstr(
                 face_props.material_lighting_emissive_focus_ui
@@ -1338,11 +1338,11 @@ class PrepareScene:
             )
             if h4:
                 mesh_props.material_lighting_emissive_power = jstr(
-                    face_props.material_lighting_emissive_power_ui * self.export_scale / 20
+                    face_props.material_lighting_emissive_power_ui * 0.03048 * 0.328084 / 20
                 )
             else:
                 mesh_props.material_lighting_emissive_power = jstr(
-                    face_props.material_lighting_emissive_power_ui * self.export_scale
+                    face_props.material_lighting_emissive_power_ui * 0.03048 * 0.328084
                 )
             mesh_props.material_lighting_emissive_quality = jstr(
                 face_props.material_lighting_emissive_quality_ui
@@ -2072,10 +2072,10 @@ class PrepareScene:
                     )
                 if nwo_data.emissive_active:
                     nwo.material_lighting_attenuation_falloff = jstr(
-                        nwo_data.material_lighting_attenuation_falloff_ui * self.export_scale
+                        nwo_data.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * 0.328084
                     )
                     nwo.material_lighting_attenuation_cutoff = jstr(
-                        nwo_data.material_lighting_attenuation_cutoff_ui * self.export_scale
+                        nwo_data.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * 0.328084
                     )
                     nwo.material_lighting_emissive_focus = jstr(
                         nwo_data.material_lighting_emissive_focus_ui
@@ -2086,9 +2086,14 @@ class PrepareScene:
                     nwo.material_lighting_emissive_per_unit = bool_str(
                         nwo_data.material_lighting_emissive_per_unit_ui
                     )
-                    nwo.material_lighting_emissive_power = jstr(
-                        nwo_data.material_lighting_emissive_power_ui
-                    )
+                    if h4:
+                        nwo.material_lighting_emissive_power = jstr(
+                            nwo_data.material_lighting_emissive_power_ui * 0.03048 * 0.328084 / 20
+                        )
+                    else:
+                        nwo.material_lighting_emissive_power = jstr(
+                            nwo_data.material_lighting_emissive_power_ui * 0.03048 * 0.328084
+                        )
                     nwo.material_lighting_emissive_quality = jstr(
                         nwo_data.material_lighting_emissive_quality_ui
                     )
