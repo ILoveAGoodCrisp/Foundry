@@ -32,7 +32,7 @@ from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, dot_partition, get_tags_path, is_corinth, print_warning, relative_path, set_active_object, stomp_scale_multi_user, transform_scene, unlink, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, dot_partition, get_tags_path, is_corinth, mute_armature_mods, print_warning, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, unlink, unmute_armature_mods, update_progress
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -121,8 +121,9 @@ class NWO_Import(bpy.types.Operator):
         extensions = set([path.rpartition('.')[2].lower() for path in filepaths])
         corinth = is_corinth(context)
         scale_factor = 0.03048 if context.scene.nwo.scale == 'blender' else 1
-        rotation = -blender_halo_rotation_diff(context.scene.nwo.forward_direction)
-        needs_scaling = scale_factor != 1 or rotation
+        to_x_rot = rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
+        from_x_rot = rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
+        needs_scaling = scale_factor != 1 or to_x_rot
         start = time.perf_counter()
         imported_objects = []
         imported_actions = []
@@ -150,8 +151,8 @@ class NWO_Import(bpy.types.Operator):
                         if imported_amf_objects:
                             imported_objects.extend(imported_amf_objects)
                         
-                        if rotation:
-                            transform_scene(context, 1, rotation, objects=imported_amf_objects)
+                        if to_x_rot:
+                            transform_scene(context, 1, from_x_rot, objects=imported_amf_objects)
                             
                     if self.legacy_okay and any([ext in ('jms', 'ass', 'jmm', 'jma', 'jmt', 'jmz', 'jmv', 'jmw', 'jmo', 'jmr', 'jmrx') for ext in extensions]):
                         toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
@@ -161,7 +162,7 @@ class NWO_Import(bpy.types.Operator):
                         jma_files = importer.sorted_filepaths["jma"]
                         # Transform Scene so it's ready for JMA/JMS files
                         if needs_scaling:
-                            transform_scene(context, (1 / scale_factor), -rotation)
+                            transform_scene(context, (1 / scale_factor), to_x_rot)
                             
                         # imported_jms_objects = importer.import_jms_files(jms_files)
                         imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
@@ -172,7 +173,7 @@ class NWO_Import(bpy.types.Operator):
                         
                         # Return to our scale
                         if needs_scaling:
-                            transform_scene(context, scale_factor, blender_rotation_diff('x', context.scene.nwo.forward_direction))
+                            transform_scene(context, scale_factor, from_x_rot)
                     
                     if self.find_shader_paths and imported_objects:
                         print('Updating shader tag paths for imported objects')
@@ -257,9 +258,9 @@ class NWO_Import(bpy.types.Operator):
             if self.find_shader_paths:
                 layout.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
             
-            # box = layout.box()
-            # box.label(text="JMA/JMS/ASS Settings")
-            # box.prop(self, 'legacy_fix_rotations', text='Fix Rotations')
+            box = layout.box()
+            box.label(text="JMA/JMS/ASS Settings")
+            box.prop(self, 'legacy_fix_rotations', text='Fix Rotations')
 
 class NWOImporter():
     def __init__(self, context, report, filepaths):
@@ -482,17 +483,19 @@ class NWOImporter():
         arm.hide_set(False)
         arm.hide_select = False
         set_active_object(arm)
-        
+        muted_armature_deforms = mute_armature_mods()
         for path in jma_files:
             self.import_legacy_animation(path, legacy_fix_rotations)
-            
+        
+        unmute_armature_mods(muted_armature_deforms)
+        
         return self.animations
             
         
     def import_legacy_animation(self, path, legacy_fix_rotations):
         existing_animations = bpy.data.actions[:]
         print(f"\nImporting Animation: {dot_partition(os.path.basename(path))}")
-        bpy.ops.import_scene.jma(filepath=path, fix_rotations=False)
+        bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
         if bpy.data.actions:
             anim = [a for a in bpy.data.actions if a not in existing_animations][0]
             self.animations.append(anim)

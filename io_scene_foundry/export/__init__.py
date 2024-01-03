@@ -54,6 +54,7 @@ from .prepare_scene import PrepareScene
 from .process_scene import ProcessScene
 
 from io_scene_foundry.utils.nwo_utils import (
+    MutePrints,
     check_path,
     get_data_path,
     get_asset_info,

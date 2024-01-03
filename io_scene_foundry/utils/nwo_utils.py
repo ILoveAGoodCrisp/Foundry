@@ -2175,4 +2175,43 @@ def blender_rotation_diff(from_direction, to_direction):
             return rot - 0
             
     return 0
+
+def rotation_diff_from_forward(from_direction, to_direction):
+    from_radians = 0
+    match from_direction:
+        case "y-":
+            from_radians = 0
+        case "y":
+            from_radians = radians(180)
+        case "x-":
+            from_radians = radians(90)
+        case "x":
+            from_radians = radians(-90)
+        
+    to_radians = 0
+    match to_direction:
+        case "y-":
+            to_radians = 0
+        case "y":
+            to_radians = radians(180)
+        case "x-":
+            to_radians = radians(90)
+        case "x":
+            to_radians = radians(-90)
+        
+    return from_radians - to_radians
+
+def mute_armature_mods():
+    muted_arms = []
+    for ob in bpy.data.objects:
+        for mod in ob.modifiers:
+            if mod.type == 'ARMATURE' and mod.use_vertex_groups:
+                muted_arms.append(mod)
+                mod.use_vertex_groups = False
+                
+    return muted_arms
+                
+def unmute_armature_mods(muted_arms):
+    for mod in muted_arms:
+        mod.use_vertex_groups = True
     

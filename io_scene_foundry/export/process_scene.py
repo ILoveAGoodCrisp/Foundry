@@ -47,8 +47,10 @@ from ..utils.nwo_utils import (
     get_tags_path,
     is_corinth,
     jstr,
+    mute_armature_mods,
     print_warning,
     run_tool,
+    unmute_armature_mods,
     update_job,
     update_job_count,
 )
@@ -1098,18 +1100,6 @@ def patch_granny(gr2):
         file_data[data_structure_offset:data_structure_offset + len(replacement_data)] = replacement_data
         file.seek(0)
         file.write(file_data)
-
-def mute_armature_mods():
-    muted_arms = []
-    for ob in bpy.data.objects:
-        for mod in ob.modifiers:
-            if mod.type == 'ARMATURE' and mod.use_vertex_groups:
-                muted_arms.append(mod)
-                mod.use_vertex_groups = False
-                
-def unmute_armature_mods(muted_arms):
-    for mod in muted_arms:
-        mod.use_vertex_groups = True
         
 def clear_constraints():
     for ob in bpy.data.objects:
