@@ -101,7 +101,7 @@ class NWO_ScaleScene(bpy.types.Operator):
             bpy.ops.nwo.unlink_animation()
         nwo_utils.set_object_mode(context)
         nwo_utils.deselect_all_objects()
-        nwo_utils.scale_scene(context, self.scale_factor, self.rotation)
+        nwo_utils.transform_scene(context, self.scale_factor, self.rotation)
 
         if old_object:
             nwo_utils.set_active_object(old_object)

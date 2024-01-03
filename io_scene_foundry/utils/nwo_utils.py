@@ -1862,8 +1862,29 @@ class NodeChild():
         self.matrix: Matrix = None
         # self.group: str = None
 
-def scale_scene(context: bpy.types.Context, scale_factor, rotation):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, objects=None, actions=None):
+    """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
+    if objects is None:
+        # need to scope data
+        objects = bpy.data.objects
+        curves = bpy.data.curves
+        metaballs = bpy.data.metaballs
+        lattices = bpy.data.lattices
+        meshes = bpy.data.meshes
+        cameras = bpy.data.cameras
+        lights = bpy.data.lights
+    else:
+        curves = {ob.data for ob in objects if ob.type =='CURVE'}
+        metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
+        lattices = {ob.data for ob in objects if ob.type =='LATTICE'}
+        meshes = {ob.data for ob in objects if ob.type =='MESH'}
+        cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
+        lights = {ob.data for ob in objects if ob.type =='LIGHT'}
+        
+    if actions is None:
+        actions = bpy.data.actions
+
     armatures = []
     scene_coll = context.scene.collection.objects
     axis_z = Vector((0, 0, 1))
@@ -1873,7 +1894,7 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
     scale_matrix = Matrix.Scale(scale_factor, 4)
     transform_matrix = rotation_matrix @ scale_matrix
     parented_objects = {}
-    for ob in bpy.data.objects:
+    for ob in objects:
         if ob.parent and ((ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE') or (ob.parent_type == 'OBJECT' and ob.parent.type != 'ARMATURE')):
             child_ob = NodeChild(ob)
             child_ob.parent = ob.parent
@@ -1896,7 +1917,7 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
         with context.temp_override(**override):
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
-    for ob in bpy.data.objects:
+    for ob in objects:
         no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         loc, rot, sca = ob.matrix_world.decompose()
         if ob.rotation_mode == 'QUATERNION':
@@ -1969,7 +1990,7 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
                         
 
             
-    for curve in bpy.data.curves:
+    for curve in curves:
         if hasattr(curve, 'size'):
             curve.size *= scale_factor
             
@@ -1978,25 +1999,25 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
         curve.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
         curve.nwo.material_lighting_emissive_power_ui *= scale_factor
         
-    for metaball in bpy.data.metaballs:
+    for metaball in metaballs:
         metaball.transform(scale_matrix)
         metaball.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
         metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
         metaball.nwo.material_lighting_emissive_power_ui *= scale_factor
         
-    for lattice in bpy.data.lattices:
+    for lattice in lattices:
         lattice.transform(scale_matrix)
     
-    for mesh in bpy.data.meshes:
+    for mesh in meshes:
         mesh.transform(scale_matrix)
         mesh.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
         mesh.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
         mesh.nwo.material_lighting_emissive_power_ui *= scale_factor
         
-    for camera in bpy.data.cameras:
+    for camera in cameras:
         camera.display_size *= scale_factor
         
-    for light in bpy.data.lights:
+    for light in lights:
         light.energy *= scale_factor ** 2
         light.nwo.light_far_attenuation_start *= scale_factor
         light.nwo.light_far_attenuation_end *= scale_factor
@@ -2109,7 +2130,7 @@ def scale_scene(context: bpy.types.Context, scale_factor, rotation):
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
     
-    for action in bpy.data.actions:
+    for action in actions:
         for fcurve in action.fcurves:
             if fcurve.data_path.endswith('location'):
                 for mod in fcurve.modifiers:
@@ -2140,10 +2161,10 @@ def blender_halo_rotation_diff(direction):
             
     return 0
 
-def blender_rotation_diff(direction, scene_direction):
+def blender_rotation_diff(from_direction, to_direction):
     """Returns the rotation (radians) needed to go from the current blender forward to the selected forward"""
-    rot = blender_halo_rotation_diff(scene_direction)
-    match direction:
+    rot = blender_halo_rotation_diff(to_direction)
+    match from_direction:
         case "y":
             return rot - radians(-90)
         case "y-":

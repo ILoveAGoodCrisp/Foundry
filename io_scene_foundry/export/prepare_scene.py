@@ -61,7 +61,7 @@ from ..utils.nwo_utils import (
     library_instanced_collection,
     print_warning,
     relative_path,
-    scale_scene,
+    transform_scene,
     set_active_object,
     get_tags_path,
     is_corinth,
@@ -226,7 +226,7 @@ class PrepareScene:
         scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
         rotation = blender_halo_rotation_diff(scene_nwo.forward_direction)
         if scale_factor != 1 or rotation:
-            scale_scene(context, scale_factor, rotation)
+            transform_scene(context, scale_factor, rotation)
             
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects

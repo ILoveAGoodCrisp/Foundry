@@ -3747,9 +3747,18 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
 
     run_game_scripts: BoolProperty(
         options=set(),
-        description="Runs all startup & continuous scripts on map load",
+        description="Runs all startup, dormant, and continuous scripts on map load",
         name="Run Game Scripts",
     )
+    
+    # multiplayer_mode: EnumProperty(
+    #     name="Multiplayer Gametype",
+    #     description="Launches the scenario with the given multiplayer gametype (TagTest only)"
+    #     items=[
+    #         ('none', 'None', '')
+    #         ('sandbox', 'Forge', '')
+    #     ]
+    # )
 
     prune_globals: BoolProperty(
         options=set(),

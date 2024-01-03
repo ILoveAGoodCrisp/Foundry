@@ -350,7 +350,7 @@ class NWOLight(NWOObject):
         if self.ob.data.type == "SUN":
             power = self.ob.data.energy
         else:
-            power = (self.ob.data.energy / 0.03048**-2) / div
+            power = (self.ob.data.energy * 0.03048 ** 2) / div
         
         # Tool can't read light info if power lower than 0.0001
         power = max(0.0001, power)
