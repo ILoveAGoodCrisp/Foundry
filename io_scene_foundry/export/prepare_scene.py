@@ -1816,11 +1816,12 @@ class PrepareScene:
                     for fcurve in animation.fcurves:
                         for kfp in fcurve.keyframe_points:
                             kfp.co[0] -= frame_diff
-                self.animation_arm = self.model_armature.copy()
-                self.animation_arm.data = self.model_armature.data.copy()
-                scene_coll.link(self.animation_arm)
+                            
+                # self.animation_arm = self.model_armature.copy()
+                # self.animation_arm.data = self.model_armature.data.copy()
+                # scene_coll.link(self.animation_arm)
                 
-            self.remove_constraints(self.model_armature)
+            # self.remove_constraints(self.model_armature)
             # apply rotation based on selected forward direction
             # context.scene.frame_current = 0
             # if forward == "y":

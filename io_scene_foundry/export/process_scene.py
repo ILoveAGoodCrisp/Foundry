@@ -86,12 +86,8 @@ class ProcessScene:
         reports = []
         gr2_count = 0
         h4 = is_corinth(context)
+        muted_armature_deforms = []
         if scene_nwo_export.export_gr2_files:
-            print("\n\nStarting Models Export")
-            print(
-                "-----------------------------------------------------------------------\n"
-            )
-
             # make necessary directories
             models_dir = os.path.join(asset_path, "models")
             export_dir = os.path.join(asset_path, "export", "models")
@@ -103,6 +99,137 @@ class ProcessScene:
                 "FP ANIMATION",
             ):  # Added FP animation to this. FP animation only exports the skeleton and animations
                 # Must always export a render model
+                if (
+                    nwo_scene.model_armature
+                    and bpy.data.actions
+                    and nwo_scene.model_armature.animation_data
+                ):
+                    if scene_nwo_export.export_animations != "NONE":
+                        # self.remove_all_but_armatures(nwo_scene)
+
+                        timeline = context.scene
+                        print("\n\nStarting Animations Export")
+                        print(
+                            "-----------------------------------------------------------------------\n"
+                        )
+
+                    # Handle swapping out armature
+                    muted_armature_deforms = mute_armature_mods()
+                    for action in bpy.data.actions:
+                        # make animation dirs
+                        animations_dir = os.path.join(asset_path, "animations")
+                        export_animations_dir = os.path.join(
+                            asset_path, "export", "animations"
+                        )
+                        os.makedirs(animations_dir, exist_ok=True)
+                        os.makedirs(export_animations_dir, exist_ok=True)
+                        action_nwo = action.nwo
+                        # only export animations that have manual frame range
+                        if action.use_frame_range:
+                            self.asset_has_animations = True
+                            animation_name = action.nwo.name_override
+                            fbx_path, json_path, gr2_path = self.get_path(
+                                asset_path,
+                                asset,
+                                "animations",
+                                None,
+                                None,
+                                animation_name,
+                            )
+                            if scene_nwo_export.export_animations != "NONE":
+                                if (
+                                    scene_nwo_export.export_animations == "ALL"
+                                    or nwo_scene.current_action == action
+                                ):
+                                    job = f"--- {animation_name}"
+                                    update_job(job, 0)
+                                    
+                                    arm = nwo_scene.model_armature
+
+                                    arm.animation_data.action = action
+                                    timeline.frame_start = int(action.frame_start)
+                                    timeline.frame_end = int(action.frame_end)
+
+                                    context.scene.frame_set(int(action.frame_start))
+
+                                    export_obs = self.create_event_nodes(
+                                        context,
+                                        action_nwo.animation_events,
+                                        arm,
+                                        timeline.frame_start,
+                                        timeline.frame_end,
+                                    )
+
+                                    override = context.copy()
+                                    area = [
+                                        area
+                                        for area in context.screen.areas
+                                        if area.type == "VIEW_3D"
+                                    ][0]
+                                    override["area"] = area
+                                    override["region"] = area.regions[-1]
+                                    override["space_data"] = area.spaces.active
+                                    override["selected_objects"] = export_obs
+
+                                    with context.temp_override(**override):
+                                        if self.export_fbx(
+                                            True,
+                                            fbx_path,
+                                        ):
+                                            if self.export_json(
+                                                json_path,
+                                                export_obs,
+                                                asset_type,
+                                                asset,
+                                                nwo_scene,
+                                            ):
+                                                self.export_gr2(
+                                                    fbx_path,
+                                                    json_path,
+                                                    gr2_path,
+                                                )
+                                            else:
+                                                return f"Failed to export skeleton JSON: {json_path}"
+                                        else:
+                                            return f"Failed to export skeleton FBX: {fbx_path}"
+
+                                    update_job(job, 1)
+
+                            if "animation" in self.sidecar_paths.keys():
+                                self.sidecar_paths["animation"].append(
+                                    [
+                                        data_relative(fbx_path),
+                                        data_relative(json_path),
+                                        data_relative(gr2_path),
+                                        animation_name,
+                                        action_nwo.animation_type,
+                                        action_nwo.animation_movement_data,
+                                        action_nwo.animation_space,
+                                        action_nwo.animation_is_pose,
+                                        action_nwo.compression,
+                                    ]
+                                )
+                            else:
+                                self.sidecar_paths["animation"] = [
+                                    [
+                                        data_relative(fbx_path),
+                                        data_relative(json_path),
+                                        data_relative(gr2_path),
+                                        animation_name,
+                                        action_nwo.animation_type,
+                                        action_nwo.animation_movement_data,
+                                        action_nwo.animation_space,
+                                        action_nwo.animation_is_pose,
+                                        action_nwo.compression,
+                                    ]
+                                ]
+                print("\n\nStarting Models Export")
+                print(
+                    "-----------------------------------------------------------------------\n"
+                )
+                clear_constraints()
+                if muted_armature_deforms:
+                    unmute_armature_mods(muted_armature_deforms)
                 if nwo_scene.render:
                     self.export_model(
                         context,
@@ -235,136 +362,6 @@ class ProcessScene:
                             data_relative(gr2_path),
                         ]
                     ]
-
-                if (
-                    nwo_scene.model_armature
-                    and bpy.data.actions
-                    and nwo_scene.model_armature.animation_data
-                ):
-                    if scene_nwo_export.export_animations != "NONE":
-                        # self.remove_all_but_armatures(nwo_scene)
-
-                        timeline = context.scene
-                        print("\n\nStarting Animations Export")
-                        print(
-                            "-----------------------------------------------------------------------\n"
-                        )
-
-                    # Handle swapping out armature
-                    for action in bpy.data.actions:
-                        # make animation dirs
-                        animations_dir = os.path.join(asset_path, "animations")
-                        export_animations_dir = os.path.join(
-                            asset_path, "export", "animations"
-                        )
-                        os.makedirs(animations_dir, exist_ok=True)
-                        os.makedirs(export_animations_dir, exist_ok=True)
-                        action_nwo = action.nwo
-                        # only export animations that have manual frame range
-                        if action.use_frame_range:
-                            self.asset_has_animations = True
-                            animation_name = action.nwo.name_override
-                            fbx_path, json_path, gr2_path = self.get_path(
-                                asset_path,
-                                asset,
-                                "animations",
-                                None,
-                                None,
-                                animation_name,
-                            )
-                            if scene_nwo_export.export_animations != "NONE":
-                                if (
-                                    scene_nwo_export.export_animations == "ALL"
-                                    or nwo_scene.current_action == action
-                                ):
-                                    job = f"--- {animation_name}"
-                                    update_job(job, 0)
-
-                                    # Handle swapping out armature
-                                    if nwo_scene.animation_arm:
-                                        arm = nwo_scene.animation_arm
-                                    else:
-                                        arm = nwo_scene.animation_armatures[action]
-                                    
-                                    arm.name = nwo_scene.arm_name
-
-                                    arm.animation_data.action = action
-                                    timeline.frame_start = int(action.frame_start)
-                                    timeline.frame_end = int(action.frame_end)
-
-                                    context.scene.frame_set(int(action.frame_start))
-
-                                    export_obs = self.create_event_nodes(
-                                        context,
-                                        action_nwo.animation_events,
-                                        arm,
-                                        timeline.frame_start,
-                                        timeline.frame_end,
-                                    )
-
-                                    override = context.copy()
-                                    area = [
-                                        area
-                                        for area in context.screen.areas
-                                        if area.type == "VIEW_3D"
-                                    ][0]
-                                    override["area"] = area
-                                    override["region"] = area.regions[-1]
-                                    override["space_data"] = area.spaces.active
-                                    override["selected_objects"] = export_obs
-
-                                    with context.temp_override(**override):
-                                        if self.export_fbx(
-                                            True,
-                                            fbx_path,
-                                        ):
-                                            if self.export_json(
-                                                json_path,
-                                                export_obs,
-                                                asset_type,
-                                                asset,
-                                                nwo_scene,
-                                            ):
-                                                self.export_gr2(
-                                                    fbx_path,
-                                                    json_path,
-                                                    gr2_path,
-                                                )
-                                            else:
-                                                return f"Failed to export skeleton JSON: {json_path}"
-                                        else:
-                                            return f"Failed to export skeleton FBX: {fbx_path}"
-
-                                    update_job(job, 1)
-
-                            if "animation" in self.sidecar_paths.keys():
-                                self.sidecar_paths["animation"].append(
-                                    [
-                                        data_relative(fbx_path),
-                                        data_relative(json_path),
-                                        data_relative(gr2_path),
-                                        animation_name,
-                                        action_nwo.animation_type,
-                                        action_nwo.animation_movement_data,
-                                        action_nwo.animation_space,
-                                        action_nwo.animation_is_pose,
-                                        action_nwo.compression,
-                                    ]
-                                )
-                            else:
-                                self.sidecar_paths["animation"] = [
-                                    [
-                                        data_relative(fbx_path),
-                                        data_relative(json_path),
-                                        data_relative(gr2_path),
-                                        animation_name,
-                                        action_nwo.animation_type,
-                                        action_nwo.animation_movement_data,
-                                        action_nwo.animation_space,
-                                        action_nwo.animation_is_pose,
-                                        action_nwo.compression,
-                                    ]
-                                ]
 
             elif asset_type == "SCENARIO":
                 if nwo_scene.structure:
@@ -1102,3 +1099,22 @@ def patch_granny(gr2):
         file.seek(0)
         file.write(file_data)
 
+def mute_armature_mods():
+    muted_arms = []
+    for ob in bpy.data.objects:
+        for mod in ob.modifiers:
+            if mod.type == 'ARMATURE' and mod.use_vertex_groups:
+                muted_arms.append(mod)
+                mod.use_vertex_groups = False
+                
+def unmute_armature_mods(muted_arms):
+    for mod in muted_arms:
+        mod.use_vertex_groups = True
+        
+def clear_constraints():
+    for ob in bpy.data.objects:
+        # ob.constraints.clear()
+        if ob.type == 'ARMATURE':
+            for pose_bone in ob.pose.bones:
+                for con in pose_bone.constraints:
+                    pose_bone.constraints.remove(con)
