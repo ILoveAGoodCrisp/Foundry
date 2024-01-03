@@ -385,14 +385,17 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_emissive_focus_ui: FloatProperty(
         name="Material Lighting Emissive Focus",
         options=set(),
-        description="",
+        description="Controls the spread of the light emitting from this surface. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
+        min=0,
+        max=1,
+        subtype="FACTOR",
     )
 
     material_lighting_emissive_color_active: BoolProperty()
     material_lighting_emissive_color_ui: FloatVectorProperty(
         name="Material Lighting Emissive Color",
         options=set(),
-        description="",
+        description="The RGB value of the emitted light",
         default=(1.0, 1.0, 1.0),
         subtype="COLOR",
         min=0.0,
@@ -403,7 +406,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_emissive_per_unit_ui: BoolProperty(
         name="Material Lighting Emissive Per Unit",
         options=set(),
-        description="",
+        description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
         default=False,
     )
 
@@ -411,7 +414,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_emissive_power_ui: FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
-        description="",
+        description="The intensity of the emissive surface",
         min=0,
         default=10,
         subtype='POWER',
@@ -423,7 +426,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_emissive_quality_ui: FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
-        description="",
+        description="Controls the quality of the shadows cast by a complex occluder. For instance, a light casting shadows of tree branches on a wall would require a higher quality to get smooth shadows",
         default=1,
         min=0,
     )
@@ -440,7 +443,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_bounce_ratio_ui: FloatProperty(
         name="Material Lighting Bounce Ratio",
         options=set(),
-        description="",
+        description="0 will bounce no energy. 1 will bounce full energy. Any value greater than 1 will exaggerate the amount of bounced light. Affects 1st bounce only",
         default=1,
         min=0,
     )
