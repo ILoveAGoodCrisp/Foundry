@@ -1929,7 +1929,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, objects=
         if rotation:
             loc = pivot_matrix @ loc
             
-        if ob.type != 'ARMATURE' and not is_marker(ob):
+        if ob.type != 'ARMATURE':
             rot.rotate(rotation_matrix)
         
         # Lights need scaling to have correct display 
@@ -1943,6 +1943,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, objects=
             armatures.append(ob)
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+        
+        if is_marker(ob):
+            ob.rotation_euler.rotate_axis('Z', -rotation)
 
         if parented_objects.get(ob, 0):
             parented_objects[ob].matrix = ob.matrix_world
