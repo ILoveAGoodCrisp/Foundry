@@ -579,9 +579,14 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
     bl_label = "New Animation Rename"
     bl_idname = "nwo.animation_rename_add"
     bl_description = "Creates a new Halo Animation Rename"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return bpy.data.actions and context.scene.nwo.active_action_index > -1
 
     def __init__(self):
-        action = bpy.context.object.animation_data.action
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
         nwo = action.nwo
         state = nwo.state.lower().strip(" :_,-")
         state = "idle" if state == "" else state
@@ -611,7 +616,7 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
 
     def execute(self, context):
         full_name = self.create_name()
-        action = context.active_object.animation_data.action
+        action = bpy.data.actions[context.scene.nwo.active_action_index]
         nwo = action.nwo
         animation_name = nwo.name_override if nwo.name_override else action.name
         if full_name == animation_name:
@@ -622,12 +627,9 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
             return {"CANCELLED"}
 
         # Create the rename
-        bpy.ops.uilist.entry_add(
-            list_path="object.animation_data.action.nwo.animation_renames",
-            active_index_path="object.animation_data.action.nwo.animation_renames_index",
-        )
-        rename = nwo.animation_renames[nwo.animation_renames_index]
-        rename.rename_name = full_name
+        rename = nwo.animation_renames.add()
+        nwo.animation_renames_index = len(nwo.animation_renames) - 1
+        rename.name = full_name
         context.area.tag_redraw()
 
         self.report({"INFO"}, f"Created rename: {full_name}")
@@ -642,16 +644,16 @@ class NWO_List_Remove_Animation_Rename(NWO_Op):
 
     @classmethod
     def poll(cls, context):
-        return (
-            context.object
-            and context.object.type == "ARMATURE"
-            and context.object.animation_data
-            and context.object.animation_data.action
-            and len(context.object.animation_data.action.nwo.animation_renames) > 0
-        )
+        if not bpy.data.actions:
+            return
+        action_index = context.scene.nwo.active_action_index
+        if action_index < 0:
+            return
+        action = bpy.data.actions[action_index]
+        return len(action.nwo.animation_renames) > 0
 
     def execute(self, context):
-        action = context.active_object.animation_data.action
+        action = bpy.data.actions[context.scene.nwo.active_action_index]
         nwo = action.nwo
         nwo.animation_renames.remove(nwo.animation_renames_index)
         if nwo.animation_renames_index > len(nwo.animation_renames) - 1:
@@ -671,7 +673,7 @@ class NWO_UL_AnimationRename(bpy.types.UIList):
         active_propname,
         index,
     ):
-        layout.prop(item, "rename_name", text="", emboss=False, icon_value=get_icon_id("animation_rename"))
+        layout.prop(item, "name", text="", emboss=False, icon_value=get_icon_id("animation_rename"))
 
 class NWO_UL_AnimationList(bpy.types.UIList):
     # Constants (flags)
@@ -692,9 +694,10 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         nwo = item.nwo
         row = layout.row()
         row.scale_x = 1.5
-        row.prop(item, "name", text="", emboss=False)
+        row.prop(item, "name", text="", emboss=False, icon='ANIM')
         row = layout.row()
-        row.label(text=str(math.floor(item.frame_start)) + '-' + str(math.floor(item.frame_end)))
+        row.scale_x = 0.5
+        row.label(text=str(math.floor(item.frame_end) - math.floor(item.frame_start)), icon='KEYFRAME_HLT')
         anim_type_display = nwo.animation_type
         if anim_type_display == 'base' and nwo.animation_movement_data != 'none':
             anim_type_display += f'[{nwo.animation_movement_data}]'

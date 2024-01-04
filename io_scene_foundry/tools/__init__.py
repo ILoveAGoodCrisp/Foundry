@@ -4868,10 +4868,6 @@ class NWO_AddPoseBones(Operator):
     has_control_bone: BoolProperty()
     skip_invoke: BoolProperty()
     
-    # @classmethod
-    # def poll(cls, context):
-    #     return context.scene.nwo.main_armature
-    
     def new_bone(self, arm, parent_name, bone_name):
         parent_edit = arm.data.edit_bones.get(parent_name)
         new_edit = arm.data.edit_bones.new(bone_name)
@@ -4963,6 +4959,9 @@ class NWO_AddPoseBones(Operator):
         scene_nwo = context.scene.nwo
         tail_scale = 1 if scene_nwo.scale == 'max' else 0.03048
         arm = get_rig(context)
+        if not arm:
+            self.report({'WARNING'}, 'No Armature Found')
+            return
         bones = arm.data.bones
         for b in bones:
             if b.use_deform and not b.parent:
@@ -4981,47 +4980,48 @@ class NWO_AddPoseBones(Operator):
                 scene_nwo.node_usage_pose_blend_yaw = b.name
                 
         # Get missing node usages
-        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-        if scene_nwo.node_usage_pose_blend_pitch:
-            pitch_name = scene_nwo.node_usage_pose_blend_pitch
-        else:
-            pitch_name = self.new_bone(arm, parent_bone_name, 'b_aim_pitch')
-            scene_nwo.node_usage_pose_blend_pitch = pitch_name
-        if scene_nwo.node_usage_pose_blend_yaw:
-            yaw_name = scene_nwo.node_usage_pose_blend_yaw
-        else:
-            yaw_name = self.new_bone(arm, parent_bone_name, 'b_aim_yaw')
-            scene_nwo.node_usage_pose_blend_yaw = yaw_name
-            
-        if self.add_control_bone and not self.has_control_bone:
-            bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-            existing_obs = context.view_layer.objects[:]
-            resources_zip = os.path.join(addon_root(), "resources.zip")
-            control_bone_path = os.path.join('rigs', 'shape_aim_control.glb')
-            full_path = os.path.join(addon_root(), 'resources', control_bone_path)
-            if os.path.exists(full_path):
-                import_gltf(full_path)
-            elif os.path.exists(resources_zip):
-                file = extract_from_resources(control_bone_path)
-                if os.path.exists(file):
-                    import_gltf(file)
-                    os.remove(file)
-            else:
-                self.report({'ERROR'}, 'Failed to extract control shape')
-                return {'FINISHED'}
-                
-            bone_shape = [ob for ob in context.view_layer.objects if ob not in existing_obs][0]
-            if scene_nwo.scale == 'blender':
-                bone_shape.data.transform(Matrix.Scale(0.03048, 4))
-            bone_shape.select_set(False)
-            bone_shape.nwo.export_this = False
-            arm.select_set(True)
-            set_active_object(arm)
+        with context.temp_override(active_object=arm, selected_editable_objects=[arm]):
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            scene_nwo.control_aim = self.new_control_bone(tail_scale, arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
-            unlink(bone_shape)
-            
-        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            if scene_nwo.node_usage_pose_blend_pitch:
+                pitch_name = scene_nwo.node_usage_pose_blend_pitch
+            else:
+                pitch_name = self.new_bone(arm, parent_bone_name, 'b_aim_pitch')
+                scene_nwo.node_usage_pose_blend_pitch = pitch_name
+            if scene_nwo.node_usage_pose_blend_yaw:
+                yaw_name = scene_nwo.node_usage_pose_blend_yaw
+            else:
+                yaw_name = self.new_bone(arm, parent_bone_name, 'b_aim_yaw')
+                scene_nwo.node_usage_pose_blend_yaw = yaw_name
+                
+            if self.add_control_bone and not self.has_control_bone:
+                bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+                existing_obs = context.view_layer.objects[:]
+                resources_zip = os.path.join(addon_root(), "resources.zip")
+                control_bone_path = os.path.join('rigs', 'shape_aim_control.glb')
+                full_path = os.path.join(addon_root(), 'resources', control_bone_path)
+                if os.path.exists(full_path):
+                    import_gltf(full_path)
+                elif os.path.exists(resources_zip):
+                    file = extract_from_resources(control_bone_path)
+                    if os.path.exists(file):
+                        import_gltf(file)
+                        os.remove(file)
+                else:
+                    self.report({'ERROR'}, 'Failed to extract control shape')
+                    return {'FINISHED'}
+                    
+                bone_shape = [ob for ob in context.view_layer.objects if ob not in existing_obs][0]
+                if scene_nwo.scale == 'blender':
+                    bone_shape.data.transform(Matrix.Scale(0.03048, 4))
+                bone_shape.select_set(False)
+                bone_shape.nwo.export_this = False
+                arm.select_set(True)
+                set_active_object(arm)
+                bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+                scene_nwo.control_aim = self.new_control_bone(tail_scale, arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
+                unlink(bone_shape)
+                
+            bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
         context.scene.nwo.needs_pose_bones = False
         return {'FINISHED'}
     

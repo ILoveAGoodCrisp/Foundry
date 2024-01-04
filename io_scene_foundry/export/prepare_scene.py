@@ -1745,7 +1745,7 @@ class PrepareScene:
                 new_renames = new_nwo.animation_renames
                 for idx, r in enumerate(old_renames):
                     new_renames.add()
-                    new_renames[idx].rename_name = r.rename_name
+                    new_renames[idx].name = r.name
 
                 old_events = old_nwo.animation_events
                 new_events = new_nwo.animation_events

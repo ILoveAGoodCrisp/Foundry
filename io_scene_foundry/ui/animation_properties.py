@@ -64,7 +64,7 @@ class NWO_UL_AnimProps_Events(UIList):
 
 
 class NWO_AnimationRenamesItems(PropertyGroup):
-    rename_name: StringProperty(name="Name")
+    name: StringProperty(name="Name")
 
 
 #############################################################
@@ -83,21 +83,13 @@ class NWO_List_Add_Animation_Event(Operator):
 
     @classmethod
     def poll(cls, context):
-        return (
-            context.object
-            and context.object.type == "ARMATURE"
-            and context.object.animation_data
-            and context.object.animation_data.action
-        )
+        return bpy.data.actions and context.scene.nwo.active_action_index > -1
 
     def execute(self, context):
-        action = context.active_object.animation_data.action
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
         nwo = action.nwo
-        bpy.ops.uilist.entry_add(
-            list_path="object.animation_data.action.nwo.animation_events",
-            active_index_path="object.animation_data.action.nwo.animation_events_index",
-        )
-        event = nwo.animation_events[nwo.animation_events_index]
+        event = nwo.animation_events.add()
+        nwo.animation_events_index = len(nwo.animation_events) - 1
         event.frame_frame = context.scene.frame_current
         event.event_id = random.randint(0, 2147483647)
         event.name = f"event_{len(nwo.animation_events)}"

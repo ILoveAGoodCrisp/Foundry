@@ -784,7 +784,7 @@ class Sidecar:
                     network = ET.SubElement(
                         object,
                         "ContentNetwork",
-                        Name=rename.rename_name,
+                        Name=rename.name,
                         Type="Rename",
                         NetworkReference=nwo.name_override,
                     )
