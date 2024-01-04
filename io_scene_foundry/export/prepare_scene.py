@@ -117,6 +117,9 @@ PEDESTAL_MATRIX_X_NEGATIVE = Matrix(((-1.0, 0.0, 0.0, 0.0),
 
 TARGET_SCALE = Vector.Fill(3, 1)
 
+halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
+halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
+
 #####################################################################################
 #####################################################################################
 # MAIN CLASS
@@ -335,6 +338,9 @@ class PrepareScene:
         update_progress(process, 0)
         len_export_obs = len(export_obs)
         self.used_materials = set()
+        reach_sky_lights = []
+        is_sky = asset_type == 'SKY'
+        is_scenario = asset_type == 'SCENARIO'
         # start the great loop!
         for idx, ob in enumerate(export_obs):
             nwo = ob.nwo
@@ -352,10 +358,15 @@ class PrepareScene:
             # If this is a Reach light, fix it's rotation
             # Blender lights emit in -z, while Halo emits light from +y
             if not h4 and ob_type == "LIGHT":
-                blend_matrix = ob.matrix_world.copy()
-                halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
-                halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
-                ob.matrix_world = blend_matrix @ halo_x_rot @ halo_z_rot
+                if is_sky:
+                    reach_sky_lights.append(ob)
+                    self.unlink(ob)
+                    continue
+                elif not is_scenario:
+                    self.unlink(ob)
+                    continue
+                
+                ob.matrix_world = ob.matrix_world @ halo_x_rot @ halo_z_rot
                 
             if asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB'):
                 nwo.permutation_name_ui = self.default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
@@ -816,6 +827,41 @@ class PrepareScene:
             self.design_bsps = [b for b in self.regions if b in self.design_bsps]
         if len(self.design_perms) > 1:
             self.design_perms = [l for l in self.permutations if l in self.design_perms]
+            
+        # Build skylight dict
+        self.skylights = {}
+        if reach_sky_lights:
+            # undo scale change
+            if scale_factor != 1:
+                light_scale = 0.03048 ** 2
+                sun_scale = 0.03048
+            else:
+                light_scale = 1
+                sun_scale = 1
+            sun = None
+            lightGen_colors = []
+            lightGen_directions = []
+            lightGen_solid_angles = []
+            for ob in reach_sky_lights:
+                if (ob.data.energy * light_scale) < 0.01:
+                    sun = ob
+                down = Vector((0, 0, -1))
+                down.rotate(ob.rotation_euler)
+                lightGen_colors.append(color_3p_str(ob.data.color))
+                lightGen_directions.append(f'{jstr(down[0])} {jstr(down[1])} {jstr(down[2])}')
+                lightGen_solid_angles.append(jstr(ob.data.energy * light_scale))
+                
+            self.skylights['lightGen_colors'] = ' '.join(lightGen_colors)
+            self.skylights['lightGen_directions'] = ' '.join(lightGen_directions)
+            self.skylights['lightGen_solid_angles'] = ' '.join(lightGen_solid_angles)
+            self.skylights['lightGen_samples'] = str(len(reach_sky_lights) - 1)
+            
+            if sun is not None:
+                if sun.data.color.v > 1:
+                    sun.data.color.v = 1
+                self.skylights['sun_size'] = jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
+                self.skylights['sun_intensity'] = jstr(sun.data.energy * 10000 * light_scale)
+                self.skylights['sun_color'] = color_3p_str(sun.data.color)
 
         if self.warning_hit:
             print_warning(

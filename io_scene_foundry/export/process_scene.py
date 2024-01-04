@@ -225,13 +225,15 @@ class ProcessScene:
                                         action_nwo.compression,
                                     ]
                                 ]
-                print("\n\nStarting Models Export")
-                print(
-                    "-----------------------------------------------------------------------\n"
-                )
-                clear_constraints()
-                if muted_armature_deforms:
-                    unmute_armature_mods(muted_armature_deforms)
+            print("\n\nStarting Models Export")
+            print(
+                "-----------------------------------------------------------------------\n"
+            )
+            clear_constraints()
+            if muted_armature_deforms:
+                unmute_armature_mods(muted_armature_deforms)
+            if asset_type in ("MODEL", "FP ANIMATION"):
+
                 if nwo_scene.render:
                     self.export_model(
                         context,
@@ -1036,6 +1038,7 @@ class ProcessScene:
             nwo_scene.skeleton_bones,
             nwo_scene.regions,
             nwo_scene.global_materials_dict,
+            nwo_scene.skylights,
         )
         with open(json_path, "w") as j:
             json.dump(json_props.json_dict, j, indent=4)

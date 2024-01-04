@@ -49,6 +49,7 @@ class NWOJSON(dict):
         bone_list,
         regions,
         global_materials_dict,
+        skylights,
     ):
         self.objects = objects
         self.sidecar_type = sidecar_type
@@ -59,8 +60,13 @@ class NWOJSON(dict):
         self.bone_list = bone_list
         self.regions = regions
         self.global_materials_dict = global_materials_dict
+        self.skylights = skylights
         self.string_table = self.build_string_table()
         self.nodes_properties, self.meshes_properties = self.build_nodes_meshes_properties()
+        if self.skylights and self.meshes_properties:
+            holder_of_light = self.meshes_properties[list(self.meshes_properties.keys())[0]]
+            holder_of_light.update(self.skylights)
+            
         self.material_properties = self.build_material_properties()
 
         self.json_dict = {}
