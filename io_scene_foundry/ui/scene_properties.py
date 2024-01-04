@@ -44,7 +44,8 @@ def get_matrix_settings():
     foundry_folder = os.path.join(appdata, "FoundryHBCK")
 
     if not os.path.exists(foundry_folder):
-        return print("No Foundry Folder")
+        print("No Foundry Folder")
+        return 'blender', 'y-'
     
     matrix_file = os.path.join(foundry_folder, 'matrix_halo.txt')
     if os.path.exists(matrix_file):
