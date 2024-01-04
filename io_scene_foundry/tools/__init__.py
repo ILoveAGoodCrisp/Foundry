@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from math import radians
+import math
 import os
 import random
 import bpy
@@ -5047,27 +5048,27 @@ class NWO_ValidateRig(Operator):
         match scene.nwo.forward_direction:
             case 'x':
                 tail_okay = (
-                edit_root.tail[0] == 0 and
+                math.isclose(edit_root.tail[0], 0, abs_tol=1e-5) and
                 edit_root.tail[1] > 0 and
-                edit_root.tail[0] == 0)
+                math.isclose(edit_root.tail[2], 0, abs_tol=1e-5))
             case 'x-':
                 tail_okay = (
-                edit_root.tail[0] == 0 and
+                math.isclose(edit_root.tail[0], 0, abs_tol=1e-5) and
                 edit_root.tail[1] < 0 and
-                edit_root.tail[0] == 0)
+                math.isclose(edit_root.tail[2], 0, abs_tol=1e-5))
             case 'y':
                 tail_okay = (
                 edit_root.tail[0] < 0 and
-                edit_root.tail[1] == 0 and
-                edit_root.tail[0] == 0)
+                math.isclose(edit_root.tail[1], 0, abs_tol=1e-5) and
+                math.isclose(edit_root.tail[2], 0, abs_tol=1e-5))
             case 'y-':
                 tail_okay = (
                 edit_root.tail[0] > 0 and
-                edit_root.tail[1] == 0 and
-                edit_root.tail[0] == 0)
+                math.isclose(edit_root.tail[1], 0, abs_tol=1e-5) and
+                math.isclose(edit_root.tail[2], 0, abs_tol=1e-5))
                 
-        head_okay = edit_root.head[0] == 0 and edit_root.head[1] == 0 and edit_root.head[2] == 0
-        roll_okay = edit_root.roll == 0
+        head_okay = math.isclose(edit_root.head[0], 0, abs_tol=1e-5) and math.isclose(edit_root.head[1], 0, abs_tol=1e-5) and math.isclose(edit_root.head[2], 0, abs_tol=1e-5)
+        roll_okay = math.isclose(edit_root.roll, 0, abs_tol=1e-5)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         
         return tail_okay and head_okay and roll_okay
@@ -5353,23 +5354,24 @@ class NWO_FixRootBone(Operator):
         self.old_active = context.object
         set_object_mode(context)
         set_active_object(arm)
+        tail_size = 1 if scene.nwo.scale == 'max' else 0.03048
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         edit_root = arm.data.edit_bones.get(root_bone_name)
         match scene.nwo.forward_direction:
             case 'x':
                 edit_root.tail[0] = 0
-                edit_root.tail[1] = 1
+                edit_root.tail[1] = tail_size
                 edit_root.tail[2] = 0
             case 'x-':
                 edit_root.tail[0] = 0
-                edit_root.tail[1] = -1
+                edit_root.tail[1] = -tail_size
                 edit_root.tail[2] = 0
             case 'y':
-                edit_root.tail[0] = -1
+                edit_root.tail[0] = -tail_size
                 edit_root.tail[1] = 0
                 edit_root.tail[2] = 0
             case 'y-':
-                edit_root.tail[0] = 1
+                edit_root.tail[0] = tail_size
                 edit_root.tail[1] = 0
                 edit_root.tail[2] = 0
                 

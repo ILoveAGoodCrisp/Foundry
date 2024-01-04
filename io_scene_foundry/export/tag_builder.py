@@ -41,6 +41,9 @@ def set_template(scene_nwo, tags_dir, new_tag_path_name, tag_type):
         relative_path = getattr(scene_nwo, 'template_' + tag_type)
         expected_asset_path = new_tag_path_name + tag_type
         if relative_path and not os.path.exists(expected_asset_path):
+            asset_folder = os.path.dirname(expected_asset_path)
+            if not os.path.exists(asset_folder):
+                os.makedirs(asset_folder, exist_ok=True)
             full_path = tags_dir + relative_path
             if os.path.exists(full_path):
                 copy_file(full_path, expected_asset_path)

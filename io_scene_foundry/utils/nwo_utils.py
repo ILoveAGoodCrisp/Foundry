@@ -1895,7 +1895,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, objects=
     transform_matrix = rotation_matrix @ scale_matrix
     parented_objects = {}
     for ob in objects:
-        if ob.parent and ((ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE') or (ob.parent_type == 'OBJECT' and ob.parent.type != 'ARMATURE')):
+        if ob.parent:
             child_ob = NodeChild(ob)
             child_ob.parent = ob.parent
             # child_ob.group = ob.parent.name
