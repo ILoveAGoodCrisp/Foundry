@@ -696,7 +696,6 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         row.scale_x = 1.5
         row.prop(item, "name", text="", emboss=False, icon='ANIM')
         row = layout.row()
-        row.scale_x = 0.5
         row.label(text=str(math.floor(item.frame_end) - math.floor(item.frame_start)), icon='KEYFRAME_HLT')
         anim_type_display = nwo.animation_type
         if anim_type_display == 'base' and nwo.animation_movement_data != 'none':
