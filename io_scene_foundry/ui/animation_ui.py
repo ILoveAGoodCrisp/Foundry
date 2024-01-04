@@ -85,19 +85,16 @@ class NWO_DeleteAnimation(bpy.types.Operator):
         return context.scene.nwo.active_action_index > -1
 
     def execute(self, context):
-        context.scene.tool_settings.use_keyframe_insert_auto = False        
-        action = context.object.animation_data.action
-        current_action_index = bpy.data.actions.values().index(action)
+        context.scene.tool_settings.use_keyframe_insert_auto = False
+        current_action_index = context.scene.nwo.active_action_index
+        action = bpy.data.actions[current_action_index]
         if action:
             name = str(action.name)
             bpy.data.actions.remove(action)
             self.report({"INFO"}, f"Deleted animation: {name}")
-            reset_to_basis()
-        
-        if bpy.data.actions and current_action_index >= len(bpy.data.actions):
-            context.object.animation_data.action = bpy.data.actions[-1]
-        elif bpy.data.actions:
-            context.object.animation_data.action = bpy.data.actions[current_action_index]
+            
+        new_action_index = len(bpy.data.actions) - 1 if current_action_index >= len(bpy.data.actions) else current_action_index
+        context.scene.nwo.active_action_index = new_action_index
         
         return {"FINISHED"}
     
@@ -113,6 +110,7 @@ class NWO_UnlinkAnimation(bpy.types.Operator):
 
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
+        context.scene.nwo.active_action_index = -1
         reset_to_basis()
                     
         return {"FINISHED"}
@@ -132,9 +130,9 @@ class NWO_SetTimeline(bpy.types.Operator):
         return context.scene.nwo.active_action_index > -1
     
     def execute(self, context):
-        action = context.object.animation_data.action
         scene = context.scene
         scene_nwo = scene.nwo
+        action = bpy.data.actions[scene_nwo.active_action_index]
         
         start_frame = int(action.frame_start)
         if self.use_self_props:

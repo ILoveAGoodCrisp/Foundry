@@ -168,18 +168,23 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # ANIMATION
     def update_active_action_index(self, context):
         if self.active_action_index > -1:
+            reset_to_basis(True)
             for ob in bpy.data.objects:
                 if ob.animation_data:
-                    reset_to_basis(True)
                     ob.animation_data.action = bpy.data.actions[self.active_action_index]
 
             if get_prefs().sync_timeline_range:
                 bpy.ops.nwo.set_timeline()
             
     def get_active_action_index(self):
-        if not bpy.context.object or not bpy.context.object.animation_data or not bpy.context.object.animation_data.action:
+        ob = bpy.context.object
+        if not ob or not ob.animation_data:
+            return self.old_active_action_index
+        
+        if ob.animation_data.action is None:
             return -1
-        real_action_index = bpy.data.actions.values().index(bpy.context.object.animation_data.action)
+        
+        real_action_index = bpy.data.actions.values().index(ob.animation_data.action)
         if self.old_active_action_index != real_action_index:
             self.old_active_action_index = real_action_index
             return real_action_index
@@ -187,7 +192,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             return self.old_active_action_index
     
     def set_active_action_index(self, value):
-        bpy.context.object.animation_data.action = bpy.data.actions[value]
+        ob = bpy.context.object
+        if ob and ob.animation_data:
+            ob.animation_data.action = bpy.data.actions[value]
         self.old_active_action_index = value
     
     active_action_index: IntProperty(
@@ -196,7 +203,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         set=set_active_action_index,
     )
     
-    old_active_action_index: IntProperty()
+    old_active_action_index: IntProperty(default=-1)
     
     exclude_first_frame: BoolProperty()
     exclude_last_frame: BoolProperty()
@@ -646,9 +653,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     material_properties_pinned: BoolProperty()
     material_properties_expanded: BoolProperty(default=True)
 
-    animation_properties_active: BoolProperty()
-    animation_properties_pinned: BoolProperty()
-    animation_properties_expanded: BoolProperty(default=True)
+    animation_manager_active: BoolProperty()
+    animation_manager_pinned: BoolProperty()
+    animation_manager_expanded: BoolProperty(default=True)
 
     scene_properties_active: BoolProperty(default=True)
     scene_properties_pinned: BoolProperty()

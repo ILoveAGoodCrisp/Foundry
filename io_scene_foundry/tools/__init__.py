@@ -148,7 +148,7 @@ PANELS_PROPS = [
     "sets_manager",
     "object_properties",
     "material_properties",
-    "animation_properties",
+    "animation_manager",
     "tools",
     "help",
     "settings"
@@ -219,7 +219,7 @@ class NWO_FoundryPanelProps(Panel):
         for p in PANELS_PROPS:
             if p == "help":
                 box = col1.box()
-            elif p == "animation_properties":
+            elif p == "animation_manager":
                 if nwo.asset_type not in ('MODEL', 'FP ANIMATION'):
                     continue
             elif p in ("object_properties", "material_properties"):
@@ -2224,29 +2224,17 @@ class NWO_FoundryPanelProps(Panel):
                 
 
 
-    def draw_animation_properties(self):
+    def draw_animation_manager(self):
         box = self.box.box()
         row = box.row()
         context = self.context
         ob = context.object
         scene_nwo = context.scene.nwo
-        if not ob or ob.type != "ARMATURE":
-            if ob:
-                row.label(text="Halo Animations are only supported for Armatures")
-            else:
-                row.label(text="No active object")
-
-            row = box.row()
-            row.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')
+            
+        if not bpy.data.actions:
+            box.operator("nwo.new_animation", icon="ADD", text="New Animation")
+            box.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')
             return
-
-        animation_data = ob.animation_data
-
-        if not animation_data:
-            ob.animation_data_create()
-            return
-
-        action = animation_data.action
 
         row.template_list(
             "NWO_UL_AnimationList",
@@ -2264,14 +2252,21 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.unlink_animation", icon="X", text="")
         col.separator()
         col.operator("nwo.set_timeline", text="", icon='TIME')
+        if not ob or ob.type != "ARMATURE":
+            col.separator()
+            col.operator("nwo.select_armature", text="", icon='OUTLINER_OB_ARMATURE')
         
         col = box.column()
         row = col.row()
         
-        if not action:
-            col.label(text="No Active Animation Selected")
+        
+        if scene_nwo.active_action_index < 0:
+            col.label(text="No Animation Selected")
             return
-        elif not action.use_frame_range:
+        
+        action = bpy.data.actions[scene_nwo.active_action_index]
+        
+        if not action.use_frame_range:
             col.label(text="Animation excluded from export", icon='ERROR')
             col.separator()
             
@@ -2805,10 +2800,22 @@ class NWO_SelectArmature(Operator):
     bl_label = "Select Armature"
     bl_idname = "nwo.select_armature"
     bl_options = {'UNDO'}
-    bl_description = "Sets the first armature encountered as the active object"
+    bl_description = "Sets the main scene armature as the active object"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT'
+    
+    has_pedestal_control: BoolProperty()
+    has_pose_bones: BoolProperty()
+    has_aim_control: BoolProperty()
+    create_arm: BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
 
     def execute(self, context):
-        set_object_mode(context)
+        if self.create_arm:
+            bpy.ops.nwo.armature_create(has_pedestal_control=self.has_pedestal_control, has_pose_bones=self.has_pose_bones, has_aim_control=self.has_aim_control)
+            return {'FINISHED'}
+        
         objects = context.view_layer.objects
         scene = context.scene
         if scene.nwo.main_armature:
@@ -2816,8 +2823,9 @@ class NWO_SelectArmature(Operator):
         else:
             rigs = [ob for ob in objects if ob.type == 'ARMATURE']
             if not rigs:
-                self.report({'WARNING'}, "No Armature in Scene")
-                return {'CANCELLED'}
+                # self.report({'WARNING'}, "No Armature in Scene")
+                self.create_arm = True
+                return context.window_manager.invoke_props_dialog(self)
             elif len(rigs) > 1:
                 self.report({'WARNING'}, "Multiple Armatures found. Please validate rig under Foundry Tools > Rig Tools")
             arm = rigs[0]
@@ -2829,6 +2837,14 @@ class NWO_SelectArmature(Operator):
         self.report({'INFO'}, F"Selected {arm.name}")
 
         return {'FINISHED'}
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text='No Armature in Scene. Press OK to create one')
+        layout.prop(self, 'has_pedestal_control', text='With Pedestal Control Bone')
+        layout.prop(self, 'has_pose_bones', text='With Aim Bones')
+        if self.has_pose_bones:
+            layout.prop(self, 'has_aim_control', text='With Aim Control Bone')
 
 class NWO_FoundryPanelSetsViewer(Panel):
     bl_label = "Halo Sets Viewer"
@@ -4743,10 +4759,10 @@ class NWO_ArmatureCreator_Create(Operator):
         set_active_object(arm)
         
         bpy.ops.object.editmode_toggle()
-        
+        tail_scale = 1 if scene.nwo.scale == 'max' else 0.03048
         pedestal = data.edit_bones.new('b_pedestal')
         pedestal.head = [0, 0, 0]
-        pedestal.tail = [0, 1, 0]
+        pedestal.tail = [0, tail_scale, 0]
         
         bpy.ops.object.editmode_toggle()
         if self.has_pedestal_control:
@@ -4866,17 +4882,18 @@ class NWO_AddPoseBones(Operator):
         
         return new_edit.name
     
-    def new_control_bone(self, arm, parent_name, bone_name, pitch_name, yaw_name, shape_ob):
+    def new_control_bone(self, tail_scale, arm, parent_name, bone_name, pitch_name, yaw_name, shape_ob):
         parent_edit = arm.data.edit_bones.get(parent_name)
         new_edit = arm.data.edit_bones.new(bone_name)
         new_edit.parent = parent_edit
-        new_edit.tail[1] = 1
+        new_edit.tail[1] = tail_scale
         name = new_edit.name
         bpy.ops.object.mode_set(mode="POSE", toggle=False)
         new_bone = arm.data.bones.get(name)
         new_pose = arm.pose.bones.get(name)
         new_bone.use_deform = False
         new_pose.custom_shape = shape_ob
+        new_pose.use_custom_shape_bone_size = False
         
         # Constraints for the control bone
         cons = new_pose.constraints
@@ -4944,6 +4961,7 @@ class NWO_AddPoseBones(Operator):
         
     def execute(self, context):
         scene_nwo = context.scene.nwo
+        tail_scale = 1 if scene_nwo.scale == 'max' else 0.03048
         arm = get_rig(context)
         bones = arm.data.bones
         for b in bones:
@@ -5000,7 +5018,7 @@ class NWO_AddPoseBones(Operator):
             arm.select_set(True)
             set_active_object(arm)
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            scene_nwo.control_aim = self.new_control_bone(arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
+            scene_nwo.control_aim = self.new_control_bone(tail_scale, arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
             unlink(bone_shape)
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
@@ -5427,15 +5445,16 @@ class NWO_AddPedestalControl(Operator):
     def poll(cls, context):
         return context.scene.nwo.main_armature
     
-    def new_control_bone(self, arm, pedestal_name, bone_name, shape_ob):
+    def new_control_bone(self, tail_scale, arm, pedestal_name, bone_name, shape_ob):
         new_edit = arm.data.edit_bones.new(bone_name)
-        new_edit.tail[1] = 1
+        new_edit.tail[1] = tail_scale
         name = new_edit.name
         bpy.ops.object.mode_set(mode="POSE", toggle=False)
         new_bone = arm.data.bones.get(name)
         new_pose = arm.pose.bones.get(name)
         new_bone.use_deform = False
         new_pose.custom_shape = shape_ob
+        new_pose.use_custom_shape_bone_size = False
         
         # Constraints for the pedestal bone
         pose_control = arm.pose.bones.get(pedestal_name)
@@ -5450,6 +5469,7 @@ class NWO_AddPedestalControl(Operator):
     
     def execute(self, context):
         scene_nwo = context.scene.nwo
+        tail_scale = 1 if scene_nwo.scale == 'max' else 0.03048
         arm = scene_nwo.main_armature
         bones = arm.data.bones
         for b in bones:
@@ -5488,7 +5508,7 @@ class NWO_AddPedestalControl(Operator):
             arm.select_set(True)
             set_active_object(arm)
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            scene_nwo.control_pedestal = self.new_control_bone(arm, pedestal_bone_name, 'c_pedestal', bone_shape)
+            scene_nwo.control_pedestal = self.new_control_bone(tail_scale, arm, pedestal_bone_name, 'c_pedestal', bone_shape)
             unlink(bone_shape)
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
