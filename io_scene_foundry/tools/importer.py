@@ -378,7 +378,7 @@ class NWOImporter():
         file_name = dot_partition(os.path.basename(path))
         print(f"Importing AMF: {file_name}")
         with MutePrints():
-            bpy.ops.import_scene.amf(filepath=path, import_units=import_size)
+            bpy.ops.import_scene.amf(filepath=path, import_units=import_size, marker_prefix='')
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         self.process_amf_objects(new_objects, file_name)
         
