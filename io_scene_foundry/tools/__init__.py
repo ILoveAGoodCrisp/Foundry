@@ -331,6 +331,8 @@ class NWO_FoundryPanelProps(Panel):
             row.label(text='World Units only accurate when Unit Length is Meters', icon='ERROR')
         row = col.row()
         row.prop(nwo, "forward_direction", text="Scene Forward", expand=True)
+        row = col.row()
+        row.prop(nwo, "marker_forward", expand=True)
 
     def draw_asset_editor(self):
         box = self.box.box()

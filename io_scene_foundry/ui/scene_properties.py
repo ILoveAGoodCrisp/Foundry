@@ -45,16 +45,16 @@ def get_matrix_settings():
 
     if not os.path.exists(foundry_folder):
         print("No Foundry Folder")
-        return 'blender', 'y-'
+        return 'blender', 'y-', 'keep'
     
     matrix_file = os.path.join(foundry_folder, 'matrix_halo.txt')
     if os.path.exists(matrix_file):
-        return 'max', 'x'
+        return 'max', 'x', 'x'
     else:
-        return 'blender', 'y-'
+        return 'blender', 'y-', 'keep'
     
 
-default_scale, default_forward = get_matrix_settings()
+default_scale, default_forward, default_marker_direction = get_matrix_settings()
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
@@ -910,6 +910,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="Select whether to display scale as meters or world units",
         items=scale_display_items,
         update=scale_update,
+    )
+    
+    marker_forward: EnumProperty(
+        name="Marker Direction",
+        default=default_marker_direction,
+        options=set(),
+        description="Determines whether the marker X direction or its current forward is used as the in game X axis",
+        items=[
+            ('keep', "Keep Axis", "Marker direction is kept as is at export. Use this if you want the marker direction in game to match the marker forward in Blender. Good to use on completely custom assets"),
+            ('x', "Use X", "Markers are rotated so that the x axis shown in Blender matches visually with the in game x axis. Use this if you're not exporting with X forward but are importing for an existing asset"),
+        ]
     )
     
     export_in_progress: BoolProperty()

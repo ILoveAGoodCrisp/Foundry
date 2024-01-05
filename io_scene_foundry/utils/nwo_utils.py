@@ -1862,7 +1862,7 @@ class NodeChild():
         self.matrix: Matrix = None
         # self.group: str = None
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, objects=None, actions=None):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_marker_axis=None, objects=None, actions=None):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
     if objects is None:
@@ -1884,6 +1884,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, objects=
         
     if actions is None:
         actions = bpy.data.actions
+        
+    if keep_marker_axis is None:
+        keep_marker_axis = context.scene.nwo.marker_forward == 'keep'
 
     armatures = []
     scene_coll = context.scene.collection.objects
@@ -1944,7 +1947,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, objects=
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
         
-        if is_marker(ob):
+        if keep_marker_axis and is_marker(ob):
             ob.rotation_euler.rotate_axis('Z', -rotation)
 
         if parented_objects.get(ob, 0):

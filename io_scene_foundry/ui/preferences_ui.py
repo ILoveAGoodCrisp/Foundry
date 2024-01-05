@@ -388,6 +388,7 @@ class ToolkitLocationPreferences(AddonPreferences):
         ]
         
     def update_scene_matrix(self, context):
+        scene_nwo = context.scene.nwo
         appdata = os.getenv('APPDATA')
         foundry_folder = os.path.join(appdata, "FoundryHBCK")
 
