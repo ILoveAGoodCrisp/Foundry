@@ -439,6 +439,7 @@ class NWO_NewAnimation(NWO_Op):
         nwo.variant = self.variant
 
         nwo.created_with_foundry = True
+        bpy.ops.nwo.set_timeline()
         self.report({"INFO"}, f"Created animation: {full_name}")
         return {"FINISHED"}
 
