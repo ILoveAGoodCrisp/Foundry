@@ -1970,18 +1970,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     con.rest_length *= scale_factor
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
-                # case 'CHILD_OF':
-                #     if con.inverse_matrix != Matrix.Identity(4) and con.target:
-                #         target = con.target
-                #         if con.subtarget:
-                #             target_matrix = target.data.bones[con.subtarget].matrix_local
-                #         else:
-                #             target_matrix = target.matrix_world
-                            
-                #         con.inverse_matrix = target_matrix.inverted()
-                            
-                        
-
             
     for curve in curves:
         if hasattr(curve, 'size'):
@@ -2122,6 +2110,18 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         if child.parent_bone:
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
+        
+    for ob in bpy.data.objects:
+        for con in ob.constraints:
+            if con.type == 'CHILD_OF':
+                if con.inverse_matrix != Matrix.Identity(4) and con.target:
+                    target = con.target
+                    if con.subtarget:
+                        target_matrix = target.data.bones[con.subtarget].matrix_local
+                    else:
+                        target_matrix = target.matrix_world
+                        
+                    con.inverse_matrix = target_matrix.inverted()
     
     for action in actions:
         for fcurve in action.fcurves:
@@ -2221,7 +2221,9 @@ def rig_root_deform_bone(rig: bpy.types.Object, return_name=False) -> None | bpy
         return root_bones
     
 def in_exclude_collection(ob):
-    return any([coll.nwo.type == 'exclude' for coll in ob.users_collection])
+    user_collections = ob.users_collection
+    if any([coll.nwo.type == 'exclude' for coll in user_collections]):
+        return True
 
 def excluded(ob):
     return not ob.nwo.export_this or in_exclude_collection(ob)
