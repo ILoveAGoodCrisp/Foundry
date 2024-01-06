@@ -1934,7 +1934,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
         
-        if keep_marker_axis and ob.type == 'EMPTY':
+        if keep_marker_axis and not excluded(ob) and is_marker(ob):
             ob.rotation_euler.rotate_axis('Z', -rotation)
 
         if parented_objects.get(ob, 0):
@@ -2219,3 +2219,9 @@ def rig_root_deform_bone(rig: bpy.types.Object, return_name=False) -> None | bpy
             return root
     elif root_bones:
         return root_bones
+    
+def in_exclude_collection(ob):
+    return any([coll.nwo.type == 'exclude' for coll in ob.users_collection])
+
+def excluded(ob):
+    return not ob.nwo.export_this or in_exclude_collection(ob)
