@@ -144,4 +144,4 @@ class NWO_ScaleScene(bpy.types.Operator):
             layout.prop(self, 'scale_factor', text='Scale Factor')
         layout.prop(self, 'forward')
         layout.prop(self, 'rotation')
-        layout.prop(self, 'marker_forward')
+        layout.prop(self, 'marker_forward', expand=True)

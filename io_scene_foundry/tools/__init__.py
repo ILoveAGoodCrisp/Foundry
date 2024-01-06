@@ -5035,10 +5035,11 @@ class NWO_ValidateRig(Operator):
     
     def get_root_bone(self, rig, scene):
         root_bones = [b for b in rig.data.bones if b.use_deform and not b.parent]
-        if len(root_bones) > 1:
-            scene.nwo.multiple_root_bones = True
-            return
-        return root_bones[0].name
+        if root_bones:
+            if len(root_bones) > 1:
+                scene.nwo.multiple_root_bones = True
+                return
+            return root_bones[0].name
     
     def validate_root_rot(self, rig, root_bone_name, scene):
         bpy.ops.object.mode_set(mode="EDIT", toggle=False)
@@ -5252,8 +5253,10 @@ class NWO_ValidateRig(Operator):
         
         root_bone_name = self.get_root_bone(self.rig, scene)
         if root_bone_name is None:
-            self.report({'WARNING'}, 'Multiple root bones in armature. Export will fail. Ensure only one bone in the armature has no parent (or set additional root bones as non-deform bones)')
-            scene_nwo.multiple_root_bones = True
+            if scene.nwo.multiple_root_bones:
+                self.report({'WARNING'}, 'Multiple root bones in armature. Export will fail. Ensure only one bone in the armature has no parent (or set additional root bones as non-deform bones)')
+            else:
+                self.report({'WARNING'}, f'Root bone of {self.rig.name} is marked non-deform. This rig will not export')
             return self.complete_validation()
         else:
             scene_nwo.multiple_root_bones = False

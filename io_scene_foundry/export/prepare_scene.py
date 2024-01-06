@@ -25,7 +25,6 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
-from uuid import uuid4
 import bmesh
 import bpy
 from os import path
@@ -204,7 +203,6 @@ class PrepareScene:
         #     self.rotate_scene(context.view_layer.objects)
 
         # make objects linked to scene real and local
-        # Context override selection does not work here
         disable_prints()
         all_obs_start = context.view_layer.objects
         # Remove all marker instancing
@@ -2346,6 +2344,9 @@ class PrepareScene:
         f1 = frameIDs.keys()
         f2 = frameIDs.values()
         bone_list = [bone for bone in model_armature.data.bones if bone.use_deform]
+        root_bones = [b for b in bone_list if not b.parent]
+        if not root_bones:
+            raise RuntimeError(f"Root bone of {model_armature.name} is marked non-deform. This rig will not export")
         # sort list
         def sorting_key(value):
             return nodes_order.get(value.name, len(nodes))
@@ -2414,7 +2415,7 @@ class PrepareScene:
             idx = 0
             while idx < len(bone_list):
                 for b in bone_list:
-                    if b.parent == bones_ordered[idx]:
+                    if b.parent and b.parent == bones_ordered[idx]:
                         bones_ordered.append(b)
                 idx += 1
                 

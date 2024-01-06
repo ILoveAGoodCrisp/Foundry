@@ -525,16 +525,7 @@ def is_error_line(line, process):
             print_error('Corrupt GR2 File encountered. Please re-run export')
             process.kill()
             raise RuntimeError(line)
-        first_word = words[0]
-        second_word = ""
-        if len(words) > 1:
-            second_word = words[1]
-        return (
-            first_word.isupper()
-            or first_word == "content:"
-            or first_word == "###"
-            or (first_word == "non-world" and second_word == "space")
-        )
+        return 'ASSERTION FAILED' in line
 
     return False
 
@@ -1913,10 +1904,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         override['selected_objects'] = list(parented_objects.keys())
         override['selected_editable_objects'] = list(parented_objects.keys())
         override['active_object'] = list(parented_objects.keys())[0]
-        area, area_region, area_space = get_area_info(context)
-        override["area"] = area
-        override["region"] = area_region
-        override["space_data"] = area_space
         with context.temp_override(**override):
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
