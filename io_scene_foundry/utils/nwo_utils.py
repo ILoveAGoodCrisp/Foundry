@@ -1934,7 +1934,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
         
-        if keep_marker_axis and not excluded(ob) and is_marker(ob):
+        if keep_marker_axis and is_marker(ob):
             ob.rotation_euler.rotate_axis('Z', -rotation)
 
         if parented_objects.get(ob, 0):
@@ -2101,27 +2101,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                 for coll in original_collections:
                     coll.objects.link(arm)
     
-    
     for child in parented_objects.values():
         child.ob.parent = child.parent
         if child.parent_bone:
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
-        
-    # for ob in bpy.data.objects:
-    #     for con in ob.constraints:
-    #         if con.type == 'CHILD_OF':
-    #             if con.inverse_matrix != Matrix.Identity(4) and con.target:
-    #                 with context.temp_override(object=ob):
-    #                     bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='OBJECT')
-                        
-    # for arm in armatures:
-    #     for pose_bone in arm.pose.bones:
-    #         for con in pose_bone.constraints:
-    #             if con.type == 'CHILD_OF':
-    #                 if con.inverse_matrix != Matrix.Identity(4) and con.target:
-    #                     with context.temp_override(object=arm, pose_bone=pose_bone, active_pose_bone=pose_bone):
-    #                         bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='BONE')
     
     for action in actions:
         for fcurve in action.fcurves:
