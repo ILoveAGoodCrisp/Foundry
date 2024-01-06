@@ -1970,6 +1970,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     con.rest_length *= scale_factor
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
+                case 'CHILD_OF':
+                    with context.temp_override(object=ob):
+                        bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='OBJECT')
             
     for curve in curves:
         if hasattr(curve, 'size'):
@@ -2076,14 +2079,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     case 'SHRINKWRAP':
                         con.distance *= scale_factor
                     case 'CHILD_OF':
-                        if con.inverse_matrix != Matrix.Identity(4) and con.target:
-                            target = con.target
-                            if con.subtarget:
-                                target_matrix = target.data.bones[con.subtarget].matrix_local
-                            else:
-                                target_matrix = target.matrix_world
-                                
-                            con.inverse_matrix = target_matrix.inverted()
+                        with context.temp_override(pose_bone=pose_bone):
+                            bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='BONE')
                             
 
         if uses_pose_mirror:
@@ -2111,17 +2108,20 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
         
-    for ob in bpy.data.objects:
-        for con in ob.constraints:
-            if con.type == 'CHILD_OF':
-                if con.inverse_matrix != Matrix.Identity(4) and con.target:
-                    target = con.target
-                    if con.subtarget:
-                        target_matrix = target.data.bones[con.subtarget].matrix_local
-                    else:
-                        target_matrix = target.matrix_world
+    # for ob in bpy.data.objects:
+    #     for con in ob.constraints:
+    #         if con.type == 'CHILD_OF':
+    #             if con.inverse_matrix != Matrix.Identity(4) and con.target:
+    #                 with context.temp_override(object=ob):
+    #                     bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='OBJECT')
                         
-                    con.inverse_matrix = target_matrix.inverted()
+    # for arm in armatures:
+    #     for pose_bone in arm.pose.bones:
+    #         for con in pose_bone.constraints:
+    #             if con.type == 'CHILD_OF':
+    #                 if con.inverse_matrix != Matrix.Identity(4) and con.target:
+    #                     with context.temp_override(object=arm, pose_bone=pose_bone, active_pose_bone=pose_bone):
+    #                         bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='BONE')
     
     for action in actions:
         for fcurve in action.fcurves:
