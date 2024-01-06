@@ -301,24 +301,11 @@ class NWO_FoundryPanelProps(Panel):
         #     col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
 
         col.separator()
-        row = col.row()
 
-        if mb_active or nwo.mb_startup:
-            row = col.row()
-            col1 = row.column()
-            col2 = row.column()
-            col1.use_property_split = False
-            col2.use_property_split = False
-            col1.alignment = 'LEFT'
-            col2.alignment = 'RIGHT'
-            col1.label(icon_value=get_icon_id("managed_blam_on"), text="ManagedBlam Active")
-            col2.prop(nwo, "mb_startup", text="Run on startup")
-        elif nwo_globals.mb_active:
-            row.label(text="Blender Restart Required for ManagedBlam")
-        else:
-            row.operator("managed_blam.init", text="Initialize ManagedBlam", icon_value=get_icon_id("managed_blam_off"))
-        col.separator()
-        col.operator('nwo.scale_scene', text='Scale/Rotate Scene', icon='MOD_LENGTH')
+        if not nwo_globals.clr_installed:
+            col.operator("managed_blam.init", text="Install Tag API")
+            col.separator()
+        col.operator('nwo.scale_scene', text='Transform Scene', icon='MOD_LENGTH')
         col.separator()
         row = col.row()
         row.scale_y = 1.1
@@ -2231,7 +2218,7 @@ class NWO_FoundryPanelProps(Panel):
         scene_nwo = context.scene.nwo
             
         if not bpy.data.actions:
-            box.operator("nwo.new_animation", icon="ADD", text="New Animation")
+            box.operator("nwo.new_animation", icon="ANIM", text="New Animation")
             box.operator("nwo.select_armature", text="Select Armature", icon='OUTLINER_OB_ARMATURE')
             return
 
@@ -2584,7 +2571,7 @@ class NWO_FoundryPanelProps(Panel):
             box.label(text="Install required to use Halo Tag API (ManagedBlam)")
             row = box.row(align=True)
             row.scale_y = 1.5
-            row.operator("managed_blam.init", text="Install ManagedBlam Dependency", icon='IMPORT').install_only = True
+            row.operator("managed_blam.init", text="Install Tag API Dependency", icon='IMPORT').install_only = True
         
         box = self.box.box()
         row = box.row()

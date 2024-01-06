@@ -425,7 +425,7 @@ class ToolkitLocationPreferences(AddonPreferences):
             box.label(text="Install required to use Halo Tag API (ManagedBlam)")
             row = box.row(align=True)
             row.scale_y = 1.5
-            row.operator("managed_blam.init", text="Install ManagedBlam Dependency", icon='IMPORT').install_only = True
+            row.operator("managed_blam.init", text="Install Tag API Dependency", icon='IMPORT').install_only = True
         
         box = layout.box()
         row = box.row()

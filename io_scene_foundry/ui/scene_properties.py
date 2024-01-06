@@ -208,13 +208,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     exclude_first_frame: BoolProperty()
     exclude_last_frame: BoolProperty()
-    
-    # MB
-    mb_startup: BoolProperty(
-        name="ManagedBlam on Startup",
-        description="Runs ManagedBlam.dll on Blender startup, this will lock the selected game on startup. Disable and and restart blender if you wish to change the selected game.",
-        options=set(),
-    )
 
     # shared_assets: CollectionProperty(
     #     type=NWO_Asset_ListItems,

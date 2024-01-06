@@ -1921,7 +1921,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
     for ob in objects:
-        no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
+        # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         loc, rot, sca = ob.matrix_world.decompose()
         if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion

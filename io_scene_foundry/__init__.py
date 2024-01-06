@@ -159,10 +159,6 @@ else:
             # set output to on
             # context.scene.nwo_export.show_output = True
 
-            # run ManagedBlam on startup if enabled
-            if context.scene.nwo.mb_startup:
-                bpy.ops.managed_blam.init()
-
             # create warning if current project is incompatible with loaded managedblam.dll
             mb_path = nwo_globals.mb_path
             if mb_path:
@@ -170,7 +166,7 @@ else:
                     game = context.scene.nwo.scene_project
                     result = ctypes.windll.user32.MessageBoxW(
                         0,
-                        f"{game} is incompatible with the loaded ManagedBlam version: {mb_path + '.dll'}. Please restart Blender or switch to a {game} asset.\n\nClose Blender?",
+                        f"{game} is incompatible with the loaded Tag API version: {mb_path + '.dll'}.\nPlease restart Blender or switch to a {game} asset.\n\nClose Blender?",
                         f"ManagedBlam / Game Mismatch",
                         4,
                     )

@@ -155,11 +155,6 @@ class NWO_AssetMaker(NWO_Op):
         description="Set whether blend file should be saved to a work directory within the asset folder"
     )
 
-    managed_blam: BoolProperty(
-        description="Blender Scene will initialize ManagedBlam on startup",
-        default=False,
-    )
-
     asset_name: StringProperty()
     filename: StringProperty()
 
@@ -219,10 +214,6 @@ class NWO_AssetMaker(NWO_Op):
 
         bpy.ops.wm.save_as_mainfile(filepath=blend_save_path)
 
-        if self.managed_blam:
-            nwo_scene.mb_startup = True
-            bpy.ops.managed_blam.init()
-
         self.report(
             {"INFO"},
             f"Created new {nwo_scene.asset_type.title()} asset for {nwo_scene.scene_project}. Asset Name = {asset_name}",
@@ -267,7 +258,6 @@ class NWO_AssetMaker(NWO_Op):
         col.scale_y = 1.25
         col.separator()
         col.prop(self, "work_dir", text="Save to work directory")
-        col.prop(self, "managed_blam", text="Enable ManagedBlam")
         if nwo_asset.asset_type == "MODEL":
             col.separator()
             col.label(text="Output Tags")
