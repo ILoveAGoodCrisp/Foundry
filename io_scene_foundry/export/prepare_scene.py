@@ -61,8 +61,8 @@ from ..utils.nwo_utils import (
     library_instanced_collection,
     print_warning,
     relative_path,
+    rig_root_deform_bone,
     transform_scene,
-    set_active_object,
     get_tags_path,
     is_corinth,
     set_object_mode,
@@ -131,8 +131,6 @@ class PrepareScene:
         self.aim_pitch = None
         self.aim_yaw = None
         self.gun = None
-        self.animation_arm = None
-        self.animation_armatures = {}
         self.arm_name = ""
         self.verbose_warnings = False # For outputting info about things we otherwise silently fix
         self.no_export_objects = False
@@ -146,6 +144,9 @@ class PrepareScene:
         # time it!
         # NOTE skipping timing as export is really fast now
         # start = time.perf_counter()
+        
+        # Get 3D Viewport area/region/space
+        self.area, self.area_region, self.area_space = get_area_info(context)
         
         self.supports_regions_and_perms = asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB')
         
@@ -209,15 +210,16 @@ class PrepareScene:
         # Remove all marker instancing
         markers = [ob for ob in all_obs_start if is_marker(ob)]
         for ob in markers:
-            ob.instance_type = 'NONE' 
-        [ob.select_set(True) for ob in all_obs_start if ob.nwo.export_this and library_instanced_collection(ob)]   
-        bpy.ops.object.duplicates_make_real()
+            ob.instance_type = 'NONE'
+        
+        obs_to_make_real = [ob for ob in all_obs_start if ob.nwo.export_this and library_instanced_collection(ob)]
+        with context.temp_override(selected_editable_objects=obs_to_make_real):
+            bpy.ops.object.duplicates_make_real()
         context.view_layer.update()
         all_obs = context.view_layer.objects
-        bpy.ops.object.select_all(action="DESELECT")
-        [ob.select_set(True) for ob in all_obs if ob.nwo.export_this and (ob.library or (ob.data and ob.data.library))]  
-        bpy.ops.object.make_local(type="ALL")
-        bpy.ops.object.select_all(action="DESELECT")
+        obs_to_make_local = [ob for ob in all_obs if ob.nwo.export_this and (ob.library or (ob.data and ob.data.library))]
+        with context.temp_override(selected_editable_objects=obs_to_make_local):
+            bpy.ops.object.make_local(type="ALL")
 
         enable_prints()
 
@@ -238,7 +240,7 @@ class PrepareScene:
         # Combine Armatures is possible
         
         if asset_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
-            self.consolidate_rig(scene_nwo)
+            self.consolidate_rig(context, scene_nwo)
 
         # unlink non export objects
         if asset_type == "FP ANIMATION":
@@ -441,7 +443,7 @@ class PrepareScene:
                     # Add materials to all objects without one. No materials = unhappy Tool.exe
                     does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or asset_type != 'SCENARIO'
                     self.fix_materials(
-                        ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
+                        context, ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
                     )
                 # print("fix_materials")
                 
@@ -609,7 +611,7 @@ class PrepareScene:
             export_obs = context.view_layer.objects[:]
             
             # Fix objects with bad scale values
-            poops, nonstandard_scale = self.fix_scale(export_obs)
+            poops, nonstandard_scale = self.fix_scale(context, export_obs)
             if poops and nonstandard_scale:
                 stomp_scale_multi_user(poops)
                 
@@ -662,7 +664,7 @@ class PrepareScene:
                         for bone in self.model_armature.pose.bones:
                             bone.matrix_basis = Matrix()
 
-                self.remove_relative_parenting(export_obs)
+                self.remove_relative_parenting(context, export_obs)
 
                 if self.model_armature and asset_type != "FP ANIMATION":
                     # unlink any unparented objects from the scene
@@ -695,21 +697,6 @@ class PrepareScene:
                         self.model_armature, h4, context, asset_type
                     )
                 
-                # Blender can print unecessary warnings here, so hide em
-                # disable_prints()
-                # self.model_armature.select_set(True)
-                # set_active_object(self.model_armature)
-                # if self.pedestal:
-                #     self.set_bone_orient(self.pedestal, export_obs)
-                # if self.aim_pitch:
-                #     self.set_bone_orient(self.aim_pitch, export_obs)
-                # if self.aim_yaw:
-                #     self.set_bone_orient(self.aim_yaw, export_obs)
-                # if self.gun:
-                #     self.set_bone_orient(self.gun, export_obs)
-                # self.model_armature.select_set(False)
-                # enable_prints()
-                # Fix pedestal/pitch/yaw rotation if needed
                 if self.model_armature:
                     if forward == "x":
                         self.pedestal_matrix = PEDESTAL_MATRIX_X_POSITIVE
@@ -719,42 +706,6 @@ class PrepareScene:
                         self.pedestal_matrix = PEDESTAL_MATRIX_Y_POSITIVE
                     else:
                         self.pedestal_matrix = PEDESTAL_MATRIX_Y_NEGATIVE
-                    
-                    # if fix_bone_rotations:
-                    #     set_active_object(self.model_armature)
-                    #     self.model_armature.select_set(True)
-                    #     bpy.ops.object.editmode_toggle()
-                    #     edit_bones = self.model_armature.data.edit_bones
-                    #     if self.pedestal:
-                    #         edit_pedestal = edit_bones[self.pedestal]
-                    #         if edit_pedestal.matrix != self.pedestal_matrix:
-                    #             self.old_pedestal_mat = edit_pedestal.matrix.copy()
-                    #             edit_pedestal.matrix = self.pedestal_matrix
-                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_pedestal, export_obs)
-                    #     if self.aim_pitch:
-                    #         edit_aim_pitch = edit_bones[self.aim_pitch]
-                    #         if edit_aim_pitch.matrix != self.pedestal_matrix:
-                    #             self.old_aim_pitch_mat = edit_aim_pitch.matrix.copy()
-                    #             edit_aim_pitch.matrix = self.pedestal_matrix
-                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_pitch, export_obs)
-                    #     if self.aim_yaw:
-                    #         edit_aim_yaw = edit_bones[self.aim_yaw]
-                    #         if edit_aim_yaw.matrix != self.pedestal_matrix:
-                    #             self.old_aim_yaw_mat = edit_aim_yaw.matrix.copy()
-                    #             edit_aim_yaw.matrix = self.pedestal_matrix
-                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_aim_yaw, export_obs)
-                    #     if self.gun:
-                    #         edit_gun = edit_bones[self.gun]
-                    #         if edit_gun.matrix != self.pedestal_matrix:
-                    #             self.old_gun_mat = edit_gun.matrix.copy()
-                    #             edit_gun.matrix = self.pedestal_matrix
-                    #             # self.counter_matrix(old_mat, PEDESTAL_MATRIX_X_POSITIVE, edit_gun, export_obs)
-
-                    #     bpy.ops.object.editmode_toggle()
-                    #     self.model_armature.select_set(False)
-                    #     # if restore_matrices:
-                    #     #     for ob, mat in ob_mat_dict.items():
-                    #     #         ob.matrix_basis = mat
 
         # print("armature")
         elif asset_type == 'SCENARIO':
@@ -772,25 +723,10 @@ class PrepareScene:
         # rotate the model armature if needed
         if scene_nwo_export.export_gr2_files:
             if self.model_armature:
-                self.fix_armature_rotation(
-                    self.model_armature,
+                self.force_fcurves_to_start_at_zero(
                     asset_type,
-                    forward,
                     scene_nwo_export.export_animations,
-                    self.current_action,
-                    scene_coll,
-                    export_obs,
                 )
-
-            # unlink current action and reset pose transforms
-            if self.model_armature and self.model_armature.animation_data:
-                self.model_armature.animation_data.action = None
-                # clear constraints
-                if self.animation_arm:
-                    self.remove_constraints(self.model_armature)
-                # Clear pose matrix
-                for bone in self.model_armature.pose.bones:
-                    bone.matrix_basis = Matrix()
 
         # Set animation name overrides
         if self.model_armature:
@@ -890,21 +826,14 @@ class PrepareScene:
     def cull_zero_face_meshes(self, export_obs, context):
         # disable_prints()
         # convert mesh-like objects to real meshes to properly assess them
-        [ob.select_set(True) for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT")]
-        if context.selected_objects:
-            set_active_object(context.selected_objects[0])
-            bpy.ops.object.convert(target='MESH')
-            deselect_all_objects()
-        area, area_region, area_space = get_area_info(context)
+        mesh_like_objects = [ob for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT")]
+        if mesh_like_objects:
+            with context.temp_override(selected_editable_objects=mesh_like_objects):
+                bpy.ops.object.convert(target='MESH')
         for ob in export_obs:
             # apply all modifiers if mesh has no polys
             if ob.type == "MESH" and not ob.data.polygons and ob.modifiers:
-                override = context.copy()
-                override["area"] = area
-                override["region"] = area_region
-                override["space_data"] = area_space
-                override['object'] = ob
-                with context.temp_override(**override):
+                with context.temp_override(active_object=ob):
                     modifiers = ob.modifiers
                     for mod in modifiers:
                         try:
@@ -912,7 +841,7 @@ class PrepareScene:
                             mod.show_viewport = True
                             bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
                         except:
-                            pass
+                            print(f'Failed to apply {mod.name} modifier to {ob.name}')
                 
 
             if ob.type == "MESH" and not ob.data.polygons:
@@ -1693,197 +1622,17 @@ class PrepareScene:
         if self.any_face_props:
             update_progress(process, 1)
 
-    def z_rotate_and_apply(self, model_armature, angle, export_obs):
-        set_active_object(model_armature)
-        model_armature.select_set(True)
-        for a in self.animation_armatures.values():
-            a.select_set(True)
-        angle = radians(angle)
-        axis = (0, 0, 1)
-        pivot = model_armature.location
-        M = (
-            Matrix.Translation(pivot)
-            @ Matrix.Rotation(angle, 4, axis)
-            @ Matrix.Translation(-pivot)
-        )
-
-        model_armature.matrix_world = M @ model_armature.matrix_world
-        for a in self.animation_armatures.values():
-            a.matrix_world = M @ a.matrix_world
-
-        if model_armature.data.users > 1:
-            model_armature.data = model_armature.data.copy()
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
-        model_armature.select_set(False)
-        for a in self.animation_armatures.values():
-            a.select_set(False)
-
-        if getattr(self, "old_pedestal_mat", 0):
-            self.counter_matrix(self.old_pedestal_mat, self.pedestal_matrix, self.pedestal, export_obs)
-        if getattr(self, "old_aim_pitch_mat", 0):
-            self.counter_matrix(self.old_aim_pitch_mat, self.pedestal_matrix, self.aim_pitch, export_obs)
-        if getattr(self, "old_aim_yaw_mat", 0):
-            self.counter_matrix(self.old_aim_yaw_mat, self.pedestal_matrix, self.aim_yaw, export_obs)
-        if getattr(self, "old_gun_mat", 0):
-            self.counter_matrix(self.old_gun_mat, self.pedestal_matrix, self.gun, export_obs)
-
-    def bake_animations(
-        self,
-        armature,
-        export_animations,
-        current_action,
-        scene_coll,
-    ):
-        if armature.animation_data is None:
-            armature.animation_data_create()
-
-        job = "--- Baking Animations"
-        update_progress(job, 0)
-        export_actions = [a for a in bpy.data.actions if a.use_frame_range]
-        old_animations = [a for a in bpy.data.actions]
-        for idx, action in enumerate(export_actions):
-            if export_animations == "ALL" or current_action == action:
-                new_arm = armature.copy()
-                new_arm.data = armature.data.copy()
-                scene_coll.link(new_arm)
-                new_arm.select_set(True)
-                set_active_object(new_arm)
-
-                for ob in bpy.data.objects:
-                    if ob.animation_data:
-                        ob.animation_data.action = action
-
-                bpy.ops.object.posemode_toggle()
-
-                frame_start = int(action.frame_start)
-                frame_end = int(action.frame_end)
-
-                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=True, use_current_action=False, bake_types={'POSE'})
-                for ac in bpy.data.actions:
-                    if ac not in old_animations:
-                        new_animation = ac
-                        break
-                else:
-                    continue
-
-                new_animation.use_frame_range = True
-                new_name = str(action.name)
-                action.name += str(uuid4())[:4]
-                new_animation.name = new_name
-                old_nwo = action.nwo
-                new_nwo = new_animation.nwo
-                new_nwo.animation_type = old_nwo.animation_type
-                new_nwo.animation_movement_data = old_nwo.animation_movement_data
-                new_nwo.animation_space = old_nwo.animation_space
-                new_nwo.animation_is_pose = old_nwo.animation_is_pose
-                new_nwo.name_override = old_nwo.name_override
-                                    
-                # Force the keyframes to start at frame 0
-                frame_diff = int(new_animation.frame_start)
-                for fcurve in new_animation.fcurves:
-                    for kfp in fcurve.keyframe_points:
-                        kfp.co[0] -= frame_diff
-
-                new_animation.frame_start = 0
-                new_animation.frame_end = new_animation.frame_end - frame_diff
-                # Copy over events/renames
-                old_renames = old_nwo.animation_renames
-                new_renames = new_nwo.animation_renames
-                for idx, r in enumerate(old_renames):
-                    new_renames.add()
-                    new_renames[idx].name = r.name
-
-                old_events = old_nwo.animation_events
-                new_events = new_nwo.animation_events
-                for idx, e in enumerate(old_events):
-                    new_events.add()
-                    new_events[idx].event_id = e.event_id
-                    new_events[idx].multi_frame = e.multi_frame
-                    new_events[idx].frame_range = e.frame_range
-                    new_events[idx].name = e.name
-                    new_events[idx].event_type = e.event_type
-                    new_events[idx].frame_start = e.frame_start - frame_diff
-                    new_events[idx].frame_end = e.frame_end - frame_diff
-                    new_events[idx].wrinkle_map_face_region = e.wrinkle_map_face_region
-                    new_events[idx].wrinkle_map_effect = e.wrinkle_map_effect
-                    new_events[idx].footstep_type = e.footstep_type
-                    new_events[idx].footstep_effect = e.footstep_effect
-                    new_events[idx].ik_chain = e.ik_chain
-                    new_events[idx].ik_active_tag = e.ik_active_tag
-                    new_events[idx].ik_target_tag = e.ik_target_tag
-                    new_events[idx].ik_target_marker = e.ik_target_marker
-                    new_events[idx].ik_target_usage = e.ik_target_usage
-                    new_events[idx].ik_proxy_target_id = e.ik_proxy_target_id
-                    new_events[idx].ik_pole_vector_id = e.ik_pole_vector_id
-                    new_events[idx].ik_effector_id = e.ik_effector_id
-                    new_events[idx].cinematic_effect_tag = e.cinematic_effect_tag
-                    new_events[idx].cinematic_effect_effect = e.cinematic_effect_effect
-                    new_events[idx].cinematic_effect_marker = e.cinematic_effect_marker
-                    new_events[idx].object_function_name = e.object_function_name
-                    new_events[idx].object_function_effect = e.object_function_effect
-                    new_events[idx].frame_frame = e.frame_frame - frame_diff
-                    new_events[idx].frame_name = e.frame_name
-                    new_events[idx].frame_trigger = e.frame_trigger
-                    new_events[idx].import_frame = e.import_frame
-                    new_events[idx].import_name = e.import_name
-                    new_events[idx].text = e.text
-                bpy.ops.object.posemode_toggle()
-                new_arm.select_set(False)
-                self.animation_armatures[new_animation] = new_arm
-                old_animations.append(new_animation)
-                # scene_coll.unlink(new_arm)
-                update_progress(job, idx / len(export_actions))
-                if export_animations == 'ACTIVE':
-                    self.current_action = new_animation
-                    break
-        update_progress(job, 1)
-
-        for action in export_actions:
-            action.use_frame_range = False
-
-    def fix_armature_rotation(
-        self,
-        armature,
-        asset_type,
-        forward,
-        export_animations,
-        current_action,
-        scene_coll,
-        export_obs,
-    ):
-        # Used to check if the model had a forward direction that wasn't x positive before baking
-        # now however, just doing this always to simplify things
-        # Doing this lets us ignore everything but the armature at animation export
+    def force_fcurves_to_start_at_zero(self, asset_type, export_animations):
         if asset_type in ("MODEL", "FP ANIMATION"):
-            # bake animation to avoid issues on armature rotation
             if export_animations != "NONE" and bpy.data.actions:
                 # Force the keyframes to start at frame 0
                 for animation in bpy.data.actions:
                     frame_diff = int(animation.frame_start)
                     for fcurve in animation.fcurves:
                         for kfp in fcurve.keyframe_points:
-                            kfp.co[0] -= frame_diff
-                            
-                # self.animation_arm = self.model_armature.copy()
-                # self.animation_arm.data = self.model_armature.data.copy()
-                # scene_coll.link(self.animation_arm)
-                
-            # self.remove_constraints(self.model_armature)
-            # apply rotation based on selected forward direction
-            # context.scene.frame_current = 0
-            # if forward == "y":
-            #     self.z_rotate_and_apply(armature, -90, export_obs)
-            # elif forward == "y-":
-            #     self.z_rotate_and_apply(armature, 90, export_obs)
-            # elif forward == "x-":
-            #     self.z_rotate_and_apply(armature, 180, export_obs)
-            
+                            kfp.co[0] -= frame_diff       
 
     def set_bone_names(self, bones):
-        # for bone in bones:
-        #     override = bone.nwo.name_override
-        #     if override:
-        #         bone.name = override
         for b in bones:
             set_bone_prefix(b)
             
@@ -2572,61 +2321,6 @@ class PrepareScene:
                         if mod.type == "ARMATURE":
                             ob.modifiers.remove(mod)
 
-        # bones = model_armature.data.edit_bones
-        # mesh_obs = [ob for ob in export_obs if ob.type == "MESH"]
-        # meshes = set([ob.data for ob in mesh_obs])
-        # me_ob_dict = {
-        #     me: ob for me in meshes for ob in mesh_obs if ob.data == me
-        # }
-
-        # for item in me_ob_dict.items():
-        #     me = item[0]
-        #     ob = item[1]
-        #     nwo = ob.nwo
-        #     mesh_type = nwo.mesh_type
-        #     marker = (
-        #         nwo.object_type == "_connected_geometry_object_type_marker"
-        #     )
-        #     vertices = me.vertices
-
-        #     set_active_object(ob)
-        #     ob.select_set(True)
-
-        #     if ob.vertex_groups:
-        #         bpy.ops.object.vertex_group_lock(action="UNLOCK", mask="ALL")
-
-        #         # force bone parenting for physics
-        #         parent_type = ob.parent_type
-        #         if (
-        #             marker
-        #             or mesh_type == "_connected_geometry_mesh_type_physics"
-        #         ) and parent_type != "BONE":
-        #             vertex_groups = ob.vertex_groups
-        #             for vertex_group in vertex_groups:
-        #                 for i, w in self.get_weights(
-        #                     ob, vertex_group, vertices
-        #                 ):
-        #                     if w > 0:
-        #                         bone_name = vertex_group.name
-        #                         for bone in bones:
-        #                             if bone.name == bone_name:
-        #                                 break
-        #                         else:
-        #                             bone_name = bones[0].name
-
-        #                         break
-
-        #             parent_type = "BONE"
-        #             ob.parent_bone = bone_name
-
-        #         elif mesh_type == "_connected_geometry_mesh_type_collision":
-        #             bpy.ops.object.vertex_group_clean(
-        #                 limit=0.9999, keep_single=False
-        #             )
-
-        #         else:
-        #             bpy.ops.object.vertex_group_normalize_all()
-
     def get_weights(self, ob, vertex_group, vertices):
         group_index = vertex_group.index
         for i, v in enumerate(vertices):
@@ -2634,16 +2328,6 @@ class PrepareScene:
                 if g.group == group_index:
                     yield (i, g.weight)
                     break
-
-        # for ob in export_obs:
-        #     if (ob.parent == model_armature and ob.parent_type == 'OBJECT') and not any([mod != ' ARMATURE' for mod in ob.modifiers]):
-        #         deselect_all_objects()
-        #         ob.select_set(True)
-        #         set_active_object(model_armature)
-        #         if (CheckType.render or CheckType.collision):
-        #             bpy.ops.object.parent_set(type='ARMATURE', keep_transform=True)
-        #         else:
-        #             bpy.ops.object.parent_set(type='BONE', keep_transform=True)
 
     #####################################################################################
     #####################################################################################
@@ -2949,7 +2633,7 @@ class PrepareScene:
         return child_ob_set
 
     def fix_materials(
-        self, ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
+        self, context, ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
     ):
         # fix multi user materials
         slots = ob.material_slots
@@ -2959,7 +2643,7 @@ class PrepareScene:
         if me.nwo.face_global_material_ui and nwo.reach_poop_collision:
             self.set_reach_coll_materials(me, scene_mats, True)
         else:
-            self.loop_and_fix_slots(slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4)
+            self.loop_and_fix_slots(context, slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4)
 
     def set_reach_coll_materials(self, me, scene_mats, mesh_level=False):
         # handle reach poop collision material assignment
@@ -3015,7 +2699,7 @@ class PrepareScene:
         bm.to_mesh(me)
         bm.free()
 
-    def loop_and_fix_slots(self, slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4):
+    def loop_and_fix_slots(self, context, slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4):
         slots_to_remove = []
         is_true_mesh = ob.type == 'MESH'
         for idx, slot in enumerate(slots):
@@ -3035,15 +2719,15 @@ class PrepareScene:
                 if s_name not in mats.keys():
                     mats[s_name] = idx
                 elif is_true_mesh:
-                    set_active_object(ob)
-                    bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-                    ob.active_material_index = idx
-                    slots_to_remove.append(idx)
-                    bpy.ops.mesh.select_all(action='DESELECT')
-                    bpy.ops.object.material_slot_select()
-                    ob.active_material_index = mats[s_name]
-                    bpy.ops.object.material_slot_assign()
-                    bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+                    with context.temp_override(active_object=ob, selected_editable_objects=[ob]):
+                        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+                        ob.active_material_index = idx
+                        slots_to_remove.append(idx)
+                        bpy.ops.mesh.select_all(action='DESELECT')
+                        bpy.ops.object.material_slot_select()
+                        ob.active_material_index = mats[s_name]
+                        bpy.ops.object.material_slot_assign()
+                        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
             else:
                 if nwo.mesh_type in render_mesh_types:
                     slot.material = self.invalid_mat
@@ -3409,9 +3093,8 @@ class PrepareScene:
             if ob.parent == self.model_armature and ob.parent_bone == bone:
                 ob.matrix_world = diff_rot_mat @ ob.matrix_world
 
-    def remove_relative_parenting(self, export_obs):
-        set_active_object(self.model_armature)
-        self.model_armature.select_set(True)
+    def remove_relative_parenting(self, context: bpy.types.Context, export_obs):
+        context.view_layer.objects.active = self.model_armature
         relative_bones = set()
         for b in self.model_armature.data.bones:
             if b.use_relative_parent:
@@ -3427,56 +3110,59 @@ class PrepareScene:
         for b in self.model_armature.data.bones:
             if b.use_relative_parent:
                 b.use_relative_parent = False
-
-        self.model_armature.select_set(False)
+        
+        context.view_layer.objects.active = None
         
     
-    def consolidate_rig(self, scene_nwo):
+    def consolidate_rig(self, context, scene_nwo):
         if scene_nwo.support_armature_a:
-            if scene_nwo.support_armature_a_parent_bone and scene_nwo.support_armature_a_child_bone:
-                self.join_armatures(scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, scene_nwo.support_armature_a_child_bone)
+            child_bone = rig_root_deform_bone(scene_nwo.support_armature_a, True)
+            if child_bone and scene_nwo.support_armature_a_parent_bone:
+                self.join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, child_bone)
             else:
                 self.unlink(scene_nwo.support_armature_a)
                 if not scene_nwo.support_armature_a_parent_bone:
                     self.warning_hit = True
                     print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
                     
-                if not scene_nwo.support_armature_a_child_bone:
+                if not child_bone:
                     self.warning_hit = True
-                    print_warning(f"No child bone specified in Asset Editor panel for {scene_nwo.support_armature_a_child_bone}. Ignoring support armature")
+                    print_warning(f"{scene_nwo.support_armature_a.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
         if scene_nwo.support_armature_b:
-            if scene_nwo.support_armature_b_parent_bone and scene_nwo.support_armature_b_child_bone:
-                self.join_armatures(scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, scene_nwo.support_armature_b_child_bone)
+            child_bone = rig_root_deform_bone(scene_nwo.support_armature_b, True)
+            if child_bone and scene_nwo.support_armature_b_parent_bone:
+                self.join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, child_bone)
             else:
                 self.unlink(scene_nwo.support_armature_b)
                 if not scene_nwo.support_armature_b_parent_bone:
                     self.warning_hit = True
                     print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
                     
-                if not scene_nwo.support_armature_b_child_bone:
+                if not child_bone:
                     self.warning_hit = True
-                    print_warning(f"No child bone specified in Asset Editor panel for {scene_nwo.support_armature_b_child_bone}. Ignoring support armature")
+                    print_warning(f"{scene_nwo.support_armature_b.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
         if scene_nwo.support_armature_c:
-            if scene_nwo.support_armature_c_parent_bone and scene_nwo.support_armature_c_child_bone:
-                self.join_armatures(scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, scene_nwo.support_armature_c_child_bone)
+            child_bone = rig_root_deform_bone(scene_nwo.support_armature_c, True)
+            if child_bone and scene_nwo.support_armature_c_parent_bone:
+                self.join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, child_bone)
             else:
                 self.unlink(scene_nwo.support_armature_c)
                 if not scene_nwo.support_armature_c_parent_bone:
                     self.warning_hit = True
                     print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
                     
-                if not scene_nwo.support_armature_b_child_bone:
+                if not child_bone:
                     self.warning_hit = True
-                    print_warning(f"No child bone specified in Asset Editor panel for {scene_nwo.support_armature_c_child_bone}. Ignoring support armature")
+                    print_warning(f"{scene_nwo.support_armature_c.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
-    def join_armatures(self, parent, child, parent_bone, child_bone):
-        parent.select_set(True)
-        child.select_set(True)
-        set_active_object(parent)
-        bpy.ops.object.join()
-        bpy.ops.object.editmode_toggle()
+    def join_armatures(self, context: bpy.types.Context, parent, child, parent_bone, child_bone):
+        with context.temp_override(selected_editable_objects=[parent, child], active_object=parent):
+            bpy.ops.object.join()
+        # Couldn't get context override working for accessing edit_bones
+        context.view_layer.objects.active = parent
+        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
         edit_child = parent.data.edit_bones.get(child_bone, 0)
         edit_parent = parent.data.edit_bones.get(parent_bone, 0)
         if edit_child and edit_parent:
@@ -3485,26 +3171,24 @@ class PrepareScene:
             self.warning_hit = True
             print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
             
-        bpy.ops.object.editmode_toggle()
-        parent.select_set(False)
-
-    def remove_constraints(self, arm):
-        arm.select_set(True)
-        set_active_object(arm)
-        # arm_constraints = arm.constraints
-        # for c in arm_constraints:
-        #     arm_constraints.remove(c)
-
-        bpy.ops.object.posemode_toggle()
-        bones = arm.pose.bones
-        for b in bones:
-            bone_constraints = b.constraints
-            for c in bone_constraints:
-                bone_constraints.remove(c)
-        bpy.ops.object.posemode_toggle()
-        arm.select_set(False)
+        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
         
-    def fix_scale(self, objects):
+        context.view_layer.objects.active = None
+
+    def remove_constraints(self, context, arm):
+        with context.temp_override(active_object=arm, selected_editable_objects=[arm]):
+            # arm_constraints = arm.constraints
+            # for c in arm_constraints:
+            #     arm_constraints.remove(c)
+            bpy.ops.object.posemode_toggle()
+            bones = arm.pose.bones
+            for b in bones:
+                bone_constraints = b.constraints
+                for c in bone_constraints:
+                    bone_constraints.remove(c)
+            bpy.ops.object.posemode_toggle()
+        
+    def fix_scale(self, context, objects):
         apply_targets = []
         poops = []
         linked_poops_with_nonstandard_scale = False
@@ -3531,10 +3215,8 @@ class PrepareScene:
                     print_warning(f'Applying scale to {ob.name}')
                     
         if apply_targets:
-            [ob.select_set(True) for ob in apply_targets]
-            set_active_object(apply_targets[0])
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            deselect_all_objects()
+            with context.temp_override(selected_editable_objects=apply_targets, active_object=apply_targets[0]):
+                bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
             
         return poops, linked_poops_with_nonstandard_scale
     
@@ -3555,56 +3237,6 @@ class PrepareScene:
         ob.nwo.region_name  = self.default_region
         ob.nwo.permutation_name  = self.default_permutation
         return ob
-
-
-
-    # def set_bone_orient(self, b_name: str, objects: list):
-    #     bpy.ops.object.editmode_toggle()
-    #     edit_bones = self.model_armature.data.edit_bones
-    #     b_edit = edit_bones[b_name]
-    #     if b_edit.matrix == PEDESTAL_MATRIX:
-    #         bpy.ops.object.editmode_toggle()
-    #         return
-    #     # If bone does not have desired matrix, replace it
-    #     b_edit.name = b_name + str(uuid4())[:4]
-    #     replaced_name = str(b_edit.name)
-    #     b_new = edit_bones.new(b_name)
-    #     b_new.tail[1] = 1
-    #     b_new.tail[2] = 0
-    #     b_new_name = b_new.name
-    #     # set original bone children to new bone
-    #     for b in edit_bones:
-    #         if b.parent == replaced_name:
-    #             b.parent = b_new_name
-    #     # set up bone constraints in pose mode
-    #     bpy.ops.object.posemode_toggle()
-    #     self.model_armature.data.bones[replaced_name].use_deform = False
-    #     pose_bones = self.model_armature.pose.bones
-    #     b_pose_new = pose_bones[b_new_name]
-    #     # Set to non deform so it does not get exported
-    #     cons = b_pose_new.constraints
-    #     copy_loc = cons.new('COPY_LOCATION')
-    #     copy_rot = cons.new('COPY_ROTATION')
-    #     copy_sca = cons.new('COPY_SCALE')
-    #     # Apply copy_location properties
-    #     copy_loc.target = self.model_armature
-    #     copy_loc.subtarget = replaced_name
-    #     # Apply copy_rotation properties
-    #     copy_rot.target = self.model_armature
-    #     copy_rot.subtarget = replaced_name
-    #     copy_rot.target_space = 'LOCAL_OWNER_ORIENT'
-    #     # Apply copy_scale properties
-    #     copy_sca.target = self.model_armature
-    #     copy_sca.subtarget = replaced_name
-    #     bpy.ops.object.posemode_toggle()
-    #     # Fix references to point to new bone for export objects
-    #     for ob in objects:
-    #         if ob.parent_bone == replaced_name:
-    #             ob.parent_bone = b_new_name
-
-
-
-
 
 #####################################################################################
 #####################################################################################

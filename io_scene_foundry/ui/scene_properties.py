@@ -815,8 +815,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         type=bpy.types.Object,
         poll=poll_armature,
     )
-    support_armature_a_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the child bone should join to at export')
-    support_armature_a_child_bone : StringProperty(name='Child Bone', description='Specify the bone from the support armature to join to the parent bone')
+    support_armature_a_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export')
+
     
     support_armature_b: PointerProperty(
         name="Support Armature",
@@ -824,8 +824,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         type=bpy.types.Object,
         poll=poll_armature,
     )
-    support_armature_b_parent_bone : StringProperty(name='Parent Bone')
-    support_armature_b_child_bone : StringProperty(name='Child Bone')
+    support_armature_b_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export')
+
     
     support_armature_c: PointerProperty(
         name="Support Armature",
@@ -833,8 +833,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         type=bpy.types.Object,
         poll=poll_armature,
     )
-    support_armature_c_parent_bone : StringProperty(name='Parent Bone')
-    support_armature_c_child_bone : StringProperty(name='Child Bone')
+    support_armature_c_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export')
     
     node_usage_physics_control : StringProperty(name="Physics Control")
     node_usage_camera_control : StringProperty(name="Camera Control")

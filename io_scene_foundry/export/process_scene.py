@@ -49,6 +49,7 @@ from ..utils.nwo_utils import (
     jstr,
     mute_armature_mods,
     print_warning,
+    reset_to_basis,
     run_tool,
     unmute_armature_mods,
     update_job,
@@ -107,8 +108,6 @@ class ProcessScene:
                     and nwo_scene.model_armature.animation_data
                 ):
                     if scene_nwo_export.export_animations != "NONE":
-                        # self.remove_all_but_armatures(nwo_scene)
-
                         timeline = context.scene
                         print("\n\nStarting Animations Export")
                         print(
@@ -230,6 +229,7 @@ class ProcessScene:
                 "-----------------------------------------------------------------------\n"
             )
             clear_constraints()
+            reset_to_basis()
             if muted_armature_deforms:
                 unmute_armature_mods(muted_armature_deforms)
             if asset_type in ("MODEL", "FP ANIMATION"):
@@ -812,17 +812,6 @@ class ProcessScene:
                 path_gr2 = os.path.join(asset_path, "export", "models", asset_name)
 
         return f"{path}.fbx", f"{path}.json", f"{path_gr2}.gr2"
-
-    def remove_all_but_armatures(self, nwo_scene):
-        bpy.ops.object.select_all(action="SELECT")
-        nwo_scene.model_armature.select_set(False)
-        if nwo_scene.animation_arm:
-            nwo_scene.animation_arm.select_set(False)
-        if nwo_scene.animation_armatures:
-            for a in nwo_scene.animation_armatures.values():
-                a.select_set(False)
-
-        bpy.ops.object.delete()
 
     #####################################################################################
     #####################################################################################
