@@ -2208,7 +2208,7 @@ def unmute_armature_mods(muted_arms):
     for mod in muted_arms:
         mod.use_vertex_groups = True
     
-def rig_root_deform_bone(rig: bpy.types.Object, return_name=False) -> None | bpy.types.Bone| str:
+def rig_root_deform_bone(rig: bpy.types.Object, return_name=False) -> None | bpy.types.Bone| str| list:
     """Returns the root deform bone of this rig. If multiple bones are found, returns none"""
     root_bones = [b for b in rig.data.bones if b.use_deform and not b.parent]
     if len(root_bones) == 1:
@@ -2217,3 +2217,5 @@ def rig_root_deform_bone(rig: bpy.types.Object, return_name=False) -> None | bpy
             return root.name
         else:
             return root
+    elif root_bones:
+        return root_bones

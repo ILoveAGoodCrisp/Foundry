@@ -2344,9 +2344,11 @@ class PrepareScene:
         f1 = frameIDs.keys()
         f2 = frameIDs.values()
         bone_list = [bone for bone in model_armature.data.bones if bone.use_deform]
-        root_bones = [b for b in bone_list if not b.parent]
-        if not root_bones:
-            raise RuntimeError(f"Root bone of {model_armature.name} is marked non-deform. This rig will not export")
+        root_bone = rig_root_deform_bone(model_armature)
+        if not root_bone:
+            raise RuntimeError(f"Armature [{model_armature.name}] does not have a root deform bone. Export will fail")
+        elif type(root_bone) == list:
+            raise RuntimeError(f"Armature [{model_armature.name}] has multiple root deform bones. Export will fail")
         # sort list
         def sorting_key(value):
             return nodes_order.get(value.name, len(nodes))
@@ -2407,15 +2409,11 @@ class PrepareScene:
         else:
             # Fine, I'll order it myself
             bones_ordered = []
-            for b in bone_list:
-                if b.parent:
-                    continue
-                bones_ordered.append(b)
-                break
+            bones_ordered.append(root_bone)
             idx = 0
             while idx < len(bone_list):
                 for b in bone_list:
-                    if b.parent and b.parent == bones_ordered[idx]:
+                    if idx < len(bones_ordered) and b.parent and b.parent == bones_ordered[idx]:
                         bones_ordered.append(b)
                 idx += 1
                 
