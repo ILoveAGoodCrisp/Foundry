@@ -1934,7 +1934,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
         
-        if keep_marker_axis and is_marker(ob):
+        if keep_marker_axis and ob.type == 'EMPTY':
             ob.rotation_euler.rotate_axis('Z', -rotation)
 
         if parented_objects.get(ob, 0):
