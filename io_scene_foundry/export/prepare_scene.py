@@ -337,7 +337,6 @@ class PrepareScene:
 
         self.global_materials = {"default"}
         self.seams = []
-
         process = "--- Building Export Scene"
         update_progress(process, 0)
         len_export_obs = len(export_obs)
@@ -447,7 +446,6 @@ class PrepareScene:
                     self.fix_materials(
                         context, ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
                     )
-                # print("fix_materials")
                 
             update_progress(process, idx / len_export_obs)
 
@@ -2708,6 +2706,7 @@ class PrepareScene:
 
     def loop_and_fix_slots(self, context, slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4):
         slots_to_remove = []
+        dupe_slots_dict = {}
         is_true_mesh = ob.type == 'MESH'
         for idx, slot in enumerate(slots):
             if slot.material:
@@ -2726,15 +2725,9 @@ class PrepareScene:
                 if s_name not in mats.keys():
                     mats[s_name] = idx
                 elif is_true_mesh:
-                    with context.temp_override(active_object=ob, selected_editable_objects=[ob]):
-                        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-                        ob.active_material_index = idx
-                        slots_to_remove.append(idx)
-                        bpy.ops.mesh.select_all(action='DESELECT')
-                        bpy.ops.object.material_slot_select()
-                        ob.active_material_index = mats[s_name]
-                        bpy.ops.object.material_slot_assign()
-                        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+                    slots_to_remove.append(idx)
+                    dupe_slots_dict[idx] = mats[s_name]
+                    
             else:
                 if nwo.mesh_type in render_mesh_types:
                     slot.material = self.invalid_mat
@@ -2742,6 +2735,17 @@ class PrepareScene:
                     slot.material = self.water_surface_mat
                 else:
                     slot.material = self.invisible_mat
+                    
+        if dupe_slots_dict:
+            bm = bmesh.new()
+            bm.from_mesh(me)
+            bm.faces.ensure_lookup_table()
+            for face in bm.faces:
+                # face: bmesh.types.BMFace
+                if face.material_index in dupe_slots_dict.keys():
+                    face.material_index = dupe_slots_dict[face.material_index]
+                    
+            bm.to_mesh(me)
 
         while slots_to_remove:
             materials.pop(index=slots_to_remove[0])
