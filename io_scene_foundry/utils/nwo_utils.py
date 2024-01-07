@@ -1503,7 +1503,7 @@ def is_instance_or_structure_proxy(ob) -> bool:
         return True
     return False
 
-def set_origin_to_floor(ob):
+def set_origin_to_floor(ob: bpy.types.Object):
     bbox = ob.bound_box
     world_coords = []
     min_z = None
@@ -1517,18 +1517,19 @@ def set_origin_to_floor(ob):
     
     floor_corners = []
     for vec in world_coords:
-        if vec.z == min_z:
+        if round(vec.z, 4) == round(min_z, 4):
+            print(vec)
             floor_corners.append(vec)
-    assert(len(floor_corners) == 4)
+    floor_corners_count = len(floor_corners)
     # Calc center point
-    avg_x = sum(v.x for v in floor_corners) / 4.0
-    avg_y = sum(v.y for v in floor_corners) / 4.0
+    avg_x = sum(v.x for v in floor_corners) / floor_corners_count
+    avg_y = sum(v.y for v in floor_corners) / floor_corners_count
     center_point = Vector((avg_x, avg_y, min_z))
-    bpy.context.scene.cursor.location = center_point
-    set_active_object(ob)
-    ob.select_set(True)
-    bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='MEDIAN')
-    ob.select_set(False)
+    loc, rot, sca = ob.matrix_world.decompose()
+    height_diff = loc.z - center_point.z
+    transform_matrix = Matrix.Translation(Vector((0, 0, height_diff))) 
+    ob.matrix_world = Matrix.LocRotScale(center_point, rot, sca)
+    ob.data.transform(transform_matrix)
     
 def set_origin_to_centre(ob):
     set_active_object(ob)
