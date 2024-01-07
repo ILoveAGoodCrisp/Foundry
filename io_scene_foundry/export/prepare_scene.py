@@ -1625,10 +1625,14 @@ class PrepareScene:
             if export_animations != "NONE" and bpy.data.actions:
                 # Force the keyframes to start at frame 0
                 for animation in bpy.data.actions:
-                    frame_diff = int(animation.frame_start)
+                    frames_from_zero = int(animation.frame_start)
+                    if frames_from_zero == 0: continue
                     for fcurve in animation.fcurves:
                         for kfp in fcurve.keyframe_points:
-                            kfp.co[0] -= frame_diff       
+                            kfp.co[0] -= frames_from_zero
+                            
+                    animation.frame_start = 0
+                    animation.frame_end -= frames_from_zero
 
     def set_bone_names(self, bones):
         for b in bones:
