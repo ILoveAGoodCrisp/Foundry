@@ -1964,7 +1964,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         is_a_frame = ob in frames
         
-        if ob.type != 'ARMATURE':
+        if not is_a_frame:
             rot.rotate(rotation_matrix)
         
         # Lights need scaling to have correct display 
@@ -1976,11 +1976,19 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             
         elif ob.type == 'ARMATURE':
             armatures.append(ob)
+            
+        if is_a_frame:
+            if ob.rotation_mode == 'QUATERNION':
+                rot = Quaternion()
+            else:
+                rot = Euler()
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
         
-        if keep_marker_axis and ob.type == 'EMTPY':
+        if keep_marker_axis and not is_a_frame and ob.type == 'EMTPY':
             ob.rotation_euler.rotate_axis('Z', -rotation)
+            
+
             
         if is_a_frame:
             ob.rotation_euler = old_rot
