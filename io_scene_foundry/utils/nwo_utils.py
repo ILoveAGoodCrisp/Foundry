@@ -1526,16 +1526,13 @@ def set_origin_to_floor(ob: bpy.types.Object):
     avg_y = sum(v.y for v in floor_corners) / floor_corners_count
     center_point = Vector((avg_x, avg_y, min_z))
     loc, rot, sca = ob.matrix_world.decompose()
-    height_diff = loc.z - center_point.z
-    transform_matrix = Matrix.Translation(Vector((0, 0, height_diff))) 
+    transform_matrix = Matrix.Translation(loc - center_point)
     ob.matrix_world = Matrix.LocRotScale(center_point, rot, sca)
     ob.data.transform(transform_matrix)
     
 def set_origin_to_centre(ob):
-    set_active_object(ob)
-    ob.select_set(True)
-    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-    ob.select_set(False)
+    with bpy.context.temp_override(object=ob, selected_editable_objects=[ob]):
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
     
 def path_as_tag_path_no_ext(path):
     return dot_partition(path.replace(get_tags_path(), ''))
