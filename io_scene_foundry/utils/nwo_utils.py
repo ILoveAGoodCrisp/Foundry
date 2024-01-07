@@ -29,6 +29,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import time
 import winreg
 import zipfile
 import bpy
@@ -1850,6 +1851,31 @@ class NodeChild():
         self.parent_bone: str = None
         self.matrix: Matrix = None
         # self.group: str = None
+        
+class ChildOf():
+    def __init__(self, ob: bpy.types.Object, con, pose_bone=None):
+        self.ob: bpy.types.Object = ob
+        self.pose_bone = pose_bone
+        self.name = con.name
+        self.target: bpy.types.Object = con.target
+        self.subtarget: str = con.subtarget
+        self.inverse_matrix: Matrix() = con.inverse_matrix
+        
+        self.use_location_x = con.use_location_x
+        self.use_location_y = con.use_location_y
+        self.use_location_z = con.use_location_z
+        
+        self.use_rotation_x = con.use_rotation_x
+        self.use_rotation_y = con.use_rotation_y
+        self.use_rotation_z = con.use_rotation_z
+        
+        self.use_scale_x = con.use_scale_x
+        self.use_scale_y = con.use_scale_y
+        self.use_scale_z = con.use_scale_z
+        
+        self.influence = con.influence
+        
+        self.target_is_bone = self.target.type == 'ARMATURE' and self.subtarget
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_marker_axis=None, objects=None, actions=None):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
@@ -1887,6 +1913,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
     transform_matrix = rotation_matrix @ scale_matrix
     parented_objects = {}
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
+    all_child_of_constraints: list[ChildOf] = []
     for ob in objects:
         if ob.parent:
             child_ob = NodeChild(ob)
@@ -1897,6 +1924,22 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                 # child_ob.group += f'-:--:-{ob.parent_bone}'
                 
             parented_objects[ob] = child_ob
+            
+        child_of_constraints = [con for con in ob.constraints if con.type == 'CHILD_OF']
+        for con in child_of_constraints:
+            all_child_of_constraints.append(ChildOf(ob, con))
+            with context.temp_override(object=ob):
+                bpy.ops.constraint.apply(constraint=con.name, owner='OBJECT')
+        if ob.type == 'ARMATURE':
+            for pose_bone in ob.pose.bones:
+                pose_child_of_constraints = [con for con in pose_bone.constraints if con.type == 'CHILD_OF']
+                for con in pose_child_of_constraints:
+                    all_child_of_constraints.append(ChildOf(ob, con, pose_bone=pose_bone))
+                    with context.temp_override(object=ob, pose_bone=pose_bone):
+                        bpy.ops.constraint.apply(constraint=con.name, owner='BONE')
+                        
+    print("Complete ob loop")
+    time.sleep(1)
     
     if parented_objects:
         override = context.copy()
@@ -1907,6 +1950,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
     for ob in objects:
+        old_rot = ob.rotation_euler
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         loc, rot, sca = ob.matrix_world.decompose()
         if ob.rotation_mode == 'QUATERNION':
@@ -1920,7 +1964,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         is_a_frame = ob in frames
         
-        if not is_a_frame:
+        if ob.type != 'ARMATURE':
             rot.rotate(rotation_matrix)
         
         # Lights need scaling to have correct display 
@@ -1935,8 +1979,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
         
-        if keep_marker_axis and not is_a_frame and is_marker(ob):
+        if keep_marker_axis and ob.type == 'EMTPY':
             ob.rotation_euler.rotate_axis('Z', -rotation)
+            
+        if is_a_frame:
+            ob.rotation_euler = old_rot
 
         if parented_objects.get(ob, 0):
             parented_objects[ob].matrix = ob.matrix_world
@@ -1971,11 +2018,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     con.rest_length *= scale_factor
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
-                case 'CHILD_OF':
-                    if con.inverse_matrix != Matrix.Identity(4):
-                        con.inverse_matrix = rotation_matrix.inverted() @ con.inverse_matrix
-                    else:
-                        con.inverse_matrix = Matrix.Identity(4)
+                # case 'CHILD_OF':
+                #     if con.inverse_matrix != Matrix.Identity(4):
+                #         con.inverse_matrix = rotation_matrix.inverted() @ con.inverse_matrix
+                #     else:
+                #         con.inverse_matrix = Matrix.Identity(4)
             
     for curve in curves:
         if hasattr(curve, 'size'):
@@ -2081,11 +2128,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                         con.rest_length *= scale_factor
                     case 'SHRINKWRAP':
                         con.distance *= scale_factor
-                    case 'CHILD_OF':
-                        if con.inverse_matrix != Matrix.Identity(4):
-                            con.inverse_matrix = rotation_matrix.inverted() @ con.inverse_matrix
-                        else:
-                            con.inverse_matrix = Matrix.Identity(4)
+                    # case 'CHILD_OF':
+                    #     if con.inverse_matrix != Matrix.Identity(4):
+                    #         con.inverse_matrix = rotation_matrix.inverted() @ con.inverse_matrix
+                    #     else:
+                    #         con.inverse_matrix = Matrix.Identity(4)
 
         if uses_pose_mirror:
             arm.pose.use_mirror_x = True
@@ -2110,6 +2157,40 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         if child.parent_bone:
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
+        
+    for child_of in all_child_of_constraints:
+        if child_of.pose_bone:
+            print(child_of.name)
+            con = child_of.pose_bone.constraints.new('CHILD_OF')
+        else:
+            con = child_of.ob.constraints.new('CHILD_OF')
+            
+        con.name = child_of.name
+        con.target = child_of.target
+        if child_of.target_is_bone:
+            con.subtarget = child_of.subtarget
+            
+        con.use_location_x = child_of.use_location_x
+        con.use_location_y = child_of.use_location_y
+        con.use_location_z = child_of.use_location_z
+        
+        con.use_rotation_x = child_of.use_rotation_x
+        con.use_rotation_y = child_of.use_rotation_y
+        con.use_rotation_z = child_of.use_rotation_z
+        
+        con.use_scale_x = child_of.use_scale_x
+        con.use_scale_y = child_of.use_scale_y
+        con.use_scale_z = child_of.use_scale_z
+        
+        con.influence = child_of.influence
+        
+        if child_of.pose_bone:
+            with context.temp_override(object=child_of.ob, pose_bone=child_of.pose_bone):
+                bpy.ops.constraint.childof_set_inverse(constraint=child_of.name, owner='BONE')
+        else:
+            with context.temp_override(object=child_of.ob):
+                bpy.ops.constraint.childof_set_inverse(constraint=child_of.name, owner='OBJECT')
+            
     
     for action in actions:
         for fcurve in action.fcurves:
