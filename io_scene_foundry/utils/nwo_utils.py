@@ -1974,8 +1974,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
                 case 'CHILD_OF':
-                    with context.temp_override(object=ob):
-                        bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='OBJECT')
+                    if con.inverse_matrix != Matrix.Identity(4):
+                        with context.temp_override(object=ob):
+                            bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='OBJECT')
             
     for curve in curves:
         if hasattr(curve, 'size'):
@@ -2082,9 +2083,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     case 'SHRINKWRAP':
                         con.distance *= scale_factor
                     case 'CHILD_OF':
-                        with context.temp_override(pose_bone=pose_bone):
-                            bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='BONE')
-                            
+                        if con.inverse_matrix != Matrix.Identity(4):
+                            with context.temp_override(pose_bone=pose_bone):
+                                bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='BONE')
 
         if uses_pose_mirror:
             arm.pose.use_mirror_x = True
