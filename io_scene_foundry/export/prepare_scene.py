@@ -211,13 +211,17 @@ class PrepareScene:
             ob.instance_type = 'NONE'
         
         obs_to_make_real = [ob for ob in all_obs_start if ob.nwo.export_this and library_instanced_collection(ob)]
-        with context.temp_override(selected_editable_objects=obs_to_make_real):
-            bpy.ops.object.duplicates_make_real()
+        if obs_to_make_real:
+            with context.temp_override(selected_editable_objects=obs_to_make_real):
+                bpy.ops.object.duplicates_make_real()
         context.view_layer.update()
         all_obs = context.view_layer.objects
         obs_to_make_local = [ob for ob in all_obs if ob.nwo.export_this and (ob.library or (ob.data and ob.data.library))]
-        with context.temp_override(selected_editable_objects=obs_to_make_local):
-            bpy.ops.object.make_local(type="ALL")
+        if obs_to_make_local:
+            with context.temp_override(selected_editable_objects=obs_to_make_local):
+                bpy.ops.object.make_local(type="ALL")
+                
+        bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
 
         enable_prints()
 
