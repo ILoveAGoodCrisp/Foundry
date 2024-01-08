@@ -1166,8 +1166,9 @@ def recursive_image_search(tree_owner):
             
 
 def remove_chars(string, chars):
-    for c in chars:
-        string = string.replace(c, "")
+    while any(c in string for c in chars):
+        for c in chars:
+            string = string.replace(c, "")
 
     return string
 
@@ -1671,7 +1672,6 @@ def find_mapping_node(node: bpy.types.Node, start_node: bpy.types.Node) -> bpy.t
         return next_node, True
     else:
         global hit_target
-        print('Attempting traversal\n')
         tile_node, _ = find_node_in_chain('GROUP', start_node, first_target=node.name, group_is_tiling_node=True)
         hit_target = False
         if tile_node:
@@ -1687,7 +1687,7 @@ def find_mapping_node(node: bpy.types.Node, start_node: bpy.types.Node) -> bpy.t
 def find_linked_node(start_node: bpy.types.Node, input_name: str, node_type: str) -> bpy.types.Node:
     """Using the given node as a base, finds the first node from the given input that matches the given node type"""
     for i in start_node.inputs:
-        if input_name in i.name.lower():
+        if input_name == i.name.lower():
             if i.links:
                 input = i
                 break
@@ -1697,7 +1697,7 @@ def find_linked_node(start_node: bpy.types.Node, input_name: str, node_type: str
         return
     
     link = input.links[0]
-    node, _ = find_node_in_chain(node_type, link.from_node, link.from_socket.name)
+    node, _ = find_node_in_chain(node_type, link.from_node, link.from_socket.name.lower())
     if node:
         return node
     
@@ -1714,18 +1714,21 @@ def find_node_in_chain(node_type: str, node: bpy.types.Node, group_output_input=
         group_nodes = node.node_tree.nodes
         for n in group_nodes:
             if n.type == 'GROUP_OUTPUT':
-                input = n.inputs.get(group_output_input, 0)
-                if input:
-                    links = input.links
-                    for l in links:
-                        new_node = l.from_node
-                        valid_node, group_node = find_node_in_chain(node_type, new_node, group_output_input, group_node, input.name, first_target, group_is_tiling_node)
-                        if valid_node:
-                            return valid_node, group_node
-                break
+                for input in n.inputs:
+                    if input.name.lower() == group_output_input:
+                        links = input.links
+                        for l in links:
+                            new_node = l.from_node
+                            valid_node, group_node = find_node_in_chain(node_type, new_node, group_output_input, group_node, input.name, first_target, group_is_tiling_node)
+                            if valid_node:
+                                return valid_node, group_node
+
+            break
             
     elif node.type == 'GROUP_INPUT':
-        group_test_input = node.inputs.get(last_input_name, 0)
+        for input in node.inputs:
+            if input.name.lower() == last_input_name:
+                group_test_input = input
         if group_test_input:
             for link in group_test_input.links:
                 next_node = link.from_node

@@ -71,7 +71,7 @@ class MaterialTag(ShaderTag):
     def _build_custom(self):
         name_type_node_dict = {}
         inputs = self.group_node.inputs
-        cull_chars = list(" _-()'\"")
+        cull_chars = " _-()'\""
         for i in inputs:
             for parameter_name, value in global_material_shader.items():
                 d_name, param_type = value
@@ -81,7 +81,7 @@ class MaterialTag(ShaderTag):
                 if input_name == parameter_name_culled or input_name == display_name:
                     name_type_node_dict[parameter_name] = [param_type, self._source_from_input_and_parameter_type(i, param_type)]
                     break
-
+                    
         for name, value in name_type_node_dict.items():
             param_type, source = value
             element = self._setup_parameter(source, name, param_type)
