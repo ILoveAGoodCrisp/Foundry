@@ -2219,13 +2219,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             con.inverse_matrix = rotation_matrix.inverted() @ Matrix.Identity(4)
         elif child_of.pose_bone:
             con.inverse_matrix = child_of.inverse_matrix @ rotation_matrix.inverted()
-            
-        inverse_trans_vec = con.inverse_matrix.to_translation() * scale_factor
-        con.inverse_matrix = Matrix.Translation(inverse_trans_vec) @ con.inverse_matrix
+            if scale_factor != 1:
+                inverse_trans_vec = con.inverse_matrix.to_translation() * scale_factor
+                con.inverse_matrix = Matrix.Translation(inverse_trans_vec) @ con.inverse_matrix
         
-            # if child_of.name == 'Follow Right Hand':
-            #     with context.temp_override(object=child_of.ob, pose_bone=child_of.pose_bone):
-            #         bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='BONE')
     
     for action in actions:
         for fcurve in action.fcurves:
