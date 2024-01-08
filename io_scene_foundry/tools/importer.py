@@ -230,6 +230,7 @@ class NWO_Import(bpy.types.Operator):
     def invoke(self, context, event):
         self.directory = ''
         self.filepath = ''
+        self.filename = ''
         if self.scope == 'images':
             self.directory = get_tags_path()
             self.filter_glob += "*.bitmap;"
@@ -489,6 +490,10 @@ class NWOImporter():
         arm.hide_select = False
         set_active_object(arm)
         muted_armature_deforms = mute_armature_mods()
+        print("Importing Animations")
+        print(
+            "-----------------------------------------------------------------------\n"
+        )
         for path in jma_files:
             self.import_legacy_animation(path, legacy_fix_rotations)
         
@@ -499,8 +504,9 @@ class NWOImporter():
         
     def import_legacy_animation(self, path, legacy_fix_rotations):
         existing_animations = bpy.data.actions[:]
-        print(f"\nImporting Animation: {dot_partition(os.path.basename(path))}")
-        bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
+        print(f"--- {dot_partition(os.path.basename(path))}")
+        with MutePrints():
+            bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
         if bpy.data.actions:
             anim = [a for a in bpy.data.actions if a not in existing_animations][0]
             self.animations.append(anim)

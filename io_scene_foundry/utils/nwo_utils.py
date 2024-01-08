@@ -29,7 +29,6 @@ import pathlib
 import shutil
 import subprocess
 import sys
-import time
 import winreg
 import zipfile
 import bpy
@@ -1969,9 +1968,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     all_child_of_constraints.append(ChildOf(ob, con, pose_bone=pose_bone))
                     with context.temp_override(object=ob, pose_bone=pose_bone):
                         bpy.ops.constraint.apply(constraint=con.name, owner='BONE')
-                        
-    print("Complete ob loop")
-    time.sleep(1)
     
     if parented_objects:
         override = context.copy()
@@ -1982,7 +1978,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
     for ob in objects:
-        old_rot = ob.rotation_euler
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         loc, rot, sca = ob.matrix_world.decompose()
         if ob.rotation_mode == 'QUATERNION':
@@ -2234,9 +2229,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     if mod.type == 'NOISE':
                         mod.strength *= scale_factor
                 for keyframe_point in fcurve.keyframe_points:
-                    keyframe_point.co[1] *= scale_factor
+                    #keyframe_point.co[1] *= scale_factor
+                    keyframe_point.co_ui[1] *= scale_factor
                     
-                fcurve.keyframe_points.handles_recalc()
+                #fcurve.keyframe_points.handles_recalc()
                 
 def get_area_info(context):
     area = [
