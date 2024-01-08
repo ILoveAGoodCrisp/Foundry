@@ -118,7 +118,6 @@ class NWO_Import(bpy.types.Operator):
     
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
-        extensions = set([path.rpartition('.')[2].lower() for path in filepaths])
         corinth = is_corinth(context)
         scale_factor = 0.03048 if context.scene.nwo.scale == 'blender' else 1
         to_x_rot = rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
@@ -136,10 +135,10 @@ class NWO_Import(bpy.types.Operator):
                 context.scene.nwo_export.show_output = False
             try:
                 export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
-                print(export_title)
+                print(export_title, '\n')
                 if self.scope == 'models':
                     importer = NWOImporter(context, self.report, filepaths)
-                    if 'amf' in extensions and self.amf_okay:
+                    if 'amf' in importer.extensions and self.amf_okay:
                         amf_module_name = amf_addon_installed()
                         amf_addon_enabled = addon_utils.check(amf_module_name)[0]
                         if not amf_addon_enabled:
@@ -154,7 +153,7 @@ class NWO_Import(bpy.types.Operator):
                         if to_x_rot:
                             transform_scene(context, 1, from_x_rot, objects=imported_amf_objects)
                             
-                    if self.legacy_okay and any([ext in ('jms', 'ass', 'jmm', 'jma', 'jmt', 'jmz', 'jmv', 'jmw', 'jmo', 'jmr', 'jmrx') for ext in extensions]):
+                    if self.legacy_okay and any([ext in ('jms', 'jma') for ext in importer.extensions]):
                         toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
                         if not toolset_addon_enabled:
                             addon_utils.enable('io_scene_halo')
@@ -185,10 +184,11 @@ class NWO_Import(bpy.types.Operator):
                                 find_shaders(materials)
                                 if self.build_blender_materials:
                                     print('Building materials from shader tags')
-                                    for mat in materials:
-                                        shader_path = mat.nwo.shader_path
-                                        if shader_path:
-                                            tag_to_nodes(corinth, mat, shader_path)
+                                    with MutePrints():
+                                        for mat in materials:
+                                            shader_path = mat.nwo.shader_path
+                                            if shader_path:
+                                                tag_to_nodes(corinth, mat, shader_path)
                         
                 elif self.scope == 'images':
                     if not self.directory.startswith(get_tags_path()):
@@ -269,6 +269,7 @@ class NWOImporter():
         self.report = report
         self.mesh_objects = []
         self.marker_objects = []
+        self.extensions = set()
         self.sorted_filepaths = self.group_filetypes()
     
     def group_filetypes(self):
@@ -282,12 +283,16 @@ class NWOImporter():
                 
         for path in self.filepaths:
             if path.lower().endswith('.amf'):
+                self.extensions.add('amf')
                 filetype_dict["amf"].append(path)
             elif path.lower().endswith(legacy_model_formats):
+                self.extensions.add('jms')
                 filetype_dict["jms"].append(path)
             elif path.lower().endswith(legacy_animation_formats):
+                self.extensions.add('jma')
                 filetype_dict["jma"].append(path)
             elif path.lower().endswith('.bitmap'):
+                self.extensions.add('bitmap')
                 filetype_dict["bitmap"].append(path)
                 
         return filetype_dict

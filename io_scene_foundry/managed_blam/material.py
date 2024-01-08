@@ -338,7 +338,8 @@ class MaterialTag(ShaderTag):
             if has_alpha_map:
                 alpha = BSDFParameter(tree, bsdf, bsdf.inputs['Alpha'], 'ShaderNodeTexImage', data=self._image_from_parameter_name('alpha_mask_map'), mapping=self._mapping_from_parameter_name('alpha_mask_map'))
             else:
-                diffuse.diffalpha = True
+                if diffuse and diffuse.data:
+                    diffuse.diffalpha = True
             
         if diffuse:
             diffuse.build(Vector((-300, 400)))
