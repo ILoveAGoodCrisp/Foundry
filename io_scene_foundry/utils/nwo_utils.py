@@ -1966,7 +1966,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                 pose_child_of_constraints = [con for con in pose_bone.constraints if con.type == 'CHILD_OF']
                 for con in pose_child_of_constraints:
                     all_child_of_constraints.append(ChildOf(ob, con, pose_bone=pose_bone))
-                    with context.temp_override(object=ob, pose_bone=pose_bone):
+                    with context.temp_override(object=ob, pose_bone=pose_bone):  
                         bpy.ops.constraint.apply(constraint=con.name, owner='BONE')
     
     if parented_objects:
@@ -2191,7 +2191,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
     for child_of in all_child_of_constraints:
         if child_of.pose_bone:
-            print(child_of.name)
             con = child_of.pose_bone.constraints.new('CHILD_OF')
         else:
             con = child_of.ob.constraints.new('CHILD_OF')
@@ -2221,6 +2220,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         elif child_of.pose_bone:
             con.inverse_matrix = child_of.inverse_matrix @ rotation_matrix.inverted()
             
+        inverse_trans_vec = con.inverse_matrix.to_translation() * scale_factor
+        con.inverse_matrix = Matrix.Translation(inverse_trans_vec) @ con.inverse_matrix
+        
+            # if child_of.name == 'Follow Right Hand':
+            #     with context.temp_override(object=child_of.ob, pose_bone=child_of.pose_bone):
+            #         bpy.ops.constraint.childof_set_inverse(constraint=con.name, owner='BONE')
     
     for action in actions:
         for fcurve in action.fcurves:
