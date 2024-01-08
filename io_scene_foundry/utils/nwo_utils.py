@@ -2189,8 +2189,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         con.influence = child_of.influence
         
         # con.inverse_matrix = rotation_matrix.inverted() @ child_of.inverse_matrix
-        if child_of.inverse_matrix == Matrix.Identity(4):
+        if child_of.pose_bone and child_of.inverse_matrix == Matrix.Identity(4):
             con.inverse_matrix = rotation_matrix.inverted() @ Matrix.Identity(4)
+        elif child_of.pose_bone:
+            con.inverse_matrix = child_of.inverse_matrix @ rotation_matrix.inverted()
             
     
     for action in actions:
