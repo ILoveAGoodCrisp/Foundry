@@ -3278,20 +3278,23 @@ class NWO_HaloLauncherGameSettings(Panel):
         col = flow.column()
         row = col.row()
         row.prop(scene_nwo_halo_launcher, "game_default", expand=True)
-        row = col.row()
-        row.prop(scene_nwo_halo_launcher, "use_play")
-        col.separator()
-        col.prop(scene_nwo_halo_launcher, "insertion_point_index")
-        col.prop(scene_nwo_halo_launcher, "initial_zone_set")
-        if is_corinth():
-            col.prop(scene_nwo_halo_launcher, "initial_bsp")
-        col.prop(scene_nwo_halo_launcher, "custom_functions")
+        draw_game_launcher_settings(scene_nwo_halo_launcher, col)
 
-        col.prop(scene_nwo_halo_launcher, "run_game_scripts")
-        if is_corinth():
-            col.prop(scene_nwo_halo_launcher, "enable_firefight")
-            if scene_nwo_halo_launcher.enable_firefight:
-                col.prop(scene_nwo_halo_launcher, "firefight_mission")
+def draw_game_launcher_settings(scene_nwo_halo_launcher, col):
+    row = col.row()
+    row.prop(scene_nwo_halo_launcher, "use_play")
+    col.separator()
+    col.prop(scene_nwo_halo_launcher, "insertion_point_index")
+    col.prop(scene_nwo_halo_launcher, "initial_zone_set")
+    if is_corinth():
+        col.prop(scene_nwo_halo_launcher, "initial_bsp")
+    col.prop(scene_nwo_halo_launcher, "custom_functions")
+
+    col.prop(scene_nwo_halo_launcher, "run_game_scripts")
+    if is_corinth():
+        col.prop(scene_nwo_halo_launcher, "enable_firefight")
+        if scene_nwo_halo_launcher.enable_firefight:
+            col.prop(scene_nwo_halo_launcher, "firefight_mission")
 
 
 class NWO_HaloLauncherGamePruneSettings(Panel):
@@ -3316,85 +3319,88 @@ class NWO_HaloLauncherGamePruneSettings(Panel):
         )
 
         col = flow.column()
-        col.prop(scene_nwo_halo_launcher, "prune_globals")
-        col.prop(scene_nwo_halo_launcher, "prune_globals_keep_playable")
+        draw_game_launcher_pruning(scene_nwo_halo_launcher, col)
+                
+def draw_game_launcher_pruning(scene_nwo_halo_launcher, col):
+    col.prop(scene_nwo_halo_launcher, "prune_globals")
+    col.prop(scene_nwo_halo_launcher, "prune_globals_keep_playable")
+    if is_corinth():
+        col.prop(scene_nwo_halo_launcher, "prune_globals_use_empty")
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_models_enable_alternate_render_models",
+        )
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_scenario_keep_scriptable_objects",
+        )
+    col.prop(scene_nwo_halo_launcher, "prune_scenario_all_lightmaps")
+    col.prop(scene_nwo_halo_launcher, "prune_all_materials_use_gray_shader")
+    if is_corinth():
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_all_materials_use_default_textures",
+        )
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_all_materials_use_default_textures_fx_textures",
+        )
+    col.prop(scene_nwo_halo_launcher, "prune_all_material_effects")
+    col.prop(scene_nwo_halo_launcher, "prune_all_dialog_sounds")
+    col.prop(scene_nwo_halo_launcher, "prune_all_error_geometry")
+    if is_corinth():
+        col.prop(scene_nwo_halo_launcher, "prune_facial_animations")
+        col.prop(scene_nwo_halo_launcher, "prune_first_person_animations")
+        col.prop(scene_nwo_halo_launcher, "prune_low_quality_animations")
+        col.prop(scene_nwo_halo_launcher, "prune_use_imposters")
+        col.prop(scene_nwo_halo_launcher, "prune_cinematic_effects")
+    else:
+        col.prop(scene_nwo_halo_launcher, "prune_scenario_force_solo_mode")
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_scenario_force_single_bsp_zone_set",
+        )
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_scenario_force_single_bsp_zones",
+        )
+        col.prop(scene_nwo_halo_launcher, "prune_keep_scripts")
+    col.prop(scene_nwo_halo_launcher, "prune_scenario_for_environment_editing")
+    if scene_nwo_halo_launcher.prune_scenario_for_environment_editing:
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_scenario_for_environment_editing_keep_cinematics",
+        )
+        col.prop(
+            scene_nwo_halo_launcher,
+            "prune_scenario_for_environment_editing_keep_scenery",
+        )
         if is_corinth():
-            col.prop(scene_nwo_halo_launcher, "prune_globals_use_empty")
             col.prop(
                 scene_nwo_halo_launcher,
-                "prune_models_enable_alternate_render_models",
+                "prune_scenario_for_environment_editing_keep_decals",
             )
             col.prop(
                 scene_nwo_halo_launcher,
-                "prune_scenario_keep_scriptable_objects",
-            )
-        col.prop(scene_nwo_halo_launcher, "prune_scenario_all_lightmaps")
-        col.prop(scene_nwo_halo_launcher, "prune_all_materials_use_gray_shader")
-        if is_corinth():
-            col.prop(
-                scene_nwo_halo_launcher,
-                "prune_all_materials_use_default_textures",
+                "prune_scenario_for_environment_editing_keep_crates",
             )
             col.prop(
                 scene_nwo_halo_launcher,
-                "prune_all_materials_use_default_textures_fx_textures",
+                "prune_scenario_for_environment_editing_keep_creatures",
             )
-        col.prop(scene_nwo_halo_launcher, "prune_all_material_effects")
-        col.prop(scene_nwo_halo_launcher, "prune_all_dialog_sounds")
-        col.prop(scene_nwo_halo_launcher, "prune_all_error_geometry")
-        if is_corinth():
-            col.prop(scene_nwo_halo_launcher, "prune_facial_animations")
-            col.prop(scene_nwo_halo_launcher, "prune_first_person_animations")
-            col.prop(scene_nwo_halo_launcher, "prune_low_quality_animations")
-            col.prop(scene_nwo_halo_launcher, "prune_use_imposters")
-            col.prop(scene_nwo_halo_launcher, "prune_cinematic_effects")
+            col.prop(
+                scene_nwo_halo_launcher,
+                "prune_scenario_for_environment_editing_keep_pathfinding",
+            )
+            col.prop(
+                scene_nwo_halo_launcher,
+                "prune_scenario_for_environment_editing_keep_new_decorator_block",
+            )
         else:
-            col.prop(scene_nwo_halo_launcher, "prune_scenario_force_solo_mode")
             col.prop(
                 scene_nwo_halo_launcher,
-                "prune_scenario_force_single_bsp_zone_set",
+                "prune_scenario_for_environment_finishing",
             )
-            col.prop(
-                scene_nwo_halo_launcher,
-                "prune_scenario_force_single_bsp_zones",
-            )
-            col.prop(scene_nwo_halo_launcher, "prune_keep_scripts")
-        col.prop(scene_nwo_halo_launcher, "prune_scenario_for_environment_editing")
-        if scene_nwo_halo_launcher.prune_scenario_for_environment_editing:
-            col.prop(
-                scene_nwo_halo_launcher,
-                "prune_scenario_for_environment_editing_keep_cinematics",
-            )
-            col.prop(
-                scene_nwo_halo_launcher,
-                "prune_scenario_for_environment_editing_keep_scenery",
-            )
-            if is_corinth():
-                col.prop(
-                    scene_nwo_halo_launcher,
-                    "prune_scenario_for_environment_editing_keep_decals",
-                )
-                col.prop(
-                    scene_nwo_halo_launcher,
-                    "prune_scenario_for_environment_editing_keep_crates",
-                )
-                col.prop(
-                    scene_nwo_halo_launcher,
-                    "prune_scenario_for_environment_editing_keep_creatures",
-                )
-                col.prop(
-                    scene_nwo_halo_launcher,
-                    "prune_scenario_for_environment_editing_keep_pathfinding",
-                )
-                col.prop(
-                    scene_nwo_halo_launcher,
-                    "prune_scenario_for_environment_editing_keep_new_decorator_block",
-                )
-            else:
-                col.prop(
-                    scene_nwo_halo_launcher,
-                    "prune_scenario_for_environment_finishing",
-                )
 
 
 class NWO_HaloLauncherFoundationSettings(Panel):
@@ -3579,7 +3585,15 @@ class NWO_HaloLauncher_Sapien(Operator):
         else:
             self.filepath = ""
             return self.execute(context)
-
+        
+    def draw(self, context):
+        layout = self.layout
+        scene_nwo_launcher = context.scene.nwo_halo_launcher
+        draw_game_launcher_settings(scene_nwo_launcher, layout)
+        box = layout.box()
+        box.label(text="Pruning")
+        draw_game_launcher_pruning(scene_nwo_launcher, box)
+        
 
 class NWO_HaloLauncher_TagTest(Operator):
     """Opens Tag Test"""
@@ -3619,6 +3633,14 @@ class NWO_HaloLauncher_TagTest(Operator):
         else:
             self.filepath = ""
             return self.execute(context)
+        
+    def draw(self, context):
+        layout = self.layout
+        scene_nwo_launcher = context.scene.nwo_halo_launcher
+        draw_game_launcher_settings(scene_nwo_launcher, layout)
+        box = layout.box()
+        box.label(text="Pruning")
+        draw_game_launcher_pruning(scene_nwo_launcher, box)
 
 
 class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
