@@ -1672,13 +1672,14 @@ def find_mapping_node(node: bpy.types.Node, start_node: bpy.types.Node) -> bpy.t
         return next_node, True
     else:
         global hit_target
-        hit_target = False
         print('Attempting traversal\n')
         tile_node, _ = find_node_in_chain('GROUP', start_node, first_target=node.name, group_is_tiling_node=True)
+        hit_target = False
         if tile_node:
             return tile_node, True
         else:
             tile_node, _ = find_node_in_chain('MAPPING', start_node, first_target=node.name)
+            hit_target = False
             if tile_node:
                 return tile_node, False
     
@@ -1697,8 +1698,6 @@ def find_linked_node(start_node: bpy.types.Node, input_name: str, node_type: str
         return
     
     link = input.links[0]
-    global hit_target
-    hit_target = False
     node, _ = find_node_in_chain(node_type, link.from_node, link.from_socket.name)
     if node:
         return node
