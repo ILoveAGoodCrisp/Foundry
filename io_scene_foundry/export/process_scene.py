@@ -147,7 +147,10 @@ class ProcessScene:
                                     
                                     arm = nwo_scene.model_armature
 
-                                    arm.animation_data.action = action
+                                    for ob in bpy.data.objects:
+                                        if ob.animation_data:
+                                            ob.animation_data.action = action
+                                            
                                     timeline.frame_start = int(action.frame_start)
                                     timeline.frame_end = int(action.frame_end)
 
