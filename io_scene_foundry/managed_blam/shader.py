@@ -148,6 +148,7 @@ class ShaderTag(Tag):
         return 'blend'
             
     def _build_basic(self, map):
+        self.group_node = map['bsdf']
         albedo = self.block_options.Elements[0].SelectField('short')
         bump_mapping = self.block_options.Elements[1].SelectField('short')
         alpha_test = self.block_options.Elements[2].SelectField('short')
@@ -290,25 +291,24 @@ class ShaderTag(Tag):
         mapping = {}
         match parameter_type:
             case 'bitmap':
-                links = source.inputs['Vector'].links
-                if not links: return mapping
-                scale_node = links[0].from_node
-                if scale_node.type == 'MAPPING':
-                    mapping[self.scale_u] = scale_node.inputs['Scale'].default_value.x
-                    mapping[self.scale_v] = scale_node.inputs['Scale'].default_value.y
-                    mapping[self.translation_u] = scale_node.inputs['Location'].default_value.x
-                    mapping[self.translation_v] = scale_node.inputs['Location'].default_value.y
-                elif nwo_utils.is_halo_mapping_node(scale_node):
-                    factor = scale_node.inputs['Scale Multiplier'].default_value
-                    mapping[self.scale_u] = scale_node.inputs['Scale X'].default_value * factor
-                    mapping[self.scale_v] = scale_node.inputs['Scale Y'].default_value * factor
+                if isinstance(source, bpy.types.Node):
+                    scale_node, is_texture_tiling = nwo_utils.find_mapping_node(source, self.group_node)
+                    if not scale_node: return mapping
+                    if is_texture_tiling:
+                        factor = scale_node.inputs['Scale Multiplier'].default_value
+                        mapping[self.scale_u] = scale_node.inputs['Scale X'].default_value * factor
+                        mapping[self.scale_v] = scale_node.inputs['Scale Y'].default_value * factor
+                    elif scale_node.type == 'MAPPING':
+                        mapping[self.scale_u] = scale_node.inputs['Scale'].default_value.x
+                        mapping[self.scale_v] = scale_node.inputs['Scale'].default_value.y
+                        mapping[self.translation_u] = scale_node.inputs['Location'].default_value.x
+                        mapping[self.translation_v] = scale_node.inputs['Location'].default_value.y
             case 'color':
                 mapping['color'] = source
             case 'real':
                 mapping['value'] = source
 
         return mapping
-        
             
     def _setup_function_parameters(self, source: tuple[float] | bpy.types.Node, element: TagsNameSpace.TagElement, parameter_type: str):
         block_animated_parameters = element.SelectField(self.function_parameters)

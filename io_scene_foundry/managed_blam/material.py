@@ -93,6 +93,7 @@ class MaterialTag(ShaderTag):
                 
     def _build_basic(self, map):
         # Set up shader parameters
+        self.group_node = map['bsdf']
         spec_alpha_from_diffuse = False
         si_alpha_from_diffuse = False
         if map.get('diffuse', 0):
@@ -202,9 +203,9 @@ class MaterialTag(ShaderTag):
             element.SelectField('real').SetStringData(str(mapping.get(self.scale_u)))
         if mapping.get(self.scale_v, 0):
             if mapping.get(self.translation_u, 0):
-                element.SelectField('vector').SetStringData(str(mapping.get(self.scale_v), str(mapping.get(self.translation_u)), str(mapping.get(self.translation_v))))
+                element.SelectField('vector').SetStringData([str(mapping.get(self.scale_v), str(mapping.get(self.translation_u)), str(mapping.get(self.translation_v)))])
             else:
-                element.SelectField('vector').SetStringData(str(mapping.get(self.scale_v)), '0', '0')
+                element.SelectField('vector').SetStringData([str(mapping.get(self.scale_v)), '0', '0'])
                 
     # READING
     

@@ -60,6 +60,8 @@ convention_material_names = [m.name for m in convention_materials]
 ##GLOBALS##
 ###########
 
+hit_target = False
+
 # Enums #
 special_mesh_types = (
     "_connected_geometry_mesh_type_boundary_surface",
@@ -1659,12 +1661,28 @@ def get_blender_shader(node_tree: bpy.types.NodeTree) -> bpy.types.Node | None:
 
     return
 
-def find_mapping_node(node: bpy.types.Node) -> bpy.types.Node | None:
+def find_mapping_node(node: bpy.types.Node, start_node: bpy.types.Node) -> bpy.types.Node | None:
     links = node.inputs['Vector'].links
-    if not links: return
-    scale_node = links[0].from_node
-    if scale_node.type == 'MAPPING' or is_halo_mapping_node(scale_node):
-        return scale_node
+    if not links:
+        return None, None
+    next_node = links[0].from_node
+    if next_node.type == 'MAPPING':
+        return next_node, False
+    elif is_halo_mapping_node(next_node):
+        return next_node, True
+    else:
+        global hit_target
+        hit_target = False
+        print('Attempting traversal\n')
+        tile_node, _ = find_node_in_chain('GROUP', start_node, first_target=node.name, group_is_tiling_node=True)
+        if tile_node:
+            return tile_node, True
+        else:
+            tile_node, _ = find_node_in_chain('MAPPING', start_node, first_target=node.name)
+            if tile_node:
+                return tile_node, False
+    
+    return None, None
 
 def find_linked_node(start_node: bpy.types.Node, input_name: str, node_type: str) -> bpy.types.Node:
     """Using the given node as a base, finds the first node from the given input that matches the given node type"""
@@ -1678,37 +1696,52 @@ def find_linked_node(start_node: bpy.types.Node, input_name: str, node_type: str
     else:
         return
     
-    node, _ = find_node_in_chain(node_type, input.links[0].from_node)
+    link = input.links[0]
+    global hit_target
+    hit_target = False
+    node, _ = find_node_in_chain(node_type, link.from_node, link.from_socket.name)
     if node:
         return node
     
-def find_node_in_chain(node_type: str, node: bpy.types.Node, group_output_input=None, group_node=None) -> tuple[bpy.types.Node, bpy.types.Node]:
-    if node.type == node_type:
+def find_node_in_chain(node_type: str, node: bpy.types.Node, group_output_input='', group_node=None, last_input_name='', first_target=None, group_is_tiling_node=False) -> tuple[bpy.types.Node, bpy.types.Node]:
+    global hit_target
+    if node.type == node_type and (not group_is_tiling_node or is_halo_mapping_node(node)) and (first_target is None or hit_target):
         return node, group_node
     
-    elif node.type == 'GROUP':
+    if node.name == first_target:
+        hit_target = True
+    
+    if node.type == 'GROUP':
+        group_node = node
         group_nodes = node.node_tree.nodes
         for n in group_nodes:
             if n.type == 'GROUP_OUTPUT':
-                for i in n.inputs:
-                    if i.name == group_output_input:
-                        links = i.links
-                        if links:
-                            for l in links:
-                                new_node = l.from_node
-                                valid_node, group_node = find_node_in_chain(node_type, new_node, group_output_input, node)
-                                if valid_node:
-                                    return valid_node, group_node
-                                break
+                input = n.inputs.get(group_output_input, 0)
+                if input:
+                    links = input.links
+                    for l in links:
+                        new_node = l.from_node
+                        valid_node, group_node = find_node_in_chain(node_type, new_node, group_output_input, group_node, input.name, first_target, group_is_tiling_node)
+                        if valid_node:
+                            return valid_node, group_node
                 break
+            
+    elif node.type == 'GROUP_INPUT':
+        group_test_input = node.inputs.get(last_input_name, 0)
+        if group_test_input:
+            for link in group_test_input.links:
+                next_node = link.from_node
+                valid_node, group_node = find_node_in_chain(node_type, next_node, link.from_socket.name, None, group_test_input.name, first_target, group_is_tiling_node)
+                if valid_node:
+                    return valid_node, group_node
             
     for input in node.inputs:
         for link in input.links:
             next_node = link.from_node
             if next_node.type == 'GROUP':
-                valid_node, group_node = find_node_in_chain(node_type, next_node, link.from_socket.name, node)
+                valid_node, group_node = find_node_in_chain(node_type, next_node, link.from_socket.name, node, input.name, first_target, group_is_tiling_node)
             else:
-                valid_node, group_node = find_node_in_chain(node_type, next_node, group_output_input)
+                valid_node, group_node = find_node_in_chain(node_type, next_node, group_output_input, group_node, input.name, first_target, group_is_tiling_node)
             if valid_node:
                 return valid_node, group_node
     
