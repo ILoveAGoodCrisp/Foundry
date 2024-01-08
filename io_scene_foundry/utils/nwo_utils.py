@@ -1989,10 +1989,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             ob.rotation_euler.rotate_axis('Z', -rotation)
             
 
-            
-        if is_a_frame:
-            ob.rotation_euler = old_rot
-
         if parented_objects.get(ob, 0):
             parented_objects[ob].matrix = ob.matrix_world
         
@@ -2192,12 +2188,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         con.influence = child_of.influence
         
-        if child_of.pose_bone:
-            with context.temp_override(object=child_of.ob, pose_bone=child_of.pose_bone):
-                bpy.ops.constraint.childof_set_inverse(constraint=child_of.name, owner='BONE')
-        else:
-            with context.temp_override(object=child_of.ob):
-                bpy.ops.constraint.childof_set_inverse(constraint=child_of.name, owner='OBJECT')
+        # con.inverse_matrix = rotation_matrix.inverted() @ child_of.inverse_matrix
+        if child_of.inverse_matrix == Matrix.Identity(4):
+            con.inverse_matrix = rotation_matrix.inverted() @ Matrix.Identity(4)
             
     
     for action in actions:
