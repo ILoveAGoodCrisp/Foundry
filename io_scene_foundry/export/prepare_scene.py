@@ -828,8 +828,11 @@ class PrepareScene:
         # convert mesh-like objects to real meshes to properly assess them
         mesh_like_objects = [ob for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT")]
         if mesh_like_objects:
-            with context.temp_override(selected_editable_objects=mesh_like_objects):
-                bpy.ops.object.convert(target='MESH')
+            [ob.select_set(True) for ob in mesh_like_objects]
+            context.view_layer.objects.active = mesh_like_objects[0]
+            bpy.ops.object.convert(target='MESH')
+            [ob.select_set(False) for ob in mesh_like_objects]
+            
         for ob in export_obs:
             # apply all modifiers if mesh has no polys
             if ob.type == "MESH" and not ob.data.polygons and ob.modifiers:
