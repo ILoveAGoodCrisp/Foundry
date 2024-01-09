@@ -389,8 +389,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 5,
             )
         )
+        items.append(
+            (
+                "camera_track",
+                "Camera Track",
+                "",
+                'OUTLINER_OB_CAMERA',
+                6,
+            )
+        )
         if is_corinth(context):
-            items.append(("PREFAB", "Prefab", "", get_icon_id("prefab"), 6))
+            items.append(("PREFAB", "Prefab", "", get_icon_id("prefab"), 7))
 
         return items
 
@@ -867,11 +876,22 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             case 'max':
                 scene_scale = 0.01 if world_units else 0.03048
             
-        bpy.ops.nwo.set_unit_scale(scale=scene_scale)
+        start = 0.01 * (1 / scene_scale)
+        end = 1000 * (1 / scene_scale)
+        for workspace in bpy.data.workspaces:
+            for screen in workspace.screens:
+                for area in screen.areas:
+                    if area.type == "VIEW_3D":
+                        for space in area.spaces:
+                            if space.type == "VIEW_3D":
+                                space.clip_start = start
+                                space.clip_end = end
         
         if self.scale_display == 'world_units':
             context.scene.unit_settings.system = 'METRIC'
             context.scene.unit_settings.length_unit = 'METERS'
+            
+        context.scene.unit_settings.scale_length = scene_scale
     
     def scale_items(self, context):
         items = []

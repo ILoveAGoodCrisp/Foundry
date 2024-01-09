@@ -110,8 +110,10 @@ from io_scene_foundry.utils.nwo_utils import (
     protected_material_name,
     recursive_image_search,
     relative_path,
+    rotation_diff_from_forward,
     set_active_object,
     set_object_mode,
+    transform_scene,
     true_permutation,
     true_region,
     type_valid,
@@ -220,10 +222,10 @@ class NWO_FoundryPanelProps(Panel):
             if p == "help":
                 box = col1.box()
             elif p == "animation_manager":
-                if nwo.asset_type not in ('MODEL', 'FP ANIMATION'):
+                if nwo.asset_type not in ('MODEL', 'FP ANIMATION', 'camera_track'):
                     continue
-            elif p in ("object_properties", "material_properties"):
-                if nwo.asset_type == 'FP ANIMATION':
+            elif p in ("object_properties", "material_properties", 'sets_manager'):
+                if nwo.asset_type in ('FP ANIMATION', 'camera_track'):
                     continue
             
             row_icon = box.row(align=True)
@@ -4767,10 +4769,9 @@ class NWO_ArmatureCreator_Create(Operator):
         set_active_object(arm)
         
         bpy.ops.object.editmode_toggle()
-        tail_scale = 1 if scene.nwo.scale == 'max' else 0.03048
         pedestal = data.edit_bones.new('b_pedestal')
         pedestal.head = [0, 0, 0]
-        pedestal.tail = [0, tail_scale, 0]
+        pedestal.tail = [0, 1, 0]
         
         bpy.ops.object.editmode_toggle()
         if self.has_pedestal_control:
@@ -4780,7 +4781,13 @@ class NWO_ArmatureCreator_Create(Operator):
                 bpy.ops.nwo.add_pose_bones(add_control_bone=True)
             else:
                 bpy.ops.nwo.add_pose_bones()
+                
+        transform_scene(context, 0.03048 if scene.nwo.scale == 'blender' else 1, rotation_diff_from_forward('x', scene.nwo.forward_direction), objects=[arm])
+        
         return {'FINISHED'}
+    
+    def invoke(self, context, _):
+        return context.window_manager.invoke_props_dialog(self)
     
     def draw(self, context):
         layout = self.layout

@@ -132,7 +132,7 @@ from .animation_ui import (
 
 from .scene_properties import NWO_BSP_ListItems, NWO_GlobalMaterial_ListItems, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
 
-from .scene_ui import NWO_SetUnitScale, NWO_AssetMaker, NWO_UL_Permutations, NWO_UL_Regions
+from .scene_ui import NWO_AssetMaker, NWO_UL_Permutations, NWO_UL_Regions
 
 from .viewport_ui import (
     NWO_AddHaloLight,
@@ -322,7 +322,6 @@ classes_nwo = (
     NWO_UnlinkAnimation,
     NWO_UL_AnimationRename,
     NWO_ScenePropertiesGroup,
-    NWO_SetUnitScale,
     NWO_AssetMaker,
     NWO_PermutationListCollection,
     NWO_RegionListCollection,
