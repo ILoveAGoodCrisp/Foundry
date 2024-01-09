@@ -1723,7 +1723,7 @@ def find_node_in_chain(node_type: str, node: bpy.types.Node, group_output_input=
                             if valid_node:
                                 return valid_node, group_node
 
-            break
+                break
             
     elif node.type == 'GROUP_INPUT':
         for input in node.inputs:
