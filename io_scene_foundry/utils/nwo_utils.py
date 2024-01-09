@@ -2015,7 +2015,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
         
-        if keep_marker_axis and not is_a_frame and ob.type == 'EMTPY':
+        if keep_marker_axis and not is_a_frame and ob.type == 'EMPTY':
             ob.rotation_euler.rotate_axis('Z', -rotation)
             
 
