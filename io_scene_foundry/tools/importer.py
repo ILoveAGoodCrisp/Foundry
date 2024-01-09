@@ -29,6 +29,7 @@ import time
 import bpy
 import addon_utils
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
+from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
@@ -37,6 +38,8 @@ from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addo
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
+
+formats = "amf", "jms", "jma", "bitmap", "camera_track"
 
 class NWO_Import(bpy.types.Operator):
     bl_label = "Import File(s)/Folder(s)"
@@ -107,12 +110,17 @@ class NWO_Import(bpy.types.Operator):
         ]
     )
     
+    camera_track_animation_scale: bpy.props.FloatProperty(
+        name='Animation Scale',
+        default=1,
+        min=1,
+    )
+    
     amf_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     legacy_okay : bpy.props.BoolProperty(options={"HIDDEN", "SKIP_SAVE"})
     
     scope: bpy.props.StringProperty(
         name="Scope",
-        default='models',
         options={"HIDDEN", "SKIP_SAVE"}
     )
     
@@ -136,65 +144,63 @@ class NWO_Import(bpy.types.Operator):
             try:
                 export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
                 print(export_title, '\n')
-                if self.scope == 'models':
-                    importer = NWOImporter(context, self.report, filepaths)
-                    if 'amf' in importer.extensions and self.amf_okay:
-                        amf_module_name = amf_addon_installed()
-                        amf_addon_enabled = addon_utils.check(amf_module_name)[0]
-                        if not amf_addon_enabled:
-                            addon_utils.enable(amf_module_name)
-                        amf_files = importer.sorted_filepaths["amf"]
-                        imported_amf_objects = importer.import_amf_files(amf_files, scale_factor)
-                        if not amf_addon_enabled:
-                            addon_utils.disable(amf_module_name)
-                        if imported_amf_objects:
-                            imported_objects.extend(imported_amf_objects)
-                        
-                        if to_x_rot:
-                            transform_scene(context, 1, from_x_rot, objects=imported_amf_objects)
-                            
-                    if self.legacy_okay and any([ext in ('jms', 'jma') for ext in importer.extensions]):
-                        toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
-                        if not toolset_addon_enabled:
-                            addon_utils.enable('io_scene_halo')
-                        jms_files = importer.sorted_filepaths["jms"]
-                        jma_files = importer.sorted_filepaths["jma"]
-                        # Transform Scene so it's ready for JMA/JMS files
-                        if needs_scaling:
-                            transform_scene(context, (1 / scale_factor), to_x_rot)
-                            
-                        # imported_jms_objects = importer.import_jms_files(jms_files)
-                        imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
-                        if imported_jma_animations:
-                            imported_actions.extend(imported_jma_animations)
-                        if not toolset_addon_enabled:
-                            addon_utils.disable('io_scene_halo')
-                        
-                        # Return to our scale
-                        if needs_scaling:
-                            transform_scene(context, scale_factor, from_x_rot)
+                importer = NWOImporter(context, self.report, filepaths, self.scope.split(','))
+                if 'amf' in importer.extensions and self.amf_okay:
+                    amf_module_name = amf_addon_installed()
+                    amf_addon_enabled = addon_utils.check(amf_module_name)[0]
+                    if not amf_addon_enabled:
+                        addon_utils.enable(amf_module_name)
+                    amf_files = importer.sorted_filepaths["amf"]
+                    imported_amf_objects = importer.import_amf_files(amf_files, scale_factor)
+                    if not amf_addon_enabled:
+                        addon_utils.disable(amf_module_name)
+                    if imported_amf_objects:
+                        imported_objects.extend(imported_amf_objects)
                     
-                    if self.find_shader_paths and imported_objects:
-                        print('Updating shader tag paths for imported objects')
-                        imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
-                        if imported_meshes:
-                            mesh_material_groups = [me.materials for me in imported_meshes]
-                            materials = set(material for mesh_materials in mesh_material_groups for material in mesh_materials)
-                            if materials:
-                                find_shaders(materials)
-                                if self.build_blender_materials:
-                                    print('Building materials from shader tags')
-                                    with MutePrints():
-                                        for mat in materials:
-                                            shader_path = mat.nwo.shader_path
-                                            if shader_path:
-                                                tag_to_nodes(corinth, mat, shader_path)
+                    if to_x_rot:
+                        transform_scene(context, 1, from_x_rot, objects=imported_amf_objects)
                         
-                elif self.scope == 'images':
+                if self.legacy_okay and any([ext in ('jms', 'jma') for ext in importer.extensions]):
+                    toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
+                    if not toolset_addon_enabled:
+                        addon_utils.enable('io_scene_halo')
+                    jms_files = importer.sorted_filepaths["jms"]
+                    jma_files = importer.sorted_filepaths["jma"]
+                    # Transform Scene so it's ready for JMA/JMS files
+                    if needs_scaling:
+                        transform_scene(context, (1 / scale_factor), to_x_rot)
+                        
+                    # imported_jms_objects = importer.import_jms_files(jms_files)
+                    imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
+                    if imported_jma_animations:
+                        imported_actions.extend(imported_jma_animations)
+                    if not toolset_addon_enabled:
+                        addon_utils.disable('io_scene_halo')
+                    
+                    # Return to our scale
+                    if needs_scaling:
+                        transform_scene(context, scale_factor, from_x_rot)
+                
+                if self.find_shader_paths and imported_objects:
+                    print('Updating shader tag paths for imported objects')
+                    imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
+                    if imported_meshes:
+                        mesh_material_groups = [me.materials for me in imported_meshes]
+                        materials = set(material for mesh_materials in mesh_material_groups for material in mesh_materials)
+                        if materials:
+                            find_shaders(materials)
+                            if self.build_blender_materials:
+                                print('Building materials from shader tags')
+                                with MutePrints():
+                                    for mat in materials:
+                                        shader_path = mat.nwo.shader_path
+                                        if shader_path:
+                                            tag_to_nodes(corinth, mat, shader_path)
+                        
+                if 'bitmap' in importer.extensions:
                     if not self.directory.startswith(get_tags_path()):
                         self.report({'WARNING'}, "Can only extract bitmaps from the current project's tags folder")
-                        return {'CANCELLED'}
-                    importer = NWOImporter(context, self.report, filepaths)
+                        return {'FINISHED'}
                     bitmap_files = importer.sorted_filepaths["bitmap"]
                     if not bitmap_files:
                         self.nothing_imported = True
@@ -204,6 +210,12 @@ class NWO_Import(bpy.types.Operator):
                             importer.load_bitmaps(extracted_bitmaps, self.images_fake_user)
                                     
                         self.report({'INFO'}, f"Extracted {'and imported' if self.import_images_to_blender else ''} {len(bitmap_files)} bitmaps")
+                        
+                if 'camera_track' in importer.extensions:
+                    camera_track_files = importer.sorted_filepaths["camera_track"]
+                    imported_camera_track_objects = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
+                    if needs_scaling:
+                        transform_scene(context, scale_factor, from_x_rot, objects=imported_camera_track_objects)
                         
             except KeyboardInterrupt:
                 print_warning("\nIMPORT CANCELLED BY USER")
@@ -228,73 +240,106 @@ class NWO_Import(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        self.directory = ''
-        self.filepath = ''
+        if 'bitmap' in self.scope:
+            self.directory = get_tags_path()
+        elif 'camera_track' in self.scope:
+            cameras_dir = get_tags_path() + 'camera'
+            if os.path.exists(cameras_dir):
+                self.directory = get_tags_path() + 'camera'
+            else:
+                self.directory = get_tags_path()
+        else:
+            self.directory = ''
+            self.filepath = ''
+            
         self.filename = ''
-        if self.scope == 'images':
+        if (not self.scope or 'bitmap' in self.scope):
             self.directory = get_tags_path()
             self.filter_glob += "*.bitmap;"
-        else:
-            if amf_addon_installed():
-                self.amf_okay = True
-                self.filter_glob += "*.amf;"
-            if blender_toolset_installed():
-                self.legacy_okay = True
-                self.filter_glob += '*.jms;*ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx'
+        if amf_addon_installed() and (not self.scope or 'amf' in self.scope):
+            self.amf_okay = True
+            self.filter_glob += "*.amf;"
+        if blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
+            self.legacy_okay = True
+            self.filter_glob += '*.jms;*.ass;'
+        if blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
+            self.legacy_okay = True
+            self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx'
+        if (not self.scope or 'camera_track' in self.scope):
+            self.filter_glob += '*.camera_track'
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
     def draw(self, context):
         layout = self.layout
         layout.scale_y = 1.25
-        if self.scope == 'images':
-            layout.use_property_split = True
-            layout.prop(self, 'extracted_bitmap_format')
-            layout.prop(self, 'import_images_to_blender')
-            if self.import_images_to_blender:
-                layout.prop(self, 'images_fake_user')
-        else:
+        if not self.scope or ('amf' in self.scope or 'jms' in self.scope):
+            box = layout.box()
+            box.label(text="Model Settings")
             tag_type = 'material' if is_corinth(context) else 'shader'
-            layout.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
+            box.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
             if self.find_shader_paths:
-                layout.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
-            
+                box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+        
+        if not self.scope or ('jma' in self.scope or 'jms' in self.scope):
             box = layout.box()
             box.label(text="JMA/JMS/ASS Settings")
             box.prop(self, 'legacy_fix_rotations', text='Fix Rotations')
+        
+        if not self.scope or ('bitmap' in self.scope):
+            box = layout.box()
+            box.label(text="Bitmap Settings")
+            box.use_property_split = True
+            box.prop(self, 'extracted_bitmap_format')
+            box.prop(self, 'import_images_to_blender')
+            if self.import_images_to_blender:
+                box.prop(self, 'images_fake_user')
+                
+        if not self.scope or ('camera_track' in self.scope):
+            box = layout.box()
+            box.label(text='Camera Track Settings')
+            box.prop(self, 'camera_track_animation_scale')
 
 class NWOImporter():
-    def __init__(self, context, report, filepaths):
+    def __init__(self, context, report, filepaths, scope):
         self.filepaths = filepaths
         self.context = context
         self.report = report
         self.mesh_objects = []
         self.marker_objects = []
         self.extensions = set()
-        self.sorted_filepaths = self.group_filetypes()
+        self.sorted_filepaths = self.group_filetypes(scope)
     
-    def group_filetypes(self):
-        filetype_dict = {"amf": [], "jms": [], "jma": [], "bitmap": []}
+    def group_filetypes(self, scope):
+        if scope:
+            filetype_dict = {ext: [] for ext in scope}
+        else:
+            filetype_dict = {ext: [] for ext in formats}
         # Search for folders first and add their files to filepaths
         folders = [path for path in self.filepaths if os.path.isdir(path)]
         for f in folders:
             for root, _, files in os.walk(f):
                 for file in files:
                     self.filepaths.append(os.path.join(root, file))
-                
+                    
+        valid_exts = filetype_dict.keys()
+        print(valid_exts)
         for path in self.filepaths:
-            if path.lower().endswith('.amf'):
+            if 'amf' in valid_exts and path.lower().endswith('.amf'):
                 self.extensions.add('amf')
                 filetype_dict["amf"].append(path)
-            elif path.lower().endswith(legacy_model_formats):
+            elif 'jms' in valid_exts and path.lower().endswith(legacy_model_formats):
                 self.extensions.add('jms')
                 filetype_dict["jms"].append(path)
-            elif path.lower().endswith(legacy_animation_formats):
+            elif 'jma' in valid_exts and path.lower().endswith(legacy_animation_formats):
                 self.extensions.add('jma')
                 filetype_dict["jma"].append(path)
-            elif path.lower().endswith('.bitmap'):
+            elif 'bitmap' in valid_exts and path.lower().endswith('.bitmap'):
                 self.extensions.add('bitmap')
                 filetype_dict["bitmap"].append(path)
+            elif 'camera_track' in valid_exts and path.lower().endswith('.camera_track'):
+                self.extensions.add('camera_track')
+                filetype_dict["camera_track"].append(path)
                 
         return filetype_dict
         
@@ -323,6 +368,20 @@ class NWOImporter():
             entry.name = permutation
             
         ob.nwo.permutation_name_ui = permutation
+        
+    # Camera track import
+    def import_camera_tracks(self, paths, animation_scale):
+        imported_objects = []
+        for file in paths:
+            imported_objects.append(self.import_camera_track(file, animation_scale))
+            
+        return imported_objects
+            
+    def import_camera_track(self, file, animation_scale):
+        with CameraTrackTag(path=file) as camera_track:
+            objects = camera_track.to_blender_animation(self.context, animation_scale)
+            
+        return objects
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):

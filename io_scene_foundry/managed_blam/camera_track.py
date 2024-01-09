@@ -26,9 +26,12 @@
 
 from math import radians
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Quaternion, Vector, Euler
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.utils import nwo_utils
+
+#  This matrix corrects for the camera's forward direction
+camera_correction_matrix = Matrix(((-0, 0, -1), (-1, -0, 0), (-0, 1, 0)))
 
 class ControlPoint:
     pi: float
@@ -65,41 +68,51 @@ class CameraTrackTag(Tag):
             
         return control_points
     
-    def to_blender_animation(self, context: bpy.types.Context):
+    def to_blender_animation(self, context: bpy.types.Context, animation_scale=1):
         scene_nwo = context.scene.nwo
         control_points = self.get_control_points()
-        arm_data = bpy.data.armatures.new('camera_track')
-        arm_ob = bpy.data.objects.new('camera_track', arm_data)
-        context.scene.collection.objects.link(arm_ob)
-        context.view_layer.objects.active = arm_ob
-        bpy.ops.object.editmode_toggle()
-        bone_name = 'camera_bone'
-        pedestal = arm_data.edit_bones.new(bone_name)
-        pedestal.head = [0, 0, 0]
-        pedestal.tail = [0, 1, 0]
-        bpy.ops.object.editmode_toggle()
+        # arm_data = bpy.data.armatures.new('camera_track')
+        # arm_ob = bpy.data.objects.new('camera_track', arm_data)
+        # context.scene.collection.objects.link(arm_ob)
+        # context.view_layer.objects.active = arm_ob
+        # bpy.ops.object.editmode_toggle()
+        # bone_name = 'camera_bone'
+        # pedestal = arm_data.edit_bones.new(bone_name)
+        # pedestal.head = [0, 0, 0]
+        # pedestal.tail = [0, 1, 0]
+        # bpy.ops.object.editmode_toggle()
         camera_data = bpy.data.cameras.new('camera')
         camera_ob = bpy.data.objects.new('camera', camera_data)
         context.scene.collection.objects.link(camera_ob)
         camera_ob.rotation_euler = [radians(90), 0, radians(-90)]
-        camera_data.display_size *= (1 / 0.03048)
-        camera_con = camera_ob.constraints.new('CHILD_OF')
-        camera_con.target = arm_ob
-        camera_con.subtarget = bone_name
+        camera_data.display_size = 50
+        camera_data.clip_end = 1000
         action = bpy.data.actions.new('camera_track')
-        arm_ob.animation_data_create().action = action
-        bpy.ops.object.posemode_toggle()
-        pose_bone = arm_ob.pose.bones.get(bone_name)
+        camera_ob.animation_data_create().action = action
         for idx, control_point in enumerate(control_points):
-            location = Vector(control_point.position_to_xyz())
-            pose_bone.location = location * 100
-            pose_bone.rotation_quaternion = control_point.orientation_to_wxyz()
-            pose_bone.keyframe_insert(data_path='rotation_quaternion', frame=idx + 1, group=bone_name)
-            pose_bone.keyframe_insert(data_path='location', frame=idx + 1, group=bone_name)
+            loc = Vector(control_point.position_to_xyz()) * 100
+            game_orientation_matrix = Quaternion(control_point.orientation_to_wxyz()).to_matrix()
+            final_matrix = game_orientation_matrix @ camera_correction_matrix
+            rot = final_matrix.to_quaternion()
+            camera_ob.rotation_mode = 'QUATERNION'
+            camera_ob.matrix_world = Matrix.LocRotScale(loc, rot, Vector.Fill(3, 1))
+            camera_ob.keyframe_insert(data_path='rotation_quaternion', frame=idx + 1)
+            camera_ob.keyframe_insert(data_path='location', frame=idx + 1)
             
-        bpy.ops.object.posemode_toggle()
+        action.use_fake_user = True
+        action.use_frame_range = True
+        action.frame_start = 1
+        action.frame_end = (idx + 1) * animation_scale - animation_scale + 1 
+            
+        if animation_scale > 1:
+            for idx, fcurve in enumerate(action.fcurves):
+                for kfp in fcurve.keyframe_points:
+                    kfp.co_ui.x *= animation_scale
+                    kfp.co_ui.x  -= animation_scale - 1 
+                    kfp.interpolation = 'BEZIER'
+                    kfp.easing = 'AUTO'
         
-        nwo_utils.transform_scene(context, 0.03048 if scene_nwo.scale == 'blender' else 1, nwo_utils.rotation_diff_from_forward('x', scene_nwo.forward_direction), objects=[arm_ob, camera_ob], actions=[action])
+        return [camera_ob]
 
     def to_camera_track(self):
         pass

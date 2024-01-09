@@ -394,7 +394,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 "camera_track",
                 "Camera Track",
                 "",
-                'OUTLINER_OB_CAMERA',
+                'CON_CAMERASOLVER',
                 6,
             )
         )

@@ -563,6 +563,12 @@ class NWO_FoundryPanelProps(Panel):
             row = col.row(align=True)
             row.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
             
+        elif nwo.asset_type == 'camera_track':
+            box = self.box.box()
+            col = box.column()
+            col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
+            # col.operator('nwo.camera_track_sync', text="Sync Camera Track", icon='FILE_REFRESH')
+            
             
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
@@ -2472,7 +2478,7 @@ class NWO_FoundryPanelProps(Panel):
         #         col.label(text="Halo Blender Toolset required for legacy animations")
         #         col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
         if amf_installed or toolset_installed:
-            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT')
+            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf, jma'
         if not toolset_installed:
             col.label(text="Halo Blender Toolset required for import of legacy model and animation files")
             col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
@@ -2480,7 +2486,7 @@ class NWO_FoundryPanelProps(Panel):
             col.label(text="AMF Importer required to import amf files")
             col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
             
-        col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'images'
+        col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
         
     def draw_rig_tools(self, box):
         row = box.row()
