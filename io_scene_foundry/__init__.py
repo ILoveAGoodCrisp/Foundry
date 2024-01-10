@@ -25,12 +25,10 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import ctypes
-import os
 import bpy
 from bpy.app.handlers import persistent
-from datetime import datetime
 
-from io_scene_foundry.utils.nwo_utils import get_prefs, setup_projects_list, unlink
+from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink
 
 old_snapshot = {}
 old_x = None
@@ -115,6 +113,7 @@ else:
         context = bpy.context
         context.scene.nwo.shader_sync_active = False
         context.scene.nwo.export_in_progress = False
+        context.scene.nwo.camera_track_syncing = False
         # Add projects
         projects = setup_projects_list()
         blend_path = bpy.data.filepath

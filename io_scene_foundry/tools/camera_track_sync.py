@@ -24,7 +24,21 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 import bpy
+from io_scene_foundry.utils import nwo_utils
+from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
+
+def export_current_action_as_camera_track(context):
+    print("Running export!")
+    camera = nwo_utils.get_camera_track_camera(context)
+    action = camera.animation_data.action
+    asset_path = nwo_utils.get_asset_path()
+    tag_path = os.path.join(asset_path, action.name + '.camera_track')
+    
+    with CameraTrackTag(path=tag_path) as camera_track:
+        print(tag_path)
+        camera_track.to_tag(context, action, camera)
 
 class NWO_CameraTrackSync(bpy.types.Operator):
     bl_idname = "nwo.camera_track_sync"
@@ -34,18 +48,42 @@ class NWO_CameraTrackSync(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return True
-
-    def invoke(self, context, event):
-        context.window_manager.modal_handler_add(self)
-        return {"RUNNING_MODAL"}
+        camera = nwo_utils.get_camera_track_camera(context)
+        return camera and camera.animation_data and camera.animation_data.action and nwo_utils.valid_nwo_asset(context)
+    
+    def execute(self, context):
+        if context.scene.nwo.camera_track_syncing:
+            self.cancel(context)
+            return {'FINISHED'}
+        camera = nwo_utils.get_camera_track_camera(context)
+        self.action = camera.animation_data.action
+        
+        self.kfp_coords = []
+        for fc in self.action.fcurves:
+            for kfp in fc.keyframe_points:
+                self.kfp_coords.extend(kfp.co)
+                
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.1, window=context.window)
+        wm.modal_handler_add(self)
+        context.scene.nwo.camera_track_syncing = True
+        return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
+        if event.type_prev == 'ESC' or not context.scene.nwo.camera_track_syncing:
+            self.cancel(context)
+            return {'CANCELLED'}
         
-        if event.type == "LEFTMOUSE":
-            return {"FINISHED"}
-        
-        if event.type in {"RIGHTMOUSE", "ESC"}:
-            return {"CANCELLED"}
-        
-        return {"RUNNING_MODAL"}
+        new_coords = []
+        for fc in self.action.fcurves:
+            for kfp in fc.keyframe_points:
+                new_coords.extend(kfp.co)
+                
+        if event.type == 'TIMER' and self.kfp_coords != new_coords:
+            self.kfp_coords = new_coords
+            export_current_action_as_camera_track(context)
+
+        return {'PASS_THROUGH'}
+    
+    def cancel(self, context):
+        context.scene.nwo.camera_track_syncing = False
