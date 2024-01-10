@@ -936,3 +936,5 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     export_in_progress: BoolProperty()
+    
+    camera_track_camera: PointerProperty(type=bpy.types.Object)

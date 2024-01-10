@@ -567,6 +567,7 @@ class NWO_FoundryPanelProps(Panel):
             box = self.box.box()
             col = box.column()
             col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
+            col.prop(nwo, 'camera_track_camera', text="Camera")
             # col.operator('nwo.camera_track_sync', text="Sync Camera Track", icon='FILE_REFRESH')
             
             

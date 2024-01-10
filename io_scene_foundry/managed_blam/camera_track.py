@@ -26,6 +26,7 @@
 
 from math import radians
 import bpy
+import os
 from mathutils import Matrix, Quaternion, Vector, Euler
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.utils import nwo_utils
@@ -51,7 +52,18 @@ class ControlPoint:
     
     def position_to_xyz(self) -> list:
         return [self.pi, self.pj, self.pk]
-
+    
+    def set_ijk_from_location(self, location: Vector):
+        self.pi = location[0]
+        self.pj = location[1]
+        self.pk = location[2]
+        
+    def set_ijkw_from_rotation(self, rotation: Quaternion):
+        self.oi = rotation[1]
+        self.oj = rotation[2]
+        self.ok = rotation[3]
+        self.ow = rotation[0]
+        
 class CameraTrackTag(Tag):
     tag_ext = 'camera_track'
     
@@ -69,25 +81,16 @@ class CameraTrackTag(Tag):
         return control_points
     
     def to_blender_animation(self, context: bpy.types.Context, animation_scale=1):
-        scene_nwo = context.scene.nwo
         control_points = self.get_control_points()
-        # arm_data = bpy.data.armatures.new('camera_track')
-        # arm_ob = bpy.data.objects.new('camera_track', arm_data)
-        # context.scene.collection.objects.link(arm_ob)
-        # context.view_layer.objects.active = arm_ob
-        # bpy.ops.object.editmode_toggle()
-        # bone_name = 'camera_bone'
-        # pedestal = arm_data.edit_bones.new(bone_name)
-        # pedestal.head = [0, 0, 0]
-        # pedestal.tail = [0, 1, 0]
-        # bpy.ops.object.editmode_toggle()
-        camera_data = bpy.data.cameras.new('camera')
+        track_name = os.path.basename(nwo_utils.dot_partition(self.tag_path.ToString()))
+        camera_name = 'camera_' + track_name
+        camera_data = bpy.data.cameras.new(camera_name)
         camera_ob = bpy.data.objects.new('camera', camera_data)
         context.scene.collection.objects.link(camera_ob)
         camera_ob.rotation_euler = [radians(90), 0, radians(-90)]
         camera_data.display_size = 50
         camera_data.clip_end = 1000
-        action = bpy.data.actions.new('camera_track')
+        action = bpy.data.actions.new('track_' + track_name)
         camera_ob.animation_data_create().action = action
         for idx, control_point in enumerate(control_points):
             loc = Vector(control_point.position_to_xyz()) * 100
@@ -114,5 +117,47 @@ class CameraTrackTag(Tag):
         
         return [camera_ob]
 
-    def to_camera_track(self):
-        pass
+    def to_tag(self, context: bpy.types.Context, action: bpy.types.Action, ob: bpy.types.Object):
+        # verify no. of fcurves, must be 16 or less
+        scene = context.scene
+        fcurves = [fc for fc in action.fcurves]
+        if len(fcurves) > 16:
+            nwo_utils.print_warning(f"Found more than 16 keyframes in animation [{action.name}]. Only first 16 keyframes will be used for camera track")
+            
+        keyframes = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],]
+            
+        for fc in fcurves:
+            if fc.data_path.endswith(('location', 'rotation_euler', 'rotation_quaternion')):
+                for idx, kfp in enumerate(fc.keyframe_points):
+                    if idx > 15: break
+                    keyframes[idx].append(kfp)
+                    
+        valid_keyframes = [k for k in keyframes if len(k) > 1]
+        control_points = []
+        for idx, k in enumerate(valid_keyframes):
+            frame = int(k[0].co[0])
+            scene.frame_set(frame)
+            control_point = ControlPoint(idx)
+            control_point.set_ijk_from_location(ob.location / 100)
+            
+            if ob.rotation_mode == 'EULER':
+                rotation = ob.rotation_euler.to_quaternion()
+            else:
+                rotation = ob.rotation_quaternion
+                
+            blender_orientation_matrix = rotation.to_matrix()
+            final_matrix = blender_orientation_matrix @ camera_correction_matrix.inverted()
+                
+            control_point.set_ijkw_from_rotation(final_matrix.to_quaternion())
+            
+            control_points.append(control_point)
+        
+        if self.block_control_points.Elements.Count:
+            self.block_control_points.RemoveAllElements()
+        
+        for cp in control_points:
+            e = self.block_control_points.AddElement()
+            e.Fields[0].SetStringData([str(cp.pi), str(cp.pj), str(cp.pk)])
+            e.Fields[1].SetStringData([str(cp.oi), str(cp.oj), str(cp.ok), str(cp.ow)])
+            
+        self.tag_has_changes = True
