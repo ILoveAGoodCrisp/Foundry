@@ -222,10 +222,10 @@ class NWO_FoundryPanelProps(Panel):
             if p == "help":
                 box = col1.box()
             elif p == "animation_manager":
-                if nwo.asset_type not in ('MODEL', 'FP ANIMATION', 'camera_track'):
+                if nwo.asset_type not in ('MODEL', 'FP ANIMATION', 'camera_track_set'):
                     continue
             elif p in ("object_properties", "material_properties", 'sets_manager'):
-                if nwo.asset_type in ('FP ANIMATION', 'camera_track'):
+                if nwo.asset_type in ('FP ANIMATION', 'camera_track_set'):
                     continue
             
             row_icon = box.row(align=True)
@@ -563,7 +563,7 @@ class NWO_FoundryPanelProps(Panel):
             row = col.row(align=True)
             row.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
             
-        elif nwo.asset_type == 'camera_track':
+        elif nwo.asset_type == 'camera_track_set':
             box = self.box.box()
             col = box.column()
             col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'

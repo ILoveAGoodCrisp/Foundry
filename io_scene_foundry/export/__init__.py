@@ -57,6 +57,7 @@ from .process_scene import ProcessScene
 from io_scene_foundry.utils.nwo_utils import (
     MutePrints,
     check_path,
+    get_camera_track_camera,
     get_data_path,
     get_asset_info,
     get_prefs,
@@ -450,7 +451,7 @@ class NWO_Export(NWO_Export_Scene):
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             bpy.app.timers.register(toggle_output)
 
-        export_title = "►►► FOUNDRY EXPORT ◄◄◄"
+        export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').capitalize()} EXPORT ◄◄◄"
 
         print(export_title)
 
@@ -459,9 +460,8 @@ class NWO_Export(NWO_Export_Scene):
         self.failed = False
         self.known_fail = False
         
-        if scene_nwo.asset_type == 'camera_track':
-            build_camera_track(context, scene_nwo.camera_track_camera, scene_nwo.camera_track_camera.animation_data.action, os.path.join(self.asset_path, self.asset + '.camera_track'))
-            print(f"Camera Track Export Complete")
+        if scene_nwo.asset_type == 'camera_track_set':
+            build_camera_tracks(context, get_camera_track_camera(context), os.path.join(self.asset_path))
         else:
             try:
                 try:
@@ -587,9 +587,22 @@ def ExportSettingsFromSidecar(sidecar_filepath):
 
     return settings
 
-def build_camera_track(context, camera, action, tag_path):
-    with CameraTrackTag(path=tag_path) as camera_track:
-        camera_track.to_tag(context, action, camera)
+def build_camera_tracks(context, camera, asset_folder_path):
+    camera_track_actions = [action for action in bpy.data.actions if action.use_frame_range]
+    print('')
+    if not camera_track_actions:
+        print_warning("No valid camera animations found")
+        return
+    
+    print("Exporting Camera Tracks")
+    print(
+        "-----------------------------------------------------------------------\n"
+    )
+    for action in camera_track_actions:
+        tag_path = os.path.join(asset_folder_path, action.name + '.camera_track')
+        print(f"--- {action.name}")
+        with CameraTrackTag(path=tag_path) as camera_track:
+            camera_track.to_tag(context, action, camera)
 
 
 def register():

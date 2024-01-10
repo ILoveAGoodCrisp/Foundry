@@ -391,8 +391,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         )
         items.append(
             (
-                "camera_track",
-                "Camera Track",
+                "camera_track_set",
+                "Camera Track Set",
                 "",
                 'CON_CAMERASOLVER',
                 6,

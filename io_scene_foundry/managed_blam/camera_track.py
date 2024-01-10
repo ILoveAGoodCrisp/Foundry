@@ -83,15 +83,20 @@ class CameraTrackTag(Tag):
     def to_blender_animation(self, context: bpy.types.Context, animation_scale=1):
         control_points = self.get_control_points()
         track_name = os.path.basename(nwo_utils.dot_partition(self.tag_path.ToString()))
-        camera_name = 'camera_' + track_name
-        camera_data = bpy.data.cameras.new(camera_name)
-        camera_ob = bpy.data.objects.new('camera', camera_data)
-        context.scene.collection.objects.link(camera_ob)
-        camera_ob.rotation_euler = [radians(90), 0, radians(-90)]
-        camera_data.display_size = 50
-        camera_data.clip_end = 1000
-        action = bpy.data.actions.new('track_' + track_name)
-        camera_ob.animation_data_create().action = action
+        camera_ob = nwo_utils.get_camera_track_camera(context)
+        if camera_ob is None:
+            camera_name = 'camera_' + track_name
+            camera_data = bpy.data.cameras.new(camera_name)
+            camera_ob = bpy.data.objects.new('camera', camera_data)
+            context.scene.collection.objects.link(camera_ob)
+            camera_ob.rotation_euler = [radians(90), 0, radians(-90)]
+            camera_data.display_size = 50
+            camera_data.clip_end = 1000
+        action = bpy.data.actions.new(track_name)
+        if not camera_ob.animation_data:
+            camera_ob.animation_data_create()
+        camera_ob.animation_data.action = action
+        
         for idx, control_point in enumerate(control_points):
             loc = Vector(control_point.position_to_xyz()) * 100
             game_orientation_matrix = Quaternion(control_point.orientation_to_wxyz()).to_matrix()
@@ -121,24 +126,34 @@ class CameraTrackTag(Tag):
         # verify no. of fcurves, must be 16 or less
         scene = context.scene
         fcurves = [fc for fc in action.fcurves]
-        if len(fcurves) > 16:
-            nwo_utils.print_warning(f"Found more than 16 keyframes in animation [{action.name}]. Only first 16 keyframes will be used for camera track")
             
-        keyframes = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],]
+        keyframes = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
             
         for fc in fcurves:
             if fc.data_path.endswith(('location', 'rotation_euler', 'rotation_quaternion')):
                 for idx, kfp in enumerate(fc.keyframe_points):
-                    if idx > 15: break
+                    if idx > 15:
+                        nwo_utils.print_warning(f"Camera track action fcurve ({action.name}, {fc.data_path}[{fc.array_index}]) has more than 16 keyframes. Only using the first 16 to write camera_track tag")
+                        break
                     keyframes[idx].append(kfp)
                     
         valid_keyframes = [k for k in keyframes if len(k) > 1]
         control_points = []
+        z_rotation_correction = nwo_utils.blender_halo_rotation_diff(scene.nwo.forward_direction)
+        axis_z = Vector((0, 0, 1))
+        pivot = Vector((0.0, 0.0, 0.0))
+        pivot_matrix = (Matrix.Translation(pivot) @ z_rotation_correction @ Matrix.Translation(-pivot))
+        to_x_rot = Euler((0, 0, z_rotation_correction))
+        loc_to_wu_divisor = 3.048 if scene.nwo.scale == 'blender' else 100
+        rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
+        pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
         for idx, k in enumerate(valid_keyframes):
             frame = int(k[0].co[0])
             scene.frame_set(frame)
             control_point = ControlPoint(idx)
-            control_point.set_ijk_from_location(ob.location / 100)
+            loc = ob.location / loc_to_wu_divisor
+            loc = pivot_matrix @ loc
+            control_point.set_ijk_from_location(loc)
             
             if ob.rotation_mode == 'EULER':
                 rotation = ob.rotation_euler.to_quaternion()
@@ -146,9 +161,10 @@ class CameraTrackTag(Tag):
                 rotation = ob.rotation_quaternion
                 
             blender_orientation_matrix = rotation.to_matrix()
-            final_matrix = blender_orientation_matrix @ camera_correction_matrix.inverted()
-                
-            control_point.set_ijkw_from_rotation(final_matrix.to_quaternion())
+            camera_matrix_fixed = blender_orientation_matrix @ camera_correction_matrix.inverted()
+            
+            camera_matrix_fixed.rotate(to_x_rot)
+            control_point.set_ijkw_from_rotation(camera_matrix_fixed.to_quaternion())
             
             control_points.append(control_point)
         

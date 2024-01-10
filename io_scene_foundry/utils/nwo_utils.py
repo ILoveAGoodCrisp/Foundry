@@ -2332,3 +2332,14 @@ def in_exclude_collection(ob):
 
 def excluded(ob):
     return not ob.nwo.export_this or in_exclude_collection(ob)
+
+def get_camera_track_camera(context: bpy.types.Context) -> bpy.types.Object | None:
+    if context.scene.nwo.camera_track_camera:
+        return context.scene.nwo.camera_track_camera
+    
+    cameras = [ob for ob in context.view_layer.objects if ob.type == 'CAMERA']
+    animated_cameras = [ob for ob in cameras if ob.animation_data]
+    if animated_cameras:
+        return animated_cameras[0]
+    if cameras:
+        return cameras[0]

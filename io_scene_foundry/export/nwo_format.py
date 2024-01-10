@@ -808,7 +808,11 @@ class NWOMesh(NWOObject):
                 )
 
         if self.halo.face_global_material and not self.halo.reach_poop_collision:
-            self.bungie_face_global_material = self.halo.face_global_material
+            if self.corinth and self.bungie_mesh_type in ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision'):
+                self.bungie_mesh_global_material = self.halo.face_global_material
+                # self.mesh_poop_collision_override_global_material = '1'
+            else:
+                self.bungie_face_global_material = self.halo.face_global_material
 
         # SPECIFIC MESH TYPE PROPS
         if self.bungie_mesh_type == "_connected_geometry_mesh_type_boundary_surface":
