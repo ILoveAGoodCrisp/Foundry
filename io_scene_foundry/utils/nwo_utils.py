@@ -2238,7 +2238,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     if mod.type == 'NOISE':
                         mod.strength *= scale_factor
                 for keyframe_point in fcurve.keyframe_points:
-                    #keyframe_point.co[1] *= scale_factor
                     keyframe_point.co_ui[1] *= scale_factor
                     
             elif fcurve.data_path.startswith('rotation_euler') and fcurve.array_index == 2:
@@ -2288,7 +2287,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             for i in range(len(keyframes_w)):
                 for kfpw, kfpx, kfpy, kfpz in zip(keyframes_w[i], keyframes_x[i], keyframes_y[i], keyframes_z[i]):
                     q = Quaternion((kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1]))
-                    q.rotate(rotation_matrix.inverted())
+                    q.rotate(rotation_matrix)
                     kfpw.co_ui[1], kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = q[0], q[1], q[2], q[3]
                 
 def get_area_info(context):
