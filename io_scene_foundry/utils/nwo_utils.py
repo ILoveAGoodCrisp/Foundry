@@ -1841,7 +1841,7 @@ def reset_to_basis(keep_animation=False):
     for ob in animated_objects:
         if not keep_animation:
             ob.animation_data.action = None
-        ob.matrix_basis = Matrix()
+        # ob.matrix_basis = Matrix()
         if ob.type == 'ARMATURE':
             for bone in ob.pose.bones:
                 bone.matrix_basis = Matrix()
@@ -2228,7 +2228,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
     
     for action in actions:
+        fc_quaternions: list[bpy.types.FCurve] = []
+        fc_locations: list[bpy.types.FCurve] = []
         for fcurve in action.fcurves:
+            if fcurve.data_path == 'location':
+                fc_locations.append(fcurve)
             if fcurve.data_path.endswith('location'):
                 for mod in fcurve.modifiers:
                     if mod.type == 'NOISE':
@@ -2237,7 +2241,55 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     #keyframe_point.co[1] *= scale_factor
                     keyframe_point.co_ui[1] *= scale_factor
                     
-                #fcurve.keyframe_points.handles_recalc()
+            elif fcurve.data_path.startswith('rotation_euler') and fcurve.array_index == 2:
+                for kfp in fcurve.keyframe_points:
+                    kfp.co_ui[1] += rotation
+            elif fcurve.data_path.startswith('rotation_quaternion'):
+                fc_quaternions.append(fcurve)
+                
+        if fc_locations:
+            assert(len(fc_locations) == 3)
+            keyframes_x = []
+            keyframes_y = []
+            keyframes_z = []
+            for fc in fc_locations:
+                if fc.array_index == 0:
+                    keyframes_x.append(fc.keyframe_points)
+                elif fc.array_index == 1:
+                    keyframes_y.append(fc.keyframe_points)
+                elif fc.array_index == 2:
+                    keyframes_z.append(fc.keyframe_points)
+                    
+            for i in range(len(keyframes_x)):
+                for kfpx, kfpy, kfpz in zip(keyframes_x[i], keyframes_y[i], keyframes_z[i]):
+                    v = Vector((kfpx.co[1], kfpy.co[1], kfpz.co[1]))
+                    mat = Matrix.Translation(v)
+                    loc = pivot_matrix @ mat
+                    vloc = loc.to_translation()
+                    kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = vloc[0], vloc[1], vloc[2]
+            
+            
+        if fc_quaternions:
+            assert(len(fc_quaternions) == 4)
+            keyframes_w = []
+            keyframes_x = []
+            keyframes_y = []
+            keyframes_z = []
+            for fc in fc_quaternions:
+                if fc.array_index == 0:
+                    keyframes_w.append(fc.keyframe_points)
+                elif fc.array_index == 1:
+                    keyframes_x.append(fc.keyframe_points)
+                elif fc.array_index == 2:
+                    keyframes_y.append(fc.keyframe_points)
+                elif fc.array_index == 3:
+                    keyframes_z.append(fc.keyframe_points)
+                    
+            for i in range(len(keyframes_w)):
+                for kfpw, kfpx, kfpy, kfpz in zip(keyframes_w[i], keyframes_x[i], keyframes_y[i], keyframes_z[i]):
+                    q = Quaternion((kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1]))
+                    q.rotate(rotation_matrix.inverted())
+                    kfpw.co_ui[1], kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = q[0], q[1], q[2], q[3]
                 
 def get_area_info(context):
     area = [
