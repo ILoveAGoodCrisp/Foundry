@@ -105,10 +105,11 @@ class NWO_ScaleScene(bpy.types.Operator):
         old_object = context.object
         old_selection = context.selected_objects
         animation_index = None
+        current_frame = int(context.scene.frame_current)
         context.scene.tool_settings.use_keyframe_insert_auto = False
-        if bpy.ops.nwo.unlink_animation.poll():
-            animation_index = context.scene.nwo.active_action_index
-            bpy.ops.nwo.unlink_animation()
+        # if bpy.ops.nwo.unlink_animation.poll():
+        #     animation_index = int(context.scene.nwo.active_action_index)
+        #     bpy.ops.nwo.unlink_animation()
         nwo_utils.set_object_mode(context)
         nwo_utils.deselect_all_objects()
         nwo_utils.transform_scene(context, self.scale_factor, self.rotation, keep_marker_axis=self.marker_forward == 'keep')
@@ -127,8 +128,9 @@ class NWO_ScaleScene(bpy.types.Operator):
         context.scene.nwo.forward_direction = self.forward
         context.scene.nwo.marker_forward = self.marker_forward
         
-        if animation_index:
-            context.scene.nwo.active_action_index = animation_index
+        # if animation_index:
+        #     context.scene.nwo.active_action_index = animation_index
+        #     context.scene.frame_current = current_frame
         return {"FINISHED"}
     
     def invoke(self, context: bpy.types.Context, _):

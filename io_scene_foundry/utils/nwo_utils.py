@@ -1948,41 +1948,41 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
     parented_objects = {}
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
     all_child_of_constraints: list[ChildOf] = []
-    for ob in objects:
-        if ob.parent:
-            child_ob = NodeChild(ob)
-            child_ob.parent = ob.parent
-            # child_ob.group = ob.parent.name
-            if ob.parent_type == 'BONE' and ob.parent_bone:
-                child_ob.parent_bone = ob.parent_bone
-                # child_ob.group += f'-:--:-{ob.parent_bone}'
+    # for ob in objects:
+    #     if ob.parent:
+    #         child_ob = NodeChild(ob)
+    #         child_ob.parent = ob.parent
+    #         # child_ob.group = ob.parent.name
+    #         if ob.parent_type == 'BONE' and ob.parent_bone:
+    #             child_ob.parent_bone = ob.parent_bone
+    #             # child_ob.group += f'-:--:-{ob.parent_bone}'
                 
-            parented_objects[ob] = child_ob
+    #         parented_objects[ob] = child_ob
             
-        child_of_constraints = [con for con in ob.constraints if con.type == 'CHILD_OF']
-        for con in child_of_constraints:
-            all_child_of_constraints.append(ChildOf(ob, con))
-            with context.temp_override(object=ob):
-                bpy.ops.constraint.apply(constraint=con.name, owner='OBJECT')
-        if ob.type == 'ARMATURE':
-            for pose_bone in ob.pose.bones:
-                pose_child_of_constraints = [con for con in pose_bone.constraints if con.type == 'CHILD_OF']
-                for con in pose_child_of_constraints:
-                    all_child_of_constraints.append(ChildOf(ob, con, pose_bone=pose_bone))
-                    with context.temp_override(object=ob, pose_bone=pose_bone):  
-                        bpy.ops.constraint.apply(constraint=con.name, owner='BONE')
+        # child_of_constraints = [con for con in ob.constraints if con.type == 'CHILD_OF']
+        # for con in child_of_constraints:
+        #     all_child_of_constraints.append(ChildOf(ob, con))
+        #     with context.temp_override(object=ob):
+        #         bpy.ops.constraint.apply(constraint=con.name, owner='OBJECT')
+        # if ob.type == 'ARMATURE':
+        #     for pose_bone in ob.pose.bones:
+        #         pose_child_of_constraints = [con for con in pose_bone.constraints if con.type == 'CHILD_OF']
+        #         for con in pose_child_of_constraints:
+        #             all_child_of_constraints.append(ChildOf(ob, con, pose_bone=pose_bone))
+        #             with context.temp_override(object=ob, pose_bone=pose_bone):  
+        #                 bpy.ops.constraint.apply(constraint=con.name, owner='BONE')
     
-    if parented_objects:
-        override = context.copy()
-        override['selected_objects'] = list(parented_objects.keys())
-        override['selected_editable_objects'] = list(parented_objects.keys())
-        override['active_object'] = list(parented_objects.keys())[0]
-        with context.temp_override(**override):
-            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+    # if parented_objects:
+    #     override = context.copy()
+    #     override['selected_objects'] = list(parented_objects.keys())
+    #     override['selected_editable_objects'] = list(parented_objects.keys())
+    #     override['active_object'] = list(parented_objects.keys())[0]
+    #     with context.temp_override(**override):
+    #         bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
     for ob in objects:
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
-        loc, rot, sca = ob.matrix_world.decompose()
+        loc, rot, sca = ob.matrix_basis.decompose()
         if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion
         else:
@@ -1994,7 +1994,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         is_a_frame = ob in frames
         
-        if not is_a_frame:
+        if not (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE'):
             rot.rotate(rotation_matrix)
         
         # Lights need scaling to have correct display 
@@ -2006,21 +2006,14 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             
         elif ob.type == 'ARMATURE':
             armatures.append(ob)
-            
-        if is_a_frame:
-            if ob.rotation_mode == 'QUATERNION':
-                rot = Quaternion()
-            else:
-                rot = Euler()
         
-        ob.matrix_world = Matrix.LocRotScale(loc, rot, sca)
+        ob.matrix_basis = Matrix.LocRotScale(loc, rot, sca)
         
-        if keep_marker_axis and not is_a_frame and ob.type == 'EMPTY':
+        if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB') and ob.nwo.exportable:
             ob.rotation_euler.rotate_axis('Z', -rotation)
-            
 
-        if parented_objects.get(ob, 0):
-            parented_objects[ob].matrix = ob.matrix_world
+        # if parented_objects.get(ob, 0):
+        #     parented_objects[ob].matrix = ob.matrix_world
         
         for mod in ob.modifiers:
             match mod.type:
@@ -2052,11 +2045,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     con.rest_length *= scale_factor
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
-                # case 'CHILD_OF':
-                #     if con.inverse_matrix != Matrix.Identity(4):
-                #         con.inverse_matrix = rotation_matrix.inverted() @ con.inverse_matrix
-                #     else:
-                #         con.inverse_matrix = Matrix.Identity(4)
+                case 'CHILD_OF':
+                    con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
             
     for curve in curves:
         if hasattr(curve, 'size'):
@@ -2162,11 +2152,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                         con.rest_length *= scale_factor
                     case 'SHRINKWRAP':
                         con.distance *= scale_factor
-                    # case 'CHILD_OF':
-                    #     if con.inverse_matrix != Matrix.Identity(4):
-                    #         con.inverse_matrix = rotation_matrix.inverted() @ con.inverse_matrix
-                    #     else:
-                    #         con.inverse_matrix = Matrix.Identity(4)
+                    case 'CHILD_OF':
+                        con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
+                        if scale_factor != 1:
+                            con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
+                            con_loc *= scale_factor
+                            con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
 
         if uses_pose_mirror:
             arm.pose.use_mirror_x = True
@@ -2192,39 +2183,39 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
         
-    for child_of in all_child_of_constraints:
-        if child_of.pose_bone:
-            con = child_of.pose_bone.constraints.new('CHILD_OF')
-        else:
-            con = child_of.ob.constraints.new('CHILD_OF')
+    # for child_of in all_child_of_constraints:
+    #     if child_of.pose_bone:
+    #         con = child_of.pose_bone.constraints.new('CHILD_OF')
+    #     else:
+    #         con = child_of.ob.constraints.new('CHILD_OF')
             
-        con.name = child_of.name
-        con.target = child_of.target
-        if child_of.target_is_bone:
-            con.subtarget = child_of.subtarget
+    #     con.name = child_of.name
+    #     con.target = child_of.target
+    #     if child_of.target_is_bone:
+    #         con.subtarget = child_of.subtarget
             
-        con.use_location_x = child_of.use_location_x
-        con.use_location_y = child_of.use_location_y
-        con.use_location_z = child_of.use_location_z
+    #     con.use_location_x = child_of.use_location_x
+    #     con.use_location_y = child_of.use_location_y
+    #     con.use_location_z = child_of.use_location_z
         
-        con.use_rotation_x = child_of.use_rotation_x
-        con.use_rotation_y = child_of.use_rotation_y
-        con.use_rotation_z = child_of.use_rotation_z
+    #     con.use_rotation_x = child_of.use_rotation_x
+    #     con.use_rotation_y = child_of.use_rotation_y
+    #     con.use_rotation_z = child_of.use_rotation_z
         
-        con.use_scale_x = child_of.use_scale_x
-        con.use_scale_y = child_of.use_scale_y
-        con.use_scale_z = child_of.use_scale_z
+    #     con.use_scale_x = child_of.use_scale_x
+    #     con.use_scale_y = child_of.use_scale_y
+    #     con.use_scale_z = child_of.use_scale_z
         
-        con.influence = child_of.influence
+    #     con.influence = child_of.influence
         
-        # con.inverse_matrix = rotation_matrix.inverted() @ child_of.inverse_matrix
-        if child_of.pose_bone and child_of.inverse_matrix == Matrix.Identity(4):
-            con.inverse_matrix = rotation_matrix.inverted() @ Matrix.Identity(4)
-        elif child_of.pose_bone:
-            con.inverse_matrix = child_of.inverse_matrix @ rotation_matrix.inverted()
-            if scale_factor != 1:
-                inverse_trans_vec = con.inverse_matrix.to_translation() * scale_factor
-                con.inverse_matrix = Matrix.Translation(inverse_trans_vec) @ con.inverse_matrix
+    #     # con.inverse_matrix = rotation_matrix.inverted() @ child_of.inverse_matrix
+    #     if child_of.pose_bone and child_of.inverse_matrix == Matrix.Identity(4):
+    #         con.inverse_matrix = rotation_matrix.inverted() @ Matrix.Identity(4)
+    #     elif child_of.pose_bone:
+    #         con.inverse_matrix = child_of.inverse_matrix @ rotation_matrix.inverted()
+    #         if scale_factor != 1:
+    #             inverse_trans_vec = con.inverse_matrix.to_translation() * scale_factor
+    #             con.inverse_matrix = Matrix.Translation(inverse_trans_vec) @ con.inverse_matrix
         
     
     for action in actions:
@@ -2394,3 +2385,24 @@ def get_camera_track_camera(context: bpy.types.Context) -> bpy.types.Object | No
         return animated_cameras[0]
     if cameras:
         return cameras[0]
+    
+def get_collection_children(collection: bpy.types.Collection):
+    child_collections = collection.children
+    collections = set()
+    for collection in child_collections:
+        collections.add(collection)
+        if collection.children:
+            collections.update(get_collection_children(collection))
+            
+    return collections
+    
+def get_exclude_collections():
+    '''Gets all collections which are themselves exclude collections or a child of one'''
+    direct_exclude_collections = [c for c in bpy.context.scene.collection.children if c.nwo.type == 'exclude']
+    all_exclude_collections = set(direct_exclude_collections)
+    for collection in direct_exclude_collections:
+        if collection.children:
+            all_exclude_collections.update(get_collection_children(collection))
+    
+    return all_exclude_collections
+    

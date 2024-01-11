@@ -45,6 +45,8 @@ from ..utils.nwo_utils import (
     clean_tag_path,
     dot_partition,
     calc_light_intensity,
+    get_exclude_collections,
+    get_object_type,
     get_prop_from_collection,
     is_corinth,
     nwo_enum,
@@ -1083,6 +1085,27 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=True,
         description="Controls whether this object is exported or not",
         options=set(),
+    )
+    
+    def get_exportable(self):
+        ob = bpy.context.object
+        if not self.export_this:
+            return False
+        if get_object_type(ob) == '_connected_geometry_object_type_none':
+            return False
+        if not ob.users_collection:
+            return False
+        
+        exclude_collections = get_exclude_collections()
+        exclude_collections_with_this_ob = [c for c in ob.users_collection if c in exclude_collections]
+        if exclude_collections_with_this_ob:
+            return False
+        
+        return True
+    
+    exportable: BoolProperty(
+        options={'HIDDEN', 'SKIP_SAVE'},
+        get=get_exportable,
     )
     
     # def get_export_type(self):
