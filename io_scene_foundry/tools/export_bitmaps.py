@@ -36,6 +36,8 @@ from io_scene_foundry.utils.nwo_utils import (
     print_error,
     print_warning,
     run_tool,
+    valid_filename,
+    valid_image_name,
 )
 
 class NWO_ExportBitmapsSingle(bpy.types.Operator):
@@ -95,7 +97,7 @@ def export_bitmap(
         bitmaps_data_dir = os.path.join(data_dir + asset_path, "bitmaps")
         # get a list of textures associated with this material
     # export the texture as a tiff to the asset bitmaps folder
-    image.nwo.source_name = dot_partition(image.name) + ".tif"
+    image.nwo.source_name = valid_image_name(image.name) + ".tif"
     is_tiff = image.file_format == 'TIFF'
     if is_tiff and user_path and user_path.startswith(data_dir) and os.path.exists(user_path):
         image.nwo.filepath = user_path.replace(data_dir, "")

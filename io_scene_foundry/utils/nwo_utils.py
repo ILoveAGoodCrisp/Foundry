@@ -179,6 +179,8 @@ blender_object_types_mesh = (
     "GPENCIL",
 )
 
+BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
+
 #############
 ##FUNCTIONS##
 #############
@@ -2406,3 +2408,17 @@ def get_exclude_collections():
     
     return all_exclude_collections
     
+def valid_filename(name: str) -> str:
+    bad_chars = r'\/:*?"<>'
+    for char in bad_chars:
+        name = name.replace(char, '_')
+        
+    return name
+
+def valid_image_name(name: str) -> str:
+    for f in BLENDER_IMAGE_FORMATS:
+        name = name.replace(f, '')
+        
+    name = name.replace('.', '_')
+    
+    return valid_filename(name)

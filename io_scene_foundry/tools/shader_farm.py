@@ -35,7 +35,7 @@ from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.tools.export_bitmaps import save_image_as
 from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import ExportManager, asset_path_from_blend_location, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import ExportManager, asset_path_from_blend_location, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_filename, valid_image_name, valid_nwo_asset
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -327,7 +327,7 @@ class NWO_FarmShaders(bpy.types.Operator):
         return {'FINISHED'}
     
     def export_tiff_if_needed(self, image):
-        image.nwo.source_name = dot_partition(image.name) + ".tif"
+        image.nwo.source_name = valid_image_name(image.name) + ".tif"
         user_path = image.filepath_from_user()
         is_tiff = image.file_format == 'TIFF'
         if is_tiff and user_path and user_path.startswith(self.data_dir) and os.path.exists(user_path):
