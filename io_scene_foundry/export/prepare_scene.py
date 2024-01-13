@@ -229,6 +229,13 @@ class PrepareScene:
         # print("make_local")
         scene_coll = context.scene.collection.objects
         
+        # apply geometry nodes
+        for ob in bpy.data.objects:
+            for mod in ob.modifiers:
+                if mod.type == 'NODES':
+                    with context.temp_override(object=ob):
+                        bpy.ops.object.modifier_apply(modifier=mod.name)
+        
         # Scale objects
         scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
         rotation = blender_halo_rotation_diff(scene_nwo.forward_direction)
