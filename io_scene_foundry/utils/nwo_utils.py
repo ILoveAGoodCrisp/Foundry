@@ -1937,7 +1937,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         actions = bpy.data.actions
         
     if keep_marker_axis is None:
-        keep_marker_axis = context.scene.nwo.marker_forward == 'keep'
+        keep_marker_axis = not context.scene.nwo.rotate_markers
 
     armatures = []
     scene_coll = context.scene.collection.objects

@@ -78,14 +78,10 @@ class NWO_ScaleScene(bpy.types.Operator):
         subtype='ANGLE',
     )
     
-    marker_forward: bpy.props.EnumProperty(
-        name="Marker Direction",
+    rotate_markers: bpy.props.BoolProperty(
+        name="Rotate Markers",
         options=set(),
-        description="Determines whether the marker X direction or its current forward is used as the in game X axis",
-        items=[
-            ('keep', "Keep Axis", "Marker direction is kept as is at export. Use this if you want the marker direction in game to match the marker forward in Blender. Good to use on completely custom assets"),
-            ('x', "Use X", "Markers are rotated so that the x axis shown in Blender matches visually with the in game x axis. Use this if you're not exporting with X forward but are importing for an existing asset"),
-        ]
+        description="Determines whether rotating the scene also rotates markers",
     )
     
     def execute(self, context):
@@ -112,7 +108,7 @@ class NWO_ScaleScene(bpy.types.Operator):
         #     bpy.ops.nwo.unlink_animation()
         nwo_utils.set_object_mode(context)
         nwo_utils.deselect_all_objects()
-        nwo_utils.transform_scene(context, self.scale_factor, self.rotation, keep_marker_axis=self.marker_forward == 'keep')
+        nwo_utils.transform_scene(context, self.scale_factor, self.rotation, keep_marker_axis= not self.rotate_markers)
 
         if old_object:
             nwo_utils.set_active_object(old_object)
@@ -126,7 +122,7 @@ class NWO_ScaleScene(bpy.types.Operator):
         if self.scale == 'blender' or self.scale == 'max':
             context.scene.nwo.scale = self.scale
         context.scene.nwo.forward_direction = self.forward
-        context.scene.nwo.marker_forward = self.marker_forward
+        context.scene.nwo.rotate_markers = self.rotate_markers
         
         # if animation_index:
         #     context.scene.nwo.active_action_index = animation_index
@@ -135,7 +131,7 @@ class NWO_ScaleScene(bpy.types.Operator):
     
     def invoke(self, context: bpy.types.Context, _):
         self.forward = context.scene.nwo.forward_direction
-        self.marker_forward = context.scene.nwo.marker_forward
+        self.rotate_markers = context.scene.nwo.rotate_markers
         return context.window_manager.invoke_props_dialog(self)
             
     def draw(self, context):
@@ -146,4 +142,4 @@ class NWO_ScaleScene(bpy.types.Operator):
             layout.prop(self, 'scale_factor', text='Scale Factor')
         layout.prop(self, 'forward')
         layout.prop(self, 'rotation')
-        layout.prop(self, 'marker_forward', expand=True)
+        layout.prop(self, 'rotate_markers')
