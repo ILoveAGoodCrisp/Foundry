@@ -1949,38 +1949,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
     transform_matrix = rotation_matrix @ scale_matrix
     parented_objects = {}
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
-    all_child_of_constraints: list[ChildOf] = []
-    # for ob in objects:
-    #     if ob.parent:
-    #         child_ob = NodeChild(ob)
-    #         child_ob.parent = ob.parent
-    #         # child_ob.group = ob.parent.name
-    #         if ob.parent_type == 'BONE' and ob.parent_bone:
-    #             child_ob.parent_bone = ob.parent_bone
-    #             # child_ob.group += f'-:--:-{ob.parent_bone}'
-                
-    #         parented_objects[ob] = child_ob
-            
-        # child_of_constraints = [con for con in ob.constraints if con.type == 'CHILD_OF']
-        # for con in child_of_constraints:
-        #     all_child_of_constraints.append(ChildOf(ob, con))
-        #     with context.temp_override(object=ob):
-        #         bpy.ops.constraint.apply(constraint=con.name, owner='OBJECT')
-        # if ob.type == 'ARMATURE':
-        #     for pose_bone in ob.pose.bones:
-        #         pose_child_of_constraints = [con for con in pose_bone.constraints if con.type == 'CHILD_OF']
-        #         for con in pose_child_of_constraints:
-        #             all_child_of_constraints.append(ChildOf(ob, con, pose_bone=pose_bone))
-        #             with context.temp_override(object=ob, pose_bone=pose_bone):  
-        #                 bpy.ops.constraint.apply(constraint=con.name, owner='BONE')
-    
-    # if parented_objects:
-    #     override = context.copy()
-    #     override['selected_objects'] = list(parented_objects.keys())
-    #     override['selected_editable_objects'] = list(parented_objects.keys())
-    #     override['active_object'] = list(parented_objects.keys())[0]
-    #     with context.temp_override(**override):
-    #         bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
     
     for ob in objects:
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
@@ -2014,9 +1982,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB') and ob.nwo.exportable:
             ob.rotation_euler.rotate_axis('Z', -rotation)
 
-        # if parented_objects.get(ob, 0):
-        #     parented_objects[ob].matrix = ob.matrix_world
-        
         for mod in ob.modifiers:
             match mod.type:
                 case 'BEVEL':
@@ -2027,10 +1992,46 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     mod.radius *= scale_factor
                 case 'SHRINKWRAP':
                     mod.offset *= scale_factor
+                    mod.project_limit *= scale_factor
                 case 'WAVE':
                     mod.offset *= scale_factor
                     mod.height *= scale_factor
                     mod.width *= scale_factor
+                    mod.falloff_radius *= scale_factor
+                    mod.narrowness *= scale_factor
+                    mod.start_position_x *= scale_factor
+                    mod.start_position_y *= scale_factor
+                case 'OCEAN':
+                    mod.depth *= scale_factor
+                    mod.wave_scale_min *= scale_factor
+                    mod.wind_velocity *= scale_factor
+                case 'ARRAY':
+                    mod.constant_offset_displace *= scale_factor
+                    mod.merge_threshold *= scale_factor
+                case 'MIRROR':
+                    mod.merge_threshold *= scale_factor
+                    mod.bisect_threshold *= scale_factor
+                case 'REMESH':
+                    mod.voxel_size *= scale_factor
+                    mod.adaptivity *= scale_factor
+                case 'SCREW':
+                    mod.screw_offset *= scale_factor
+                case 'SOLIDIFY':
+                    mod.thickness *= scale_factor
+                case 'WELD':
+                    mod.merge_threshold *= scale_factor
+                case 'WIREFRAME':
+                    mod.thickness *= scale_factor
+                case 'CAST':
+                    mod.radius *= scale_factor
+                case 'HOOK':
+                    mod.falloff_radius *= scale_factor
+                case 'WARP':
+                    mod.falloff_radius *= scale_factor
+                case 'DATA_TRANSFER':
+                    mod.islands_precision *= scale_factor
+                    mod.max_distance *= scale_factor
+                    mod.ray_radius *= scale_factor
                     
         for con in ob.constraints:
             match con.type:
@@ -2184,41 +2185,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         if child.parent_bone:
             child.ob.parent_bone = child.parent_bone
         child.ob.matrix_world = child.matrix
-        
-    # for child_of in all_child_of_constraints:
-    #     if child_of.pose_bone:
-    #         con = child_of.pose_bone.constraints.new('CHILD_OF')
-    #     else:
-    #         con = child_of.ob.constraints.new('CHILD_OF')
-            
-    #     con.name = child_of.name
-    #     con.target = child_of.target
-    #     if child_of.target_is_bone:
-    #         con.subtarget = child_of.subtarget
-            
-    #     con.use_location_x = child_of.use_location_x
-    #     con.use_location_y = child_of.use_location_y
-    #     con.use_location_z = child_of.use_location_z
-        
-    #     con.use_rotation_x = child_of.use_rotation_x
-    #     con.use_rotation_y = child_of.use_rotation_y
-    #     con.use_rotation_z = child_of.use_rotation_z
-        
-    #     con.use_scale_x = child_of.use_scale_x
-    #     con.use_scale_y = child_of.use_scale_y
-    #     con.use_scale_z = child_of.use_scale_z
-        
-    #     con.influence = child_of.influence
-        
-    #     # con.inverse_matrix = rotation_matrix.inverted() @ child_of.inverse_matrix
-    #     if child_of.pose_bone and child_of.inverse_matrix == Matrix.Identity(4):
-    #         con.inverse_matrix = rotation_matrix.inverted() @ Matrix.Identity(4)
-    #     elif child_of.pose_bone:
-    #         con.inverse_matrix = child_of.inverse_matrix @ rotation_matrix.inverted()
-    #         if scale_factor != 1:
-    #             inverse_trans_vec = con.inverse_matrix.to_translation() * scale_factor
-    #             con.inverse_matrix = Matrix.Translation(inverse_trans_vec) @ con.inverse_matrix
-        
     
     for action in actions:
         fc_quaternions: list[bpy.types.FCurve] = []
@@ -2422,3 +2388,15 @@ def valid_image_name(name: str) -> str:
     name = name.replace('.', '_')
     
     return valid_filename(name)
+
+def paths_in_dir(directory: str, valid_extensions: tuple[str] | str = '') -> list[str]:
+    '''Returns a list of filepaths from the given directory path. Optionally limited to paths with the given extensions'''
+    assert(os.path.exists(directory)), f"Directory not a valid filepath: [{directory}]"
+    filepath_list = [] 
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if not valid_extensions or file.endswith(valid_extensions):
+                filepath_list.append(os.path.join(root, file))
+                
+    return filepath_list
+    
