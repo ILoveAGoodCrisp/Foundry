@@ -1502,7 +1502,8 @@ class PrepareScene:
             uv_layers = dat.uv_layers
             if uv_layers:
                 for idx, uv_map in enumerate(uv_layers):
-                    uv_map.name = f"UVMap{idx}"
+                    if uv_map.name != 'lighting':
+                        uv_map.name = f"UVMap{idx}"
             else:
                 uv_layers.new(name="UVMap0")
 
