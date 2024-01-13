@@ -1964,7 +1964,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         is_a_frame = ob in frames
         
-        if not (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE'):
+        if ob.type != 'ARMATURE' and not (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE'):
             rot.rotate(rotation_matrix)
         
         # Lights need scaling to have correct display 
