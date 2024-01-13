@@ -1947,11 +1947,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
     pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
     scale_matrix = Matrix.Scale(scale_factor, 4)
     transform_matrix = rotation_matrix @ scale_matrix
-    parented_objects = {}
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
     
     for ob in objects:
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
+        bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
         loc, rot, sca = ob.matrix_basis.decompose()
         if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion
@@ -1959,12 +1959,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             rot = ob.rotation_euler
             
         loc *= scale_factor
-        if rotation:
+        if rotation and not bone_parented:
             loc = pivot_matrix @ loc
         
         is_a_frame = ob in frames
         
-        if ob.type != 'ARMATURE' and not (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE'):
+        if not (ob.type == 'ARMATURE' or bone_parented):
             rot.rotate(rotation_matrix)
         
         # Lights need scaling to have correct display 
@@ -2179,12 +2179,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             if original_collections:
                 for coll in original_collections:
                     coll.objects.link(arm)
-    
-    for child in parented_objects.values():
-        child.ob.parent = child.parent
-        if child.parent_bone:
-            child.ob.parent_bone = child.parent_bone
-        child.ob.matrix_world = child.matrix
     
     for action in actions:
         fc_quaternions: list[bpy.types.FCurve] = []

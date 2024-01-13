@@ -1089,6 +1089,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     
     def get_exportable(self):
         ob = bpy.context.object
+        if not ob:
+            return False
         if not self.export_this:
             return False
         if get_object_type(ob) == '_connected_geometry_object_type_none':
