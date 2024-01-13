@@ -140,19 +140,11 @@ class CameraTrackTag(Tag):
                     
         valid_keyframes = [k for k in keyframes if len(k) > 1]
         control_points = []
-        z_rotation_correction = nwo_utils.blender_halo_rotation_diff(scene.nwo.forward_direction)
-        axis_z = Vector((0, 0, 1))
-        pivot = Vector((0.0, 0.0, 0.0))
-        to_x_rot = Euler((0, 0, z_rotation_correction))
-        loc_to_wu_divisor = 3.048 if scene.nwo.scale == 'blender' else 100
-        rotation_matrix = Matrix.Rotation(z_rotation_correction, 4, axis_z)
-        pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
         for idx, k in enumerate(valid_keyframes):
             frame = int(k[0].co[0])
             scene.frame_set(frame)
             control_point = ControlPoint(idx)
-            loc = ob.location / loc_to_wu_divisor
-            loc = pivot_matrix @ loc
+            loc = ob.location / 100
             control_point.set_ijk_from_location(loc)
             
             if ob.rotation_mode == 'EULER':
@@ -162,8 +154,6 @@ class CameraTrackTag(Tag):
                 
             blender_orientation_matrix = rotation.to_matrix()
             camera_matrix_fixed = blender_orientation_matrix @ camera_correction_matrix.inverted()
-            
-            camera_matrix_fixed.rotate(to_x_rot)
             control_point.set_ijkw_from_rotation(camera_matrix_fixed.to_quaternion())
             
             control_points.append(control_point)
