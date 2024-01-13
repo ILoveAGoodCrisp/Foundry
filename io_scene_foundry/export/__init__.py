@@ -461,98 +461,98 @@ class NWO_Export(NWO_Export_Scene):
         self.known_fail = False
         
         if scene_nwo.asset_type == 'camera_track_set':
-            build_camera_tracks(context, get_camera_track_camera(context), os.path.join(self.asset_path))
-        else:
+            scene_nwo.export_gr2_files = False
+        
+        try:
             try:
-                try:
-                    nwo_scene = PrepareScene()
-                    nwo_scene.prepare_scene(context, self.asset, scene_nwo.asset_type, scene_nwo_export)
-                    if not nwo_scene.too_many_root_bones and not nwo_scene.no_export_objects:
-                        export_process = ProcessScene()
-                        export_process.process_scene(context, sidecar_path, sidecar_path_full, self.asset, self.asset_path, scene_nwo.asset_type, nwo_scene, scene_nwo_export, scene_nwo)
-                
-                except Exception as e:
-                    if type(e) == RuntimeError:
-                        logging.error(traceback.format_exc())
-                        self.known_fail = True
-                    else:
-                        print_error("\n\nException hit. Please include in report\n")
-                        logging.error(traceback.format_exc())
-                        self.failed = True
-
-                # validate that a sidecar file exists
-                if not file_exists(sidecar_path_full):
-                    context.scene.nwo_halo_launcher.sidecar_path = ""
-
-                # write scene settings generated during export to temp file
-
-                end = time.perf_counter()
-
-                if self.failed:
-                    print_warning(
-                        "\ Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n"
-                    )
-                    print_error(
-                        "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-                    )
-                
-                elif self.known_fail:
-                        print_warning(
-                        "\nEXPORT ABORTED. Please see above for details"
-                    )
-                elif nwo_scene.too_many_root_bones:
-                    print_warning('EXPORT CANCELLED')
-                    print("Export cancelled because the main armature has multiple deform root bones.")
-                elif nwo_scene.no_export_objects:
-                    print_warning('EXPORT CANCELLED')
-                    print("Export cancelled because there are no Halo objects in the scene. Ensure at least one object is valid and has the export flag enabled")
-                elif export_process.gr2_fail:
-                    print(
-                        "\n-----------------------------------------------------------------------"
-                    )
-                    print_error("Failed to export a GR2 File. Export cancelled\n")
-                    print("GR2 conversion can crash due to Tool failing to parse exported FBX data. To fix, narrow down the problem object and adjust the geometry. Splitting meshes into seperate parts can help.")
-
-                    print(
-                        "-----------------------------------------------------------------------\n"
-                    )
-
-                elif export_process.sidecar_import_failed:
-                    print(
-                        "\n-----------------------------------------------------------------------"
-                    )
-                    print_error("FAILED TO CREATE TAGS\n")
-                    if export_process.sidecar_import_error:
-                        # print("Explanation of error:")
-                        print(export_process.sidecar_import_error)
-
-                    print("\nFor further details, please review the Tool output above")
-
-                    print(
-                        "-----------------------------------------------------------------------\n"
-                    )
-                elif export_process.lightmap_failed:
-                    
-                    print(
-                        "\n-----------------------------------------------------------------------"
-                    )
-                    print_error(export_process.lightmap_message)
-
-                    print(
-                        "-----------------------------------------------------------------------\n"
-                    )
+                nwo_scene = PrepareScene()
+                nwo_scene.prepare_scene(context, self.asset, scene_nwo.asset_type, scene_nwo_export)
+                if not nwo_scene.too_many_root_bones and not nwo_scene.no_export_objects:
+                    export_process = ProcessScene()
+                    export_process.process_scene(context, sidecar_path, sidecar_path_full, self.asset, self.asset_path, scene_nwo.asset_type, nwo_scene, scene_nwo_export, scene_nwo)
+            
+            except Exception as e:
+                if type(e) == RuntimeError:
+                    logging.error(traceback.format_exc())
+                    self.known_fail = True
                 else:
-                    print(
-                        "\n-----------------------------------------------------------------------"
-                    )
-                    print(f"Export Completed in {round(end - start, 3)} seconds")
+                    print_error("\n\nException hit. Please include in report\n")
+                    logging.error(traceback.format_exc())
+                    self.failed = True
 
-                    print(
-                        "-----------------------------------------------------------------------\n"
-                    )
+            # validate that a sidecar file exists
+            if not file_exists(sidecar_path_full):
+                context.scene.nwo_halo_launcher.sidecar_path = ""
 
-            except KeyboardInterrupt:
-                print_warning("\n\nEXPORT CANCELLED BY USER")
+            # write scene settings generated during export to temp file
+
+            end = time.perf_counter()
+
+            if self.failed:
+                print_warning(
+                    "\ Export crashed and burned. Please let the developer know: https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/issues\n"
+                )
+                print_error(
+                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+                )
+            
+            elif self.known_fail:
+                    print_warning(
+                    "\nEXPORT ABORTED. Please see above for details"
+                )
+            elif nwo_scene.too_many_root_bones:
+                print_warning('EXPORT CANCELLED')
+                print("Export cancelled because the main armature has multiple deform root bones.")
+            elif nwo_scene.no_export_objects:
+                print_warning('EXPORT CANCELLED')
+                print("Export cancelled because there are no Halo objects in the scene. Ensure at least one object is valid and has the export flag enabled")
+            elif export_process.gr2_fail:
+                print(
+                    "\n-----------------------------------------------------------------------"
+                )
+                print_error("Failed to export a GR2 File. Export cancelled\n")
+                print("GR2 conversion can crash due to Tool failing to parse exported FBX data. To fix, narrow down the problem object and adjust the geometry. Splitting meshes into seperate parts can help.")
+
+                print(
+                    "-----------------------------------------------------------------------\n"
+                )
+
+            elif export_process.sidecar_import_failed:
+                print(
+                    "\n-----------------------------------------------------------------------"
+                )
+                print_error("FAILED TO CREATE TAGS\n")
+                if export_process.sidecar_import_error:
+                    # print("Explanation of error:")
+                    print(export_process.sidecar_import_error)
+
+                print("\nFor further details, please review the Tool output above")
+
+                print(
+                    "-----------------------------------------------------------------------\n"
+                )
+            elif export_process.lightmap_failed:
+                
+                print(
+                    "\n-----------------------------------------------------------------------"
+                )
+                print_error(export_process.lightmap_message)
+
+                print(
+                    "-----------------------------------------------------------------------\n"
+                )
+            else:
+                print(
+                    "\n-----------------------------------------------------------------------"
+                )
+                print(f"Export Completed in {round(end - start, 3)} seconds")
+
+                print(
+                    "-----------------------------------------------------------------------\n"
+                )
+
+        except KeyboardInterrupt:
+            print_warning("\n\nEXPORT CANCELLED BY USER")
 
         bpy.ops.ed.undo_push()
         bpy.ops.ed.undo()
@@ -586,24 +586,6 @@ def ExportSettingsFromSidecar(sidecar_filepath):
         settings.append(output_tags)
 
     return settings
-
-def build_camera_tracks(context, camera, asset_folder_path):
-    camera_track_actions = [action for action in bpy.data.actions if action.use_frame_range]
-    print('')
-    if not camera_track_actions:
-        print_warning("No valid camera animations found")
-        return
-    
-    print("Exporting Camera Tracks")
-    print(
-        "-----------------------------------------------------------------------\n"
-    )
-    for action in camera_track_actions:
-        tag_path = os.path.join(asset_folder_path, action.name + '.camera_track')
-        print(f"--- {action.name}")
-        with CameraTrackTag(path=tag_path) as camera_track:
-            camera_track.to_tag(context, action, camera)
-
 
 def register():
     bpy.utils.register_class(NWO_Export)

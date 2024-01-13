@@ -49,6 +49,7 @@ from ..utils.nwo_utils import (
     enable_prints,
     exit_local_view,
     get_area_info,
+    get_camera_track_camera,
     get_object_type,
     get_sky_perm,
     has_shader_path,
@@ -198,10 +199,6 @@ class PrepareScene:
         self.unhide_collections(context)
         # print("unhide_collections")
 
-        #rotate -90 if this is a Reach Scenario/Decorator/Particle Model
-        # if not h4 and self.get_scene_armature(context.view_layer.objects, asset) is None:A
-        #     self.rotate_scene(context.view_layer.objects)
-
         # make objects linked to scene real and local
         disable_prints()
         all_obs_start = context.view_layer.objects
@@ -245,6 +242,13 @@ class PrepareScene:
             
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
+        
+        if asset_type == 'camera_track_set':
+            self.camera = get_camera_track_camera(context)
+            if not self.camera:
+                print_warning('No Camera in scene, cannot export camera track')
+                raise RuntimeError
+            return
         
         # Combine Armatures is possible
         

@@ -35,6 +35,7 @@ from io_scene_foundry.export.tag_builder import build_tags
 from io_scene_foundry.export.lightmapper import run_lightmapper
 
 from io_scene_foundry.managed_blam.animation import AnimationTag
+from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.model import ModelTag
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
@@ -43,6 +44,7 @@ from ..utils.nwo_utils import (
     data_relative,
     disable_prints,
     enable_prints,
+    get_camera_track_camera,
     get_data_path,
     get_tags_path,
     is_corinth,
@@ -51,6 +53,7 @@ from ..utils.nwo_utils import (
     print_warning,
     reset_to_basis,
     run_tool,
+    transform_scene,
     unmute_armature_mods,
     update_job,
     update_job_count,
@@ -90,6 +93,8 @@ class ProcessScene:
         gr2_count = 0
         h4 = is_corinth(context)
         muted_armature_deforms = []
+        if asset_type == 'camera_track_set':
+            return build_camera_tracks(context, nwo_scene.camera, asset_path)
         if scene_nwo_export.export_gr2_files:
             # make necessary directories
             models_dir = os.path.join(asset_path, "models")
@@ -1103,3 +1108,20 @@ def clear_constraints():
             for pose_bone in ob.pose.bones:
                 for con in pose_bone.constraints:
                     pose_bone.constraints.remove(con)
+                    
+def build_camera_tracks(context, camera, asset_folder_path):
+    camera_track_actions = [action for action in bpy.data.actions if action.use_frame_range]
+    print('')
+    if not camera_track_actions:
+        print_warning("No valid camera animations found")
+        return
+    
+    print("Exporting Camera Tracks")
+    print(
+        "-----------------------------------------------------------------------\n"
+    )
+    for action in camera_track_actions:
+        tag_path = os.path.join(asset_folder_path, action.name + '.camera_track')
+        print(f"--- {action.name}")
+        with CameraTrackTag(path=tag_path) as camera_track:
+            camera_track.to_tag(context, action, camera)
