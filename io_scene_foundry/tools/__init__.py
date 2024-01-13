@@ -43,7 +43,6 @@ from bpy.props import (
     PointerProperty,
 )
 from mathutils import Matrix
-from io_scene_foundry.tools.camera_track_sync import NWO_CameraTrackSync
 from io_scene_foundry.tools.scene_scaler import NWO_ScaleScene
 from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
@@ -569,7 +568,7 @@ class NWO_FoundryPanelProps(Panel):
             col = box.column()
             col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
             col.prop(nwo, 'camera_track_camera', text="Camera")
-            col.operator('nwo.camera_track_sync', text="Sync Camera Track", icon='FILE_REFRESH', depress=nwo.camera_track_syncing)
+            # col.operator('nwo.camera_track_sync', text="Sync Camera Track", icon='FILE_REFRESH', depress=nwo.camera_track_syncing)
             
             
     def draw_rig_ui(self, context, nwo):
@@ -6088,7 +6087,6 @@ classeshalo = (
     NWO_ClearShaderPaths,
     NWO_UpdateSets,
     NWO_ScaleScene,
-    NWO_CameraTrackSync,
 )
 
 def register():
