@@ -374,14 +374,14 @@ class NWOImporter():
         imported_objects = []
         for file in paths:
             imported_objects.append(self.import_camera_track(file, animation_scale))
-            
+        
         return imported_objects
             
     def import_camera_track(self, file, animation_scale):
         with CameraTrackTag(path=file) as camera_track:
-            objects = camera_track.to_blender_animation(self.context, animation_scale)
+            camera = camera_track.to_blender_animation(self.context, animation_scale)
             
-        return objects
+        return camera
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):

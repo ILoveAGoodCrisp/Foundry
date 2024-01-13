@@ -4038,6 +4038,8 @@ class NWO_HaloExportSettings(Panel):
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
         col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
+        if asset_type == 'camera_track_set':
+            return
         scenario = asset_type == "SCENARIO"
         render = asset_type in ("MODEL", "SKY")
         if (h4 and render) or scenario:
@@ -4070,7 +4072,7 @@ class NWO_HaloExportSettingsScope(Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files
+        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
 
     def draw(self, context):
         layout = self.layout
@@ -4127,7 +4129,7 @@ class NWO_HaloExportSettingsFlags(Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files
+        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'SKY', 'PARTICLE MODEL', 'DECORATOR SET', 'FP ANIMATION')
 
     def draw(self, context):
         layout = self.layout

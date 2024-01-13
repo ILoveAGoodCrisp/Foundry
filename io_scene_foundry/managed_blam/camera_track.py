@@ -120,7 +120,7 @@ class CameraTrackTag(Tag):
                     kfp.interpolation = 'BEZIER'
                     kfp.easing = 'AUTO'
         
-        return [camera_ob]
+        return camera_ob
 
     def to_tag(self, context: bpy.types.Context, action: bpy.types.Action, ob: bpy.types.Object):
         current_frame = int(context.scene.frame_current)

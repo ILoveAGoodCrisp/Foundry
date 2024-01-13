@@ -259,7 +259,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
         box.label(text="Export Scope")
         col = box.column()
         col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
-        if scene_nwo_export.export_gr2_files:
+        if scene_nwo.asset_type == 'camera_track_set':
+            return
+        if scene_nwo_export.export_gr2_files and scene_nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB'):
             col.separator()
             sub = col.column(heading="Export")
             # sub.prop(self, "export_hidden")
