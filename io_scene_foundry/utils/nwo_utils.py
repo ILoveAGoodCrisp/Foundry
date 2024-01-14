@@ -55,6 +55,8 @@ MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpa
 special_material_names = [m.name for m in special_materials]
 convention_material_names = [m.name for m in convention_materials]
 
+object_exts = '.crate', '.scenery', '.effect', '.device_control', '.device_machine', '.device_terminal', '.device_dispenser', '.biped', '.creature', '.giant', '.vehicle', '.weapon', '.equipment'
+
 ###########
 ##GLOBALS##
 ###########
@@ -2373,3 +2375,35 @@ def paths_in_dir(directory: str, valid_extensions: tuple[str] | str = '') -> lis
                 filepath_list.append(os.path.join(root, file))
                 
     return filepath_list
+
+class DebugMenuCommand:
+    def __init__(self, asset_dir, filename):
+        self.path = os.path.join(asset_dir, filename).replace('\\', '\\\\')
+        self.tag_type = dot_partition(filename, True).lower()
+        self.name = dot_partition(filename).lower()
+        
+    def __repr__(self):
+        return f'<item type = command name = "Foundry: Drop {self.name} [{self.tag_type}]" variable = "drop {self.path}">\n'
+    
+def update_debug_menu(asset_dir, asset_name):
+    asset_dir = relative_path(asset_dir)
+    menu_commands: list[DebugMenuCommand] = []
+    
+    for file in os.listdir(get_tags_path() + asset_dir):
+        if file.startswith(asset_name) and file.endswith(object_exts):
+            menu_commands.append(DebugMenuCommand(asset_dir, file))
+            
+    menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
+    valid_lines = None
+    # Read first so we can keep the users existing commands
+    if os.path.exists(menu_path):
+        with open(menu_path, 'r') as menu:
+            existing_menu = menu.readlines()
+            # Strip out Foundry commands. These get rebuilt in the next step
+            valid_lines = [line for line in existing_menu if not line.startswith('<item type = command name = "Foundry: ')]
+            
+    with open(menu_path, 'w') as menu:
+        if valid_lines is not None:
+            menu.writelines(valid_lines)
+            
+        menu.writelines([str(cmd) for cmd in menu_commands])

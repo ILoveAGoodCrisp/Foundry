@@ -67,6 +67,7 @@ from io_scene_foundry.utils.nwo_utils import (
     managed_blam_active,
     print_error,
     print_warning,
+    update_debug_menu,
     validate_ek,
 )
 
@@ -552,6 +553,9 @@ class NWO_Export(NWO_Export_Scene):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
+                
+                if scene_nwo.asset_type == 'MODEL':
+                    update_debug_menu(self.asset_path, self.asset)
 
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")

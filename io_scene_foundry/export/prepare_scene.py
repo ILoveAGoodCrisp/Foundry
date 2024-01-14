@@ -298,8 +298,6 @@ class PrepareScene:
                     
                 update_progress(process, 1)
 
-            # print("structure_proxy")
-
         materials = bpy.data.materials
 
         # create fixup materials
