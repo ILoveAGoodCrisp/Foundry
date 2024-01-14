@@ -292,7 +292,7 @@ class PrepareScene:
                     proxy_instance = ob.copy()
                     proxy_instance.data = ob.data.copy()
                     proxy_instance.name = f"{ob.name}(instance)"
-                    proxy_instance.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
+                    proxy_instance.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
                     scene_coll.link(proxy_instance)
                     update_progress(process, idx / len_proxy_owners)
                     

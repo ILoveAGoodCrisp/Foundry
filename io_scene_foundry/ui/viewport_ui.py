@@ -370,12 +370,11 @@ class NWO_ApplyTypeMesh(NWO_Op):
         for ob in meshes:
             set_active_object(ob)
             ob.select_set(True)
-            nwo = ob.nwo
-            nwo.mesh_type_ui = mesh_type
+            ob.data.nwo.mesh_type_ui = mesh_type
 
             apply_prefix(ob, self.m_type, prefix_setting)
 
-            if apply_materials and context.object.data.users == 1:
+            if apply_materials:
                 apply_props_material(ob, material)
 
             if self.m_type == "seam":

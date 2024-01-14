@@ -351,7 +351,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
     def apply_props(self, context):
         for ob in context.scene.objects:
-            ob_nwo = ob.nwo
+            ob_nwo = ob.data.nwo
 
             if ob_nwo.mesh_type_ui == "":
                 if self.asset_type == "DECORATOR SET":

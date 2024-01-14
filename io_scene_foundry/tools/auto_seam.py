@@ -129,7 +129,7 @@ class NWO_AutoSeam(bpy.types.Operator):
                         f"seam({facing_bsp}:{backfacing_bsp})", seam_data
                     )
                     seam_nwo = seam.nwo
-                    seam_nwo.mesh_type_ui = "_connected_geometry_mesh_type_seam"
+                    seam.data.nwo.mesh_type_ui = "_connected_geometry_mesh_type_seam"
                     seam_nwo.permutation_name_ui = facing_perm
                     seam_nwo.region_name_ui = facing_bsp
                     seam_nwo.seam_back_ui = backfacing_bsp

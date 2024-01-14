@@ -49,6 +49,7 @@ from ..utils.nwo_utils import (
     get_object_type,
     get_prop_from_collection,
     is_corinth,
+    is_mesh,
     nwo_enum,
     poll_ui,
     wu,
@@ -73,6 +74,12 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     proxy_collision: PointerProperty(type=bpy.types.Object)
     proxy_physics: PointerProperty(type=bpy.types.Object)
     proxy_cookie_cutter: PointerProperty(type=bpy.types.Object)
+    
+    mesh_type_ui: StringProperty(
+        name="Mesh Type",
+        default='_connected_geometry_mesh_type_default',
+        options=set(),
+    )
 
     face_props: CollectionProperty(
         type=NWO_FaceProperties_ListItems, override={"USE_INSERTION"}
@@ -843,14 +850,20 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
             #)
 
         return items
+    
+    def get_mesh_type_ui(self):
+        if not is_mesh(self.id_data):
+            return '_connected_geometry_mesh_type_none'
+        
+        return self.id_data.data.nwo.mesh_type_ui
 
     mesh_type_ui: StringProperty(
         name="Mesh Type",
         default='_connected_geometry_mesh_type_default',
-        options=set(),
+        options={'HIDDEN', 'SKIP_SAVE'},
+        get=get_mesh_type_ui,
     )
 
-    mesh_type_ui_help: BoolProperty()
 
     def items_marker_type_ui(self, context):
         """Function to handle context for marker enum lists"""

@@ -484,7 +484,6 @@ class NWOImporter():
     
     def setup_amf_mesh(self, ob, is_model):
         name = dot_partition(ob.name)
-        nwo = ob.nwo
         if is_model:
             if name.startswith('Instances:'):
                 # Need to implement this
@@ -495,7 +494,7 @@ class NWOImporter():
                 self.set_permutation(ob, permutation)
         else:
             if name.startswith('Clusters'):
-                nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
+                ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
             else:
                 self.amf_poops.append(ob)
                 
