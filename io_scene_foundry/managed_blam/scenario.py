@@ -122,4 +122,10 @@ class ScenarioTag(Tag):
         else:
             bsp_info_dict["Default Sky"] = self._sky_name_from_element(self.block_skies.Elements[sky_index])
         
-        return bsp_info_dict            
+        return bsp_info_dict
+    
+    def read_scenario_type(self) -> int:
+        return self.tag.SelectField('type').Value
+    
+    def survival_mode(self) -> bool:
+        return self.read_scenario_type() == 0 and self.tag.SelectField('flags').TestBit('survival')

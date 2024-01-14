@@ -27,6 +27,7 @@
 import os
 import bpy
 import glob
+from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from io_scene_foundry.utils.nwo_utils import (
     get_asset_info,
     get_asset_path,
@@ -300,9 +301,10 @@ def launch_game(is_sapien, settings, filepath):
             args[0] += "_play"
         # Sapien needs the scenario in the launch args so adding this here
         if nwo_asset_type() == "SCENARIO" and settings.game_default == "asset":
-            args.append(get_tag_if_exists(asset_path, asset_name, "scenario"))
-        elif using_filepath:
-            args.append(filepath)
+            filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
+        
+        args.append(filepath)
+        
     else:
         tag_test_name = get_tag_test_name()
         args = [tag_test_name]
@@ -439,10 +441,32 @@ def launch_game(is_sapien, settings, filepath):
                     file.write("prune_scenario_add_single_bsp_zones 1\n")
                 if settings.prune_keep_scripts:
                     file.write("pruning_keep_scripts 1\n")
-
-            file.write(
-                f'run_game_scripts {"1" if settings.run_game_scripts else "0"}\n'
-            )
+                    
+            
+            if not is_sapien:
+                if scenario_is_multiplayer(filepath):
+                    if settings.forge:
+                        file.write('game_multiplayer sandbox\n')
+                    else:
+                        file.write('game_multiplayer megalo\n')
+                    if settings.megalo_variant:
+                        file.write(f'game_set_variant {settings.megalo_variant}\n')
+                elif scenario_is_firefight(filepath):
+                    file.write('game_multiplayer survival\n')
+                    if settings.megalo_variant:
+                        file.write(f'game_set_variant {settings.megalo_variant}\n')
+                
+                file.write(
+                    f'run_game_scripts {"1" if settings.run_game_scripts else "0"}\n'
+                )
+                
+            if not settings.show_debugging:
+                file.write('error_geometry_hide_all\n')
+                file.write('events_enabled 0\n')
+                file.write('ai_hide_actor_errors 1\n')
+                file.write('terminal_render 0\n')
+                file.write('console_status_string_render 0\n')
+                file.write('events_debug_spam_render 0\n')
 
             if settings.initial_zone_set != "":
                 file.write(f"game_initial_zone_set {settings.initial_zone_set}\n")
@@ -552,3 +576,13 @@ class NWO_MaterialGirl(bpy.types.Operator):
         run_ek_cmd(launch_args, True)
         run_ek_cmd(["bin\\tools\\bonobo\\TagWatcher.exe"], True)
         return {'FINISHED'}
+
+def scenario_is_multiplayer(scenario_path):
+    with ScenarioTag(path=scenario_path) as scenario:
+        scenario_type = scenario.read_scenario_type()
+        
+    return scenario_type == 1
+
+def scenario_is_firefight(scenario_path):
+    with ScenarioTag(path=scenario_path) as scenario:
+        return scenario.survival_mode()

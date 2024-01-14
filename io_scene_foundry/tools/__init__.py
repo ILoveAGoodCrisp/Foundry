@@ -3298,8 +3298,14 @@ def draw_game_launcher_settings(scene_nwo_halo_launcher, col):
     if is_corinth():
         col.prop(scene_nwo_halo_launcher, "initial_bsp")
     col.prop(scene_nwo_halo_launcher, "custom_functions")
+    
+    col.separator()
+    col.prop(scene_nwo_halo_launcher, "show_debugging")
+    col.separator()
 
     col.prop(scene_nwo_halo_launcher, "run_game_scripts")
+    col.prop(scene_nwo_halo_launcher, "forge")
+    col.prop(scene_nwo_halo_launcher, "megalo_variant")
     if is_corinth():
         col.prop(scene_nwo_halo_launcher, "enable_firefight")
         if scene_nwo_halo_launcher.enable_firefight:
@@ -3770,8 +3776,8 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
 
     bsp_name: StringProperty(
         options=set(),
-        name="BSP Name(s)",
-        description="Input the bsps to open. Comma delimited for multiple bsps. Leave blank to open all bsps",
+        name="BSP",
+        description="The BSP tag to open",
         default="",
     )
 
@@ -3800,17 +3806,25 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
     run_game_scripts: BoolProperty(
         options=set(),
         description="Runs all startup, dormant, and continuous scripts on map load",
-        name="Run Game Scripts",
+        name="TagTest Run Scripts",
+        default=True,
     )
     
-    # multiplayer_mode: EnumProperty(
-    #     name="Multiplayer Gametype",
-    #     description="Launches the scenario with the given multiplayer gametype (TagTest only)"
-    #     items=[
-    #         ('none', 'None', '')
-    #         ('sandbox', 'Forge', '')
-    #     ]
-    # )
+    forge: BoolProperty(
+        name="TagTest Load Forge",
+        description="Open the scenario with the Forge gametype loaded if the scenario type is set to multiplayer"
+    )
+    
+    megalo_variant: StringProperty(
+        name="Megalo Variant",
+        description="Name of the megalo variant to load",
+    )
+    
+    show_debugging: BoolProperty(
+        name="Show Debugging/Errors",
+        description="If disabled, will turn off debugging text spew and error geometry",
+        default=True,
+    )
 
     prune_globals: BoolProperty(
         options=set(),

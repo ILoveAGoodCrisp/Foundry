@@ -2373,4 +2373,3 @@ def paths_in_dir(directory: str, valid_extensions: tuple[str] | str = '') -> lis
                 filepath_list.append(os.path.join(root, file))
                 
     return filepath_list
-    
