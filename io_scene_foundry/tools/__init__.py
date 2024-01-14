@@ -3749,6 +3749,16 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
     )
 
     open_decorator_set: BoolProperty(options=set(), name="Decorator Set", default=True)
+    
+    # def get_camera_track_names(self):
+    #     pass
+    
+    # camera_track_names: EnumProperty(
+    #     options=set(),
+    #     name="Camera Track",
+    #     description="The camera track to open",
+    #     items=get_camera_track_names, 
+    # )
 
     bsp_name: StringProperty(
         options=set(),

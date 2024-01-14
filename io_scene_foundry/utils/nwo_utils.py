@@ -1880,38 +1880,11 @@ def exit_local_view(context):
                         with context.temp_override(**override):
                             bpy.ops.view3d.localview()
                             
-class NodeChild():
-    def __init__(self, ob):
-        self.ob: bpy.types.Object = ob
-        self.parent: bpy.types.Object = None
-        self.parent_bone: str = None
-        self.matrix: Matrix = None
-        # self.group: str = None
-        
-class ChildOf():
-    def __init__(self, ob: bpy.types.Object, con, pose_bone=None):
-        self.ob: bpy.types.Object = ob
-        self.pose_bone = pose_bone
-        self.name = con.name
-        self.target: bpy.types.Object = con.target
-        self.subtarget: str = con.subtarget
-        self.inverse_matrix: Matrix() = con.inverse_matrix
-        
-        self.use_location_x = con.use_location_x
-        self.use_location_y = con.use_location_y
-        self.use_location_z = con.use_location_z
-        
-        self.use_rotation_x = con.use_rotation_x
-        self.use_rotation_y = con.use_rotation_y
-        self.use_rotation_z = con.use_rotation_z
-        
-        self.use_scale_x = con.use_scale_x
-        self.use_scale_y = con.use_scale_y
-        self.use_scale_z = con.use_scale_z
-        
-        self.influence = con.influence
-        
-        self.target_is_bone = self.target.type == 'ARMATURE' and self.subtarget
+class BoneChild():
+    def __init__(self, ob: bpy.types.Object, parent: bpy.types.Object, parent_bone: str):
+        self.ob = ob
+        self.parent = parent
+        self.parent_bone = parent_bone
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_marker_axis=None, objects=None, actions=None):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
@@ -1948,7 +1921,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
     scale_matrix = Matrix.Scale(scale_factor, 4)
     transform_matrix = rotation_matrix @ scale_matrix
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
-    
+    bone_children = []
     for ob in objects:
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
@@ -1966,6 +1939,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         if not (ob.type == 'ARMATURE' or bone_parented):
             rot.rotate(rotation_matrix)
+        elif bone_parented:
+            bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
         
         # Lights need scaling to have correct display 
         if ob.type == 'LIGHT':
@@ -2119,7 +2094,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             edit_bone.use_connect = False
             
         for edit_bone in edit_bones:
+            old_tail_vec = edit_bone.tail.copy()
             edit_bone.transform(transform_matrix)
+            edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
+            ob_loc_transform_vector = old_tail_vec - edit_bone.tail
+            for ob in edit_bone_children:
+                ob.matrix_world = Matrix.Translation(ob_loc_transform_vector) @ ob.matrix_world
             
         for edit_bone in connected_bones:
             edit_bone.use_connect = True
