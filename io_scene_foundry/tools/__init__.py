@@ -3773,12 +3773,20 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
         description="The camera track tag to open",
         items=camera_track_items, 
     )
+    
+    def bsp_name_items(self, context):
+        items = []
+        bsps = [b.name for b in context.scene.nwo.regions_table]
+        for b in bsps:
+            items.append((b, b, ''))
+            
+        return items
 
-    bsp_name: StringProperty(
+    bsp_name: EnumProperty(
         options=set(),
         name="BSP",
         description="The BSP tag to open",
-        default="",
+        items=bsp_name_items,
     )
 
     open_scenario_structure_bsp: BoolProperty(
