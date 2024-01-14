@@ -39,6 +39,7 @@ from io_scene_foundry.utils.nwo_utils import (
     nwo_asset_type,
     relative_path,
     run_ek_cmd,
+    update_debug_menu,
     valid_nwo_asset,
 )
 
