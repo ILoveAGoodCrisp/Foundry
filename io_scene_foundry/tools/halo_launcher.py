@@ -270,9 +270,14 @@ def LaunchFoundation(settings, context):
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "frame_event_list")
                 )
+                
+        elif nwo_asset_type() == "camera_track_set":
+            if settings.camera_track_name:
+                launch_args.append(
+                    get_tag_if_exists(asset_path, settings.camera_track_name, "camera_track")
+                )
 
     # first, get and set the project so we can avoid the Foundation prompt
-    
     run_ek_cmd(launch_args, True)
     run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 

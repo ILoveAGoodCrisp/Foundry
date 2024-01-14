@@ -402,12 +402,17 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             items.append(("PREFAB", "Prefab", "", get_icon_id("prefab"), 7))
 
         return items
+    
+    def update_asset_type(self, context):
+        if self.asset_type == 'FP ANIMATION':
+            context.scene.nwo_halo_launcher.open_model_animation_graph = True
 
     asset_type: EnumProperty(
         name="Asset Type",
         options=set(),
-        description="Define the type of asset you are creating",
+        description="The type of asset you are creating",
         items=asset_type_items,
+        update=update_asset_type,
     )
 
     forward_direction: EnumProperty(
@@ -932,7 +937,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     export_in_progress: BoolProperty()
+        
+    def poll_camera_track_camera(self, object: bpy.types.Object):
+        return object.type == 'CAMERA'
     
-    camera_track_camera: PointerProperty(type=bpy.types.Object)
-    
-    camera_track_syncing: BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
+    camera_track_camera: PointerProperty(type=bpy.types.Object, poll=poll_camera_track_camera)

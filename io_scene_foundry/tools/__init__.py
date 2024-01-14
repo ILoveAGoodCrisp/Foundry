@@ -3510,6 +3510,9 @@ class NWO_HaloLauncherFoundationSettings(Panel):
             elif nwo_asset_type() == "FP ANIMATION":
                 col.prop(scene_nwo_halo_launcher, "open_model_animation_graph")
                 col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
+            elif nwo_asset_type() == "camera_track_set" and scene_nwo_halo_launcher.camera_track_name:
+                col.use_property_split = True
+                col.prop(scene_nwo_halo_launcher, "camera_track_name", text='Track')
 
 
 class NWO_HaloLauncher_Foundation(Operator):
@@ -3750,15 +3753,20 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
 
     open_decorator_set: BoolProperty(options=set(), name="Decorator Set", default=True)
     
-    # def get_camera_track_names(self):
-    #     pass
+    def camera_track_items(self, context):
+        items = []
+        actions = [a for a in bpy.data.actions if a.use_frame_range]
+        for a in actions:
+            items.append((a.name, a.name, ''))
+            
+        return items
     
-    # camera_track_names: EnumProperty(
-    #     options=set(),
-    #     name="Camera Track",
-    #     description="The camera track to open",
-    #     items=get_camera_track_names, 
-    # )
+    camera_track_name: EnumProperty(
+        options=set(),
+        name="Camera Track",
+        description="The camera track tag to open",
+        items=camera_track_items, 
+    )
 
     bsp_name: StringProperty(
         options=set(),

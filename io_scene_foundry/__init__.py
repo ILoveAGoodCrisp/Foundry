@@ -113,7 +113,6 @@ else:
         context = bpy.context
         context.scene.nwo.shader_sync_active = False
         context.scene.nwo.export_in_progress = False
-        context.scene.nwo.camera_track_syncing = False
         # Add projects
         projects = setup_projects_list()
         blend_path = bpy.data.filepath
