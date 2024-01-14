@@ -2097,11 +2097,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             
         for edit_bone in edit_bones:
             old_tail_vec = edit_bone.tail.copy()
-            edit_bone.transform(transform_matrix)
+            edit_bone.transform(scale_matrix)
             edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
             ob_loc_transform_vector = old_tail_vec - edit_bone.tail
             for ob in edit_bone_children:
                 ob.matrix_world = Matrix.Translation(ob_loc_transform_vector) @ ob.matrix_world
+                
+            edit_bone.transform(rotation_matrix)
             
         for edit_bone in connected_bones:
             edit_bone.use_connect = True
