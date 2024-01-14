@@ -401,8 +401,7 @@ class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
         prefix_setting = get_prefs().apply_prefix
         mesh_type, material = self.mesh_and_material(context)
         ob = context.object
-        nwo = ob.nwo
-        nwo.mesh_type_ui = mesh_type
+        ob.data.nwo.mesh_type_ui = mesh_type
 
         apply_prefix(ob, self.m_type, prefix_setting)
 
