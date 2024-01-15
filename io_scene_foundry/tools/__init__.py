@@ -594,7 +594,7 @@ class NWO_FoundryPanelProps(Panel):
             col.prop(nwo, 'support_armature_c', icon='OUTLINER_OB_ARMATURE')
             if nwo.support_armature_c:
                 col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
-        
+            
         col.separator()
         # Bone Controls
         box_controls = box.box()
@@ -640,6 +640,35 @@ class NWO_FoundryPanelProps(Panel):
         col.prop_search(nwo, "node_usage_damage_root_right_arm", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_damage_root_right_leg", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_damage_root_right_foot", nwo.main_armature.data, "bones")
+        
+        col.separator()
+        # IK Chains
+        box_ik_chains = box.box()
+        if not nwo.ik_chains:
+            box_ik_chains.operator("nwo.add_ik_chain", text="Add Game IK Chain", icon="CON_SPLINEIK")
+            return
+        box_ik_chains.label(text='Game IK Chains')
+        row = box_ik_chains.row()
+        row.template_list(
+            "NWO_UL_IKChain",
+            "",
+            nwo,
+            "ik_chains",
+            nwo,
+            "ik_chains_active_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.add_ik_chain", text="", icon="ADD")
+        col.operator("nwo.remove_ik_chain", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.move_ik_chain", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.move_ik_chain", icon="TRIA_DOWN", text="").direction = 'down'
+        if nwo.ik_chains and nwo.ik_chains_active_index > -1:
+            chain = nwo.ik_chains[nwo.ik_chains_active_index]
+            col = box_ik_chains.column()
+            col.use_property_split = True
+            col.prop_search(chain, 'start_node', nwo.main_armature.data, 'bones', text='Start Bone')
+            col.prop_search(chain, 'effector_node', nwo.main_armature.data, 'bones', text='Effector Bone')
 
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')

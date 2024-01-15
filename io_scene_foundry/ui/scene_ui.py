@@ -502,5 +502,73 @@ class NWO_List_Remove_Shared_Asset(NWO_Op):
         index = scene_nwo.shared_assets_index
         scene_nwo.shared_assets.remove(index)
         return {"FINISHED"}
+    
+class NWO_UL_IKChain(bpy.types.UIList):
+    # Called for each drawn item.
+    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
+        layout.alignment = 'LEFT'
+        layout.prop(item, 'name', text='', emboss=False)
+        if item.start_node and item.effector_node:
+            layout.label(text=f'{item.start_node} >>> {item.effector_node}', icon='CON_SPLINEIK')
+        else:
+            layout.label(text='IK Chain Bones Not Set', icon='ERROR')
+        # row.prop_search(item, 'start_node', data.main_armature.data, 'bones', text='')
+        # row.prop_search(item, 'effector_node', data.main_armature.data, 'bones', text='')
+        
+class NWO_AddIKChain(bpy.types.Operator):
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_idname = 'nwo.add_ik_chain'
+    bl_label = "Add"
+    bl_description = "Add a new Game IK Chain"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.main_armature
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        chain = nwo.ik_chains.add()
+        nwo.ik_chains_active_index = len(nwo.ik_chains) - 1
+        chain.name = f"ik_chain_{len(nwo.ik_chains)}"
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_RemoveIKChain(bpy.types.Operator):
+    bl_idname = "nwo.remove_ik_chain"
+    bl_label = "Remove"
+    bl_description = "Remove an IK Chain from the list."
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.ik_chains and context.scene.nwo.ik_chains_active_index > -1
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        index = nwo.ik_chains_active_index
+        nwo.ik_chains.remove(index)
+        if nwo.ik_chains_active_index > len(nwo.ik_chains) - 1:
+            nwo.ik_chains_active_index -= 1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+    
+class NWO_MoveIKChain(bpy.types.Operator):
+    bl_idname = "nwo.move_ik_chain"
+    bl_label = "Move"
+    bl_description = "Moves the IK Chain up/down the list"
+    bl_options = {"UNDO"}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        chains = nwo.ik_chains
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = nwo.ik_chains_active_index
+        to_index = (current_index + delta) % len(chains)
+        chains.move(current_index, to_index)
+        nwo.ik_chains_active_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
 
 

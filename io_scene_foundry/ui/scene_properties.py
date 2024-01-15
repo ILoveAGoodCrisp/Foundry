@@ -121,6 +121,11 @@ class NWO_BSP_ListItems(PropertyGroup):
 
 class NWO_GlobalMaterial_ListItems(PropertyGroup):
     name: StringProperty(name="Global Material Table")
+    
+class NWO_IKChain(PropertyGroup):
+    name: StringProperty(name="Name")
+    start_node: StringProperty(name="Start Bone")
+    effector_node: StringProperty(name="Effector Bone")
 
 def prefab_warning(self, context):
     self.layout.label(text=f"Halo Reach does not support prefab assets")
@@ -942,3 +947,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         return object.type == 'CAMERA'
     
     camera_track_camera: PointerProperty(type=bpy.types.Object, poll=poll_camera_track_camera)
+    
+    ik_chains: CollectionProperty(
+        type=NWO_IKChain,
+    )
+    
+    ik_chains_active_index: IntProperty()

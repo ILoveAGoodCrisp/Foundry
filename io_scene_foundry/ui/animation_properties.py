@@ -124,6 +124,7 @@ class NWO_List_Remove_Animation_Event(Operator):
         action_nwo.animation_events.remove(index)
         if action_nwo.animation_events_index > len(action_nwo.animation_events) - 1:
             action_nwo.animation_events_index += -1
+        context.area.tag_redraw()
         return {"FINISHED"}
 
 
