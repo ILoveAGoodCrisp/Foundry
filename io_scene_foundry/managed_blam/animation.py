@@ -34,9 +34,25 @@ class AnimationTag(Tag):
         self.block_skeleton_nodes = self.tag.SelectField("definitions[0]/Block:skeleton nodes")
         self.block_node_usages = self.tag.SelectField("definitions[0]/Block:node usage")
         self.block_modes = self.tag.SelectField("Struct:content[0]/Block:modes")
+        self.block_ik_chains = self.tag.SelectField('Struct:definitions[0]/Block:ik chains')
         
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').SetStringData('6')
+        
+    def _node_index_list(self, bones):
+        # Have to set up the skeleton nodes block. If we end up with any node usages that point to non-existant nodes, the importer will crash
+        node_index_list = [b for b in bones.keys()][1:]
+        if self._needs_skeleton_update(node_index_list):
+            self.block_skeleton_nodes.RemoveAllElements()
+            for n in node_index_list:
+                new_node = self.block_skeleton_nodes.AddElement()
+                new_node.SelectField('name').SetStringData(n)
+                
+        return node_index_list
+                
+    def _needs_skeleton_update(self, node_index_list):
+        graph_nodes = [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
+        return node_index_list != graph_nodes
     
     def set_node_usages(self, bones):
         def _node_usage_dict(nwo):
@@ -94,23 +110,9 @@ class AnimationTag(Tag):
                     node_usage_dict[nwo.node_usage_weapon_ik] = "weapon ik"
 
             return node_usage_dict
-        def _node_index_list(block_skeleton_nodes, bones):
-            # Have to set up the skeleton nodes block. If we end up with any node usages that point to non-existant nodes, the importer will crash
-            node_index_list = [b for b in bones.keys()][1:]
-            if _needs_skeleton_update(block_skeleton_nodes, node_index_list):
-                self.block_skeleton_nodes.RemoveAllElements()
-                for n in node_index_list:
-                    new_node = block_skeleton_nodes.AddElement()
-                    new_node.SelectField('name').SetStringData(n)
-                    
-            return node_index_list
-                    
-        def _needs_skeleton_update(block_skeleton_nodes, node_index_list):
-            graph_nodes = [e.SelectField('name').GetStringData() for e in block_skeleton_nodes.Elements]
-            return node_index_list != graph_nodes
         
         # Establish a list of node indexes. These are needed when we write the node usage data
-        node_index_list = _node_index_list(self.block_skeleton_nodes, bones)
+        node_index_list = self._node_index_list(self.block_skeleton_nodes, bones)
         node_usage_dict = _node_usage_dict(self.context.scene.nwo)
         self.block_node_usages.RemoveAllElements()
         node_targets = [n for n in node_index_list if n in node_usage_dict.keys()]
@@ -143,3 +145,15 @@ class AnimationTag(Tag):
         for e in self.block_modes.Elements:
             print(e.SelectField('label').GetStringData())
         print('\n\n\n')
+        
+    def write_ik_chains(self, ik_chains: list, bones: list):
+        skeleton_nodes = self._node_index_list(bones)
+        valid_ik_chains = [chain for chain in ik_chains if chain.start_node in skeleton_nodes and chain.effector_node in skeleton_nodes]
+        if self.block_ik_chains.Elements.Count:
+            self.block_ik_chains.RemoveAllElements()
+        
+        for chain in valid_ik_chains:
+            element = self.block_ik_chains.AddElement()
+            element.SelectField('name').SetStringData(chain.name)
+            element.SelectField('start node').Value = skeleton_nodes.index(chain.start_node)
+            element.SelectField('effector node').Value = skeleton_nodes.index(chain.effector_node)

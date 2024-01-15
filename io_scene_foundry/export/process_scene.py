@@ -827,7 +827,7 @@ class ProcessScene:
 
     def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo):
         node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
-        mb_justified = (node_usage_set)
+        mb_justified = node_usage_set or scene_nwo.ik_chains
         if not mb_justified:
             return
         print("\nTags Pre-Process")
@@ -839,6 +839,10 @@ class ProcessScene:
             with AnimationTag(hide_prints=False) as animation:
                 animation.set_node_usages(nwo_scene.skeleton_bones)
             print("--- Updated Animation Node Usages")
+        if scene_nwo.ik_chains:
+            with AnimationTag(hide_prints=False) as animation:
+                animation.write_ik_chains(scene_nwo.ik_chains, nwo_scene.skeleton_bones)
+            print("--- Updated Animation IK Chains")
 
     def managed_blam_post_import_tasks(self, context, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, set_better_lm_res):
         nwo = context.scene.nwo

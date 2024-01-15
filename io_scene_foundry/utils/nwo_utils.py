@@ -2062,7 +2062,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         light.nwo.light_near_attenuation_end *= scale_factor
         light.nwo.light_fade_start_distance *= scale_factor
         light.nwo.light_fade_end_distance *= scale_factor
-            
+    
+    arm_datas = set()
     for arm in armatures:
         if arm.library or arm.data.library:
             print_warning(f'Cannot scale {arm.name}')
@@ -2082,34 +2083,36 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
             should_be_unlinked = True
             
         set_active_object(arm)
-        
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        
-        uses_edit_mirror = bool(arm.data.use_mirror_x)
-        if uses_edit_mirror:
-            arm.data.use_mirror_x = False
-        
-        edit_bones = data.edit_bones
-        connected_bones = [b for b in edit_bones if b.use_connect] 
-        for edit_bone in connected_bones:
-            edit_bone.use_connect = False
+        if data not in arm_datas:
+            arm_datas.add(data)
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
             
-        for edit_bone in edit_bones:
-            old_tail_vec = edit_bone.tail.copy()
-            edit_bone.transform(scale_matrix)
-            edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
-            ob_loc_transform_vector = old_tail_vec - edit_bone.tail
-            for ob in edit_bone_children:
-                ob.matrix_world = Matrix.Translation(ob_loc_transform_vector) @ ob.matrix_world
+            uses_edit_mirror = bool(arm.data.use_mirror_x)
+            if uses_edit_mirror:
+                arm.data.use_mirror_x = False
+            
+            edit_bones = data.edit_bones
+            connected_bones = [b for b in edit_bones if b.use_connect]
+            for edit_bone in connected_bones:
+                edit_bone.use_connect = False
                 
-            edit_bone.transform(rotation_matrix)
-            
-        for edit_bone in connected_bones:
-            edit_bone.use_connect = True
-    
-        if uses_edit_mirror:
-            arm.data.use_mirror_x = True
+            for edit_bone in edit_bones:
+                print(edit_bone, rotation, rotation_matrix)
+                old_tail_vec = edit_bone.tail.copy()
+                edit_bone.transform(scale_matrix)
+                edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
+                ob_loc_transform_vector = old_tail_vec - edit_bone.tail
+                for ob in edit_bone_children:
+                    ob.matrix_world = Matrix.Translation(ob_loc_transform_vector) @ ob.matrix_world
+                    
+                edit_bone.transform(rotation_matrix)
+                
+            for edit_bone in connected_bones:
+                edit_bone.use_connect = True
         
+            if uses_edit_mirror:
+                arm.data.use_mirror_x = True
+            
         bpy.ops.object.mode_set(mode='POSE', toggle=False)
         
         uses_pose_mirror = bool(arm.pose.use_mirror_x)
