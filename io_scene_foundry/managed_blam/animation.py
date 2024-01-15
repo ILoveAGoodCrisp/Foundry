@@ -112,7 +112,7 @@ class AnimationTag(Tag):
             return node_usage_dict
         
         # Establish a list of node indexes. These are needed when we write the node usage data
-        node_index_list = self._node_index_list(self.block_skeleton_nodes, bones)
+        node_index_list = self._node_index_list(bones)
         node_usage_dict = _node_usage_dict(self.context.scene.nwo)
         self.block_node_usages.RemoveAllElements()
         node_targets = [n for n in node_index_list if n in node_usage_dict.keys()]

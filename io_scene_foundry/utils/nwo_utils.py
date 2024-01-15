@@ -2097,7 +2097,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                 edit_bone.use_connect = False
                 
             for edit_bone in edit_bones:
-                print(edit_bone, rotation, rotation_matrix)
                 old_tail_vec = edit_bone.tail.copy()
                 edit_bone.transform(scale_matrix)
                 edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
