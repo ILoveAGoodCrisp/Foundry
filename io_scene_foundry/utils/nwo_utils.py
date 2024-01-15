@@ -1733,12 +1733,11 @@ def find_node_in_chain(node_type: str, node: bpy.types.Node, group_output_input=
         for input in node.inputs:
             if input.name.lower() == last_input_name:
                 group_test_input = input
-        if group_test_input:
-            for link in group_test_input.links:
-                next_node = link.from_node
-                valid_node, group_node = find_node_in_chain(node_type, next_node, link.from_socket.name, None, group_test_input.name, first_target, group_is_tiling_node)
-                if valid_node:
-                    return valid_node, group_node
+                for link in group_test_input.links:
+                    next_node = link.from_node
+                    valid_node, group_node = find_node_in_chain(node_type, next_node, link.from_socket.name, None, group_test_input.name, first_target, group_is_tiling_node)
+                    if valid_node:
+                        return valid_node, group_node
             
     for input in node.inputs:
         for link in input.links:
