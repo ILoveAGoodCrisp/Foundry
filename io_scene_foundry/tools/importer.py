@@ -164,7 +164,7 @@ class NWO_Import(bpy.types.Operator):
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
                     if not toolset_addon_enabled:
                         addon_utils.enable('io_scene_halo')
-                    jms_files = importer.sorted_filepaths["jms"]
+                    # jms_files = importer.sorted_filepaths["jms"]
                     jma_files = importer.sorted_filepaths["jma"]
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
@@ -323,7 +323,6 @@ class NWOImporter():
                     self.filepaths.append(os.path.join(root, file))
                     
         valid_exts = filetype_dict.keys()
-        print(valid_exts)
         for path in self.filepaths:
             if 'amf' in valid_exts and path.lower().endswith('.amf'):
                 self.extensions.add('amf')
