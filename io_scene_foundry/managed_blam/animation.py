@@ -157,3 +157,5 @@ class AnimationTag(Tag):
             element.SelectField('name').SetStringData(chain.name)
             element.SelectField('start node').Value = skeleton_nodes.index(chain.start_node)
             element.SelectField('effector node').Value = skeleton_nodes.index(chain.effector_node)
+            
+        self.tag_has_changes = True
