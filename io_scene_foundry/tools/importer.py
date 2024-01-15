@@ -565,7 +565,11 @@ class NWOImporter():
         with MutePrints():
             bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
         if bpy.data.actions:
-            anim = [a for a in bpy.data.actions if a not in existing_animations][0]
+            new_animations = [a for a in bpy.data.actions if a not in existing_animations]
+            if not new_animations:
+                return print_warning(f"Failed to import animation: {path}")
+                
+            anim = new_animations[0]
             self.animations.append(anim)
             filename = os.path.basename(path)
             anim_name, extension = filename.split('.')
