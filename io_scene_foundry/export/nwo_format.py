@@ -754,7 +754,6 @@ class NWOMarker(NWOObject):
     def marker_model_group(self):
         return dot_partition(self.name).strip("#_?$-")
 
-
 # MESH
 #####################
 class NWOMesh(NWOObject):

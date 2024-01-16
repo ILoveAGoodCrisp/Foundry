@@ -37,6 +37,7 @@ import random
 import bpy
 
 from io_scene_foundry.icons import get_icon_id
+from io_scene_foundry.utils.nwo_utils import is_marker
 
 
 class NWO_UL_AnimProps_Events(UIList):
@@ -151,51 +152,43 @@ class NWO_Animation_ListItems(PropertyGroup):
         name="Event Name",
         default="new_event",
     )
-
+    
     event_type: EnumProperty(
         name="Type",
-        default="_connected_geometry_animation_event_type_frame",
         options=set(),
         items=[
-            ("_connected_geometry_animation_event_type_custom", "Custom", ""),
-            ("_connected_geometry_animation_event_type_loop", "Loop", ""),
-            ("_connected_geometry_animation_event_type_sound", "Sound", ""),
-            ("_connected_geometry_animation_event_type_effect", "Effect", ""),
-            (
-                "_connected_geometry_animation_event_type_ik_active",
-                "IK Active",
-                "",
-            ),
-            (
-                "_connected_geometry_animation_event_type_ik_passive",
-                "IK Passive",
-                "",
-            ),
-            ("_connected_geometry_animation_event_type_text", "Text", ""),
-            (
-                "_connected_geometry_animation_event_type_wrinkle_map",
-                "Wrinkle Map",
-                "",
-            ),
-            (
-                "_connected_geometry_animation_event_type_footstep",
-                "Footstep",
-                "",
-            ),
-            (
-                "_connected_geometry_animation_event_type_cinematic_effect",
-                "Cinematic Effect",
-                "",
-            ),
-            (
-                "_connected_geometry_animation_event_type_object_function",
-                "Object Function",
-                "",
-            ),
             ("_connected_geometry_animation_event_type_frame", "Frame", ""),
+            ("_connected_geometry_animation_event_type_object_function", "Object Function", ""),
             ("_connected_geometry_animation_event_type_import", "Import", ""),
-        ],
+            ("_connected_geometry_animation_event_type_wrinkle_map", "Wrinkle Map", ""),
+            ("_connected_geometry_animation_event_type_ik_active", "IK Active", ""),
+            ("_connected_geometry_animation_event_type_ik_passive", "IK Passive", ""),
+        ]
     )
+
+    # event_type: EnumProperty(
+    #     name="Type",
+    #     default="_connected_geometry_animation_event_type_frame",
+    #     options=set(),
+    #     items=[
+            # ("_connected_geometry_animation_event_type_custom", "Custom", ""),
+            # ("_connected_geometry_animation_event_type_loop", "Loop", ""),
+            # ("_connected_geometry_animation_event_type_sound", "Sound", ""),
+            # ("_connected_geometry_animation_event_type_effect", "Effect", ""),
+            # ("_connected_geometry_animation_event_type_text", "Text", ""),
+            # (
+            #     "_connected_geometry_animation_event_type_footstep",
+            #     "Footstep",
+            #     "",
+            # ),
+            # (
+            #     "_connected_geometry_animation_event_type_cinematic_effect",
+            #     "Cinematic Effect",
+            #     "",
+            # ),
+            
+    #     ],
+    # )
     #     items=[
     #         ("frame", "Frame", ""),
     #         ("trigger", "Frame", ""),
@@ -253,17 +246,24 @@ class NWO_Animation_ListItems(PropertyGroup):
         options=set(),
     )
 
-    wrinkle_map_face_region: StringProperty(
+    wrinkle_map_face_region: EnumProperty(
         name="Wrinkle Map Face Region",
-        default="",
         options=set(),
+        items=[
+            ('Upper Brow', 'Upper Brow', ''),
+            ('Center Brow', 'Center Brow', ''),
+            ('Left Squint', 'Left Squint', ''),
+            ('Right Squint', 'Right Squint', ''),
+            ('Right Smile', 'Right Smile', ''),
+            ('Left Smile', 'Left Smile', ''),
+            ('Right Sneer', 'Right Sneer', ''),
+            ('Left Sneer', 'Left Sneer', ''),
+        ]
     )
-    # TODO
-    # VALID WRINKLE MAP REGIONS = "Center Brow", "Upper Brow", "Right Squint", "Left Squint", "Right Smile", "Left Smile", "Right Sneer", "Left Sneer" 
 
-    wrinkle_map_effect: IntProperty(
+    wrinkle_map_effect: FloatProperty(
         name="Wrinkle Map Effect",
-        default=0,
+        default=1,
         options=set(),
     )
 
@@ -278,11 +278,19 @@ class NWO_Animation_ListItems(PropertyGroup):
         default=0,
         options=set(),
     )
+    
+    def ik_chain_items(self, context):
+        items = []
+        valid_chains = [chain for chain in context.scene.nwo.ik_chains if chain.start_node and chain.effector_node]
+        for chain in valid_chains:
+            items.append((chain.name, chain.name, ''))
+            
+        return items
 
-    ik_chain: StringProperty(
+    ik_chain: EnumProperty(
         name="IK Chain",
-        default="",
         options=set(),
+        items=ik_chain_items,
     )
 
     ik_active_tag: StringProperty(
@@ -296,21 +304,29 @@ class NWO_Animation_ListItems(PropertyGroup):
         default="",
         options=set(),
     )
-
-    ik_target_marker: StringProperty(
-        name="IK Target Marker",
-        default="",
+    
+    def poll_ik_target_marker(self, object):
+        return is_marker(object) and object.nwo.marker_type_ui == '_connected_geometry_marker_type_model'
+    
+    ik_target_marker: bpy.props.PointerProperty(
+        name="Target Marker",
+        type=bpy.types.Object,
+        poll=poll_ik_target_marker,
         options=set(),
     )
 
-    ik_target_usage: StringProperty(
-        name="IK Target Usage",
-        default="",
+    ik_target_usage: EnumProperty(
+        name="Target Usage",
         options=set(),
+        items=[
+            ('world', 'World', ''),
+            ('self', 'Self', ''),
+            ('parent', 'Parent', ''),
+            ('primary_weapon', 'Primary Weapon', ''),
+            ('secondary_weapon', 'Secondary Weapon', ''),
+            ('assassination', 'Assassination', ''),
+        ]
     )
-
-    # TODO
-    # IK TARGET USAGE = "self", "parent", "primary_weapon", "secondary_weapon", "assassination"
 
     ik_proxy_target_id: IntProperty(
         name="IK Proxy Target ID",
@@ -348,15 +364,20 @@ class NWO_Animation_ListItems(PropertyGroup):
         options=set(),
     )
 
-    object_function_name: StringProperty(
+    object_function_name: EnumProperty(
         name="Object Function Name",
-        default="",
         options=set(),
+        items=[
+            ('animation_object_function_a', 'A', ''),
+            ('animation_object_function_b', 'B', ''),
+            ('animation_object_function_c', 'C', ''),
+            ('animation_object_function_d', 'D', ''),
+        ]
     )
 
-    object_function_effect: IntProperty(
+    object_function_effect: FloatProperty(
         name="Object Function Effect",
-        default=0,
+        default=1,
         options=set(),
     )
 

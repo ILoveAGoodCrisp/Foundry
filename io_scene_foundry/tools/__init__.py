@@ -2415,66 +2415,49 @@ class NWO_FoundryPanelProps(Panel):
                     )
                     col = flow.column()
                     col.use_property_split = True
-                    row = col.row()
-                    row.prop(item, "multi_frame", expand=True)
-                    col.prop(item, "frame_frame")
-                    if item.multi_frame == "range":
-                        col.prop(item, "frame_range")
-                    col.prop(item, "frame_name")
                     col.prop(item, "event_type")
-                    if (
+                    if item.event_type == '_connected_geometry_animation_event_type_frame':
+                        row = col.row()
+                        row.prop(item, "multi_frame", expand=True)
+                        col.prop(item, "frame_frame")
+                        if item.multi_frame == "range":
+                            col.prop(item, "frame_range")
+                        col.prop(item, "frame_name")
+                    elif (
                         item.event_type
                         == "_connected_geometry_animation_event_type_wrinkle_map"
                     ):
+                        col.prop(item, "frame_frame")
+                        col.prop(item, "frame_range")
                         col.prop(item, "wrinkle_map_face_region")
                         col.prop(item, "wrinkle_map_effect")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_footstep"
-                    ):
-                        col.prop(item, "footstep_type")
-                        col.prop(item, "footstep_effect")
-                    elif item.event_type in (
-                        "_connected_geometry_animation_event_type_ik_active",
-                        "_connected_geometry_animation_event_type_ik_passive",
-                    ):
+                    elif item.event_type.startswith('_connected_geometry_animation_event_type_ik'):
+                        valid_ik_chains = [chain for chain in scene_nwo.ik_chains if chain.start_node and chain.effector_node]
+                        if not valid_ik_chains:
+                            col.label(text='Add IK Chains in the Asset Editor tab', icon='ERROR')
+                            return
                         col.prop(item, "ik_chain")
-                        col.prop(item, "ik_active_tag")
-                        col.prop(item, "ik_target_tag")
-                        col.prop(item, "ik_target_marker")
+                        # col.prop(item, "ik_active_tag")
+                        # col.prop(item, "ik_target_tag")
+                        col.prop(item, "ik_target_marker", icon_value=get_icon_id('marker'))
                         col.prop(item, "ik_target_usage")
-                        col.prop(item, "ik_proxy_target_id")
-                        col.prop(item, "ik_pole_vector_id")
-                        col.prop(item, "ik_effector_id")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_cinematic_effect"
-                    ):
-                        col.prop(item, "cinematic_effect_tag")
-                        col.prop(item, "cinematic_effect_effect")
-                        col.prop(item, "cinematic_effect_marker")
+                        # col.prop(item, "ik_proxy_target_id")
+                        # col.prop(item, "ik_pole_vector_id")
+                        # col.prop(item, "ik_effector_id")
                     elif (
                         item.event_type
                         == "_connected_geometry_animation_event_type_object_function"
                     ):
+                        col.prop(item, "frame_frame")
+                        col.prop(item, "frame_range")
                         col.prop(item, "object_function_name")
                         col.prop(item, "object_function_effect")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_frame"
-                    ):
-                        col.prop(item, "frame_trigger")
                     elif (
                         item.event_type
                         == "_connected_geometry_animation_event_type_import"
                     ):
                         col.prop(item, "import_frame")
                         col.prop(item, "import_name")
-                    elif (
-                        item.event_type
-                        == "_connected_geometry_animation_event_type_text"
-                    ):
-                        col.prop(item, "text")
             col = box.column()
 
     def draw_tools(self):
@@ -4054,7 +4037,7 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
 
     insertion_point_index: IntProperty(
         options=set(),
-        name="Insertion Point Index",
+        name="Insertion Point",
         default=-1,
         min=-1,
         soft_max=4,
@@ -4062,13 +4045,13 @@ class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
 
     initial_zone_set: StringProperty(
         options=set(),
-        name="Initial Zone Set",
+        name="Zone Set",
         description="Opens the scenario to the zone set specified. This should match a zone set defined in the .scenario tag",
     )
 
     initial_bsp: StringProperty(
         options=set(),
-        name="Initial BSP",
+        name="BSP",
         description="Opens the scenario to the bsp specified. This should match a bsp name in your blender scene",
     )
 
