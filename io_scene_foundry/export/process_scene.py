@@ -45,7 +45,6 @@ from ..utils.nwo_utils import (
     data_relative,
     disable_prints,
     enable_prints,
-    get_camera_track_camera,
     get_data_path,
     get_tags_path,
     is_corinth,
@@ -54,7 +53,6 @@ from ..utils.nwo_utils import (
     print_warning,
     reset_to_basis,
     run_tool,
-    transform_scene,
     unmute_armature_mods,
     update_job,
     update_job_count,
@@ -991,6 +989,7 @@ class ProcessScene:
                 proxy_target_nwo.animation_control_proxy_target_usage = nwo.ik_target_usage
                 proxy_target_nwo.animation_control_proxy_target_marker = nwo.ik_target_marker
                 scene_coll.link(proxy_target)
+                proxy_target.matrix_local = bpy.data.objects.get(nwo.ik_target_marker).matrix_local
                 animation_events.append(proxy_target)
                 
                 effector = bpy.data.objects.new('ik_effector_export_node_'+ nwo.ik_chain + '_' + nwo.event_type[44:], None)
@@ -1006,8 +1005,9 @@ class ProcessScene:
                 effector_nwo.animation_control_id = effector_id
                 effector_nwo.animation_control_type = '_connected_geometry_animation_control_type_ik_effector'
                 effector_nwo.animation_control_ik_chain = nwo.ik_chain
-                effector_nwo.animation_control_ik_effect = '1'
+                effector_nwo.animation_control_ik_effect = jstr(event.ik_influence)
                 scene_coll.link(effector)
+                effector.matrix_local = proxy_target.matrix_local
                 animation_events.append(effector)
                 
                 rnd = random.Random()

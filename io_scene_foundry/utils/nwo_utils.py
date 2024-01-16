@@ -2391,7 +2391,8 @@ class DebugMenuCommand:
 def update_debug_menu(asset_dir, asset_name):
     asset_dir = relative_path(asset_dir)
     menu_commands: list[DebugMenuCommand] = []
-    
+    if not os.path.exists(get_tags_path() + asset_dir):
+        return
     for file in os.listdir(get_tags_path() + asset_dir):
         if file.startswith(asset_name) and file.endswith(object_exts):
             menu_commands.append(DebugMenuCommand(asset_dir, file))

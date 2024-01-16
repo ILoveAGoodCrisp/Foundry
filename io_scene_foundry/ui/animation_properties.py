@@ -328,6 +328,14 @@ class NWO_Animation_ListItems(PropertyGroup):
             ('assassination', 'Assassination', ''),
         ]
     )
+    
+    ik_influence: FloatProperty(
+        name="Influence",
+        options=set(),
+        default=1,
+        min=0,
+        max=1,
+    )
 
     ik_proxy_target_id: IntProperty(
         name="IK Proxy Target ID",
