@@ -942,8 +942,6 @@ class ProcessScene:
             # Set this node to be an animation event
             nwo.object_type = "_connected_geometry_object_type_animation_event"
             # Set up the event node with the action start and end frame and id
-            nwo.frame_start = jstr(frame_start)
-            nwo.frame_end = jstr(frame_end)
             # add the user defined properties from the action
             nwo.event_id = abs(event.event_id)
             nwo.event_type = event.event_type
@@ -954,26 +952,27 @@ class ProcessScene:
             nwo.ik_target_usage = event.ik_target_usage
             nwo.object_function_name = event.object_function_name
             nwo.object_function_effect = jstr(event.object_function_effect)
-            nwo.frame_frame = event.frame_frame
-            nwo.frame_name = event.frame_name
             nwo.import_frame = str(event.import_frame)
             nwo.import_name = event.import_name
             # add it to the list
             scene_coll.link(event_ob)
             animation_events.append(event_ob)
             # duplicate for frame range
-            if nwo.event_type == '_connected_geometry_animation_event_type_frame' and event.multi_frame == "range" and event.frame_range > 1:
-                for _ in range(
-                    min(event.frame_range - 1, frame_end - event.frame_frame)
-                ):
-                    event_ob_copy = event_ob.copy()
-                    copy_nwo = event_ob_copy.nwo
-                    copy_nwo.event_id += 1
-                    copy_nwo.frame_frame += 1
-                    event_ob_copy.name = 'event_export_node_frame_' + str(copy_nwo.event_id)
-                    scene_coll.link(event_ob_copy)
-                    animation_events.append(event_ob_copy)
-                    event_ob = event_ob_copy
+            if nwo.event_type == '_connected_geometry_animation_event_type_frame':
+                nwo.frame_frame = event.frame_frame
+                nwo.frame_name = event.frame_name
+                if event.multi_frame == "range" and event.frame_range > 1:
+                    for _ in range(
+                        min(event.frame_range - 1, frame_end - event.frame_frame)
+                    ):
+                        event_ob_copy = event_ob.copy()
+                        copy_nwo = event_ob_copy.nwo
+                        copy_nwo.event_id += 1
+                        copy_nwo.frame_frame += 1
+                        event_ob_copy.name = 'event_export_node_frame_' + str(copy_nwo.event_id)
+                        scene_coll.link(event_ob_copy)
+                        animation_events.append(event_ob_copy)
+                        event_ob = event_ob_copy
                     
             elif nwo.event_type.startswith('_connected_geometry_animation_event_type_ik'):
                 # Create animation controls
@@ -1014,6 +1013,10 @@ class ProcessScene:
                 rnd = random.Random()
                 rnd.seed(event_ob.name + '117')
                 nwo.ik_pole_vector_id = str(rnd.randint(0, 2147483647))
+                
+            else:
+                nwo.frame_start = str(event.frame_frame)
+                nwo.frame_end = str(event.frame_frame + event.frame_range)
                 
         return animation_events
 

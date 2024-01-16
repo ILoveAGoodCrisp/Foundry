@@ -33,7 +33,7 @@ from io_scene_foundry.utils.nwo_utils import get_foundry_storage_scene, is_corin
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'
     bl_label = 'Convert to Marker'
-    bl_description = 'Converts selected objects to a marker'
+    bl_description = 'Converts selected objects to markers'
     bl_options = {'REGISTER', 'UNDO'}
     
     @classmethod

@@ -158,8 +158,9 @@ class NWO_Animation_ListItems(PropertyGroup):
         options=set(),
         items=[
             ("_connected_geometry_animation_event_type_frame", "Frame", ""),
-            ("_connected_geometry_animation_event_type_object_function", "Object Function", ""),
-            ("_connected_geometry_animation_event_type_import", "Import", ""),
+            # NOTE temp commenting these out until I can figure out how to implement them correctly
+            # ("_connected_geometry_animation_event_type_object_function", "Object Function", ""),
+            # ("_connected_geometry_animation_event_type_import", "Import", ""),
             ("_connected_geometry_animation_event_type_wrinkle_map", "Wrinkle Map", ""),
             ("_connected_geometry_animation_event_type_ik_active", "IK Active", ""),
             ("_connected_geometry_animation_event_type_ik_passive", "IK Passive", ""),
@@ -416,10 +417,10 @@ class NWO_Animation_ListItems(PropertyGroup):
             ("match b", "Match B", ""),
             ("match c", "Match C", ""),
             ("match d", "Match D", ""),
-            ("jetpack closed", "Jetpack Closed", ""),
-            ("jetpack open", "Jetpack Open", ""),
-            ("sound event", "Sound Event", ""),
-            ("effect event", "Effect Event", ""),
+            # ("jetpack closed", "Jetpack Closed", ""),
+            # ("jetpack open", "Jetpack Open", ""),
+            # ("sound event", "Sound Event", ""),
+            # ("effect event", "Effect Event", ""),
         ],
     )
 

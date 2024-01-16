@@ -132,11 +132,15 @@ class NWOAnimationEvent(NWOObject):
     def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
         super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
         self.bungie_animation_event_type = self.halo.event_type
-        self.bungie_animation_event_start = self.halo.frame_start
-        self.bungie_animation_event_end = self.halo.frame_end
         self.bungie_animation_event_id = str(self.halo.event_id)
-        self.bungie_animation_event_frame_frame = str(self.halo.frame_frame)
-        self.bungie_animation_event_frame_name = self.halo.frame_name
+        if self.halo.frame_start:
+            self.bungie_animation_event_start = self.halo.frame_start
+        if self.halo.frame_end:
+            self.bungie_animation_event_end = self.halo.frame_end
+        if self.halo.frame_frame:
+            self.bungie_animation_event_frame_frame = str(self.halo.frame_frame)
+        if self.halo.frame_name:
+            self.bungie_animation_event_frame_name = self.halo.frame_name
         if (
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_wrinkle_map"
