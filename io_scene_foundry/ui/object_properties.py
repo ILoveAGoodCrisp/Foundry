@@ -2149,6 +2149,16 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     import_name: StringProperty()
     text: StringProperty()
     is_animation_event: BoolProperty()
+    
+    # ANIMATION CONTROLS
+    animation_control_type: StringProperty()
+    animation_control_id: StringProperty()
+    animation_control_ik_chain: StringProperty()
+    animation_control_ik_effect: StringProperty()
+    animation_control_constraint_effect: StringProperty()
+    animation_control_proxy_target_marker: StringProperty()
+    animation_control_proxy_target_tag: StringProperty()
+    animation_control_proxy_target_usage: StringProperty()
 
     # Object stuff needed for face properties
 

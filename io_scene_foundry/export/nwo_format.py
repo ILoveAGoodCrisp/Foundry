@@ -101,14 +101,27 @@ class NWOObject:
 class NWOAnimationControl(NWOObject):
     def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
         super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
-        self.bungie_animation_control_type = None
-        self.bungie_animation_control_id = None
-        self.bungie_animation_control_ik_chain = None
-        self.bungie_animation_control_ik_effect = None
-        self.bungie_animation_control_constraint_effect = None
-        self.bungie_animation_control_proxy_target_marker = None
-        self.bungie_animation_control_proxy_target_tag = None
-        self.bungie_animation_control_proxy_target_usage = None
+        self.bungie_animation_control_type = self.halo.animation_control_type
+        self.bungie_animation_control_id = self.halo.animation_control_id
+        
+        if self.halo.animation_control_ik_chain:
+            self.bungie_animation_control_ik_chain = self.halo.animation_control_ik_chain
+            
+        if self.halo.animation_control_ik_effect:
+            self.bungie_animation_control_ik_effect = self.halo.animation_control_ik_effect
+            
+        if self.halo.animation_control_constraint_effect:
+            self.bungie_animation_control_constraint_effect = self.halo.animation_control_constraint_effect
+            
+        if self.halo.animation_control_proxy_target_marker:
+            self.bungie_animation_control_proxy_target_marker = self.halo.animation_control_proxy_target_marker
+            
+        if self.halo.animation_control_proxy_target_tag:
+            self.bungie_animation_control_proxy_target_tag = self.halo.animation_control_proxy_target_tag
+            
+        if self.halo.animation_control_proxy_target_usage:
+            self.bungie_animation_control_proxy_target_usage = self.halo.animation_control_proxy_target_usage
+            
 
         self.cleanup()
 
@@ -134,39 +147,16 @@ class NWOAnimationEvent(NWOObject):
             self.bungie_animation_event_wrinkle_map_effect = (
                 self.halo.wrinkle_map_effect
             )
-        elif (
-            self.bungie_animation_event_type
-            == "_connected_geometry_animation_event_type_footstep"
-        ):
-            self.bungie_animation_event_footstep_type = self.halo.footstep_type
-            self.bungie_animation_event_footstep_effect = self.halo.footstep_effect
         elif self.bungie_animation_event_type in (
             "_connected_geometry_animation_event_type_ik_active",
             "_connected_geometry_animation_event_type_ik_passive",
         ):
             self.bungie_animation_event_ik_chain = self.halo.ik_chain
-            self.bungie_animation_event_ik_active_tag = self.halo.ik_active_tag
-            self.bungie_animation_event_ik_target_tag = self.halo.ik_target_tag
             self.bungie_animation_event_ik_target_marker = self.halo.ik_target_marker
             self.bungie_animation_event_ik_target_usage = self.halo.ik_target_usage
-            self.bungie_animation_event_ik_proxy_target_id = (
-                self.halo.ik_proxy_target_id
-            )
+            self.bungie_animation_event_ik_proxy_target_id = self.halo.ik_proxy_target_id
             self.bungie_animation_event_ik_pole_vector_id = self.halo.ik_pole_vector_id
             self.bungie_animation_event_ik_effector_id = self.halo.ik_effector_id
-        elif (
-            self.bungie_animation_event_type
-            == "_connected_geometry_animation_event_type_cinematic_effect"
-        ):
-            self.bungie_animation_event_cinematic_effect_tag = (
-                self.halo.cinematic_effect_tag
-            )
-            self.bungie_animation_event_cinematic_effect_effect = (
-                self.halo.cinematic_effect_effect
-            )
-            self.bungie_animation_event_cinematic_effect_marker = (
-                self.halo.cinematic_effect_marker
-            )
         elif (
             self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_object_function"
@@ -179,20 +169,10 @@ class NWOAnimationEvent(NWOObject):
             )
         elif (
             self.bungie_animation_event_type
-            == "_connected_geometry_animation_event_type_frame"
-        ):
-            self.bungie_animation_event_frame_trigger = self.halo.frame_trigger
-        elif (
-            self.bungie_animation_event_type
             == "_connected_geometry_animation_event_type_import"
         ):
             self.bungie_animation_event_import_frame = self.halo.import_frame
             self.bungie_animation_event_import_name = self.halo.import_name
-        elif (
-            self.bungie_animation_event_type
-            == "_connected_geometry_animation_event_type_text"
-        ):
-            self.bungie_animation_event_text = self.halo.text
 
         self.cleanup()
 

@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import itertools
+import random
 import time
 import bpy
 import os
@@ -165,6 +166,7 @@ class ProcessScene:
                                         context,
                                         action_nwo.animation_events,
                                         arm,
+                                        list(nwo_scene.skeleton_bones.keys())[1],
                                         timeline.frame_start,
                                         timeline.frame_end,
                                     )
@@ -929,13 +931,13 @@ class ProcessScene:
     # ANIMATION EVENTS
 
     def create_event_nodes(
-        self, context, events, model_armature, frame_start, frame_end
+        self, context, events, model_armature, root_bone_name, frame_start, frame_end
     ):
         animation_events = [model_armature]
         scene_coll = context.scene.collection.objects
         for event in events:
             # create the event node to store event info
-            event_ob = bpy.data.objects.new("animation_event", None)
+            event_ob = bpy.data.objects.new('event_export_node_' + event.event_type[41:] + '_' + str(event.event_id), None)
             nwo = event_ob.nwo
             # Set this node to be an animation event
             nwo.object_type = "_connected_geometry_object_type_animation_event"
@@ -946,35 +948,21 @@ class ProcessScene:
             nwo.event_id = abs(event.event_id)
             nwo.event_type = event.event_type
             nwo.wrinkle_map_face_region = event.wrinkle_map_face_region
-            nwo.wrinkle_map_effect = str(event.wrinkle_map_effect)
-            nwo.footstep_type = event.footstep_type
-            nwo.footstep_effect = str(event.footstep_effect)
+            nwo.wrinkle_map_effect = jstr(event.wrinkle_map_effect)
             nwo.ik_chain = event.ik_chain
-            nwo.ik_active_tag = event.ik_active_tag
-            nwo.ik_target_tag = event.ik_target_tag
-            nwo.ik_target_marker = event.ik_target_marker
+            nwo.ik_target_marker = event.ik_target_marker.name if event.ik_target_marker else ''
             nwo.ik_target_usage = event.ik_target_usage
-            nwo.ik_proxy_target_id = str(event.ik_proxy_target_id)
-            nwo.ik_pole_vector_id = str(event.ik_pole_vector_id)
-            nwo.ik_effector_id = str(event.ik_effector_id)
-            nwo.cinematic_effect_tag = event.cinematic_effect_tag
-            nwo.cinematic_effect_effect = str(event.cinematic_effect_effect)
-            nwo.cinematic_effect_marker = event.cinematic_effect_marker
             nwo.object_function_name = event.object_function_name
-            nwo.object_function_effect = str(event.object_function_effect)
+            nwo.object_function_effect = jstr(event.object_function_effect)
             nwo.frame_frame = event.frame_frame
             nwo.frame_name = event.frame_name
-            nwo.frame_trigger = "1" if event.frame_trigger else "0"
             nwo.import_frame = str(event.import_frame)
             nwo.import_name = event.import_name
-            nwo.text = event.text
-            # set event node name
-            event_ob.name = f"event_export_node_frame_{str(nwo.event_id)}"
             # add it to the list
             scene_coll.link(event_ob)
             animation_events.append(event_ob)
             # duplicate for frame range
-            if event.multi_frame == "range" and event.frame_range > 1:
+            if nwo.event_type == '_connected_geometry_animation_event_type_frame' and event.multi_frame == "range" and event.frame_range > 1:
                 for _ in range(
                     min(event.frame_range - 1, frame_end - event.frame_frame)
                 ):
@@ -982,11 +970,51 @@ class ProcessScene:
                     copy_nwo = event_ob_copy.nwo
                     copy_nwo.event_id += 1
                     copy_nwo.frame_frame += 1
-                    event_ob_copy.name = f"event_{str(copy_nwo.event_id)}"
+                    event_ob_copy.name = 'event_export_node_frame_' + str(copy_nwo.event_id)
                     scene_coll.link(event_ob_copy)
                     animation_events.append(event_ob_copy)
                     event_ob = event_ob_copy
-
+                    
+            elif nwo.event_type.startswith('_connected_geometry_animation_event_type_ik'):
+                # Create animation controls
+                proxy_target = bpy.data.objects.new('proxy_target_export_node_'+ nwo.ik_target_usage + '_' + nwo.ik_target_marker, None)
+                proxy_target.parent = model_armature
+                proxy_target.parent_type = 'BONE'
+                proxy_target.parent_bone = root_bone_name
+                rnd = random.Random()
+                rnd.seed(proxy_target.name)
+                proxy_target_id = str(rnd.randint(0, 2147483647))
+                nwo.ik_proxy_target_id = proxy_target_id
+                proxy_target_nwo = proxy_target.nwo
+                proxy_target_nwo.object_type = '_connected_geometry_object_type_animation_control'
+                proxy_target_nwo.animation_control_id = proxy_target_id
+                proxy_target_nwo.animation_control_type = '_connected_geometry_animation_control_type_target_proxy'
+                proxy_target_nwo.animation_control_proxy_target_usage = nwo.ik_target_usage
+                proxy_target_nwo.animation_control_proxy_target_marker = nwo.ik_target_marker
+                scene_coll.link(proxy_target)
+                animation_events.append(proxy_target)
+                
+                effector = bpy.data.objects.new('ik_effector_export_node_'+ nwo.ik_chain + '_' + nwo.event_type[44:], None)
+                effector.parent = model_armature
+                effector.parent_type = 'BONE'
+                effector.parent_bone = root_bone_name
+                rnd = random.Random()
+                rnd.seed(effector.name)
+                effector_id = str(rnd.randint(0, 2147483647))
+                nwo.ik_effector_id = effector_id
+                effector_nwo = effector.nwo
+                effector_nwo.object_type = '_connected_geometry_object_type_animation_control'
+                effector_nwo.animation_control_id = effector_id
+                effector_nwo.animation_control_type = '_connected_geometry_animation_control_type_ik_effector'
+                effector_nwo.animation_control_ik_chain = nwo.ik_chain
+                effector_nwo.animation_control_ik_effect = '1'
+                scene_coll.link(effector)
+                animation_events.append(effector)
+                
+                rnd = random.Random()
+                rnd.seed(event_ob.name + '117')
+                nwo.ik_pole_vector_id = str(rnd.randint(0, 2147483647))
+                
         return animation_events
 
     #####################################################################################
