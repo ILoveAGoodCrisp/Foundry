@@ -149,9 +149,32 @@ class AnimationTag(Tag):
     def write_ik_chains(self, ik_chains: list, bones: list):
         skeleton_nodes = self._node_index_list(bones)
         valid_ik_chains = [chain for chain in ik_chains if chain.start_node in skeleton_nodes and chain.effector_node in skeleton_nodes]
+        # Check if we need to write to the block
+        chain_names = [chain.name for chain in valid_ik_chains]
+        [e.SelectField('name').GetStringData() for e in self.block_skeleton_nodes.Elements]
+        if self.block_ik_chains.Elements.Count == len(valid_ik_chains):
+            for idx, element in enumerate(self.block_ik_chains.Elements):
+                name = element.SelectField('name').GetStringData()
+                if name != chain_names[idx]:
+                    break
+                test_chain = valid_ik_chains[idx]
+                start_bone = test_chain.start_node
+                effector_bone = test_chain.effector_node
+                start_node_index = element.SelectField('start node').Value
+                effector_node_index = element.SelectField('effector node').Value
+                if start_node_index < 0 or effector_node_index < 0:
+                    break
+                start_node = skeleton_nodes[start_node_index]
+                effector_node = skeleton_nodes[effector_node_index]
+                if start_node != start_bone or effector_node != effector_bone:
+                    break
+                
+            else:
+                return
+        
         if self.block_ik_chains.Elements.Count:
             self.block_ik_chains.RemoveAllElements()
-        
+    
         for chain in valid_ik_chains:
             element = self.block_ik_chains.AddElement()
             element.SelectField('name').SetStringData(chain.name)
