@@ -4831,18 +4831,18 @@ class NWO_ArmatureCreator_Create(Operator):
         set_active_object(arm)
         
         bpy.ops.object.editmode_toggle()
-        pedestal = data.edit_bones.new('b_pedestal')
+        pedestal = data.edit_bones.new('pedestal')
         pedestal.head = [0, 0, 0]
         pedestal.tail = [0, 1, 0]
         
         bpy.ops.object.editmode_toggle()
         if self.has_pedestal_control:
-            bpy.ops.nwo.add_pedestal_control()
+            bpy.ops.nwo.add_pedestal_control(armature=arm.name)
         if self.has_pose_bones:
             if self.has_aim_control:
-                bpy.ops.nwo.add_pose_bones(add_control_bone=True)
+                bpy.ops.nwo.add_pose_bones(add_control_bone=True, armature=arm.name)
             else:
-                bpy.ops.nwo.add_pose_bones()
+                bpy.ops.nwo.add_pose_bones(armature=arm.name)
                 
         transform_scene(context, 0.03048 if scene.nwo.scale == 'blender' else 1, rotation_diff_from_forward('x', scene.nwo.forward_direction), objects=[arm])
         
@@ -4945,6 +4945,8 @@ class NWO_AddPoseBones(Operator):
     has_control_bone: BoolProperty()
     skip_invoke: BoolProperty()
     
+    armature: StringProperty()
+    
     def new_bone(self, arm, parent_name, bone_name):
         parent_edit = arm.data.edit_bones.get(parent_name)
         new_edit = arm.data.edit_bones.new(bone_name)
@@ -5035,14 +5037,18 @@ class NWO_AddPoseBones(Operator):
     def execute(self, context):
         scene_nwo = context.scene.nwo
         tail_scale = 1 if scene_nwo.scale == 'max' else 0.03048
-        arm = get_rig(context)
+        if self.armature:
+            arm = bpy.data.objects.get(self.armature)
+        else:
+            arm = get_rig(context)
         if not arm:
             self.report({'WARNING'}, 'No Armature Found')
             return
         bones = arm.data.bones
         for b in bones:
             if b.use_deform and not b.parent:
-                scene_nwo.node_usage_pedestal = b.name
+                if scene_nwo.main_armature == arm:
+                    scene_nwo.node_usage_pedestal = b.name
                 parent_bone = b
                 parent_bone_name = parent_bone.name
                 break
@@ -5051,23 +5057,23 @@ class NWO_AddPoseBones(Operator):
             return {'FINISHED'}
         
         for b in bones:
-            if not scene_nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
+            if scene_nwo.main_armature == arm and not scene_nwo.node_usage_pose_blend_pitch and b.use_deform and b.parent == parent_bone and 'pitch' in b.name:
                 scene_nwo.node_usage_pose_blend_pitch = b.name
-            elif not scene_nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
+            elif scene_nwo.main_armature == arm and not scene_nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
                 scene_nwo.node_usage_pose_blend_yaw = b.name
                 
         # Get missing node usages
         with context.temp_override(active_object=arm, selected_editable_objects=[arm]):
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            if scene_nwo.node_usage_pose_blend_pitch:
+            if scene_nwo.main_armature == arm and scene_nwo.node_usage_pose_blend_pitch:
                 pitch_name = scene_nwo.node_usage_pose_blend_pitch
             else:
-                pitch_name = self.new_bone(arm, parent_bone_name, 'b_aim_pitch')
+                pitch_name = self.new_bone(arm, parent_bone_name, 'aim_pitch')
                 scene_nwo.node_usage_pose_blend_pitch = pitch_name
-            if scene_nwo.node_usage_pose_blend_yaw:
+            if scene_nwo.main_armature == arm and scene_nwo.node_usage_pose_blend_yaw:
                 yaw_name = scene_nwo.node_usage_pose_blend_yaw
             else:
-                yaw_name = self.new_bone(arm, parent_bone_name, 'b_aim_yaw')
+                yaw_name = self.new_bone(arm, parent_bone_name, 'aim_yaw')
                 scene_nwo.node_usage_pose_blend_yaw = yaw_name
                 
             if self.add_control_bone and not self.has_control_bone:
@@ -5095,7 +5101,7 @@ class NWO_AddPoseBones(Operator):
                 arm.select_set(True)
                 set_active_object(arm)
                 bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-                scene_nwo.control_aim = self.new_control_bone(tail_scale, arm, parent_bone_name, 'c_aim', pitch_name, yaw_name, bone_shape)
+                scene_nwo.control_aim = self.new_control_bone(tail_scale, arm, parent_bone_name, 'CTRL_aim', pitch_name, yaw_name, bone_shape)
                 unlink(bone_shape)
                 
             bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
@@ -5521,6 +5527,8 @@ class NWO_AddPedestalControl(Operator):
     bl_description = "Adds a control bone and custom shape to the armature pedestal bone"
     bl_options = {'UNDO'}
     
+    armature: StringProperty()
+    
     @classmethod
     def poll(cls, context):
         return context.scene.nwo.main_armature
@@ -5550,7 +5558,11 @@ class NWO_AddPedestalControl(Operator):
     def execute(self, context):
         scene_nwo = context.scene.nwo
         tail_scale = 1 if scene_nwo.scale == 'max' else 0.03048
-        arm = scene_nwo.main_armature
+        if self.armature:
+            arm = bpy.data.objects.get(self.armature)
+        else:
+            arm = get_rig(context)
+            
         bones = arm.data.bones
         for b in bones:
             if b.use_deform and not b.parent:
@@ -5560,7 +5572,7 @@ class NWO_AddPedestalControl(Operator):
             self.report({'WARNING'}, 'No root bone found')
             return {'FINISHED'}
             
-        if scene_nwo.control_pedestal:
+        if scene_nwo.main_armature == arm and scene_nwo.control_pedestal:
             self.report({'INFO'}, "Pedestal control already in place")
             return {'CANCELLED'}
         else:
@@ -5588,7 +5600,9 @@ class NWO_AddPedestalControl(Operator):
             arm.select_set(True)
             set_active_object(arm)
             bpy.ops.object.mode_set(mode="EDIT", toggle=False)
-            scene_nwo.control_pedestal = self.new_control_bone(tail_scale, arm, pedestal_bone_name, 'c_pedestal', bone_shape)
+            control_pedestal = self.new_control_bone(tail_scale, arm, pedestal_bone_name, 'CTRL_pedestal', bone_shape)
+            if scene_nwo.main_armature == arm:
+                scene_nwo.control_pedestal = control_pedestal
             unlink(bone_shape)
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
