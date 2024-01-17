@@ -1924,7 +1924,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
     bone_children = []
     for ob in objects:
-        # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
+        no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
         loc, rot, sca = ob.matrix_basis.decompose()
         if ob.rotation_mode == 'QUATERNION':
@@ -1940,7 +1940,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         if not (ob.type == 'ARMATURE' or bone_parented):
             rot.rotate(rotation_matrix)
-        elif bone_parented:
+        elif bone_parented and not no_data_transform:
             bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
         
         # Lights need scaling to have correct display 
