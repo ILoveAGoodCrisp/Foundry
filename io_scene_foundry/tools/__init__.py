@@ -3600,7 +3600,7 @@ class NWO_HaloLauncher_Sapien(Operator):
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         from .halo_launcher import launch_game
 
-        return launch_game(True, scene_nwo_halo_launcher, self.filepath, nwo_asset_type())
+        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), nwo_asset_type())
 
     def invoke(self, context, event):
         scene = context.scene
@@ -3648,7 +3648,7 @@ class NWO_HaloLauncher_TagTest(Operator):
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         from .halo_launcher import launch_game
 
-        return launch_game(False, scene_nwo_halo_launcher, self.filepath, nwo_asset_type())
+        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), nwo_asset_type())
 
     def invoke(self, context, event):
         scene = context.scene
