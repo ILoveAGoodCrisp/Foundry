@@ -1924,7 +1924,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
     bone_children = []
     for ob in objects:
-        no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
+        # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
         loc, rot, sca = ob.matrix_basis.decompose()
         if ob.rotation_mode == 'QUATERNION':
@@ -1940,7 +1940,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
         
         if not (ob.type == 'ARMATURE' or bone_parented):
             rot.rotate(rotation_matrix)
-        elif bone_parented and not no_data_transform:
+        elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
             bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
         
         # Lights need scaling to have correct display 
@@ -2097,12 +2097,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                 edit_bone.use_connect = False
                 
             for edit_bone in edit_bones:
-                old_tail_vec = edit_bone.tail.copy()
                 edit_bone.transform(scale_matrix)
                 edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
-                ob_loc_transform_vector = old_tail_vec - edit_bone.tail
                 for ob in edit_bone_children:
-                    ob.matrix_world = Matrix.Translation(ob_loc_transform_vector) @ ob.matrix_world
+                    ob.matrix_parent_inverse = (arm.matrix_world @ Matrix.Translation(edit_bone.tail - edit_bone.head) @ edit_bone.matrix).inverted()
                     
                 edit_bone.transform(rotation_matrix)
                 
