@@ -676,7 +676,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
     asset_editor_active: BoolProperty(default=True)
     asset_editor_pinned: BoolProperty()
+    output_tags_expanded: BoolProperty(default=True)
     asset_editor_expanded: BoolProperty(default=True)
+    model_overrides_expanded: BoolProperty(default=False)
+    model_rig_expanded: BoolProperty(default=True)
+    rig_controls_expanded: BoolProperty(default=False)
+    rig_usages_expanded: BoolProperty(default=False)
+    ik_chains_expanded: BoolProperty(default=False)
 
     sets_manager_active: BoolProperty()
     sets_manager_pinned: BoolProperty()

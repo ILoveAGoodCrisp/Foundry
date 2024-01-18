@@ -346,8 +346,60 @@ class NWO_FoundryPanelProps(Panel):
         else:
             row.scale_y = 1.5
             row.operator("nwo.make_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
+        
+        if nwo.asset_type == 'MODEL':
+            self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
+            self.draw_rig_ui(self.context, nwo)
+            self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
+        
+        elif nwo.asset_type == "FP ANIMATION":
+            box = self.box.box()
+            box.label(text="Tag References")
+            col = box.column()
+            row = col.row(align=True)
+            row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
+            row = col.row(align=True)
+            row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
+            
+        elif nwo.asset_type == "SCENARIO":
+            box = self.box.box()
+            col = box.column()
+            row = col.row(align=True)
+            row.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+            
+        elif nwo.asset_type == 'camera_track_set':
+            box = self.box.box()
+            col = box.column()
+            col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
+            col.prop(nwo, 'camera_track_camera', text="Camera")
+    
+    def draw_expandable_box(self, box: bpy.types.UILayout, nwo, name, panel_display_name=''):
+        if not panel_display_name:
+            panel_display_name = f"{name.replace('_', ' ').title()}"
+        panel_expanded = getattr(nwo, f"{name}_expanded")
+        row_header = box.row(align=True)
+        row_header.alignment = 'LEFT'
+        row_header.operator(
+            "nwo.panel_expand",
+            text=panel_display_name,
+            icon="TRIA_DOWN" if panel_expanded else "TRIA_RIGHT",
+            emboss=False,
+        ).panel_str = name
 
-        col.separator()
+        if panel_expanded:
+            draw_panel = getattr(self, f"draw_{name}")
+            if callable(draw_panel):
+                draw_panel(box, nwo)
+                return panel_expanded
+            
+        return False
+    
+    def draw_output_tags(self, box, nwo):
+        col = box.column()
         if nwo.asset_type == "MODEL":
             col.label(text="Output Tags")
             row = col.grid_flow(
@@ -397,7 +449,7 @@ class NWO_FoundryPanelProps(Panel):
                 text="Terminal",
                 icon_value=get_icon_id("device_terminal"),
             )
-            if is_corinth(context):
+            if is_corinth(self.context):
                 row.prop(
                     nwo,
                     "output_device_dispenser",
@@ -514,72 +566,38 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(nwo, 'template_weapon', icon_value=get_icon_id('weapon'))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_weapon"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_weapon'
-
-            box = self.box.box()
-            box.label(text="Model Overrides")
-            col = box.column()
+    
+    def draw_model_overrides(self, box, nwo):
+        col = box.column()
+        row = col.row(align=True)
+        row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+        row = col.row(align=True)
+        row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "collision_model_path"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'collision_model_path'
+        row = col.row(align=True)
+        row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_graph_path"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_graph_path'
+        row = col.row(align=True)
+        row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
+        if nwo.render_model_path and nwo.collision_model_path and nwo.animation_graph_path and nwo.physics_model_path:
             row = col.row(align=True)
-            row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+            row.label(text='All overrides specified', icon='ERROR')
             row = col.row(align=True)
-            row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "collision_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'collision_model_path'
-            row = col.row(align=True)
-            row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_graph_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_graph_path'
-            row = col.row(align=True)
-            row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
-            if nwo.render_model_path and nwo.collision_model_path and nwo.animation_graph_path and nwo.physics_model_path:
-                row = col.row(align=True)
-                row.label(text='All overrides specified', icon='ERROR')
-                row = col.row(align=True)
-                row.label(text='Everything exported from this scene will be overwritten')
+            row.label(text='Everything exported from this scene will be overwritten')
             
-            self.draw_rig_ui(context, nwo)    
-
-        elif nwo.asset_type == "FP ANIMATION":
-            box = self.box.box()
-            box.label(text="Tag References")
-            col = box.column()
-            row = col.row(align=True)
-            row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
-            row = col.row(align=True)
-            row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
-            
-            self.draw_rig_ui(context, nwo) 
-            
-        elif nwo.asset_type == "SCENARIO":
-            box = self.box.box()
-            col = box.column()
-            row = col.row(align=True)
-            row.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
-            
-        elif nwo.asset_type == 'camera_track_set':
-            box = self.box.box()
-            col = box.column()
-            col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
-            col.prop(nwo, 'camera_track_camera', text="Camera")
-            # col.operator('nwo.camera_track_sync', text="Sync Camera Track", icon='FILE_REFRESH', depress=nwo.camera_track_syncing)
-            
-            
-    def draw_rig_ui(self, context, nwo):
-        box = self.box.box()
-        box.label(text="Model Rig")
+    def draw_model_rig(self, box, nwo):
         col = box.column()
         col.use_property_split = True
         col.prop(nwo, 'main_armature', icon='OUTLINER_OB_ARMATURE')
         if not nwo.main_armature: return
         col.separator()
-        arm_count = get_arm_count(context)
+        arm_count = get_arm_count(self.context)
         if arm_count > 1 or nwo.support_armature_a:
             col.prop(nwo, 'support_armature_a', icon='OUTLINER_OB_ARMATURE')
             if nwo.support_armature_a:
@@ -594,25 +612,21 @@ class NWO_FoundryPanelProps(Panel):
             col.prop(nwo, 'support_armature_c', icon='OUTLINER_OB_ARMATURE')
             if nwo.support_armature_c:
                 col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
-            
-        col.separator()
-        # Bone Controls
-        box_controls = box.box()
-        box_controls.label(text='Rig Controls')
-        box_controls.use_property_split = True
-        row = box_controls.row(align=True)
+                
+    def draw_rig_controls(self, box, nwo):
+        box.use_property_split = True
+        row = box.row(align=True)
         row.prop_search(nwo, 'control_pedestal', nwo.main_armature.data, 'bones')
         if not nwo.control_pedestal:
             row.operator('nwo.add_pedestal_control', text='', icon='ADD')
-        row = box_controls.row(align=True)
+        row = box.row(align=True)
         row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
         if not nwo.control_aim:
             row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
-        # Node Usages
-        box_usages = box.box()
-        box_usages.label(text='Rig Node Usages')
-        box_usages.use_property_split = True
-        col = box_usages.column()
+    
+    def draw_rig_usages(self, box, nwo):
+        box.use_property_split = True
+        col = box.column()
         col.prop_search(nwo, "node_usage_pedestal", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_pose_blend_pitch", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_pose_blend_yaw", nwo.main_armature.data, "bones")
@@ -641,14 +655,12 @@ class NWO_FoundryPanelProps(Panel):
         col.prop_search(nwo, "node_usage_damage_root_right_leg", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_damage_root_right_foot", nwo.main_armature.data, "bones")
         
-        col.separator()
-        # IK Chains
-        box_ik_chains = box.box()
+    def draw_ik_chains(self, box, nwo):
         if not nwo.ik_chains:
-            box_ik_chains.operator("nwo.add_ik_chain", text="Add Game IK Chain", icon="CON_SPLINEIK")
+            box.operator("nwo.add_ik_chain", text="Add Game IK Chain", icon="CON_SPLINEIK")
             return
-        box_ik_chains.label(text='Game IK Chains')
-        row = box_ik_chains.row()
+        box.label(text='Game IK Chains')
+        row = box.row()
         row.template_list(
             "NWO_UL_IKChain",
             "",
@@ -665,10 +677,18 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.move_ik_chain", icon="TRIA_DOWN", text="").direction = 'down'
         if nwo.ik_chains and nwo.ik_chains_active_index > -1:
             chain = nwo.ik_chains[nwo.ik_chains_active_index]
-            col = box_ik_chains.column()
+            col = box.column()
             col.use_property_split = True
             col.prop_search(chain, 'start_node', nwo.main_armature.data, 'bones', text='Start Bone')
             col.prop_search(chain, 'effector_node', nwo.main_armature.data, 'bones', text='Effector Bone')
+    
+    def draw_rig_ui(self, context, nwo):
+        box = self.box.box()
+        if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
+            self.box.separator()
+            self.draw_expandable_box(box.box(), nwo, 'rig_controls')
+            self.draw_expandable_box(box.box(), nwo, 'rig_usages')
+            self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')
@@ -3030,7 +3050,7 @@ class NWO_OT_PanelExpand(Operator):
 
     bl_idname = "nwo.panel_expand"
     bl_label = ""
-    bl_options = {"UNDO"}
+    bl_options = set()
     bl_description = "Expand a panel"
 
     panel_str: StringProperty()
@@ -3039,7 +3059,7 @@ class NWO_OT_PanelExpand(Operator):
         nwo = context.scene.nwo
         prop = f"{self.panel_str}_expanded"
         setattr(nwo, prop, not getattr(nwo, prop))
-        self.report({"INFO"}, f"Expanded: {prop}")
+        # self.report({"INFO"}, f"Expanded: {prop}")
         return {"FINISHED"}
     
 class NWO_DuplicateMaterial(Operator):
@@ -4844,7 +4864,7 @@ class NWO_ArmatureCreator_Create(Operator):
             else:
                 bpy.ops.nwo.add_pose_bones(armature=arm.name)
                 
-        transform_scene(context, 0.03048 if scene.nwo.scale == 'blender' else 1, rotation_diff_from_forward('x', scene.nwo.forward_direction), objects=[arm])
+        transform_scene(context, 0.03048 if scene.nwo.scale == 'blender' else 1, rotation_diff_from_forward('x', scene.nwo.forward_direction), objects=[arm], actions=[])
         
         return {'FINISHED'}
     
