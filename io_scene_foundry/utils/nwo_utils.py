@@ -2409,3 +2409,10 @@ def update_debug_menu(asset_dir, asset_name):
             menu.writelines(valid_lines)
             
         menu.writelines([str(cmd) for cmd in menu_commands])
+        
+def is_halo_rig(ob):
+    '''Returns True if the given object is a halo rig'''
+    if ob.type != 'ARMATURE':
+        return False
+    
+    

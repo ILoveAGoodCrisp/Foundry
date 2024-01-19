@@ -43,6 +43,8 @@ from bpy.props import (
     PointerProperty,
 )
 from mathutils import Matrix
+from io_scene_foundry.tools.rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
+from io_scene_foundry.tools.rigging.create_rig import NWO_OT_AddRig
 from io_scene_foundry.tools.scene_scaler import NWO_ScaleScene
 from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
@@ -2528,6 +2530,7 @@ class NWO_FoundryPanelProps(Panel):
         nwo = self.scene.nwo
         col.label(text=f"Rig Tools")
         col.use_property_split = True
+        col.operator('nwo.convert_to_halo_rig', text='Convert to Halo Rig', icon='OUTLINER_OB_ARMATURE')
         col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
         if nwo.multiple_root_bones:
             col.label(text='Multiple Root Bones', icon='ERROR')
@@ -2841,7 +2844,7 @@ class NWO_SelectArmature(Operator):
 
     def execute(self, context):
         if self.create_arm:
-            bpy.ops.nwo.armature_create(has_pedestal_control=self.has_pedestal_control, has_pose_bones=self.has_pose_bones, has_aim_control=self.has_aim_control)
+            bpy.ops.nwo.add_rig('INVOKE_DEFAULT')
             return {'FINISHED'}
         
         objects = context.view_layer.objects
@@ -2873,109 +2876,6 @@ class NWO_SelectArmature(Operator):
         layout.prop(self, 'has_pose_bones', text='With Aim Bones')
         if self.has_pose_bones:
             layout.prop(self, 'has_aim_control', text='With Aim Control Bone')
-
-class NWO_FoundryPanelSetsViewer(Panel):
-    bl_label = "Halo Sets Viewer"
-    bl_idname = "NWO_PT_FoundryPanelSetsViewer"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    # bl_options = {'DEFAULT_CLOSED'}
-    bl_category = "Foundry"
-
-    def draw(self, context):
-        self.context = context
-        layout = self.layout
-        self.h4 = is_corinth()
-        self.scene = context.scene
-        nwo = self.scene.nwo
-        row = layout.row(align=True)
-        col1 = row.column(align=True)
-        col2 = row.column(align=True)
-
-        for p in PANELS_TOOLS:
-            col1.separator()
-            row_icon = col1.row(align=True)
-            panel_active = getattr(nwo, f"{p}_active")
-            panel_pinned = getattr(nwo, f"{p}_pinned")
-            row_icon.scale_x = 1.2
-            row_icon.scale_y = 1.2
-            row_icon.operator(
-                "nwo.panel_set",
-                text="",
-                icon_value=get_icon_id(f"category_{p}"),
-                emboss=panel_active,
-                depress=panel_pinned,
-            ).panel_str = p
-
-            if panel_active:
-                panel_display_name = f"Halo {p.replace('_', ' ').title()}"
-                panel_expanded = getattr(nwo, f"{p}_expanded")
-                self.box = col2.box()
-                row_header = self.box.row(align=True)
-                row_header.alignment = "EXPAND"
-                row_header.operator(
-                    "nwo.panel_expand",
-                    text=panel_display_name,
-                    icon="TRIA_DOWN" if panel_expanded else "TRIA_RIGHT",
-                    emboss=False,
-                ).panel_str = p
-
-                if panel_expanded:
-                    draw_panel = getattr(self, f"draw_{p}")
-                    draw_panel()
-
-    def draw_object_tools(self):
-        collection_manager = self.scene.nwo_collection_manager
-        frame_id_tool = self.scene.nwo_frame_ids
-        box = self.box.box()
-        box.label(
-            text="Collection Creator", icon_value=get_icon_id("collection_creator")
-        )
-        row = box.row()
-        row.prop(collection_manager, "collection_name", text="Name")
-        row = box.row()
-        row.prop(collection_manager, "collection_type", text="Type")
-        row = box.row()
-        row.scale_y = 1.5
-        row.operator("nwo.collection_create", text="New Collection")
-        box = box.box()
-        box.label(text="Frame ID Helper", icon_value=get_icon_id("frame_id"))
-        row = box.row()
-        row.label(text="Animation Graph Path")
-        row = box.row()
-        row.prop(frame_id_tool, "anim_tag_path", text="")
-        row.scale_x = 0.25
-        row.operator("nwo.graph_path", text="Find", icon="FILE_FOLDER")
-        row = box.row()
-        row.scale_y = 1.5
-        row.operator("nwo.set_frame_ids", text="Set Frame IDs")
-        row = box.row()
-        row.scale_y = 1.5
-        row.operator("nwo.reset_frame_ids", text="Reset Frame IDs")
-
-    def draw_material_tools(self):
-        shader_finder = self.scene.nwo_shader_finder
-        box = self.box.box()
-        box.label(text="Shader Finder", icon_value=get_icon_id("material_finder"))
-        row = box.row()
-        row.label(text="Limit Search To:")
-        row = box.row()
-        row.prop(shader_finder, "shaders_dir", text="", icon="FILE_FOLDER")
-        row = box.row()
-        row.prop(shader_finder, "overwrite_existing", text="Overwrite Existing Paths")
-        row = box.row()
-        row.scale_y = 1.5
-        row.operator("nwo.shader_finder")
-
-    def draw_animation_tools(self, box, scene):
-        rig_creator = self.scene.nwo_armature_creator
-        box = self.box.box()
-        box.label(text="Rig Creator", icon_value=get_icon_id("rig_creator"))
-        row = box.row()
-        row.prop(rig_creator, "armature_type", text="Type", expand=True)
-        row = box.row()
-        row.scale_y = 1.5
-        row.operator("nwo.armature_create", text="Create Rig")
 
 class NWO_OT_PanelUnpin(Operator):
     bl_idname = "nwo.panel_unpin"
@@ -3255,7 +3155,7 @@ def add_halo_light_button(self, context):
     )
 
 def add_halo_armature_buttons(self, context):
-    self.layout.operator("nwo.armature_create", text="Halo Skeleton", icon_value=get_icon_id("rig_creator"))
+    self.layout.operator("nwo.add_rig", text="Halo Armature", icon_value=get_icon_id("rig_creator"))
 
 def create_halo_collection(self, context):
     self.layout.operator("nwo.collection_create" , text="", icon_value=get_icon_id("collection_creator"))
@@ -4776,133 +4676,6 @@ class NWO_CollectionManager_CreateMove(NWO_CollectionManager_Create):
             True,
         )
 
-class NWO_MT_CollectionManager(Operator):
-    def draw(self, context):
-        pass
-
-class NWO_ArmatureCreator(Panel):
-    bl_label = "Rig Creator"
-    bl_idname = "NWO_PT_ArmatureCreator"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_AnimationTools"
-
-    def draw_header(self, context):
-        self.layout.label(text="", icon_value=get_icon_id("rig_creator"))
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        scene_nwo_armature_creator = scene.nwo_armature_creator
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.prop(
-            scene_nwo_armature_creator,
-            "armature_type",
-            text="Type",
-            expand=True,
-        )
-        col = layout.column(heading="Include")
-        sub = col.column(align=True)
-        sub.prop(scene_nwo_armature_creator, "control_rig", text="Control Rig")
-        col = col.row()
-        col.scale_y = 1.5
-        col.operator("nwo.armature_create")
-
-
-class NWO_ArmatureCreator_Create(Operator):
-    bl_idname = "nwo.armature_create"
-    bl_label = "Create Armature"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Creates a Halo rig with a pedestal bone, and optionally pose and control bones"
-    
-    has_pedestal_control: BoolProperty()
-    has_pose_bones: BoolProperty()
-    has_aim_control: BoolProperty()
-    
-    @classmethod
-    def poll(cls, context):
-        return context.mode == 'OBJECT'
-
-    def execute(self, context):
-        scene = context.scene
-        asset_name = scene.nwo_halo_launcher.sidecar_path.rpartition("\\")[2].replace(
-            ".sidecar.xml", ""
-        )
-        if asset_name:
-            data = bpy.data.armatures.new(f'{asset_name}_world')
-        else:
-            data = bpy.data.armatures.new('Armature')
-        
-        arm = bpy.data.objects.new(data.name, data)
-        scene.collection.objects.link(arm)
-        if not context.scene.nwo.main_armature:
-            context.scene.nwo.main_armature = arm
-        arm.select_set(True)
-        set_active_object(arm)
-        
-        bpy.ops.object.editmode_toggle()
-        pedestal = data.edit_bones.new('pedestal')
-        pedestal.head = [0, 0, 0]
-        pedestal.tail = [0, 1, 0]
-        
-        bpy.ops.object.editmode_toggle()
-        if self.has_pedestal_control:
-            bpy.ops.nwo.add_pedestal_control(armature=arm.name)
-        if self.has_pose_bones:
-            if self.has_aim_control:
-                bpy.ops.nwo.add_pose_bones(add_control_bone=True, armature=arm.name)
-            else:
-                bpy.ops.nwo.add_pose_bones(armature=arm.name)
-                
-        transform_scene(context, 0.03048 if scene.nwo.scale == 'blender' else 1, rotation_diff_from_forward('x', scene.nwo.forward_direction), objects=[arm], actions=[])
-        
-        return {'FINISHED'}
-    
-    def invoke(self, context, _):
-        return context.window_manager.invoke_props_dialog(self)
-    
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, 'has_pedestal_control', text='Add Pedestal Control')
-        layout.prop(self, 'has_pose_bones', text='Add Aim Bones')
-        if self.has_pose_bones:
-            layout.prop(self, 'has_aim_control', text='Add Aim Control')
-        
-
-class NWO_CopyHaloProps(Panel):
-    bl_label = "Copy Halo Properties"
-    bl_idname = "NWO_PT_CopyHaloProps"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_options = {"DEFAULT_CLOSED"}
-    bl_parent_id = "NWO_PT_PropertiesManager"
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-        col = flow.column()
-        col.scale_y = 1.5
-        col.operator("nwo.props_copy")
-
 class NWO_Shader_BuildSingle(Operator):
     bl_idname = "nwo.build_shader_single"
     bl_label = ""
@@ -6142,7 +5915,7 @@ classeshalo = (
     NWO_AutoSeam,
     NWO_ShaderFinder_FindSingle,
     NWO_ShaderFinder_Find,
-    NWO_ArmatureCreator_Create,
+    NWO_OT_AddRig,
     NWO_ListMaterialShaders,
     NWO_Shader_BuildSingle,
     NWO_ShaderPropertiesGroup,
@@ -6176,6 +5949,7 @@ classeshalo = (
     NWO_ClearShaderPaths,
     NWO_UpdateSets,
     NWO_ScaleScene,
+    NWO_OT_ConvertToHaloRig,
 )
 
 def register():
