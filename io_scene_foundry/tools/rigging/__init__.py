@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 bone_x = 0, 1, 0
 bone_x_negative = 0, -1, 0
@@ -74,26 +74,6 @@ class HaloRig:
             con.owner_space = 'LOCAL'
         
         if self.has_pose_bones and self.has_aim_control:
-            if pitch is None:
-                pitch: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_pitch_name)
-            con = pitch.constraints.new('COPY_ROTATION')
-            con.target = self.rig_ob
-            con.subtarget = aim_pitch_name
-            con.use_x = False
-            con.use_z = False
-            con.target_space = 'LOCAL_OWNER_ORIENT'
-            con.owner_space = 'LOCAL'
-            
-            if yaw is None:
-                yaw: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_yaw_name)
-            con = yaw.constraints.new('COPY_ROTATION')
-            con.target = self.rig_ob
-            con.subtarget = aim_pitch_name
-            con.use_x = False
-            con.use_y = False
-            con.target_space = 'LOCAL_OWNER_ORIENT'
-            con.owner_space = 'LOCAL'
-            
             if aim_control is None:
                 aim_control: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_control_name)
             shape_ob = bpy.data.objects.get(aim_shape_name)
@@ -130,6 +110,26 @@ class HaloRig:
             con.use_max_y = True
             con.use_max_z = True
             con.use_transform_limit = True
+            con.owner_space = 'LOCAL'
+            
+            if pitch is None:
+                pitch: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_pitch_name)
+            con = pitch.constraints.new('COPY_ROTATION')
+            con.target = self.rig_ob
+            con.subtarget = aim_control.name
+            con.use_x = False
+            con.use_z = False
+            con.target_space = 'LOCAL_OWNER_ORIENT'
+            con.owner_space = 'LOCAL'
+            
+            if yaw is None:
+                yaw: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_yaw_name)
+            con = yaw.constraints.new('COPY_ROTATION')
+            con.target = self.rig_ob
+            con.subtarget = aim_control.name
+            con.use_x = False
+            con.use_y = False
+            con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
             
     
