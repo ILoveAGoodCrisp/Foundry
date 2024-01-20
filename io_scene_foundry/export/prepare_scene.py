@@ -378,13 +378,19 @@ class PrepareScene:
                     continue
                 
                 ob.matrix_world = ob.matrix_world @ halo_x_rot @ halo_z_rot
-                
+
+            self.strip_prefix(ob, protected_names)
+            # if not_bungie_game():
+            #     self.apply_namespaces(ob, asset)
+
+            nwo.object_type = get_object_type(ob)
+
             if asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB'):
                 nwo.permutation_name_ui = self.default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
                 nwo.region_name_ui = self.default_permutation if not nwo.region_name_ui else nwo.region_name_ui
 
                 # cast ui props to export props
-                if self.supports_regions_and_perms:
+                if self.supports_regions_and_perms and nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance':
                     reg = true_region(nwo)
                     if reg in self.regions:
                         self.validated_regions.add(reg)
@@ -405,12 +411,7 @@ class PrepareScene:
                 else:
                     nwo.region_name = 'default'
                     nwo.permutation_name = 'default'
-
-            self.strip_prefix(ob, protected_names)
-            # if not_bungie_game():
-            #     self.apply_namespaces(ob, asset)
-
-            nwo.object_type = get_object_type(ob)
+            
             if nwo.object_type == '_connected_geometry_object_type_none':
                 self.unlink(ob)
                 continue
@@ -1706,6 +1707,11 @@ class PrepareScene:
                 
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
             nwo.marker_all_regions = bool_str(not nwo.marker_uses_regions)
+            if nwo.marker_uses_regions:
+                nwo.region_name = true_region(nwo)
+                self.validated_regions.add(nwo.region_name)
+                for perm in nwo.marker_permutations:
+                    self.validated_permutations.add(perm.name)
                 
         elif mesh_type == '_connected_geometry_mesh_type_poop':
             self.setup_poop_props(nwo, h4, nwo_data)
