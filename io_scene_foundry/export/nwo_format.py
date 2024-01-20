@@ -587,10 +587,6 @@ class NWOMarker(NWOObject):
         # SHARED
         self.bungie_marker_type = self.halo.marker_type
         self.bungie_marker_model_group = self.marker_model_group()
-        if self.halo.marker_exclude_perms:
-            self.bungie_marker_exclude_from_permutations = self.halo.marker_exclude_perms
-        elif self.halo.marker_include_perms:
-            self.bungie_marker_include_in_permutations = self.halo.marker_include_perms
 
         # properties for model/sky assets only
         if self.sidecar_type in ("MODEL", "SKY"):
@@ -598,6 +594,16 @@ class NWOMarker(NWOObject):
                 self.bungie_marker_all_regions = self.halo.marker_all_regions
                 if self.bungie_marker_all_regions == "0":
                     self.bungie_marker_region = self.halo.region_name
+                    m_perms = self.halo.marker_permutations
+                    if m_perms:
+                        m_perm_set = set()
+                        for perm in m_perms:
+                            m_perm_set.add(perm.name)
+                        m_perm_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
+                        if self.halo.marker_permutation_type == "exclude":
+                            self.bungie_marker_exclude_from_permutations = m_perm_json_value
+                        else:
+                            self.bungie_marker_include_in_permutations = m_perm_json_value
 
         # garbage has velocity
         if self.halo.marker_velocity:
@@ -935,7 +941,22 @@ class NWOMesh(NWOObject):
                     self.bungie_mesh_primitive_sphere_radius = (
                         self.mesh_primitive_sphere_radius()
                     )
-
+                    
+        elif self.bungie_mesh_type == '_connected_geometry_mesh_type_object_instance':
+            self.bungie_marker_all_regions = self.halo.marker_all_regions
+            if self.bungie_marker_all_regions == '0':
+                self.bungie_marker_region = self.halo.region_name
+                m_perms = self.halo.marker_permutations
+                if m_perms:
+                    m_perm_set = set()
+                    for perm in m_perms:
+                        m_perm_set.add(perm.name)
+                    m_perm_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
+                    if self.halo.marker_permutation_type == "exclude":
+                        self.bungie_marker_exclude_from_permutations = m_perm_json_value
+                    else:
+                        self.bungie_marker_include_in_permutations = m_perm_json_value
+            
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_portal":
             self.bungie_mesh_portal_type = self.halo.portal_type
             if self.halo.portal_ai_deafening:

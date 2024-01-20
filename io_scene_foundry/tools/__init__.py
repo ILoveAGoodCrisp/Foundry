@@ -1057,7 +1057,35 @@ class NWO_FoundryPanelProps(Panel):
                 col.label(text="Particle Model")
                 return
             
-            self.draw_table_menus(col, nwo, ob)
+            if nwo.mesh_type_ui == '_connected_geometry_mesh_type_object_instance':
+                row = col.row()
+                row.use_property_split = False
+                row.prop(nwo, "marker_uses_regions", text='Region', icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
+                if nwo.marker_uses_regions:
+                    col.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
+                    col.separator()
+                    rows = 3
+                    row = col.row(heading='Permutations')
+                    row.use_property_split = False
+                    row.prop(nwo, "marker_permutation_type", text=" ", expand=True)
+                    row = col.row()
+                    row.template_list(
+                        "NWO_UL_MarkerPermutations",
+                        "",
+                        nwo,
+                        "marker_permutations",
+                        nwo,
+                        "marker_permutations_index",
+                        rows=rows,
+                    )
+                    col_perm = row.column(align=True)
+                    col_perm.menu("NWO_MT_MarkerPermutations", text="", icon="ADD")
+                    col_perm.operator("nwo.marker_perm_remove", icon="REMOVE", text="")
+                    if nwo.marker_permutation_type == "include" and not nwo.marker_permutations:
+                        row = col.row()
+                        row.label(text="No permutations in include list", icon="ERROR")
+            else:
+                self.draw_table_menus(col, nwo, ob)
 
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
@@ -1265,17 +1293,16 @@ class NWO_FoundryPanelProps(Panel):
                     if nwo.marker_type_ui in ('_connected_geometry_marker_type_model', '_connected_geometry_marker_type_garbage', '_connected_geometry_marker_type_effects'):
                         col.prop(nwo, 'marker_model_group', text="Marker Group")
                     row = col.row()
-                    sub = col.row(align=True)
-                    if not nwo.marker_all_regions_ui:
-                        col.label(text='Region', icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
+                    row.use_property_split = False
+                    row.prop(nwo, "marker_uses_regions", text='Region', icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
+                    if nwo.marker_uses_regions:
                         col.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
                     
-                    sub.prop(nwo, "marker_all_regions_ui", text="All Regions")
                     # marker perm ui
-                    if not nwo.marker_all_regions_ui:
+                    if nwo.marker_uses_regions:
                         col.separator()
                         rows = 3
-                        row = col.row(heading='Marker Permutations')
+                        row = col.row(heading='Permutations')
                         row.use_property_split = False
                         # row.label(text="Marker Permutations")
                         row.prop(nwo, "marker_permutation_type", text=" ", expand=True)
@@ -1513,7 +1540,7 @@ class NWO_FoundryPanelProps(Panel):
                 align=True,
             )
             row.scale_x = 0.8
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_lightmap_only"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_lightmap_only", '_connected_geometry_mesh_type_object_instance'):
                 row.prop(mesh_nwo, "precise_position_ui", text="Uncompressed")
             if nwo.mesh_type_ui in TWO_SIDED_MESH_TYPES:
                 row.prop(mesh_nwo, "face_two_sided_ui", text="Two Sided")
@@ -1521,7 +1548,7 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(mesh_nwo, "face_transparent_ui", text="Transparent")
                     # if h4 and poll_ui(('MODEL', 'SKY')):
                     #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", '_connected_geometry_mesh_type_object_instance'):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset") 
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:

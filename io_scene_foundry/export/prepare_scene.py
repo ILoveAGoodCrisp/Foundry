@@ -80,8 +80,9 @@ from ..utils.nwo_utils import (
 
 render_mesh_types = [
     "_connected_geometry_mesh_type_poop",
-    "_connected_geometry_mesh_type_water_surface"
-    "_connected_geometry_mesh_type_decorator"
+    "_connected_geometry_mesh_type_water_surface",
+    "_connected_geometry_mesh_type_decorator",
+    "_connected_geometry_mesh_type_object_instance",
 ]
 
 # Reach special materials
@@ -314,8 +315,6 @@ class PrepareScene:
                     self.invisible_mat = m
                 case '+invalid':
                     self.invalid_mat = m
-                case '+missing':
-                    self.missing_mat = m
                 case '+seamsealer':
                     self.seamsealer_mat = m
                 case '+sky':
@@ -491,18 +490,12 @@ class PrepareScene:
                 if not mat_nwo.shader_path:
                     self.null_path_materials.append(mat)
                     self.warning_hit = True
-                    if h4:
-                        mat.nwo.shader_path = self.missing_mat.nwo.shader_path
-                    else:
-                        mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
+                    mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
                         
                 elif not os.path.exists(get_tags_path() + mat_nwo.shader_path):
                     self.invalid_path_materials.append(mat)
                     self.warning_hit = True
-                    if h4:
-                        mat.nwo.shader_path = self.missing_mat.nwo.shader_path
-                    else:
-                        mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
+                    mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
                 
         if self.null_path_materials:
             if h4:
@@ -1710,6 +1703,10 @@ class PrepareScene:
                 set_origin_to_floor(ob)
             elif nwo.mesh_primitive_type == '_connected_geometry_primitive_type_sphere':
                 set_origin_to_centre(ob)
+                
+        elif mesh_type == '_connected_geometry_mesh_type_object_instance':
+            nwo.marker_all_regions = bool_str(not nwo.marker_uses_regions)
+                
         elif mesh_type == '_connected_geometry_mesh_type_poop':
             self.setup_poop_props(nwo, h4, nwo_data)
                     
@@ -1798,6 +1795,7 @@ class PrepareScene:
             "_connected_geometry_mesh_type_collision",
             "_connected_geometry_mesh_type_physics",
             "_connected_geometry_mesh_type_default",
+            "_connected_geometry_mesh_type_object_instance",
             "_connected_geometry_mesh_type_poop",
             "_connected_geometry_mesh_type_poop_collision",
         ):
@@ -1915,25 +1913,10 @@ class PrepareScene:
     def setup_marker_properties(self, ob, marker_type, asset_type, h4, nwo):
         nwo.marker_type = marker_type
         if asset_type in ('MODEL', 'SKY'):
-            nwo.marker_all_regions = bool_str(nwo.marker_all_regions_ui)
-            if nwo.marker_all_regions == "0":
-                nwo.region_name = true_region(nwo)
-            m_perms = nwo.marker_permutations
-            if m_perms:
-                m_perm_set = set()
-                for perm in m_perms:
-                    m_perm_set.add(perm.permutation)
-                m_person_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
-                if nwo.marker_permutation_type == "exclude":
-                    nwo.marker_exclude_perms = m_person_json_value
-                else:
-                    nwo.marker_include_perms = m_person_json_value
-                    
+            nwo.marker_all_regions = bool_str(not nwo.marker_uses_regions)
             if marker_type == "_connected_geometry_marker_type_hint":
                 if h4:
-                    max_abs_scale = max(
-                        abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)
-                    )
+                    max_abs_scale = max(abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z))
                     if ob.type == "EMPTY":
                         nwo.marker_hint_length = jstr(
                             ob.empty_display_size * 2 * max_abs_scale
@@ -2661,7 +2644,7 @@ class PrepareScene:
         if me.nwo.face_global_material_ui and nwo.reach_poop_collision:
             self.set_reach_coll_materials(me, scene_mats, True)
         else:
-            self.loop_and_fix_slots(context, slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4)
+            self.loop_and_fix_slots(context, slots, is_halo_render, mats, ob, nwo, materials, me, does_not_support_sky, scene_coll, h4)
 
     def set_reach_coll_materials(self, me, scene_mats, mesh_level=False):
         # handle reach poop collision material assignment
@@ -2717,19 +2700,17 @@ class PrepareScene:
         bm.to_mesh(me)
         bm.free()
 
-    def loop_and_fix_slots(self, context, slots, is_halo_render, mats, ob, nwo, render_mesh_types, materials, me, does_not_support_sky, scene_coll, h4):
+    def loop_and_fix_slots(self, context, slots, is_halo_render, mats, ob, nwo, materials, me, does_not_support_sky, scene_coll, h4):
         slots_to_remove = []
         dupe_slots_dict = {}
         is_true_mesh = ob.type == 'MESH'
         for idx, slot in enumerate(slots):
             if slot.material:
                 if slot.material.name in special_material_names:
-                    if h4 and slot.material.name not in ('+invisible', '+invalid', '+missing'):
+                    if h4 and slot.material.name not in ('+invisible', '+invalid'):
                         slot.material = self.invisible_mat
                     elif not h4 and slot.material.name.startswith('+sky') and does_not_support_sky:
                         slot.material = self.seamsealer_mat
-                    elif not h4 and slot.material.name == '+missing':
-                        slot.material = self.invalid_mat
                 elif slot.material.name in convention_material_names:
                     slot.material = self.invisible_mat
                 elif is_halo_render:
@@ -3064,7 +3045,7 @@ class PrepareScene:
                     or nwo.marker_type == "_connected_geometry_marker_type_airprobe"
                 ):
                     self.lighting.append(ob)
-                elif object_type == "_connected_geometry_object_type_marker":
+                elif object_type == "_connected_geometry_object_type_marker" or (object_type == '_connected_geometry_object_type_mesh' and mesh_type == "_connected_geometry_mesh_type_object_instance"):
                     self.markers.append(ob)
                 else:
                     self.unlink(ob)

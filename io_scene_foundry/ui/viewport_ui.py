@@ -85,7 +85,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     1,
                 )
             ),
-
             items.append(
                 nwo_enum(
                     "physics",
@@ -93,6 +92,15 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     "Physics only geometry. Uses havok physics to interact with static and dynamic objects",
                     "physics",
                     2,
+                )
+            ),
+            items.append(
+                nwo_enum(
+                    "io",
+                    "Instanced Object",
+                    "Instanced render only geometry. Supports assignment to multiple permutations",
+                    "instance",
+                    4,
                 )
             ),
         elif asset_type == 'SCENARIO':
@@ -300,6 +308,8 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 material = "Physics"
             case "render":
                 mesh_type = "_connected_geometry_mesh_type_default"
+            case "io":
+                mesh_type = "_connected_geometry_mesh_type_object_instance"
             case "instance":
                 mesh_type = "_connected_geometry_mesh_type_default"
             case "structure":

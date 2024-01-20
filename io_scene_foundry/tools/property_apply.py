@@ -30,7 +30,7 @@ render = {'full': 'render:', 'legacy': ''}
 decorator = {'full': 'decorator:', 'legacy': ''}
 collision = {'full': 'collision:', 'legacy': '@'}
 physics = {'full': 'physics:', 'legacy': '$'}
-flair = {'full': 'flair:', 'legacy': ''}
+io = {'full': 'io:', 'legacy': ''}
 structure = {'full': 'structure:', 'legacy': ''}
 instance = {'full': 'instance:', 'legacy': '%'}
 seam = {'full': 'seam:', 'legacy': ''}
@@ -62,7 +62,7 @@ target = {'full': 'target:', 'legacy': '#'}
 
 all_prefixes = []
 
-for dictionary in [render, decorator, collision, physics, flair, structure, instance, seam, portal, water_surface, soft_ceiling, soft_kill, slip_surface, water_physics, rain_blocker, rain_sheet, cookie_cutter, fog, lightmap, streaming, model, game_instance, envfx, lightcone, airprobe, effects, garbage, hint, pathfinding_sphere, physics_constraint, target]:
+for dictionary in [render, decorator, collision, physics, io, structure, instance, seam, portal, water_surface, soft_ceiling, soft_kill, slip_surface, water_physics, rain_blocker, rain_sheet, cookie_cutter, fog, lightmap, streaming, model, game_instance, envfx, lightcone, airprobe, effects, garbage, hint, pathfinding_sphere, physics_constraint, target]:
     all_prefixes.extend(list(dictionary.values()))
 
 all_prefixes = [p for p in all_prefixes if p != '']

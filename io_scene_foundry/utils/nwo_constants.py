@@ -26,10 +26,10 @@
 
 # MESH TYPE GROUPS
 # Mesh types which support render properties
-RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop")
+RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", '_connected_geometry_mesh_type_object_instance')
 COLLISION_MESH_TYPES = ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision")
 # Mesh types which support the two sided flag
-TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision", '_connected_geometry_mesh_type_lightmap_only')
+TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision", '_connected_geometry_mesh_type_lightmap_only', '_connected_geometry_mesh_type_object_instance')
 
 # Blender Halo Mesh Types
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
@@ -106,6 +106,7 @@ object_asset_validation = {
     '_connected_geometry_mesh_type_default': ('MODEL', 'SCENARIO', 'SKY', 'PARTICLE MODEL', 'DECORATOR SET', 'FP ANIMATION', 'PREFAB'),
     '_connected_geometry_mesh_type_collision': ('MODEL', 'SCENARIO', 'SKY', 'PREFAB'),
     '_connected_geometry_mesh_type_physics': ('MODEL',),
+    '_connected_geometry_mesh_type_object_instance': ('MODEL',),
     '_connected_geometry_mesh_type_structure': ('SCENARIO'),
     '_connected_geometry_mesh_type_poop': ('SCENARIO', 'PREFAB'),
     '_connected_geometry_mesh_type_seam': ('SCENARIO',),
@@ -142,6 +143,7 @@ object_game_validation = {
     '_connected_geometry_mesh_type_poop': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_collision': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_physics': ('reach', 'corinth'),
+    '_connected_geometry_mesh_type_object_instance': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_structure': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_seam': ('reach', 'corinth'),
     '_connected_geometry_mesh_type_portal': ('reach', 'corinth'),

@@ -460,7 +460,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
 # MARKER PERM PROPERTIES
 # ----------------------------------------------------------
 class NWO_MarkerPermutationItems(PropertyGroup):
-    permutation: StringProperty(name="Permutation")
+    name: StringProperty(name="Permutation")
 
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
@@ -1576,11 +1576,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         default=20,
     )
 
-    marker_all_regions_ui: BoolProperty(
+    marker_uses_regions: BoolProperty(
         name="Marker All Regions",
         options=set(),
-        description="Associate this marker with all regions rather than a specific one",
-        default=True,
+        description="Associate this object with a specific region rather than all",
+        default=False,
     )
     
     def get_marker_model_group(self):
@@ -2180,8 +2180,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     toggle_face_defaults: BoolProperty()
 
     # MARKER PERMS
-    marker_exclude_perms : StringProperty()
-    marker_include_perms : StringProperty()
+    marker_exclude_permutations : StringProperty()
+    marker_include_permutations : StringProperty()
 
 
 # LIGHT PROPERTIES

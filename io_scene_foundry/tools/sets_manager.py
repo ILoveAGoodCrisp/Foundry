@@ -29,8 +29,9 @@
 import bpy
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
+from io_scene_foundry.tools.collection_manager import get_full_name
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
 
 class NWO_UpdateSets(bpy.types.Operator):
     bl_idname = "nwo.update_sets"
@@ -96,6 +97,7 @@ class TableEntryRemove(bpy.types.Operator):
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
         scene_objects = context.scene.objects
+        old_entry_name = entry.name
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.name]
         table.remove(table_active_index)
         if table_active_index > len(table) - 1:
@@ -103,6 +105,32 @@ class TableEntryRemove(bpy.types.Operator):
         new_entry_name = table[0].name
         for ob in entry_objects:
             setattr(ob.nwo, self.ob_prop_str, new_entry_name)
+        if self.ob_prop_str == 'permutation_name_ui':
+            for ob in scene_objects:
+                perms_list = ob.nwo.marker_permutations
+                perms_to_remove = []
+                for idx, perm in enumerate(perms_list):
+                    if perm.name == old_entry_name:
+                        perms_to_remove.append(idx)
+                        
+                while perms_to_remove:
+                    perms_list.remove(perms_to_remove[0])
+                    perms_to_remove.pop(0)
+                    perms_to_remove = [idx - 1 for idx in perms_to_remove]
+                
+                if ob.nwo.marker_permutations_index >= len(perms_list):
+                    ob.nwo.marker_permutations_index = 0
+                    
+        for coll in bpy.data.collections:
+            if self.ob_prop_str == 'region_name_ui':
+                if coll.nwo.type == 'region' and coll.nwo.region == old_entry_name:
+                    coll.nwo.region = new_entry_name
+                    coll.name = get_full_name(coll.nwo.type, new_entry_name)
+            elif self.ob_prop_str == 'permutation_name_ui':
+                if coll.nwo.type == 'permutation' and coll.nwo.permutation == old_entry_name:
+                    coll.nwo.permutation = new_entry_name
+                    coll.name = get_full_name(coll.nwo.type, new_entry_name)
+                        
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -167,7 +195,7 @@ class TableEntrySelect(bpy.types.Operator):
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
-        available_objects = context.view_layer.objects
+        available_objects = [ob for ob in context.view_layer.objects if is_mesh(ob) or is_marker(ob)]
         entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
         [ob.select_set(self.select) for ob in entry_objects]
         return {'FINISHED'}
@@ -192,7 +220,6 @@ class TableEntryRename(bpy.types.Operator):
 
         if not entry.old:
             entry.old = 'default'
-
         if not new_name:
             self.report({'WARNING'}, f"{self.type_str} name cannot be empty")
             entry.name = entry.old
@@ -208,25 +235,31 @@ class TableEntryRename(bpy.types.Operator):
         
         scene_objects = context.scene.objects
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.old]
+        entry_collections = []
+        if self.ob_prop_str == 'region_name_ui':
+            entry_collections = [coll for coll in bpy.data.collections if coll.nwo.region == entry.old]
+        elif self.ob_prop_str == 'permutation_name_ui':
+            entry_collections = [coll for coll in bpy.data.collections if coll.nwo.permutation == entry.old]
         old_name = str(entry.old)
         entry.old = new_name
         entry.name = new_name
         for ob in entry_objects:
             setattr(ob.nwo, self.ob_prop_str, new_name)
-        scene_collections = bpy.data.collections
-        current_type = self.type_str.lower()
-        is_scenario = poll_ui(('SCENARIO', 'PREFAB'))
             
-        for coll in scene_collections:
-            c_parts = coll.name.split('::')
-            if not c_parts or len(c_parts) != 2: continue
-            if coll.nwo.type != current_type or c_parts[1] != old_name: continue
-            true_type = current_type
-            if current_type == 'region' and is_scenario:
-                true_type = 'bsp'
-            elif current_type == 'permutation' and is_scenario:
-                true_type = 'layer'
-            coll.name = true_type + '::' + self.new_name
+        if self.ob_prop_str == 'permutation_name_ui':
+            for ob in scene_objects:
+                perms_list = ob.nwo.marker_permutations
+                for perm in perms_list:
+                    if perm.name == old_name:
+                        perm.name = new_name
+                    
+        for coll in entry_collections:
+            if self.ob_prop_str == 'region_name_ui':
+                coll.nwo.region = new_name
+            elif self.ob_prop_str == 'permutation_name_ui':
+                coll.nwo.permutation = new_name
+                
+            coll.name = get_full_name(coll.nwo.type, new_name)
 
         if hasattr(context.area, 'tag_redraw'):
             context.area.tag_redraw()
@@ -251,7 +284,7 @@ class TableEntryHide(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
-        available_objects = context.view_layer.objects
+        available_objects = [ob for ob in context.view_layer.objects if is_mesh(ob) or is_marker(ob)]
         entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
         regions_table = getattr(nwo, 'regions_table')
         permutations_table = getattr(nwo, 'permutations_table')
@@ -275,7 +308,7 @@ class TableEntryHideSelect(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
-        available_objects = context.view_layer.objects
+        available_objects = [ob for ob in context.view_layer.objects if is_mesh(ob) or is_marker(ob)]
         entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
         regions_table = getattr(nwo, 'regions_table')
         permutations_table = getattr(nwo, 'permutations_table')

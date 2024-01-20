@@ -1016,6 +1016,7 @@ def has_mesh_props(ob) -> bool:
         "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_structure",
         "_connected_geometry_mesh_type_lightmap_only",
+        "_connected_geometry_mesh_type_object_instance",
     )
     nwo = ob.nwo
     return (
@@ -1344,6 +1345,8 @@ def get_mesh_display(mesh_type):
             return 'Collision', get_icon_id('collider')
         case '_connected_geometry_mesh_type_physics':
             return 'Physics', get_icon_id('physics')
+        case '_connected_geometry_mesh_type_object_instance':
+            return 'Instanced Object', get_icon_id('instance')
         case '_connected_geometry_mesh_type_seam':
             return 'Seam', get_icon_id('seam')
         case '_connected_geometry_mesh_type_portal':
@@ -1378,7 +1381,7 @@ def get_mesh_display(mesh_type):
             elif poll_ui(('DECORATOR')):
                 return 'Decorator', get_icon_id('decorator')
             else:
-                return 'Render', get_icon_id('render_geometry')
+                return 'Render', get_icon_id('model')
 
 def library_instanced_collection(ob):
     return ob.instance_type == 'COLLECTION' and ob.instance_collection and ob.instance_collection.library

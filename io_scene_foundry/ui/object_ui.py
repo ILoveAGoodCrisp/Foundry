@@ -138,9 +138,10 @@ class NWO_MeshTypes(Menu):
         layout = self.layout
         h4 = is_corinth(context)
         if poll_ui("MODEL"):
-            layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('render_geometry')).m_type = 'render'
+            layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('model')).m_type = 'render'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
+            layout.operator('nwo.apply_type_mesh_single', text='Instanced Object', icon_value=get_icon_id('instance')).m_type = 'io'
         elif poll_ui("SCENARIO"):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
@@ -704,7 +705,7 @@ class NWO_UL_MarkerPermutations(UIList):
         active_propname,
         index,
     ):
-        layout.prop(item, "permutation", text="", emboss=False, icon_value=get_icon_id("permutation"))
+        layout.label(text=item.name, icon_value=get_icon_id("permutation"))
 
 class NWO_List_Add_MarkerPermutation(Operator):
     bl_idname = "nwo.marker_perm_add"
@@ -718,7 +719,7 @@ class NWO_List_Add_MarkerPermutation(Operator):
         ob = context.object
         nwo = ob.nwo
         for perm in nwo.marker_permutations:
-            if perm.permutation == self.name:
+            if perm.name == self.name:
                 return {"CANCELLED"}
             
         bpy.ops.uilist.entry_add(
@@ -726,7 +727,7 @@ class NWO_List_Add_MarkerPermutation(Operator):
             active_index_path="object.nwo.marker_permutations_index",
         )
 
-        nwo.marker_permutations[nwo.marker_permutations_index].permutation = self.name
+        nwo.marker_permutations[nwo.marker_permutations_index].name = self.name
         context.area.tag_redraw()
 
         return {"FINISHED"}
