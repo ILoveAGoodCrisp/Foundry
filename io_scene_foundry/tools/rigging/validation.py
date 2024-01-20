@@ -454,6 +454,8 @@ class NWO_AddPoseBones(bpy.types.Operator):
         rig = HaloRig(context, tail_scale, scene_nwo.forward_direction, False, True, self.add_control_bone, True)
         rig.rig_ob = arm
         rig.rig_data = arm.data
+        context.view_layer.objects.active = arm
+        arm.select_set(True)
         rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None, build_pedestal_control=(not bool(scene_nwo.control_pedestal)), build_aim_control=(not bool(scene_nwo.control_aim)))
         if self.add_control_bone:
             rig.build_and_apply_control_shapes(pitch=rig.rig_ob.pose.bones.get(scene_nwo.node_usage_pose_blend_pitch), yaw=rig.rig_ob.pose.bones.get(scene_nwo.node_usage_pose_blend_yaw))
@@ -511,6 +513,8 @@ class NWO_AddPedestalControl(bpy.types.Operator):
             rig = HaloRig(context, tail_scale, scene_nwo.forward_direction, True, False, False, True)
             rig.rig_ob = arm
             rig.rig_data = arm.data
+            context.view_layer.objects.active = arm
+            arm.select_set(True)
             rig.build_bones(pedestal=root.name)
             rig.build_and_apply_control_shapes(pedestal=root)
             
