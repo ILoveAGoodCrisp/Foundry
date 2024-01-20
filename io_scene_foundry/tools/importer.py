@@ -485,8 +485,7 @@ class NWOImporter():
         name = dot_partition(ob.name)
         if is_model:
             if name.startswith('Instances:'):
-                # Need to implement this
-                pass
+                ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_object_instance'
             else:
                 region, permutation = name.split(':')
                 self.set_region(ob, region)
