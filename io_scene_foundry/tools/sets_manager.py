@@ -33,6 +33,14 @@ from io_scene_foundry.tools.collection_manager import get_full_name
 
 from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
 
+def has_region_or_perm(ob):
+    if is_mesh(ob) and (ob.nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
+        return True
+    elif is_marker(ob) and ob.nwo.marker_uses_regions:
+        return True
+    
+    return False
+
 class NWO_UpdateSets(bpy.types.Operator):
     bl_idname = "nwo.update_sets"
     bl_label = "Update Sets From Scene"
@@ -195,8 +203,8 @@ class TableEntrySelect(bpy.types.Operator):
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
-        available_objects = [ob for ob in context.view_layer.objects if is_mesh(ob) or is_marker(ob)]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
+        available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob)]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str)]
         [ob.select_set(self.select) for ob in entry_objects]
         return {'FINISHED'}
     
@@ -284,8 +292,8 @@ class TableEntryHide(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide = entry.hidden
-        available_objects = [ob for ob in context.view_layer.objects if is_mesh(ob) or is_marker(ob)]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
+        available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob)]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
         regions_table = getattr(nwo, 'regions_table')
         permutations_table = getattr(nwo, 'permutations_table')
         # Only unhide objects if both region and permutation are set to unhidden
@@ -308,8 +316,8 @@ class TableEntryHideSelect(bpy.types.Operator):
         table = getattr(nwo, self.table_str)
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
-        available_objects = [ob for ob in context.view_layer.objects if is_mesh(ob) or is_marker(ob)]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob.nwo, self.ob_prop_str) == entry.name]
+        available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob)]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str)]
         regions_table = getattr(nwo, 'regions_table')
         permutations_table = getattr(nwo, 'permutations_table')
         for ob in entry_objects:
@@ -820,11 +828,18 @@ def get_entry(table, entry_name):
         if entry.name == entry_name:
             return entry
         
-def true_table_entry(nwo, ob_prop_str):
+def true_table_entry(ob, ob_prop_str, entry_name) -> bool:
     if ob_prop_str == "region_name_ui":
-        return true_region(nwo)
+        return true_region(ob.nwo) == entry_name
     elif ob_prop_str == "permutation_name_ui":
-        return true_permutation(nwo)
+        if is_marker(ob) or ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_object_instance':
+            perms = [perm.name for perm in ob.nwo.marker_permutations]
+            if ob.nwo.marker_permutation_type == 'exclude':
+                return entry_name not in perms
+            elif ob.nwo.marker_permutation_type == 'include':
+                return entry_name in perms
+            
+        return true_permutation(ob.nwo) == entry_name
     
     
 # COOL TOOLS MENU
