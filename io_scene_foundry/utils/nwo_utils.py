@@ -482,6 +482,9 @@ def run_tool_sidecar(tool_args: list, asset_path):
                 # This is just incorrect and outputs when a mesh is a valid type for uncompressed
                 # Export logic prevents uncompressed from being applied to invalid types
                 continue
+            elif "Failed to find any animated nodes" and "idle" in line:
+                # Skip because we often want the idle to not have animation e.g. for vehicles
+                continue
             else:
                 # need to handle animation stuff. Most animation output is written to stderr...
                 if line.startswith("animation:import:"):
