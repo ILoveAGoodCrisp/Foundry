@@ -240,9 +240,21 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         pitch_name = scene_nwo.node_usage_pose_blend_pitch
         aim_name = scene_nwo.control_aim
         yaw = arm.pose.bones.get(yaw_name)
+        if yaw is None:
+            scene_nwo.node_usage_pose_blend_yaw = ''
+            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {arm.name}. Removed from Node Usages")
+            return {'CANCELLED'}
         pitch = arm.pose.bones.get(pitch_name)
+        if pitch is None:
+            scene_nwo.node_usage_pose_blend_pitch = ''
+            self.report({'WARNING'}, f"Pitch bone {pitch_name} does not exist in {arm.name}. Removed from Node Usages")
+            return {'CANCELLED'}
         if aim_name:
             aim = arm.pose.bones.get(aim_name)
+            if aim is None:
+                scene_nwo.control_aim = ''
+                self.report({'WARNING'}, f"Aim bone {aim_name} does not exist in {arm.name}. Removed from Node Usages")
+                return {'CANCELLED'}
         else:
             aim = None
         start = int(arm.animation_data.action.frame_start)
