@@ -671,24 +671,32 @@ class NWOImporter:
             objects_with_halo_regions = [ob for ob in objects if ob.region_list]
             for ob in objects_with_halo_regions:
                 mesh = ob.data
-                for idx, perm_region in enumerate(ob.region_list):
-                    perm, region = perm_region.name.split(' ')
-                    new_ob = ob.copy()
-                    new_name = f'{region}:{perm}'
-                    new_ob.name = new_name
-                    new_mesh = bpy.data.meshes.new(new_name)
-                    new_ob.data = new_mesh
-                    bm = bmesh.new()
-                    bm.from_mesh(mesh)
-                    region_assignment = bm.faces.layers.int.get("Region Assignment")
-                    faces_to_remove = [face for face in bm.faces if face[region_assignment] != idx]
-                    bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
-                    bm.to_mesh(new_mesh)
-                    objects.append(new_ob)
+                if len(ob.region_list) == 1:
+                    parts = ob.region_list[0].name.split(' ')
+                    perm = parts[0]
+                    region = parts[1]
+                    ob.name = f'{region}:{perm}'
+                else:
+                    for idx, perm_region in enumerate(ob.region_list):
+                        parts = perm_region.name.split(' ')
+                        perm = parts[0]
+                        region = parts[1]
+                        new_ob = ob.copy()
+                        new_name = f'{region}:{perm}'
+                        new_ob.name = new_name
+                        new_mesh = bpy.data.meshes.new(new_name)
+                        new_ob.data = new_mesh
+                        bm = bmesh.new()
+                        bm.from_mesh(mesh)
+                        region_assignment = bm.faces.layers.int.get("Region Assignment")
+                        faces_to_remove = [face for face in bm.faces if face[region_assignment] != idx]
+                        bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
+                        bm.to_mesh(new_mesh)
+                        objects.append(new_ob)
                 
-                objects.remove(ob)
-                bpy.data.objects.remove(ob)
-                bpy.data.meshes.remove(mesh)
+                    objects.remove(ob)
+                    bpy.data.objects.remove(ob)
+                    bpy.data.meshes.remove(mesh)
             
         for ob in objects:
             unlink(ob)
@@ -785,7 +793,6 @@ class NWOImporter:
             if mesh_type_legacy in ('collision', 'physics'):
                 self.setup_collision_materials(ob, mesh_type_legacy)
                 
-            
             if self.apply_materials:
                 apply_props_material(ob, material)
                 
