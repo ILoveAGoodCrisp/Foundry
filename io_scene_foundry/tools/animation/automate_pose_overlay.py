@@ -44,9 +44,10 @@ class NWO_AddAimAnimation(bpy.types.Operator):
     aim_animation: bpy.props.EnumProperty(
         name='Animation',
         items=[
-            ("steering_yaw", "Steering (Yaw only)", "Uses the yaw bone only. Steers left and right\nFrames:\nrest\nleft\nmiddle\nright"),
-            ("steering_full", "Steering (Yaw & Pitch)", "Animates the yaw and pitch bones from left to right\nFrames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
-            ("aiming_360", "Aiming (360)", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up)\nFrames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
+            ("steering", "Steering", "Uses the yaw bone only. Steers left and right\nFrames:\nrest\nleft\nmiddle\nright"),
+            ("aiming", "Aiming", "Animates the yaw and pitch bones from left to right\nFrames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
+            ("pitch_and_turn", "Pitch & Turn", "Animates the yaw and pitch bones from left to right in line with 'pitch_and_turn' overlays in earlier Halo games\nFrames:\nrest\nright down\nmiddle down\nleft down\nright forward\nmiddle forward\nleft forward\nright up\nmiddle up\nleft up"),
+            ("aiming_360", "360 Turret Aiming", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up)\nFrames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
             ]
         )
     
@@ -66,7 +67,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         max=radians(90),
     )
     
-    def setup_steering_yaw(self, yaw, aim, start):
+    def setup_steering(self, yaw, aim, start):
         if aim is None:
             yaw.matrix_basis = Matrix()
             yaw.rotation_mode = 'XYZ'
@@ -90,7 +91,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
             
         return start + 3
         
-    def setup_steering_full(self, yaw, pitch, aim, start):
+    def setup_aiming(self, yaw, pitch, aim, start):
         if aim is None:
             yaw.matrix_basis = Matrix()
             pitch.matrix_basis = Matrix()
@@ -156,6 +157,75 @@ class NWO_AddAimAnimation(bpy.types.Operator):
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
             aim.rotation_euler = [0, self.max_pitch, -self.max_yaw]
             aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+        return start + 9
+    
+    def setup_pitch_and_turn(self, yaw, pitch, aim, start):
+        if aim is None:
+            yaw.matrix_basis = Matrix()
+            pitch.matrix_basis = Matrix()
+            yaw.rotation_mode = 'XYZ'
+            pitch.rotation_mode = 'XYZ'
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start)
+            yaw.rotation_euler = [0, 0, -self.max_yaw]
+            pitch.rotation_euler = [0, self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            yaw.rotation_euler = [0, 0, self.max_yaw]
+            pitch.rotation_euler = [0, self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            yaw.rotation_euler = [0, 0, -self.max_yaw]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            yaw.rotation_euler = [0, 0, self.max_yaw]
+            pitch.rotation_euler = [0, 0, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            yaw.rotation_euler = [0, 0, -self.max_yaw]
+            pitch.rotation_euler = [0, -self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            yaw.rotation_euler = [0, 0, 0]
+            pitch.rotation_euler = [0, -self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            yaw.rotation_euler = [0, 0, self.max_yaw]
+            pitch.rotation_euler = [0, -self.max_pitch, 0]
+            yaw.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+            pitch.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+        else:
+            aim.matrix_basis = Matrix()
+            aim.rotation_mode = 'XYZ'
+            aim.keyframe_insert(data_path='rotation_euler', frame=start)
+            aim.rotation_euler = [0, self.max_pitch, -self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 1)
+            aim.rotation_euler = [0, self.max_pitch, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 2)
+            aim.rotation_euler = [0, self.max_pitch, self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 3)
+            aim.rotation_euler = [0, 0, -self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 4)
+            aim.rotation_euler = [0, 0, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 5)
+            aim.rotation_euler = [0, 0, self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 6)
+            aim.rotation_euler = [0, -self.max_pitch, -self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 7)
+            aim.rotation_euler = [0, -self.max_pitch, 0]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 8)
+            aim.rotation_euler = [0, -self.max_pitch, self.max_yaw]
+            aim.keyframe_insert(data_path='rotation_euler', frame=start + 9)
+            
         return start + 9
     
     def setup_aiming_360(self, yaw, pitch, aim, start):
@@ -236,6 +306,8 @@ class NWO_AddAimAnimation(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = context.scene.nwo
         arm = scene_nwo.main_armature
+        if not arm.animation_data:
+            arm.animation_data_create()
         yaw_name = scene_nwo.node_usage_pose_blend_yaw
         pitch_name = scene_nwo.node_usage_pose_blend_pitch
         aim_name = scene_nwo.control_aim
@@ -274,10 +346,12 @@ class NWO_AddAimAnimation(bpy.types.Operator):
                 fcurves_for_destruction.add(fc)
         [action.fcurves.remove(fc) for fc in fcurves_for_destruction]
         
-        if self.aim_animation == 'steering_yaw':
-            action.frame_end = self.setup_steering_yaw(yaw, aim, start)
-        elif self.aim_animation == 'steering_full':
-            action.frame_end = self.setup_steering_full(yaw, pitch, aim, start)
+        if self.aim_animation == 'steering':
+            action.frame_end = self.setup_steering(yaw, aim, start)
+        elif self.aim_animation == 'aiming':
+            action.frame_end = self.setup_aiming(yaw, pitch, aim, start)
+        elif self.aim_animation == 'pitch_and_turn':
+            action.frame_end = self.setup_pitch_and_turn(yaw, pitch, aim, start)
         elif self.aim_animation == 'aiming_360':
             action.frame_end = self.setup_aiming_360(yaw, pitch, aim, start)
         if not already_in_pose_mode:
@@ -294,7 +368,7 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         layout = self.layout
         layout.use_property_split = True
         layout.prop(self, 'aim_animation', text='Animation')
-        if self.aim_animation.startswith('steering'):
+        if self.aim_animation in ('steering', 'aiming', 'pitch_and_turn'):
             layout.prop(self, 'max_yaw', text='Max Yaw Angle')
-        if self.aim_animation == 'steering_full' or self.aim_animation == 'aiming_360':
+        if self.aim_animation in ('aiming', 'pitch_and_turn', 'aiming_360'):
             layout.prop(self, 'max_pitch', text='Max Pitch Angle')
