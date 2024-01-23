@@ -659,13 +659,9 @@ class PrepareScene:
                 self.create_bsp_box(scene_coll)
 
             if self.model_armature:
-                if bpy.data.actions and self.model_armature.animation_data:
-                    self.current_action = self.get_current_action(self.model_armature)
-                    if self.model_armature.animation_data.action:
-                        context.scene.tool_settings.use_keyframe_insert_auto = False
-                        self.model_armature.animation_data.action = None
-                        for bone in self.model_armature.pose.bones:
-                            bone.matrix_basis = Matrix()
+                if bpy.data.actions:
+                    self.current_action = bpy.data.actions[scene_nwo.active_action_index]
+                    context.scene.tool_settings.use_keyframe_insert_auto = False
 
                 self.remove_relative_parenting(context, export_obs)
 
@@ -2136,16 +2132,12 @@ class PrepareScene:
         if (
             model_armature is not None
             and len(bpy.data.actions) > 0
-            and model_armature.animation_data
         ):
             for action in bpy.data.actions:
                 action.name = dot_partition(action.name).lower().strip(" :_,-")
                 nwo = action.nwo
                 if not nwo.name_override:
                     nwo.name_override = action.name
-
-    def get_current_action(self, model_armature):
-        return model_armature.animation_data.action
 
     def rotate_scene(self, objects):
         angle_z = radians(90)

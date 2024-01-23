@@ -368,6 +368,7 @@ class NWO_FoundryPanelProps(Panel):
             row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
             row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
             row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
+            self.draw_rig_ui(self.context, nwo)
             
         elif nwo.asset_type == "SCENARIO":
             box = self.box.box()
@@ -4074,7 +4075,7 @@ class NWO_HaloExportSettingsScope(Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
+        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'FP ANIMATION')
 
     def draw(self, context):
         layout = self.layout

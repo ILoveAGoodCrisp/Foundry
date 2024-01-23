@@ -262,7 +262,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
         if scene_nwo.asset_type == 'camera_track_set':
             return
-        if scene_nwo_export.export_gr2_files and scene_nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB'):
+        if scene_nwo_export.export_gr2_files and scene_nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'FP ANIMATION'):
             col.separator()
             sub = col.column(heading="Export")
             # sub.prop(self, "export_hidden")
@@ -282,9 +282,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 sub.prop(scene_nwo_export, "export_all_bsps", expand=True)
             elif scene_nwo.asset_type != "PREFAB":
                 sub.prop(scene_nwo_export, "export_render")
-            if scene_nwo.asset_type not in (
-                "DECORATOR SET",
-                "PARTICLE MODEL",
+            if scene_nwo.asset_type in (
+                "MODEL",
+                "SKY",
+                "SCENARIO",
                 "PREFAB",
             ):
                 sub.prop(scene_nwo_export, "export_all_perms", expand=True)

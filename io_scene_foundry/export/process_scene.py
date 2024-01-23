@@ -100,17 +100,8 @@ class ProcessScene:
             export_dir = os.path.join(asset_path, "export", "models")
             os.makedirs(models_dir, exist_ok=True)
             os.makedirs(export_dir, exist_ok=True)
-
-            if asset_type in (
-                "MODEL",
-                "FP ANIMATION",
-            ):  # Added FP animation to this. FP animation only exports the skeleton and animations
-                # Must always export a render model
-                if (
-                    nwo_scene.model_armature
-                    and bpy.data.actions
-                    and nwo_scene.model_armature.animation_data
-                ):
+            if asset_type in ("MODEL", "FP ANIMATION"):
+                if nwo_scene.model_armature and bpy.data.actions:
                     if scene_nwo_export.export_animations != "NONE":
                         timeline = context.scene
                         print("\n\nStarting Animations Export")

@@ -42,7 +42,7 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object.type == 'ARMATURE'
+        return context.object and context.object.type == 'ARMATURE'
 
     def execute(self, context):
         scene_nwo = context.scene.nwo
