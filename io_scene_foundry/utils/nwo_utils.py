@@ -1453,6 +1453,8 @@ def type_valid(m_type, asset_type=None, game_version=None):
         asset_type = bpy.context.scene.nwo.asset_type
     if game_version is None:
         game_version = 'corinth' if is_corinth() else 'reach'
+    if not m_type or not object_asset_validation.get(m_type, 0) or not object_game_validation.get(m_type, 0):
+        return False
     return asset_type in object_asset_validation[m_type] and game_version in object_game_validation[m_type]
 
 def get_shader_name(mat):
