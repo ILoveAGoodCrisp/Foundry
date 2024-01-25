@@ -45,9 +45,9 @@ class NWO_AddAimAnimation(bpy.types.Operator):
         name='Animation',
         items=[
             ("steering", "Steering", "Uses the yaw bone only. Steers left and right\nFrames:\nrest\nleft\nmiddle\nright"),
-            ("aiming", "Aiming", "Animates the yaw and pitch bones from left to right\nFrames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
+            ("aiming", "Aiming / Flight", "Animates the yaw and pitch bones from left to right\nFrames:\nrest\nleft up\nleft\left down\nmiddle up\nmiddle\nmiddle down\nright up\nright\nright down"),
             ("pitch_and_turn", "Pitch & Turn", "Animates the yaw and pitch bones from left to right in line with 'pitch_and_turn' overlays in earlier Halo games\nFrames:\nrest\nright down\nmiddle down\nleft down\nright forward\nmiddle forward\nleft forward\nright up\nmiddle up\nleft up"),
-            ("aiming_360", "360 Turret Aiming", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up)\nFrames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
+            ("aiming_360", "360 Aiming / Acceleration", "Aiming for a turret that can rotate 360 degrees. Uses the yaw bone initially, then the pitch (90 degrees down then up)\nFrames:\nrest\nyaw anti-clockwise 360 for 7 frames\nrest\npitch down\npitch up"),
             ]
         )
     

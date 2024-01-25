@@ -29,6 +29,7 @@
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.managed_blam.object import ObjectTag
 from io_scene_foundry.utils import nwo_utils
+from contextlib import redirect_stdout
 
 def report_state_names():
     '''Returns a list of all animation graphs and their state types (objects folder only)'''
@@ -77,4 +78,69 @@ def report_seat_names():
         print(f'--- {name}')
         
     return ordered_seat_names
-    
+
+def report_blend_screens():
+    '''Returns a list of blend screens'''
+    graphs = nwo_utils.paths_in_dir(nwo_utils.get_tags_path() + 'objects', '.model_animation_graph')
+    yaw_sources = set()
+    pitch_sources = set()
+    weight_sources = set()
+    animation_names = set()
+    for g in graphs:
+        with AnimationTag(path=g) as animation:
+            print('')
+            print(animation.tag_path.RelativePath)
+            print('-'*50)
+            blend_screens_block = animation.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
+            functions_block = animation.tag.SelectField('Struct:definitions[0]/Block:functions')
+            animations_block = animation.block_animations
+            for element in blend_screens_block.Elements:
+                print('====' + element.Fields[0].GetStringData() + '====')
+                flags = element.Fields[1]
+                print(f"--- active only when weapon down: {flags.TestBit('active only when weapon down')}")
+                print(f"--- attempt piece-wise blending: {flags.TestBit('attempt piece-wise blending')}")
+                print(f"--- allow parent adjustment: {flags.TestBit('allow parent adjustment')}")
+                print(f"--- weight: {element.Fields[2].GetStringData()}")
+                print(f"--- interpolation rate: {element.Fields[3].GetStringData()}")
+                yaw_source = animation._Element_get_enum_as_string(element, 'yaw source')
+                yaw_sources.add(yaw_source)
+                print(f"--- yaw source: {yaw_source}")
+                pitch_source = animation._Element_get_enum_as_string(element, 'pitch source')
+                pitch_sources.add(pitch_source)
+                print(f"--- pitch source: {pitch_source}")
+                weight_source = animation._Element_get_enum_as_string(element, 'weight source')
+                weight_sources.add(weight_source)
+                print(f"--- weight source: {weight_source}")
+                print(f"--- yaw source object function: {element.SelectField('yaw source object function').GetStringData()}")
+                print(f"--- pitch source object function: {element.SelectField('pitch source object function').GetStringData()}")
+                print(f"--- weight source object function: {element.SelectField('weight source object function').GetStringData()}")
+                weight_function_index = element.SelectField('weight function').Value
+                if weight_function_index > -1:
+                    print(f"--- weight function: {functions_block.Elements[weight_function_index].Fields[0].GetStringData()}")
+                    'Struct:definitions[0]/Block:NEW blend screens[135]/Struct:animation[0]/ShortBlockIndex:animation'
+                animation_index = element.SelectField('Struct:animation[0]/ShortBlockIndex:animation').Value
+                if animation_index > -1:
+                    animation_name = animations_block.Elements[animation_index].Fields[0].GetStringData()
+                    animation_names.add(nwo_utils.any_partition(animation_name, ':', True))
+                    print(f"--- animation: {animation_name}")
+                            
+    print('\n\n\n')
+    ordered_yaw_sources = sorted(yaw_sources)
+    print(f'Found {len(yaw_sources)} unique yaw sources:')
+    for name in ordered_yaw_sources:
+        print(f'--- {name}')
+    print('\n')
+    ordered_pitch_sources = sorted(pitch_sources)
+    print(f'Found {len(pitch_sources)} unique pitch sources:')
+    for name in ordered_pitch_sources:
+        print(f'--- {name}')
+    print('\n')
+    ordered_weight_sources = sorted(weight_sources)
+    print(f'Found {len(weight_sources)} unique weight sources:')
+    for name in ordered_weight_sources:
+        print(f'--- {name}')
+    print('\n')
+    ordered_animations = sorted(animation_names)
+    print(f'Found {len(animation_names)} unique animation state names:')
+    for name in ordered_animations:
+        print(f'--- {name}')
