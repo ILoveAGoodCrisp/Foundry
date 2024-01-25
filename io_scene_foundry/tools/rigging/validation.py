@@ -433,7 +433,7 @@ class NWO_AddPoseBones(bpy.types.Operator):
             arm = nwo_utils.get_rig(context)
         if not arm:
             self.report({'WARNING'}, 'No Armature Found')
-            return
+            return {'CANCELLED'}
         bones = arm.data.bones
         for b in bones:
             if b.use_deform and not b.parent:
