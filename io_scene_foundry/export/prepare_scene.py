@@ -417,6 +417,8 @@ class PrepareScene:
                 continue
             
             elif nwo.object_type == '_connected_geometry_object_type_mesh':
+                if nwo.mesh_type_ui == '':
+                    nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
                 if type_valid(nwo.mesh_type_ui, asset_type, game_version):
                     if self.setup_mesh_properties(ob, nwo.mesh_type_ui, asset_type, h4, nwo):
                         if scene_nwo_export.triangulate:
@@ -432,6 +434,8 @@ class PrepareScene:
                     continue
                 
             elif nwo.object_type == '_connected_geometry_object_type_marker':
+                if nwo.marker_type_ui == '':
+                    nwo.marker_type_ui = '_connected_geometry_marker_type_model'
                 if type_valid(nwo.marker_type_ui, asset_type, game_version):
                     self.setup_marker_properties(ob, nwo.marker_type_ui, asset_type, h4, nwo)
                 else:
