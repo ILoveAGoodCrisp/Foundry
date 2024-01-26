@@ -2267,9 +2267,9 @@ class PrepareScene:
                 continue
             if ob.parent_type != "BONE":
                 if marker or physics:
-                    if not warn:
-                        self.warning_hit = True
-                        print("")
+                    # if not warn:
+                    #     self.warning_hit = True
+                    #     print("")
                     warn = True
                     ob.parent_type = "BONE"
                     ob.parent_bone = root_bone_name
@@ -2282,14 +2282,14 @@ class PrepareScene:
                         ob.parent_bone = root_bone_name
                         ob.matrix_parent_inverse = bones[root_bone_name].matrix_local.inverted()
                     ob.matrix_world = world
-                    if marker:
-                        print_warning(
-                            f"{ob.name} is a marker but is not parented to a bone. Binding to bone: {root_bone_name}"
-                        )
-                    else:
-                        print_warning(
-                            f"{ob.name} is a physics mesh but is not parented to a bone. Binding to bone: {root_bone_name}"
-                        )
+                    # if marker:
+                    #     print_warning(
+                    #         f"{ob.name} is a marker but is not parented to a bone. Binding to bone: {root_bone_name}"
+                    #     )
+                    # else:
+                    #     print_warning(
+                    #         f"{ob.name} is a physics mesh but is not parented to a bone. Binding to bone: {root_bone_name}"
+                    #     )
 
                 elif ob.type == "MESH":
                     # check if has armature mod
