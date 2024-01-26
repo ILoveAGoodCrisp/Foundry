@@ -27,10 +27,10 @@
 import bpy
 from mathutils import Vector
 
-bone_x = 0, 1, 0
-bone_x_negative = 0, -1, 0
-bone_y = -1, 0, 0
-bone_y_negative = 1, 0, 0
+bone_x = 0, 0.1, 0
+bone_x_negative = 0, -0.1, 0
+bone_y = -0.1, 0, 0
+bone_y_negative = 0.1, 0, 0
 
 pedestal_name, aim_pitch_name, aim_yaw_name = 'pedestal', 'aim_pitch', 'aim_yaw'
 pedestal_control_name, aim_control_name = 'CTRL_pedestal', 'CTRL_aim'
@@ -190,7 +190,7 @@ class HaloRig:
             deform_collection.assign(self.rig_data.bones.get(aim_yaw_name))
             
         if self.has_pedestal_control or self.has_aim_control:
-            deform_collection.is_visible = False
+            # deform_collection.is_visible = False
             control_collection = self.rig_data.collections.new('halo_control_bones')
             if self.has_pedestal_control:
                 control_collection.assign(self.rig_data.bones.get(pedestal_control_name))
