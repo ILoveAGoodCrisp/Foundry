@@ -59,6 +59,7 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
         new_collection.nwo.region = coll_name
         if coll_name not in [r.name for r in regions]:
             new_region = regions.add()
+            new_region.old = coll_name
             new_region.name = coll_name
 
 
@@ -67,6 +68,7 @@ def create_collections(context, ops, data, coll_type, coll_name, move_objects):
         new_collection.nwo.permutation = coll_name
         if coll_name not in [p.name for p in permutations]:
             new_perm = permutations.add()
+            new_perm.old = coll_name
             new_perm.name = coll_name
 
     return {"FINISHED"}
