@@ -353,8 +353,8 @@ class NWO_FoundryPanelProps(Panel):
         
         if nwo.asset_type == 'MODEL':
             self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
-            self.draw_rig_ui(self.context, nwo)
             self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
+            self.draw_rig_ui(self.context, nwo)
         
         elif nwo.asset_type == "FP ANIMATION":
             box = self.box.box()
@@ -628,6 +628,23 @@ class NWO_FoundryPanelProps(Panel):
         row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
         if not nwo.control_aim:
             row.operator('nwo.add_pose_bones', text='', icon='ADD').skip_invoke = True
+            
+    def draw_rig_object_controls(self, box: bpy.types.UILayout, nwo):
+        box.use_property_split = True
+        row = box.row()
+        row.template_list(
+            "NWO_UL_ObjectControls",
+            "",
+            nwo,
+            "object_controls",
+            nwo,
+            "object_controls_active_index",
+        )
+        row = box.row()
+        row.operator('nwo.batch_add_object_controls', text='Add')
+        row.operator('nwo.batch_remove_object_controls', text='Remove')
+        row.operator('nwo.select_object_control', text='Select').select = True
+        row.operator('nwo.select_object_control', text='Deselect').select = False
     
     def draw_rig_usages(self, box, nwo):
         box.use_property_split = True
@@ -664,7 +681,6 @@ class NWO_FoundryPanelProps(Panel):
         if not nwo.ik_chains:
             box.operator("nwo.add_ik_chain", text="Add Game IK Chain", icon="CON_SPLINEIK")
             return
-        box.label(text='Game IK Chains')
         row = box.row()
         row.template_list(
             "NWO_UL_IKChain",
@@ -691,8 +707,9 @@ class NWO_FoundryPanelProps(Panel):
         box = self.box.box()
         if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
             self.box.separator()
-            self.draw_expandable_box(box.box(), nwo, 'rig_controls')
-            self.draw_expandable_box(box.box(), nwo, 'rig_usages')
+            self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
+            self.draw_expandable_box(box.box(), nwo, 'rig_object_controls', 'Object Controls')
+            self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
             self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
     def draw_sets_manager(self):

@@ -204,7 +204,7 @@ class TableEntrySelect(bpy.types.Operator):
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
         available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob)]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str)]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
         [ob.select_set(self.select) for ob in entry_objects]
         return {'FINISHED'}
     
@@ -317,7 +317,7 @@ class TableEntryHideSelect(bpy.types.Operator):
         entry = get_entry(table, self.entry_name)
         should_hide_select = entry.hide_select
         available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob)]
-        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str)]
+        entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
         regions_table = getattr(nwo, 'regions_table')
         permutations_table = getattr(nwo, 'permutations_table')
         for ob in entry_objects:

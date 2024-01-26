@@ -111,7 +111,7 @@ class NWO_UnlinkAnimation(bpy.types.Operator):
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
         context.scene.nwo.active_action_index = -1
-        reset_to_basis()
+        reset_to_basis(context)
                     
         return {"FINISHED"}
     
@@ -401,7 +401,7 @@ class NWO_NewAnimation(NWO_Op):
         full_name = self.create_name()
         # Create the animation
         if not self.keep_current_pose:
-            reset_to_basis()
+            reset_to_basis(context)
         animation = bpy.data.actions.new(full_name)
         animation.use_frame_range = True
         animation.use_fake_user = True

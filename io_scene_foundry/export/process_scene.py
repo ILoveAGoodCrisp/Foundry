@@ -45,6 +45,7 @@ from ..utils.nwo_utils import (
     data_relative,
     disable_prints,
     enable_prints,
+    get_animated_objects,
     get_data_path,
     get_tags_path,
     is_corinth,
@@ -85,7 +86,7 @@ class ProcessScene:
         self.first_gr2 = True
         self.skeleton_only = False
         
-        
+        self.models_export_started = False
     
     def process_scene(self, context, sidecar_path, sidecar_path_full, asset, asset_path, asset_type, nwo_scene, scene_nwo_export, scene_nwo):
         reports = []
@@ -142,9 +143,8 @@ class ProcessScene:
                                     
                                     arm = nwo_scene.model_armature
 
-                                    for ob in bpy.data.objects:
-                                        if ob.animation_data:
-                                            ob.animation_data.action = action
+                                    for ob in get_animated_objects(context):
+                                        ob.animation_data.action = action
                                             
                                     timeline.frame_start = int(action.frame_start)
                                     timeline.frame_end = int(action.frame_end)
@@ -223,16 +223,12 @@ class ProcessScene:
                                         action_nwo.compression,
                                     ]
                                 ]
-            print("\n\nStarting Models Export")
-            print(
-                "-----------------------------------------------------------------------\n"
-            )
+                                
             clear_constraints()
-            reset_to_basis()
+            reset_to_basis(context)
             if muted_armature_deforms:
                 unmute_armature_mods(muted_armature_deforms)
             if asset_type in ("MODEL", "FP ANIMATION"):
-
                 if nwo_scene.render:
                     self.export_model(
                         context,
@@ -611,6 +607,13 @@ class ProcessScene:
         nwo_scene,
         export_check,
     ):
+        if not self.models_export_started:
+            self.models_export_started = True
+            print("\n\nStarting Models Export")
+            print(
+                "-----------------------------------------------------------------------\n"
+            )
+            
         if obs_perms:
             perms = obs_perms
         else:
@@ -698,6 +701,13 @@ class ProcessScene:
         layers,
         export_check,
     ):
+        if not self.models_export_started:
+            self.models_export_started = True
+            print("\n\nStarting Models Export")
+            print(
+                "-----------------------------------------------------------------------\n"
+            )
+            
         type_name = 'design' if is_design else 'bsp'
         for bsp in bsps:
             for perm in layers:

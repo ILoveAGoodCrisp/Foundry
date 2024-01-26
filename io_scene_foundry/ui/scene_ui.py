@@ -36,7 +36,7 @@ from ..utils.nwo_utils import (
 from .templates import NWO_PropPanel, NWO_Op
 import bpy
 from bpy.props import BoolProperty, StringProperty
-from bpy.types import UIList, Menu
+from bpy.types import Context, OperatorProperties, UIList, Menu
 
 class NWO_RegionsContextMenu(Menu):
     bl_label = "Regions Context Menu"
@@ -570,5 +570,70 @@ class NWO_MoveIKChain(bpy.types.Operator):
         nwo.ik_chains_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
+    
+class NWO_UL_ObjectControls(bpy.types.UIList):
+    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
+        layout.label(text=item.ob.name, icon='OBJECT_DATA')
+    
+class NWO_OT_BatchAddObjectControls(bpy.types.Operator):
+    bl_idname = "nwo.batch_add_object_controls"
+    bl_label = "Add Selected Objects"
+    bl_description = "Adds selected objects to the object controls list"
+    bl_options = {"UNDO"}
 
+    def execute(self, context):
+        scene_nwo = context.scene.nwo
+        object_controls = scene_nwo.object_controls
+        armatures = [scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c]
+        valid_control_objects = [ob for ob in context.selected_objects if ob not in armatures]
+        for ob in valid_control_objects:
+            object_controls.add().ob = ob
+            
+        return {"FINISHED"}
+    
+class NWO_OT_BatchRemoveObjectControls(bpy.types.Operator):
+    bl_idname = "nwo.batch_remove_object_controls"
+    bl_label = "Remove Selected Objects"
+    bl_description = "Removes selected objects from the object controls list"
+    bl_options = {"UNDO"}
 
+    def execute(self, context):
+        scene_nwo = context.scene.nwo
+        object_controls = scene_nwo.object_controls
+        selected_objects = context.selected_objects
+        controls_to_remove = []
+        for idx, control in enumerate(object_controls):
+            if control.ob in selected_objects:
+                controls_to_remove.append(idx)
+        
+        controls_to_remove.reverse()
+        
+        while controls_to_remove:
+            object_controls.remove(controls_to_remove[0])
+            controls_to_remove.pop(0)
+            
+        return {"FINISHED"}
+    
+class NWO_OT_SelectObjectControl(bpy.types.Operator):
+    bl_idname = "nwo.select_object_control"
+    bl_label = "Select"
+    
+    select: BoolProperty(default=True)
+
+    def execute(self, context):
+        scene_nwo = context.scene.nwo
+        ob: bpy.types.Object = scene_nwo.object_controls[scene_nwo.object_controls_active_index].ob
+        if not ob.visible_get():
+            self.report({'WARNING'}, f"{ob.name} is hidden")
+            return {'CANCELLED'}
+        
+        ob.select_set(self.select)
+        # context.view_layer.objects.active = ob
+        return {"FINISHED"}
+    
+    @classmethod
+    def description(cls, context: Context, properties: OperatorProperties) -> str:
+        if properties.select:
+            return 'Select highlighted control object'
+        else:
+            return 'Deselect highlighted control object'

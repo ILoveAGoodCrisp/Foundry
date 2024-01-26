@@ -126,7 +126,10 @@ class NWO_IKChain(PropertyGroup):
     name: StringProperty(name="Name")
     start_node: StringProperty(name="Start Bone")
     effector_node: StringProperty(name="Effector Bone")
-
+    
+class NWO_ControlObjects(PropertyGroup):
+    ob: PointerProperty(type=bpy.types.Object)
+    
 def prefab_warning(self, context):
     self.layout.label(text=f"Halo Reach does not support prefab assets")
 
@@ -174,8 +177,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     # ANIMATION
     def update_active_action_index(self, context):
         if self.active_action_index > -1:
-            reset_to_basis(True)
-            for ob in bpy.data.objects:
+            animated_objects = reset_to_basis(context, True)
+            for ob in animated_objects:
                 if ob.animation_data:
                     ob.animation_data.action = bpy.data.actions[self.active_action_index]
 
@@ -681,6 +684,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     model_overrides_expanded: BoolProperty(default=False)
     model_rig_expanded: BoolProperty(default=True)
     rig_controls_expanded: BoolProperty(default=False)
+    rig_object_controls_expanded: BoolProperty(default=False)
     rig_usages_expanded: BoolProperty(default=False)
     ik_chains_expanded: BoolProperty(default=False)
 
@@ -959,3 +963,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     ik_chains_active_index: IntProperty()
+    
+    object_controls: CollectionProperty(
+        type=NWO_ControlObjects,
+    )
+    
+    object_controls_active_index: IntProperty()

@@ -1845,8 +1845,29 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
     # ignore material suffixes
     return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['") # excluding 0 here as it can interfere with normal naming convention
 
-def reset_to_basis(keep_animation=False):
-    animated_objects = [ob for ob in bpy.data.objects if ob.animation_data]
+
+def get_animated_objects(context) -> list[bpy.types.Object]:
+    scene_nwo = context.scene.nwo
+    animated_objects = []
+    if context.object:
+        animated_objects.append(context.object)
+    if scene_nwo.main_armature:
+        animated_objects.append(scene_nwo.main_armature)
+    if scene_nwo.support_armature_a:
+        animated_objects.append(scene_nwo.support_armature_a)
+    if scene_nwo.support_armature_b:
+        animated_objects.append(scene_nwo.support_armature_b)
+    if scene_nwo.support_armature_c:
+        animated_objects.append(scene_nwo.support_armature_c)
+        
+    control_objects = get_object_controls(context)
+    if control_objects:
+        animated_objects.extend(control_objects)
+        
+    return animated_objects
+
+def reset_to_basis(context, keep_animation=False) -> list[bpy.types.Object]:
+    animated_objects = get_animated_objects(context)
     for ob in animated_objects:
         if not keep_animation:
             ob.animation_data.action = None
@@ -1854,7 +1875,9 @@ def reset_to_basis(keep_animation=False):
         if ob.type == 'ARMATURE':
             for bone in ob.pose.bones:
                 bone.matrix_basis = Matrix()
-                
+                      
+    return animated_objects
+
 def asset_path_from_blend_location() -> str | None:
     blend_path = bpy.data.filepath.lower()
     data_path = get_data_path()
@@ -2421,4 +2444,9 @@ def is_halo_rig(ob):
     if ob.type != 'ARMATURE':
         return False
     
+def get_object_controls(context: bpy.types.Context) -> list[bpy.types.Object]:
+    object_controls = context.scene.nwo.object_controls
+    if not object_controls:
+        return []
     
+    return [control.ob for control in object_controls if control.ob]

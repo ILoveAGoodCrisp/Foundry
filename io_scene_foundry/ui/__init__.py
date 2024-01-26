@@ -130,9 +130,9 @@ from .animation_ui import (
     NWO_List_Remove_Animation_Rename,
 )
 
-from .scene_properties import NWO_BSP_ListItems, NWO_GlobalMaterial_ListItems, NWO_IKChain, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
+from .scene_properties import NWO_BSP_ListItems, NWO_ControlObjects, NWO_GlobalMaterial_ListItems, NWO_IKChain, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
 
-from .scene_ui import NWO_AddIKChain, NWO_AssetMaker, NWO_MoveIKChain, NWO_RemoveIKChain, NWO_UL_IKChain, NWO_UL_Permutations, NWO_UL_Regions
+from .scene_ui import NWO_AddIKChain, NWO_AssetMaker, NWO_MoveIKChain, NWO_OT_BatchAddObjectControls, NWO_OT_BatchRemoveObjectControls, NWO_OT_SelectObjectControl, NWO_RemoveIKChain, NWO_UL_IKChain, NWO_UL_ObjectControls, NWO_UL_Permutations, NWO_UL_Regions
 
 from .viewport_ui import (
     NWO_AddHaloLight,
@@ -322,6 +322,11 @@ classes_nwo = (
     NWO_UnlinkAnimation,
     NWO_UL_AnimationRename,
     NWO_IKChain,
+    NWO_ControlObjects,
+    NWO_UL_ObjectControls,
+    NWO_OT_BatchAddObjectControls,
+    NWO_OT_BatchRemoveObjectControls,
+    NWO_OT_SelectObjectControl,
     NWO_ScenePropertiesGroup,
     NWO_AssetMaker,
     NWO_PermutationListCollection,
