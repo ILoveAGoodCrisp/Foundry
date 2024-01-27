@@ -639,19 +639,21 @@ class NWOImporter:
         print(f"Importing {ext}: {file_name}")
         with MutePrints():
             if ext == 'JMS':
-                bpy.ops.import_scene.jms(filepath=path, fix_rotations=legacy_fix_rotations, empty_markers=True)
+                bpy.ops.import_scene.jms(filepath=path, fix_rotations=legacy_fix_rotations, reuse_armature=True, empty_markers=True)
             else:
                 bpy.ops.import_scene.ass(filepath=path)
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
-        self.process_jms_objects(new_objects, file_name)
+        self.process_jms_objects(new_objects, file_name, bool([ob for ob in new_objects if ob.type == 'ARMATURE']) or ext == 'JMS')
         
-    def process_jms_objects(self, objects: list[bpy.types.Object], file_name):
-        is_model = bool([ob for ob in objects if ob.type == 'ARMATURE'])
-        possible_bsp = file_name.rpartition('_')[2]
+    def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
         # Add all objects to a collection
-        new_coll = bpy.data.collections.new(file_name)
-        if not is_model and possible_bsp:
+        new_coll = bpy.data.collections.get(file_name, 0)
+        if not new_coll:
+            new_coll = bpy.data.collections.new(file_name)
+            self.context.scene.collection.children.link(new_coll)
+        if not is_model:
+            possible_bsp = file_name.rpartition('_')[2]
             new_coll.name = 'bsp::' + possible_bsp
             regions_table = self.context.scene.nwo.regions_table
             entry = regions_table.get(possible_bsp, 0)
@@ -663,40 +665,46 @@ class NWOImporter:
                 
             new_coll.nwo.type = 'region'
             new_coll.nwo.region = possible_bsp
-            
-        self.context.scene.collection.children.link(new_coll)
+        
         self.amf_poops = []
         print("Setting object properties")
         if is_model:
             objects_with_halo_regions = [ob for ob in objects if ob.region_list]
             for ob in objects_with_halo_regions:
-                mesh = ob.data
+                prefix = ob.name[0] if ob.name[0] in ('$', '@', '%', '~') else ''
                 if len(ob.region_list) == 1:
                     parts = ob.region_list[0].name.split(' ')
-                    perm = parts[0]
-                    region = parts[1]
-                    ob.name = f'{region}:{perm}'
+                    if len(parts) == 1:
+                        region = parts[0]
+                        ob.name = f'{prefix}{region}'
+                    elif len(parts) == 2:
+                        perm = parts[0]
+                        region = parts[1]
+                        ob.name = f'{prefix}{region}:{perm}'
                 else:
                     for idx, perm_region in enumerate(ob.region_list):
                         parts = perm_region.name.split(' ')
-                        perm = parts[0]
-                        region = parts[1]
+                        if len(parts) == 1:
+                            region = parts[0]
+                            new_name = f'{prefix}{region}'
+                        elif len(parts) == 2:
+                            perm = parts[0]
+                            region = parts[1]
+                            new_name = f'{prefix}{region}:{perm}'
+
                         new_ob = ob.copy()
-                        new_name = f'{region}:{perm}'
                         new_ob.name = new_name
-                        new_mesh = bpy.data.meshes.new(new_name)
-                        new_ob.data = new_mesh
+                        new_ob.data = ob.data.copy()
                         bm = bmesh.new()
-                        bm.from_mesh(mesh)
-                        region_assignment = bm.faces.layers.int.get("Region Assignment")
-                        faces_to_remove = [face for face in bm.faces if face[region_assignment] != idx]
-                        bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
-                        bm.to_mesh(new_mesh)
+                        bm.from_mesh(new_ob.data)
+                        region_layer = bm.faces.layers.int.get("Region Assignment")
+                        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[region_layer] != idx + 1], context='FACES')
+                        bm.to_mesh(new_ob.data)
+                        bm.free()
                         objects.append(new_ob)
                 
                     objects.remove(ob)
                     bpy.data.objects.remove(ob)
-                    bpy.data.meshes.remove(mesh)
             
         for ob in objects:
             unlink(ob)
@@ -760,6 +768,8 @@ class NWOImporter:
                 
         if constraint:
             marker.nwo.marker_type_ui = '_connected_geometry_marker_type_physics_constraint'
+            marker.nwo.physics_constraint_parent_ui = marker.rigid_body_constraint.object1
+            marker.nwo.physics_constraint_child_ui = marker.rigid_body_constraint.object2
         elif name.startswith('fx'):
             marker.nwo.marker_type_ui = '_connected_geometry_marker_type_effects'
         elif name.startswith('target'):
@@ -785,10 +795,10 @@ class NWOImporter:
     def setup_jms_mesh(self, ob, is_model):
         new_objects = self.convert_material_props(ob)
         for ob in new_objects:
-            mesh_type_legacy = self.get_mesh_type_from_prefix(ob.name, is_model)
+            mesh_type_legacy = self.get_mesh_type(ob, is_model)
+            ob.nwo.mesh_type = ''
             mesh_type, material = self.mesh_and_material(mesh_type_legacy)
             ob.data.nwo.mesh_type_ui = mesh_type
-            apply_prefix(ob, mesh_type_legacy, self.prefix_setting)
 
             if mesh_type_legacy in ('collision', 'physics'):
                 self.setup_collision_materials(ob, mesh_type_legacy)
@@ -797,9 +807,12 @@ class NWOImporter:
                 apply_props_material(ob, material)
                 
             if is_model:
-                region, permutation = ob.name.split(':')
-                self.set_region(ob, region)
-                self.set_permutation(ob, permutation)
+                if ':' not in ob.name:
+                    self.set_region(ob, ob.name.strip('@$~%'))
+                else:
+                    region, permutation = ob.name.strip('@$~%').split(':')
+                    self.set_region(ob, region)
+                    self.set_permutation(ob, permutation)
                 
             self.jms_mesh_objects.append(ob)
         
@@ -883,7 +896,7 @@ class NWOImporter:
                 ob.nwo.face_global_material_ui = ob.material_slots[0].material.name
                 
         elif mesh_type_legacy == 'collision':
-            face_layers = ob.nwo.face_props
+            face_layers = ob.data.nwo.face_props
             for slot in ob.material_slots:
                 if not slot.material:
                     continue
@@ -908,7 +921,8 @@ class NWOImporter:
                 
             
         
-    def get_mesh_type_from_prefix(self, name: str, is_model):
+    def get_mesh_type(self, ob: bpy.types.Object, is_model):
+        name = ob.name
         if name.startswith('@'):
             return 'collision'
         elif name.startswith('$'):
@@ -919,14 +933,13 @@ class NWOImporter:
             if is_model:
                 return 'io'
             else:
-                return 'instance'
+                return ob.nwo.mesh_type if ob.nwo.mesh_type else 'instance'
         elif not is_model:
             return 'structure'
         
-        return 'render'
+        return ob.nwo.mesh_type if ob.nwo.mesh_type else 'render'
     
     def mesh_and_material(self, mesh_type):
-        mesh_type = ""
         material = ""
         match mesh_type:
             case "collision":

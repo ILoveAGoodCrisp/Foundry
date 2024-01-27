@@ -1849,15 +1849,15 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
 def get_animated_objects(context) -> list[bpy.types.Object]:
     scene_nwo = context.scene.nwo
     animated_objects = []
-    if context.object:
+    if context.object and context.object.animation_data:
         animated_objects.append(context.object)
-    if scene_nwo.main_armature:
+    if scene_nwo.main_armature and scene_nwo.main_armature.animation_data:
         animated_objects.append(scene_nwo.main_armature)
-    if scene_nwo.support_armature_a:
+    if scene_nwo.support_armature_a and scene_nwo.support_armature_a.animation_data:
         animated_objects.append(scene_nwo.support_armature_a)
-    if scene_nwo.support_armature_b:
+    if scene_nwo.support_armature_b and scene_nwo.support_armature_b.animation_data:
         animated_objects.append(scene_nwo.support_armature_b)
-    if scene_nwo.support_armature_c:
+    if scene_nwo.support_armature_c and scene_nwo.support_armature_c.animation_data:
         animated_objects.append(scene_nwo.support_armature_c)
         
     control_objects = get_object_controls(context)
@@ -2449,4 +2449,4 @@ def get_object_controls(context: bpy.types.Context) -> list[bpy.types.Object]:
     if not object_controls:
         return []
     
-    return [control.ob for control in object_controls if control.ob]
+    return [control.ob for control in object_controls if control.ob and control.ob.animation_data]
