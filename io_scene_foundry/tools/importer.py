@@ -699,8 +699,13 @@ class NWOImporter:
                         bm.from_mesh(new_ob.data)
                         region_layer = bm.faces.layers.int.get("Region Assignment")
                         bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[region_layer] != idx + 1], context='FACES')
+                        remaining_material_indexes = {f.material_index for f in bm.faces}
                         bm.to_mesh(new_ob.data)
-                        bm.free()
+                        slots_to_remove = sorted([slot.slot_index for slot in new_ob.material_slots if slot.slot_index not in remaining_material_indexes], reverse=True)
+                        while slots_to_remove:
+                            new_ob.data.materials.pop(index=slots_to_remove[0])
+                            slots_to_remove.pop(0)
+                            
                         objects.append(new_ob)
                 
                     objects.remove(ob)
@@ -868,23 +873,53 @@ class NWOImporter:
                 faces_to_remove_original = [face for face in bm_original.faces if face.material_index == jms_mat.index]
                 bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
                 bmesh.ops.delete(bm_original, geom=faces_to_remove_original, context='FACES')
+                remaining_material_indexes = {f.material_index for f in bm.faces}
                 bm.to_mesh(new_mesh)
+                slots_to_remove = sorted([slot.slot_index for slot in new_ob.material_slots if slot.slot_index not in remaining_material_indexes], reverse=True)
+                while slots_to_remove:
+                    new_ob.data.materials.pop(index=slots_to_remove[0])
+                    slots_to_remove.pop(0)
+                    
                 new_ob.nwo.mesh_type = jms_mat.mesh_type
+                
+                if len(ob.data.materials) == 1:
+                    jms_mats = [mat for mat in jms_materials if mat.name == ob.data.materials[0].name]
+                    if jms_mats:
+                        jms_mat = jms_mats[0]
+                        ob.nwo.mesh_type = jms_mat.mesh_type
+                        nwo = ob.data.nwo
+                        nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
+                        nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
+                        nwo.render_only_ui = jms_mat.render_only
+                        nwo.ladder_ui = jms_mat.ladder
+                        nwo.breakable_ui = jms_mat.breakable
+                        nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
+                        nwo.no_shadow_ui = jms_mat.no_shadow
+                        nwo.precise_position_ui = jms_mat.precise
+                        if jms_mat.portal_one_way:
+                            nwo.portal_type_ui = '_connected_geometry_portal_type_one_way'
+                        nwo.portal_is_door_ui = jms_mat.portal_door
+                        if jms_mat.portal_vis_blocker:
+                            nwo.portal_type_ui = '_connected_geometry_portal_type_no_way'
+                        nwo.no_lightmap_ui = jms_mat.ignored_by_lightmaps
+                        nwo.portal_blocks_sounds_ui = jms_mat.blocks_sound
+                        nwo.decal_offset_ui = jms_mat.decal_offset
+                        nwo.slip_surface_ui = jms_mat.slip_surface
+                        nwo.face_global_material_ui = jms_mat.global_material
+                        
+                elif len(ob.data.materials) > 1:
+                    for material in ob.data.materials:
+                        jms_mats = [mat for mat in jms_materials if mat.name == material.name]
+                        if jms_mats:
+                            jms_mat = jms_mats[0]
+                            # TODO Create face layers
+                
+                
                 new_objects.append(new_ob)
                 
             bm_original.to_mesh(ob.data)
             
         new_objects.append(ob)
-        for ob in new_objects:
-            materials_to_pop = []
-            bm = bmesh.new()
-            bm.from_mesh(ob.data)
-            for jms_mat in jms_materials:
-                material_faces = [face for face in bm.faces if face.material_index == jms_mat.index]
-                if not material_faces:
-                    materials_to_pop.append(jms_mat.index)
-                    continue
-                
         
         return new_objects
         
@@ -907,7 +942,7 @@ class NWOImporter:
                 material_index = slot.slot_index
                 layer.layer_name, layer.face_count = self.add_collision_face_layer(ob.data, material_index, layer.name)
                 
-    def add_collision_face_layer(mesh, material_index, prefix):
+    def add_collision_face_layer(self, mesh, material_index, prefix):
         bm = bmesh.new()
         bm.from_mesh(mesh)
         face_layer = bm.faces.layers.int.new(f"{prefix}_{str(uuid4())}")
