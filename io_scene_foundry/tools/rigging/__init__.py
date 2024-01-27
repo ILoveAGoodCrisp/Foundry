@@ -67,6 +67,7 @@ class HaloRig:
             shape_ob.nwo.export_this = False
             pedestal_control.custom_shape = shape_ob
             pedestal_control.custom_shape_scale_xyz *= self.scale
+            pedestal_control.use_custom_shape_bone_size = False
             con = pedestal.constraints.new('COPY_TRANSFORMS')
             con.target = self.rig_ob
             con.subtarget = pedestal_control_name
@@ -86,6 +87,7 @@ class HaloRig:
             shape_ob.nwo.export_this = False
             aim_control.custom_shape = shape_ob
             aim_control.custom_shape_scale_xyz *= self.scale
+            aim_control.use_custom_shape_bone_size = False
             con = aim_control.constraints.new('LIMIT_SCALE')
             con.use_min_x = True
             con.use_min_y = True

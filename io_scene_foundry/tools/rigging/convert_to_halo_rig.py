@@ -47,7 +47,9 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = context.scene.nwo
         target_root_bone = nwo_utils.rig_root_deform_bone(context.object, True)
-        scale = 1 if scene_nwo.scale == 'blender' else (1 / 0.03048)
+        scale = 1
+        if scene_nwo.scale == 'max':
+            scale *= (1 / 0.03048)
         rig = HaloRig(context, scale, scene_nwo.forward_direction, self.has_pose_bones, self.has_pedestal_control, self.has_aim_control, True)
         rig.rig_ob = context.object
         rig.rig_data = context.object.data

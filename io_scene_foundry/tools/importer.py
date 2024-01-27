@@ -583,8 +583,8 @@ class NWOImporter:
                 ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_object_instance'
             else:
                 region, permutation = name.split(':')
-                self.set_region(ob, region)
-                self.set_permutation(ob, permutation)
+                self.set_region(ob, dot_partition(region))
+                self.set_permutation(ob, dot_partition(permutation))
         else:
             if name.startswith('Clusters'):
                 ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
@@ -623,6 +623,8 @@ class NWOImporter:
 
     def import_jms_files(self, jms_files, legacy_fix_rotations):
         """Imports all JMS/ASS files supplied"""
+        if not jms_files:
+            return []
         self.jms_marker_objects = []
         self.jms_mesh_objects = []
         self.jms_other_objects = []
@@ -816,8 +818,8 @@ class NWOImporter:
                     self.set_region(ob, ob.name.strip('@$~%'))
                 else:
                     region, permutation = ob.name.strip('@$~%').split(':')
-                    self.set_region(ob, region)
-                    self.set_permutation(ob, permutation)
+                    self.set_region(ob, dot_partition(region))
+                    self.set_permutation(ob, dot_partition(permutation))
                 
             self.jms_mesh_objects.append(ob)
         
@@ -953,8 +955,6 @@ class NWOImporter:
         bm.to_mesh(mesh)
                 
         return face_layer.name, layer_face_count(bm, face_layer)
-                
-            
         
     def get_mesh_type(self, ob: bpy.types.Object, is_model):
         name = ob.name
@@ -1048,6 +1048,8 @@ class NWOImporter:
 ######################################################################
     def import_jma_files(self, jma_files, legacy_fix_rotations):
         """Imports all legacy animation files supplied"""
+        if not jma_files:
+            return []
         self.animations = []
         self.objects = []
         scene_nwo = self.context.scene.nwo
