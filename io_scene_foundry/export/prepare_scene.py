@@ -982,6 +982,48 @@ class PrepareScene:
                         )
 
         return split_objects
+    
+    # def needs_collision_proxy(self, ob):
+    #     for props in ob.data.nwo.face_props:
+    #         if props.face_global_material_override:
+    #             return True
+    #         if props.ladder_override:
+    #             return True
+    #         if props.slip_surface_override:
+    #             return True
+    #         if props.decal_offset_override:
+    #             return True
+    #         if props.no_shadow_override:
+    #             return True
+    #         if props.precise_position_override:
+    #             return True
+    #         if props.no_lightmap_override:
+    #             return True
+    #         if props.no_pvs_override:
+    #             return True
+    #         if props.lightmap_additive_transparency_override:
+    #             return True
+    #         if props.lightmap_resolution_scale_override:
+    #             return True
+    #         if props.lightmap_type_override:
+    #             return True
+    #         if props.lightmap_translucency_tint_color_override:
+    #             return True
+    #         if props.lightmap_lighting_from_both_sides_override:
+    #             return True
+    #         if props.emissive_override:
+    #             return True
+            
+    #     return False
+    
+    def coll_proxy_two_sided(self, ob, bm: bmesh.types.BMesh):
+        for props in ob.data.nwo.face_props:
+            if props.face_two_sided_override:
+                if layer_face_count(bm, bm.faces.layers.int.get(props.layer_name)):
+                    return True
+            
+        return False
+        
 
     def split_to_layers(self, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, is_proxy):
         poly_count = len(bm.faces)
@@ -998,11 +1040,11 @@ class PrepareScene:
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
             render_mesh = ob.nwo.mesh_type in render_mesh_types
             is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
+            
             if (
                 is_poop and not h4
             ):  # don't do this for h4 as collision can be open
                 # check for custom collision / physics
-                poop_render_only = ob_nwo.poop_render_only == "1"
                 
                 # Set this globally for the poop we're about to split
                 # We do this because a custom collison mesh is being built
@@ -1037,11 +1079,11 @@ class PrepareScene:
                     coll_bm.to_mesh(collision_ob.data)
 
                     collision_ob.name = f"{ob.name}(collision)"
+                    if self.coll_proxy_two_sided(ob, coll_bm):
+                        collision_ob.nwo.face_sides = '_connected_geometry_face_sides_two_sided'
 
                     ori_matrix = ob.matrix_world
-                    collision_ob.nwo.mesh_type = (
-                        "_connected_geometry_mesh_type_poop_collision"
-                    )
+                    collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
 
             normals_ob = ob.copy()
             normals_ob.data = me.copy()
@@ -1140,45 +1182,8 @@ class PrepareScene:
                 self.face_prop_to_mesh_prop(ob.nwo, layer, h4, ob, scene_coll)
 
             return [ob]
-        
-    def poop_split_override(self, face_layers):
-        for layer in face_layers:
-            if layer.face_mode_override and layer.face_mode_ui != '_connected_geometry_face_mode_render_only':
-                return False
-            if layer.face_global_material_override:
-                return False
-            if layer.ladder_override:
-                return False
-            if layer.slip_surface_override:
-                return False
-            if layer.decal_offset_override:
-                return False
-            if layer.group_transparents_by_plane_override:
-                return False
-            if layer.no_shadow_override:
-                return False
-            if layer.precise_position_override:
-                return False
-            if layer.no_lightmap_override:
-                return False
-            if layer.no_pvs_override:
-                return False
-            if layer.lightmap_additive_transparency_override:
-                return False
-            if layer.lightmap_resolution_scale_override:
-                return False
-            if layer.lightmap_type_override:
-                return False
-            if layer.lightmap_translucency_tint_color_override:
-                return False
-            if layer.lightmap_lighting_from_both_sides_override:
-                return False
-            if layer.emissive_override:
-                return False
+    
             
-        return True
-            
-
     def face_prop_to_mesh_prop(self, mesh_props, face_props, h4, ob, scene_coll):
         # ignore unused face_prop items
         # run through each face prop and apply it to the mesh if override set
@@ -1695,6 +1700,8 @@ class PrepareScene:
             elif mesh_type == '_connected_geometry_mesh_type_structure':
                 self.bsps_with_structure.add(nwo.region_name)
                 mesh_type = '_connected_geometry_mesh_type_default'
+                if ob.data.nwo.render_only_ui:
+                    nwo.face_mode = '_connected_geometry_face_mode_render_only'
             
         nwo.mesh_type = mesh_type
         nwo_data = ob.data.nwo
