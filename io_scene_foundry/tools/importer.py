@@ -36,7 +36,7 @@ from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_mate
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, dot_partition, get_prefs, get_tags_path, is_corinth, layer_face_count, mute_armature_mods, print_warning, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, unlink, unmute_armature_mods, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, dot_partition, get_prefs, get_tags_path, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, unlink, unmute_armature_mods, update_progress
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -181,10 +181,14 @@ class NWO_Import(bpy.types.Operator):
                         imported_objects.extend(imported_jms_objects)
                     if not toolset_addon_enabled:
                         addon_utils.disable('io_scene_halo')
-                    
+                        
                     # Return to our scale
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot)
+                        
+                # Clear duplicate materials
+                # if bpy.ops.nwo.stomp_materials.poll():
+                #     bpy.ops.nwo.stomp_materials()
                 
                 if self.find_shader_paths and imported_objects:
                     print('Updating shader tag paths for imported objects')
@@ -389,7 +393,7 @@ class JMSMaterialSlot:
         self.blocks_sound = '}' in name
         self.decal_offset = '[' in name
         self.water_surface = "'" in name
-        self.slip_surface = '0' in name
+        self.slip_surface = False
         self.global_material = ''
 
 
@@ -712,7 +716,8 @@ class NWOImporter:
                 
                     objects.remove(ob)
                     bpy.data.objects.remove(ob)
-            
+        
+        self.processed_meshes = []
         for ob in objects:
             unlink(ob)
             new_coll.objects.link(ob)
@@ -802,6 +807,8 @@ class NWOImporter:
     def setup_jms_mesh(self, ob, is_model):
         new_objects = self.convert_material_props(ob)
         for ob in new_objects:
+            if ob.nwo.mesh_type:
+                print(ob.name, ob.nwo.mesh_type)
             mesh_type_legacy = self.get_mesh_type(ob, is_model)
             ob.nwo.mesh_type = ''
             mesh_type, material = self.mesh_and_material(mesh_type_legacy)
@@ -824,16 +831,20 @@ class NWOImporter:
             self.jms_mesh_objects.append(ob)
         
     def convert_material_props(self, ob: bpy.types.Object):
-        if ob.name.startswith('$'):
+        if ob.name.startswith('$') or ob.data in self.processed_meshes:
             return [ob]
+
+        objects_to_setup = [ob]
+        self.processed_meshes.append(ob.data)
         jms_materials: list[JMSMaterialSlot] = []
         for slot in ob.material_slots:
             if not slot.material:
                 continue
             jms_materials.append(JMSMaterialSlot(slot))
-            
+        
         if len(jms_materials) == 1:
             jms_mat = jms_materials[0]
+            print(ob.name, jms_mat.mesh_type)
             ob.nwo.mesh_type = jms_mat.mesh_type
             nwo = ob.data.nwo
             nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
@@ -854,8 +865,7 @@ class NWOImporter:
             nwo.decal_offset_ui = jms_mat.decal_offset
             nwo.slip_surface_ui = jms_mat.slip_surface
             nwo.face_global_material_ui = jms_mat.global_material
-
-        new_objects = []
+        
         mesh_types = list(set([m.mesh_type for m in jms_materials if m.mesh_type]))
         if len(mesh_types) == 1:
             ob.nwo.mesh_type = mesh_types[0]
@@ -883,47 +893,146 @@ class NWOImporter:
                     slots_to_remove.pop(0)
                     
                 new_ob.nwo.mesh_type = jms_mat.mesh_type
-                
-                if len(ob.data.materials) == 1:
-                    jms_mats = [mat for mat in jms_materials if mat.name == ob.data.materials[0].name]
+                objects_to_setup.append(new_ob)
+        
+            bm_original.to_mesh(ob.data)
+            if not ob.data.polygons:
+                objects_to_setup.remove(ob)
+                bpy.data.object.remove(ob)
+            
+        for ob in objects_to_setup:
+            if len(ob.data.materials) == 1:
+                jms_mats = [mat for mat in jms_materials if mat.name == ob.data.materials[0].name]
+                if jms_mats:
+                    jms_mat = jms_mats[0]
+                    ob.nwo.mesh_type = jms_mat.mesh_type
+                    nwo = ob.data.nwo
+                    nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
+                    nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
+                    nwo.render_only_ui = jms_mat.render_only
+                    nwo.ladder_ui = jms_mat.ladder
+                    nwo.breakable_ui = jms_mat.breakable
+                    nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
+                    nwo.no_shadow_ui = jms_mat.no_shadow
+                    nwo.precise_position_ui = jms_mat.precise
+                    if jms_mat.portal_one_way:
+                        nwo.portal_type_ui = '_connected_geometry_portal_type_one_way'
+                    nwo.portal_is_door_ui = jms_mat.portal_door
+                    if jms_mat.portal_vis_blocker:
+                        nwo.portal_type_ui = '_connected_geometry_portal_type_no_way'
+                    nwo.no_lightmap_ui = jms_mat.ignored_by_lightmaps
+                    nwo.portal_blocks_sounds_ui = jms_mat.blocks_sound
+                    nwo.decal_offset_ui = jms_mat.decal_offset
+                    nwo.slip_surface_ui = jms_mat.slip_surface
+                    nwo.face_global_material_ui = jms_mat.global_material
+                    
+            elif len(ob.data.materials) > 1:
+                bm = bmesh.new()
+                bm.from_mesh(ob.data)
+                layers = {}
+                face_props = ob.data.nwo.face_props
+                for idx, material in enumerate(ob.data.materials):
+                    layers[idx] = []
+                    jms_mats = [mat for mat in jms_materials if mat.name == material.name]
                     if jms_mats:
                         jms_mat = jms_mats[0]
-                        ob.nwo.mesh_type = jms_mat.mesh_type
-                        nwo = ob.data.nwo
-                        nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
-                        nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
-                        nwo.render_only_ui = jms_mat.render_only
-                        nwo.ladder_ui = jms_mat.ladder
-                        nwo.breakable_ui = jms_mat.breakable
-                        nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
-                        nwo.no_shadow_ui = jms_mat.no_shadow
-                        nwo.precise_position_ui = jms_mat.precise
-                        if jms_mat.portal_one_way:
-                            nwo.portal_type_ui = '_connected_geometry_portal_type_one_way'
-                        nwo.portal_is_door_ui = jms_mat.portal_door
-                        if jms_mat.portal_vis_blocker:
-                            nwo.portal_type_ui = '_connected_geometry_portal_type_no_way'
-                        nwo.no_lightmap_ui = jms_mat.ignored_by_lightmaps
-                        nwo.portal_blocks_sounds_ui = jms_mat.blocks_sound
-                        nwo.decal_offset_ui = jms_mat.decal_offset
-                        nwo.slip_surface_ui = jms_mat.slip_surface
-                        nwo.face_global_material_ui = jms_mat.global_material
-                        
-                elif len(ob.data.materials) > 1:
-                    for material in ob.data.materials:
-                        jms_mats = [mat for mat in jms_materials if mat.name == material.name]
-                        if jms_mats:
-                            jms_mat = jms_mats[0]
-                            # TODO Create face layers
-                
-                
-                new_objects.append(new_ob)
-                
-            bm_original.to_mesh(ob.data)
-            
-        new_objects.append(ob)
+                        if jms_mat.two_sided or jms_mat.transparent_two_sided:
+                            layer = face_props.add()
+                            layer.name = 'Two Sided'
+                            layer.layer_name = f"{'two_sided'}_{str(uuid4())}"
+                            layer.face_two_sided_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
+                            layer = face_props.add()
+                            layer.name = 'Transparent'
+                            layer.layer_name = f"{'transparent'}_{str(uuid4())}"
+                            layer.face_transparent_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.render_only:
+                            layer = face_props.add()
+                            layer.name = 'Render Only'
+                            layer.layer_name = f"{'render_only'}_{str(uuid4())}"
+                            layer.render_only_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.collision_only:
+                            layer = face_props.add()
+                            layer.name = 'Collision Only'
+                            layer.layer_name = f"{'collision_only'}_{str(uuid4())}"
+                            layer.collision_only_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.sphere_collision_only:
+                            layer = face_props.add()
+                            layer.name = 'Sphere Collision Only'
+                            layer.layer_name = f"{'sphere_collision_only'}_{str(uuid4())}"
+                            layer.sphere_collision_only_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.ladder:
+                            layer = face_props.add()
+                            layer.name = 'Ladder'
+                            layer.layer_name = f"{'ladder'}_{str(uuid4())}"
+                            layer.ladder_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.breakable:
+                            layer = face_props.add()
+                            layer.name = 'Breakable'
+                            layer.layer_name = f"{'breakable'}_{str(uuid4())}"
+                            layer.breakable_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.no_shadow:
+                            layer = face_props.add()
+                            layer.name = 'No Shadow'
+                            layer.layer_name = f"{'no_shadow'}_{str(uuid4())}"
+                            layer.no_shadow_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.precise:
+                            layer = face_props.add()
+                            layer.name = 'Uncompressed'
+                            layer.layer_name = f"{'uncompressed'}_{str(uuid4())}"
+                            layer.precise_position_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.ignored_by_lightmaps:
+                            layer = face_props.add()
+                            layer.name = 'No Lightmap'
+                            layer.layer_name = f"{'no_lightmap'}_{str(uuid4())}"
+                            layer.no_lightmap_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.decal_offset:
+                            layer = face_props.add()
+                            layer.name = 'Decal Offset'
+                            layer.layer_name = f"{'decal_offset'}_{str(uuid4())}"
+                            layer.decal_offset_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+                        if jms_mat.slip_surface:
+                            layer = face_props.add()
+                            layer.name = 'Slip Surface'
+                            layer.layer_name = f"{'slip_surface'}_{str(uuid4())}"
+                            layer.slip_surface_override = True
+                            layer.layer_color = random_color()
+                            layers[idx].append(bm.faces.layers.int.new(layer.layer_name))
+
+                for face in bm.faces:
+                    for idx, face_layer_list in layers.items():
+                        if face.material_index == idx:
+                            for face_layer in face_layer_list:
+                                face[face_layer] = 1
+                                
+                for layer in face_props:
+                    layer.face_count = layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
+                                
+                bm.to_mesh(ob.data)
         
-        return new_objects
+        return objects_to_setup
         
     def setup_collision_materials(self, ob: bpy.types.Object, mesh_type_legacy: str):
         if not ob.material_slots:
@@ -933,16 +1042,17 @@ class NWOImporter:
                 ob.nwo.face_global_material_ui = ob.material_slots[0].material.name
                 
         elif mesh_type_legacy == 'collision':
-            face_layers = ob.data.nwo.face_props
+            face_props = ob.data.nwo.face_props
             for slot in ob.material_slots:
                 if not slot.material:
                     continue
-                layer = face_layers.add()
+                layer = face_props.add()
                 layer.name = slot.material.name
+                layer.layer_name = 'face_global_material'
                 layer.face_global_material_ui = slot.material.name
                 layer.face_global_material_override = True
                 material_index = slot.slot_index
-                layer.layer_name, layer.face_count = self.add_collision_face_layer(ob.data, material_index, layer.name)
+                layer.layer_name, layer.face_count = self.add_collision_face_layer(ob.data, material_index, layer.layer_name)
                 
     def add_collision_face_layer(self, mesh, material_index, prefix):
         bm = bmesh.new()
@@ -967,12 +1077,18 @@ class NWOImporter:
         elif name.startswith('%'):
             if is_model:
                 return 'io'
+            elif ob.nwo.mesh_type:
+                return ob.nwo.mesh_type
             else:
-                return ob.nwo.mesh_type if ob.nwo.mesh_type else 'instance'
+                return 'instance'
+            
+        elif ob.nwo.mesh_type:
+            return ob.nwo.mesh_type
+            
         elif not is_model:
             return 'structure'
         
-        return ob.nwo.mesh_type if ob.nwo.mesh_type else 'render'
+        return 'render'
     
     def mesh_and_material(self, mesh_type):
         material = ""
