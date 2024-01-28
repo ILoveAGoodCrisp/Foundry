@@ -1588,9 +1588,8 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(mesh_nwo, 'breakable_ui', text='Breakable')
                 
             elif not h4 and nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision':
-                if poll_ui('SCENARIO'):
+                if poll_ui('SCENARIO', 'MODEL'):
                     row.prop(mesh_nwo, 'sphere_collision_only_ui', text='Sphere Collision Only')
-                elif poll_ui('MODEL'):
                     row.prop(mesh_nwo, "ladder_ui", text="Ladder")
                     row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
                     

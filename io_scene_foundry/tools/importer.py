@@ -41,6 +41,7 @@ from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addo
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
+legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 
 formats = "amf", "jms", "jma", "bitmap", "camera_track"
 
@@ -336,7 +337,7 @@ class JMSMaterialSlot:
             return 'soft_kill'
         elif name.startswith('+slip_surface'):
             return 'slip_surface'
-        elif self.collision_only:
+        elif self.collision_only or self.sphere_collision_only:
             return 'collision'
         elif self.fog_plane:
             return 'fog'
@@ -345,7 +346,7 @@ class JMSMaterialSlot:
         elif self.water_surface:
             return 'water_surface'
         
-        return 'render'
+        return 'default'
             
     def _material_props_from_ui(self):
         self.two_sided = self.material.ass_jms.two_sided
@@ -807,18 +808,19 @@ class NWOImporter:
     def setup_jms_mesh(self, ob, is_model):
         new_objects = self.convert_material_props(ob)
         for ob in new_objects:
-            if ob.nwo.mesh_type:
-                print(ob.name, ob.nwo.mesh_type)
             mesh_type_legacy = self.get_mesh_type(ob, is_model)
             ob.nwo.mesh_type = ''
-            mesh_type, material = self.mesh_and_material(mesh_type_legacy)
-            ob.data.nwo.mesh_type_ui = mesh_type
+            if ob.name.startswith('%'):
+                self.set_poop_policies(ob)
+            if mesh_type_legacy:
+                mesh_type, material = self.mesh_and_material(mesh_type_legacy, is_model)
+                ob.data.nwo.mesh_type_ui = mesh_type
 
-            if mesh_type_legacy in ('collision', 'physics'):
-                self.setup_collision_materials(ob, mesh_type_legacy)
-                
-            if self.apply_materials:
-                apply_props_material(ob, material)
+                if mesh_type_legacy in ('collision', 'physics'):
+                    self.setup_collision_materials(ob, mesh_type_legacy)
+                    
+                if self.apply_materials:
+                    apply_props_material(ob, material)
                 
             if is_model:
                 if ':' not in ob.name:
@@ -829,9 +831,39 @@ class NWOImporter:
                     self.set_permutation(ob, dot_partition(permutation))
                 
             self.jms_mesh_objects.append(ob)
+            
+    def set_poop_policies(self, ob):
+        for char in ob.name[1:]:
+            match char:
+                case '+':
+                    ob.nwo.poop_pathfinding_ui = '_connected_poop_instance_pathfinding_policy_static'
+                case '-':
+                    ob.nwo.poop_pathfinding_ui = '_connected_poop_instance_pathfinding_policy_none'
+                case '?':
+                    ob.nwo.poop_lighting_ui = '_connected_geometry_poop_lighting_per_vertex'
+                case '!':
+                    ob.nwo.poop_lighting_ui = '_connected_geometry_poop_lighting_per_pixel'
+                case '>':
+                    ob.nwo.poop_lighting_ui = '_connected_geometry_poop_lighting_single_probe'
+                case '*':
+                    ob.data.nwo.render_only_ui = True
+                case '&':
+                    ob.nwo.poop_chops_portals_ui = True
+                case '^':
+                    ob.nwo.poop_does_not_block_aoe_ui = True
+                case '<':
+                    ob.nwo.poop_excluded_from_lightprobe_ui = True
+                case '|':
+                    ob.data.nwo.decal_offset_ui = True
+                case _:
+                    return
         
     def convert_material_props(self, ob: bpy.types.Object):
-        if ob.name.startswith('$') or ob.data in self.processed_meshes:
+        if ob.name.startswith('$'):
+            return [ob]
+        
+        if ob.data in self.processed_meshes:
+            ob.nwo.mesh_type = 'skip'
             return [ob]
 
         objects_to_setup = [ob]
@@ -844,12 +876,12 @@ class NWOImporter:
         
         if len(jms_materials) == 1:
             jms_mat = jms_materials[0]
-            print(ob.name, jms_mat.mesh_type)
             ob.nwo.mesh_type = jms_mat.mesh_type
             nwo = ob.data.nwo
             nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
             nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
             nwo.render_only_ui = jms_mat.render_only
+            nwo.sphere_collision_only_ui = jms_mat.sphere_collision_only
             nwo.ladder_ui = jms_mat.ladder
             nwo.breakable_ui = jms_mat.breakable
             nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
@@ -898,7 +930,7 @@ class NWOImporter:
             bm_original.to_mesh(ob.data)
             if not ob.data.polygons:
                 objects_to_setup.remove(ob)
-                bpy.data.object.remove(ob)
+                bpy.data.objects.remove(ob)
             
         for ob in objects_to_setup:
             if len(ob.data.materials) == 1:
@@ -910,6 +942,7 @@ class NWOImporter:
                     nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
                     nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
                     nwo.render_only_ui = jms_mat.render_only
+                    nwo.sphere_collision_only_ui = jms_mat.sphere_collision_only
                     nwo.ladder_ui = jms_mat.ladder
                     nwo.breakable_ui = jms_mat.breakable
                     nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
@@ -1067,6 +1100,9 @@ class NWOImporter:
         return face_layer.name, layer_face_count(bm, face_layer)
         
     def get_mesh_type(self, ob: bpy.types.Object, is_model):
+        if ob.nwo.mesh_type == 'skip':
+            print(ob.name)
+            return ''
         name = ob.name
         if name.startswith('@'):
             return 'collision'
@@ -1084,13 +1120,10 @@ class NWOImporter:
             
         elif ob.nwo.mesh_type:
             return ob.nwo.mesh_type
-            
-        elif not is_model:
-            return 'structure'
         
-        return 'render'
+        return 'default'
     
-    def mesh_and_material(self, mesh_type):
+    def mesh_and_material(self, mesh_type, is_model):
         material = ""
         match mesh_type:
             case "collision":
@@ -1099,14 +1132,15 @@ class NWOImporter:
             case "physics":
                 mesh_type = "_connected_geometry_mesh_type_physics"
                 material = "Physics"
-            case "render":
-                mesh_type = "_connected_geometry_mesh_type_default"
+            case "default":
+                if is_model:
+                    mesh_type = "_connected_geometry_mesh_type_default"
+                else:
+                    mesh_type = "_connected_geometry_mesh_type_structure"
             case "io":
                 mesh_type = "_connected_geometry_mesh_type_object_instance"
             case "instance":
                 mesh_type = "_connected_geometry_mesh_type_default"
-            case "structure":
-                mesh_type = "_connected_geometry_mesh_type_structure"
             case "seam":
                 mesh_type = "_connected_geometry_mesh_type_seam"
                 material = "Seam"

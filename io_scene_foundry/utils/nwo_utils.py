@@ -1938,8 +1938,6 @@ def rotate_follow_path_axis(con_axis: str, old_forward: str, new_forward: str):
                 return forward_back_inverse + 'Y'
             else:
                 return forward_back_inverse + 'X'
-        
-        
                             
 class BoneChild():
     def __init__(self, ob: bpy.types.Object, parent: bpy.types.Object, parent_bone: str):
