@@ -1910,13 +1910,44 @@ def exit_local_view(context):
                         with context.temp_override(**override):
                             bpy.ops.view3d.localview()
                             
+def rotate_follow_path_axis(con_axis: str, old_forward: str, new_forward: str):
+    axis = con_axis[-1]
+    if axis == 'Z':
+        return con_axis
+    
+    forward_back = con_axis[:-1]
+    
+    if forward_back == 'FORWARD_':
+        forward_back_inverse = 'TRACK_NEGATIVE_'
+    else:
+        forward_back_inverse = 'FORWARD_'
+        
+    if axis in old_forward.upper() and axis in new_forward.upper():
+        if con_axis.startswith('TRACK_NEGATIVE'):
+            return con_axis.replace('TRACK_NEGATIVE', 'FORWARD')
+        else:
+            return con_axis.replace('FORWARD', 'TRACK_NEGATIVE')
+    else:
+        if '-' in old_forward and '-' in new_forward:
+            if axis == 'X':
+                return forward_back + 'Y'
+            else:
+                return forward_back + 'X'
+        else:
+            if axis == 'X':
+                return forward_back_inverse + 'Y'
+            else:
+                return forward_back_inverse + 'X'
+        
+        
+                            
 class BoneChild():
     def __init__(self, ob: bpy.types.Object, parent: bpy.types.Object, parent_bone: str):
         self.ob = ob
         self.parent = parent
         self.parent_bone = parent_bone
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_marker_axis=None, objects=None, actions=None):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
     if objects is None:
@@ -2053,6 +2084,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                     con.rest_length *= scale_factor
                 case 'SHRINKWRAP':
                     con.distance *= scale_factor
+                case 'FOLLOW_PATH':
+                    if rotation:
+                        con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
                 case 'CHILD_OF':
                     con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
             
@@ -2167,6 +2201,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, keep_mar
                         con.rest_length *= scale_factor
                     case 'SHRINKWRAP':
                         con.distance *= scale_factor
+                    case 'FOLLOW_PATH':
+                        if rotation:
+                            con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
                     case 'CHILD_OF':
                         con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
                         if scale_factor != 1:

@@ -161,7 +161,7 @@ class NWO_Import(bpy.types.Operator):
                         imported_objects.extend(imported_amf_objects)
                     
                     if to_x_rot:
-                        transform_scene(context, 1, from_x_rot, objects=imported_amf_objects)
+                        transform_scene(context, 1, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
                         
                 if self.legacy_okay and any([ext in ('jms', 'jma') for ext in importer.extensions]):
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
@@ -171,7 +171,7 @@ class NWO_Import(bpy.types.Operator):
                     jma_files = importer.sorted_filepaths["jma"]
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
-                        transform_scene(context, (1 / scale_factor), to_x_rot)
+                        transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
                         
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
                     imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
@@ -184,7 +184,7 @@ class NWO_Import(bpy.types.Operator):
                         
                     # Return to our scale
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot)
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
                         
                 # Clear duplicate materials
                 # if bpy.ops.nwo.stomp_materials.poll():
@@ -224,7 +224,7 @@ class NWO_Import(bpy.types.Operator):
                     camera_track_files = importer.sorted_filepaths["camera_track"]
                     imported_camera_track_objects = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, objects=imported_camera_track_objects)
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_camera_track_objects)
                         
             except KeyboardInterrupt:
                 print_warning("\nIMPORT CANCELLED BY USER")

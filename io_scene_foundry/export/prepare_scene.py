@@ -239,7 +239,7 @@ class PrepareScene:
         rotation = blender_halo_rotation_diff(scene_nwo.forward_direction)
         if scale_factor != 1 or rotation:
             print("--- Transforming Scene")
-            transform_scene(context, scale_factor, rotation)
+            transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
             
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects

@@ -100,15 +100,15 @@ class NWO_ScaleScene(bpy.types.Operator):
         old_mode = context.mode
         old_object = context.object
         old_selection = context.selected_objects
-        animation_index = None
-        current_frame = int(context.scene.frame_current)
+        # animation_index = None
+        # current_frame = int(context.scene.frame_current)
         context.scene.tool_settings.use_keyframe_insert_auto = False
         # if bpy.ops.nwo.unlink_animation.poll():
         #     animation_index = int(context.scene.nwo.active_action_index)
         #     bpy.ops.nwo.unlink_animation()
         nwo_utils.set_object_mode(context)
         nwo_utils.deselect_all_objects()
-        nwo_utils.transform_scene(context, self.scale_factor, self.rotation, keep_marker_axis= not self.rotate_markers)
+        nwo_utils.transform_scene(context, self.scale_factor, self.rotation, context.scene.nwo.forward_direction, self.forward, keep_marker_axis=(not self.rotate_markers))
 
         if old_object:
             nwo_utils.set_active_object(old_object)
