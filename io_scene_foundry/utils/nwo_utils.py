@@ -1581,8 +1581,7 @@ def stomp_scale_multi_user(objects):
     """Checks that at least one user of a mesh has a uniform scale of 1,1,1. If not, applies scale to all linked objects, using the object with the smallest scale as a basis"""
     good_scale = Vector.Fill(3, 1)
     meshes = {ob.data for ob in objects}
-    mesh_ob_dict = {mesh: [ob for ob in objects if ob.data == mesh] for mesh in meshes}
-    deselect_all_objects()
+    mesh_ob_dict = {mesh: [ob for ob in bpy.data.objects if ob.data == mesh] for mesh in meshes}
     for me in mesh_ob_dict.keys():
         scales = []
         for ob in mesh_ob_dict[me]:
@@ -1599,10 +1598,8 @@ def stomp_scale_multi_user(objects):
             basis_ob = obs_matching_basis[0]
         else:
             basis_ob = mesh_ob_dict[me][0]
-        set_active_object(basis_ob)
-        [ob.select_set(True) for ob in mesh_ob_dict[me]]
-        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
-        deselect_all_objects()
+        with bpy.context.temp_override(active_object=basis_ob, selected_editable_objects=[ob for ob in mesh_ob_dict[me]]):
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
         
 def get_scale_ratio(scale):
     return round(scale.x / scale.y, 6), round(scale.y / scale.z, 6), round(scale.z / scale.x, 6)

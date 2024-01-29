@@ -4134,7 +4134,7 @@ class NWO_HaloExportSettingsScope(Panel):
             if scene_nwo.asset_type == "MODEL":
                 txt = "Permutations"
             else:
-                txt = "Subgroup"
+                txt = "Layers"
             col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
 
 

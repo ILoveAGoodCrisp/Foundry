@@ -687,10 +687,22 @@ class NWOImporter:
             
         if self.seams:
             print('Calculating seam BSP references')
+            disallowed_front_back_associations = set()
+            to_remove = []
             for ob in self.seams:
                 bsp_ob = closest_bsp_object(ob)
-                if bsp_ob:
-                    ob.nwo.seam_back_ui = true_region(bsp_ob.nwo)
+                if not bsp_ob:
+                    continue
+                back_face = true_region(bsp_ob.nwo)
+                if (true_region(ob.nwo) + back_face) in disallowed_front_back_associations:
+                    to_remove.append(ob)
+                    continue
+                ob.nwo.seam_back_ui = true_region(bsp_ob.nwo)
+                disallowed_front_back_associations.add(ob.nwo.seam_back_ui + true_region(ob.nwo))
+                
+            for ob in to_remove:
+                self.jms_mesh_objects.remove(ob)
+                bpy.data.objects.remove(ob)
             
         return self.jms_marker_objects + self.jms_mesh_objects + self.jms_other_objects
     

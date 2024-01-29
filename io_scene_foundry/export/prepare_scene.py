@@ -345,7 +345,7 @@ class PrepareScene:
 
         self.global_materials = {"default"}
         self.seams = []
-        process = "--- Building Export Scene"
+        process = "--- Setting Up Export Scene"
         update_progress(process, 0)
         len_export_obs = len(export_obs)
         self.used_materials = set()
@@ -532,8 +532,6 @@ class PrepareScene:
                     self.unlink(seam)
 
             else:
-                process = "--- Creating BSP Seams"
-                update_progress(process, 0)
                 len_seams = len(self.seams)
                 skip_seams = []
                 for idx, seam in enumerate(self.seams):
@@ -586,9 +584,6 @@ class PrepareScene:
                     back_seam.name = f"seam({back_nwo.region_name}:{seam_nwo.region_name})"
 
                     scene_coll.link(back_seam)
-                    update_progress(process, idx / len_seams)
-                    
-                update_progress(process, 1)
 
         # get new export_obs
         context.view_layer.update()
@@ -717,9 +712,6 @@ class PrepareScene:
                         self.pedestal_matrix = PEDESTAL_MATRIX_Y_NEGATIVE
 
         # print("armature")
-        elif asset_type == 'SCENARIO':
-            if self.generate_structure(export_obs, scene_coll, h4):
-                context.view_layer.update()
 
         # Set timeline range for use during animation export
         self.timeline_start, self.timeline_end = self.set_timeline_range(context)
@@ -772,6 +764,10 @@ class PrepareScene:
             self.design_bsps = [b for b in self.regions if b in self.design_bsps]
         if len(self.design_perms) > 1:
             self.design_perms = [l for l in self.permutations if l in self.design_perms]
+        
+        if asset_type == 'SCENARIO':
+            if self.generate_structure(export_obs, scene_coll, h4):
+                context.view_layer.update()
             
         # Build skylight dict
         self.skylights = {}
@@ -1088,7 +1084,7 @@ class PrepareScene:
                 
             # remove zero poly obs from split_objects_messy
             split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
-            no_polys = [s_ob for s_ob in split_objects_messy if not s_ob.data.polygons]
+            no_polys = [s_ob for s_ob in split_objects_messy if s_ob not in split_objects]
 
             # Ensure existing proxies aren't parented to zero face mesh
             for s_ob in no_polys:
@@ -1589,8 +1585,8 @@ class PrepareScene:
                                 new_ob.nwo.permutation_name = linked_ob.nwo.permutation_name
                                 new_ob.nwo.region_name = linked_ob.nwo.region_name
 
-                            if split_ob.children:
-                                linked_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                            if split_ob.children and not new_ob.children:
+                                new_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                                 for child in split_ob.children:
                                     if not child.nwo.proxy_parent:
                                         new_child = child.copy()
@@ -2751,6 +2747,7 @@ class PrepareScene:
                 sky_index = get_sky_perm(sky_slots[0].material)
                 if sky_index > -1 and sky_index < 32:
                     nwo.sky_permutation_index = str(sky_index)
+                sky_slots[0].material = self.sky_mat
                 return
                     
             original_bm = bmesh.new()
@@ -2777,6 +2774,8 @@ class PrepareScene:
                     new_sky_ob.data = new_sky_me
                     scene_coll.link(new_sky_ob)
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
+                
+                s.material = self.sky_mat
 
                     
     def generate_structure(self, export_obs, scene_coll, h4):
@@ -3185,13 +3184,17 @@ class PrepareScene:
         linked_poops_with_nonstandard_scale = False
         for ob in objects:
             abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
-            is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' # only poops may be scaled
+            is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop'
+            is_poop_with_outlandish_scale = is_poop and ((abs_scale > TARGET_SCALE * 10) or (abs_scale < TARGET_SCALE / 10))
             if is_poop:
+                if not is_poop_with_outlandish_scale:
+                    continue
                 poops.append(ob)
             if abs_scale != TARGET_SCALE:
                 if ob.type == 'ARMATURE':
                     self.warning_hit = True
                     print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
+                
                 elif ob.data and ob.data.users:
                     if ob.data.users > 1 and is_poop:
                         linked_poops_with_nonstandard_scale = True
