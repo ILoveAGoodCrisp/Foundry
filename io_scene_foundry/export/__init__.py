@@ -285,10 +285,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
             if scene_nwo.asset_type in (
                 "MODEL",
                 "SKY",
-                "SCENARIO",
-                "PREFAB",
             ):
-                sub.prop(scene_nwo_export, "export_all_perms", expand=True)
+                sub.prop(scene_nwo_export, "export_all_perms", expand=True, text='Permutations')
+            elif scene_nwo.asset_type in ("SCENARIO", "PREFAB"):
+                sub.prop(scene_nwo_export, "export_all_perms", expand=True, text='Layers')
         # SIDECAR SETTINGS #
         if scene_nwo.asset_type == "MODEL" and scene_nwo_export.export_gr2_files:
             box = layout.box()
