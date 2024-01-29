@@ -2445,7 +2445,7 @@ class DebugMenuCommand:
         self.name = dot_partition(filename).lower()
         
     def __repr__(self):
-        return f'<item type = command name = "Foundry: Drop {self.name} [{self.tag_type}]" variable = "drop "{self.path}"">\n'
+        return f'<item type = command name = "Foundry: Drop {self.name} [{self.tag_type}]" variable = "drop \\"{self.path}\\"">\n'
     
 def update_debug_menu(asset_dir, asset_name):
     asset_dir = relative_path(asset_dir)
