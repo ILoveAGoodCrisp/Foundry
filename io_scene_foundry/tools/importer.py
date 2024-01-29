@@ -32,11 +32,12 @@ import bpy
 import addon_utils
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
+from io_scene_foundry.tools.clear_duplicate_materials import clear_duplicate_materials
 from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, dot_partition, get_prefs, get_tags_path, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, unlink, unmute_armature_mods, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_tags_path, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -138,10 +139,11 @@ class NWO_Import(bpy.types.Operator):
         start = time.perf_counter()
         imported_objects = []
         imported_actions = []
+        starting_materials = bpy.data.materials[:]
         self.nothing_imported = False
         self.user_cancelled = False
         with ExportManager():
-            # os.system("cls")
+            os.system("cls")
             if context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
                 context.scene.nwo_export.show_output = False
@@ -186,23 +188,22 @@ class NWO_Import(bpy.types.Operator):
                     # Return to our scale
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
-                        
+                
+                new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
-                # if bpy.ops.nwo.stomp_materials.poll():
-                #     bpy.ops.nwo.stomp_materials()
+                if new_materials:
+                    new_materials = clear_duplicate_materials(True, new_materials)
                 
                 if self.find_shader_paths and imported_objects:
                     print('Updating shader tag paths for imported objects')
                     imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
                     if imported_meshes:
-                        mesh_material_groups = [me.materials for me in imported_meshes]
-                        materials = set(material for mesh_materials in mesh_material_groups for material in mesh_materials)
-                        if materials:
-                            find_shaders(materials)
+                        if new_materials:
+                            find_shaders(new_materials)
                             if self.build_blender_materials:
                                 print('Building materials from shader tags')
                                 with MutePrints():
-                                    for mat in materials:
+                                    for mat in new_materials:
                                         shader_path = mat.nwo.shader_path
                                         if shader_path:
                                             tag_to_nodes(corinth, mat, shader_path)
@@ -680,8 +681,16 @@ class NWOImporter:
         self.jms_marker_objects = []
         self.jms_mesh_objects = []
         self.jms_other_objects = []
+        self.seams = []
         for path in jms_files:
             self.import_jms_file(path,legacy_fix_rotations)
+            
+        if self.seams:
+            print('Calculating seam BSP references')
+            for ob in self.seams:
+                bsp_ob = closest_bsp_object(ob)
+                if bsp_ob:
+                    ob.nwo.seam_back_ui = true_region(bsp_ob.nwo)
             
         return self.jms_marker_objects + self.jms_mesh_objects + self.jms_other_objects
     
@@ -865,6 +874,8 @@ class NWOImporter:
                 ob.data.nwo.mesh_type_ui = mesh_type
                 if mesh_type == '_connected_geometry_mesh_type_structure':
                     ob.nwo.proxy_instance = True
+                if mesh_type == '_connected_geometry_mesh_type_seam':
+                    self.seams.append(ob)
 
                 if mesh_type_legacy in ('collision', 'physics'):
                     self.setup_collision_materials(ob, mesh_type_legacy)

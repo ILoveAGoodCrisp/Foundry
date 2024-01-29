@@ -62,39 +62,41 @@ class NWO_StompMaterials(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
-        materials = bpy.data.materials
-        # Collect base names
-        basenames = set()
-        for mat in materials:
-            base = base_material_name(mat.name, self.strip_legacy_halo_naming)
-            if materials.get(base, 0):
-                basenames.add(base)
-            else:
-                basenames.add(mat.name)
-        # Get a list of duplicate materials
-        dupemats = [mat for mat in materials if mat.name not in basenames]
-        # Get a dict of base materials and a list of their duplicates
-        dupe_base_dict = {}
-        for dupe in dupemats:
-            base_name = base_material_name(mat.name, self.strip_legacy_halo_naming)
-            dupe_base_dict[dupe] = materials.get(base_name)
-            
-        # Loop all objects and replace duplicate materials
-        for ob in bpy.data.objects:
-            for slot in ob.material_slots:
-                if slot.material in dupemats:
-                    slot.material = dupe_base_dict[slot.material]
-                    
-        # Ensure all material names equal their basenames
-        for mat in materials:
-            mat.name = base_material_name(mat.name, self.strip_legacy_halo_naming)
-        
-        dupe_count = len(dupemats)
-        if dupe_count:
+        starting_materials_count = len(bpy.data.materials)
+        clear_duplicate_materials(self.strip_legacy_halo_naming)
+        ending_materials_count = len(bpy.data.materials)
+        if ending_materials_count < starting_materials_count:
             # Clear duplicate materials from scene
-            [materials.remove(mat) for mat in dupemats]
-            self.report({'INFO'}, f"Stomped {dupe_count} duplicate materials")
+            self.report({'INFO'}, f"Stomped {starting_materials_count - ending_materials_count} duplicate materials")
         else:
             self.report({'INFO'}, "No duplicate materials found")
         return {"FINISHED"}
 
+def clear_duplicate_materials(strip_legacy_halo_naming: bool, materials_scope=None):
+    materials = bpy.data.materials
+    # Collect base names
+    basenames = set()
+    to_remove = set()
+    for mat in materials:
+        if materials_scope is None or mat in materials_scope:
+            base = base_material_name(mat.name, strip_legacy_halo_naming)
+            basenames.add(base)
+            if base != mat.name:
+                to_remove.add(mat)
+            if not materials.get(base, 0):
+                new_mat = mat.copy()
+                new_mat.name = base
+                if materials_scope is not None:
+                    materials_scope.append(new_mat)
+        
+    # Loop all objects and replace duplicate materials
+    for ob in bpy.data.objects:
+        for slot in ob.material_slots:
+            if slot.material and (materials_scope is None or slot.material in materials_scope) and slot.material.name not in basenames:
+                slot.material = materials.get(base_material_name(slot.material.name, strip_legacy_halo_naming))
+    
+    [materials.remove(mat) for mat in to_remove]
+    if materials_scope is None:
+        return [mat for mat in bpy.data.materials]
+    else:
+        return [mat for mat in bpy.data.materials if mat in materials_scope]

@@ -535,14 +535,20 @@ class PrepareScene:
                 process = "--- Creating BSP Seams"
                 update_progress(process, 0)
                 len_seams = len(self.seams)
+                skip_seams = []
                 for idx, seam in enumerate(self.seams):
+                    if seam in skip_seams:
+                        continue
                     seam_me = seam.data
                     seam_bm = bmesh.new()
                     seam_bm.from_mesh(seam_me)
                     bmesh.ops.triangulate(seam_bm, faces=seam_bm.faces)
                     seam_bm.to_mesh(seam_me)
                     seam_nwo = seam.nwo
-
+                    # existing_back_seam = self.check_existing_back_seam(seam)
+                    # if existing_back_seam:
+                    #     skip_seams.append(existing_back_seam)
+                    #     self.unlink(existing_back_seam)
                     back_seam = seam.copy()
                     back_seam.data = seam_me.copy()
                     back_me = back_seam.data
@@ -881,22 +887,6 @@ class PrepareScene:
                 bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
         return len(bm.faces)
-    
-    def strip_nophys_only_faces(self, layer_faces_dict, bm):
-        # loop through each face layer and select non physics faces
-        self.is_sphere_coll = False
-        for f in bm.faces:
-            f.select = True
-        for layer, face_seq in layer_faces_dict.items():
-            if (
-                layer.face_mode_override
-                and layer.face_mode_ui == "_connected_geometry_face_mode_sphere_collision_only"
-            ):
-                for f in face_seq:
-                    f.select = False
-
-        selected_f = [f for f in bm.faces if f.select]
-        bmesh.ops.delete(bm, geom=selected_f, context="FACES")
 
     def recursive_layer_split(
         self,
@@ -927,31 +917,25 @@ class PrepareScene:
                     split_objects.append(ob)
                 else:
                     # delete faces from new mesh
-                    for face in bm.faces:
-                        face.select = True if face in face_seq else False
-
+                    to_delete_indexes = [f.index for f in bm.faces if f in face_seq]
                     split_bm = bm.copy()
                     # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
-
                     bmesh.ops.delete(
                         bm,
-                        geom=[face for face in bm.faces if not face.select],
+                        geom=[f for f in bm.faces if not f.index in to_delete_indexes],
                         context="FACES",
                     )
-
                     split_ob = ob.copy()
 
                     split_ob.data = me.copy()
                     split_me = split_ob.data
 
                     bm.to_mesh(me)
-
                     bmesh.ops.delete(
                         split_bm,
-                        geom=[face for face in split_bm.faces if face.select],
+                        geom=[f for f in split_bm.faces if f.index in to_delete_indexes],
                         context="FACES",
                     )
-
                     split_bm.to_mesh(split_me)
 
                     if not is_proxy:
@@ -964,7 +948,6 @@ class PrepareScene:
                         )
                         for layer in face_layers
                     }
-
                     split_objects.append(split_ob)
 
                     if split_me.polygons:
@@ -1035,7 +1018,6 @@ class PrepareScene:
         collision_ob = None
         justified = self.justify_face_split(layer_faces_dict, poly_count)
         bm.to_mesh(me)
-
         if justified:
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
             render_mesh = ob.nwo.mesh_type in render_mesh_types
@@ -1098,12 +1080,10 @@ class PrepareScene:
                     remaining_faces.append(f)
 
             layer_faces_dict["|~~no_face_props~~|"] = remaining_faces
-
             # Splits the mesh recursively until each new mesh only contains a single face layer
             split_objects_messy = self.recursive_layer_split(
                 ob, me, face_layers, layer_faces_dict, h4, scene_coll, [ob], bm, is_proxy
             )
-
             ori_ob_name = str(ob.name)
                 
             # remove zero poly obs from split_objects_messy
@@ -1562,7 +1542,6 @@ class PrepareScene:
             
             if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision and not me_nwo.render_only_ui:
                 self.setup_instance_proxies(scenario, prefab, me, h4, linked_objects, scene_coll, context)
-
 
             face_layers = me_nwo.face_props
 
@@ -2786,12 +2765,10 @@ class PrepareScene:
                         nwo.sky_permutation_index = str(sky_index)
                         break
                     
-                    for f in original_bm.faces:
-                        f.select = True if f in mat_faces else False
-
+                    face_indexes = [f.index for f in original_bm.faces if f in mat_faces]
                     new_bm = original_bm.copy()
-                    bmesh.ops.delete(original_bm, geom=[f for f in original_bm.faces if f.select], context="FACES")
-                    bmesh.ops.delete(new_bm, geom=[f for f in new_bm.faces if not f.select], context="FACES")
+                    bmesh.ops.delete(original_bm, geom=[f for f in original_bm.faces if f.index in face_indexes], context="FACES")
+                    bmesh.ops.delete(new_bm, geom=[f for f in new_bm.faces if not f.index in face_indexes], context="FACES")
                     new_sky_me = me.copy()
                     new_bm.to_mesh(new_sky_me)
                     original_bm.to_mesh(me)
