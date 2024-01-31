@@ -1101,11 +1101,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
     
     def get_exportable(self):
-        ob = getattr(bpy.context, 'object', 0)
-        if not ob:
-            return False
         if not self.export_this:
             return False
+        ob = self.id_data
         if get_object_type(ob) == '_connected_geometry_object_type_none':
             return False
         if not ob.users_collection:
