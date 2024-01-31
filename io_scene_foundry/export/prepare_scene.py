@@ -232,7 +232,7 @@ class PrepareScene:
             for mod in ob.modifiers:
                 if mod.type == 'NODES':
                     with context.temp_override(object=ob):
-                        bpy.ops.object.modifier_apply(modifier=mod.name)
+                        bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
         
         # Scale objects
         scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1

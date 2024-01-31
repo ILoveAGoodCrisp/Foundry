@@ -1101,10 +1101,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
     
     def get_exportable(self):
-        context = bpy.context
-        if not context:
-            return False
-        ob = context.object
+        ob = getattr(bpy.context, 'object', 0)
         if not ob:
             return False
         if not self.export_this:
