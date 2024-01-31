@@ -477,7 +477,7 @@ class NWO_Export(NWO_Export_Scene):
             
             except Exception as e:
                 if type(e) == RuntimeError:
-                    logging.error(traceback.format_exc())
+                    # logging.error(traceback.format_exc())
                     self.known_fail = True
                 else:
                     print_error("\n\nException hit. Please include in report\n")

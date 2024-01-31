@@ -51,6 +51,7 @@ from ..utils.nwo_utils import (
     get_area_info,
     get_camera_track_camera,
     get_object_type,
+    get_rig,
     get_sky_perm,
     has_shader_path,
     is_marker,
@@ -250,8 +251,15 @@ class PrepareScene:
         
         # Combine Armatures is possible
         
-        if asset_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
-            self.consolidate_rig(context, scene_nwo)
+        self.model_armature = None
+        if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
+            self.model_armature = get_rig(context)
+            if self.model_armature and not self.model_armature.nwo.exportable:
+                print_warning(f'Scene Armature [{self.model_armature.name}] is set to not export. Export cancelled')
+                raise RuntimeError
+        
+            if asset_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
+                self.consolidate_rig(context, scene_nwo)
 
         # unlink non export objects
         if asset_type == "FP ANIMATION":
@@ -647,16 +655,11 @@ class PrepareScene:
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
 
-        self.model_armature = None
         self.skeleton_bones = {}
         self.current_action = None
 
         if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
             forward = context.scene.nwo.forward_direction
-            self.model_armature = self.get_scene_armature(
-                export_obs, asset, context.scene.nwo
-            )
-
             if self.lighting:
                 self.create_bsp_box(scene_coll)
 
@@ -2190,12 +2193,12 @@ class PrepareScene:
     #####################################################################################
     # ARMATURE FUNCTIONS
     def get_scene_armature(self, export_obs, asset, scene_nwo):
-        arm_name = f"{asset}_world"
-        old_ob = bpy.data.objects.get(arm_name)
-        if old_ob:
-            old_ob.name += "__OLD__"
-        self.arm_name = arm_name
-        arm = None
+        # arm_name = f"{asset}_world"
+        # old_ob = bpy.data.objects.get(arm_name)
+        # if old_ob:
+        #     old_ob.name += "__OLD__"
+        # self.arm_name = arm_name
+        # arm = None
         if scene_nwo.main_armature:
             arm = scene_nwo.main_armature
         else:
@@ -2204,7 +2207,7 @@ class PrepareScene:
                     arm = ob
         
         if arm is not None:
-            arm.name = arm_name
+            # arm.name = arm_name
             scene_nwo.main_armature = arm
             return arm
     
