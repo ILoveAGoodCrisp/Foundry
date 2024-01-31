@@ -606,14 +606,7 @@ class ProcessScene:
         asset_type,
         nwo_scene,
         export_check,
-    ):
-        if not self.models_export_started:
-            self.models_export_started = True
-            print("\n\nStarting Models Export")
-            print(
-                "-----------------------------------------------------------------------\n"
-            )
-            
+    ):      
         if obs_perms:
             perms = obs_perms
         else:
@@ -659,6 +652,12 @@ class ProcessScene:
                     print_text = f"{perm} {type} model"
 
                 if export_check:
+                    if not self.models_export_started:
+                        self.models_export_started = True
+                        print("\n\nStarting Models Export")
+                        print(
+                            "-----------------------------------------------------------------------\n"
+                        )
                     override = context.copy()
                     area = [
                         area for area in context.screen.areas if area.type == "VIEW_3D"
@@ -700,14 +699,7 @@ class ProcessScene:
         bsps,
         layers,
         export_check,
-    ):
-        if not self.models_export_started:
-            self.models_export_started = True
-            print("\n\nStarting Models Export")
-            print(
-                "-----------------------------------------------------------------------\n"
-            )
-            
+    ):            
         type_name = 'design' if is_design else 'bsp'
         for bsp in bsps:
             for perm in layers:
@@ -728,6 +720,12 @@ class ProcessScene:
                         
                 if (not sel_bsps or bsp in sel_bsps) and (not sel_perms or perm in sel_perms):
                     if export_check and export_obs:
+                        if not self.models_export_started:
+                            self.models_export_started = True
+                            print("\n\nStarting Models Export")
+                            print(
+                                "-----------------------------------------------------------------------\n"
+                            )
                         override = context.copy()
                         area = [
                             area for area in context.screen.areas if area.type == "VIEW_3D"
