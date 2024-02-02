@@ -1132,12 +1132,13 @@ class NWOImporter:
                                 layer.layer_color = random_color()
                                 layers[idx].append(bm.faces.layers.int.new(l_name))
                         if jms_mat.no_shadow:
+                            l_name = 'no_shadow'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
                                 layer = face_props.add()
                                 layer.name = 'No Shadow'
-                                layer.layer_name = 'no_shadow'
+                                layer.layer_name = l_name
                                 layer.no_shadow_override = True
                                 layer.layer_color = random_color()
                                 layers[idx].append(bm.faces.layers.int.new(l_name))
