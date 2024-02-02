@@ -703,7 +703,7 @@ class ProcessScene:
         type_name = 'design' if is_design else 'bsp'
         for bsp in bsps:
             for perm in layers:
-                export_obs = [ob for ob in objects if ob.nwo.permutation_name == perm and (ob.nwo.region_name == bsp)]
+                export_obs = [ob for ob in objects if (ob.nwo.permutation_name == perm) and (ob.nwo.region_name == bsp)]
                 if not export_obs: continue
                 fbx_path, json_path, gr2_path = self.get_path(asset_path, asset, type_name, perm, bsp, None)
                 sidecar_data =  [data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path), perm]
