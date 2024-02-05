@@ -1941,6 +1941,13 @@ class BoneChild():
         self.ob = ob
         self.parent = parent
         self.parent_bone = parent_bone
+        
+class ArmatureWithParent():
+    def __init__(self, ob: bpy.types.Object, parent: bpy.types.Object, parent_type: str, parent_bone: str):
+        self.ob = ob
+        self.parent = parent
+        self.parent_type = parent_type
+        self.parent_bone = parent_bone
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
@@ -1968,7 +1975,9 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     if keep_marker_axis is None:
         keep_marker_axis = not context.scene.nwo.rotate_markers
 
-    armatures = []
+    armatures = [ob for ob in objects if ob.type == 'ARMATURE']
+    parented_armatures = [ob for ob in armatures if ob.parent]
+    armature_parents = [ArmatureWithParent(ob, ob.parent, ob.parent_type, ob.parent_bone) for ob in parented_armatures]
     scene_coll = context.scene.collection.objects
     axis_z = Vector((0, 0, 1))
     pivot = Vector((0.0, 0.0, 0.0))
@@ -1978,6 +1987,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     transform_matrix = rotation_matrix @ scale_matrix
     frames = [ob for ob in bpy.data.objects if is_frame(ob)]
     bone_children = []
+            
+    if parented_armatures:
+        with context.temp_override(object=parented_armatures[0], selected_editable_objects=parented_armatures):
+            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+            
     for ob in objects:
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
@@ -2005,9 +2019,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         if ob.type == 'EMPTY':
             ob.empty_display_size *= scale_factor
             
-        elif ob.type == 'ARMATURE':
-            armatures.append(ob)
-        
         ob.matrix_basis = Matrix.LocRotScale(loc, rot, sca)
         
         if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB') and ob.nwo.exportable:
@@ -2227,6 +2238,15 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             if original_collections:
                 for coll in original_collections:
                     coll.objects.link(arm)
+    
+    if armature_parents:
+        for item in armature_parents:
+            arm_ob = item.ob
+            old_matrix = arm_ob.matrix_world.copy()
+            arm_ob.parent = item.parent
+            arm_ob.parent_type = item.parent_type
+            arm_ob.parent_bone = item.parent_bone
+            arm_ob.matrix_world = old_matrix
     
     for action in actions:
         fc_quaternions: list[bpy.types.FCurve] = []
