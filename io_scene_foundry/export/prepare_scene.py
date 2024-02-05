@@ -1990,9 +1990,9 @@ class PrepareScene:
                 set_marker_sphere_size(ob, nwo)
                 
             elif marker_type == "_connected_geometry_marker_type_effects":
+                nwo.marker_type = "_connected_geometry_marker_type_model"
                 if not ob.name.startswith("fx_"):
                     ob.name = "fx_" + ob.name
-                    nwo.marker_type = "_connected_geometry_marker_type_model"
                     
             elif marker_type == "_connected_geometry_marker_type_garbage":
                 nwo.marker_type = "_connected_geometry_marker_type_model"
