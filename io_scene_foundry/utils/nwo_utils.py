@@ -55,7 +55,7 @@ MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpa
 special_material_names = [m.name for m in special_materials]
 convention_material_names = [m.name for m in convention_materials]
 
-object_exts = '.crate', '.scenery', '.effect', '.device_control', '.device_machine', '.device_terminal', '.device_dispenser', '.biped', '.creature', '.giant', '.vehicle', '.weapon', '.equipment'
+object_exts = '.crate', '.scenery', '.effect_scenery', '.device_control', '.device_machine', '.device_terminal', '.device_dispenser', '.biped', '.creature', '.giant', '.vehicle', '.weapon', '.equipment'
 
 ###########
 ##GLOBALS##
@@ -2084,6 +2084,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                         con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
                 case 'CHILD_OF':
                     con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
+                    if scale_factor != 1:
+                        con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
+                        con_loc *= scale_factor
+                        con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
             
     for curve in curves:
         if hasattr(curve, 'size'):
