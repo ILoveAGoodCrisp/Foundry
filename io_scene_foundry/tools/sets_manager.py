@@ -43,13 +43,19 @@ def has_region_or_perm(ob):
 
 class NWO_UpdateSets(bpy.types.Operator):
     bl_idname = "nwo.update_sets"
-    bl_label = "Update Sets From Scene"
-    bl_description = "Updates the regions and permutations tables from scene objects. Use this if you're opening an older Foundry Blender scene and have a mismatch between object regions/permutations and the sets manager tables"
+    bl_label = "Sync"
+    bl_description = "Ensures object hidden and hide select states match what is defined in the sets manager.\n\nThis also updates the regions and permutations table entires from scene objects. Useful if you have a mismatch between object regions/permutations and the sets manager tables"
     bl_options = {"UNDO"}
 
     def execute(self, context):
         update_tables_from_objects(context)
-        self.report({'INFO'}, "Update Complete")
+        for item in context.scene.nwo.regions_table:
+            bpy.ops.nwo.region_hide(entry_name=item.name)
+            bpy.ops.nwo.region_hide_select(entry_name=item.name)
+        for item in context.scene.nwo.permutations_table:
+            bpy.ops.nwo.permutation_hide(entry_name=item.name)
+            bpy.ops.nwo.permutation_hide_select(entry_name=item.name)
+        self.report({'INFO'}, "Sync Complete")
         return {"FINISHED"}
 
 # Parent Classes
