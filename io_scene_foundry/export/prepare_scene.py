@@ -59,7 +59,6 @@ from ..utils.nwo_utils import (
     jstr,
     layer_face_count,
     layer_faces,
-    library_instanced_collection,
     print_warning,
     relative_path,
     rig_root_deform_bone,

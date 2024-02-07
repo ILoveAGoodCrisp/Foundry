@@ -2292,8 +2292,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                     mat = Matrix.Translation(v)
                     loc = pivot_matrix @ mat
                     vloc = loc.to_translation()
-                    kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = vloc[0], vloc[1], vloc[2]
-            
+                    kfpx.co[1], kfpy.co[1], kfpz.co[1] = vloc[0], vloc[1], vloc[2]
             
         if fc_quaternions:
             assert(len(fc_quaternions) == 4)
@@ -2315,8 +2314,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 for kfpw, kfpx, kfpy, kfpz in zip(keyframes_w[i], keyframes_x[i], keyframes_y[i], keyframes_z[i]):
                     q = Quaternion((kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1]))
                     q.rotate(rotation_matrix)
-                    kfpw.co_ui[1], kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = q[0], q[1], q[2], q[3]
-                
+                    kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1] = q[0], q[1], q[2], q[3]
+
+        for fc in action.fcurves:
+            fc.keyframe_points.handles_recalc()
+            
 def get_area_info(context):
     area = [
         area
