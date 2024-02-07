@@ -1995,6 +1995,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     for ob in objects:
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
+        object_parented = (ob.parent and ob.parent_type == 'OBJECT')
         loc, rot, sca = ob.matrix_basis.decompose()
         if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion
@@ -2002,12 +2003,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             rot = ob.rotation_euler
             
         loc *= scale_factor
-        if rotation and not bone_parented:
+        if rotation and not bone_parented and not object_parented:
             loc = pivot_matrix @ loc
         
         is_a_frame = ob in frames
         
-        if not (ob.type == 'ARMATURE' or bone_parented):
+        if not (ob.type == 'ARMATURE' or bone_parented or object_parented):
             rot.rotate(rotation_matrix)
         elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
             bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
