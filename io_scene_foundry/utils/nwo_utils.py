@@ -1995,7 +1995,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     for ob in objects:
         # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
         bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
-        object_parented = (ob.parent and ob.parent_type == 'OBJECT')
+        object_parented = (ob.parent and ob.parent.type != 'ARMATURE' and ob.parent_type == 'OBJECT')
         loc, rot, sca = ob.matrix_basis.decompose()
         if ob.rotation_mode == 'QUATERNION':
             rot = ob.rotation_quaternion
@@ -2003,12 +2003,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             rot = ob.rotation_euler
             
         loc *= scale_factor
-        if rotation and not bone_parented and not object_parented:
+            
+        if rotation and not bone_parented:
             loc = pivot_matrix @ loc
         
         is_a_frame = ob in frames
         
-        if not (ob.type == 'ARMATURE' or bone_parented or object_parented):
+        if not (ob.type == 'ARMATURE' or bone_parented):
             rot.rotate(rotation_matrix)
         elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
             bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
@@ -2021,6 +2022,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             ob.empty_display_size *= scale_factor
             
         ob.matrix_basis = Matrix.LocRotScale(loc, rot, sca)
+        if object_parented:
+            local_loc, local_rot, local_sca = ob.matrix_local.decompose()
+            local_loc *= scale_factor
+            ob.matrix_local = Matrix.LocRotScale(local_loc, local_rot, local_sca)
         
         if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB') and ob.nwo.exportable:
             ob.rotation_euler.rotate_axis('Z', -rotation)
