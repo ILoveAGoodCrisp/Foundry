@@ -208,9 +208,19 @@ class PrepareScene:
         markers = [ob for ob in all_obs_start if is_marker(ob)]
         for ob in markers:
             ob.instance_type = 'NONE'
+            
+        existing_curves = [ob for ob in bpy.data.objects if ob.type in ('FONT', 'CURVE')]
         
         with context.temp_override(selected_editable_objects=bpy.data.objects):
             bpy.ops.object.duplicates_make_real()
+            
+        context.view_layer.update()
+        # Need to do this due to blender bug which duplicates curves
+        new_curves = [ob for ob in bpy.data.objects if ob.type in ('FONT', 'CURVE')]
+        
+        for ob in new_curves:
+            if ob not in existing_curves:
+                bpy.data.objects.remove(ob)
             
         context.view_layer.update()
         
