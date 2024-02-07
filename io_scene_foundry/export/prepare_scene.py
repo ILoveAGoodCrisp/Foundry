@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from uuid import uuid4
 import bmesh
 import bpy
 from os import path
@@ -133,6 +134,7 @@ class PrepareScene:
         self.aim_yaw = None
         self.gun = None
         self.arm_name = ""
+        self.animation_armatures = ""
         self.verbose_warnings = False # For outputting info about things we otherwise silently fix
         self.no_export_objects = False
         self.too_many_root_bones = False
@@ -812,6 +814,12 @@ class PrepareScene:
                 self.skylights['sun_size'] = jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
                 self.skylights['sun_intensity'] = jstr(sun.data.energy * 10000 * light_scale)
                 self.skylights['sun_color'] = color_3p_str(sun.data.color)
+        
+        
+        if scene_nwo.export_animations != 'NONE' and (asset_type == 'MODEL' or asset_type == 'FP ANIMATION'):
+            export_actions = [action for action in bpy.data.actions if action.use_frame_range]
+            if export_actions:
+                self.bake_animations(context, export_actions, scene_coll, scene_nwo.export_animations)
 
         if self.warning_hit:
             print_warning(
@@ -3239,6 +3247,122 @@ class PrepareScene:
         ob.nwo.region_name  = self.default_region
         ob.nwo.permutation_name  = self.default_permutation
         return ob
+    
+    def bake_animations(
+        self,
+        context: bpy.types.Context,
+        export_actions,
+        scene_coll,
+        export_animations,
+    ):
+        if self.model_armature.animation_data is None:
+            self.model_armature.animation_data_create()
+
+        job = "--- Baking Animations"
+        update_progress(job, 0)
+        old_animations = [a for a in bpy.data.actions]
+        for idx, action in enumerate(export_actions):
+            if export_animations == "ALL" or self.current_action == action:
+                new_arm = self.model_armature.copy()
+                new_arm.data = self.model_armature.data.copy()
+                scene_coll.link(new_arm)
+                new_arm.select_set(True)
+                context.view_layer.objects.active = new_arm
+
+                for ob in bpy.data.objects:
+                    if ob.animation_data:
+                        ob.animation_data.action = action
+
+                bpy.ops.object.posemode_toggle()
+
+                frame_start = int(action.frame_start)
+                frame_end = int(action.frame_end)
+
+                bpy.ops.nla.bake(frame_start=frame_start, frame_end=frame_end, only_selected=False, visual_keying=True, clear_constraints=True, use_current_action=False, bake_types={'POSE'})
+                for ac in bpy.data.actions:
+                    if ac not in old_animations:
+                        new_animation = ac
+                        break
+                else:
+                    continue
+
+                new_animation.use_frame_range = True
+                new_name = str(action.name)
+                action.name += str(uuid4())[:4]
+                new_animation.name = new_name
+                old_nwo = action.nwo
+                new_nwo = new_animation.nwo
+                new_nwo.animation_type = old_nwo.animation_type
+                new_nwo.animation_movement_data = old_nwo.animation_movement_data
+                new_nwo.animation_space = old_nwo.animation_space
+                new_nwo.animation_is_pose = old_nwo.animation_is_pose
+                new_nwo.name_override = old_nwo.name_override
+                                    
+                # # Force the keyframes to start at frame 0
+                frame_diff = int(new_animation.frame_start)
+                # for fcurve in new_animation.fcurves:
+                #     for kfp in fcurve.keyframe_points:
+                #         kfp.co[0] -= frame_diff
+
+                new_animation.frame_start = 0
+                # new_animation.frame_end = new_animation.frame_end - frame_diff
+                # Copy over events/renames
+                old_renames = old_nwo.animation_renames
+                new_renames = new_nwo.animation_renames
+                for idx, r in enumerate(old_renames):
+                    new_renames.add()
+                    new_renames[idx].rename_name = r.rename_name
+
+                old_events = old_nwo.animation_events
+                new_events = new_nwo.animation_events
+                for idx, e in enumerate(old_events):
+                    new_events.add()
+                    new_events[idx].event_id = e.event_id
+                    new_events[idx].multi_frame = e.multi_frame
+                    new_events[idx].frame_range = e.frame_range
+                    new_events[idx].name = e.name
+                    new_events[idx].event_type = e.event_type
+                    new_events[idx].frame_start = e.frame_start - frame_diff
+                    new_events[idx].frame_end = e.frame_end - frame_diff
+                    new_events[idx].wrinkle_map_face_region = e.wrinkle_map_face_region
+                    new_events[idx].wrinkle_map_effect = e.wrinkle_map_effect
+                    new_events[idx].footstep_type = e.footstep_type
+                    new_events[idx].footstep_effect = e.footstep_effect
+                    new_events[idx].ik_chain = e.ik_chain
+                    new_events[idx].ik_active_tag = e.ik_active_tag
+                    new_events[idx].ik_target_tag = e.ik_target_tag
+                    new_events[idx].ik_target_marker = e.ik_target_marker
+                    new_events[idx].ik_target_usage = e.ik_target_usage
+                    new_events[idx].ik_proxy_target_id = e.ik_proxy_target_id
+                    new_events[idx].ik_pole_vector_id = e.ik_pole_vector_id
+                    new_events[idx].ik_effector_id = e.ik_effector_id
+                    new_events[idx].ik_influence = e.ik_influence
+                    new_events[idx].cinematic_effect_tag = e.cinematic_effect_tag
+                    new_events[idx].cinematic_effect_effect = e.cinematic_effect_effect
+                    new_events[idx].cinematic_effect_marker = e.cinematic_effect_marker
+                    new_events[idx].object_function_name = e.object_function_name
+                    new_events[idx].object_function_effect = e.object_function_effect
+                    new_events[idx].frame_frame = e.frame_frame - frame_diff
+                    new_events[idx].frame_name = e.frame_name
+                    new_events[idx].frame_trigger = e.frame_trigger
+                    new_events[idx].import_frame = e.import_frame
+                    new_events[idx].import_name = e.import_name
+                    new_events[idx].text = e.text
+                    
+                bpy.ops.object.posemode_toggle()
+                new_arm.select_set(False)
+                self.animation_armatures[new_animation] = new_arm
+                old_animations.append(new_animation)
+                # scene_coll.unlink(new_arm)
+                update_progress(job, idx / len(export_actions))
+                if export_animations == 'ACTIVE':
+                    self.current_action = new_animation
+                    break
+                
+        update_progress(job, 1)
+
+        for action in export_actions:
+            action.use_frame_range = False
 
 #####################################################################################
 #####################################################################################
