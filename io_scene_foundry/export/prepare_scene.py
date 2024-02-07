@@ -228,7 +228,7 @@ class PrepareScene:
         # apply geometry nodes
         for ob in bpy.data.objects:
             for mod in ob.modifiers:
-                if mod.type == 'NODES':
+                if mod.type == 'NODES' and mod.node_group:
                     with context.temp_override(object=ob):
                         bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
         
