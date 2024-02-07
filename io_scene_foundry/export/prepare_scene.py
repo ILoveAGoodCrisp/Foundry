@@ -3194,7 +3194,7 @@ class PrepareScene:
         for ob in objects:
             abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
             is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop'
-            is_poop_with_outlandish_scale = is_poop and ((abs_scale > TARGET_SCALE * 10) or (abs_scale < TARGET_SCALE / 10))
+            is_poop_with_outlandish_scale = is_poop and ((abs_scale > TARGET_SCALE * 10))
             if is_poop:
                 if not is_poop_with_outlandish_scale:
                     continue
