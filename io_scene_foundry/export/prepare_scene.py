@@ -1627,7 +1627,7 @@ class PrepareScene:
                     if frames_from_zero == 0: continue
                     for fcurve in animation.fcurves:
                         for kfp in fcurve.keyframe_points:
-                            kfp.co[0] -= frames_from_zero
+                            kfp.co_ui[0] -= frames_from_zero
                         fcurve.keyframe_points.handles_recalc()
                         
                     animation.frame_start = 0
