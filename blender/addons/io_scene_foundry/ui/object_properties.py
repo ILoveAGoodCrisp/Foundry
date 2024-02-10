@@ -363,12 +363,23 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
 
     emissive_active: BoolProperty()
     material_lighting_attenuation_active: BoolProperty()
+    
+            
+    def update_lighting_attenuation_falloff(self, context):
+        if self.material_lighting_attenuation_falloff_ui > self.material_lighting_attenuation_cutoff_ui:
+            self.material_lighting_attenuation_cutoff_ui = self.material_lighting_attenuation_falloff_ui
+            
+    def update_lighting_attenuation_cutoff(self, context):
+        if self.material_lighting_attenuation_cutoff_ui < self.material_lighting_attenuation_falloff_ui:
+            self.material_lighting_attenuation_falloff_ui = self.material_lighting_attenuation_cutoff_ui
+    
     material_lighting_attenuation_cutoff_ui: FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
         description="Determines how far light travels before it stops",
         min=0,
-        default=wu(2),
+        default=0,
+        update=update_lighting_attenuation_cutoff,
         subtype='DISTANCE',
         unit='LENGTH',
     )
@@ -385,7 +396,8 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         options=set(),
         description="Determines how far light travels before its power begins to falloff",
         min=0,
-        default=wu(1),
+        default=0,
+        update=update_lighting_attenuation_falloff,
         subtype='DISTANCE',
         unit='LENGTH',
     )
