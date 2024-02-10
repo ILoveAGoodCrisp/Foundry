@@ -45,7 +45,7 @@ def build_release_zip(name: str):
     print(f"git version: {git_version}")
 
     # grab version from arguments if any
-    version_string = f"{version}({git_version})"
+    version_string = f"{version}@{git_version}"
     # version_string = f"{version}"
     print(f"version: {version_string}")
 

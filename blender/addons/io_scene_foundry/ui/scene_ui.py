@@ -574,6 +574,28 @@ class NWO_MoveIKChain(bpy.types.Operator):
 class NWO_UL_ObjectControls(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
         layout.label(text=item.ob.name, icon='OBJECT_DATA')
+        layout.operator("nwo.remove_object_control", text='', icon='X', emboss=False).given_index = index
+        
+class NWO_OT_RemoveObjectControl(bpy.types.Operator):
+    bl_idname = "nwo.remove_object_control"
+    bl_label = "Remove Highlighted Object"
+    bl_description = "Removes the highlighted object from the object controls list"
+    bl_options = {"UNDO"}
+    
+    given_index: bpy.props.IntProperty(default=-1, options={'SKIP_SAVE'})
+    
+    def execute(self, context):
+        nwo = context.scene.nwo
+        if self.given_index > -1:
+            index = self.given_index
+        else:
+            index = nwo.object_controls_active_index
+        nwo.object_controls.remove(index)
+        if nwo.object_controls_active_index > len(nwo.object_controls) - 1:
+            nwo.object_controls_active_index -= 1
+        context.area.tag_redraw()
+            
+        return {'FINISHED'}
     
 class NWO_OT_BatchAddObjectControls(bpy.types.Operator):
     bl_idname = "nwo.batch_add_object_controls"
@@ -584,8 +606,9 @@ class NWO_OT_BatchAddObjectControls(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = context.scene.nwo
         object_controls = scene_nwo.object_controls
+        current_control_objects = [control.ob for control in object_controls]
         armatures = [scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c]
-        valid_control_objects = [ob for ob in context.selected_objects if ob not in armatures]
+        valid_control_objects = [ob for ob in context.selected_objects if ob not in armatures and ob not in current_control_objects]
         for ob in valid_control_objects:
             object_controls.add().ob = ob
             

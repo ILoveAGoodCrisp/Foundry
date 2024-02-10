@@ -9,3 +9,4 @@ copy to add-ons.bat
 /packages
 /obj
 /bin
+*.user

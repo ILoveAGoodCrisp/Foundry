@@ -640,7 +640,7 @@ class NWO_FoundryPanelProps(Panel):
             nwo,
             "object_controls_active_index",
         )
-        row = box.row()
+        row = box.row(align=True)
         row.operator('nwo.batch_add_object_controls', text='Add')
         row.operator('nwo.batch_remove_object_controls', text='Remove')
         row.operator('nwo.select_object_control', text='Select').select = True
