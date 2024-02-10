@@ -33,6 +33,8 @@ def build_resources_zip() -> io.BytesIO:
     return data
 
 def build_release_zip(name: str):
+    project_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.chdir(project_path)
     print(f"Building release type name: {name}")
 
     resources = build_resources_zip()
@@ -46,7 +48,7 @@ def build_release_zip(name: str):
     print(f"version: {version_string}")
 
     # create the output directory
-    Path("output").mkdir(exist_ok=True)
+    Path("bin", "Release").mkdir(exist_ok=True)
 
     # create zip name from git hash/version
     zip_name = f"{name}-{version_string}.zip"
@@ -59,10 +61,11 @@ def build_release_zip(name: str):
         zip.write(path_fs, os.path.join("io_scene_foundry", path_zip))
 
     # Add files to zip
-    zip: ZipFile = ZipFile(os.path.join("output", zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
+    zip: ZipFile = ZipFile(os.path.join("bin", "Release", zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
     write_file(zip, "LICENSE")
     write_file(zip, "README.md")
-    for dir, _, files in os.walk("io_scene_foundry"):
+    os.chdir(Path("blender/addons"))
+    for dir, _, files in os.walk(os.path.join("io_scene_foundry")):
         if dir.startswith(os.path.join("io_scene_foundry", "resources")):
             continue
         for file in files:
@@ -71,9 +74,9 @@ def build_release_zip(name: str):
                 continue
             fs_path = os.path.join(dir, file)
             zip.write(fs_path)
-
+    os.chdir(project_path)
     blend_addon_version = version.replace(".",", ")
-    init_file = Path('io_scene_foundry/__init__.py').read_text()
+    init_file = Path('blender/addons/io_scene_foundry/__init__.py').read_text()
     init_file = init_file.replace('(343, 7, 343)', f"({blend_addon_version})")
     init_file = init_file.replace('BUILD_VERSION_STR', version_string)
     zip.writestr('io_scene_foundry/__init__.py', init_file)
