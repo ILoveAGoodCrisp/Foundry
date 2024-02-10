@@ -37,7 +37,7 @@ class BitmapTag(Tag):
         self.block_usage_override = self.tag.SelectField("Block:usage override")
         self.block_bitmaps = self.tag.SelectField("Block:bitmaps")
         
-    def new_bitmap(self, bitmap_name, bitmap_type):
+    def new_bitmap(self, bitmap_name, bitmap_type, color_space):
         def get_type_from_name(bitmap_name):
             suffix = bitmap_name.rpartition("_")[2].lower()
             if suffix and "_" in bitmap_name.strip("_"):
@@ -99,18 +99,15 @@ class BitmapTag(Tag):
         override = self.block_usage_override.Elements[0]
         # Running this command sets up needed default values for the bitmap type
         override.SelectField("reset usage override").RunCommand()
-        
-        bitmap_curve = override.SelectField("bitmap curve")
-        if bitmap_type == 'Material Map':
-            bitmap_curve.SetValue('linear')
-        elif bitmap_curve.Value == 1: # 1 is xRGB
-            bitmap_curve.SetValue("sRGB (gamma 2.2)")
-        
         source_gamma = override.SelectField('source gamma')
-        if bitmap_curve.Value == 3:
-            source_gamma.SetStringData('1')
-        elif bitmap_curve.Value == 5:
-            source_gamma.SetStringData('2.2')
+        source_gamma_value = self._source_gamma_from_color_space(color_space)
+        if source_gamma_value:
+            source_gamma.SetStringData(str(source_gamma_value))
+        bitmap_curve = override.SelectField("bitmap curve")
+        if source_gamma_value == 2.2:
+            bitmap_curve.SetValue("sRGB (gamma 2.2)")
+        elif source_gamma_value == 1:
+            bitmap_curve.SetValue("linear")
             
         flags = override.SelectField("flags")
         flags.SetBit("Ignore Curve Override", True)
@@ -179,3 +176,10 @@ class BitmapTag(Tag):
     def used_as_normal_map(self):
         bm = self.block_bitmaps.Elements[0]
         return bm.SelectField('format').Value == 38
+    
+    def _source_gamma_from_color_space(self, color_space: str):
+        match color_space:
+            case 'sRGB':
+                return 2.2
+            case 'Non-Color':
+                return 1.0

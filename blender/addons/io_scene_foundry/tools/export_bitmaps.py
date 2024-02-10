@@ -68,7 +68,7 @@ def save_image_as(image, dir, tiff_name=""):
     return full_path.replace(data_dir, "")
 
 def export_bitmap(
-    image,
+    image: bpy.types.Image,
     folder="",
     report=None,
 ):
@@ -133,7 +133,7 @@ def export_bitmap(
         path_no_ext = dot_partition(image.nwo.filepath)
         bitmap_path = path_no_ext + '.bitmap'
         with BitmapTag(path=bitmap_path) as bitmap:
-            bitmap.new_bitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type)
+            bitmap.new_bitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.colorspace_settings.name)
 
         if is_corinth():
             process = run_tool(["reimport-bitmaps-single", path_no_ext, "default"], False, False)

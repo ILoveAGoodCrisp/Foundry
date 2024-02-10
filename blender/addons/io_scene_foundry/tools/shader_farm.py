@@ -372,7 +372,7 @@ class NWO_FarmShaders(bpy.types.Operator):
             path_no_ext = dot_partition(image.nwo.filepath)
             bitmap_path = path_no_ext + '.bitmap'
             with BitmapTag(path=bitmap_path) as bitmap:
-                bitmap.new_bitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type)
+                bitmap.new_bitmap(dot_partition(image.nwo.source_name), image.nwo.bitmap_type, image.colorspace_settings.name)
                 
             self.exported_bitmaps.append(bitmap_path)
             print(f"{job} {bitmap_path}")
