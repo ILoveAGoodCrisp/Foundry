@@ -57,7 +57,7 @@ from ..utils.nwo_utils import (
 
 # def get_default_mesh_type():
 #     appdata = os.getenv('APPDATA')
-#     foundry_folder = os.path.join(appdata, "FoundryHBCK")
+#     foundry_folder = os.path.join(appdata, "Foundry")
 #     mesh_file = os.path.join(foundry_folder, 'mesh_default.txt')
 #     if os.path.exists(mesh_file):
 #         with open(mesh_file, 'r') as f:

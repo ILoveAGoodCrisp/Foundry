@@ -390,7 +390,7 @@ class ToolkitLocationPreferences(AddonPreferences):
     def update_scene_matrix(self, context):
         scene_nwo = context.scene.nwo
         appdata = os.getenv('APPDATA')
-        foundry_folder = os.path.join(appdata, "FoundryHBCK")
+        foundry_folder = os.path.join(appdata, "Foundry")
 
         if not os.path.exists(foundry_folder):
             os.makedirs(foundry_folder, exist_ok=True)

@@ -1182,7 +1182,7 @@ def remove_chars(string, chars):
 
 def write_projects_list(project_list):
     appdata = os.getenv('APPDATA')
-    foundry_folder = os.path.join(appdata, "FoundryHBCK")
+    foundry_folder = os.path.join(appdata, "Foundry")
 
     if not os.path.exists(foundry_folder):
         os.makedirs(foundry_folder)
@@ -1194,7 +1194,7 @@ def write_projects_list(project_list):
 def read_projects_list() -> list:
     projects_list = []
     appdata = os.getenv('APPDATA')
-    foundry_folder = os.path.join(appdata, "FoundryHBCK")
+    foundry_folder = os.path.join(appdata, "Foundry")
 
     if not os.path.exists(foundry_folder):
         return print("No Foundry Folder")

@@ -41,7 +41,7 @@ from ..utils.nwo_utils import clean_tag_path, get_prefs, is_corinth, poll_ui, re
 
 def get_matrix_settings():
     appdata = os.getenv('APPDATA')
-    foundry_folder = os.path.join(appdata, "FoundryHBCK")
+    foundry_folder = os.path.join(appdata, "Foundry")
 
     if not os.path.exists(foundry_folder):
         print("No Foundry Folder")
