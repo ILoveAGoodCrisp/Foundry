@@ -7,13 +7,14 @@ SPDX-License-Identifier: MIT
 from zipfile import ZipFile, ZIP_DEFLATED, ZIP_LZMA
 import io
 import os
+import sys
 import subprocess
 from pathlib import Path
 
-version = "0.9.4"
+version = "0.4"
 
 def build_resources_zip() -> io.BytesIO:
-    search_path = os.path.join("addons", "io_scene_foundry", "resources")
+    search_path = os.path.join("blender" ,"addons", "io_scene_foundry", "resources")
     print(f"Building resources zip (searching in {search_path})!")
 
     data = io.BytesIO()
@@ -45,6 +46,7 @@ def build_release_zip(name: str):
 
     # grab version from arguments if any
     version_string = f"{version}({git_version})"
+    # version_string = f"{version}"
     print(f"version: {version_string}")
 
     # create the output directory
