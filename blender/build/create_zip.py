@@ -10,10 +10,10 @@ import os
 import subprocess
 from pathlib import Path
 
-version = "0.9.3"
+version = "0.9.4"
 
 def build_resources_zip() -> io.BytesIO:
-    search_path = os.path.join("io_scene_foundry", "resources")
+    search_path = os.path.join("addons", "io_scene_foundry", "resources")
     print(f"Building resources zip (searching in {search_path})!")
 
     data = io.BytesIO()
@@ -42,13 +42,7 @@ def build_release_zip(name: str):
     print(f"git version: {git_version}")
 
     # grab version from arguments if any
-    CI_version = os.getenv('GITHUB_RUN_NUMBER')
-    if CI_version is None:
-        print("Local build")
-        version_string = f"v{version}@" + git_version
-    else:
-        print(f"CI build {CI_version}")
-        version_string = f"v{CI_version}@{git_version}"
+    version_string = f"{version}({git_version})"
     print(f"version: {version_string}")
 
     # create the output directory
