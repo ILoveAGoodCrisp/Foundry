@@ -81,9 +81,35 @@ def write_data(self, context, model, file):
     mesh = bpy.data.meshes.new(name=model)
     mesh.from_pydata(verts, [], faces)
     if context.scene.nwo.scale == 'blender':
-        mesh.transform(Matrix.Scale(0.03048, 4))
-    for face in mesh.polygons:
-        face.use_smooth = True
-    mesh.use_auto_smooth = True
+        mesh.transform(Matrix.Scale(0.03048, 4))    
+    
     ob = object_data_add(context, mesh, operator=self)
     ob.nwo.export_this = False
+
+# def apply_auto_smooth(ob: bpy.types.Object):
+#     mod = ob.modifiers.new(name='auto_smooth', type='NODES')
+#     node_tree = bpy.data.node_groups.get('Smooth by Angle')
+#     if not node_tree:
+#         node_tree = add_smooth_by_angle_nodes()
+              
+# def add_smooth_by_angle_nodes():
+#     node_tree = bpy.data.node_groups.new(name='Smooth by Angle', type='GeometryNodeTree')
+#     nodes = node_tree.nodes
+#     group_output = nodes.new(type='GROUP_OUTPUT')
+    
+#     set_shade_smooth_face = nodes.new(type='GeometryNodeInputShadeSmooth')
+#     set_shade_smooth_face.domain = 'FACE'
+#     set_shade_smooth_face.inputs[2].default_value = True
+    
+#     node_tree.links.new(group_output, set_shade_smooth)
+    
+#     set_shade_smooth_edge = nodes.new(type='GeometryNodeInputShadeSmooth')
+#     set_shade_smooth_edge.domain = 'EDGE'
+    
+#     edge_angle = nodes.new(type='NodeGroupInput')
+#     group_input_angle = nodes.new(type='GeometryNodeInputMeshEdgeAngle')
+#     group_input_angle.outputs[0].
+#     is_face_smooth = nodes.new(type='GeometryNodeInputShadeSmooth')
+#     group_input_ignore_sharpness = nodes.new(type='NodeGroupInput')
+    
+    
