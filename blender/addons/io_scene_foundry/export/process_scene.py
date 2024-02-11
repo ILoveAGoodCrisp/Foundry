@@ -958,10 +958,8 @@ class ProcessScene:
             if nwo.event_type == '_connected_geometry_animation_event_type_frame':
                 nwo.frame_frame = event.frame_frame
                 nwo.frame_name = event.frame_name
-                if event.multi_frame == "range" and event.frame_range > 1:
-                    for _ in range(
-                        min(event.frame_range - 1, frame_end - event.frame_frame)
-                    ):
+                if event.multi_frame == "range" and event.frame_range > event.frame_frame:
+                    for _ in range(event.frame_range - event.frame_frame):
                         event_ob_copy = event_ob.copy()
                         copy_nwo = event_ob_copy.nwo
                         copy_nwo.event_id += 1

@@ -2486,9 +2486,12 @@ class NWO_FoundryPanelProps(Panel):
                     if item.event_type == '_connected_geometry_animation_event_type_frame':
                         row = col.row()
                         row.prop(item, "multi_frame", expand=True)
-                        col.prop(item, "frame_frame")
                         if item.multi_frame == "range":
-                            col.prop(item, "frame_range")
+                           col.prop(item, "frame_frame", text="Event Frame Start") 
+                           col.prop(item, "frame_range", text="Event Frame End")
+                        else:
+                            col.prop(item, "frame_frame")
+
                         col.prop(item, "frame_name")
                     elif (
                         item.event_type

@@ -139,13 +139,16 @@ class NWO_Animation_ListItems(PropertyGroup):
         options=set(),
         items=[("single", "Single", ""), ("range", "Range", "")],
     )
+    
+    def update_frame_range(self, context):
+        if self.frame_range < self.frame_frame:
+            self.frame_range = self.frame_frame
 
     frame_range: IntProperty(
         name="Frame Range",
         description="Enter the number of frames this event should last",
         default=1,
-        min=1,
-        soft_max=10,
+        update=update_frame_range,
     )
 
     name: StringProperty(
@@ -395,6 +398,7 @@ class NWO_Animation_ListItems(PropertyGroup):
         description="The timeline frame this event should occur on",
         default=0,
         options=set(),
+        update=update_frame_range,
     )
 
     frame_name: EnumProperty(
@@ -642,7 +646,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
     )
 
     animation_renames_index: IntProperty(
-        name="Index for Animation Event",
+        name="Index for Animation Renames",
         default=0,
         min=0,
     )
