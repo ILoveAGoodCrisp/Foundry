@@ -2368,6 +2368,8 @@ class NWO_FoundryPanelProps(Panel):
         
         nwo = action.nwo
         col.separator()
+        col.operator("nwo.animation_frames_sync_to_keyframes", text="Sync Frame Range to Keyframes", icon='FILE_REFRESH', depress=scene_nwo.keyframe_sync_active)
+        col.separator()
         row = col.row()
         row.use_property_split = True
         row.prop(action, "frame_start", text='Start Frame')

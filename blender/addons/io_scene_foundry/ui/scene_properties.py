@@ -969,3 +969,5 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     object_controls_active_index: IntProperty()
+    
+    keyframe_sync_active: BoolProperty()

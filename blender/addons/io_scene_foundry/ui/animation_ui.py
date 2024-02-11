@@ -754,6 +754,61 @@ class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
             print("Operator requires prop_to_set specified")
             return {"CANCELLED"}
         action = bpy.data.actions[context.scene.nwo.active_action_index]
+        event = action.nwo.animation_events[action.nwo.animation_events_index]
+        if not event:
+            self.report({"WARNING"}, "No active event")
+            return {"CANCELLED"}
+        
         current_frame = context.scene.frame_current
-        setattr(action.nwo.animation_events[action.nwo.animation_events_index], self.prop_to_set, int(current_frame))
+        setattr(event, self.prop_to_set, int(current_frame))
         return {"FINISHED"}
+    
+class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
+    bl_idname = "nwo.animation_frames_sync_to_keyframes"
+    bl_label = "Sync Frame Range with Keyframes"
+    bl_description = "Sets the frame range for this animation to the length of the keyframes"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.nwo.active_action_index > -1
+
+    _timer = None
+    _current_action_index = -1
+    
+    def update_frame_range_from_keyframes(self, context: bpy.types.Context):
+        action: bpy.types.Action = bpy.data.actions[context.scene.nwo.active_action_index]
+        if not action.use_frame_range:
+            action.use_frame_range = True
+        frames = set()
+        for fcurve in action.fcurves:
+            for kfp in fcurve.keyframe_points:
+                frames.add(kfp.co[0])
+                
+        if len(frames) > 1:
+            action.frame_start = int(min(*frames))
+            action.frame_end = int(max(*frames))
+
+    def modal(self, context, event):
+        if context.scene.nwo.active_action_index != self._current_action_index or context.scene.nwo.export_in_progress or not context.scene.nwo.keyframe_sync_active:
+            self.cancel(context)
+            return {'CANCELLED'}
+
+        if event.type == 'TIMER':
+            self.update_frame_range_from_keyframes(context)
+
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+        context.scene.nwo.keyframe_sync_active = True
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.5, window=context.window)
+        self._current_action_index = int(context.scene.nwo.active_action_index)
+        wm.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def cancel(self, context):
+        context.scene.nwo.keyframe_sync_active = False
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
+
