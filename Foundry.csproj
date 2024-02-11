@@ -104,7 +104,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PreBuildEvent>call python "$(SolutionDir)blender\build\create_zip.py"
+    <PreBuildEvent>call python "$(SolutionDir)blender\build\create_zip.py" $(ConfigurationName)
 </PreBuildEvent>
   </PropertyGroup>
 </Project>

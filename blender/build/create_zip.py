@@ -37,6 +37,11 @@ def build_release_zip(name: str):
     project_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     os.chdir(project_path)
     print(f"Building release type name: {name}")
+    
+    if 'Debug' in sys.argv:
+        output_folder = 'Debug'
+    else:
+        output_folder = 'Release'
 
     resources = build_resources_zip()
 
@@ -45,8 +50,10 @@ def build_release_zip(name: str):
     print(f"git version: {git_version}")
 
     # grab version from arguments if any
-    version_string = f"{version}@{git_version}"
-    # version_string = f"{version}"
+    if output_folder == 'Debug':
+        version_string = f"{version}@{git_version}"
+    else:
+        version_string = f"{version}"
     print(f"version: {version_string}")
 
     # create the output directory
@@ -63,7 +70,7 @@ def build_release_zip(name: str):
         zip.write(path_fs, os.path.join("io_scene_foundry", path_zip))
 
     # Add files to zip
-    zip: ZipFile = ZipFile(os.path.join("bin", "Release", zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
+    zip: ZipFile = ZipFile(os.path.join("bin", output_folder, zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
     write_file(zip, "LICENSE")
     write_file(zip, "README.md")
     os.chdir(Path("blender/addons"))

@@ -1949,9 +1949,9 @@ def fix_mirror_angles(mod, old_forward, new_forward):
     old_axis_negative = len(old_forward) > 1
     new_axis_negative = len(new_forward) > 1
     
-    axis_x, axis_y, axis_z = mod.use_axis
-    bisect_x, bisect_y, bisect_z = mod.use_bisect_axis
-    flip_x, flip_y, flip_z = mod.use_bisect_flip_axis
+    axis_x, axis_y, _ = mod.use_axis
+    bisect_x, bisect_y, _ = mod.use_bisect_axis
+    flip_x, flip_y, _ = mod.use_bisect_flip_axis
     
     if old_axis != new_axis:
         if bisect_y and flip_x:
@@ -1966,7 +1966,6 @@ def fix_mirror_angles(mod, old_forward, new_forward):
                 mod.use_bisect_axis[1] = (not bisect_y)
             mod.use_bisect_flip_axis[0] = (not flip_x)
             mod.use_bisect_flip_axis[1] = (not flip_y)
-
                     
     if old_axis_negative != new_axis_negative:
         mod.use_bisect_flip_axis[0] = (not mod.use_bisect_flip_axis[0])
