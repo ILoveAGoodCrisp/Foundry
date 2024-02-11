@@ -1185,7 +1185,10 @@ def write_projects_list(project_list):
     foundry_folder = os.path.join(appdata, "Foundry")
 
     if not os.path.exists(foundry_folder):
-        os.makedirs(foundry_folder)
+        os.makedirs(foundry_folder, exist_ok=True)
+    
+    if not os.path.exists(foundry_folder):
+        return print('Failed to write projects list. Foundry will not work correctly')
 
     projects = os.path.join(foundry_folder, "projects.json")
     with open(projects, 'w') as file:

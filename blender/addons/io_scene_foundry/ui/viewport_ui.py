@@ -100,7 +100,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     "Instanced Object",
                     "Instanced render only geometry. Supports assignment to multiple permutations",
                     "instance",
-                    4,
+                    3,
                 )
             ),
         elif asset_type == 'SCENARIO':
@@ -142,7 +142,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 nwo_enum(
                     "portal",
                     "Portal",
-                    "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters.",
+                    "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters",
                     "portal",
                     4,
                 )
@@ -211,7 +211,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         11,
                     )
                 )
-                stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.This is useful for performance if you have textures in areas of the map the player will not get close to"""
+                stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.\nThis is useful for performance if you have textures in areas of the map the player will not get close to"""
                 items.append(
                     nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 12)
                 )
