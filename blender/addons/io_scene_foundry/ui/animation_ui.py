@@ -25,6 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import math
+
+from bpy.types import Context
 from io_scene_foundry.icons import get_icon_id
 
 from io_scene_foundry.utils.nwo_utils import is_corinth, poll_ui, reset_to_basis
@@ -733,3 +735,25 @@ class NWO_UL_AnimationList(bpy.types.UIList):
     #     # Do filtering/reordering here...
 
     #     return flt_flags, flt_neworder
+    
+    
+class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
+    bl_idname = "nwo.animation_event_set_frame"
+    bl_label = "Set Event Frame"
+    bl_description = "Sets the event frame to the current timeline frame"
+    bl_options = {"UNDO"}
+    
+    prop_to_set: bpy.props.StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    
+    @classmethod
+    def poll(cls, context: Context) -> bool:
+        return context.scene.nwo.active_action_index > -1 and context.scene.nwo.animation_events
+
+    def execute(self, context):
+        if not self.prop_to_set:
+            print("Operator requires prop_to_set specified")
+            return {"CANCELLED"}
+        action = bpy.data.actions[context.scene.nwo.active_action_index]
+        current_frame = context.scene.frame_current
+        setattr(action.nwo.animation_events[action.nwo.animation_events_index], self.prop_to_set, int(current_frame))
+        return {"FINISHED"}

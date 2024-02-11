@@ -122,6 +122,7 @@ from .animation_properties import (
 from .animation_ui import (
     NWO_NewAnimation,
     NWO_DeleteAnimation,
+    NWO_OT_AnimationEventSetFrame,
     NWO_SetTimeline,
     NWO_UL_AnimationList,
     NWO_UnlinkAnimation,
@@ -404,6 +405,7 @@ classes_nwo = (
     NWO_AddIKChain,
     NWO_RemoveIKChain,
     NWO_MoveIKChain,
+    NWO_OT_AnimationEventSetFrame,
 )
 
 def register():
