@@ -208,6 +208,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
         for ob in to_convert:
             original_name = str(ob.name)
             ob.name += "_OLD"
+            children = {child_ob: child_ob.matrix_world.copy() for child_ob in ob.children}
             original_collections = ob.users_collection
             marker = bpy.data.objects.new(original_name, None)
             for coll in original_collections:
@@ -247,6 +248,10 @@ class NWO_MeshToMarker(bpy.types.Operator):
                 secret_coll.objects.link(ob)
                 marker.instance_type = 'COLLECTION'
                 marker.instance_collection = secret_coll
+                
+            for child_ob, matrix_world in children.items():
+                child_ob.parent = marker
+                child_ob.matrix_world = matrix_world
                 
             marker.select_set(False)
             to_set.add(marker)

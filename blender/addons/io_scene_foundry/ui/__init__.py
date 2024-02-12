@@ -265,10 +265,14 @@ def object_context_apply_types(self, context):
 
     markers_valid = any([is_marker(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
     meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
+    has_children = any([ob.children for ob in context.selected_objects])
     if markers_valid or meshes_valid:
         if meshes_valid:
             layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Set Mesh Type", icon='MESH_CUBE')
-            layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
+            if has_children:
+                layout.operator("nwo.mesh_to_marker", text="Convert to Frame", icon_value=get_icon_id('frame')).called_once = False
+            else:
+                layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
         elif markers_valid:
             layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
 

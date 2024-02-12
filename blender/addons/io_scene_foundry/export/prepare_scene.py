@@ -1554,8 +1554,8 @@ class PrepareScene:
                 update_progress(process, idx / len_me_ob_dict)
 
                 self.any_face_props = True
-                # must force on auto smooth to avoid Normals transfer errors
-                me.use_auto_smooth = True
+                # must force on auto smooth to avoid Normals transfer errors NOTE use_auto_smooth is gone with 4.1. Need to replace with geometry nodes
+                # me.use_auto_smooth = True
 
                 bm = bmesh.new()
                 bm.from_mesh(me)

@@ -26,10 +26,12 @@
 import os
 import bpy
 from io_scene_foundry.utils.nwo_utils import (
+    base_material_name,
     dot_partition,
     get_tags_path,
     has_shader_path,
     is_corinth,
+    os_sep_partition,
     relative_path,
     shader_exts,
 )
@@ -181,21 +183,17 @@ def find_shaders(materials_all, report=None, shaders_dir="", overwrite=False):
 
 def find_shader_match(mat, shaders):
     """Tries to find a shader match. Includes logic for filtering out legacy material name prefixes/suffixes"""
-    material_lower = mat.name.lower()
-    material_short = dot_partition(material_lower)
-    material_parts = material_short.split(" ")
-    # clean material name
-    if len(material_parts) > 1:
-        material_name = material_parts[1]
-    else:
-        material_name = material_parts[0]
-    # ignore material suffixes
-    material_name = material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['0")
+    name_lower = mat.name.lower()
+    material_name = base_material_name(name_lower, True)
+    parts = material_name.split()
+    material_name_ignore_first_word = material_name
+    if len(parts) > 1:
+        material_name_ignore_first_word = ' '.join(parts[1:])
     for s in shaders:
         # get just the shader name
-        shader_name = dot_partition(s.rpartition("\\")[2]).lower()
+        shader_name = dot_partition(os.path.basename(s)).lower()
         # changing this to check 3 versions, to ensure the correct material is picked
-        if shader_name in (material_lower, material_short, material_name):
+        if shader_name in (name_lower, dot_partition(name_lower), material_name, material_name_ignore_first_word):
             return s
 
     return ""

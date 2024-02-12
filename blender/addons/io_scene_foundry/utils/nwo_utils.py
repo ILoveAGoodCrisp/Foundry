@@ -26,6 +26,7 @@
 import json
 from math import radians
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -56,6 +57,8 @@ special_material_names = [m.name for m in special_materials]
 convention_material_names = [m.name for m in convention_materials]
 
 object_exts = '.crate', '.scenery', '.effect_scenery', '.device_control', '.device_machine', '.device_terminal', '.device_dispenser', '.biped', '.creature', '.giant', '.vehicle', '.weapon', '.equipment'
+
+legacy_lightmap_prefixes = 'lm:', 'lp:', 'hl:', 'ds:', 'ds:', 'pf:', 'lt:', 'to:', 'at:', 'ro:'
 
 ###########
 ##GLOBALS##
@@ -1834,16 +1837,20 @@ def get_foundry_storage_scene() -> bpy.types.Scene:
 def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
     """Returns a material name with legacy halo naming conventions stripped and ignoring .00X blender duplicate names"""
     """Tries to find a shader match. Includes logic for filtering out legacy material name prefixes/suffixes"""
-    partitioned = dot_partition(name)
+    material_name = dot_partition(name)
     if not strip_legacy_halo_names:
-        return partitioned
-    parts = partitioned.split(" ")
+        return material_name
+    # match lightmap prefixe/suffixes
+    parts = material_name.split()
     if len(parts) > 1:
-        material_name = parts[1]
-    else:
-        material_name = parts[0]
+        if parts[0].startswith(legacy_lightmap_prefixes):
+            material_name = ' '.join(parts[1:])
+        elif parts[-1].startswith(legacy_lightmap_prefixes):
+            material_name = ' '.join(parts[:-1])
+            print(name, material_name)
+            
     # ignore material suffixes
-    return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}['") # excluding 0 here as it can interfere with normal naming convention
+    return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}[' ") # excluding 0 here as it can interfere with normal naming convention
 
 
 def get_animated_objects(context) -> list[bpy.types.Object]:

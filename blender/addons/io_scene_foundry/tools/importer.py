@@ -25,11 +25,13 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+import re
 import time
 from uuid import uuid4
 import bmesh
 import bpy
 import addon_utils
+from mathutils import Color
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
 from io_scene_foundry.tools.clear_duplicate_materials import clear_duplicate_materials
@@ -37,7 +39,7 @@ from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_mate
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -370,6 +372,42 @@ class JMSMaterialSlot:
         self.water_surface = self.material.ass_jms.water_surface or self.water_surface
         self.slip_surface = self.material.ass_jms.slip_surface
         self.global_material = self.material.ass_jms.material_effect
+        # lightmap
+        if self.material.ass_jms.lightmap_res != 1:
+            self.lightmap_resolution_scale = self.material.ass_jms.lightmap_res
+        if self.material.ass_jms.additive_transparency != Color((0.0, 0.0, 0.0)):
+            self.lightmap_additive_transparency = self.material.ass_jms.additive_transparency
+        if self.material.ass_jms.two_sided_transparent_tint != Color((0.0, 0.0, 0.0)):
+            self.lightmap_translucency_tint_color = self.material.ass_jms.additive_transparency
+            
+        # Emissive
+        self.emissive_power = None
+        self.emissive_color = None
+        self.emissive_quality = None
+        self.emissive_per_unit = None
+        self.emissive_shader_gel = None
+        self.emissive_focus = None
+        self.emissive_attenuation = None
+        self.emissive_attenuation_falloff = None
+        self.emissive_attenuation_cutoff = None
+        self.emissive_frustum_blend = None
+        self.emissive_frustum_falloff = None
+        self.emissive_frustum_cutoff = None
+        
+        if self.material.ass_jms.power > 0:
+            self.emissive_power = self.material.ass_jms.power
+            self.emissive_color = self.material.ass_jms.color
+            self.emissive_quality = self.material.ass_jms.quality
+            self.emissive_per_unit = self.material.ass_jms.power_per_unit_area
+            self.emissive_shader_gel = self.material.ass_jms.use_shader_gel
+            self.emissive_focus = self.material.ass_jms.emissive_focus
+            self.emissive_attenuation = self.material.ass_jms.attenuation_enabled
+            if self.emissive_attenuation:
+                self.emissive_attenuation_falloff = self.material.ass_jms.falloff_distance
+                self.emissive_attenuation_cutoff = self.material.ass_jms.cutoff_distance
+            else:
+                self.emissive_attenuation_falloff = 0
+                self.emissive_attenuation_cutoff = 0
         
     def _material_props_from_name(self):
         name = self.material.name
@@ -394,6 +432,23 @@ class JMSMaterialSlot:
         self.decal_offset = '[' in name
         self.water_surface = "'" in name
         # self.slip_surface = False
+        
+        # lighting props
+        self.lightmap_resolution_scale = None
+        self.lightmap_translucency_tint_color = None
+        self.lightmap_additive_transparency = None
+        
+        parts = name.split()
+        if len(parts) > 1 and (parts[0].startswith(legacy_lightmap_prefixes) or parts[-1].startswith(legacy_lightmap_prefixes)):
+            pattern = r'(' + '|'.join(legacy_lightmap_prefixes) + r')(\d+\.?\d*)'
+            matches = re.findall(pattern, name)
+            for match_groups in matches:
+                if len(match_groups) <= 1:
+                    continue
+                match match_groups[0]:
+                    # Only handling lightmap res currently
+                    case 'lm:':
+                        self.lightmap_resolution_scale = float(match_groups[1])
         
     def __eq__(self, __value: 'JMSMaterialSlot') -> bool:
         if not isinstance(__value, self.__class__):
@@ -515,6 +570,18 @@ class NWOImporter:
             entry.name = permutation
             
         ob.nwo.permutation_name_ui = permutation
+        
+    def new_face_prop(self, data, layer_name, display_name, override_prop, other_props={}) -> str:
+        face_props = data.nwo.face_props
+        layer = face_props.add()
+        layer.layer_name = layer_name
+        layer.name = display_name
+        layer.layer_color = random_color()
+        setattr(layer, override_prop, True)
+        for prop, value in other_props.items():
+            setattr(layer, prop, value)
+            
+        return layer_name
         
     # Camera track import
     def import_camera_tracks(self, paths, animation_scale):
@@ -1043,6 +1110,27 @@ class NWOImporter:
                     nwo.decal_offset_ui = jms_mat.decal_offset
                     nwo.slip_surface_ui = jms_mat.slip_surface
                     nwo.face_global_material_ui = jms_mat.global_material
+                    # Lightmap
+                    if jms_mat.lightmap_resolution_scale:
+                        nwo.lightmap_resolution_scale_active = True
+                        nwo.lightmap_resolution_scale_ui = jms_mat.lightmap_resolution_scale
+                    if jms_mat.lightmap_additive_transparency:
+                        nwo.lightmap_additive_transparency_active = True
+                        nwo.lightmap_additive_transparency_ui = jms_mat.lightmap_additive_transparency
+                    if jms_mat.lightmap_translucency_tint_color:
+                        nwo.lightmap_translucency_tint_color_active = True
+                        nwo.lightmap_translucency_tint_color_ui = jms_mat.lightmap_translucency_tint_color
+                    # Emissive
+                    if jms_mat.emissive_power:
+                        nwo.emissive_active = True
+                        nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power
+                        nwo.material_lighting_emissive_color_ui = jms_mat.emissive_color
+                        nwo.material_lighting_emissive_quality_ui = jms_mat.emissive_quality
+                        nwo.material_lighting_emissive_per_unit_ui = jms_mat.emissive_per_unit
+                        nwo.material_lighting_use_shader_gel_ui = jms_mat.emissive_shader_gel
+                        nwo.material_lighting_emissive_focus_ui = jms_mat.emissive_focus
+                        nwo.material_lighting_attenuation_falloff_ui = jms_mat.emissive_attenuation_falloff
+                        nwo.material_lighting_attenuation_cutoff_ui = jms_mat.emissive_attenuation_cutoff
                     
             elif len(ob.data.materials) > 1:
                 bm = bmesh.new()
@@ -1059,134 +1147,126 @@ class NWOImporter:
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Two Sided'
-                                layer.layer_name = l_name
-                                layer.face_two_sided_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Two Sided", "face_two_sided_override")))
+                                
                         if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
                             l_name = 'transparent'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Transparent'
-                                layer.layer_name = l_name
-                                layer.face_transparent_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Transparent", "face_transparent_override")))
+                                
                         if jms_mat.render_only:
                             l_name = 'render_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Render Only'
-                                layer.layer_name = l_name
-                                layer.render_only_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Render Only", "render_only_override")))
+                                
                         if jms_mat.collision_only:
                             l_name = 'collision_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Collision Only'
-                                layer.layer_name = l_name
-                                layer.collision_only_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Collision Only", "collision_only_override")))
+                                
                         if jms_mat.sphere_collision_only:
                             l_name = 'sphere_collision_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Sphere Collision Only'
-                                layer.layer_name = l_name
-                                layer.sphere_collision_only_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Sphere Collision Only", "sphere_collision_only_override")))
+                                
                         if jms_mat.ladder:
                             l_name = 'ladder'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Ladder'
-                                layer.layer_name = l_name
-                                layer.ladder_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Ladder", "ladder_override")))
+                                
                         if jms_mat.breakable:
                             l_name = 'breakable'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Breakable'
-                                layer.layer_name = l_name
-                                layer.breakable_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Breakable", "breakable_override")))
+                                
                         if jms_mat.no_shadow:
                             l_name = 'no_shadow'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'No Shadow'
-                                layer.layer_name = l_name
-                                layer.no_shadow_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "No Shadow", "no_shadow_override")))
+                                
                         if jms_mat.precise:
                             l_name = 'uncompressed'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Uncompressed'
-                                layer.layer_name = l_name
-                                layer.precise_position_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Uncompressed", "precise_position_override")))
+                                
                         if jms_mat.ignored_by_lightmaps:
                             l_name = 'no_lightmap'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'No Lightmap'
-                                layer.layer_name = l_name
-                                layer.no_lightmap_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "No Lightmap", "no_lightmap_override")))
+                                
                         if jms_mat.decal_offset:
                             l_name = 'decal_offset'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Decal Offset'
-                                layer.layer_name = l_name
-                                layer.decal_offset_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Decal Offset", "decal_offset_override")))
+                                
                         if jms_mat.slip_surface:
                             l_name = 'slip_surface'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layer = face_props.add()
-                                layer.name = 'Slip Surface'
-                                layer.layer_name = l_name
-                                layer.slip_surface_override = True
-                                layer.layer_color = random_color()
-                                layers[idx].append(bm.faces.layers.int.new(l_name))
-
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
+                        
+                        # Lightmap
+                        if jms_mat.lightmap_resolution_scale:
+                            l_name = 'lightmap_resolution_scale'
+                            if bm.faces.layers.int.get(l_name):
+                                layers[idx].append(bm.faces.layers.int.get(l_name))
+                            else:
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale_ui": jms_mat.lightmap_resolution_scale})))
+                        
+                        if jms_mat.lightmap_translucency_tint_color:
+                            l_name = 'lightmap_translucency_tint_color'
+                            if bm.faces.layers.int.get(l_name):
+                                layers[idx].append(bm.faces.layers.int.get(l_name))
+                            else:
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color_ui": jms_mat.lightmap_translucency_tint_color})))
+                        
+                        if jms_mat.lightmap_additive_transparency:
+                            l_name = 'lightmap_additive_transparency'
+                            if bm.faces.layers.int.get(l_name):
+                                layers[idx].append(bm.faces.layers.int.get(l_name))
+                            else:
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency_ui": jms_mat.lightmap_additive_transparency})))
+                        
+                        # Emissive
+                        if jms_mat.emissive_power:
+                            l_name = 'emissive'
+                            if bm.faces.layers.int.get(l_name):
+                                layers[idx].append(bm.faces.layers.int.get(l_name))
+                            else:
+                                emissive_props_dict = {
+                                    "material_lighting_emissive_power_ui": jms_mat.emissive_power,
+                                    "material_lighting_emissive_color_ui": jms_mat.emissive_color,
+                                    "material_lighting_emissive_quality_ui": jms_mat.emissive_quality,
+                                    "material_lighting_emissive_per_unit_ui": jms_mat.emissive_per_unit,
+                                    "material_lighting_use_shader_gel_ui": jms_mat.emissive_shader_gel,
+                                    "material_lighting_emissive_focus_ui": jms_mat.emissive_focus,
+                                    "material_lighting_attenuation_falloff_ui": jms_mat.emissive_attenuation_falloff,
+                                    "material_lighting_attenuation_cutoff_ui": jms_mat.emissive_attenuation_cutoff,
+                                }
+                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
+                        
+                        
                 for face in bm.faces:
                     for idx, face_layer_list in layers.items():
                         if face.material_index == idx:
