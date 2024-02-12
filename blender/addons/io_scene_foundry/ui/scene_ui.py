@@ -116,6 +116,11 @@ class NWO_AssetMaker(NWO_Op):
     work_dir: BoolProperty(
         description="Set whether blend file should be saved to a work directory within the asset folder"
     )
+    
+    selected_only: BoolProperty(
+        name="From Selection Only",
+        description="Creates a new asset using only the currently selected objects"
+    )
 
     asset_name: StringProperty()
     filename: StringProperty()
@@ -173,6 +178,9 @@ class NWO_AssetMaker(NWO_Op):
             blend_save_path = os.path.join(asset_folder, asset_name + ".blend")
             
         context.scene.render.fps = 30
+        
+        if self.selected_only:
+            [bpy.data.objects.remove(ob) for ob in bpy.data.objects if not ob.select_get()]
 
         bpy.ops.wm.save_as_mainfile(filepath=blend_save_path)
 
@@ -220,6 +228,8 @@ class NWO_AssetMaker(NWO_Op):
         col.scale_y = 1.25
         col.separator()
         col.prop(self, "work_dir", text="Save to work directory")
+        col.separator()
+        col.prop(self, "selected_only")
         if nwo_asset.asset_type == "MODEL":
             col.separator()
             col.label(text="Output Tags")

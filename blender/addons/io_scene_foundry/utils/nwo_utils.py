@@ -2095,7 +2095,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 case 'MIRROR':
                     mod.merge_threshold *= scale_factor
                     mod.bisect_threshold *= scale_factor
-                    fix_mirror_angles(mod, old_forward, new_forward)
+                    if not keep_marker_axis and mod.mirror_object and is_marker(mod.mirror_object):
+                        fix_mirror_angles(mod, old_forward, new_forward)
                 case 'REMESH':
                     mod.voxel_size *= scale_factor
                     mod.adaptivity *= scale_factor
