@@ -36,6 +36,7 @@ from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from ..utils.nwo_utils import (
+    add_auto_smooth,
     blender_halo_rotation_diff,
     bool_str,
     closest_bsp_object,
@@ -1126,11 +1127,12 @@ class PrepareScene:
 
                 if render_mesh:
                     # set up data transfer modifier to retain normals
-                    mod = split_ob.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
-                    mod.object = normals_ob
-                    mod.use_object_transform = False
-                    mod.use_loop_data = True
-                    mod.data_types_loops = {"CUSTOM_NORMAL"}
+                    pass
+                    # mod = split_ob.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
+                    # mod.object = normals_ob
+                    # mod.use_object_transform = False
+                    # mod.use_loop_data = True
+                    # mod.data_types_loops = {"CUSTOM_NORMAL"}
 
             #parent poop coll
             parent_ob = None
@@ -1556,6 +1558,9 @@ class PrepareScene:
                 self.any_face_props = True
                 # must force on auto smooth to avoid Normals transfer errors NOTE use_auto_smooth is gone with 4.1. Need to replace with geometry nodes
                 # me.use_auto_smooth = True
+                auto_smooth_mods = [mod for mod in ob.modifiers if mod.name.lower() == "smooth by angle"]
+                if not auto_smooth_mods:
+                    add_auto_smooth(context, ob)
 
                 bm = bmesh.new()
                 bm.from_mesh(me)

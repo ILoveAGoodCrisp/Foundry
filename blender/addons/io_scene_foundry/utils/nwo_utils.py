@@ -2561,3 +2561,84 @@ def get_object_controls(context: bpy.types.Context) -> list[bpy.types.Object]:
         return []
     
     return [control.ob for control in object_controls if control.ob and control.ob.animation_data]
+
+def add_auto_smooth(context: bpy.types.Context, ob: bpy.types.Object, angle=radians(30), apply_mod=False):
+    """Applies auto smooth to an object using geometry nodes"""
+    mods = ob.modifiers
+    auto_smooth = mods.new("foundry_auto_smooth", type="NODES")
+    
+    node_tree = bpy.data.node_groups.get("foundry_auto_smooth")
+    if not node_tree:
+        node_tree = bpy.data.node_groups.new("foundry_auto_smooth", "GeometryNodeTree")
+        # node_tree.is_modifier = True
+        
+    # Create input/output sockets
+    interface = node_tree.interface
+    
+    interface.new_socket("Geometry", description="", in_out="INPUT", socket_type="NodeSocketGeometry", parent=None)
+    interface.new_socket("Geometry", description="", in_out="OUTPUT", socket_type="NodeSocketGeometry", parent=None)
+    
+    # Create the nodes! (left to right)
+    nodes = node_tree.nodes
+    
+    edge_angle = nodes.new("GeometryNodeInputMeshEdgeAngle")
+    edge_angle.location = Vector((-450, -260))
+    face_smooth = nodes.new("GeometryNodeInputShadeSmooth")
+    face_smooth.location = Vector((-450, -430))
+    
+    edge_smooth = nodes.new("GeometryNodeInputEdgeSmooth")
+    edge_smooth.location = Vector((-240, -150))
+    compare_math = nodes.new("FunctionNodeCompare")
+    compare_math.operation = "LESS_EQUAL"
+    compare_math.inputs[1].default_value = angle
+    compare_math.location = Vector((-245, -225))
+    bool_math_a = nodes.new("FunctionNodeBooleanMath")
+    bool_math_a.operation = "OR"
+    bool_math_a.inputs[1].default_value = True
+    bool_math_a.location = Vector((-240, -400))
+    
+    mesh_input = nodes.new("NodeGroupInput")
+    mesh_input.location = Vector((-60, -25))
+    node_tree.interface
+    bool_math_b = nodes.new("FunctionNodeBooleanMath")
+    bool_math_b.operation = "OR"
+    bool_math_b.location = Vector((-50, -130))
+    bool_math_c = nodes.new("FunctionNodeBooleanMath")
+    bool_math_c.operation = "AND"
+    bool_math_c.location = Vector((-50, -280))
+    
+    shade_smooth_a = nodes.new('GeometryNodeSetShadeSmooth')
+    shade_smooth_a.domain = 'EDGE'
+    shade_smooth_a.location = Vector((145, -50))
+    
+    shade_smooth_b = nodes.new('GeometryNodeSetShadeSmooth')
+    shade_smooth_b.domain = 'FACE'
+    shade_smooth_b.inputs[2].default_value = True
+    shade_smooth_b.location = Vector((340, -50))
+    
+    mesh_output = nodes.new("NodeGroupOutput")
+    mesh_output.location = Vector((530, -50))
+    
+    # Link the nodes! (right to left)
+    links = node_tree.links
+    
+    links.new(mesh_output.inputs[0], shade_smooth_b.outputs[0])
+    
+    links.new(shade_smooth_b.inputs[0], shade_smooth_a.outputs[0])
+    
+    links.new(shade_smooth_a.inputs[0], mesh_input.outputs[0])
+    links.new(shade_smooth_a.inputs[1], bool_math_b.outputs[0])
+    links.new(shade_smooth_a.inputs[2], bool_math_c.outputs[0])
+    
+    links.new(bool_math_b.inputs[0], edge_smooth.outputs[0])
+    links.new(bool_math_c.inputs[0], compare_math.outputs[0])
+    links.new(bool_math_c.inputs[1], bool_math_a.outputs[0])
+    
+    links.new(compare_math.inputs[0], edge_angle.outputs[0])
+    links.new(bool_math_a.inputs[0], face_smooth.outputs[0])
+    
+    auto_smooth.node_group = node_tree
+    
+    if apply_mod:
+        with context.temp_override(object=ob):
+            bpy.ops.object.modifier_apply(modifier="foundry_auto_smooth", single_user=True)

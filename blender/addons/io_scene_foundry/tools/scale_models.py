@@ -30,6 +30,8 @@ import os
 from mathutils import Matrix, Vector # Don't remove this!!
 import zipfile
 
+from io_scene_foundry.utils.nwo_utils import add_auto_smooth
+
 
 def add_scale_model(self, context):
     if self.unit == "biped":
@@ -85,6 +87,8 @@ def write_data(self, context, model, file):
     
     ob = object_data_add(context, mesh, operator=self)
     ob.nwo.export_this = False
+    
+    add_auto_smooth(context, ob)
 
 # def apply_auto_smooth(ob: bpy.types.Object):
 #     mod = ob.modifiers.new(name='auto_smooth', type='NODES')
