@@ -833,15 +833,19 @@ class ProcessScene:
         print(
             "-----------------------------------------------------------------------\n"
         )
-        # Update/ set up Node Usage block of the model_animation_graph
-        if node_usage_set:
+        if node_usage_set or scene_nwo.ik_chains:
             with AnimationTag(hide_prints=False) as animation:
-                animation.set_node_usages(nwo_scene.skeleton_bones)
-            print("--- Updated Animation Node Usages")
-        if scene_nwo.ik_chains:
-            with AnimationTag(hide_prints=False) as animation:
-                animation.write_ik_chains(scene_nwo.ik_chains, nwo_scene.skeleton_bones)
-            print("--- Updated Animation IK Chains")
+                if node_usage_set:
+                    animation.set_node_usages(nwo_scene.skeleton_bones)
+                    print("--- Updated Animation Node Usages")
+                if scene_nwo.ik_chains:
+                    animation.write_ik_chains(scene_nwo.ik_chains, nwo_scene.skeleton_bones)
+                    print("--- Updated Animation IK Chains")
+                    
+                if animation.tag_has_changes:
+                    # Graph should be data driven if ik chains or overlay groups in use.
+                    # Node usages are a sign the user intends to create overlays group
+                    animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
 
     def managed_blam_post_import_tasks(self, context, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, set_better_lm_res):
         nwo = context.scene.nwo
