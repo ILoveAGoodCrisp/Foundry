@@ -43,6 +43,7 @@ from bpy.props import (
     PointerProperty,
 )
 from mathutils import Matrix
+from io_scene_foundry.tools.scale_models import NWO_OT_AddScaleModel
 from io_scene_foundry.tools.animation.automate_pose_overlay import NWO_AddAimAnimation
 from io_scene_foundry.tools.rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
 from io_scene_foundry.tools.rigging.create_rig import NWO_OT_AddRig
@@ -3037,168 +3038,9 @@ class NWO_DuplicateMaterial(Operator):
         ob.active_material = new_mat
         return {'FINISHED'}
 
-class NWO_ScaleModels_Add(Operator, AddObjectHelper):
-    bl_idname = "mesh.add_halo_scale_model"
-    bl_label = "Halo Scale Model"
-    bl_options = {"REGISTER", "UNDO"}
-    bl_description = "Create a new Halo Scale Model Object"
-    
-    @classmethod
-    def poll(cls, context):
-        return context.mode == 'OBJECT'
-
-    game: EnumProperty(
-        default="reach",
-        name="Game",
-        items=[
-            ("reach", "Halo Reach", ""),
-            ("h4", "Halo 4", ""),
-            #("h2a", "Halo 2AMP", ""),
-        ],
-    )
-
-    unit: EnumProperty(
-        default="biped",
-        name="Type",
-        items=[
-            ("biped", "Biped", ""),
-            ("vehicle", "Vehicle", ""),
-        ],
-    )
-
-    biped_model_reach: EnumProperty(
-        default="scale_model_spartan",
-        name="",
-        items=[
-            ("scale_model_brute", "Brute", ""),
-            ("scale_model_civilian_female", "Civilian Female", ""),
-            ("scale_model_civilian_male", "Civilian Male", ""),
-            ("scale_model_cortana", "Cortana", ""),
-            ("scale_model_bugger", "Drone", ""),
-            ("scale_model_elite", "Elite", ""),
-            ("scale_model_engineer", "Engineer", ""),
-            ("scale_model_grunt", "Grunt", ""),
-            ("scale_model_halsey", "Halsey", ""),
-            ("scale_model_hunter", "Hunter", ""),
-            ("scale_model_jackal", "Jackal", ""),
-            ("scale_model_keyes", "Keyes", ""),
-            ("scale_model_marine", "Marine", ""),
-            ("scale_model_marine_female", "Marine Female", ""),
-            ("scale_model_moa", "Moa", ""),
-            ("scale_model_monitor", "Monitor", ""),
-            ("scale_model_marine_odst", "ODST", ""),
-            ("scale_model_rat", "Rat", ""),
-            ("scale_model_skirmisher", "Skirmisher", ""),
-            ("scale_model_spartan", "Spartan", ""),
-        ],
-    )
-
-    biped_model_h4: EnumProperty(
-        default="scale_model_chiefsolo",
-        name="",
-        items=[
-            ("scale_model_chiefsolo", "Masterchief", ""),
-            ("scale_model_chiefmp", "Spartan", ""),
-        ],
-    )
-
-    biped_model_h2a: EnumProperty(
-        default="scale_model_masterchief",
-        name="",
-        items=[
-            ("scale_model_elite", "Elite", ""),
-            ("scale_model_masterchief", "Spartan", ""),
-            ("scale_model_monitor", "Monitor", ""),
-        ],
-    )
-
-    vehicle_model_reach: EnumProperty(
-        default="scale_model_warthog",
-        name="",
-        items=[
-            ("scale_model_banshee", "Banshee", ""),
-            ("scale_model_corvette", "Corvette", ""),
-            ("scale_model_cruiser", "Cruiser", ""),
-            ("scale_model_cart_electric", "Electric Cart", ""),
-            ("scale_model_falcon", "Falcon", ""),
-            ("scale_model_forklift", "Forklift", ""),
-            ("scale_model_frigate", "Frigate", ""),
-            ("scale_model_ghost", "Ghost", ""),
-            ("scale_model_lnos", "Long Night of Solace", ""),
-            ("scale_model_mongoose", "Mongoose", ""),
-            ("scale_model_oni_van", "Oni Van", ""),
-            ("scale_model_pelican", "Pelican", ""),
-            ("scale_model_phantom", "Phantom", ""),
-            ("scale_model_pickup", "Pickup Truck", ""),
-            ("scale_model_poa", "Pillar of Autumn", ""),
-            ("scale_model_revenant", "Revenant", ""),
-            ("scale_model_sabre", "Sabre", ""),
-            ("scale_model_scarab", "Scarab", ""),
-            ("scale_model_scorpion", "Scorpion", ""),
-            ("scale_model_seraph", "Seraph", ""),
-            ("scale_model_spirit", "Spirit", ""),
-            ("scale_model_super_carrier", "Super Carrier", ""),
-            ("scale_model_warthog", "Warthog", ""),
-            ("scale_model_wraith", "Wraith", ""),
-        ],
-    )
-
-    vehicle_model_h4: EnumProperty(
-        default="scale_model_mongoose",
-        name="",
-        items=[
-            ("scale_model_banshee", "Banshee", ""),
-            ("scale_model_broadsword", "Broadsword", ""),
-            ("scale_model_ghost", "Ghost", ""),
-            ("scale_model_mantis", "Mantis", ""),
-            ("scale_model_mongoose", "Mongoose", ""),
-        ],
-    )
-
-    vehicle_model_h2a: EnumProperty(
-        default="scale_model_banshee",
-        name="",
-        items=[
-            ("scale_model_banshee", "Banshee", ""),
-        ],
-    )
-
-    def execute(self, context):
-        from .scale_models import add_scale_model
-
-        add_scale_model(self, context)
-        return {"FINISHED"}
-
-    def draw(self, context):
-        layout = self.layout
-        box = layout.box()
-        col = box.column()
-        row = col.row(align=True)
-        row.prop(self, "game", expand=True)
-        row = col.row(align=True)
-        row = col.row(align=True)
-        row.prop(self, "unit", expand=True)
-        row = col.row(align=True)
-        row = col.row(align=True)
-        if self.unit == "biped":
-            if self.game == "reach":
-                col.prop(self, "biped_model_reach")
-            elif self.game == "h4":
-                col.prop(self, "biped_model_h4")
-            # else:
-            #     col.prop(self, "biped_model_h2a")
-        else:
-            if self.game == "reach":
-                col.prop(self, "vehicle_model_reach")
-            elif self.game == "h4":
-                col.prop(self, "vehicle_model_h4")
-            # else:
-            #     col.prop(self, "vehicle_model_h2a")
-
-
 def add_halo_scale_model_button(self, context):
     self.layout.operator(
-        NWO_ScaleModels_Add.bl_idname,
+        NWO_OT_AddScaleModel.bl_idname,
         text="Halo Scale Model",
         icon_value=get_icon_id("biped"),
     )
@@ -5042,7 +4884,7 @@ classeshalo = (
     NWO_ListMaterialShaders,
     NWO_Shader_BuildSingle,
     NWO_ShaderPropertiesGroup,
-    NWO_ScaleModels_Add,
+    NWO_OT_AddScaleModel,
     NWO_JoinHalo,
     NWO_FarmShaders,
     NWO_MaterialSyncStart,

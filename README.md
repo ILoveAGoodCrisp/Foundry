@@ -51,7 +51,7 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
 - [Alexis Jonsson | WyvernZu](https://github.com/AlexisJonsson) - UI/UX/Icon Design
-- [General Heed](https://github.com/Generalkidd) - Scale models
+- [General Heed](https://github.com/Generalkidd) - Early Foundry work
 
 
 ## Special Thanks

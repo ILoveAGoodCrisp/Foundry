@@ -27,93 +27,99 @@
 import bpy
 from bpy_extras.object_utils import object_data_add
 import os
-from mathutils import Matrix, Vector # Don't remove this!!
 import zipfile
 
-from io_scene_foundry.utils.nwo_utils import add_auto_smooth
+from io_scene_foundry.utils.nwo_utils import add_auto_smooth, rotation_diff_from_forward, transform_scene
+from io_scene_foundry.utils.barebones_model_format import BarebonesModelFormat
+from bpy_extras.object_utils import AddObjectHelper
 
+class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
+    bl_idname = "nwo.add_scale_model"
+    bl_label = "Add Halo Scale Model"
+    bl_description = "Adds a Halo scale model to the scene"
+    bl_options = {"REGISTER", "UNDO"}
+    
+    model_name: bpy.props.EnumProperty(
+        name="Name",
+        default="Spartan III",
+        items=[
+            ("Data Crystal Chip", "Data Crystal Chip", ""),
+            ("M9 Fragmentation Grenade", "M9 Fragmentation Grenade", ""),
+            ("M6G Magnum", "M6G Magnum", ""),
+            ("MA37 Assault Rifle", "MA37 Assault Rifle", ""),
+            ("Energy Sword", "Energy Sword", ""),
+            ("Unggoy (Grunt)", "Unggoy (Grunt)", ""),
+            ("UNSC Army Trooper", "UNSC Army Trooper", ""),
+            ("Spartan III", "Spartan III", ""),
+            ("Spartan II", "Spartan II", ""),
+            ("Sangheili (Elite)", "Sangheili (Elite)", ""),
+            ("Mgalekgolo (Hunter)", "Mgalekgolo (Hunter)", ""),
+            ("Karo'etba-Pattern Ghost", "Karo'etba-Pattern Ghost", ""),
+            ("M12 Warthog", "M12 Warthog", ""),
+            ("D77-TC Pelican", "D77-TC Pelican", ""),
+            ("Deutoros-Pattern Scarab", "Deutoros-Pattern Scarab", ""),
+            ("Stalwart-Class Light Frigate", "Stalwart-Class Light Frigate", ""),
+            ("Ceudar-Pattern Heavy Corvette", "Ceudar-Pattern Heavy Corvette", ""),
+            ("Halcyon-Class Light Cruiser", "Halcyon-Class Light Cruiser", ""),
+            ("Ket-Pattern Battlecruiser", "Ket-Pattern Battlecruiser", ""),
+            ("Sh'wada-Pattern Supercarrier", "Sh'wada-Pattern Supercarrier", ""),
+            ("Supernal Spiral-Class Keyship", "Supernal Spiral-Class Keyship", ""),
+            ("Planet Reach", "Planet Reach", ""),    
+        ]
+    )
 
-def add_scale_model(self, context):
-    if self.unit == "biped":
-        if self.game == "reach":
-            model = self.biped_model_reach
-        elif self.game == "h4":
-            model = self.biped_model_h4
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT'
+
+    def execute(self, context):
+        self.add_scale_model(context)
+        return {"FINISHED"}
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "model_name", text="Model")
+        layout.separator()
+        layout.prop(self, "align")
+        layout.prop(self, "location")
+        layout.prop(self, "rotation")
+    
+    def add_scale_model(self, context):
+        script_file = os.path.realpath(__file__)
+        addon_dir = os.path.dirname(os.path.dirname(script_file))
+        resources_zip = os.path.join(addon_dir, "resources.zip")
+
+        filepath = os.path.join(addon_dir, "resources", "scale_models", self.model_name + '.bmf')
+        print(filepath)
+        if os.path.exists(filepath):
+            self.write_data(context, filepath)
+        elif os.path.exists(resources_zip):
+            os.chdir(addon_dir)
+            file_relative = f"scale_models/{self.model_name}.bmf"
+            with zipfile.ZipFile(resources_zip, "r") as zip:
+                filepath = zip.extract(file_relative)
+                self.write_data(context, filepath)
+
+            os.remove(filepath)
+            os.rmdir(os.path.dirname(filepath))
         else:
-            model = self.biped_model_h2a
-    else:
-        if self.game == "reach":
-            model = self.vehicle_model_reach
-        elif self.game == "h4":
-            model = self.vehicle_model_h4
-        else:
-            model = self.vehicle_model_h2a
+            print("Resources not found")
+            return {"CANCELLED"}
 
-    script_file = os.path.realpath(__file__)
-    addon_dir = os.path.dirname(os.path.dirname(script_file))
-    resources_zip = os.path.join(addon_dir, "resources.zip")
+        return {"FINISHED"}
 
-    file = os.path.join(addon_dir, "resources", self.game, model + ".txt")
-    if os.path.exists(file):
-        write_data(self, context, model, file)
-    elif os.path.exists(resources_zip):
-        os.chdir(addon_dir)
-        file_relative = f"{self.game}/{model}.txt"
-        with zipfile.ZipFile(resources_zip, "r") as zip:
-            file = zip.extract(file_relative)
-            write_data(self, context, model, file)
-
-        os.remove(file)
-        os.rmdir(os.path.dirname(file))
-    else:
-        print("Resouces not found")
-        return {"CANCELLED"}
-
-    return {"FINISHED"}
-
-
-def write_data(self, context, model, file):
-    with open(file, "r") as f:
-        verts_str = f.readline()
-        faces_str = f.readline()
-
-    verts = eval(verts_str)
-    faces = eval(faces_str)
-
-    mesh = bpy.data.meshes.new(name=model)
-    mesh.from_pydata(verts, [], faces)
-    if context.scene.nwo.scale == 'blender':
-        mesh.transform(Matrix.Scale(0.03048, 4))    
-    
-    ob = object_data_add(context, mesh, operator=self)
-    ob.nwo.export_this = False
-    
-    add_auto_smooth(context, ob)
-
-# def apply_auto_smooth(ob: bpy.types.Object):
-#     mod = ob.modifiers.new(name='auto_smooth', type='NODES')
-#     node_tree = bpy.data.node_groups.get('Smooth by Angle')
-#     if not node_tree:
-#         node_tree = add_smooth_by_angle_nodes()
-              
-# def add_smooth_by_angle_nodes():
-#     node_tree = bpy.data.node_groups.new(name='Smooth by Angle', type='GeometryNodeTree')
-#     nodes = node_tree.nodes
-#     group_output = nodes.new(type='GROUP_OUTPUT')
-    
-#     set_shade_smooth_face = nodes.new(type='GeometryNodeInputShadeSmooth')
-#     set_shade_smooth_face.domain = 'FACE'
-#     set_shade_smooth_face.inputs[2].default_value = True
-    
-#     node_tree.links.new(group_output, set_shade_smooth)
-    
-#     set_shade_smooth_edge = nodes.new(type='GeometryNodeInputShadeSmooth')
-#     set_shade_smooth_edge.domain = 'EDGE'
-    
-#     edge_angle = nodes.new(type='NodeGroupInput')
-#     group_input_angle = nodes.new(type='GeometryNodeInputMeshEdgeAngle')
-#     group_input_angle.outputs[0].
-#     is_face_smooth = nodes.new(type='GeometryNodeInputShadeSmooth')
-#     group_input_ignore_sharpness = nodes.new(type='NodeGroupInput')
-    
+    def write_data(self, context, filepath):
+        name = self.model_name
+        model = BarebonesModelFormat()
+        model.from_file(filepath)
+        ob = object_data_add(context, model.to_mesh(name), operator=self, name=name)
+        ob.nwo.export_this = False
+        scale_factor = 1
+        if context.scene.nwo.scale == 'max':
+            scale_factor = 1 / 0.03048
+            
+        add_auto_smooth(context, ob, apply_mod=True)
+        transform_scene(context, scale_factor, rotation_diff_from_forward('x', context.scene.nwo.forward_direction), 'x', context.scene.nwo.forward_direction, keep_marker_axis=False, objects=[ob], actions=[])
+        
     
