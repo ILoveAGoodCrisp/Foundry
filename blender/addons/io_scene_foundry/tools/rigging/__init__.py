@@ -119,8 +119,8 @@ class HaloRig:
             con = pitch.constraints.new('COPY_ROTATION')
             con.target = self.rig_ob
             con.subtarget = aim_control.name
-            # con.use_x = False
-            # con.use_z = False
+            con.use_x = False
+            con.use_z = False
             con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
             
@@ -129,8 +129,8 @@ class HaloRig:
             con = yaw.constraints.new('COPY_ROTATION')
             con.target = self.rig_ob
             con.subtarget = aim_control.name
-            # con.use_x = False
-            # con.use_y = False
+            con.use_x = False
+            con.use_y = False
             con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
             
