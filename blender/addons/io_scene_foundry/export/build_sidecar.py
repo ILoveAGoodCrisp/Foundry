@@ -728,7 +728,7 @@ class Sidecar:
             )
             animation_paths = sidecar_paths.get("animation")
             for path in animation_paths:
-                compression = path[8] if path[8] != "Automatic" else None
+                compression = path[8] if path[8] != "Default" else None
                 network_attribs = {"Name": path[3], "Type": "Base"}
                 a_type = path[4]
                 movement = path[5]

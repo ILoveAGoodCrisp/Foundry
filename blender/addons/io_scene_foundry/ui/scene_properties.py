@@ -962,12 +962,24 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         type=NWO_IKChain,
     )
     
-    ik_chains_active_index: IntProperty()
+    ik_chains_active_index: IntProperty(options=set())
     
     object_controls: CollectionProperty(
         type=NWO_ControlObjects,
     )
     
-    object_controls_active_index: IntProperty()
+    object_controls_active_index: IntProperty(options=set())
     
-    keyframe_sync_active: BoolProperty()
+    keyframe_sync_active: BoolProperty(options=set())
+    
+    default_animation_compression: EnumProperty(
+        name="Default Animation Compression",
+        description="The default animation the game applies to animations",
+        options=set(),
+        items=[
+            ("Automatic", "Automatic", "Compression is determined by the game during animation import"),
+            ("Uncompressed", "Uncompressed", "No compression"),
+            ("Medium", "Medium", "Medium compression"),
+            ("Rough", "Rough", "Highest level of compression"),
+        ]
+    )

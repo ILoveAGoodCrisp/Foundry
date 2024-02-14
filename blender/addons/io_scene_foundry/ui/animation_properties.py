@@ -505,7 +505,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         name="Compression",
         description="Level of compression to apply to animations",
         items=[
-            ("Automatic", "Automatic", "Animation compression is determined by the exporter"),
+            ("Default", "Default", "Animation compression is determined by the value set in the asset editor panel"),
             ("Uncompressed", "Uncompressed", "No compression"),
             ("Medium", "Medium", "Medium compression"),
             ("Rough", "Rough", "Highest level of compression"),

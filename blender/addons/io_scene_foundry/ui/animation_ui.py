@@ -827,8 +827,3 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
         context.scene.nwo.keyframe_sync_active = False
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
-        
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, "update_timeline", text="Update Timeline")
-

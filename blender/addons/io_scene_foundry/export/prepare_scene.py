@@ -741,7 +741,7 @@ class PrepareScene:
 
         # Set animation name overrides
         if self.model_armature:
-            self.set_animation_overrides(self.model_armature)
+            self.set_animation_overrides(scene_nwo)
 
         # get the max LOD count in the scene if we're exporting a decorator
         self.lods = self.get_decorator_lods(asset_type == "DECORATOR SET")
@@ -2129,9 +2129,9 @@ class PrepareScene:
 
         ob.name = f"{namespace}:{ob.name}"
 
-    def set_animation_overrides(self, model_armature):
+    def set_animation_overrides(self, scene_nwo):
         if (
-            model_armature is not None
+            self.model_armature is not None
             and len(bpy.data.actions) > 0
         ):
             for action in bpy.data.actions:
@@ -2139,6 +2139,9 @@ class PrepareScene:
                 nwo = action.nwo
                 if not nwo.name_override:
                     nwo.name_override = action.name
+                    
+                if scene_nwo.default_animation_compression != "Automatic" and nwo.compression == "Default":
+                    nwo.compression = scene_nwo.default_animation_compression
 
     def rotate_scene(self, objects):
         angle_z = radians(90)

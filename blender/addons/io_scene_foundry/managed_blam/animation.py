@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import bpy
 from io_scene_foundry.managed_blam import Tag
 
 class AnimationTag(Tag):
@@ -182,3 +183,28 @@ class AnimationTag(Tag):
             element.SelectField('effector node').Value = skeleton_nodes.index(chain.effector_node)
             
         self.tag_has_changes = True
+        
+    def validate_compression(self, actions: bpy.types.Action, default_compression: str):
+        # medium = 0
+        # rough = 1
+        # uncompressed = 2
+        game_animations = {action.nwo.name_override.replace(' ', ':'): action.nwo.compression for action in actions}
+        
+        for element in self.block_animations.Elements:
+            name = element.Fields[0].GetStringData()
+            if element.Fields[0].GetStringData() not in game_animations.keys() or not element.SelectField("shared animation data").Elements.Count:
+                continue
+            compression = game_animations.get(name)
+            if compression == 'Default':
+                continue
+            compression_enum = 0 # medium
+            match compression:
+                case "Rough":
+                    compression_enum = 1
+                case "Uncompressed":
+                    compression_enum = 2
+                    
+            compression_field = element.SelectField("Block:shared animation data[0]/CharEnum:desired compression")
+            if compression_field.Value != compression_enum:
+                compression_field.Value = compression_enum
+                self.tag_has_changes = True

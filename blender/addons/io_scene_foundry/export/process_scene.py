@@ -93,6 +93,7 @@ class ProcessScene:
         gr2_count = 0
         h4 = is_corinth(context)
         muted_armature_deforms = []
+        exported_actions = []
         if asset_type == 'camera_track_set':
             return build_camera_tracks(context, nwo_scene.camera, asset_path)
         if scene_nwo_export.export_gr2_files:
@@ -193,6 +194,7 @@ class ProcessScene:
                                         else:
                                             return f"Failed to export skeleton FBX: {fbx_path}"
 
+                                    exported_actions.append(action)
                                     update_job(job, 1)
 
                             if "animation" in self.sidecar_paths.keys():
@@ -550,7 +552,7 @@ class ProcessScene:
             no_top_level_tag = hasattr(sidecar, "no_top_level_tag") and not os.path.exists(scenery_path)
 
             if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
-                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo)
+                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions)
                 set_better_lm_res = False
                 if asset_type == 'SCENARIO':
                     scenario_path = os.path.join(tag_folder_path, f"{asset}.scenario")
@@ -824,17 +826,20 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo):
+    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo, exported_actions):
         node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
-        mb_justified = node_usage_set or scene_nwo.ik_chains
+        mb_justified = node_usage_set or scene_nwo.ik_chains or exported_actions
         if not mb_justified:
             return
         print("\nTags Pre-Process")
         print(
             "-----------------------------------------------------------------------\n"
         )
-        if node_usage_set or scene_nwo.ik_chains:
+        if node_usage_set or scene_nwo.ik_chains or exported_actions:
             with AnimationTag(hide_prints=False) as animation:
+                if exported_actions:
+                    animation.validate_compression(exported_actions, scene_nwo.default_animation_compression)
+                    print("--- Validated Animation Compression")
                 if node_usage_set:
                     animation.set_node_usages(nwo_scene.skeleton_bones)
                     print("--- Updated Animation Node Usages")
@@ -842,7 +847,7 @@ class ProcessScene:
                     animation.write_ik_chains(scene_nwo.ik_chains, nwo_scene.skeleton_bones)
                     print("--- Updated Animation IK Chains")
                     
-                if animation.tag_has_changes:
+                if animation.tag_has_changes and (node_usage_set or scene_nwo.ik_chains):
                     # Graph should be data driven if ik chains or overlay groups in use.
                     # Node usages are a sign the user intends to create overlays group
                     animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
@@ -875,7 +880,7 @@ class ProcessScene:
         # If this model has lighting, add a reference to the structure_meta tag in the render_model
         if h4_model_lighting:
             meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
-            with RenderModelTag(hide_prints=False) as render_model:
+            with RenderModelTag(hide_prints=True) as render_model:
                 render_model.set_structure_meta_ref(meta_path)
             print("--- Added Structure Meta Reference to Render Model")
 

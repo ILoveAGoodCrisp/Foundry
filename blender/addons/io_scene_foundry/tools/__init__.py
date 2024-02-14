@@ -597,7 +597,7 @@ class NWO_FoundryPanelProps(Panel):
             row = col.row(align=True)
             row.label(text='Everything exported from this scene will be overwritten')
             
-    def draw_model_rig(self, box, nwo):
+    def draw_model_rig(self, box: bpy.types.UILayout, nwo):
         col = box.column()
         col.use_property_split = True
         col.prop(nwo, 'main_armature', icon='OUTLINER_OB_ARMATURE')
@@ -618,6 +618,9 @@ class NWO_FoundryPanelProps(Panel):
             col.prop(nwo, 'support_armature_c', icon='OUTLINER_OB_ARMATURE')
             if nwo.support_armature_c:
                 col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
+                
+        #col.separator()
+        col.prop(nwo, "default_animation_compression", text="Default Animation Compression")
                 
     def draw_rig_controls(self, box, nwo):
         box.use_property_split = True
