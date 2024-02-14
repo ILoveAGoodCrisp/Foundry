@@ -186,7 +186,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 bpy.ops.nwo.set_timeline()
             
     def get_active_action_index(self):
-        ob = bpy.context.object
+        ob = getattr(bpy.context, "object", 0)
         if not ob or not ob.animation_data:
             return self.old_active_action_index
         
