@@ -791,6 +791,8 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
         action: bpy.types.Action = bpy.data.actions[context.scene.nwo.active_action_index]
         if not action.use_frame_range:
             action.use_frame_range = True
+        old_start = int(action.frame_start)
+        old_end = int(action.frame_end)
         frames = set()
         for fcurve in action.fcurves:
             for kfp in fcurve.keyframe_points:
@@ -799,6 +801,9 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
         if len(frames) > 1:
             action.frame_start = int(min(*frames))
             action.frame_end = int(max(*frames))
+        
+        if old_start != int(action.frame_start) or old_end != int(action.frame_end):
+            bpy.ops.nwo.set_timeline()
 
     def modal(self, context, event):
         if context.scene.nwo.active_action_index != self._current_action_index or context.scene.nwo.export_in_progress or not context.scene.nwo.keyframe_sync_active:
@@ -822,4 +827,8 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
         context.scene.nwo.keyframe_sync_active = False
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
+        
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "update_timeline", text="Update Timeline")
 
