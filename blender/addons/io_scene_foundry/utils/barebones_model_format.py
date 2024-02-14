@@ -42,31 +42,23 @@ class BarebonesModelFormat:
     def from_mesh(self, mesh: bpy.types.Mesh):
         """Creates an bmf object from the given mesh"""
         assert(isinstance(mesh, bpy.types.Mesh)), "mesh should be a bpy mesh"
-        def to_bmesh(mesh: bpy.types.Mesh) -> bmesh.types.BMesh:
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            return bm
         
-        bm = to_bmesh(mesh)
-        
-        vert_tuples = [vert.co.to_tuple() for vert in bm.verts]
+        vert_tuples = [vert.co.to_tuple() for vert in mesh.vertices]
         
         for t in vert_tuples:
             self.packed_vertices += struct.pack('3f', *t)
         
-        for face in bm.faces:
+        for face in mesh.polygons:
             vert_indices = []
-            for vert in face.verts:
-                vert_indices.append(vert.index)
+            for vert in face.vertices:
+                vert_indices.append(vert.numerator)
             
             self.packed_faces += struct.pack('I', len(vert_indices))
             for i in vert_indices:
                 self.packed_faces += struct.pack('I', i)
-            
-        bm.free()
         
     def from_file(self, filepath):
-        """Creates a new SimpleModelFormat representation from a .bmf file"""
+        """Creates a new BarebonesModelFormat representation from a .bmf file"""
         assert(filepath.endswith(".bmf")), "Filepath must end with .bmf"
         assert(os.path.exists(filepath)), f"Path does not exist: {filepath}"
         with open(filepath, 'rb') as file:

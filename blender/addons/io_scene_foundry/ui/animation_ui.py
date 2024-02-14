@@ -699,7 +699,18 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         row.scale_x = 1.5
         row.prop(item, "name", text="", emboss=False, icon='ANIM')
         row = layout.row()
-        row.label(text=str(math.floor(item.frame_end) - math.floor(item.frame_start)), icon='KEYFRAME_HLT')
+        if item.use_frame_range:
+            row.label(text=str(math.floor(item.frame_end) - math.floor(item.frame_start)), icon='KEYFRAME_HLT')
+        else:
+            row.label(text=' ', icon='BLANK1')
+        if item.nwo.animation_renames:
+            row.label(text=str(len(item.nwo.animation_renames)), icon_value=get_icon_id("animation_rename"))
+        else:
+            row.label(text=' ', icon='BLANK1')
+        if item.nwo.animation_events:
+            row.label(text=str(len(item.nwo.animation_events)), icon_value=get_icon_id("animation_event"))
+        else:
+            row.label(text=' ', icon='BLANK1')
         anim_type_display = nwo.animation_type
         if anim_type_display == 'base' and nwo.animation_movement_data != 'none':
             anim_type_display += f'[{nwo.animation_movement_data}]'
