@@ -823,6 +823,10 @@ class NWOImporter:
                         perm = parts[0]
                         region = parts[1]
                         ob.name = f'{prefix}{region}:{perm}'
+                    elif len(parts) > 2:
+                        perm = parts[-2]
+                        region = parts[-1]
+                        ob.name = f'{prefix}{region}:{perm}'
                 else:
                     for idx, perm_region in enumerate(ob.region_list):
                         parts = perm_region.name.split(' ')
@@ -832,6 +836,10 @@ class NWOImporter:
                         elif len(parts) == 2:
                             perm = parts[0]
                             region = parts[1]
+                            new_name = f'{prefix}{region}:{perm}'
+                        elif len(parts) > 2:
+                            perm = parts[-2]
+                            region = parts[-1]
                             new_name = f'{prefix}{region}:{perm}'
 
                         new_ob = ob.copy()
