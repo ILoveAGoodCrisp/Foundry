@@ -344,9 +344,10 @@ class NWO_FoundryPanelProps(Panel):
         )
         
         row = col.row()
+        row.scale_y = 1.5
         if asset_name:
-            row.label(text=asset_name)
-            row.operator("nwo.make_asset", text="Copy Asset", icon_value=get_icon_id("halo_asset")) 
+            row.operator("nwo.make_asset", text=f"Copy {asset_name}", icon_value=get_icon_id("halo_asset")) 
+            row.operator("nwo.clear_asset", text="", icon='X')
             
         else:
             row.scale_y = 1.5

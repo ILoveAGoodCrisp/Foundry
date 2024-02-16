@@ -28,10 +28,12 @@ import os
 
 from ..icons import get_icon_id, get_icon_id_in_directory
 from ..utils.nwo_utils import (
+    get_asset_info,
     get_data_path,
     get_prefs,
     is_corinth,
     os_sep_partition,
+    valid_nwo_asset,
 )
 from .templates import NWO_PropPanel, NWO_Op
 import bpy
@@ -670,3 +672,23 @@ class NWO_OT_SelectObjectControl(bpy.types.Operator):
             return 'Select highlighted control object'
         else:
             return 'Deselect highlighted control object'
+        
+class NWO_OT_ClearAsset(bpy.types.Operator):
+    bl_idname = "nwo.clear_asset"
+    bl_label = "Unlink Asset"
+    bl_description = "Unlinks the Asset from this blend"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return valid_nwo_asset()
+
+    def execute(self, context):
+        sidecar_path = context.scene.nwo_halo_launcher.sidecar_path
+        _, asset_name = get_asset_info(sidecar_path)
+        context.scene.nwo_halo_launcher.sidecar_path = ""
+        self.report({'INFO'}, f"Asset [{asset_name}] unlinked from file")
+        return {"FINISHED"}
+    
+    def invoke(self, context: bpy.types.Context, event):
+        return context.window_manager.invoke_confirm(self, event)

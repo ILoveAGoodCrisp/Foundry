@@ -282,7 +282,6 @@ def get_asset_info(filepath):
 
     return asset_path, asset
 
-
 def get_asset_path():
     """Returns the path to the asset folder."""
     asset_path = os_sep_partition(relative_path(bpy.context.scene.nwo_halo_launcher.sidecar_path))
