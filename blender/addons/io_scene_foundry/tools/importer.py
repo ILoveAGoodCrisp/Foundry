@@ -48,6 +48,92 @@ legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 
 formats = "amf", "jms", "jma", "bitmap", "camera_track"
 
+class NWO_OT_ConvertScene(bpy.types.Operator):
+    bl_label = "Convert Scene"
+    bl_idname = "nwo.convert_scene"
+    bl_description = "Converts the scene from the selected format to Foundry standard"
+    
+    selected_only: bpy.props.BoolProperty(
+        name="Selected Only",
+        description="Restrict affected objects to only those selected"
+    )
+    
+    convert_type: bpy.props.EnumProperty(
+        name="Current Type",
+        description="The type of format objects are currently in",
+        items=[
+            ('amf', "AMF", ""),
+            ('jms', "JMS/ASS", ""),
+        ]
+    )
+    
+    jms_type: bpy.props.EnumProperty(
+        name="JMS Type",
+        description="Whether this is a model or a scenario",
+        items=[
+            ("model", "Model", ""),
+            ("scenario", "Scenario", "")
+        ]
+    )
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "selected_only")
+        layout.prop(self, "convert_type", expand=True)
+        if self.convert_type == "jms":
+            layout.prop(self, "jms_type", expand=True)
+        
+    def invoke(self, context: bpy.types.Context, _):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def execute(self, context):
+        if self.selected_only:
+            objects_in_scope = context.selected_objects
+        else:
+            objects_in_scope = bpy.data.objects
+            
+        with ExportManager():
+            os.system("cls")
+            start = time.perf_counter()
+            user_cancelled = False
+            if context.scene.nwo_export.show_output:
+                bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+                context.scene.nwo_export.show_output = False
+            try:
+                export_title = f"►►► FOUNDRY CONVERTER ◄◄◄"
+                print(export_title, '\n')
+                converter = NWOImporter(context, self.report, [], [])
+                match self.convert_type:
+                    case "amf":
+                        converter.amf_marker_objects = []
+                        converter.amf_mesh_objects = []
+                        converter.amf_other_objects = []
+                        converter.process_amf_objects(objects_in_scope, "")
+                    case "jms":
+                        converter.jms_marker_objects = []
+                        converter.jms_mesh_objects = []
+                        converter.jms_other_objects = []
+                        converter.process_jms_objects(objects_in_scope, "", self.jms_type == 'model')
+                
+            except KeyboardInterrupt:
+                print_warning("\nCANCELLED BY USER")
+                user_cancelled = True
+                
+        end = time.perf_counter()
+        if user_cancelled:
+            self.report({'WARNING'}, "Cancelled by user")
+        else:
+            print(
+                "\n-----------------------------------------------------------------------"
+            )
+            print(f"Completed in {round(end - start, 3)} seconds")
+
+            print(
+                "-----------------------------------------------------------------------\n"
+            )
+        return {'FINISHED'}
+
 class NWO_Import(bpy.types.Operator):
     bl_label = "Import File(s)/Folder(s)"
     bl_idname = "nwo.import"
@@ -511,7 +597,10 @@ class NWOImporter:
         self.extensions = set()
         self.apply_materials = get_prefs().apply_materials
         self.prefix_setting = get_prefs().apply_prefix
-        self.sorted_filepaths = self.group_filetypes(scope)
+        if filepaths:
+            self.sorted_filepaths = self.group_filetypes(scope)
+        else:
+            self.sorted_filepaths = []
     
     def group_filetypes(self, scope):
         if scope:
@@ -665,26 +754,30 @@ class NWOImporter:
         is_model = bool([ob for ob in objects if ob.type == 'ARMATURE'])
         possible_bsp = file_name.rpartition('_')[2]
         # Add all objects to a collection
-        new_coll = bpy.data.collections.new(file_name)
-        if not is_model and possible_bsp:
-            new_coll.name = 'bsp::' + possible_bsp
-            regions_table = self.context.scene.nwo.regions_table
-            entry = regions_table.get(possible_bsp, 0)
-            if not entry:
-                regions_table.add()
-                entry = regions_table[-1]
-                entry.old = possible_bsp
-                entry.name = possible_bsp
-                
-            new_coll.nwo.type = 'region'
-            new_coll.nwo.region = possible_bsp
+        if file_name:
+            new_coll = bpy.data.collections.get(file_name, 0)
+            if not new_coll:
+                new_coll = bpy.data.collections.new(file_name)
+                self.context.scene.collection.children.link(new_coll)
+            if not is_model and possible_bsp:
+                new_coll.name = 'bsp::' + possible_bsp
+                regions_table = self.context.scene.nwo.regions_table
+                entry = regions_table.get(possible_bsp, 0)
+                if not entry:
+                    regions_table.add()
+                    entry = regions_table[-1]
+                    entry.old = possible_bsp
+                    entry.name = possible_bsp
+                    
+                new_coll.nwo.type = 'region'
+                new_coll.nwo.region = possible_bsp
             
-        self.context.scene.collection.children.link(new_coll)
         self.amf_poops = []
         print("Setting object properties")
         for ob in objects:
-            unlink(ob)
-            new_coll.objects.link(ob)
+            if file_name:
+                unlink(ob)
+                new_coll.objects.link(ob)
             if ob.type == 'MESH':
                 self.setup_amf_mesh(ob, is_model)
             elif ob.type == 'EMPTY':
@@ -702,9 +795,11 @@ class NWOImporter:
             if name.startswith('Instances:'):
                 ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_object_instance'
             else:
-                region, permutation = name.split(':')
-                self.set_region(ob, dot_partition(region))
-                self.set_permutation(ob, dot_partition(permutation))
+                parts = name.split(':')
+                if len(parts) > 1:
+                    region, permutation = parts[0], parts[1]
+                    self.set_region(ob, dot_partition(region))
+                    self.set_permutation(ob, dot_partition(permutation))
         else:
             if name.startswith('Clusters'):
                 ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
@@ -790,11 +885,12 @@ class NWOImporter:
         
     def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
         # Add all objects to a collection
-        new_coll = bpy.data.collections.get(file_name, 0)
-        if not new_coll:
-            new_coll = bpy.data.collections.new(file_name)
-            self.context.scene.collection.children.link(new_coll)
-        if not is_model:
+        if file_name:
+            new_coll = bpy.data.collections.get(file_name, 0)
+            if not new_coll:
+                new_coll = bpy.data.collections.new(file_name)
+                self.context.scene.collection.children.link(new_coll)
+        if not is_model and file_name:
             possible_bsp = file_name.rpartition('_')[2]
             new_coll.name = 'bsp::' + possible_bsp
             regions_table = self.context.scene.nwo.regions_table
@@ -808,7 +904,6 @@ class NWOImporter:
             new_coll.nwo.type = 'region'
             new_coll.nwo.region = possible_bsp
         
-        self.amf_poops = []
         print("Setting object properties")
         if is_model:
             objects_with_halo_regions = [ob for ob in objects if ob.region_list]
@@ -862,10 +957,15 @@ class NWOImporter:
                     bpy.data.objects.remove(ob)
         
         self.processed_meshes = []
-        self.new_coll = new_coll
+        if file_name:
+            self.new_coll = new_coll
+        else:
+            self.new_coll = self.context.scene.collection
+            
         for ob in objects:
-            unlink(ob)
-            new_coll.objects.link(ob)
+            if file_name:
+                unlink(ob)
+                new_coll.objects.link(ob)
             if ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
                 self.setup_jms_marker(ob, is_model)
             elif ob.type == 'MESH':
@@ -873,10 +973,6 @@ class NWOImporter:
             else:
                 pass
                 # self.jms_other_objects.append(ob)
-                
-        if self.amf_poops:
-            print("Fixing scale")
-            stomp_scale_multi_user(self.amf_poops)
             
             
     def setup_jms_marker(self, ob, is_model):

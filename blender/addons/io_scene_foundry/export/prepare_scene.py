@@ -63,7 +63,6 @@ from ..utils.nwo_utils import (
     print_warning,
     relative_path,
     rig_root_deform_bone,
-    set_custom_normals,
     transform_scene,
     get_tags_path,
     is_corinth,

@@ -55,7 +55,7 @@ from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMat
 from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
 from io_scene_foundry.tools.clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
-from io_scene_foundry.tools.importer import NWO_Import
+from io_scene_foundry.tools.importer import NWO_Import, NWO_OT_ConvertScene
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
@@ -2584,6 +2584,7 @@ class NWO_FoundryPanelProps(Panel):
             col.operator("nwo.open_url", text="Download", icon_value=get_icon_id("amf")).url = AMF_ADDON
             
         col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
+        col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
         
     def draw_rig_tools(self, box):
         row = box.row()
@@ -4907,6 +4908,7 @@ classeshalo = (
     NWO_MeshToMarker,
     NWO_StompMaterials,
     NWO_Import,
+    NWO_OT_ConvertScene,
     NWO_SetDefaultSky,
     NWO_SetSky,
     NWO_NewSky,
