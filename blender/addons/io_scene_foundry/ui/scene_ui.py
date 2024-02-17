@@ -684,9 +684,9 @@ class NWO_OT_ClearAsset(bpy.types.Operator):
         return valid_nwo_asset()
 
     def execute(self, context):
-        sidecar_path = context.scene.nwo_halo_launcher.sidecar_path
-        _, asset_name = get_asset_info(sidecar_path)
-        context.scene.nwo_halo_launcher.sidecar_path = ""
+        nwo = context.scene.nwo_halo_launcher
+        _, asset_name = get_asset_info(nwo.sidecar_path)
+        nwo.sidecar_path = ""
         self.report({'INFO'}, f"Asset [{asset_name}] unlinked from file")
         return {"FINISHED"}
     

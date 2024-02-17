@@ -63,6 +63,7 @@ from ..utils.nwo_utils import (
     print_warning,
     relative_path,
     rig_root_deform_bone,
+    set_custom_normals,
     transform_scene,
     get_tags_path,
     is_corinth,
@@ -1014,7 +1015,7 @@ class PrepareScene:
         return False
         
 
-    def split_to_layers(self, ob, ob_nwo, me, face_layers, scene_coll, h4, bm, is_proxy):
+    def split_to_layers(self, ob: bpy.types.Object, ob_nwo, me, face_layers, scene_coll, h4, bm, is_proxy):
         poly_count = len(bm.faces)
         layer_faces_dict = {
             layer: layer_faces(bm, bm.faces.layers.int.get(layer.layer_name))
@@ -1124,15 +1125,14 @@ class PrepareScene:
                     split_ob.name = f"{ori_ob_name}({obj_name_suffix})"
                 else:
                     split_ob.name = ori_ob_name
-
+                
                 if render_mesh:
                     # set up data transfer modifier to retain normals
-                    pass
-                    # mod = split_ob.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
-                    # mod.object = normals_ob
-                    # mod.use_object_transform = False
-                    # mod.use_loop_data = True
-                    # mod.data_types_loops = {"CUSTOM_NORMAL"}
+                    mod = split_ob.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
+                    mod.object = normals_ob
+                    mod.use_object_transform = False
+                    mod.use_loop_data = True
+                    mod.data_types_loops = {"CUSTOM_NORMAL"}
 
             #parent poop coll
             parent_ob = None
