@@ -77,15 +77,12 @@ from .halo_launcher import NWO_MaterialGirl, open_file_explorer
 
 from io_scene_foundry.utils.nwo_utils import (
     ExportManager,
-    addon_root,
     amf_addon_installed,
     blender_toolset_installed,
     bpy_enum,
     clean_tag_path,
     deselect_all_objects,
     dot_partition,
-    export_objects,
-    extract_from_resources,
     foundry_update_check,
     get_arm_count,
     get_data_path,
@@ -94,13 +91,11 @@ from io_scene_foundry.utils.nwo_utils import (
     get_marker_display,
     get_mesh_display,
     get_prefs,
-    get_rig,
     get_sky_perm,
     get_tags_path,
     has_collision_type,
     has_face_props,
     has_mesh_props,
-    import_gltf,
     is_frame,
     is_halo_object,
     is_instance_or_structure_proxy,
@@ -115,14 +110,9 @@ from io_scene_foundry.utils.nwo_utils import (
     protected_material_name,
     recursive_image_search,
     relative_path,
-    rotation_diff_from_forward,
     set_active_object,
-    set_object_mode,
-    transform_scene,
     true_permutation,
     true_region,
-    type_valid,
-    unlink,
     valid_nwo_asset,
     poll_ui,
     validate_ek,
@@ -1299,6 +1289,8 @@ class NWO_FoundryPanelProps(Panel):
             )
             flow.use_property_split = False
             col = flow.column()
+            
+            col.prop(nwo, "frame_override")
 
             if poll_ui("SCENARIO"):
                 col.use_property_split = True
@@ -1542,6 +1534,8 @@ class NWO_FoundryPanelProps(Panel):
             ("MODEL", "SCENARIO", "SKY")):
             col = box.column()
             col.label(text='Frame', icon_value=get_icon_id('frame'))
+            if not ob.children:
+                col.prop(nwo, "frame_override")
             # TODO Add button that selects child objects
             return
                 

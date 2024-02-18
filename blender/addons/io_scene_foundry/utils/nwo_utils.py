@@ -1428,10 +1428,10 @@ def is_mesh(ob):
     return ob.type in VALID_MESHES
 
 def is_marker(ob):
-    return ob.type == 'EMPTY' and not ob.children and not library_instanced_collection(ob) and ob.empty_display_type != "IMAGE"
+    return ob.type == 'EMPTY' and not ob.nwo.frame_override and not ob.children and not library_instanced_collection(ob) and ob.empty_display_type != "IMAGE"
 
 def is_frame(ob):
-    return (ob.type == 'EMPTY' and ob.children) or ob.type == 'ARMATURE'
+    return (ob.type == 'EMPTY' and (ob.children or ob.nwo.frame_override)) or ob.type == 'ARMATURE'
 
 def is_light(ob):
     return ob.type == 'LIGHT'
@@ -2015,7 +2015,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         actions = bpy.data.actions
         
     if keep_marker_axis is None:
-        keep_marker_axis = not context.scene.nwo.rotate_markers
+        keep_marker_axis = context.scene.nwo.rotate_markers
 
     armatures = [ob for ob in objects if ob.type == 'ARMATURE']
     parented_armatures = [ob for ob in armatures if ob.parent]

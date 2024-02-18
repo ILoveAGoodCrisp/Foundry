@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 import bpy
 from bpy.props import (
     IntProperty,
@@ -41,20 +42,20 @@ from ..utils.nwo_utils import clean_tag_path, get_prefs, is_corinth, poll_ui, re
 
 def get_matrix_settings():
     appdata = os.getenv('APPDATA')
-    foundry_folder = os.path.join(appdata, "Foundry")
+    foundry_folder = Path(appdata, "Foundry")
 
-    if not os.path.exists(foundry_folder):
+    if not foundry_folder.exists():
         print("No Foundry Folder")
-        return 'blender', 'y-', False
+        return 'blender', 'y-'
     
-    matrix_file = os.path.join(foundry_folder, 'matrix_halo.txt')
-    if os.path.exists(matrix_file):
-        return 'max', 'x', True
+    matrix_file = Path(foundry_folder, 'matrix_halo.txt')
+    if matrix_file.exists():
+        return 'max', 'x'
     else:
-        return 'blender', 'y-', False
+        return 'blender', 'y-'
     
 
-default_scale, default_forward, default_rotate_markers = get_matrix_settings()
+default_scale, default_forward = get_matrix_settings()
 
 class NWO_Permutations_ListItems(PropertyGroup):
 
@@ -945,10 +946,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     rotate_markers: BoolProperty(
-        name="Rotate Markers",
-        default=default_rotate_markers,
+        name="Maintain Marker Axis",
         options=set(),
-        description="Determines whether rotating the scene also rotates markers",
+        default=True,
+        description="Maintains the forward direction of a marker when transforming the scene. Useful if your scene forward is not X forward and you want the direction of the marker to match to in game. Try toggling this on/off if you are experiencing marker issues in game",
     )
     
     export_in_progress: BoolProperty()

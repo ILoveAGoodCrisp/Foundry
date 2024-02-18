@@ -1104,6 +1104,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     marker_type_ui_help: IntProperty()
+    
+    frame_override: BoolProperty(
+        name="Frame Override",
+        description="Sets this empty as a frame regardless of whether it has children",
+    )
 
     export_this: BoolProperty(
         name="Export",
