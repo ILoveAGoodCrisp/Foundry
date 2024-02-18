@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2023 Crisp
+# Copyright (c) 2024 Crisp
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -699,9 +699,7 @@ class PrepareScene:
                                 self.warning_hit = True
                                 print("")
                             warn = True
-                            print_warning(
-                                f"Ignoring {ob.name} because it is not parented to the scene armature"
-                            )
+                            print_warning(f"Ignoring {ob.name} because it is not parented to the scene armature")
                             self.unlink(ob)
                             
 
