@@ -758,13 +758,15 @@ class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context: Context) -> bool:
-        return context.scene.nwo.active_action_index > -1 and context.scene.nwo.animation_events
+        return context.scene.nwo.active_action_index > -1
 
     def execute(self, context):
         if not self.prop_to_set:
             print("Operator requires prop_to_set specified")
             return {"CANCELLED"}
         action = bpy.data.actions[context.scene.nwo.active_action_index]
+        if not action.nwo.animation_events:
+            return {"CANCELLED"}
         event = action.nwo.animation_events[action.nwo.animation_events_index]
         if not event:
             self.report({"WARNING"}, "No active event")
