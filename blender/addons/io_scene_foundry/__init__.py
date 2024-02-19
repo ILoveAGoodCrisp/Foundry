@@ -28,7 +28,7 @@ import ctypes
 import bpy
 from bpy.app.handlers import persistent
 
-from io_scene_foundry.utils.nwo_utils import setup_projects_list, unlink
+from io_scene_foundry.utils.nwo_utils import restart_blender, setup_projects_list, unlink
 
 old_snapshot = {}
 old_x = None
@@ -161,15 +161,7 @@ else:
             mb_path = nwo_globals.mb_path
             if mb_path:
                 if not mb_path.startswith(get_project_path()):
-                    game = context.scene.nwo.scene_project
-                    result = ctypes.windll.user32.MessageBoxW(
-                        0,
-                        f"{game} is incompatible with the loaded Tag API version: {mb_path + '.dll'}.\nPlease restart Blender or switch to a {game} asset.\n\nClose Blender?",
-                        f"ManagedBlam / Game Mismatch",
-                        4,
-                    )
-                    if result == 6:
-                        bpy.ops.wm.quit_blender()
+                    restart_blender()
 
             # like and subscribe
             subscription_owner = object()

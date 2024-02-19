@@ -455,7 +455,7 @@ class NWO_Export(NWO_Export_Scene):
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
             bpy.app.timers.register(toggle_output)
 
-        export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').capitalize()} EXPORT ◄◄◄"
+        export_title = f"►►► {scene_nwo.asset_type.replace('_', ' ').upper()} EXPORT ◄◄◄"
 
         print(export_title)
 

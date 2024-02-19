@@ -37,6 +37,7 @@ from io_scene_foundry.utils.nwo_utils import (
     is_corinth,
     print_warning,
     relative_path,
+    restart_blender,
 )
 import bpy
 import os
@@ -394,13 +395,14 @@ class ManagedBlam_Init(Operator):
 
                 shutdown = ctypes.windll.user32.MessageBoxW(
                     0,
-                    "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.\n\nClose Blender now?",
+                    "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.\n\nRestart Blender now?",
                     f"Pythonnet Installed for Blender",
                     4,
                 )
                 if shutdown != 6:
                     return {"CANCELLED"}
-                bpy.ops.wm.quit_blender()
+                
+                restart_blender()
 
             except:
                 print("Failed to install pythonnet")

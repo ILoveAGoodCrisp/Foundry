@@ -2641,3 +2641,7 @@ def add_auto_smooth(context: bpy.types.Context, ob: bpy.types.Object, angle=radi
     if apply_mod:
         with context.temp_override(object=ob):
             bpy.ops.object.modifier_apply(modifier="foundry_auto_smooth", single_user=True)
+            
+def restart_blender():
+    subprocess.Popen([bpy.app.binary_path, bpy.data.filepath])
+    bpy.ops.wm.quit_blender()
