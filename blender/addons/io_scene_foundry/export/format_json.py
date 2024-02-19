@@ -47,7 +47,8 @@ class NWOJSON(dict):
         world_frame,
         asset_name,
         bone_list,
-        regions,
+        validated_regions,
+        validated_permutations,
         global_materials_dict,
         skylights,
     ):
@@ -58,7 +59,8 @@ class NWOJSON(dict):
         self.world_frame = world_frame
         self.asset_name = asset_name
         self.bone_list = bone_list
-        self.regions = regions
+        self.validated_regions = validated_regions
+        self.validated_permutations = validated_permutations
         self.global_materials_dict = global_materials_dict
         self.skylights = skylights
         self.string_table = self.build_string_table()
@@ -109,11 +111,10 @@ class NWOJSON(dict):
 
     def get_regions(self):
         keep_regions = []
-        for name in self.regions:
+        for name in self.validated_regions:
             for ob in self.objects:
                 if name not in keep_regions and ob.nwo.region_name == name:
                     keep_regions.append(name)
-
 
         return keep_regions
 
@@ -132,6 +133,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     node_properties.update({ob.name: props.__dict__})
                 case "_connected_geometry_object_type_animation_control":
@@ -141,6 +143,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     node_properties.update({ob.name: props.__dict__})
                 case "_connected_geometry_object_type_animation_camera":
@@ -150,6 +153,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     node_properties.update({ob.name: props.__dict__})
                 case "_connected_geometry_object_type_light":
@@ -159,6 +163,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     node_properties.update({ob.name: props.__dict__})
                 case "_connected_geometry_object_type_marker":
@@ -168,6 +173,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     node_properties.update({ob.name: props.__dict__})
                 case "_connected_geometry_object_type_frame_pca":
@@ -177,6 +183,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     node_properties.update({ob.name: props.__dict__})
                 case "_connected_geometry_object_type_frame":
@@ -186,6 +193,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     node_properties.update({ob.name: props.__dict__})
                 case "_connected_geometry_object_type_mesh":
@@ -195,6 +203,7 @@ class NWOJSON(dict):
                         self.model_armature,
                         self.world_frame,
                         self.asset_name,
+                        self.validated_permutations,
                     )
                     mesh_properties.update({ob.name: props.__dict__})
 

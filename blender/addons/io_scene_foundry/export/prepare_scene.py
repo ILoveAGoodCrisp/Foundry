@@ -405,24 +405,40 @@ class PrepareScene:
                 nwo.region_name_ui = self.default_permutation if not nwo.region_name_ui else nwo.region_name_ui
 
                 # cast ui props to export props
-                if self.supports_regions_and_perms and nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance':
-                    reg = true_region(nwo)
-                    if reg in self.regions:
-                        self.validated_regions.add(reg)
-                        nwo.region_name = true_region(nwo)
-                    else:
-                        self.warning_hit = True
-                        print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
-                        nwo.permutation_name = self.default_permutation
+                if self.supports_regions_and_perms:
+                    mesh_not_io = (nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance')
+                    if mesh_not_io or nwo.marker_uses_regions:
+                        reg = true_region(nwo)
+                        if reg in self.regions:
+                            self.validated_regions.add(reg)
+                            nwo.region_name = true_region(nwo)
+                        else:
+                            self.warning_hit = True
+                            print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                            nwo.permutation_name = self.default_permutation
                         
-                    perm = true_permutation(nwo)
-                    if perm in self.permutations:
-                        self.validated_permutations.add(perm)
-                        nwo.permutation_name = true_permutation(nwo)
-                    else:
-                        self.warning_hit = True
-                        print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
-                        nwo.permutation_name = self.default_permutation
+                        if mesh_not_io:
+                            perm = true_permutation(nwo)
+                            if perm in self.permutations:
+                                self.validated_permutations.add(perm)
+                                nwo.permutation_name = true_permutation(nwo)
+                            else:
+                                self.warning_hit = True
+                                print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
+                                nwo.permutation_name = self.default_permutation
+                                
+                        elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
+                            nwo.permutation_name = 'default'
+                            marker_perms = [item.name for item in nwo.marker_permutations]
+                            for perm in marker_perms:
+                                if perm in self.permutations:
+                                    self.validated_permutations.add(perm)
+                                else:
+                                    self.warning_hit = True
+                                    print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not presented in the {self.perm_name}s table. Ignoring {self.perm_name}")
+                                
+                        else:
+                            nwo.permutation_name = 'default'
                 else:
                     nwo.region_name = 'default'
                     nwo.permutation_name = 'default'

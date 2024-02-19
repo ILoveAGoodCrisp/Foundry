@@ -43,7 +43,7 @@ P = "bungie_"
 
 # OBJECT LEVEL
 class NWOObject:
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
         # Set variables passed to this class
         self.ob = ob
         self.data = ob.data
@@ -54,6 +54,7 @@ class NWOObject:
         self.model_armature = model_armature
         self.world_frame = world_frame
         self.asset_name = asset_name
+        self.validated_permutations = validated_permutations
         self.bungie_object_type = self.object_type()
         if self.bungie_object_type not in (
             "_connected_geometry_object_type_animation_control",
@@ -80,6 +81,7 @@ class NWOObject:
         del self.model_armature
         del self.world_frame
         del self.asset_name
+        del self.validated_permutations
 
     def object_type(self):
         return self.halo.object_type
@@ -99,8 +101,8 @@ class NWOObject:
 # ANIMATION CONTROL
 #####################
 class NWOAnimationControl(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         self.bungie_animation_control_type = self.halo.animation_control_type
         self.bungie_animation_control_id = self.halo.animation_control_id
         
@@ -129,8 +131,8 @@ class NWOAnimationControl(NWOObject):
 # ANIMATION EVENT
 #####################
 class NWOAnimationEvent(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         self.bungie_animation_event_type = self.halo.event_type
         self.bungie_animation_event_id = str(self.halo.event_id)
         if self.halo.frame_start:
@@ -186,8 +188,8 @@ class NWOAnimationEvent(NWOObject):
 
 
 class NWOAnimationCamera(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
 
         self.cleanup()
 
@@ -195,8 +197,8 @@ class NWOAnimationCamera(NWOObject):
 # LIGHT
 #####################
 class NWOLight(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         # SHARED
         self.bungie_light_type = self.light_type()
         self.bungie_light_color = self.light_color()
@@ -543,8 +545,8 @@ class NWOLight(NWOObject):
 # FRAME PCA
 #####################
 class NWOFramePCA(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         self.bungie_mesh_ispca = self.mesh_ispca()
 
         self.cleanup()
@@ -556,8 +558,8 @@ class NWOFramePCA(NWOObject):
 # FRAME
 #####################
 class NWOFrame(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         self.bungie_frame_ID1 = self.frame_ID1()
         self.bungie_frame_ID2 = self.frame_ID2()
 
@@ -582,8 +584,8 @@ class NWOFrame(NWOObject):
 # MARKER
 #####################
 class NWOMarker(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         # SHARED
         self.bungie_marker_type = self.halo.marker_type
         self.bungie_marker_model_group = self.marker_model_group()
@@ -594,12 +596,9 @@ class NWOMarker(NWOObject):
                 self.bungie_marker_all_regions = self.halo.marker_all_regions
                 if self.bungie_marker_all_regions == "0":
                     self.bungie_marker_region = self.halo.region_name
-                    m_perms = self.halo.marker_permutations
+                    m_perms = {p.name for p in self.halo.marker_permutations if p.name in self.validated_permutations}
                     if m_perms:
-                        m_perm_set = set()
-                        for perm in m_perms:
-                            m_perm_set.add(perm.name)
-                        m_perm_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
+                        m_perm_json_value = f'''#({', '.join('"' + p + '"' for p in m_perms)})'''
                         if self.halo.marker_permutation_type == "exclude":
                             self.bungie_marker_exclude_from_permutations = m_perm_json_value
                         else:
@@ -747,8 +746,8 @@ class NWOMarker(NWOObject):
 # MESH
 #####################
 class NWOMesh(NWOObject):
-    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name):
-        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name)
+    def __init__(self, ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations):
+        super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         # SHARED
         self.bungie_mesh_type = self.halo.mesh_type
         if self.sidecar_type in ("MODEL", "SKY"):

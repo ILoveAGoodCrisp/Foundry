@@ -1074,7 +1074,8 @@ class ProcessScene:
             None,
             asset_name,
             nwo_scene.skeleton_bones,
-            nwo_scene.regions,
+            nwo_scene.validated_regions,
+            nwo_scene.validated_permutations,
             nwo_scene.global_materials_dict,
             nwo_scene.skylights,
         )
