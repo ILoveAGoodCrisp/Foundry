@@ -47,6 +47,9 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
     def execute(self, context):
         scene_nwo = context.scene.nwo
         target_root_bone = nwo_utils.rig_root_deform_bone(context.object, True)
+        if "pedestal" in target_root_bone or scene_nwo.node_usage_pedestal == target_root_bone:
+            self.report({'WARNING'}, f"Armature [{context.object.name}] already has Halo skeleton structure, skipping")
+            return {'CANCELLED'}
         scale = 1
         if scene_nwo.scale == 'max':
             scale *= (1 / 0.03048)
