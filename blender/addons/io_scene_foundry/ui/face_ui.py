@@ -768,14 +768,14 @@ class NWO_FaceLayerColor(bpy.types.Operator):
 
         return self.loops
 
-    def shader_prep(self):
+    def shader_prep(self, context):
         self.shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 
         bm = bmesh.from_edit_mesh(self.me)
         self.volume = bm.calc_volume()
         cm = bm.copy()
         vert_coords = [v.co for v in cm.verts]
-        offset = 0.05
+        offset = 0.05 if context.scene.nwo.scale == 'max' else 0.005
         for f in cm.faces:
             displacement = f.normal * offset
             face_verts = f.verts
@@ -852,7 +852,7 @@ class NWO_FaceLayerColor(bpy.types.Operator):
         self.alpha = 0
         self.batch = None
 
-        self.shader_prep()
+        self.shader_prep(context)
 
         if self.verts:
             self.handler = bpy.types.SpaceView3D.draw_handler_add(
