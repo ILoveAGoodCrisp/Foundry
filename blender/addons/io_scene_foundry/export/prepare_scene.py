@@ -122,6 +122,8 @@ TARGET_SCALE = Vector.Fill(3, 1)
 halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
 halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
 
+blender_has_auto_smooth = bpy.app.version < (4, 1, 0)
+
 #####################################################################################
 #####################################################################################
 # MAIN CLASS
@@ -568,26 +570,19 @@ class PrepareScene:
                 for idx, seam in enumerate(self.seams):
                     if seam in skip_seams:
                         continue
-                    seam_me = seam.data
-                    seam_bm = bmesh.new()
-                    seam_bm.from_mesh(seam_me)
-                    bmesh.ops.triangulate(seam_bm, faces=seam_bm.faces)
-                    seam_bm.to_mesh(seam_me)
+                    
+                    # add_triangle_mod(seam)
                     seam_nwo = seam.nwo
-                    # existing_back_seam = self.check_existing_back_seam(seam)
-                    # if existing_back_seam:
-                    #     skip_seams.append(existing_back_seam)
-                    #     self.unlink(existing_back_seam)
                     back_seam = seam.copy()
-                    back_seam.data = seam_me.copy()
+                    back_seam.data = seam.data.copy()
                     back_me = back_seam.data
-
                     back_nwo = back_seam.nwo
-
-                    for f in seam_bm.faces:
-                        f.normal_flip()
-
-                    seam_bm.to_mesh(back_me)
+                    
+                    bm = bmesh.new()
+                    bm.from_mesh(back_me)
+                    bmesh.ops.reverse_faces(bm, faces=bm.faces)
+                    # [f.normal_flip() for f in bm.faces]
+                    bm.to_mesh(back_me)
 
                     # apply new bsp association
                     back_ui = seam_nwo.seam_back_ui
@@ -1579,11 +1574,9 @@ class PrepareScene:
                 update_progress(process, idx / len_me_ob_dict)
 
                 self.any_face_props = True
-                # must force on auto smooth to avoid Normals transfer errors NOTE use_auto_smooth is gone with 4.1. Need to replace with geometry nodes
-                # me.use_auto_smooth = True
-                auto_smooth_mods = [mod for mod in ob.modifiers if mod.name.lower() == "smooth by angle"]
-                if not auto_smooth_mods:
-                    add_auto_smooth(context, ob)
+                # must force on auto smooth to avoid Normals transfer errors on < Blender 4.1
+                if blender_has_auto_smooth:
+                    me.use_auto_smooth = True
 
                 bm = bmesh.new()
                 bm.from_mesh(me)
