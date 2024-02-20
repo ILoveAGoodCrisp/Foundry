@@ -1093,8 +1093,8 @@ class PrepareScene:
                     collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
 
             normals_ob = None
-            # Can get bad results with this if mesh doesn't have joined up faces. The math check here verifies the mesh is a sealed polygon with merged verts
-            if (len(me.vertices) - len(me.edges) + len(me.polygons) == 2):
+            # Can get bad results with this if mesh doesn't have joined up faces. The math check here verifies the mesh has merged verts
+            if (len(me.vertices) - len(me.edges) + len(me.polygons) < 3):
                 normals_ob = ob.copy()
                 normals_ob.data = me.copy()
 
@@ -3086,43 +3086,14 @@ class PrepareScene:
                     self.structure_bsps.add(region)
                     self.structure_perms.add(permutation)
 
-    def create_bsp_box(self, scene_coll):
-        me = bpy.data.meshes.new("bsp_box")
-        ob = bpy.data.objects.new("bsp_box", me)
-        scene_coll.link(ob)
-
-        bm = bmesh.new()
-        bmesh.ops.create_cube(bm, size=10000)
-        for f in bm.faces:
-            f.normal_flip()
-        bm.to_mesh(me)
-        bm.free()
-
-        ob.nwo.object_type = "_connected_geometry_object_type_mesh"
-        ob.nwo.mesh_type = "_connected_geometry_mesh_type_default"
-        self.lighting.append(ob)
-        if self.model_armature:
-            ob.parent = self.model_armature
-            ob.parent_type = "BONE"
-            bones = self.model_armature.data.bones
-            for b in bones:
-                if b.use_deform:
-                    root_bone_name = b.name
-                    break
-            ob.parent_bone = root_bone_name
-
-        # copy = ob.copy()
-        # copy.nwo.mesh_type = '_connected_geometry_mesh_type_lightprobevolume'
-        # scene_coll.link(copy)
-    
-    def counter_matrix(self, mat_old, mat_new, bone, objects):
-        old_rot = mat_old.to_quaternion()
-        new_rot = mat_new.to_quaternion()
-        diff_rot = new_rot.rotation_difference(old_rot)
-        diff_rot_mat = diff_rot.to_matrix().to_4x4()
-        for ob in objects:
-            if ob.parent == self.model_armature and ob.parent_bone == bone:
-                ob.matrix_world = diff_rot_mat @ ob.matrix_world
+    # def counter_matrix(self, mat_old, mat_new, bone, objects):
+    #     old_rot = mat_old.to_quaternion()
+    #     new_rot = mat_new.to_quaternion()
+    #     diff_rot = new_rot.rotation_difference(old_rot)
+    #     diff_rot_mat = diff_rot.to_matrix().to_4x4()
+    #     for ob in objects:
+    #         if ob.parent == self.model_armature and ob.parent_bone == bone:
+    #             ob.matrix_world = diff_rot_mat @ ob.matrix_world
 
     def remove_relative_parenting(self, context: bpy.types.Context, export_obs):
         context.view_layer.objects.active = self.model_armature
