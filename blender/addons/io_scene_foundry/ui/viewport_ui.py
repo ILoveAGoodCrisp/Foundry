@@ -388,7 +388,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 apply_props_material(ob, material)
 
             if self.m_type == "seam":
-                closest_bsp = closest_bsp_object(ob)
+                closest_bsp = closest_bsp_object(context, ob)
                 if closest_bsp is not None:
                     ob.nwo.seam_back_ui = true_region(closest_bsp.nwo)
                     
@@ -419,7 +419,7 @@ class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
             apply_props_material(ob, material)
 
         if self.m_type == "seam":
-            closest_bsp = closest_bsp_object(ob)
+            closest_bsp = closest_bsp_object(context, ob)
             if closest_bsp is not None:
                 ob.nwo.seam_back_ui = true_region(closest_bsp.nwo)
 

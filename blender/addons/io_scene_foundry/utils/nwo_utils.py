@@ -746,17 +746,9 @@ def bpy_enum_list(name, index):
 def bpy_enum_seam(name, index):
     return (name, name, "", get_icon_id("seam"), index)
 
-def export_objects():
-    context = bpy.context
-    export_obs = []
-    for ob in context.view_layer.objects:
-        if ob.nwo.export_this and not any(
-            coll.nwo.type == 'exclude' for coll in ob.users_collection
-        ):
-            export_obs.append(ob)
-
+def export_objects(context):
+    export_obs = [ob for ob in context.view_layer.objects if ob.nwo.exportable]
     return export_obs
-
 
 def export_objects_no_arm():
     context = bpy.context
@@ -799,7 +791,7 @@ def sort_alphanum(var_list):
     )
 
 
-def closest_bsp_object(ob):
+def closest_bsp_object(context, ob):
     """
     Returns the closest bsp to the specified object
      (that is different from the current objects bsp)
@@ -831,7 +823,7 @@ def closest_bsp_object(ob):
 
         return
 
-    valid_targets = [ob for ob in export_objects() if ob.type in VALID_MESHES]
+    valid_targets = [ob for ob in export_objects(context) if ob.type in VALID_MESHES]
 
     for target_ob in valid_targets:
         if (
@@ -1787,7 +1779,7 @@ def get_rig(context, return_mutliple=False) -> bpy.types.Object | None | list[bp
     ob = context.object
     if scene_nwo.main_armature:
         return scene_nwo.main_armature
-    obs = export_objects()
+    obs = export_objects(context)
     rigs = [ob for ob in obs if ob.type == 'ARMATURE']
     if not rigs:
         return

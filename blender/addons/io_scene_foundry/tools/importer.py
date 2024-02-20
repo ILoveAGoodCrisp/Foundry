@@ -852,7 +852,7 @@ class NWOImporter:
             disallowed_front_back_associations = set()
             to_remove = []
             for ob in self.seams:
-                bsp_ob = closest_bsp_object(ob)
+                bsp_ob = closest_bsp_object(self.context, ob)
                 if not bsp_ob:
                     continue
                 back_face = true_region(bsp_ob.nwo)

@@ -596,7 +596,7 @@ class PrepareScene:
                         print_warning(
                             f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp"
                         )
-                        closest_bsp = closest_bsp_object(seam)
+                        closest_bsp = closest_bsp_object(context, seam)
                         if closest_bsp is None:
                             print_warning(
                                 f"Failed to automatically set back facing bsp reference for {seam.name}. Removing Seam from export"
@@ -1092,8 +1092,11 @@ class PrepareScene:
                     ori_matrix = ob.matrix_world
                     collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
 
-            normals_ob = ob.copy()
-            normals_ob.data = me.copy()
+            normals_ob = None
+            # Can get bad results with this if mesh doesn't have joined up faces. The math check here verifies the mesh is a sealed polygon with merged verts
+            if (len(me.vertices) - len(me.edges) + len(me.polygons) == 2):
+                normals_ob = ob.copy()
+                normals_ob.data = me.copy()
 
             # create new face layer for remaining faces
             remaining_faces = []
@@ -1144,7 +1147,7 @@ class PrepareScene:
                 else:
                     split_ob.name = ori_ob_name
                 
-                if render_mesh:
+                if render_mesh and normals_ob is not None:
                     # set up data transfer modifier to retain normals
                     mod = split_ob.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
                     mod.object = normals_ob
