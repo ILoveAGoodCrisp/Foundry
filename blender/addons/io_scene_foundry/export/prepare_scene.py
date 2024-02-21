@@ -264,6 +264,7 @@ class PrepareScene:
         # Combine Armatures is possible
         
         self.model_armature = None
+        self.root_bone = ''
         if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
             self.model_armature = get_rig(context)
             if self.model_armature and not self.model_armature.nwo.exportable:
@@ -681,7 +682,6 @@ class PrepareScene:
         self.current_action = None
 
         if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
-            forward = context.scene.nwo.forward_direction
             if self.lighting:
                 box = self.wrap_bounding_box(export_obs, scene_coll, 5)
                 self.lighting.append(box)
@@ -702,24 +702,6 @@ class PrepareScene:
 
                 self.remove_relative_parenting(context, export_obs)
 
-                if self.model_armature and asset_type != "FP ANIMATION":
-                    # unlink any unparented objects from the scene
-                    warn = False
-                    for ob in export_obs:
-                        if ob is not self.model_armature and not ob.parent:
-                            if not warn:
-                                self.warning_hit = True
-                                print("")
-                            warn = True
-                            print_warning(f"Ignoring {ob.name} because it is not parented to the scene armature")
-                            self.unlink(ob)
-                            
-
-                    context.view_layer.update()
-                    export_obs = context.view_layer.objects[:]
-                    # NOTE skipping vertex group fixes for now until it's more stable
-                    self.fix_parenting(self.model_armature, export_obs)
-
                 # set bone names equal to their name overrides (if not blank)
                 if scene_nwo_export.export_gr2_files and self.model_armature:
                     # self.set_bone_names(self.model_armature.data.bones) NOTE no longer renaming bones
@@ -730,16 +712,22 @@ class PrepareScene:
                     self.skeleton_bones = self.get_bone_list(
                         self.model_armature, h4, context, asset_type
                     )
-                
-                if self.model_armature:
-                    if forward == "x":
-                        self.pedestal_matrix = PEDESTAL_MATRIX_X_POSITIVE
-                    elif forward == "x-":
-                        self.pedestal_matrix = PEDESTAL_MATRIX_X_NEGATIVE
-                    elif forward == "y":
-                        self.pedestal_matrix = PEDESTAL_MATRIX_Y_POSITIVE
-                    else:
-                        self.pedestal_matrix = PEDESTAL_MATRIX_Y_NEGATIVE
+                        
+                if self.model_armature and asset_type != "FP ANIMATION":
+                    # unlink any unparented objects from the scene
+                    for ob in export_obs:
+                        if ob is not self.model_armature and not ob.parent:
+                            old_matrix = ob.matrix_world.copy()
+                            ob.parent = self.model_armature
+                            ob.parent_type = "BONE"
+                            ob.parent_bone = self.root_bone
+                            ob.matrix_world = old_matrix
+                            
+
+                    context.view_layer.update()
+                    export_obs = context.view_layer.objects[:]
+                    # NOTE skipping vertex group fixes for now until it's more stable
+                    self.fix_parenting(self.model_armature, export_obs)
 
         # print("armature")
 
@@ -2459,6 +2447,8 @@ class PrepareScene:
                     )
                 }
             )
+            
+        self.root_bone = root_bone.name
 
         return boneslist
 
