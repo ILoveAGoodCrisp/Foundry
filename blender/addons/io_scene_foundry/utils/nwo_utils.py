@@ -2174,10 +2174,10 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
     for light in lights:
         if light.type != 'SUN':
             light.energy *= scale_factor ** 2
-        light.nwo.light_far_attenuation_start *= scale_factor
         light.nwo.light_far_attenuation_end *= scale_factor
-        light.nwo.light_near_attenuation_start *= scale_factor
+        light.nwo.light_far_attenuation_start *= scale_factor
         light.nwo.light_near_attenuation_end *= scale_factor
+        light.nwo.light_near_attenuation_start *= scale_factor
         light.nwo.light_fade_start_distance *= scale_factor
         light.nwo.light_fade_end_distance *= scale_factor
     
