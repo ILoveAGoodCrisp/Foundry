@@ -406,10 +406,11 @@ class PrepareScene:
                 nwo.permutation_name_ui = self.default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
                 nwo.region_name_ui = self.default_permutation if not nwo.region_name_ui else nwo.region_name_ui
                 scenario_or_prefab = asset_type in ("SCENARIO", "PREFAB")
+                is_light = ob_type == 'LIGHT'
                 # cast ui props to export props
                 if self.supports_regions_and_perms:
                     mesh_not_io = (nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance')
-                    if scenario_or_prefab or mesh_not_io or nwo.marker_uses_regions:
+                    if is_light or scenario_or_prefab or mesh_not_io or nwo.marker_uses_regions:
                         reg = true_region(nwo)
                         if reg in self.regions:
                             self.validated_regions.add(reg)
@@ -419,7 +420,7 @@ class PrepareScene:
                             print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                             nwo.permutation_name = self.default_permutation
                         
-                        if scenario_or_prefab or mesh_not_io:
+                        if is_light or scenario_or_prefab or mesh_not_io:
                             perm = true_permutation(nwo)
                             if perm in self.permutations:
                                 self.validated_permutations.add(perm)
