@@ -4197,7 +4197,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
             for file in lightmapper_globals_dir.iterdir():
                 if file.suffix == ".lightmapper_globals":
                     name = file.with_suffix('').name
-                    items.append(name, name.replace('_', ' ').capitalize(), '')
+                    items.append((name, name.replace('_', ' ').capitalize(), ''))
         return items
 
     lightmap_quality_h4: EnumProperty(

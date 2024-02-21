@@ -24,7 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import ctypes
 import bpy
 from bpy.app.handlers import persistent
 

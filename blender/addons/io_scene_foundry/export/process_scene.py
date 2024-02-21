@@ -699,7 +699,7 @@ class ProcessScene:
         bsps,
         layers,
         export_check,
-    ):            
+    ):
         type_name = 'design' if is_design else 'bsp'
         for bsp in bsps:
             for perm in layers:
