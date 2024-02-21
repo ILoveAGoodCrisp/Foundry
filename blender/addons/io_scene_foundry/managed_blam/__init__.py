@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from pathlib import Path
 from io_scene_foundry.managed_blam.Tags import *
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_utils import (
@@ -82,10 +83,11 @@ class Tag():
         self.unit_scale = self.context.scene.unit_settings.scale_length
         
         # Tag Info
-        self.path = str(path)
+        self.path = path
         self.tag_is_new = False
-        
+        print(self.path)
         self._find_tag()
+        print(self.path)
         
         if os.path.exists(self.system_path):
             self.tag.Load(self.tag_path)
@@ -123,7 +125,8 @@ class Tag():
 
     def _find_tag(self):
         is_TagPath = False
-        if type(self.path) == str:
+        if type(self.path) == str or isinstance(self.path, Path):
+            self.path = str(self.path)
             # If path isn't set by now, assume it is in the asset folder with the asset name
             if self.path:
                 # enforce relativity

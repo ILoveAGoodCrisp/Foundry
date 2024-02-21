@@ -23,6 +23,7 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
+from pathlib import Path
 import bpy
 import os
 from io_scene_foundry.managed_blam.model import ModelTag
@@ -38,14 +39,14 @@ class NWO_GetModelVariants(bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        return context.object.nwo.marker_game_instance_tag_name_ui
+        return context.object.nwo.marker_game_instance_tag_name_ui and Path(get_tags_path(), context.object.nwo.marker_game_instance_tag_name_ui).exists()
     
     def variant_items(self, context):
         with ObjectTag(path=context.object.nwo.marker_game_instance_tag_name_ui) as object:
             model_tag = object.get_model_tag_path()
-        if model_tag is None:
+        if not model_tag or not Path(get_tags_path(), model_tag).exists():
             return [("default", "default", "")]
-        with ModelTag() as model:
+        with ModelTag(path=model_tag) as model:
             variants = model.get_model_variants()
         if not variants:
             return [("default", "default", "")]

@@ -609,7 +609,7 @@ class NWOMarker(NWOObject):
             self.bungie_marker_velocity = self.halo.marker_velocity
 
         # game tag stuff
-        elif self.halo.marker_game_instance_tag_name:
+        if self.halo.marker_game_instance_tag_name:
             self.bungie_marker_game_instance_tag_name = (
                 self.halo.marker_game_instance_tag_name
             )
@@ -617,7 +617,7 @@ class NWOMarker(NWOObject):
                 self.bungie_marker_game_instance_variant_name = (
                     self.halo.marker_game_instance_tag_variant_name
                 )
-            if self.corinth and self.halo.marker_game_instance_run_scripts:
+            if self.corinth and self.bungie_marker_type == "_connected_geometry_marker_type_game_instance" and self.halo.marker_game_instance_run_scripts:
                 self.bungie_marker_game_instance_run_scripts = (
                     self.halo.marker_game_instance_run_scripts
                 )

@@ -51,7 +51,7 @@ class ObjectTag(Tag):
             self.tag_has_changes = True
             
     def get_model_tag_path(self):
-        model_path =  self.reference_model.Path
+        model_path = self.reference_model.Path
         if model_path:
             return model_path.RelativePathWithExtension
         else:
