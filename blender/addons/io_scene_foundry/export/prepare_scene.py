@@ -2029,7 +2029,8 @@ class PrepareScene:
                     ob.name = "fx_" + ob.name
                     
             elif marker_type == "_connected_geometry_marker_type_garbage":
-                nwo.marker_type = "_connected_geometry_marker_type_model"
+                if not h4:
+                    nwo.marker_type = "_connected_geometry_marker_type_model"
                 nwo.marker_velocity = vector_str(nwo.marker_velocity_ui)
         
         elif asset_type in ("SCENARIO", "PREFAB"):
