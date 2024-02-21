@@ -24,10 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from math import radians
-import math
 import os
-import random
+from pathlib import Path
 import bpy
 from os.path import exists as file_exists
 from os.path import join as path_join
@@ -42,7 +40,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
-from mathutils import Matrix
+from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.tools.scale_models import NWO_OT_AddScaleModel
 from io_scene_foundry.tools.animation.automate_pose_overlay import NWO_AddAimAnimation
 from io_scene_foundry.tools.rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
@@ -4185,7 +4183,6 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
                 "__custom__",
                 "Custom",
                 "Opens a lightmap settings dialog",
-                0,
             )
         )
         items.append(
@@ -4193,21 +4190,14 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
                 "__asset__",
                 "Asset",
                 "Uses the asset defined lightmap settings",
-                1,
             )
         )
-        lightmapper_globals_dir = path_join(
-            get_tags_path(), "globals", "lightmapper_settings"
-        )
-        if file_exists(lightmapper_globals_dir):
-            from os import listdir
-
-            index = 2
-            for file in listdir(lightmapper_globals_dir):
-                if file.endswith(".lightmapper_globals"):
-                    file_no_ext = dot_partition(file)
-                    items.append(bpy_enum(file_no_ext, index))
-                    index += 1
+        lightmapper_globals_dir = Path(get_tags_path(), "globals", "lightmapper_settings")
+        if lightmapper_globals_dir.exists():
+            for file in lightmapper_globals_dir.iterdir():
+                if file.suffix == ".lightmapper_globals":
+                    name = file.with_suffix('').name
+                    items.append(name, name.replace('_', ' ').capitalize(), '')
         return items
 
     lightmap_quality_h4: EnumProperty(
@@ -4222,20 +4212,26 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         description="Lightmap region to use for lightmapping",
         options=set(),
     )
+    
+    def lightmap_quality_items(self, context: bpy.types.Context) -> list[bpy.types.EnumProperty]:
+        items = []
+        lightmapper_globals_tag_path = Path(get_tags_path(), r"globals\lightmapper_globals.lightmapper_globals")
+        if not lightmapper_globals_tag_path.exists():
+            return [("default", "Default", ""),]
+        
+        with Tag(path=lightmapper_globals_tag_path) as lightmapper_globals:
+            block_quality_settings = lightmapper_globals.tag.SelectField("Block:quality settings")
+            for element in block_quality_settings.Elements:
+                name: str = element.Fields[0].GetStringData()
+                items.append((name, name.replace('_', ' ').capitalize(), ''))
+                
+        return items
 
     lightmap_quality: EnumProperty(
         name="Quality",
-        items=(
-            ("DIRECT", "Direct", ""),
-            ("DRAFT", "Draft", ""),
-            ("LOW", "Low", ""),
-            ("MEDIUM", "Medium", ""),
-            ("HIGH", "High", ""),
-            ("SUPER", "Super (very slow)", ""),
-        ),
-        default="DIRECT",
+        items=lightmap_quality_items,
         options=set(),
-        description="Define the lightmap quality you wish to use",
+        description="The lightmap quality you wish to use. You can change and add to this list by editing your lightmapper globals tag found here:\n\ntags\globals\lightmapper_globals.lightmapper_globals",
     )
     lightmap_all_bsps: BoolProperty(
         name="All BSPs",

@@ -39,7 +39,7 @@ def run_lightmapper(
     not_bungie_game,
     misc_halo_objects,
     asset,
-    lightmap_quality="DIRECT",
+    lightmap_quality="direct_only",
     lightmap_quality_h4="__custom__",
     lightmap_all_bsps=True,
     lightmap_specific_bsp="default",
@@ -84,11 +84,7 @@ class LightMapper:
         self.model_lightmap = model_lightmap
         self.scenario = os.path.join(get_asset_path(), self.asset_name)
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
-        self.quality = self.get_quality(
-            lightmap_quality,
-            lightmap_quality_h4,
-            not_bungie_game,
-        )
+        self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
         self.light_group = self.get_light_group(
             lightmap_region, misc_halo_objects, not_bungie_game
         )
@@ -113,29 +109,6 @@ class LightMapper:
             bsp = f"{self.asset_name}_{lightmap_specific_bsp}"
 
         return bsp
-
-    def get_quality(
-        self,
-        lightmap_quality,
-        lightmap_quality_h4,
-        not_bungie_game,
-    ):
-        if not_bungie_game:
-            return lightmap_quality_h4
-
-        match lightmap_quality:
-            case "DIRECT":
-                return "direct_only"
-            case "DRAFT":
-                return "draft"
-            case "LOW":
-                return "low"
-            case "MEDIUM":
-                return "medium"
-            case "HIGH":
-                return "high"
-            case _:
-                return "super_slow"
 
     # EXECUTE LIGHTMAP ---------------------------------------------------------------------
 

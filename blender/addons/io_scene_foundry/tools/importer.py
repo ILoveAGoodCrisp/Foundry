@@ -39,7 +39,7 @@ from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_mate
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -330,7 +330,7 @@ class NWO_Import(bpy.types.Operator):
             print(
                 "\n-----------------------------------------------------------------------"
             )
-            print(f"Import Completed in {round(end - start, 3)} seconds")
+            print(f"Import Completed in {human_time(end - start)}")
 
             print(
                 "-----------------------------------------------------------------------\n"

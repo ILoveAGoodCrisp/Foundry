@@ -486,19 +486,17 @@ class ProcessScene:
                 lighting_sidecar.build(context, sidecar_path, sidecar_path_full, nwo_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo, True)
 
             reports.append(sidecar.message)
-            print("\n\nBuilding Intermediary Files")
+            print("\n\nCreating Intermediary Files")
             print(
                 "-----------------------------------------------------------------------\n"
             )
 
             total_p = self.gr2_processes
 
-            job = "--- Running GR2 Conversion"
+            job = "--- FBX & JSON -> GR2"
             spinner = itertools.cycle(["|", "/", "—", "\\"])
             while self.running_check:
-                update_job_count(
-                    job, next(spinner), total_p - self.running_check, total_p
-                )
+                update_job_count(job, next(spinner), total_p - self.running_check, total_p)
                 time.sleep(0.1)
 
             update_job_count(job, "", total_p, total_p)

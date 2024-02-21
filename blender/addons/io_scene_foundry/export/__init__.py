@@ -63,6 +63,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_prefs,
     get_project_path,
     get_tool_path,
+    human_time,
     is_corinth,
     managed_blam_active,
     print_error,
@@ -549,7 +550,7 @@ class NWO_Export(NWO_Export_Scene):
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
-                print(f"Export Completed in {round(end - start, 3)} seconds")
+                print(f"Export Completed in {human_time(end - start, True)}")
 
                 print(
                     "-----------------------------------------------------------------------\n"

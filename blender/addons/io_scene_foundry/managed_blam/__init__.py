@@ -82,7 +82,7 @@ class Tag():
         self.unit_scale = self.context.scene.unit_settings.scale_length
         
         # Tag Info
-        self.path = path
+        self.path = str(path)
         self.tag_is_new = False
         
         self._find_tag()

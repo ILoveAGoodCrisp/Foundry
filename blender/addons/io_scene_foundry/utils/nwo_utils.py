@@ -2637,3 +2637,41 @@ def add_auto_smooth(context: bpy.types.Context, ob: bpy.types.Object, angle=radi
 def restart_blender():
     subprocess.Popen([bpy.app.binary_path, bpy.data.filepath])
     bpy.ops.wm.quit_blender()
+    
+def human_time(time: float | int, decimal_seconds=False) -> str:
+    '''Returns a string of hours, minutes and seconds using the given time input (in seconds)'''
+    hours, minutes_remainder = divmod(time, 3600)
+    minutes, seconds_remainder = divmod(minutes_remainder, 60)
+    seconds, decimals = divmod(seconds_remainder, 1)
+    
+    hours = int(hours)
+    minutes = int(minutes)
+    seconds = int(seconds)
+    decimals =  int(decimals * 1000)
+    
+    final_str = ""
+    if hours:
+        final_str += f"{hours} hours"
+        
+    if minutes:
+        if hours:
+            if seconds:
+                final_str += ", "
+            else:
+                final_str += " and "
+        final_str += f"{minutes} minutes"
+        
+    if seconds:
+        if hours or minutes:
+            final_str += " and "
+        if decimals and decimal_seconds:
+            final_str += f"{seconds}.{decimals} seconds"
+        else:
+            final_str += f"{seconds} seconds"
+            
+    elif decimals:
+        if hours or minutes:
+            final_str += " and "
+        final_str += f"{decimals} milliseconds"
+        
+    return final_str
