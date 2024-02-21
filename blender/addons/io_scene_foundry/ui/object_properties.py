@@ -366,12 +366,14 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     
             
     def update_lighting_attenuation_falloff(self, context):
-        if self.material_lighting_attenuation_falloff_ui > self.material_lighting_attenuation_cutoff_ui:
-            self.material_lighting_attenuation_cutoff_ui = self.material_lighting_attenuation_falloff_ui
+        if not context.scene.nwo.transforming:
+            if self.material_lighting_attenuation_falloff_ui > self.material_lighting_attenuation_cutoff_ui:
+                self.material_lighting_attenuation_cutoff_ui = self.material_lighting_attenuation_falloff_ui
             
     def update_lighting_attenuation_cutoff(self, context):
-        if self.material_lighting_attenuation_cutoff_ui < self.material_lighting_attenuation_falloff_ui:
-            self.material_lighting_attenuation_falloff_ui = self.material_lighting_attenuation_cutoff_ui
+        if not context.scene.nwo.transforming:
+            if self.material_lighting_attenuation_cutoff_ui < self.material_lighting_attenuation_falloff_ui:
+                self.material_lighting_attenuation_falloff_ui = self.material_lighting_attenuation_cutoff_ui
     
     material_lighting_attenuation_cutoff_ui: FloatProperty(
         name="Material Lighting Attenuation Cutoff",
@@ -2247,8 +2249,9 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
     
     def update_light_near_attenuation_start(self, context):
-        if self.light_near_attenuation_start > self.light_near_attenuation_end:
-            self.light_near_attenuation_end = self.light_near_attenuation_start
+        if not context.scene.nwo.transforming:
+            if self.light_near_attenuation_start > self.light_near_attenuation_end:
+                self.light_near_attenuation_end = self.light_near_attenuation_start
 
     light_near_attenuation_start: FloatProperty(
         name="Light Activation Start",
@@ -2262,10 +2265,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
     
     def update_light_near_attenuation_end(self, context):
-        if self.light_near_attenuation_end > self.light_far_attenuation_start:
-            self.light_far_attenuation_start = self.light_near_attenuation_end
-        elif self.light_near_attenuation_end < self.light_near_attenuation_start:
-            self.light_near_attenuation_start = self.light_near_attenuation_end
+        if not context.scene.nwo.transforming:
+            if self.light_near_attenuation_end > self.light_far_attenuation_start:
+                self.light_far_attenuation_start = self.light_near_attenuation_end
+            elif self.light_near_attenuation_end < self.light_near_attenuation_start:
+                self.light_near_attenuation_start = self.light_near_attenuation_end
 
     light_near_attenuation_end: FloatProperty(
         name="Light Activation End",
@@ -2279,10 +2283,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
     
     def update_light_far_attenuation_start(self, context):
-        if self.light_far_attenuation_start > self.light_far_attenuation_end:
-            self.light_far_attenuation_end = self.light_far_attenuation_start
-        elif self.light_far_attenuation_start < self.light_near_attenuation_end:
-            self.light_near_attenuation_end = self.light_far_attenuation_start
+        if not context.scene.nwo.transforming:
+            if self.light_far_attenuation_start > self.light_far_attenuation_end:
+                self.light_far_attenuation_end = self.light_far_attenuation_start
+            elif self.light_far_attenuation_start < self.light_near_attenuation_end:
+                self.light_near_attenuation_end = self.light_far_attenuation_start
 
     light_far_attenuation_start: FloatProperty(
         name="Light Falloff Start",
@@ -2296,8 +2301,9 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
     
     def update_light_far_attenuation_end(self, context):
-        if self.light_far_attenuation_end < self.light_far_attenuation_start:
-            self.light_far_attenuation_start = self.light_far_attenuation_end
+        if not context.scene.nwo.transforming:
+            if self.light_far_attenuation_end < self.light_far_attenuation_start:
+                self.light_far_attenuation_start = self.light_far_attenuation_end
 
     light_far_attenuation_end: FloatProperty(
         name="Light Falloff End",
@@ -2351,23 +2357,23 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         default=False,
     )
     
-    def get_light_intensity(self):
-        return calc_light_intensity(self.id_data)
+    # def get_light_intensity(self):
+    #     return calc_light_intensity(self.id_data)
     
-    def set_light_intensity(self, value):
-        self['light_intensity_value'] = value
+    # def set_light_intensity(self, value):
+    #     self['light_intensity_value'] = value
         
-    def update_light_intensity(self, context):
-        self.id_data.energy = calc_light_energy(self.id_data, self.light_intensity_value)
+    # def update_light_intensity(self, context):
+    #     self.id_data.energy = calc_light_energy(self.id_data, self.light_intensity_value)
 
-    light_intensity: FloatProperty(
-        name="Light Intensity",
-        options=set(),
-        description="The intensity of this light expressed in the units the game uses",
-        get=get_light_intensity,
-        set=set_light_intensity,
-        update=update_light_intensity,
-    )
+    # light_intensity: FloatProperty(
+    #     name="Light Intensity",
+    #     options=set(),
+    #     description="The intensity of this light expressed in the units the game uses",
+    #     get=get_light_intensity,
+    #     set=set_light_intensity,
+    #     update=update_light_intensity,
+    # )
     
     light_intensity_value: FloatProperty(options={'HIDDEN'})
 

@@ -1982,266 +1982,151 @@ class ArmatureWithParent():
         self.parent = parent
         self.parent_type = parent_type
         self.parent_bone = parent_bone
+        
+class TransformManager():
+    def __enter__(self):
+        bpy.context.scene.nwo.transforming = True
+        return self
+        
+    def __exit__(self, exc_type, exc_value, traceback):
+        bpy.context.scene.nwo.transforming = False
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
-    # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
-    if objects is None:
-        # need to scope data
-        objects = bpy.data.objects
-        curves = bpy.data.curves
-        metaballs = bpy.data.metaballs
-        lattices = bpy.data.lattices
-        meshes = bpy.data.meshes
-        cameras = bpy.data.cameras
-        lights = bpy.data.lights
-    else:
-        curves = {ob.data for ob in objects if ob.type =='CURVE'}
-        metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
-        lattices = {ob.data for ob in objects if ob.type =='LATTICE'}
-        meshes = {ob.data for ob in objects if ob.type =='MESH'}
-        cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
-        lights = {ob.data for ob in objects if ob.type =='LIGHT'}
-        
-    if actions is None:
-        actions = bpy.data.actions
-        
-    if keep_marker_axis is None:
-        keep_marker_axis = context.scene.nwo.rotate_markers
-
-    armatures = [ob for ob in objects if ob.type == 'ARMATURE']
-    parented_armatures = [ob for ob in armatures if ob.parent]
-    armature_parents = [ArmatureWithParent(ob, ob.parent, ob.parent_type, ob.parent_bone) for ob in parented_armatures]
-    scene_coll = context.scene.collection.objects
-    axis_z = Vector((0, 0, 1))
-    pivot = Vector((0.0, 0.0, 0.0))
-    rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
-    pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
-    scale_matrix = Matrix.Scale(scale_factor, 4)
-    transform_matrix = rotation_matrix @ scale_matrix
-    frames = [ob for ob in bpy.data.objects if is_frame(ob)]
-    bone_children = []
-            
-    if parented_armatures:
-        with context.temp_override(object=parented_armatures[0], selected_editable_objects=parented_armatures):
-            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-            
-    for ob in objects:
-        # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
-        bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
-        object_parented = (ob.parent and ob.parent.type != 'ARMATURE' and ob.parent_type == 'OBJECT')
-        loc, rot, sca = ob.matrix_basis.decompose()
-        if ob.rotation_mode == 'QUATERNION':
-            rot = ob.rotation_quaternion
+    with TransformManager():
+        # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
+        if objects is None:
+            # need to scope data
+            objects = bpy.data.objects
+            curves = bpy.data.curves
+            metaballs = bpy.data.metaballs
+            lattices = bpy.data.lattices
+            meshes = bpy.data.meshes
+            cameras = bpy.data.cameras
+            lights = bpy.data.lights
         else:
-            rot = ob.rotation_euler
+            curves = {ob.data for ob in objects if ob.type =='CURVE'}
+            metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
+            lattices = {ob.data for ob in objects if ob.type =='LATTICE'}
+            meshes = {ob.data for ob in objects if ob.type =='MESH'}
+            cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
+            lights = {ob.data for ob in objects if ob.type =='LIGHT'}
             
-        loc *= scale_factor
+        if actions is None:
+            actions = bpy.data.actions
             
-        if rotation and not bone_parented:
-            loc = pivot_matrix @ loc
-        
-        is_a_frame = ob in frames
-        
-        if not (ob.type == 'ARMATURE' or bone_parented):
-            rot.rotate(rotation_matrix)
-        elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
-            bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
-        
-        # Lights need scaling to have correct display 
-        if ob.type == 'LIGHT':
-            sca *= scale_factor
-            
-        if ob.type == 'EMPTY':
-            ob.empty_display_size *= scale_factor
-            
-        ob.matrix_basis = Matrix.LocRotScale(loc, rot, sca)
-        if object_parented:
-            local_loc, local_rot, local_sca = ob.matrix_local.decompose()
-            local_loc *= scale_factor
-            ob.matrix_local = Matrix.LocRotScale(local_loc, local_rot, local_sca)
-        
-        if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB') and ob.nwo.exportable:
-            ob.rotation_euler.rotate_axis('Z', -rotation)
+        if keep_marker_axis is None:
+            keep_marker_axis = context.scene.nwo.rotate_markers
 
-        for mod in ob.modifiers:
-            match mod.type:
-                case 'BEVEL':
-                    mod.width *= scale_factor
-                case 'DISPLACE':
-                    mod.strength *= scale_factor
-                case 'CAST':
-                    mod.radius *= scale_factor
-                case 'SHRINKWRAP':
-                    mod.offset *= scale_factor
-                    mod.project_limit *= scale_factor
-                case 'WAVE':
-                    mod.offset *= scale_factor
-                    mod.height *= scale_factor
-                    mod.width *= scale_factor
-                    mod.falloff_radius *= scale_factor
-                    mod.narrowness *= scale_factor
-                    mod.start_position_x *= scale_factor
-                    mod.start_position_y *= scale_factor
-                case 'OCEAN':
-                    mod.depth *= scale_factor
-                    mod.wave_scale_min *= scale_factor
-                    mod.wind_velocity *= scale_factor
-                case 'ARRAY':
-                    mod.constant_offset_displace *= scale_factor
-                    mod.merge_threshold *= scale_factor
-                case 'MIRROR':
-                    mod.merge_threshold *= scale_factor
-                    mod.bisect_threshold *= scale_factor
-                    if not keep_marker_axis and mod.mirror_object and is_marker(mod.mirror_object):
-                        fix_mirror_angles(mod, old_forward, new_forward)
-                case 'REMESH':
-                    mod.voxel_size *= scale_factor
-                    mod.adaptivity *= scale_factor
-                case 'SCREW':
-                    mod.screw_offset *= scale_factor
-                case 'SOLIDIFY':
-                    mod.thickness *= scale_factor
-                case 'WELD':
-                    mod.merge_threshold *= scale_factor
-                case 'WIREFRAME':
-                    mod.thickness *= scale_factor
-                case 'CAST':
-                    mod.radius *= scale_factor
-                case 'HOOK':
-                    mod.falloff_radius *= scale_factor
-                case 'WARP':
-                    mod.falloff_radius *= scale_factor
-                case 'DATA_TRANSFER':
-                    mod.islands_precision *= scale_factor
-                    mod.max_distance *= scale_factor
-                    mod.ray_radius *= scale_factor
-                    
-        for con in ob.constraints:
-            match con.type:
-                case 'LIMIT_DISTANCE':
-                    con.distance *= scale_factor
-                case 'LIMIT_LOCATION':
-                    con.min_x *= scale_factor
-                    con.min_y *= scale_factor
-                    con.min_z *= scale_factor
-                    con.max_x *= scale_factor
-                    con.max_y *= scale_factor
-                    con.max_z *= scale_factor
-                case 'STRETCH_TO':
-                    con.rest_length *= scale_factor
-                case 'SHRINKWRAP':
-                    con.distance *= scale_factor
-                case 'FOLLOW_PATH':
-                    if rotation:
-                        con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
-                case 'CHILD_OF':
-                    con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
-                    if scale_factor != 1:
-                        con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
-                        con_loc *= scale_factor
-                        con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
-            
-    for curve in curves:
-        if hasattr(curve, 'size'):
-            curve.size *= scale_factor
-        if hasattr(curve, 'use_radius'):
-            curve.use_radius = False
-            
-        curve.transform(scale_matrix)
-        curve.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
-        curve.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-        curve.nwo.material_lighting_emissive_power_ui *= scale_factor
-        
-    for metaball in metaballs:
-        metaball.transform(scale_matrix)
-        metaball.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
-        metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-        metaball.nwo.material_lighting_emissive_power_ui *= scale_factor
-        
-    for lattice in lattices:
-        lattice.transform(scale_matrix)
-    
-    for mesh in meshes:
-        mesh.transform(scale_matrix)
-        mesh.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
-        mesh.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-        mesh.nwo.material_lighting_emissive_power_ui *= scale_factor
-        
-    for camera in cameras:
-        camera.display_size *= scale_factor
-        
-    for light in lights:
-        if light.type != 'SUN':
-            light.energy *= scale_factor ** 2
-        light.nwo.light_far_attenuation_end *= scale_factor
-        light.nwo.light_far_attenuation_start *= scale_factor
-        light.nwo.light_near_attenuation_end *= scale_factor
-        light.nwo.light_near_attenuation_start *= scale_factor
-        light.nwo.light_fade_start_distance *= scale_factor
-        light.nwo.light_fade_end_distance *= scale_factor
-    
-    arm_datas = set()
-    for arm in armatures:
-        if arm.library or arm.data.library:
-            print_warning(f'Cannot scale {arm.name}')
-            continue
-        
-        should_be_hidden = False
-        should_be_unlinked = False
-        data: bpy.types.Armature = arm.data
-        if arm.hide_get():
-            arm.hide_set(False)
-            should_be_hidden = True
-            
-        if not arm.visible_get():
-            original_collections = arm.users_collection
-            unlink(arm)
-            scene_coll.link(arm)
-            should_be_unlinked = True
-            
-        set_active_object(arm)
-        if data not in arm_datas:
-            arm_datas.add(data)
-            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-            
-            uses_edit_mirror = bool(arm.data.use_mirror_x)
-            if uses_edit_mirror:
-                arm.data.use_mirror_x = False
-            
-            edit_bones = data.edit_bones
-            connected_bones = [b for b in edit_bones if b.use_connect]
-            for edit_bone in connected_bones:
-                edit_bone.use_connect = False
+        armatures = [ob for ob in objects if ob.type == 'ARMATURE']
+        parented_armatures = [ob for ob in armatures if ob.parent]
+        armature_parents = [ArmatureWithParent(ob, ob.parent, ob.parent_type, ob.parent_bone) for ob in parented_armatures]
+        scene_coll = context.scene.collection.objects
+        axis_z = Vector((0, 0, 1))
+        pivot = Vector((0.0, 0.0, 0.0))
+        rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
+        pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
+        scale_matrix = Matrix.Scale(scale_factor, 4)
+        transform_matrix = rotation_matrix @ scale_matrix
+        frames = [ob for ob in bpy.data.objects if is_frame(ob)]
+        bone_children = []
                 
-            for edit_bone in edit_bones:
-                edit_bone.transform(transform_matrix)
-                edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
-                for ob in edit_bone_children:
-                    correction_matrix = pivot_matrix @ ob.matrix_basis.copy()
-                    ob.matrix_parent_inverse.identity()
-                    ob.matrix_local = (arm.matrix_world @ Matrix.Translation(edit_bone.tail - edit_bone.head) @ edit_bone.matrix).inverted() @ correction_matrix
+        if parented_armatures:
+            with context.temp_override(object=parented_armatures[0], selected_editable_objects=parented_armatures):
+                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
                 
-            for edit_bone in connected_bones:
-                edit_bone.use_connect = True
-        
-            if uses_edit_mirror:
-                arm.data.use_mirror_x = True
+        for ob in objects:
+            # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
+            bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
+            object_parented = (ob.parent and ob.parent.type != 'ARMATURE' and ob.parent_type == 'OBJECT')
+            loc, rot, sca = ob.matrix_basis.decompose()
+            if ob.rotation_mode == 'QUATERNION':
+                rot = ob.rotation_quaternion
+            else:
+                rot = ob.rotation_euler
+                
+            loc *= scale_factor
+                
+            if rotation and not bone_parented:
+                loc = pivot_matrix @ loc
             
-        bpy.ops.object.mode_set(mode='POSE', toggle=False)
-        
-        uses_pose_mirror = bool(arm.pose.use_mirror_x)
-        if uses_pose_mirror:
-            arm.pose.use_mirror_x = False
-        
-        for pose_bone in arm.pose.bones:
-            # pose_bone: bpy.types.PoseBone
-            pose_bone.matrix_basis = Matrix()
-            pose_bone.custom_shape_translation *= scale_factor
-            if pose_bone.use_custom_shape_bone_size:
-                pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
+            is_a_frame = ob in frames
             
-            for con in pose_bone.constraints:
+            if not (ob.type == 'ARMATURE' or bone_parented):
+                rot.rotate(rotation_matrix)
+            elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
+                bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
+            
+            # Lights need scaling to have correct display 
+            if ob.type == 'LIGHT':
+                sca *= scale_factor
+                
+            if ob.type == 'EMPTY':
+                ob.empty_display_size *= scale_factor
+                
+            ob.matrix_basis = Matrix.LocRotScale(loc, rot, sca)
+            if object_parented:
+                local_loc, local_rot, local_sca = ob.matrix_local.decompose()
+                local_loc *= scale_factor
+                ob.matrix_local = Matrix.LocRotScale(local_loc, local_rot, local_sca)
+            
+            if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB') and ob.nwo.exportable:
+                ob.rotation_euler.rotate_axis('Z', -rotation)
+
+            for mod in ob.modifiers:
+                match mod.type:
+                    case 'BEVEL':
+                        mod.width *= scale_factor
+                    case 'DISPLACE':
+                        mod.strength *= scale_factor
+                    case 'CAST':
+                        mod.radius *= scale_factor
+                    case 'SHRINKWRAP':
+                        mod.offset *= scale_factor
+                        mod.project_limit *= scale_factor
+                    case 'WAVE':
+                        mod.offset *= scale_factor
+                        mod.height *= scale_factor
+                        mod.width *= scale_factor
+                        mod.falloff_radius *= scale_factor
+                        mod.narrowness *= scale_factor
+                        mod.start_position_x *= scale_factor
+                        mod.start_position_y *= scale_factor
+                    case 'OCEAN':
+                        mod.depth *= scale_factor
+                        mod.wave_scale_min *= scale_factor
+                        mod.wind_velocity *= scale_factor
+                    case 'ARRAY':
+                        mod.constant_offset_displace *= scale_factor
+                        mod.merge_threshold *= scale_factor
+                    case 'MIRROR':
+                        mod.merge_threshold *= scale_factor
+                        mod.bisect_threshold *= scale_factor
+                        if not keep_marker_axis and mod.mirror_object and is_marker(mod.mirror_object):
+                            fix_mirror_angles(mod, old_forward, new_forward)
+                    case 'REMESH':
+                        mod.voxel_size *= scale_factor
+                        mod.adaptivity *= scale_factor
+                    case 'SCREW':
+                        mod.screw_offset *= scale_factor
+                    case 'SOLIDIFY':
+                        mod.thickness *= scale_factor
+                    case 'WELD':
+                        mod.merge_threshold *= scale_factor
+                    case 'WIREFRAME':
+                        mod.thickness *= scale_factor
+                    case 'CAST':
+                        mod.radius *= scale_factor
+                    case 'HOOK':
+                        mod.falloff_radius *= scale_factor
+                    case 'WARP':
+                        mod.falloff_radius *= scale_factor
+                    case 'DATA_TRANSFER':
+                        mod.islands_precision *= scale_factor
+                        mod.max_distance *= scale_factor
+                        mod.ray_radius *= scale_factor
+                        
+            for con in ob.constraints:
                 match con.type:
                     case 'LIMIT_DISTANCE':
                         con.distance *= scale_factor
@@ -2265,98 +2150,222 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                             con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
                             con_loc *= scale_factor
                             con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
-
-        if uses_pose_mirror:
-            arm.pose.use_mirror_x = True
-            
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        
-        for bone in data.bones:
-            bone.bbone_x *= scale_factor
-            bone.bbone_z *= scale_factor
-        
-        if should_be_hidden:
-            arm.hide_set(True)
-            
-        if should_be_unlinked:
-            unlink(arm)
-            if original_collections:
-                for coll in original_collections:
-                    coll.objects.link(arm)
-    
-    if armature_parents:
-        for item in armature_parents:
-            arm_ob = item.ob
-            old_matrix = arm_ob.matrix_world.copy()
-            arm_ob.parent = item.parent
-            arm_ob.parent_type = item.parent_type
-            arm_ob.parent_bone = item.parent_bone
-            arm_ob.matrix_world = old_matrix
-    
-    for action in actions:
-        fc_quaternions: list[bpy.types.FCurve] = []
-        fc_locations: list[bpy.types.FCurve] = []
-        for fcurve in action.fcurves:
-            if fcurve.data_path == 'location':
-                fc_locations.append(fcurve)
-            if fcurve.data_path.endswith('location'):
-                for mod in fcurve.modifiers:
-                    if mod.type == 'NOISE':
-                        mod.strength *= scale_factor
-                for keyframe_point in fcurve.keyframe_points:
-                    keyframe_point.co_ui[1] *= scale_factor
-                    
-            elif fcurve.data_path.startswith('rotation_euler') and fcurve.array_index == 2:
-                for kfp in fcurve.keyframe_points:
-                    kfp.co_ui[1] += rotation
-            elif fcurve.data_path.startswith('rotation_quaternion'):
-                fc_quaternions.append(fcurve)
                 
-        if fc_locations:
-            assert(len(fc_locations) == 3)
-            keyframes_x = []
-            keyframes_y = []
-            keyframes_z = []
-            for fc in fc_locations:
-                if fc.array_index == 0:
-                    keyframes_x.append(fc.keyframe_points)
-                elif fc.array_index == 1:
-                    keyframes_y.append(fc.keyframe_points)
-                elif fc.array_index == 2:
-                    keyframes_z.append(fc.keyframe_points)
-                    
-            for i in range(len(keyframes_x)):
-                for kfpx, kfpy, kfpz in zip(keyframes_x[i], keyframes_y[i], keyframes_z[i]):
-                    v = Vector((kfpx.co[1], kfpy.co[1], kfpz.co[1]))
-                    mat = Matrix.Translation(v)
-                    loc = pivot_matrix @ mat
-                    vloc = loc.to_translation()
-                    kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = vloc[0], vloc[1], vloc[2]
+        for curve in curves:
+            if hasattr(curve, 'size'):
+                curve.size *= scale_factor
+            if hasattr(curve, 'use_radius'):
+                curve.use_radius = False
+                
+            curve.transform(scale_matrix)
+            curve.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
+            curve.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+            curve.nwo.material_lighting_emissive_power_ui *= scale_factor
             
-        if fc_quaternions:
-            assert(len(fc_quaternions) == 4)
-            keyframes_w = []
-            keyframes_x = []
-            keyframes_y = []
-            keyframes_z = []
-            for fc in fc_quaternions:
-                if fc.array_index == 0:
-                    keyframes_w.append(fc.keyframe_points)
-                elif fc.array_index == 1:
-                    keyframes_x.append(fc.keyframe_points)
-                elif fc.array_index == 2:
-                    keyframes_y.append(fc.keyframe_points)
-                elif fc.array_index == 3:
-                    keyframes_z.append(fc.keyframe_points)
+        for metaball in metaballs:
+            metaball.transform(scale_matrix)
+            metaball.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
+            metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+            metaball.nwo.material_lighting_emissive_power_ui *= scale_factor
+            
+        for lattice in lattices:
+            lattice.transform(scale_matrix)
+        
+        for mesh in meshes:
+            mesh.transform(scale_matrix)
+            mesh.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
+            mesh.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+            mesh.nwo.material_lighting_emissive_power_ui *= scale_factor
+            
+        for camera in cameras:
+            camera.display_size *= scale_factor
+            
+        for light in lights:
+            if light.type != 'SUN':
+                light.energy *= scale_factor ** 2
+            light.nwo.light_far_attenuation_start *= scale_factor
+            light.nwo.light_far_attenuation_end *= scale_factor
+            light.nwo.light_near_attenuation_start *= scale_factor
+            light.nwo.light_near_attenuation_end *= scale_factor
+            light.nwo.light_fade_start_distance *= scale_factor
+            light.nwo.light_fade_end_distance *= scale_factor
+        
+        arm_datas = set()
+        for arm in armatures:
+            if arm.library or arm.data.library:
+                print_warning(f'Cannot scale {arm.name}')
+                continue
+            
+            should_be_hidden = False
+            should_be_unlinked = False
+            data: bpy.types.Armature = arm.data
+            if arm.hide_get():
+                arm.hide_set(False)
+                should_be_hidden = True
+                
+            if not arm.visible_get():
+                original_collections = arm.users_collection
+                unlink(arm)
+                scene_coll.link(arm)
+                should_be_unlinked = True
+                
+            set_active_object(arm)
+            if data not in arm_datas:
+                arm_datas.add(data)
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                
+                uses_edit_mirror = bool(arm.data.use_mirror_x)
+                if uses_edit_mirror:
+                    arm.data.use_mirror_x = False
+                
+                edit_bones = data.edit_bones
+                connected_bones = [b for b in edit_bones if b.use_connect]
+                for edit_bone in connected_bones:
+                    edit_bone.use_connect = False
                     
-            for i in range(len(keyframes_w)):
-                for kfpw, kfpx, kfpy, kfpz in zip(keyframes_w[i], keyframes_x[i], keyframes_y[i], keyframes_z[i]):
-                    q = Quaternion((kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1]))
-                    q.rotate(rotation_matrix)
-                    kfpw.co_ui[1], kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = q[0], q[1], q[2], q[3]
+                for edit_bone in edit_bones:
+                    edit_bone.transform(transform_matrix)
+                    edit_bone_children = [child.ob for child in bone_children if child.parent == arm and child.parent_bone == edit_bone.name]
+                    for ob in edit_bone_children:
+                        correction_matrix = pivot_matrix @ ob.matrix_basis.copy()
+                        ob.matrix_parent_inverse.identity()
+                        ob.matrix_local = (arm.matrix_world @ Matrix.Translation(edit_bone.tail - edit_bone.head) @ edit_bone.matrix).inverted() @ correction_matrix
+                    
+                for edit_bone in connected_bones:
+                    edit_bone.use_connect = True
+            
+                if uses_edit_mirror:
+                    arm.data.use_mirror_x = True
+                
+            bpy.ops.object.mode_set(mode='POSE', toggle=False)
+            
+            uses_pose_mirror = bool(arm.pose.use_mirror_x)
+            if uses_pose_mirror:
+                arm.pose.use_mirror_x = False
+            
+            for pose_bone in arm.pose.bones:
+                # pose_bone: bpy.types.PoseBone
+                pose_bone.matrix_basis = Matrix()
+                pose_bone.custom_shape_translation *= scale_factor
+                if pose_bone.use_custom_shape_bone_size:
+                    pose_bone.custom_shape_scale_xyz *= (1 / scale_factor)
+                
+                for con in pose_bone.constraints:
+                    match con.type:
+                        case 'LIMIT_DISTANCE':
+                            con.distance *= scale_factor
+                        case 'LIMIT_LOCATION':
+                            con.min_x *= scale_factor
+                            con.min_y *= scale_factor
+                            con.min_z *= scale_factor
+                            con.max_x *= scale_factor
+                            con.max_y *= scale_factor
+                            con.max_z *= scale_factor
+                        case 'STRETCH_TO':
+                            con.rest_length *= scale_factor
+                        case 'SHRINKWRAP':
+                            con.distance *= scale_factor
+                        case 'FOLLOW_PATH':
+                            if rotation:
+                                con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
+                        case 'CHILD_OF':
+                            con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
+                            if scale_factor != 1:
+                                con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
+                                con_loc *= scale_factor
+                                con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
 
-        for fc in action.fcurves:
-            fc.keyframe_points.handles_recalc()
+            if uses_pose_mirror:
+                arm.pose.use_mirror_x = True
+                
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            
+            for bone in data.bones:
+                bone.bbone_x *= scale_factor
+                bone.bbone_z *= scale_factor
+            
+            if should_be_hidden:
+                arm.hide_set(True)
+                
+            if should_be_unlinked:
+                unlink(arm)
+                if original_collections:
+                    for coll in original_collections:
+                        coll.objects.link(arm)
+        
+        if armature_parents:
+            for item in armature_parents:
+                arm_ob = item.ob
+                old_matrix = arm_ob.matrix_world.copy()
+                arm_ob.parent = item.parent
+                arm_ob.parent_type = item.parent_type
+                arm_ob.parent_bone = item.parent_bone
+                arm_ob.matrix_world = old_matrix
+        
+        for action in actions:
+            fc_quaternions: list[bpy.types.FCurve] = []
+            fc_locations: list[bpy.types.FCurve] = []
+            for fcurve in action.fcurves:
+                if fcurve.data_path == 'location':
+                    fc_locations.append(fcurve)
+                if fcurve.data_path.endswith('location'):
+                    for mod in fcurve.modifiers:
+                        if mod.type == 'NOISE':
+                            mod.strength *= scale_factor
+                    for keyframe_point in fcurve.keyframe_points:
+                        keyframe_point.co_ui[1] *= scale_factor
+                        
+                elif fcurve.data_path.startswith('rotation_euler') and fcurve.array_index == 2:
+                    for kfp in fcurve.keyframe_points:
+                        kfp.co_ui[1] += rotation
+                elif fcurve.data_path.startswith('rotation_quaternion'):
+                    fc_quaternions.append(fcurve)
+                    
+            if fc_locations:
+                assert(len(fc_locations) == 3)
+                keyframes_x = []
+                keyframes_y = []
+                keyframes_z = []
+                for fc in fc_locations:
+                    if fc.array_index == 0:
+                        keyframes_x.append(fc.keyframe_points)
+                    elif fc.array_index == 1:
+                        keyframes_y.append(fc.keyframe_points)
+                    elif fc.array_index == 2:
+                        keyframes_z.append(fc.keyframe_points)
+                        
+                for i in range(len(keyframes_x)):
+                    for kfpx, kfpy, kfpz in zip(keyframes_x[i], keyframes_y[i], keyframes_z[i]):
+                        v = Vector((kfpx.co[1], kfpy.co[1], kfpz.co[1]))
+                        mat = Matrix.Translation(v)
+                        loc = pivot_matrix @ mat
+                        vloc = loc.to_translation()
+                        kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = vloc[0], vloc[1], vloc[2]
+                
+            if fc_quaternions:
+                assert(len(fc_quaternions) == 4)
+                keyframes_w = []
+                keyframes_x = []
+                keyframes_y = []
+                keyframes_z = []
+                for fc in fc_quaternions:
+                    if fc.array_index == 0:
+                        keyframes_w.append(fc.keyframe_points)
+                    elif fc.array_index == 1:
+                        keyframes_x.append(fc.keyframe_points)
+                    elif fc.array_index == 2:
+                        keyframes_y.append(fc.keyframe_points)
+                    elif fc.array_index == 3:
+                        keyframes_z.append(fc.keyframe_points)
+                        
+                for i in range(len(keyframes_w)):
+                    for kfpw, kfpx, kfpy, kfpz in zip(keyframes_w[i], keyframes_x[i], keyframes_y[i], keyframes_z[i]):
+                        q = Quaternion((kfpw.co[1], kfpx.co[1], kfpy.co[1], kfpz.co[1]))
+                        q.rotate(rotation_matrix)
+                        kfpw.co_ui[1], kfpx.co_ui[1], kfpy.co_ui[1], kfpz.co_ui[1] = q[0], q[1], q[2], q[3]
+
+            for fc in action.fcurves:
+                fc.keyframe_points.handles_recalc()
             
 def get_area_info(context):
     area = [

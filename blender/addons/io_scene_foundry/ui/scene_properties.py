@@ -953,6 +953,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     )
     
     export_in_progress: BoolProperty()
+    transforming: BoolProperty()
         
     def poll_camera_track_camera(self, object: bpy.types.Object):
         return object.type == 'CAMERA'
