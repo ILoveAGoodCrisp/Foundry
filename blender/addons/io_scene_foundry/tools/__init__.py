@@ -27,9 +27,8 @@
 import os
 from pathlib import Path
 import bpy
-from os.path import exists as file_exists
-from os.path import join as path_join
 import webbrowser
+import multiprocessing
 
 from bpy.types import Context, OperatorProperties, Panel, Operator, PropertyGroup
 
@@ -3926,10 +3925,10 @@ class NWO_HaloExportSettings(Panel):
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
+                    col.prop(scene_nwo_export, "lightmap_threads")
                     # if not h4:
                     # NOTE light map regions don't appear to work
                     #     col.prop(scene_nwo_export, "lightmap_region")
-
 
 class NWO_HaloExportSettingsScope(Panel):
     bl_label = "Scope"
@@ -4243,6 +4242,25 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         default="",
         options=set(),
     )
+    
+    def get_lightmap_threads(self):
+        cpu_count = multiprocessing.cpu_count()
+        if self.get("lightmap_threads", 0):
+            if self.lightmap_threads < cpu_count:
+                return self['lightmap_threads']
+        return multiprocessing.cpu_count()
+
+    def set_lightmap_threads(self, value):
+        self['lightmap_threads'] = value
+    
+    lightmap_threads: IntProperty(
+        name="Thread Count",
+        description="The number of CPU threads to use when lightmapping",
+        get=get_lightmap_threads,
+        set=set_lightmap_threads,
+        min=1,
+    )
+    
     ################################
     # Detailed settings
     ###############################

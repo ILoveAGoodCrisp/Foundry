@@ -586,7 +586,8 @@ class ProcessScene:
                 scene_nwo_export.lightmap_all_bsps,
                 scene_nwo_export.lightmap_specific_bsp,
                 scene_nwo_export.lightmap_region,
-                asset_type in ("MODEL", "SKY") and h4)
+                asset_type in ("MODEL", "SKY") and h4,
+                scene_nwo_export.lightmap_threads)
 
             self.lightmap_message = lightmap_results.lightmap_message
 

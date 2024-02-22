@@ -32,8 +32,6 @@ from io_scene_foundry.utils.nwo_utils import (
     run_tool,
 )
 import datetime
-import multiprocessing
-
 
 def run_lightmapper(
     not_bungie_game,
@@ -45,6 +43,7 @@ def run_lightmapper(
     lightmap_specific_bsp="default",
     lightmap_region="all",
     model_lightmap=False,
+    cpu_threads=1,
 ):
     lightmap = LightMapper(
         not_bungie_game,
@@ -56,6 +55,7 @@ def run_lightmapper(
         lightmap_region,
         asset,
         model_lightmap,
+        cpu_threads,
     )
     if not_bungie_game:
         lightmap_results = lightmap.lightmap_h4()
@@ -77,6 +77,7 @@ class LightMapper:
         lightmap_region,
         asset,
         model_lightmap,
+        cpu_threads,
     ):
         self.asset_name = asset
         self.lightmap_message = "Lightmap Successful"
@@ -85,9 +86,8 @@ class LightMapper:
         self.scenario = os.path.join(get_asset_path(), self.asset_name)
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
         self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
-        self.light_group = self.get_light_group(
-            lightmap_region, misc_halo_objects, not_bungie_game
-        )
+        self.light_group = self.get_light_group(lightmap_region, misc_halo_objects, not_bungie_game)
+        self.thread_count = cpu_threads
 
     # HELPERS --------------------------
     def get_light_group(self, lightmap_region, misc_halo_objects, not_bungie_game):
@@ -186,8 +186,6 @@ class LightMapper:
                 self.analytical_light,
             ]
         )
-
-        self.thread_count = multiprocessing.cpu_count()
 
         print("\nDirect Illumination")
         print(
