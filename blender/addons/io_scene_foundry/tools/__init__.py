@@ -4237,10 +4237,19 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         default=True,
         options=set(),
     )
-    lightmap_specific_bsp: StringProperty(
+    
+    def bsp_items(self, context):
+        items = []
+        bsps = [region.name for region in context.scene.nwo.regions_table]
+        for bsp in bsps:
+            items.append((bsp, bsp, ''))
+        
+        return items
+    
+    lightmap_specific_bsp: EnumProperty(
         name="Specific BSP",
-        default="",
         options=set(),
+        items=bsp_items,
     )
     
     def get_lightmap_threads(self):
