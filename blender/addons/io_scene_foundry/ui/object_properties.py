@@ -378,7 +378,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_attenuation_cutoff_ui: FloatProperty(
         name="Material Lighting Attenuation Cutoff",
         options=set(),
-        description="Determines how far light travels before it stops",
+        description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
         min=0,
         default=0,
         update=update_lighting_attenuation_cutoff,

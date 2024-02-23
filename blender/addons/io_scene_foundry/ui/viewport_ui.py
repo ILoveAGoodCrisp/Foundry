@@ -592,41 +592,41 @@ class NWO_ApplyTypeMarkerSingle(NWO_ApplyTypeMarker):
         apply_prefix(ob, self.m_type, prefix_setting)
         return {"FINISHED"}
 
-class NWO_AddHaloLight(bpy.types.Operator, AddObjectHelper):
-    bl_idname = "nwo.add_halo_light"
-    bl_label = "Add Halo Light"
-    bl_description = "Adds a light with power scaled to Halo's scale"
-    bl_options = {"REGISTER", "UNDO"}
+# class NWO_AddHaloLight(bpy.types.Operator, AddObjectHelper):
+#     bl_idname = "nwo.add_halo_light"
+#     bl_label = "Add Halo Light"
+#     bl_description = "Adds a light with power scaled to Halo's scale"
+#     bl_options = {"REGISTER", "UNDO"}
     
-    type: bpy.props.EnumProperty(
-        name="Type",
-        items=[
-            ('POINT', 'Point', ""),
-            ('SUN', 'Sun', ""),
-            ('SPOT', 'Spot', ""),
-        ]
-    )
+#     type: bpy.props.EnumProperty(
+#         name="Type",
+#         items=[
+#             ('POINT', 'Point', ""),
+#             ('SUN', 'Sun', ""),
+#             ('SPOT', 'Spot', ""),
+#         ]
+#     )
     
-    intensity: bpy.props.FloatProperty(min=0)
+#     intensity: bpy.props.FloatProperty(min=0)
     
-    @classmethod
-    def poll(cls, context):
-        return context.mode == 'OBJECT'
+#     @classmethod
+#     def poll(cls, context):
+#         return context.mode == 'OBJECT'
     
-    def make_light(self, context):
-        name = f'halo_{self.type.lower()}_light'
-        data = bpy.data.lights.new(name, type=self.type)
-        data.energy = calc_light_energy(data, self.intensity)
-        return data
+#     def make_light(self, context):
+#         name = f'halo_{self.type.lower()}_light'
+#         data = bpy.data.lights.new(name, type=self.type)
+#         data.energy = calc_light_energy(data, self.intensity)
+#         return data
 
-    def execute(self, context):
-        if not self.intensity:
-            if is_corinth(context):
-                self.intensity = 30
-            else:
-                self.intensity = 1
+#     def execute(self, context):
+#         if not self.intensity:
+#             if is_corinth(context):
+#                 self.intensity = 30
+#             else:
+#                 self.intensity = 1
         
-        data = self.make_light(context)
-        object_data_add(context, data, operator=self)
+#         data = self.make_light(context)
+#         object_data_add(context, data, operator=self)
         
-        return {"FINISHED"}
+#         return {"FINISHED"}

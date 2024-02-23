@@ -137,7 +137,7 @@ from .scene_properties import NWO_BSP_ListItems, NWO_ControlObjects, NWO_GlobalM
 from .scene_ui import NWO_AddIKChain, NWO_AssetMaker, NWO_MoveIKChain, NWO_OT_BatchAddObjectControls, NWO_OT_BatchRemoveObjectControls, NWO_OT_ClearAsset, NWO_OT_RemoveObjectControl, NWO_OT_SelectObjectControl, NWO_RemoveIKChain, NWO_UL_IKChain, NWO_UL_ObjectControls, NWO_UL_Permutations, NWO_UL_Regions
 
 from .viewport_ui import (
-    NWO_AddHaloLight,
+    # NWO_AddHaloLight,
     NWO_ApplyTypeMarkerSingle,
     NWO_ApplyTypeMesh,
     NWO_ApplyTypeMeshSingle,
@@ -403,7 +403,7 @@ classes_nwo = (
     NWO_HaloMaterialTilingNode,
     NWO_MeshTypes,
     NWO_MarkerTypes,
-    NWO_AddHaloLight,
+    # NWO_AddHaloLight,
     NWO_UpdateLayersFaceCount,
     NWO_UL_AnimationList,
     NWO_UL_IKChain,

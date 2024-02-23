@@ -1991,7 +1991,7 @@ class TransformManager():
     def __exit__(self, exc_type, exc_value, traceback):
         bpy.context.scene.nwo.transforming = False
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
@@ -2070,7 +2070,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 local_loc *= scale_factor
                 ob.matrix_local = Matrix.LocRotScale(local_loc, local_rot, local_sca)
             
-            if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB') and ob.nwo.exportable:
+            if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB'):
                 ob.rotation_euler.rotate_axis('Z', -rotation)
 
             for mod in ob.modifiers:
@@ -2366,6 +2366,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
 
             for fc in action.fcurves:
                 fc.keyframe_points.handles_recalc()
+                
+                
+            if apply_rotation:
+                with context.temp_override(selected_editable_objects=objects, object=objects[0]):
+                    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False, isolate_users=True)
             
 def get_area_info(context):
     area = [

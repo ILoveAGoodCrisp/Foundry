@@ -120,6 +120,8 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
             scale_factor = 1 / 0.03048
             
         add_auto_smooth(context, ob, apply_mod=True)
-        transform_scene(context, scale_factor, rotation_diff_from_forward('x', context.scene.nwo.forward_direction), 'x', context.scene.nwo.forward_direction, keep_marker_axis=False, objects=[ob], actions=[])
+        old_loc = ob.location.copy()
+        transform_scene(context, scale_factor, rotation_diff_from_forward('x', context.scene.nwo.forward_direction), 'x', context.scene.nwo.forward_direction, keep_marker_axis=False, objects=[ob], actions=[], apply_rotation=True)
+        ob.location = old_loc
         
     
