@@ -437,7 +437,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_emissive_power_ui: FloatProperty(
         name="Material Lighting Emissive Quality",
         options=set(),
-        description="The intensity of the emissive surface",
+        description="",
         min=0,
         default=10,
         subtype='POWER',
@@ -2357,23 +2357,23 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         default=False,
     )
     
-    # def get_light_intensity(self):
-    #     return calc_light_intensity(self.id_data)
+    def get_light_intensity(self):
+        return calc_light_intensity(self.id_data)
     
-    # def set_light_intensity(self, value):
-    #     self['light_intensity_value'] = value
+    def set_light_intensity(self, value):
+        self['light_intensity_value'] = value
         
-    # def update_light_intensity(self, context):
-    #     self.id_data.energy = calc_light_energy(self.id_data, self.light_intensity_value)
+    def update_light_intensity(self, context):
+        self.id_data.energy = calc_light_energy(self.id_data, self.light_intensity_value)
 
-    # light_intensity: FloatProperty(
-    #     name="Light Intensity",
-    #     options=set(),
-    #     description="The intensity of this light expressed in the units the game uses",
-    #     get=get_light_intensity,
-    #     set=set_light_intensity,
-    #     update=update_light_intensity,
-    # )
+    light_intensity: FloatProperty(
+        name="Light Intensity",
+        options=set(),
+        description="The intensity of this light expressed in the units the game uses",
+        get=get_light_intensity,
+        set=set_light_intensity,
+        update=update_light_intensity,
+    )
     
     light_intensity_value: FloatProperty(options={'HIDDEN'})
 
@@ -2475,13 +2475,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
 
     light_bounce_ratio: FloatProperty(
-        name="Light Falloff Shape",
+        name="Light Bounce Ratio",
         options=set(),
         description="",
         default=1,
         min=0.0,
-        max=1.0,
-        subtype="FACTOR",
     )
 
     light_dynamic_has_bounce: BoolProperty(
@@ -2860,6 +2858,39 @@ class NWO_LightPropertiesGroup(PropertyGroup):
             ),
             ("_connected_geometry_light_mode_analytic", "Analytic", ""),
         ],
+    )
+    
+    # Emissive props
+    
+    light_quality: FloatProperty(
+        name="Light Quality",
+        options=set(),
+        description="Controls the quality of the shadows cast by a complex occluder. For instance, a light casting shadows of tree branches on a wall would require a higher quality to get smooth shadows",
+        default=1,
+        min=0,
+    )
+    
+    light_focus: FloatProperty(
+        name="Light Focus",
+        options=set(),
+        description="Controls the spread of the light. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
+        min=0,
+        max=1,
+        subtype="FACTOR",
+    )
+    
+    light_use_shader_gel: BoolProperty(
+        name="Use Shader Gel",
+        options=set(),
+        description="",
+        default=False,
+    )
+    
+    light_per_unit: BoolProperty(
+        name="Light Per Unit",
+        options=set(),
+        description="When an light is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
+        default=False,
     )
 
 # BONE PROPS

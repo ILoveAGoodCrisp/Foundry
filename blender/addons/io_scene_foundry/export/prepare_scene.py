@@ -37,6 +37,7 @@ from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from ..utils.nwo_utils import (
     add_auto_smooth,
+    area_light_to_emissive,
     blender_halo_rotation_diff,
     bool_str,
     closest_bsp_object,
@@ -372,12 +373,16 @@ class PrepareScene:
         is_scenario = asset_type == 'SCENARIO'
         # start the great loop!
         for idx, ob in enumerate(export_obs):
+            if ob.type == 'LIGHT' and ob.data.type == 'AREA':
+                self.unlink(ob)
+                ob = area_light_to_emissive(ob)
+                scene_coll.link(ob)
+                
             nwo = ob.nwo
-
             reset_export_props(nwo)
-            
             me = ob.data
             ob_type = ob.type
+            
             is_mesh_loose = ob_type in VALID_MESHES
 
             # export objects must be visible and selectable

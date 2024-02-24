@@ -836,10 +836,6 @@ class NWO_FoundryPanelProps(Panel):
 
             nwo = data.nwo
             col = flow.column()
-            if data.type == 'AREA':
-                col.label(text="Area lights not currently supported", icon="ERROR")
-                return
-
             col.prop(data, "color")
             col.prop(data, "energy")
             # col.prop(nwo, 'light_intensity', text="Intensity")
@@ -849,6 +845,20 @@ class NWO_FoundryPanelProps(Panel):
                 col.label(text="Light itensity is very low", icon='ERROR')
                 col.label(text="For best results match the power of the light in")
                 col.label(text="Cycles to how you'd like it to appear in game")
+                
+            if data.type == 'AREA':
+                # Area lights use emissive settings, as they will be converted to lightmap only emissive planes at export
+                col.separator()
+                col.prop(nwo, "light_quality")
+                col.prop(nwo, "light_focus")
+                col.prop(nwo, "light_bounce_ratio")
+                col.separator()
+                col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
+                col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
+                col.separator()
+                col.prop(nwo, "light_use_shader_gel")
+                col.prop(nwo, "light_per_unit")
+                return
 
             if data.type == 'SPOT' and h4:
                 col.separator()
@@ -867,8 +877,8 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.separator()
                 
-                col.prop(nwo, "light_far_attenuation_start", text='Light Falloff Start')
-                col.prop(nwo, "light_far_attenuation_end", text='Light Falloff End')
+                col.prop(nwo, "light_far_attenuation_start", text='Light Falloff')
+                col.prop(nwo, "light_far_attenuation_end", text='Light Cutoff')
                 
                 col.separator()
 
@@ -992,12 +1002,8 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.separator()
 
-                col.prop(
-                    nwo,
-                    "light_far_attenuation_start",
-                    text="Light Falloff Start",
-                )
-                col.prop(nwo, "light_far_attenuation_end", text="Light Falloff End")
+                col.prop(nwo, "light_far_attenuation_start", text="Light Falloff")
+                col.prop(nwo, "light_far_attenuation_end", text="Light Cutoff")
 
                 col.separator()
                 row = col.row()

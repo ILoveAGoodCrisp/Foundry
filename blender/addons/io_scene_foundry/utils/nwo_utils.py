@@ -2690,3 +2690,74 @@ def human_time(time: float | int, decimal_seconds=False) -> str:
         final_str += f"{decimals} milliseconds"
         
     return final_str
+
+def area_light_to_emissive(light_ob: bpy.types.Object):
+    """Converts the given area light to a lightmap only emissive plane"""
+    light = light_ob.data
+    light_nwo = light_ob.data.nwo
+    new_name = light_ob.name + "[emissive]"
+    points: list[Vector] = []
+    if light.shape in ("SQUARE", "RECTANGLE"):
+        plane_data = bpy.data.meshes.new(new_name)
+        if light.shape == "SQUARE":
+            radius = light.size / 2
+            points.append(Vector((-radius, -radius, 0)))
+            points.append(Vector((-radius, radius, 0)))
+            points.append(Vector((radius, radius, 0)))
+            points.append(Vector((radius, -radius, 0)))
+        else:
+            radius_x = light.size / 2
+            radius_y = light.size_y / 2
+            points.append(Vector((-radius_x, -radius_y, 0)))
+            points.append(Vector((-radius_x, radius_y, 0)))
+            points.append(Vector((radius_x, radius_y, 0)))
+            points.append(Vector((radius_x, -radius_y, 0)))
+    else:
+        plane_data = bpy.data.curves.new(new_name, type="CURVE")
+        plane_data.dimensions = "2D"
+        plane_data.fill_mode = "BOTH"
+        if light.shape == "DISK":
+            radius = light.size / 2
+            points.append(Vector((-radius, 0, 0)))
+            points.append(Vector((0, radius, 0)))
+            points.append(Vector((radius, 0, 0)))
+            points.append(Vector((0, -radius, 0)))
+        else:
+            radius_x = light.size / 2
+            radius_y = light.size_y / 2
+            points.append(Vector((-radius_x, 0, 0)))
+            points.append(Vector((0, radius_y, 0)))
+            points.append(Vector((radius_x, 0, 0)))
+            points.append(Vector((0, -radius_y, 0)))
+            
+        
+    if isinstance(plane_data, bpy.types.Mesh):
+        plane_data.from_pydata(vertices=points, edges=[], faces=[[0,1,2,3]])
+    else:
+        plane_data: bpy.types.Curve
+        spline = plane_data.splines.new("BEZIER")
+        spline.bezier_points.add(3)
+        for idx, point in enumerate(points):
+            spline.bezier_points[idx].co = point
+            
+        for bezier_point in spline.bezier_points:
+            bezier_point.handle_left_type = 'AUTO'
+            bezier_point.handle_right_type = 'AUTO'
+            
+        spline.use_cyclic_u = True
+    
+    plane_ob = bpy.data.objects.new(new_name, plane_data)
+    plane_ob.matrix_world = light_ob.matrix_world
+    plane_nwo = plane_data.nwo
+    plane_nwo.mesh_type_ui = "_connected_geometry_mesh_type_lightmap_only"
+    plane_nwo.emissive_active = True
+    plane_nwo.material_lighting_attenuation_cutoff_ui = light_nwo.light_far_attenuation_end
+    plane_nwo.material_lighting_attenuation_falloff_ui = light_nwo.light_far_attenuation_start
+    plane_nwo.material_lighting_emissive_focus_ui = light_nwo.light_focus
+    plane_nwo.material_lighting_emissive_color_ui = light.color
+    plane_nwo.material_lighting_emissive_per_unit_ui = light_nwo.light_per_unit
+    plane_nwo.material_lighting_emissive_power_ui = light.energy
+    plane_nwo.material_lighting_emissive_quality_ui = light_nwo.light_quality
+    plane_nwo.material_lighting_use_shader_gel_ui = light_nwo.light_use_shader_gel
+    plane_nwo.material_lighting_bounce_ratio_ui = light_nwo.light_bounce_ratio
+    return plane_ob
