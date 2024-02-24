@@ -398,7 +398,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
-                    col.prop(scene_nwo_export, "lightmap_threads")
+                    if not h4:
+                        col.prop(scene_nwo_export, "lightmap_threads")
                     # if not h4:
                     #     col.prop(self, "lightmap_region")
 

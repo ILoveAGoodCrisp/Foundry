@@ -36,10 +36,10 @@ from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from ..utils.nwo_utils import (
-    add_auto_smooth,
     area_light_to_emissive,
     blender_halo_rotation_diff,
     bool_str,
+    calc_emissive_intensity,
     closest_bsp_object,
     color_3p_str,
     color_4p_str,
@@ -343,7 +343,7 @@ class PrepareScene:
                 case '+sphere_collision':
                     self.sphere_collision_mat = m
                     
-        # Not avalialbe to user, but creating this to ensure water renders
+        # Not avaliable to user, but creating this to ensure water renders
         self.water_surface_mat = materials.get("+water")
         if self.water_surface_mat is None:
             self.water_surface_mat = materials.new("+water")
@@ -355,6 +355,13 @@ class PrepareScene:
                 self.water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
         else:
             self.water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
+            
+        # Convet all area lights to emissive planes
+        area_lights = [ob for ob in export_obs if ob.type == 'LIGHT' and ob.data.type == 'AREA']
+        for ob in area_lights:
+            self.unlink(ob)
+            new_ob = area_light_to_emissive(ob)
+            scene_coll.link(new_ob)
 
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
@@ -373,11 +380,6 @@ class PrepareScene:
         is_scenario = asset_type == 'SCENARIO'
         # start the great loop!
         for idx, ob in enumerate(export_obs):
-            if ob.type == 'LIGHT' and ob.data.type == 'AREA':
-                self.unlink(ob)
-                ob = area_light_to_emissive(ob)
-                scene_coll.link(ob)
-                
             nwo = ob.nwo
             reset_export_props(nwo)
             me = ob.data
@@ -572,7 +574,6 @@ class PrepareScene:
                     self.unlink(seam)
 
             else:
-                len_seams = len(self.seams)
                 skip_seams = []
                 for idx, seam in enumerate(self.seams):
                     if seam in skip_seams:
@@ -1325,14 +1326,7 @@ class PrepareScene:
             mesh_props.material_lighting_emissive_per_unit = bool_str(
                 face_props.material_lighting_emissive_per_unit_ui
             )
-            if h4:
-                mesh_props.material_lighting_emissive_power = jstr(
-                    face_props.material_lighting_emissive_power_ui * 0.03048 * 0.328084 / 20
-                )
-            else:
-                mesh_props.material_lighting_emissive_power = jstr(
-                    face_props.material_lighting_emissive_power_ui * 0.03048 * 0.328084
-                )
+            mesh_props.material_lighting_emissive_power = jstr(calc_emissive_intensity(face_props.material_lighting_emissive_power_ui))
             mesh_props.material_lighting_emissive_quality = jstr(
                 face_props.material_lighting_emissive_quality_ui
             )
@@ -1759,7 +1753,13 @@ class PrepareScene:
             
         elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
             nwo.mesh_type = "_connected_geometry_mesh_type_poop"
-            nwo.face_mode = '_connected_geometry_face_mode_lightmap_only'
+            self.setup_poop_props(nwo, h4, nwo_data)
+            if nwo_data.no_shadow_ui:
+                nwo.face_mode = '_connected_geometry_face_mode_render_only'
+            else:
+                nwo.face_mode = '_connected_geometry_face_mode_lightmap_only'
+            nwo.poop_lighting = "_connected_geometry_poop_lighting_single_probe"
+            nwo.poop_pathfinding = "_connected_poop_instance_pathfinding_policy_none"
             if ob.data.materials != [self.invisible_mat]:
                 ob.data.materials.clear()
                 ob.data.materials.append(self.invisible_mat)
@@ -1905,14 +1905,7 @@ class PrepareScene:
                     nwo.material_lighting_emissive_per_unit = bool_str(
                         nwo_data.material_lighting_emissive_per_unit_ui
                     )
-                    if h4:
-                        nwo.material_lighting_emissive_power = jstr(
-                            nwo_data.material_lighting_emissive_power_ui * 0.03048 * 0.328084 / 20
-                        )
-                    else:
-                        nwo.material_lighting_emissive_power = jstr(
-                            nwo_data.material_lighting_emissive_power_ui * 0.03048 * 0.328084
-                        )
+                    nwo.material_lighting_emissive_power = jstr(calc_emissive_intensity(nwo_data.material_lighting_emissive_power_ui))
                     nwo.material_lighting_emissive_quality = jstr(
                         nwo_data.material_lighting_emissive_quality_ui
                     )
@@ -3193,10 +3186,11 @@ class PrepareScene:
         linked_poops_with_nonstandard_scale = False
         for ob in objects:
             abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
+            uniform = ob.scale.x == ob.scale.y and ob.scale.x == ob.scale.z
             is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop'
             is_poop_with_outlandish_scale = is_poop and ((abs_scale > TARGET_SCALE * 10))
             if is_poop:
-                if not is_poop_with_outlandish_scale:
+                if not is_poop_with_outlandish_scale and uniform:
                     continue
                 poops.append(ob)
             if abs_scale != TARGET_SCALE:

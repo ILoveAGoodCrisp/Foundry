@@ -849,6 +849,13 @@ class NWO_FoundryPanelProps(Panel):
             if data.type == 'AREA':
                 # Area lights use emissive settings, as they will be converted to lightmap only emissive planes at export
                 col.separator()
+                col.prop(data, "shape")
+                if data.shape in {'SQUARE', 'DISK'}:
+                    col.prop(data, "size")
+                elif data.shape in {'RECTANGLE', 'ELLIPSE'}:
+                    col.prop(data, "size", text="Size X")
+                    col.prop(data, "size_y", text="Y")
+                col.separator()
                 col.prop(nwo, "light_quality")
                 col.prop(nwo, "light_focus")
                 col.prop(nwo, "light_bounce_ratio")
@@ -1568,17 +1575,17 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(mesh_nwo, "face_transparent_ui", text="Transparent")
                     # if h4 and poll_ui(('MODEL', 'SKY')):
                     #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", '_connected_geometry_mesh_type_object_instance'):
+            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", '_connected_geometry_mesh_type_object_instance', "_connected_geometry_mesh_type_lightmap_only"):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset") 
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
-                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
                         row.prop(mesh_nwo, "no_shadow_ui", text="No Shadow")
                 else:
                     # row.prop(mesh_nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
-                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
                         row.prop(mesh_nwo, "no_shadow_ui", text="No Shadow")
-                        if h4:
+                        if h4 and nwo.mesh_type_ui != "_connected_geometry_mesh_type_lightmap_only":
                             row.prop(mesh_nwo, "no_lightmap_ui", text="No Lightmap")
                             row.prop(mesh_nwo, "no_pvs_ui", text="No Visibility Culling")
                             
@@ -3931,7 +3938,8 @@ class NWO_HaloExportSettings(Panel):
                     if not scene_nwo_export.lightmap_all_bsps:
                         col.prop(scene_nwo_export, "lightmap_specific_bsp")
                     col.prop(scene_nwo_export, "lightmap_all_bsps")
-                    col.prop(scene_nwo_export, "lightmap_threads")
+                    if not h4:
+                        col.prop(scene_nwo_export, "lightmap_threads")
                     # if not h4:
                     # NOTE light map regions don't appear to work
                     #     col.prop(scene_nwo_export, "lightmap_region")

@@ -32,6 +32,7 @@ import subprocess
 import sys
 import winreg
 import zipfile
+import bmesh
 import bpy
 import platform
 from mathutils import Euler, Matrix, Vector, Quaternion
@@ -1633,6 +1634,10 @@ def calc_light_intensity(light_data):
     
     return intensity
 
+def calc_emissive_intensity(emissive_power):
+    intensity = (emissive_power / 0.03048**-2) / (300 if is_corinth() else 3)
+    return intensity
+
 def calc_light_energy(light_data, intensity):
     if light_data.type == "SUN":
         return intensity
@@ -2175,7 +2180,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             mesh.transform(scale_matrix)
             mesh.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
             mesh.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-            mesh.nwo.material_lighting_emissive_power_ui *= scale_factor
+            mesh.nwo.material_lighting_emissive_power_ui *= scale_factor ** 2
             
         for camera in cameras:
             camera.display_size *= scale_factor
@@ -2732,7 +2737,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
             
         
     if isinstance(plane_data, bpy.types.Mesh):
-        plane_data.from_pydata(vertices=points, edges=[], faces=[[0,1,2,3]])
+        plane_data.from_pydata(vertices=points, edges=[], faces=[range(len(points))])
     else:
         plane_data: bpy.types.Curve
         spline = plane_data.splines.new("BEZIER")
@@ -2745,12 +2750,22 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
             bezier_point.handle_right_type = 'AUTO'
             
         spline.use_cyclic_u = True
+        
+        temp_ob = bpy.data.objects.new(new_name + "_temp", plane_data)
+        plane_data = temp_ob.to_mesh().copy()
+        bm = bmesh.new()
+        bm.from_mesh(plane_data)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces)
+        bm.to_mesh(plane_data)
     
     plane_ob = bpy.data.objects.new(new_name, plane_data)
     plane_ob.matrix_world = light_ob.matrix_world
     plane_nwo = plane_data.nwo
     plane_nwo.mesh_type_ui = "_connected_geometry_mesh_type_lightmap_only"
+    plane_ob.nwo.region_name_ui = true_region(light_ob.nwo)
+    plane_ob.nwo.permutation_name_ui = true_permutation(light_ob.nwo)
     plane_nwo.emissive_active = True
+    plane_nwo.no_shadow_ui = True
     plane_nwo.material_lighting_attenuation_cutoff_ui = light_nwo.light_far_attenuation_end
     plane_nwo.material_lighting_attenuation_falloff_ui = light_nwo.light_far_attenuation_start
     plane_nwo.material_lighting_emissive_focus_ui = light_nwo.light_focus
@@ -2760,4 +2775,5 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_nwo.material_lighting_emissive_quality_ui = light_nwo.light_quality
     plane_nwo.material_lighting_use_shader_gel_ui = light_nwo.light_use_shader_gel
     plane_nwo.material_lighting_bounce_ratio_ui = light_nwo.light_bounce_ratio
+    
     return plane_ob
