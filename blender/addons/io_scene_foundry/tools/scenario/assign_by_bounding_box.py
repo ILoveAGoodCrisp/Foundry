@@ -61,3 +61,6 @@ def create_bsp_bounding_box(context: bpy.types.Context, bsp: str):
         max_z = max(max_z, bbox_world, key=lambda x: x[2])[2]
         
     return min_x, max_x, min_y, max_y, min_z, max_z
+
+def test_object_in_bounding_box(ob, bbox):
+    """Checks if the origin of an object lies within the given bounding box"""

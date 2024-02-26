@@ -85,9 +85,7 @@ class Tag():
         # Tag Info
         self.path = path
         self.tag_is_new = False
-        print(self.path)
         self._find_tag()
-        print(self.path)
         
         if os.path.exists(self.system_path):
             self.tag.Load(self.tag_path)

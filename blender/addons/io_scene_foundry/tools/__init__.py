@@ -2514,8 +2514,12 @@ class NWO_FoundryPanelProps(Panel):
                         item.event_type
                         == "_connected_geometry_animation_event_type_wrinkle_map"
                     ):
-                        col.prop(item, "frame_frame")
-                        col.prop(item, "frame_range")
+                        row = col.row(align=True)
+                        row.prop(item, "frame_frame", text="Event Frame Start")
+                        row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_frame"
+                        row = col.row(align=True)
+                        row.prop(item, "frame_range", text="Event Frame End")
+                        row.operator("nwo.animation_event_set_frame", text="", icon="KEYFRAME_HLT").prop_to_set = "frame_range"
                         col.prop(item, "wrinkle_map_face_region")
                         col.prop(item, "wrinkle_map_effect")
                     elif item.event_type.startswith('_connected_geometry_animation_event_type_ik'):
