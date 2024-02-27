@@ -338,6 +338,7 @@ class NWO_Animation_ListItems(PropertyGroup):
         default=1,
         min=0,
         max=1,
+        subtype='FACTOR',
     )
 
     ik_proxy_target_id: IntProperty(
