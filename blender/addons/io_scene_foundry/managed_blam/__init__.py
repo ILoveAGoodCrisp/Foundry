@@ -90,12 +90,16 @@ class Tag():
         if os.path.exists(self.system_path):
             self.tag.Load(self.tag_path)
         elif self.tag_must_exist:
-            raise ValueError(f"No file exists for {self.path}, but this {self.__class__} has been told one must exist")
+            raise RuntimeError(f"No file exists for {self.path}, but this {self.__class__} has been told one must exist")
         else:
             self.tag.New(self.tag_path)
             self.tag_is_new = True
         
-        assert(self.tag_path.IsTagFileAccessible()), f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}"
+        if not self.tag_path:
+            raise RuntimeError, f"Failed to load Tag: {str(self.path)}"
+        
+        elif not self.tag_path.IsTagFileAccessible():
+            raise RuntimeError, f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}"
             
         self._read_fields()
         if self.tag_is_new:
