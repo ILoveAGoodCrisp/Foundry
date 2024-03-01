@@ -24,10 +24,11 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from pathlib import Path
 import bpy
 from bpy.app.handlers import persistent
 
-from io_scene_foundry.utils.nwo_utils import restart_blender, setup_projects_list, unlink
+from io_scene_foundry.utils.nwo_utils import is_corinth, restart_blender, setup_projects_list, unlink
 
 old_snapshot = {}
 old_x = None
@@ -53,15 +54,8 @@ if bpy.app.version < (4, 0, 0):
 else:
     from io_scene_foundry.utils import nwo_globals
 
-    try:
-        import clr
-        nwo_globals.clr_installed = True
-    except:
-        nwo_globals.clr_installed = False
-
     from io_scene_foundry.utils.nwo_utils import (
         get_project_path,
-        valid_nwo_asset,
     )
 
     from . import tools
@@ -165,6 +159,37 @@ else:
             # like and subscribe
             subscription_owner = object()
             subscribe(subscription_owner)
+            
+            # Validate Managedblam
+            try:
+                import clr
+                nwo_globals.clr_installed = True
+                try:
+                    project_path = Path(get_project_path())
+                    if not project_path.exists():
+                        print(f"Project path does not exist: {str(project_path)}")
+                        nwo_globals.mb_operational = False
+                        return
+                    mb_path = Path(project_path, "bin", "managedblam")
+                    if not mb_path:
+                        print(f"Managedblam.dll does not exist: {str(mb_path)}")
+                        nwo_globals.mb_operational = False
+                        return
+                    clr.AddReference(str(mb_path))
+                    try:
+                        if is_corinth(context):
+                            import Corinth
+                        else:
+                            import Bungie
+                        nwo_globals.mb_operational = True
+                    except:
+                        print(f"Failed to import Bungie/Corinth from Managedblam.dll: {mb_path}")
+                        nwo_globals.mb_operational = False
+                except:
+                    print(f"Failed to add reference to Managedblam.dll: {mb_path}")
+                    nwo_globals.mb_operational = False
+            except:
+                nwo_globals.clr_installed = False
 
     @persistent
     def get_temp_settings(dummy):

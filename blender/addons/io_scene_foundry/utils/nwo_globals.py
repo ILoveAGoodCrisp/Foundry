@@ -29,6 +29,7 @@ version = "0.9.3"
 
 # set on blender load
 clr_installed = False
+mb_operational = False
 
 # set on managedblam init
 mb_path = ""

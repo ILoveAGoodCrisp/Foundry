@@ -25,8 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 import json
 from math import radians
-import pathlib
-import re
+from pathlib import Path, PureWindowsPath
 import shutil
 import subprocess
 import sys
@@ -35,7 +34,7 @@ import zipfile
 import bmesh
 import bpy
 import platform
-from mathutils import Euler, Matrix, Vector, Quaternion
+from mathutils import Matrix, Vector, Quaternion
 import os
 from os.path import exists as file_exists
 from subprocess import Popen, check_call
@@ -1062,18 +1061,20 @@ def get_halo_material_count() -> tuple:
 
 def validate_ek() -> str | None:
     """Returns an relevant error message if the current game does not reference a valid editing kit. Else returns None"""
-    ek = get_project_path()
+    ek = Path(get_project_path())
     scene_project = bpy.context.scene.nwo.scene_project
-    if not os.path.exists(ek):
+    if not ek.exists():
         return f"{scene_project} Editing Kit path invalid"
-    elif not os.path.exists(os.path.join(ek, get_tool_type() + ".exe")):
+    elif not Path(ek, get_tool_type()).with_suffix('.exe').exists():
         return f"Tool not found, please check that you have tool.exe within your {scene_project} directory"
-    elif not os.path.exists(os.path.join(ek, "data")):
+    elif not Path(ek, "data").exists():
         return f"Editing Kit data folder not found. Please ensure your {scene_project} directory has a 'data' folder"
-    elif not os.path.exists(os.path.join(ek, "bin", "ManagedBlam.dll")):
+    elif not Path(ek, "bin", "ManagedBlam.dll").exists():
         return f"ManagedBlam not found in your {scene_project} bin folder, please ensure this exists"
     elif not nwo_globals.clr_installed:
         return 'ManagedBlam dependancy not installed. Please install this from Foundry preferences or use "Initialize ManagedBlam" in the Foundry Panel'
+    elif not nwo_globals.mb_operational:
+        return 'Failed to load Managedblam.dll. Please check that your Halo Editing Kit is installed correctly'
     else:
         prefs = get_prefs()
         projects = prefs.projects
@@ -1323,7 +1324,7 @@ def addon_root():
     return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 def extract_from_resources(relative_file_path):
-    p = pathlib.PureWindowsPath(relative_file_path)
+    p = PureWindowsPath(relative_file_path)
     resources_zip = os.path.join(addon_root(), 'resources.zip')
     os.chdir(addon_root())
     with zipfile.ZipFile(resources_zip, "r") as zip:

@@ -96,10 +96,10 @@ class Tag():
             self.tag_is_new = True
         
         if not self.tag_path:
-            raise RuntimeError, f"Failed to load Tag: {str(self.path)}"
+            raise RuntimeError(f"Failed to load Tag: {str(self.path)}")
         
         elif not self.tag_path.IsTagFileAccessible():
-            raise RuntimeError, f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}"
+            raise RuntimeError(f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}")
             
         self._read_fields()
         if self.tag_is_new:
@@ -119,9 +119,10 @@ class Tag():
         return self
         
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.tag_has_changes:
-            self.tag.Save()
-        self.tag.Dispose()
+        if self.tag:
+            if self.tag_has_changes:
+                self.tag.Save()
+            self.tag.Dispose()
         if self.hide_prints:
             enable_prints()
 
@@ -370,13 +371,15 @@ class ManagedBlam_Init(Operator):
         # Logic for importing the clr module and importing Bungie/Corinth from ManagedBlam.dll
         try:
             import clr
-
+            nwo_globals.clr_installed = True
             try:
                 clr.AddReference(mb_path)
                 if is_corinth(context):
                     import Corinth as Bungie
                 else:
                     import Bungie
+                    
+                nwo_globals.mb_operational = True
 
             except:
                 print("Failed to add reference to ManagedBlam")
@@ -433,13 +436,12 @@ class ManagedBlam_Init(Operator):
                     global Tags
                     Tags = Halo.Tags
                     atexit.register(close_managed_blam)
+                    nwo_globals.mb_active = True
+                    nwo_globals.mb_path = mb_path
                 except:
                     print("ManagedBlam already initialised Once. Skipping")
                     return {"CANCELLED"}
-                else:
-                    # print("Success!")
-                    nwo_globals.mb_active = True
-                    nwo_globals.mb_path = mb_path
+
 
             return {"FINISHED"}
         
