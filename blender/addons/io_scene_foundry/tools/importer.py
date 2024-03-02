@@ -32,19 +32,21 @@ import bmesh
 import bpy
 import addon_utils
 from mathutils import Color
+from io_scene_foundry.tools.mesh_to_marker import convert_to_marker
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
 from io_scene_foundry.tools.clear_duplicate_materials import clear_duplicate_materials
-from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
+from io_scene_foundry.tools.property_apply import apply_props_material
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_halo_rotation_diff, blender_rotation_diff, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, relative_path, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
+legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
 formats = "amf", "jms", "jma", "bitmap", "camera_track"
 
@@ -966,14 +968,21 @@ class NWOImporter:
             if file_name:
                 unlink(ob)
                 new_coll.objects.link(ob)
-            if ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
+            if ob.name.startswith(legacy_frame_prefixes) or ob.type == 'ARMATURE':
+                self.setup_jms_frame(ob)
+            elif ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
                 self.setup_jms_marker(ob, is_model)
             elif ob.type == 'MESH':
                 self.setup_jms_mesh(ob, is_model)
-            else:
-                pass
-                # self.jms_other_objects.append(ob)
-            
+                
+    def setup_jms_frame(self, ob):
+        ob.nwo.frame_override = True
+        if ob.type == 'MESH':
+            marker = convert_to_marker(ob)
+            bpy.data.objects.remove(ob)
+            self.jms_other_objects.append(marker)
+        else:
+            self.jms_other_objects.append(ob)
             
     def setup_jms_marker(self, ob, is_model):
         perm, region = None, None

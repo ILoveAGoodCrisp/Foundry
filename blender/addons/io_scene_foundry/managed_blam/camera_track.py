@@ -27,7 +27,7 @@
 from math import radians
 import bpy
 import os
-from mathutils import Matrix, Quaternion, Vector, Euler
+from mathutils import Matrix, Quaternion, Vector
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.utils import nwo_utils
 

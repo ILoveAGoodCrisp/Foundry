@@ -1530,7 +1530,6 @@ def set_origin_to_floor(ob: bpy.types.Object):
     floor_corners = []
     for vec in world_coords:
         if round(vec.z, 4) == round(min_z, 4):
-            print(vec)
             floor_corners.append(vec)
     floor_corners_count = len(floor_corners)
     # Calc center point
@@ -1844,7 +1843,6 @@ def base_material_name(name: str, strip_legacy_halo_names=False) -> str:
             material_name = ' '.join(parts[1:])
         elif parts[-1].startswith(legacy_lightmap_prefixes):
             material_name = ' '.join(parts[:-1])
-            print(name, material_name)
             
     # ignore material suffixes
     return material_name.rstrip("%#?!@*$^-&=.;)><|~({]}[' ") # excluding 0 here as it can interfere with normal naming convention

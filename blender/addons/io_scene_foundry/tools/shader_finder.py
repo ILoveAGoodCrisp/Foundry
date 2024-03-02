@@ -31,7 +31,6 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     has_shader_path,
     is_corinth,
-    os_sep_partition,
     relative_path,
     shader_exts,
 )

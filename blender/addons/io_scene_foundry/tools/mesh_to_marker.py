@@ -206,56 +206,9 @@ class NWO_MeshToMarker(bpy.types.Operator):
             return {'CANCELLED'}
 
         for ob in to_convert:
-            original_name = str(ob.name)
-            ob.name += "_OLD"
-            children = {child_ob: child_ob.matrix_world.copy() for child_ob in ob.children}
-            original_collections = ob.users_collection
-            marker = bpy.data.objects.new(original_name, None)
-            for coll in original_collections:
-                coll.objects.link(marker)
-            if ob.parent is not None:
-                marker.parent = ob.parent
-                marker.parent_type = ob.parent_type
-                if marker.parent_type == "BONE":
-                    marker.parent_bone = ob.parent_bone
-
-            marker.matrix_world = ob.matrix_world
-            marker.nwo.region_name_ui = ob.nwo.region_name_ui
-            marker.nwo.permutation_name_ui = ob.nwo.permutation_name_ui
-            marker.nwo.marker_uses_regions = ob.nwo.marker_uses_regions
-            for perm in ob.nwo.marker_permutations:
-                marker.nwo.marker_permutations.add().name = perm.name
-                
-            ob_length = max(ob.dimensions.x, ob.dimensions.y, ob.dimensions.z)
-            if ob_length == ob.dimensions.x:
-                ob_length_scaled = ob_length / ob.scale.x
-            elif ob_length == ob.dimensions.y:
-                ob_length_scaled = ob_length / ob.scale.y
-            else:
-                ob_length_scaled = ob_length / ob.scale.z
-                
-            marker.empty_display_size = ob_length_scaled / 2
-            # node.matrix_local = ob.matrix_local
-            # node.matrix_parent_inverse = ob.matrix_parent_inverse
-            marker.scale = ob.scale
-            if self.maintain_mesh:
-                ob.name += '_MARKER_SHAPE'
-                ob.matrix_world = Matrix()
-                # mesh_ob = bpy.data.objects.new(original_name + '_TEMP', ob.data)
-                unlink(ob)
-                secret_coll = bpy.data.collections.new(original_name)
-                get_foundry_storage_scene().collection.children.link(secret_coll)
-                secret_coll.objects.link(ob)
-                marker.instance_type = 'COLLECTION'
-                marker.instance_collection = secret_coll
-                
-            for child_ob, matrix_world in children.items():
-                child_ob.parent = marker
-                child_ob.matrix_world = matrix_world
-                
+            marker = convert_to_marker(ob, self.maintain_mesh)
             marker.select_set(False)
             to_set.add(marker)
-            
 
         for ob in to_set:
             match self.marker_type:
@@ -317,3 +270,53 @@ class NWO_MeshToMarker(bpy.types.Operator):
         layout.prop(self, 'marker_type', text='Marker Type')
         if self.meshes_selected:
             layout.prop(self, 'maintain_mesh', text='Keep Mesh')
+            
+
+def convert_to_marker(ob: bpy.types.Object, maintain_mesh=False) -> bpy.types.Object:
+    original_name = str(ob.name)
+    ob.name += "_OLD"
+    children = {child_ob: child_ob.matrix_world.copy() for child_ob in ob.children}
+    original_collections = ob.users_collection
+    marker = bpy.data.objects.new(original_name, None)
+    for coll in original_collections:
+        coll.objects.link(marker)
+    if ob.parent is not None:
+        marker.parent = ob.parent
+        marker.parent_type = ob.parent_type
+        if marker.parent_type == "BONE":
+            marker.parent_bone = ob.parent_bone
+
+    marker.matrix_world = ob.matrix_world
+    marker.nwo.region_name_ui = ob.nwo.region_name_ui
+    marker.nwo.permutation_name_ui = ob.nwo.permutation_name_ui
+    marker.nwo.marker_uses_regions = ob.nwo.marker_uses_regions
+    for perm in ob.nwo.marker_permutations:
+        marker.nwo.marker_permutations.add().name = perm.name
+        
+    ob_length = max(ob.dimensions.x, ob.dimensions.y, ob.dimensions.z)
+    if ob_length == ob.dimensions.x:
+        ob_length_scaled = ob_length / ob.scale.x
+    elif ob_length == ob.dimensions.y:
+        ob_length_scaled = ob_length / ob.scale.y
+    else:
+        ob_length_scaled = ob_length / ob.scale.z
+        
+    marker.empty_display_size = ob_length_scaled / 2
+    # node.matrix_local = ob.matrix_local
+    # node.matrix_parent_inverse = ob.matrix_parent_inverse
+    marker.scale = ob.scale
+    if maintain_mesh:
+        ob.name += '_MARKER_SHAPE'
+        ob.matrix_world = Matrix()
+        # mesh_ob = bpy.data.objects.new(original_name + '_TEMP', ob.data)
+        secret_coll = bpy.data.collections.new(original_name)
+        get_foundry_storage_scene().collection.children.link(secret_coll)
+        secret_coll.objects.link(ob)
+        marker.instance_type = 'COLLECTION'
+        marker.instance_collection = secret_coll
+        
+    for child_ob, matrix_world in children.items():
+        child_ob.parent = marker
+        child_ob.matrix_world = matrix_world
+        
+    return marker
