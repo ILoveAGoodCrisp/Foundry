@@ -238,12 +238,13 @@ class PrepareScene:
         # print("make_local")
         scene_coll = context.scene.collection.objects
         
-        # apply geometry nodes
+        # apply geometry nodes for meshes
         for ob in bpy.data.objects:
-            for mod in ob.modifiers:
-                if mod.type == 'NODES' and mod.node_group:
-                    with context.temp_override(object=ob):
-                        bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
+            if ob.type == 'MESH':
+                for mod in ob.modifiers:
+                    if mod.type == 'NODES' and mod.node_group:
+                        with context.temp_override(object=ob):
+                            bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
         
         # Scale objects
         scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
@@ -862,9 +863,11 @@ class PrepareScene:
             bpy.ops.object.convert(target='MESH')
             [ob.select_set(False) for ob in mesh_like_objects]
             
-        for ob in export_obs:
+        no_poly_objects = [ob for ob in context.view_layer.objects if ob.type == "MESH" and not ob.data.polygons and ob.modifiers]
+            
+        for ob in no_poly_objects:
             # apply all modifiers if mesh has no polys
-            if ob.type == "MESH" and not ob.data.polygons and ob.modifiers:
+            if ob.modifiers:
                 with context.temp_override(active_object=ob):
                     modifiers = ob.modifiers
                     for mod in modifiers:
@@ -873,12 +876,10 @@ class PrepareScene:
                             mod.show_viewport = True
                             bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
                         except:
-                            print(f'Failed to apply {mod.name} modifier to {ob.name}')
+                            print_warning(f'Failed to apply {mod.name} modifier to {ob.name}')
                 
 
-            if ob.type == "MESH" and not ob.data.polygons:
-                # print_warning(f"Removed object: [{ob.name}] from export because it has no polygons")
-                # self.warning_hit = True
+            if not ob.data.polygons:
                 self.unlink(ob)
 
         # enable_prints()
