@@ -358,13 +358,13 @@ class ManagedBlam_Init(Operator):
 
     def execute(self, context):
         # append the blender python module path to the sys PATH
-        packages_path = os.path.join(sys.exec_prefix, "lib", "site-packages")
-        sys.path.append(packages_path)
+        packages_path = Path(sys.exec_prefix, "lib", "site-packages")
+        sys.path.append(str(packages_path))
         # Get the reference to ManagedBlam.dll
-        mb_path = os.path.join(get_project_path(), "bin", "managedblam")
+        mb_path = Path(get_project_path(), "bin", "managedblam.dll")
 
         # Check that a path to ManagedBlam actually exists
-        if not os.path.exists(f"{mb_path}.dll"):
+        if not mb_path.exists():
             print_warning("Could not find path to ManagedBlam.dll")
             return {"CANCELLED"}
 
@@ -373,7 +373,7 @@ class ManagedBlam_Init(Operator):
             import clr
             nwo_globals.clr_installed = True
             try:
-                clr.AddReference(mb_path)
+                clr.AddReference(str(mb_path.with_suffix("")))
                 if is_corinth(context):
                     import Corinth as Bungie
                 else:
@@ -396,9 +396,7 @@ class ManagedBlam_Init(Operator):
                 if install != 6:
                     return {"CANCELLED"}
             try:
-                subprocess.check_call(
-                    [sys.executable, "-m", "pip", "install", "pythonnet"]
-                )
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "pythonnet"])
                 print("Succesfully installed necessary modules")
 
                 shutdown = ctypes.windll.user32.MessageBoxW(

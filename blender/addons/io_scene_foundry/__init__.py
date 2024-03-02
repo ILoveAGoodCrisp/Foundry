@@ -164,30 +164,17 @@ else:
             try:
                 import clr
                 nwo_globals.clr_installed = True
-                try:
-                    project_path = Path(get_project_path())
-                    if not project_path.exists():
-                        print(f"Project path does not exist: {str(project_path)}")
-                        nwo_globals.mb_operational = False
-                        return
-                    mb_path = Path(project_path, "bin", "managedblam")
-                    if not mb_path:
-                        print(f"Managedblam.dll does not exist: {str(mb_path)}")
-                        nwo_globals.mb_operational = False
-                        return
-                    clr.AddReference(str(mb_path))
-                    try:
-                        if is_corinth(context):
-                            import Corinth
-                        else:
-                            import Bungie
-                        nwo_globals.mb_operational = True
-                    except:
-                        print(f"Failed to import Bungie/Corinth from Managedblam.dll: {mb_path}")
-                        nwo_globals.mb_operational = False
-                except:
-                    print(f"Failed to add reference to Managedblam.dll: {mb_path}")
+                project_path = Path(get_project_path())
+                if not project_path.exists():
+                    print(f"Project path does not exist: {str(project_path)}")
                     nwo_globals.mb_operational = False
+                    return
+                mb_path = Path(project_path, "bin", "managedblam")
+                if not mb_path:
+                    print(f"Managedblam.dll does not exist: {str(mb_path)}")
+                    nwo_globals.mb_operational = False
+                    return
+                nwo_globals.mb_operational = True
             except:
                 nwo_globals.clr_installed = False
 
