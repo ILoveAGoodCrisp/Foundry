@@ -4868,6 +4868,9 @@ def foundry_toolbar(layout, context):
 
         sub_foundry = row.row(align=True)
         sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+        
+def menu_func_import(self, context):
+    self.layout.operator(NWO_Import.bl_idname, text="Halo Foundry Import")
 
 classeshalo = (
     NWO_RegionAdd,
@@ -4993,8 +4996,10 @@ def register():
         name="Halo Shader Export",
         description="",
     )
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
 def unregister():
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     bpy.types.VIEW3D_HT_tool_header.remove(draw_foundry_toolbar)
     bpy.types.NODE_HT_header.remove(draw_foundry_nodes_toolbar)
     bpy.types.VIEW3D_MT_mesh_add.remove(add_halo_scale_model_button)
