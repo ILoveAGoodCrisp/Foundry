@@ -238,25 +238,13 @@ class PrepareScene:
         # print("make_local")
         scene_coll = context.scene.collection.objects
         
-        # apply geometry nodes for meshes
-        for ob in bpy.data.objects:
-            if ob.type == 'MESH':
-                for mod in ob.modifiers:
-                    if mod.type == 'NODES' and mod.node_group:
-                        with context.temp_override(object=ob):
-                            bpy.ops.object.modifier_apply(modifier=mod.name, single_user=True)
-        
         # Scale objects
-        scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
-        rotation = blender_halo_rotation_diff(scene_nwo.forward_direction)
-        if scale_factor != 1 or rotation:
-            print("--- Transforming Scene")
-            transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
             
         # cast view_layer objects to variable
         all_obs = context.view_layer.objects
         
         if asset_type == 'camera_track_set':
+            transform_export_scene(context, scene_nwo)
             self.camera = get_camera_track_camera(context)
             if not self.camera:
                 print_warning('No Camera in scene, cannot export camera track')
@@ -303,9 +291,9 @@ class PrepareScene:
                 if is_mesh(ob) and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance:
                     proxy_owners.append(ob)
             if proxy_owners:
-                len_proxy_owners = len(proxy_owners)
-                process = "--- Creating Proxy Instances from Structure"
-                update_progress(process, 0)
+                # len_proxy_owners = len(proxy_owners)
+                # process = "--- Creating Proxy Instances from Structure"
+                # update_progress(process, 0)
                 for idx, ob in enumerate(proxy_owners):
                     struc_nwo = ob.nwo
                     struc_nwo.region_name_ui = true_region(struc_nwo)
@@ -315,9 +303,9 @@ class PrepareScene:
                     proxy_instance.name = f"{ob.name}(instance)"
                     proxy_instance.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
                     scene_coll.link(proxy_instance)
-                    update_progress(process, idx / len_proxy_owners)
+                    # update_progress(process, idx / len_proxy_owners)
                     
-                update_progress(process, 1)
+                # update_progress(process, 1)
 
         materials = bpy.data.materials
 
@@ -630,40 +618,25 @@ class PrepareScene:
             return
 
         # apply face layer properties
-        self.apply_face_properties(
-            context, export_obs, scene_coll, h4, asset_type == "SCENARIO",  asset_type == "PREFAB"
-        )
+        self.apply_face_properties(context, export_obs, scene_coll, h4, asset_type == "SCENARIO",  asset_type == "PREFAB")
         # print("face_props_applied")
 
         # get new export_obs from split meshes
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
         if scene_nwo_export.export_gr2_files:
-            # poop proxy madness
-            # self.setup_poop_proxies(export_obs, h4)
-            # print("poop_proxies") 
-
-            # get new proxy export_obs
-            # context.view_layer.update()
-            # export_obs = context.view_layer.objects[:]
-
+            # Convert all mesh like objects to meshes and apply modifiers
+            to_mesh(context, export_obs)
             # remove meshes with zero faces
-            self.cull_zero_face_meshes(export_obs)
-
+            [self.unlink(ob) for ob in export_obs if ob.type == "MESH" and not ob.data.polygons]
+            # Transform the scene if needed to Halo Scale and forward
+            transform_export_scene(context, scene_nwo)
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
-            
             # Fix objects with bad scale values
             poops, nonstandard_scale = self.fix_scale(context, export_obs)
             if poops and nonstandard_scale:
                 stomp_scale_multi_user(poops)
-                
-        # Update tables from any new set entries created during export
-        # update_tables_from_objects(context)
-        # Establish a dictionary of scene regions. Used later in export_gr2 and build_sidecar
-        # regions = [region for region in self.regions if region]
-        # self.regions_dict = {region: str(idx) for idx, region in enumerate(regions)}
-        # Now just using the scene regions table
 
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
         global_materials = ["default"]
@@ -852,15 +825,6 @@ class PrepareScene:
         scene_coll = bpy.context.scene.collection
         if scene_coll in ob.users_collection:
             scene_coll.objects.unlink(ob)
-
-    def cull_zero_face_meshes(self, export_obs):
-        mesh_like_objects = [ob for ob in export_obs if ob.type in ("CURVE", "SURFACE", "META", "FONT", "MESH")]
-        for ob in mesh_like_objects:
-            mesh = ob.to_mesh()
-            if not mesh.polygons:
-                self.unlink(ob)
-
-        # enable_prints()
 
     # FACEMAP SPLIT
 
@@ -3392,3 +3356,23 @@ def add_triangle_mod(ob: bpy.types.Object):
     tri_mod = mods.new('Triangulate', 'TRIANGULATE')
     tri_mod.quad_method = 'FIXED'
     tri_mod.keep_custom_normals = True
+    
+def transform_export_scene(context, scene_nwo) -> float:
+    scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
+    rotation = blender_halo_rotation_diff(scene_nwo.forward_direction)
+    if scale_factor != 1 or rotation:
+        print("--- Transforming Scene")
+        transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
+        
+    return scale_factor
+
+def to_mesh(context, objects: list[bpy.types.Object]):
+    objects_to_convert = [ob for ob in objects if ob.type in ("CURVE", "SURFACE", "META", "FONT") or (ob.type == 'MESH' and ob.modifiers)]
+    if objects_to_convert:
+        [ob.select_set(True) for ob in objects_to_convert]
+        context.view_layer.objects.active = objects_to_convert[0]
+        bpy.ops.object.convert(target='MESH')
+        [ob.select_set(False) for ob in objects_to_convert]
+            
+
+            
