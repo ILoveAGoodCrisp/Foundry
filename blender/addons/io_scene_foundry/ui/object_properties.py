@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import radians
 import random
 import uuid
 from .face_properties import NWO_FaceProperties_ListItems
@@ -408,10 +409,11 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     material_lighting_emissive_focus_ui: FloatProperty(
         name="Material Lighting Emissive Focus",
         options=set(),
-        description="Controls the spread of the light emitting from this surface. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
+        description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
         min=0,
-        max=1,
-        subtype="FACTOR",
+        default=radians(180), 
+        max=radians(180),
+        subtype="ANGLE",
     )
 
     material_lighting_emissive_color_active: BoolProperty()
@@ -2873,10 +2875,11 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     light_focus: FloatProperty(
         name="Light Focus",
         options=set(),
-        description="Controls the spread of the light. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
+        description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
         min=0,
-        max=1,
-        subtype="FACTOR",
+        default=radians(180), 
+        max=radians(180),
+        subtype="ANGLE",
     )
     
     light_use_shader_gel: BoolProperty(
