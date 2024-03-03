@@ -50,7 +50,7 @@ global_mats_items = []
 
 # SETS MENUS
 class NWO_RegionsMenu(Menu):
-    bl_label = "Add Mesh Property"
+    bl_label = "Regions"
     bl_idname = "NWO_MT_Regions"
 
     @classmethod
@@ -65,9 +65,18 @@ class NWO_RegionsMenu(Menu):
             layout.operator("nwo.region_assign_single", text=r_name).name = r_name
 
         layout.operator("nwo.region_add", text="New BSP" if is_scenario else "New Region", icon='ADD').set_object_prop = True
+        
+class NWO_RegionsMenuSelection(NWO_RegionsMenu):
+    bl_idname = "NWO_MT_RegionsSelection"
+    
+    def draw(self, context):
+        layout = self.layout
+        region_names = [region.name for region in context.scene.nwo.regions_table]
+        for r_name in region_names:
+            layout.operator("nwo.region_assign", text=r_name).name = r_name
 
 class NWO_FaceRegionsMenu(Menu):
-    bl_label = "Add Mesh Property"
+    bl_label = "Regions"
     bl_idname = "NWO_MT_FaceRegions"
 
     @classmethod
@@ -94,7 +103,7 @@ class NWO_SeamBackfaceMenu(NWO_RegionsMenu):
             layout.operator("nwo.seam_backface_assign_single", text=r_name).name = r_name
 
 class NWO_PermutationsMenu(Menu):
-    bl_label = "Add Mesh Property"
+    bl_label = "Permutations"
     bl_idname = "NWO_MT_Permutations"
 
     @classmethod
@@ -109,9 +118,18 @@ class NWO_PermutationsMenu(Menu):
             layout.operator("nwo.permutation_assign_single", text=p_name).name = p_name
 
         layout.operator("nwo.permutation_add", text="New BSP Layer" if is_scenario else "New Permutation", icon='ADD').set_object_prop = True
+        
+class NWO_PermutationsMenuSelection(NWO_PermutationsMenu):
+    bl_idname = "NWO_MT_PermutationsSelection"
+    
+    def draw(self, context):
+        layout = self.layout
+        permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
+        for p_name in permutation_names:
+            layout.operator("nwo.permutation_assign", text=p_name).name = p_name
 
 class NWO_MarkerPermutationsMenu(Menu):
-    bl_label = "Add Mesh Property"
+    bl_label = "Marker Permutations"
     bl_idname = "NWO_MT_MarkerPermutations"
 
     @classmethod

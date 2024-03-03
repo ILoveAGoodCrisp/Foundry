@@ -31,7 +31,7 @@ from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO
 
 from io_scene_foundry.ui.collection_properties import NWO_CollectionPropertiesGroup
 from io_scene_foundry.ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
-from io_scene_foundry.utils.nwo_utils import get_marker_display, get_mesh_display, get_object_type, is_marker, is_mesh
+from io_scene_foundry.utils.nwo_utils import get_marker_display, get_mesh_display, get_object_type, is_marker, is_mesh, true_permutation, true_region
 
 # from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
 from .templates import NWO_Op
@@ -82,7 +82,9 @@ from .object_ui import (
     NWO_MarkerTypes,
     NWO_MeshTypes,
     NWO_PermutationsMenu,
+    NWO_PermutationsMenuSelection,
     NWO_RegionsMenu,
+    NWO_RegionsMenuSelection,
     NWO_SeamBackfaceMenu,
     NWO_UL_MarkerPermutations,
     NWO_List_Add_MarkerPermutation,
@@ -275,7 +277,25 @@ def object_context_apply_types(self, context):
                 layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
         elif markers_valid:
             layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
-
+            
+def object_context_sets(self, context):
+    layout = self.layout
+    ob = context.object
+    nwo = ob.nwo
+    row = layout.row()
+    if nwo.region_name_locked_ui:
+        row.enabled = False
+        row.label(text="Region::" + true_region(nwo), icon_value=get_icon_id("collection_creator"))
+    else:
+        row.menu("NWO_MT_RegionsSelection", text="Region::" + true_region(nwo), icon_value=get_icon_id("region"))
+    
+    row = layout.row()
+    if nwo.permutation_name_locked_ui:
+        row.enabled = False
+        row.label(text="Permutation::" + true_permutation(nwo), icon_value=get_icon_id("collection_creator"))
+    else:
+        row.menu("NWO_MT_PermutationsSelection", text="Permutation::" + true_permutation(nwo), icon_value=get_icon_id("permutation"))
+        
 def collection_context(self, context):
     layout = self.layout
     coll = context.view_layer.active_layer_collection.collection
@@ -304,8 +324,10 @@ classes_nwo = (
     NWO_UL_Permutations,
     NWO_Regions_ListItems,
     NWO_SeamBackfaceMenu,
+    NWO_RegionsMenuSelection,
     NWO_RegionsMenu,
     NWO_FaceRegionsMenu,
+    NWO_PermutationsMenuSelection,
     NWO_PermutationsMenu,
     NWO_MarkerPermutationsMenu,
     NWO_BSP_ListItems,
@@ -421,6 +443,7 @@ def register():
 
     # bpy.types.ASSETBROWSER_MT_context_menu.append(add_asset_open_in_foundry)
     bpy.types.VIEW3D_MT_object_context_menu.append(object_context_apply_types)
+    bpy.types.VIEW3D_MT_object_context_menu.append(object_context_sets)
     bpy.types.OUTLINER_MT_collection.append(collection_context)
     bpy.types.NODE_MT_add.append(node_context_menu)
     bpy.types.Scene.nwo = PointerProperty(
@@ -492,6 +515,7 @@ def register():
 def unregister():
     bpy.types.NODE_MT_add.remove(node_context_menu)
     bpy.types.OUTLINER_MT_collection.remove(collection_context)
+    bpy.types.VIEW3D_MT_object_context_menu.remove(object_context_sets)
     bpy.types.VIEW3D_MT_object_context_menu.remove(object_context_apply_types)
     # bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)
     del bpy.types.Scene.nwo
