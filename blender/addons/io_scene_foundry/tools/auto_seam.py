@@ -28,7 +28,7 @@ import bpy
 import bmesh
 from io_scene_foundry.tools.property_apply import apply_props_material
 
-from io_scene_foundry.utils.nwo_utils import deselect_all_objects, export_objects_mesh_only, get_prefs, poll_ui, set_active_object, true_region
+from io_scene_foundry.utils.nwo_utils import deselect_all_objects, export_objects_mesh_only, get_prefs, poll_ui, set_active_object, true_permutation, true_region
 
 class NWO_AutoSeam(bpy.types.Operator):
     bl_idname = "nwo.auto_seam"
@@ -36,28 +36,40 @@ class NWO_AutoSeam(bpy.types.Operator):
     bl_options = {"UNDO"}
     bl_description = "Generates BSP seams. Requires there to be atleast 2 BSPs in the blend scene and that object mode is active"
     
+    selected_only: bpy.props.BoolProperty(name='Selected Objects Only', description="Only create seams between objects in the current selection")
+    
     @classmethod
     def poll(cls, context):
         return context.mode == 'OBJECT' and poll_ui('SCENARIO') and len(context.scene.nwo.regions_table) > 1
 
     def execute(self, context):
         return self.auto_seam(context)
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
 
-    def auto_seam(self, context):
+    def auto_seam(self, context: bpy.types.Context):
         old_selection = [ob for ob in context.selected_objects if ob.nwo.mesh_type_ui != '_connected_geometry_mesh_type_seam']
         old_active = context.object if context.object and context.object.nwo.mesh_type_ui != '_connected_geometry_mesh_type_seam' else None
         old_3d_cursor_mat = context.scene.cursor.matrix
         apply_materials = get_prefs().apply_materials
         export_obs = export_objects_mesh_only()
-        seam_obs = [ob for ob in export_obs if ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"]
-        structure_obs = [ob for ob in export_obs if ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"]
+        seam_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"]
+        if self.selected_only:
+            structure_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and ob in context.selected_objects]
+        else:
+            structure_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"]
+        
         deselect_all_objects()
-        for ob in seam_obs:
-            ob.select_set(True)
-        bpy.ops.object.delete()
+        selected_regions = {true_region(structure.nwo) for structure in structure_obs}
+        if len(selected_regions) <= 1:
+            word = "selection" if self.selected_only else "scene"
+            self.report({"WARNING"}, f"Only one structure bsp in {word}")
+            return {"CANCELLED"}
 
         ignore_verts = []
         seam_counter = 0
+        overlapping_seams = 0
         matches = []
         for ob in structure_obs:
             ob_mat = ob.matrix_world
@@ -105,14 +117,28 @@ class NWO_AutoSeam(bpy.types.Operator):
                     # make new seam object
                     ob_nwo = ob.nwo
                     test_ob_nwo = test_ob.nwo
-                    facing_bsp = ob_nwo.region_name_ui
-                    backfacing_bsp = test_ob_nwo.region_name_ui
-                    facing_perm = ob_nwo.permutation_name_ui
+                    facing_bsp = true_region(ob_nwo)
+                    backfacing_bsp = true_region(test_ob_nwo)
+                    facing_perm = true_permutation(ob_nwo)
                     # backfacing_perm = test_ob_nwo.permutation_name
                     # create the new mesh
                     seam_data = bpy.data.meshes.new("seam")
                     seam_data.from_pydata(matching_verts, [], [])
                     seam_data.update()
+                    # Check if a seam with these vert coords already exists
+                    if seam_obs:
+                        for old_seam in seam_obs:
+                            # cast to mesh if the seam is not actually a mesh
+                            old_seam_mesh = old_seam.to_mesh()
+                            old_verts = sorted([old_seam.matrix_world @ v.co for v in old_seam_mesh.vertices])
+                            new_verts = sorted([v.co for v in seam_data.vertices])
+                            if old_verts != new_verts:
+                                break
+                        else:
+                            print(f"Seam overlap")
+                            overlapping_seams += 1
+                            continue
+                        
                     # create face
                     bm = bmesh.new()
                     bm.from_mesh(seam_data)
@@ -153,6 +179,8 @@ class NWO_AutoSeam(bpy.types.Operator):
         context.scene.cursor.matrix = old_3d_cursor_mat
         if seam_counter:
             self.report({'INFO'}, f"Created {seam_counter} seam{'s' if seam_counter > 1 else ''}")
+        elif overlapping_seams:
+            self.report({'INFO'}, f'Seams already in place')
         else:
             self.report({'WARNING'}, f'Failed to create any seams. Ensure that structure objects between bsps have overlapping verts')
         return {"FINISHED"}

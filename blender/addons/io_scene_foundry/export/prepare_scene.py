@@ -149,7 +149,7 @@ class PrepareScene:
         # time it!
         # NOTE skipping timing as export is really fast now
         # start = time.perf_counter()
-        
+        scale_factor = 1
         # Get 3D Viewport area/region/space
         self.area, self.area_region, self.area_space = get_area_info(context)
         

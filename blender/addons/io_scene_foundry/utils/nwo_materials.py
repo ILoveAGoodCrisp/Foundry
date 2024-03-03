@@ -26,7 +26,7 @@ class ConventionMaterial:
         
 InvisibleSky = ConventionMaterial('InvisibleSky', [0.5, 0.7, 1, 0.05])
 Physics = ConventionMaterial('Physics', [0.0, 0.0, 1.0, 0.2])
-Seam = ConventionMaterial('Seam', [0.4, 1.0, 0.4, 0.1])
+Seam = ConventionMaterial('Seam', [0.4, 1.0, 0.4, 0.6])
 Portal = ConventionMaterial('Portal', [0.8, 0.7, 0.2, 0.1])
 Collision = ConventionMaterial('Collision', [0.0, 1.0, 0.0, 0.2])
 PlayCollision = ConventionMaterial('PlayCollision', [1.0, 0.5, 0.0, 0.2])
