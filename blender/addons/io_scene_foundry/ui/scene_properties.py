@@ -64,7 +64,7 @@ class NWO_Permutations_ListItems(PropertyGroup):
             i = int(self.path_from_id().rpartition('[')[2].strip(']'))
             bpy.ops.nwo.permutation_rename(new_name=self.name, index=i)
 
-    old: StringProperty()
+    old: StringProperty(options=set())
 
     name: StringProperty(
         name="Name",
@@ -74,12 +74,12 @@ class NWO_Permutations_ListItems(PropertyGroup):
     def update_hidden(self, context):
         bpy.ops.nwo.permutation_hide(entry_name=self.name)
 
-    hidden: BoolProperty(name="Hidden", update=update_hidden,)
+    hidden: BoolProperty(name="Hidden", update=update_hidden, options=set())
 
     def update_hide_select(self, context):
         bpy.ops.nwo.permutation_hide_select(entry_name=self.name)
 
-    hide_select: BoolProperty(name="Hide Select", update=update_hide_select,)
+    hide_select: BoolProperty(name="Hide Select", update=update_hide_select, options=set())
 
     active: BoolProperty(
         name="Active",
@@ -94,22 +94,23 @@ class NWO_Regions_ListItems(PropertyGroup):
             i = int(self.path_from_id().rpartition('[')[2].strip(']'))
             bpy.ops.nwo.region_rename(new_name=self.name, index=i)
 
-    old: StringProperty()
+    old: StringProperty(options=set())
 
     name: StringProperty(
         name="Name",
         update=update_name,
+        options=set(),
         )
 
     def update_hidden(self, context):
         bpy.ops.nwo.region_hide(entry_name=self.name)
 
-    hidden: BoolProperty(name="Hidden", update=update_hidden,)
+    hidden: BoolProperty(name="Hidden", update=update_hidden, options=set())
 
     def update_hide_select(self, context):
         bpy.ops.nwo.region_hide_select(entry_name=self.name)
 
-    hide_select: BoolProperty(name="Hide Select", update=update_hide_select,)
+    hide_select: BoolProperty(name="Hide Select", update=update_hide_select, options=set())
 
     active: BoolProperty(
         name="Active",
@@ -118,18 +119,18 @@ class NWO_Regions_ListItems(PropertyGroup):
     )
 
 class NWO_BSP_ListItems(PropertyGroup):
-    name: StringProperty(name="BSP Table")
+    name: StringProperty(name="BSP Table", options=set())
 
 class NWO_GlobalMaterial_ListItems(PropertyGroup):
-    name: StringProperty(name="Global Material Table")
+    name: StringProperty(name="Global Material Table", options=set())
     
 class NWO_IKChain(PropertyGroup):
-    name: StringProperty(name="Name")
-    start_node: StringProperty(name="Start Bone")
-    effector_node: StringProperty(name="Effector Bone")
+    name: StringProperty(name="Name", options=set())
+    start_node: StringProperty(name="Start Bone", options=set())
+    effector_node: StringProperty(name="Effector Bone", options=set())
     
 class NWO_ControlObjects(PropertyGroup):
-    ob: PointerProperty(type=bpy.types.Object)
+    ob: PointerProperty(type=bpy.types.Object, options=set())
     
 def prefab_warning(self, context):
     self.layout.label(text=f"Halo Reach does not support prefab assets")
@@ -211,12 +212,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         update=update_active_action_index,
         get=get_active_action_index,
         set=set_active_action_index,
+        options=set()
     )
     
-    old_active_action_index: IntProperty(default=-1)
+    old_active_action_index: IntProperty(default=-1, options=set())
     
-    exclude_first_frame: BoolProperty()
-    exclude_last_frame: BoolProperty()
+    exclude_first_frame: BoolProperty(options=set())
+    exclude_last_frame: BoolProperty(options=set())
 
     # shared_assets: CollectionProperty(
     #     type=NWO_Asset_ListItems,
@@ -591,123 +593,138 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Model Template",
         description="Tag relative path to the model tag to use as a base if this asset does not already have one",
         update=template_model_clean_tag_path,
+        options=set(),
     )
     template_biped: StringProperty(
         name="Biped Template",
         description="Tag relative path to the biped tag to use as a base if this asset does not already have one",
         update=template_biped_clean_tag_path,
+        options=set(),
     )
     template_crate: StringProperty(
         name="Crate Template",
         description="Tag relative path to the crate tag to use as a base if this asset does not already have one",
         update=template_crate_clean_tag_path,
+        options=set(),
     )
     template_creature: StringProperty(
         name="Creature Template",
         description="Tag relative path to the creature tag to use as a base if this asset does not already have one",
         update=template_creature_clean_tag_path,
+        options=set(),
     )
     template_device_control: StringProperty(
         name="Device Control Template",
         description="Tag relative path to the device_control tag to use as a base if this asset does not already have one",
         update=template_device_control_clean_tag_path,
+        options=set(),
     )
     template_device_dispenser: StringProperty(
         name="Device Dispenser Template",
         description="Tag relative path to the device_dispenser tag to use as a base if this asset does not already have one",
         update=template_device_dispenser_clean_tag_path,
+        options=set(),
     )
     template_device_machine: StringProperty(
         name="Device Machine Template",
         description="Tag relative path to the device_machine tag to use as a base if this asset does not already have one",
         update=template_device_machine_clean_tag_path,
+        options=set(),
     )
     template_device_terminal: StringProperty(
         name="Device Terminal Template",
         description="Tag relative path to the device_terminal tag to use as a base if this asset does not already have one",
         update=template_device_terminal_clean_tag_path,
+        options=set(),
     )
     template_effect_scenery: StringProperty(
         name="Effect Scenery Template",
         description="Tag relative path to the effect_scenery tag to use as a base if this asset does not already have one",
         update=template_effect_scenery_clean_tag_path,
+        options=set(),
     )
     template_equipment: StringProperty(
         name="Equipment Template",
         description="Tag relative path to the equipment tag to use as a base if this asset does not already have one",
         update=template_equipment_clean_tag_path,
+        options=set(),
     )
     template_giant: StringProperty(
         name="Giant Template",
         description="Tag relative path to the giant tag to use as a base if this asset does not already have one",
         update=template_giant_clean_tag_path,
+        options=set(),
     )
     template_scenery: StringProperty(
         name="Scenery Template",
         description="Tag relative path to the scenery tag to use as a base if this asset does not already have one",
         update=template_scenery_clean_tag_path,
+        options=set(),
     )
     template_vehicle: StringProperty(
         name="Vehicle Template",
         description="Tag relative path to the vehicle tag to use as a base if this asset does not already have one",
         update=template_vehicle_clean_tag_path,
+        options=set(),
     )
     template_weapon: StringProperty(
         name="Weapon Template",
         description="Tag relative path to the weapon tag to use as a base if this asset does not already have one",
         update=template_weapon_clean_tag_path,
+        options=set(),
     )
 
-    light_tools_active: BoolProperty()
-    light_tools_pinned: BoolProperty()
-    light_tools_expanded: BoolProperty(default=True)
+    light_tools_active: BoolProperty(options=set())
+    light_tools_pinned: BoolProperty(options=set())
+    light_tools_expanded: BoolProperty(default=True, options=set())
 
-    object_properties_active: BoolProperty()
-    object_properties_pinned: BoolProperty()
-    object_properties_expanded: BoolProperty(default=True)
+    object_properties_active: BoolProperty(options=set())
+    object_properties_pinned: BoolProperty(options=set())
+    object_properties_expanded: BoolProperty(default=True, options=set())
 
-    material_properties_active: BoolProperty()
-    material_properties_pinned: BoolProperty()
-    material_properties_expanded: BoolProperty(default=True)
+    material_properties_active: BoolProperty(options=set())
+    material_properties_pinned: BoolProperty(options=set())
+    material_properties_expanded: BoolProperty(default=True, options=set())
 
-    animation_manager_active: BoolProperty()
-    animation_manager_pinned: BoolProperty()
-    animation_manager_expanded: BoolProperty(default=True)
+    animation_manager_active: BoolProperty(options=set())
+    animation_manager_pinned: BoolProperty(options=set())
+    animation_manager_expanded: BoolProperty(default=True, options=set())
 
-    scene_properties_active: BoolProperty(default=True)
-    scene_properties_pinned: BoolProperty()
-    scene_properties_expanded: BoolProperty(default=True)
+    scene_properties_active: BoolProperty(default=True, options=set())
+    scene_properties_pinned: BoolProperty(options=set())
+    scene_properties_expanded: BoolProperty(default=True, options=set())
 
-    asset_editor_active: BoolProperty(default=True)
-    asset_editor_pinned: BoolProperty()
-    output_tags_expanded: BoolProperty(default=True)
-    asset_editor_expanded: BoolProperty(default=True)
-    model_overrides_expanded: BoolProperty(default=False)
-    model_rig_expanded: BoolProperty(default=True)
-    rig_controls_expanded: BoolProperty(default=False)
-    rig_object_controls_expanded: BoolProperty(default=False)
-    rig_usages_expanded: BoolProperty(default=False)
-    ik_chains_expanded: BoolProperty(default=False)
+    asset_editor_active: BoolProperty(default=True, options=set())
+    asset_editor_pinned: BoolProperty(options=set())
+    output_tags_expanded: BoolProperty(default=True, options=set())
+    asset_editor_expanded: BoolProperty(default=True, options=set())
+    model_overrides_expanded: BoolProperty(default=False, options=set())
+    model_rig_expanded: BoolProperty(default=True, options=set())
+    rig_controls_expanded: BoolProperty(default=False, options=set())
+    rig_object_controls_expanded: BoolProperty(default=False, options=set())
+    rig_usages_expanded: BoolProperty(default=False, options=set())
+    ik_chains_expanded: BoolProperty(default=False, options=set())
 
-    sets_manager_active: BoolProperty()
-    sets_manager_pinned: BoolProperty()
-    sets_manager_expanded: BoolProperty(default=True)
+    sets_manager_active: BoolProperty(options=set())
+    sets_manager_pinned: BoolProperty(options=set())
+    sets_manager_expanded: BoolProperty(default=True, options=set())
 
-    tools_active : BoolProperty()
-    tools_pinned: BoolProperty()
-    tools_expanded : BoolProperty(default=True)
+    tools_active : BoolProperty(options=set())
+    tools_pinned: BoolProperty(options=set())
+    tools_expanded : BoolProperty(default=True, options=set())
 
-    help_active : BoolProperty()
-    help_pinned: BoolProperty()
-    help_expanded : BoolProperty(default=True)
+    help_active : BoolProperty(options=set())
+    help_pinned: BoolProperty(options=set())
+    help_expanded : BoolProperty(default=True, options=set())
 
-    settings_active : BoolProperty()
-    settings_pinned: BoolProperty()
-    settings_expanded : BoolProperty(default=True)
+    settings_active : BoolProperty(options=set())
+    settings_pinned: BoolProperty(options=set())
+    settings_expanded : BoolProperty(default=True, options=set())
 
     toolbar_expanded : BoolProperty(
         name="Toggle Foundry Toolbar",
         default=True,
+        options=set(),
     )
 
     def render_clean_tag_path(self, context):
@@ -745,39 +762,45 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Render Model Override Path",
         description="Path to an existing render model tag, overrides the tag generated by this asset on import",
         update=render_clean_tag_path,
+        options=set(),
         )
     
     collision_model_path : StringProperty(
         name="Collision Model Override Path",
         description="Path to an existing collision model tag, overrides the tag generated by this asset on import",
         update=collision_clean_tag_path,
+        options=set(),
         )
     
     physics_model_path : StringProperty(
         name="Physics Model Override Path",
         description="Path to an existing physics model tag, overrides the tag generated by this asset on import",
         update=physics_clean_tag_path,
+        options=set(),
         )
     
     animation_graph_path : StringProperty(
         name="Animation Graph Override Path",
         description="Path to an existing model animation graph tag, overrides the tag generated by this asset on import. This also ensures that the imported node order for your render model (and collision/physics) matches that of the nodes in the given graph",
         update=animation_clean_tag_path,
+        options=set(),
         )
     
     fp_model_path : StringProperty(
         name="FP Render Model Path",
         description="",
         update=fp_model_clean_tag_path,
+        options=set(),
         )
     
     gun_model_path : StringProperty(
         name="Gun Render Model Path",
         description="",
         update=gun_model_clean_tag_path,
+        options=set(),
         )
     
-    instance_proxy_running : BoolProperty()
+    instance_proxy_running : BoolProperty(options=set())
 
     shader_sync_active : BoolProperty(
         name="Shader Sync",
@@ -792,38 +815,40 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         default=0.1,
         max=3,
         subtype='TIME_ABSOLUTE',
+        options=set(),
     )
 
     scene_project : StringProperty(
         name="Project",
+        options=set(),
     )
     
-    storage_only: BoolProperty()
+    storage_only: BoolProperty(options=set())
 
     # TABLES
 
-    regions_table: CollectionProperty(type=NWO_Regions_ListItems)
-    regions_table_active_index: IntProperty()
-    permutations_table: CollectionProperty(type=NWO_Permutations_ListItems)
-    permutations_table_active_index: IntProperty()
-    bsp_table: CollectionProperty(type=NWO_BSP_ListItems)
-    bsp_active_index: IntProperty()
-    global_material_table: CollectionProperty(type=NWO_GlobalMaterial_ListItems)
-    global_material_active_index: IntProperty()
+    regions_table: CollectionProperty(type=NWO_Regions_ListItems, options=set())
+    regions_table_active_index: IntProperty(options=set())
+    permutations_table: CollectionProperty(type=NWO_Permutations_ListItems, options=set())
+    permutations_table_active_index: IntProperty(options=set())
+    bsp_table: CollectionProperty(type=NWO_BSP_ListItems, options=set())
+    bsp_active_index: IntProperty(options=set())
+    global_material_table: CollectionProperty(type=NWO_GlobalMaterial_ListItems, options=set())
+    global_material_active_index: IntProperty(options=set())
     
     # Rig Validation
     
     def poll_armature(self, object: bpy.types.Object):
         return object.type == 'ARMATURE' and object not in (self.main_armature, self.support_armature_a, self.support_armature_b, self.support_armature_c)
     
-    armature_has_parent: BoolProperty()
-    armature_bad_transforms: BoolProperty()
-    multiple_root_bones: BoolProperty()
-    invalid_root_bone: BoolProperty()
-    needs_pose_bones: BoolProperty()
-    too_many_bones: BoolProperty()
-    bone_names_too_long: BoolProperty()
-    pose_bones_bad_transforms: BoolProperty()
+    armature_has_parent: BoolProperty(options=set())
+    armature_bad_transforms: BoolProperty(options=set())
+    multiple_root_bones: BoolProperty(options=set())
+    invalid_root_bone: BoolProperty(options=set())
+    needs_pose_bones: BoolProperty(options=set())
+    too_many_bones: BoolProperty(options=set())
+    bone_names_too_long: BoolProperty(options=set())
+    pose_bones_bad_transforms: BoolProperty(options=set())
     
     # RIG PROPS
     main_armature: PointerProperty(
@@ -831,14 +856,16 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="",
         type=bpy.types.Object,
         poll=poll_armature,
+        options=set(),
     )
     support_armature_a: PointerProperty(
         name="Support Armature",
         description="",
         type=bpy.types.Object,
         poll=poll_armature,
+        options=set(),
     )
-    support_armature_a_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export')
+    support_armature_a_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
 
     
     support_armature_b: PointerProperty(
@@ -846,8 +873,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="",
         type=bpy.types.Object,
         poll=poll_armature,
+        options=set(),
     )
-    support_armature_b_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export')
+    support_armature_b_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
 
     
     support_armature_c: PointerProperty(
@@ -855,37 +883,38 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="",
         type=bpy.types.Object,
         poll=poll_armature,
+        options=set(),
     )
-    support_armature_c_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export')
+    support_armature_c_parent_bone : StringProperty(name='Parent Bone', description='Specify the bone from the main armature which the root bone of this support armature should join to at export', options=set())
     
-    node_usage_physics_control : StringProperty(name="Physics Control")
-    node_usage_camera_control : StringProperty(name="Camera Control")
-    node_usage_origin_marker : StringProperty(name="Origin Marker")
-    node_usage_left_clavicle : StringProperty(name="Left Clavicle")
-    node_usage_left_upperarm : StringProperty(name="Left Upperarm")
-    node_usage_pose_blend_pitch : StringProperty(name="Pose Blend Pitch")
-    node_usage_pose_blend_yaw : StringProperty(name="Pose Blend Yaw")
-    node_usage_pedestal : StringProperty(name="Pedestal")
-    node_usage_pelvis : StringProperty(name="Pelvis")
-    node_usage_left_foot : StringProperty(name="Left Foot")
-    node_usage_right_foot : StringProperty(name="Right Foot")
-    node_usage_damage_root_gut : StringProperty(name="Damage Root Gut")
-    node_usage_damage_root_chest : StringProperty(name="Damage Root Chest")
-    node_usage_damage_root_head : StringProperty(name="Damage Root Head")
-    node_usage_damage_root_left_shoulder : StringProperty(name="Damage RootLeft Shoulder")
-    node_usage_damage_root_left_arm : StringProperty(name="Damage Root Left Arm")
-    node_usage_damage_root_left_leg : StringProperty(name="Damage Root Left Leg")
-    node_usage_damage_root_left_foot : StringProperty(name="Damage Root Left Foot")
-    node_usage_damage_root_right_shoulder : StringProperty(name="Damage Root Right Shoulder")
-    node_usage_damage_root_right_arm : StringProperty(name="Damage Root Right Arm")
-    node_usage_damage_root_right_leg : StringProperty(name="Damage Root Right Leg")
-    node_usage_damage_root_right_foot : StringProperty(name="Damage Root Right Foot")
-    node_usage_left_hand : StringProperty(name="Left Hand")
-    node_usage_right_hand : StringProperty(name="Right Hand")
-    node_usage_weapon_ik : StringProperty(name="Weapon IK")
+    node_usage_physics_control : StringProperty(name="Physics Control", options=set())
+    node_usage_camera_control : StringProperty(name="Camera Control", options=set())
+    node_usage_origin_marker : StringProperty(name="Origin Marker", options=set())
+    node_usage_left_clavicle : StringProperty(name="Left Clavicle", options=set())
+    node_usage_left_upperarm : StringProperty(name="Left Upperarm", options=set())
+    node_usage_pose_blend_pitch : StringProperty(name="Pose Blend Pitch", options=set())
+    node_usage_pose_blend_yaw : StringProperty(name="Pose Blend Yaw", options=set())
+    node_usage_pedestal : StringProperty(name="Pedestal", options=set())
+    node_usage_pelvis : StringProperty(name="Pelvis", options=set())
+    node_usage_left_foot : StringProperty(name="Left Foot", options=set())
+    node_usage_right_foot : StringProperty(name="Right Foot", options=set())
+    node_usage_damage_root_gut : StringProperty(name="Damage Root Gut", options=set())
+    node_usage_damage_root_chest : StringProperty(name="Damage Root Chest", options=set())
+    node_usage_damage_root_head : StringProperty(name="Damage Root Head", options=set())
+    node_usage_damage_root_left_shoulder : StringProperty(name="Damage RootLeft Shoulder", options=set())
+    node_usage_damage_root_left_arm : StringProperty(name="Damage Root Left Arm", options=set())
+    node_usage_damage_root_left_leg : StringProperty(name="Damage Root Left Leg", options=set())
+    node_usage_damage_root_left_foot : StringProperty(name="Damage Root Left Foot", options=set())
+    node_usage_damage_root_right_shoulder : StringProperty(name="Damage Root Right Shoulder", options=set())
+    node_usage_damage_root_right_arm : StringProperty(name="Damage Root Right Arm", options=set())
+    node_usage_damage_root_right_leg : StringProperty(name="Damage Root Right Leg", options=set())
+    node_usage_damage_root_right_foot : StringProperty(name="Damage Root Right Foot", options=set())
+    node_usage_left_hand : StringProperty(name="Left Hand", options=set())
+    node_usage_right_hand : StringProperty(name="Right Hand", options=set())
+    node_usage_weapon_ik : StringProperty(name="Weapon IK", options=set())
     
-    control_pedestal: StringProperty(name='Pedestal Control')
-    control_aim: StringProperty(name='Aim Control')
+    control_pedestal: StringProperty(name='Pedestal Control', options=set())
+    control_aim: StringProperty(name='Aim Control', options=set())
     
     # Scale
     def scale_update(self, context):
@@ -952,13 +981,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="Maintains the forward direction of a marker when transforming the scene. Useful if your scene forward is not X forward and you want the direction of the marker to match to in game. Try toggling this on/off if you are experiencing marker issues in game",
     )
     
-    export_in_progress: BoolProperty()
-    transforming: BoolProperty()
+    export_in_progress: BoolProperty(options=set())
+    transforming: BoolProperty(options=set())
         
     def poll_camera_track_camera(self, object: bpy.types.Object):
         return object.type == 'CAMERA'
     
-    camera_track_camera: PointerProperty(type=bpy.types.Object, poll=poll_camera_track_camera)
+    camera_track_camera: PointerProperty(type=bpy.types.Object, poll=poll_camera_track_camera, options=set())
     
     ik_chains: CollectionProperty(
         type=NWO_IKChain,
@@ -968,6 +997,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     object_controls: CollectionProperty(
         type=NWO_ControlObjects,
+        options=set(),
     )
     
     object_controls_active_index: IntProperty(options=set())
