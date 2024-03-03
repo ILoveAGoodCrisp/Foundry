@@ -630,7 +630,7 @@ class PrepareScene:
             # remove meshes with zero faces
             [self.unlink(ob) for ob in export_obs if ob.type == "MESH" and not ob.data.polygons]
             # Transform the scene if needed to Halo Scale and forward
-            transform_export_scene(context, scene_nwo)
+            scale_factor = transform_export_scene(context, scene_nwo)
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
             # Fix objects with bad scale values
@@ -763,44 +763,46 @@ class PrepareScene:
         if len(self.design_perms) > 1:
             self.design_perms = [l for l in self.permutations if l in self.design_perms]
         
-        if asset_type == 'SCENARIO':
-            if self.generate_structure(export_obs, scene_coll, h4):
-                context.view_layer.update()
         
-        # Build skylight dict
-        self.skylights = {}
-        if reach_sky_lights:
-            # undo scale change
-            if scale_factor != 1:
-                light_scale = 0.03048 ** 2
-                sun_scale = 0.03048
-            else:
-                light_scale = 1
-                sun_scale = 1
-            sun = None
-            lightGen_colors = []
-            lightGen_directions = []
-            lightGen_solid_angles = []
-            for ob in reach_sky_lights:
-                if (ob.data.energy * light_scale) < 0.01:
-                    sun = ob
-                down = Vector((0, 0, -1))
-                down.rotate(ob.rotation_euler)
-                lightGen_colors.append(color_3p_str(ob.data.color))
-                lightGen_directions.append(f'{jstr(down[0])} {jstr(down[1])} {jstr(down[2])}')
-                lightGen_solid_angles.append(jstr(ob.data.energy * light_scale))
-                
-            self.skylights['lightGen_colors'] = ' '.join(lightGen_colors)
-            self.skylights['lightGen_directions'] = ' '.join(lightGen_directions)
-            self.skylights['lightGen_solid_angles'] = ' '.join(lightGen_solid_angles)
-            self.skylights['lightGen_samples'] = str(len(reach_sky_lights) - 1)
+        if scene_nwo_export.export_gr2_files:
+            if asset_type == 'SCENARIO':
+                if self.generate_structure(export_obs, scene_coll, h4):
+                    context.view_layer.update()
             
-            if sun is not None:
-                if sun.data.color.v > 1:
-                    sun.data.color.v = 1
-                self.skylights['sun_size'] = jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
-                self.skylights['sun_intensity'] = jstr(sun.data.energy * 10000 * light_scale)
-                self.skylights['sun_color'] = color_3p_str(sun.data.color)
+            # Build skylight dict
+            self.skylights = {}
+            if reach_sky_lights:
+                # undo scale change
+                if scale_factor != 1:
+                    light_scale = 0.03048 ** 2
+                    sun_scale = 0.03048
+                else:
+                    light_scale = 1
+                    sun_scale = 1
+                sun = None
+                lightGen_colors = []
+                lightGen_directions = []
+                lightGen_solid_angles = []
+                for ob in reach_sky_lights:
+                    if (ob.data.energy * light_scale) < 0.01:
+                        sun = ob
+                    down = Vector((0, 0, -1))
+                    down.rotate(ob.rotation_euler)
+                    lightGen_colors.append(color_3p_str(ob.data.color))
+                    lightGen_directions.append(f'{jstr(down[0])} {jstr(down[1])} {jstr(down[2])}')
+                    lightGen_solid_angles.append(jstr(ob.data.energy * light_scale))
+                    
+                self.skylights['lightGen_colors'] = ' '.join(lightGen_colors)
+                self.skylights['lightGen_directions'] = ' '.join(lightGen_directions)
+                self.skylights['lightGen_solid_angles'] = ' '.join(lightGen_solid_angles)
+                self.skylights['lightGen_samples'] = str(len(reach_sky_lights) - 1)
+                
+                if sun is not None:
+                    if sun.data.color.v > 1:
+                        sun.data.color.v = 1
+                    self.skylights['sun_size'] = jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
+                    self.skylights['sun_intensity'] = jstr(sun.data.energy * 10000 * light_scale)
+                    self.skylights['sun_color'] = color_3p_str(sun.data.color)
 
         if self.warning_hit:
             print_warning(

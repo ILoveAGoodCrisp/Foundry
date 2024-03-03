@@ -105,7 +105,6 @@ class Tag():
         if self.tag_is_new:
             self._initialize_tag()
             self.tag_has_changes = True # Must always save new tags
-
         
     def _read_fields(self):
         """Read in some useful fields for this tag type"""
