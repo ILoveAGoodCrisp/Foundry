@@ -276,7 +276,9 @@ def get_active_object():
     return bpy.context.view_layer.objects.active
 
 
-def get_asset_info(filepath):
+def get_asset_info(filepath=""):
+    if not filepath:
+        filepath = bpy.context.scene.nwo_halo_launcher.sidecar_path
     asset_path = os.path.dirname(filepath).lower()
     asset = os_sep_partition(asset_path, True)
 

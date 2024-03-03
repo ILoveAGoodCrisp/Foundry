@@ -82,6 +82,7 @@ from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     foundry_update_check,
     get_arm_count,
+    get_asset_info,
     get_data_path,
     get_export_scale,
     get_halo_material_count,
@@ -561,9 +562,19 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_weapon"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_weapon'
     
-    def draw_model_overrides(self, box, nwo):
+    def draw_model_overrides(self, box: bpy.types.UILayout, nwo):
+        asset_dir, asset_name = get_asset_info()
+        self_path = str(Path(asset_dir, asset_name))
+        everything_overidden = nwo.render_model_path and nwo.collision_model_path and nwo.animation_graph_path and nwo.physics_model_path
+        if everything_overidden:
+            box.alert = True
         col = box.column()
         row = col.row(align=True)
+        print(self_path)
+        if nwo.render_model_path and dot_partition(nwo.render_model_path) == self_path:
+            row.alert = True
+            row.label(icon='ERROR')
+            
         row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
@@ -579,7 +590,7 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
-        if nwo.render_model_path and nwo.collision_model_path and nwo.animation_graph_path and nwo.physics_model_path:
+        if everything_overidden:
             row = col.row(align=True)
             row.label(text='All overrides specified', icon='ERROR')
             row = col.row(align=True)
