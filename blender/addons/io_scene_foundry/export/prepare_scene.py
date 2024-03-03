@@ -863,7 +863,7 @@ class PrepareScene:
             bpy.ops.object.convert(target='MESH')
             [ob.select_set(False) for ob in mesh_like_objects]
             
-        no_poly_objects = [ob for ob in context.view_layer.objects if ob.type == "MESH" and not ob.data.polygons and ob.modifiers]
+        no_poly_objects = [ob for ob in context.view_layer.objects if ob.type == "MESH" and not ob.data.polygons]
             
         for ob in no_poly_objects:
             # apply all modifiers if mesh has no polys
