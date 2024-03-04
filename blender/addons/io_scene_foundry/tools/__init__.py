@@ -570,7 +570,6 @@ class NWO_FoundryPanelProps(Panel):
             box.alert = True
         col = box.column()
         row = col.row(align=True)
-        print(self_path)
         if nwo.render_model_path and dot_partition(nwo.render_model_path) == self_path:
             row.alert = True
             row.label(icon='ERROR')

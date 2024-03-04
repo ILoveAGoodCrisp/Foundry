@@ -681,7 +681,7 @@ class NWO_OT_ClearAsset(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return valid_nwo_asset()
+        return context.scene.nwo_halo_launcher.sidecar_path
 
     def execute(self, context):
         nwo = context.scene.nwo_halo_launcher
