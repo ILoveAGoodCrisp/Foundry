@@ -518,7 +518,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
             (
                 "base",
                 "Base",
-                "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, and any animations that effect a full skeleton or are expected to be overlayed on top of",
+                "Defines a base animation. Allows for varying levels of root bone movement (or none). Useful for cinematic animations, idle animations, turn and movement animations",
                 '',
                 0,
             ),

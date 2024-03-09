@@ -617,6 +617,18 @@ class Sidecar:
         ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
+        
+        if "markers" in sidecar_paths.keys():
+            object = ET.SubElement(content, "ContentObject", Name="", Type="markers")
+            network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
+
+            path = sidecar_paths.get("markers")[0]
+
+            ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
+            # ET.SubElement(network, "ComponentFile").text = path[1]
+            ET.SubElement(network, "IntermediateFile").text = path[2]
+
+            output = ET.SubElement(object, "OutputTagCollection")
 
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path

@@ -412,6 +412,20 @@ class ProcessScene:
                         nwo_scene,
                         scene_nwo_export.export_render,
                     )
+                if nwo_scene.markers:
+                    self.export_model(
+                        context,
+                        asset_path,
+                        asset,
+                        "markers",
+                        nwo_scene.markers,
+                        None,
+                        None,
+                        nwo_scene.model_armature,
+                        asset_type,
+                        nwo_scene,
+                        scene_nwo_export.export_markers,
+                    )
                 if nwo_scene.lighting:
                     self.export_model(
                         context,
