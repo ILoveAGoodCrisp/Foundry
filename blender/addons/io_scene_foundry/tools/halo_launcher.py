@@ -33,6 +33,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_info,
     get_asset_path,
     get_data_path,
+    get_prefs,
     get_project_path,
     get_tags_path,
     is_corinth,
@@ -297,7 +298,7 @@ def get_tag_test_name():
 def launch_game(is_sapien, settings, filepath, asset_type):
     asset_path, asset_name = get_asset_info(settings.sidecar_path)
     using_filepath = filepath.endswith(".scenario")
-    if asset_type == 'MODEL':
+    if asset_type == 'MODEL' and get_prefs().debug_menu_on_launch:
         update_debug_menu(asset_path, asset_name)
     # get the program to launch
     if is_sapien:

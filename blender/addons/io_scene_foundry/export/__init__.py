@@ -558,7 +558,7 @@ class NWO_Export(NWO_Export_Scene):
                     "-----------------------------------------------------------------------\n"
                 )
                 
-                if scene_nwo.asset_type == 'MODEL':
+                if scene_nwo.asset_type == 'MODEL' and get_prefs().debug_menu_on_export:
                     update_debug_menu(self.asset_path, self.asset)
 
         except KeyboardInterrupt:

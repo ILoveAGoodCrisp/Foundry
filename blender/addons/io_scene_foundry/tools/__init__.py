@@ -2738,6 +2738,10 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(prefs, "update_materials_on_shader_path")
         row = box.row(align=True)
         row.prop(prefs, "sync_timeline_range")
+        row = box.row(align=True)
+        row.prop(prefs, "debug_menu_on_export")
+        row = box.row(align=True)
+        row.prop(prefs, "debug_menu_on_launch")
         blend_prefs = context.preferences
         if blend_prefs.use_preferences_save and (not bpy.app.use_userpref_skip_save_on_exit):
             return

@@ -411,6 +411,17 @@ class ToolkitLocationPreferences(AddonPreferences):
         items=scene_matrix_items,
         update=update_scene_matrix,
     )
+    
+    debug_menu_on_export: BoolProperty(
+        name="Update Debug Menu on Export",
+        description="Updates the debug menu at export with the current scene asset (if it is a model)",
+        default=True,
+    )
+    debug_menu_on_launch: BoolProperty(
+        name="Update Debug Menu on Game Launch",
+        description="Updates the debug menu at game launch (sapien or tagtest) with the current scene asset (if it is a model)",
+        default=True,
+    )
 
     def draw(self, context):
         prefs = self
@@ -467,3 +478,7 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.prop(prefs, "update_materials_on_shader_path")
         row = box.row(align=True)
         row.prop(prefs, "sync_timeline_range")
+        row = box.row(align=True)
+        row.prop(prefs, "debug_menu_on_export")
+        row = box.row(align=True)
+        row.prop(prefs, "debug_menu_on_launch")

@@ -158,8 +158,6 @@ class PrepareScene:
         self.validated_regions = set()
         self.validated_permutations = set()
         
-        self.emissive_factor = 0.328084 if scene_nwo.scale == 'max' else 1
-        
         if self.supports_regions_and_perms:
             self.regions = [entry.name for entry in context.scene.nwo.regions_table]
             self.permutations = [entry.name for entry in context.scene.nwo.permutations_table]
@@ -179,6 +177,8 @@ class PrepareScene:
         game_version = 'corinth' if h4 else 'reach'
         
         scene_nwo = context.scene.nwo
+        
+        self.emissive_factor = 0.328084 if scene_nwo.scale == 'max' else 1
         
         global render_mesh_types
         if not h4 or asset_type in ('MODEL', 'SKY'):
