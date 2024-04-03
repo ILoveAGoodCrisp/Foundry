@@ -153,7 +153,7 @@ else:
             # create warning if current project is incompatible with loaded managedblam.dll
             mb_path = nwo_globals.mb_path
             if mb_path:
-                if not mb_path.startswith(get_project_path()):
+                if not mb_path.startswith(str(get_project_path())):
                     restart_blender()
 
             # like and subscribe

@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.cubemap import NWO_OT_Cubemap
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.tools.scale_models import NWO_OT_AddScaleModel
 from io_scene_foundry.tools.animation.automate_pose_overlay import NWO_AddAimAnimation
@@ -2579,6 +2580,7 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column()
         col.label(text=f"BSP Tools")
         col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
+        col.operator('nwo.cubemap', text='Cubemap Farm', icon='WORLD')
         
     def draw_importer(self, box):
         row = box.row()
@@ -4969,6 +4971,7 @@ classeshalo = (
     NWO_UpdateSets,
     NWO_ScaleScene,
     NWO_OT_ConvertToHaloRig,
+    NWO_OT_Cubemap,
 )
 
 def register():

@@ -2538,14 +2538,17 @@ class DebugMenuCommand:
     def __repr__(self):
         return f'<item type = command name = "Foundry: Drop {self.name} [{self.tag_type}]" variable = "drop \\"{self.path}\\"">\n'
     
-def update_debug_menu(asset_dir, asset_name):
-    asset_dir = relative_path(asset_dir)
+def update_debug_menu(asset_dir="", asset_name="", for_cubemaps=False):
     menu_commands: list[DebugMenuCommand] = []
-    if not os.path.exists(get_tags_path() + asset_dir):
-        return
-    for file in os.listdir(get_tags_path() + asset_dir):
-        if file.startswith(asset_name) and file.endswith(object_exts):
-            menu_commands.append(DebugMenuCommand(asset_dir, file))
+    if for_cubemaps:
+        menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\) \(print \\"Dynamic cubemap generation complete. Close tag test to continue\\"\)">\n')
+    else:
+        asset_dir = relative_path(asset_dir)
+        if not os.path.exists(get_tags_path() + asset_dir):
+            return
+        for file in os.listdir(get_tags_path() + asset_dir):
+            if file.startswith(asset_name) and file.endswith(object_exts):
+                menu_commands.append(DebugMenuCommand(asset_dir, file))
             
     menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
     valid_lines = None
