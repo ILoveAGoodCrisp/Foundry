@@ -158,6 +158,8 @@ class PrepareScene:
         self.validated_regions = set()
         self.validated_permutations = set()
         
+        self.emissive_factor = 0.328084 if scene_nwo.scale == 'max' else 1
+        
         if self.supports_regions_and_perms:
             self.regions = [entry.name for entry in context.scene.nwo.regions_table]
             self.permutations = [entry.name for entry in context.scene.nwo.permutations_table]
@@ -1257,10 +1259,10 @@ class PrepareScene:
         # emissive props
         if face_props.emissive_override:
             mesh_props.material_lighting_attenuation_falloff = jstr(
-                face_props.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * 0.328084
+                face_props.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor
             )
             mesh_props.material_lighting_attenuation_cutoff = jstr(
-                face_props.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * 0.328084
+                face_props.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor
             )
             mesh_props.material_lighting_emissive_focus = jstr(face_props.material_lighting_emissive_focus_ui / 180)
             mesh_props.material_lighting_emissive_color = color_4p_str(
@@ -1834,10 +1836,10 @@ class PrepareScene:
                     )
                 if nwo_data.emissive_active:
                     nwo.material_lighting_attenuation_falloff = jstr(
-                        nwo_data.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * 0.328084
+                        nwo_data.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor
                     )
                     nwo.material_lighting_attenuation_cutoff = jstr(
-                        nwo_data.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * 0.328084
+                        nwo_data.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor
                     )
                     nwo.material_lighting_emissive_focus = jstr(nwo_data.material_lighting_emissive_focus_ui / 180)
                     nwo.material_lighting_emissive_color = color_4p_str(
