@@ -34,6 +34,8 @@ from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.utils import nwo_utils
 from pathlib import Path
 
+instructions_given = False
+
 class Cubemap:
     def __init__(self, x, y, z) -> None:
         self.x = x
@@ -95,12 +97,15 @@ class CubemapFarm:
             shutil.rmtree(self.cubemaps_dir)
         print("Loading game...")
         use_instructions = "1. Once the game has loaded press HOME on your keyboard to open the debug menu\n2. Scroll to the bottom of the menu and press enter on the Generate Dynamic Cubemaps command\n3. Wait for the process to complete\n4. Exit the game using SHIFT+ESC\n"
-        ctypes.windll.user32.MessageBoxW(
-            None,
-            use_instructions,
-            "Cubemap Generation Instructions",
-            0x00000040,
-        )
+        global instructions_given
+        if not instructions_given:
+            ctypes.windll.user32.MessageBoxW(
+                None,
+                use_instructions,
+                "Cubemap Generation Instructions",
+                0x00000040,
+            )
+            instructions_given = True
         print("Waiting for the game to close...\n")
         nwo_utils.run_ek_cmd([executable])
             
