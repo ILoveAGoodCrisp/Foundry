@@ -2541,7 +2541,7 @@ class DebugMenuCommand:
 def update_debug_menu(asset_dir="", asset_name="", for_cubemaps=False):
     menu_commands: list[DebugMenuCommand] = []
     if for_cubemaps:
-        menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\) \(print \\"Dynamic cubemap generation complete. Close tag test to continue\\"\)">\n')
+        menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\) \(print \\"Dynamic cubemap generation in progress\\"\)">\n')
     else:
         asset_dir = relative_path(asset_dir)
         if not os.path.exists(get_tags_path() + asset_dir):

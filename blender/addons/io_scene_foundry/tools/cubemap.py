@@ -73,7 +73,10 @@ class CubemapFarm:
         executable = self.get_tagplay_exe()
         try:
             with open(Path(self.project_dir, "bonobo_init.txt"), "w") as init:
-                init.write("prune_globals 1\n")
+                if nwo_utils.is_corinth():
+                    init.write("prune_globals 1\n")
+                else:
+                    init.write("prune_global 1\n")
                 init.write(f"game_start {self.scenario_path_no_ext}\n")
                 init.write("run_game_scripts 0\n")
                 init.write('error_geometry_hide_all\n')
@@ -102,17 +105,24 @@ class CubemapFarm:
         nwo_utils.run_ek_cmd([executable])
             
     def write_cubemap_bitmaps(self):
-        print("--- Generating cubemap bitmap tag")
-        nwo_utils.run_tool(["cubemaps", self.scenario_path_no_ext, self.cubemaps_dir])
-        print("\n--- Fixing up cubemap bitmap checksums")
+        if not self.cubemaps_dir.exists():
+            return f"No cubemap source files found at {str(Path(self.project_dir, 'cubemaps'))}"
         cubemaps: list[Cubemap] = []
         index_map = self._bsp_cubemap_index_map()
+        if not index_map or not any(index_map.values()):
+            return f"No valid cubemap source files found at {str(Path(self.project_dir, 'cubemaps'))}"
         with ScenarioTag(path=self.scenario_path) as scenario:
             block_cubemaps = scenario.tag.SelectField("Block:cubemaps")
+            if block_cubemaps.Elements.Count <= 0:
+                return "Scenario has no cubemaps"
             for element in block_cubemaps.Elements:
                 position = element.SelectField("cubemap position")
                 points = position.GetStringData()
                 cubemaps.append(Cubemap(float(points[0]), float(points[1]), float(points[2])))
+        
+            print("--- Generating cubemap bitmap tag")
+            nwo_utils.run_tool(["cubemaps", self.scenario_path_no_ext, self.cubemaps_dir])
+            print("\n--- Fixing up cubemap bitmap checksums")
                 
             for bsp_element in scenario.block_bsps.Elements:
                 bsp_tagpath = bsp_element.SelectField("structure bsp").Path
@@ -143,6 +153,8 @@ class CubemapFarm:
                             field_registration_point.SetStringData([rpx, rpy])
                         
                         bitmap.tag_has_changes = True
+                        
+        return ""
                 
     def _bsp_cubemap_index_map(self) -> dict:
         index_map = {}
@@ -171,8 +183,7 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         return True
     
     def update_scenario_path(self, context):
-        if self.scenario_path:
-            self["scenario_path"] = nwo_utils.clean_tag_path(self.scenario_path, "scenario")
+        self["scenario_path"] = nwo_utils.clean_tag_path(self["scenario_path"]).strip('"')
     
     scenario_path: bpy.props.StringProperty(
         name="Scenario Tag Path",
@@ -190,7 +201,8 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         if not self.scenario_path:
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}
-        elif not Path(nwo_utils.get_tags_path(), self.scenario_path).exists():
+        self.scenario_path = nwo_utils.relative_path(self.scenario_path)
+        if not Path(nwo_utils.get_tags_path(), self.scenario_path).exists():
             self.report({"WARNING"}, f"Given scenario path does not exist: {self.scenario_path}")
             return {'CANCELLED'}
         farm = CubemapFarm(self.scenario_path)
@@ -201,7 +213,11 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         if self.launch_game:
             farm.launch_game()
         start = time.perf_counter()
-        farm.write_cubemap_bitmaps()
+        message = farm.write_cubemap_bitmaps()
+        if message:
+            self.report({'WARNING'}, message)
+            nwo_utils.print_warning("\n Cubemap farm cancelled")
+            return {"CANCELLED"}
         end = time.perf_counter()
         print("\n-----------------------------------------------------------------------")
         print(f"Cubemaps generated in {nwo_utils.human_time(end - start, True)}")
