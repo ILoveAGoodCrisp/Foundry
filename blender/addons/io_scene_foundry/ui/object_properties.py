@@ -1430,7 +1430,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     poop_remove_from_shadow_geometry_ui: BoolProperty(  # H4+
-        name="Remove From Shadow Geo",
+        name="Remove From Shadow Geometry",
         options=set(),
         description="",
         default=False,

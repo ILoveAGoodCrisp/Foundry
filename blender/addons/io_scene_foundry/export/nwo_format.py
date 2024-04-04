@@ -883,26 +883,26 @@ class NWOMesh(NWOObject):
                             self.bungie_mesh_poop_imposter_brightness = (
                                 self.halo.poop_imposter_brightness
                             )
-                            self.bungie_mesh_poop_streamingpriority = (
-                                self.halo.poop_streaming_priority
+                        self.bungie_mesh_poop_streamingpriority = (
+                            self.halo.poop_streaming_priority
+                        )
+
+                        self.bungie_mesh_poop_cinema_only = (
+                            self.mesh_poop_cinema_only()
+                        )
+                        self.bungie_mesh_poop_exclude_from_cinema = (
+                            self.mesh_poop_exclude_from_cinema()
+                        )
+
+                        if self.halo.poop_remove_from_shadow_geometry:
+                            self.bungie_mesh_poop_remove_from_shadow_geometry = (
+                                self.halo.poop_remove_from_shadow_geometry
                             )
 
-                            self.bungie_mesh_poop_cinema_only = (
-                                self.mesh_poop_cinema_only()
+                        if self.halo.poop_disallow_lighting_samples:
+                            self.bungie_mesh_poop_disallow_object_lighting_samples = (
+                                self.halo.poop_disallow_lighting_samples
                             )
-                            self.bungie_mesh_poop_exclude_from_cinema = (
-                                self.mesh_poop_exclude_from_cinema()
-                            )
-
-                            if self.halo.poop_remove_from_shadow_geometry:
-                                self.bungie_mesh_poop_remove_from_shadow_geometry = (
-                                    self.halo.poop_remove_from_shadow_geometry
-                                )
-
-                            if self.halo.poop_disallow_lighting_samples:
-                                self.bungie_mesh_poop_disallow_object_lighting_samples = (
-                                    self.halo.poop_disallow_lighting_samples
-                                )
 
         elif self.bungie_mesh_type == "_connected_geometry_mesh_type_physics":
             if (
