@@ -1622,7 +1622,7 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(mesh_nwo, "face_two_sided_type_ui", text="Backside Normals")
                 
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if has_collision and not (mesh_nwo.render_only_ui and is_instance_or_structure_proxy(ob)):
+            if has_collision and poll_ui(("SCENARIO", "PREFAB")) and not (mesh_nwo.render_only_ui and is_instance_or_structure_proxy(ob)):
                 row = box.row()
                 row.use_property_split = True
                 if h4:

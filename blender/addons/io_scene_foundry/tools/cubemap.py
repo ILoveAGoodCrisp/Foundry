@@ -203,6 +203,7 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     )
 
     def execute(self, context):
+        self.scenario_path = str(Path(self.scenario_path).with_suffix(".scenario"))
         if not self.scenario_path:
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}
@@ -232,7 +233,8 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     def invoke(self, context, event):
         if not self.scenario_path and nwo_utils.valid_nwo_asset:
             asset_path, asset_name = nwo_utils.get_asset_info()
-            self.scenario_path = str(Path(asset_path, asset_name).with_suffix(".scenario"))
+            if asset_path and asset_name:
+                self.scenario_path = str(Path(asset_path, asset_name).with_suffix(".scenario"))
             
         return context.window_manager.invoke_props_dialog(self, width=500)
     
