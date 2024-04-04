@@ -1274,7 +1274,7 @@ class NWO_FoundryPanelProps(Panel):
                     )
                     # col.prop(nwo, "poop_decal_spacing_ui", text='Decal Spacing')
                     if h4:
-                        # col.prop(nwo, "poop_remove_from_shadow_geometry_ui")
+                        col.prop(nwo, "poop_remove_from_shadow_geometry_ui")
                         col.prop(nwo, "poop_disallow_lighting_samples_ui")
                         # col.prop(nwo, "poop_rain_occluder")
 
