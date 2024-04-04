@@ -69,6 +69,8 @@ class ShaderTag(Tag):
         self.material_shader = material_shader
         def _get_group_node(blender_material):
             """Gets a group node from a blender material node tree if one exists and it plugged into the output node"""
+            if not blender_material.use_nodes:
+                return None
             tree = self.blender_material.node_tree
             if tree is None:
                 return None
@@ -89,7 +91,7 @@ class ShaderTag(Tag):
         self.group_node = _get_group_node(blender_material)
         # TODO implement custom shaders for Reach. Currently forcing custom off if reach
         self.custom = True if self.group_node and self.corinth else False
-        if linked_to_blender:
+        if linked_to_blender and blender_material.use_nodes:
             self._edit_tag()
             
         return self.tag.Path.RelativePathWithExtension
