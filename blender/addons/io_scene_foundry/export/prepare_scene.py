@@ -63,6 +63,7 @@ from ..utils.nwo_utils import (
     layer_faces,
     print_warning,
     relative_path,
+    reset_to_basis,
     rig_root_deform_bone,
     transform_scene,
     get_tags_path,
@@ -627,6 +628,7 @@ class PrepareScene:
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
         if scene_nwo_export.export_gr2_files:
+            reset_to_basis(context, True)
             # Convert all mesh like objects to meshes and apply modifiers
             to_mesh(context, export_obs)
             # remove meshes with zero faces

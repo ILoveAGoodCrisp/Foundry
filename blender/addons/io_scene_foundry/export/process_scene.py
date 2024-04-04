@@ -50,11 +50,11 @@ from ..utils.nwo_utils import (
     get_tags_path,
     is_corinth,
     jstr,
-    mute_armature_mods,
+    # mute_armature_mods,
     print_warning,
     reset_to_basis,
     run_tool,
-    unmute_armature_mods,
+    # unmute_armature_mods,
     update_job,
     update_job_count,
 )
@@ -92,7 +92,7 @@ class ProcessScene:
         reports = []
         gr2_count = 0
         h4 = is_corinth(context)
-        muted_armature_deforms = []
+        # muted_armature_deforms = []
         exported_actions = []
         if asset_type == 'camera_track_set':
             return build_camera_tracks(context, nwo_scene.camera, asset_path)
@@ -112,7 +112,7 @@ class ProcessScene:
                         )
 
                     # Handle swapping out armature
-                    muted_armature_deforms = mute_armature_mods()
+                    # muted_armature_deforms = mute_armature_mods()
                     for action in bpy.data.actions:
                         # make animation dirs
                         animations_dir = os.path.join(asset_path, "animations")
@@ -228,8 +228,8 @@ class ProcessScene:
                                 
             clear_constraints()
             reset_to_basis(context)
-            if muted_armature_deforms:
-                unmute_armature_mods(muted_armature_deforms)
+            # if muted_armature_deforms:
+            #     unmute_armature_mods(muted_armature_deforms)
             if asset_type in ("MODEL", "FP ANIMATION"):
                 if nwo_scene.render:
                     self.export_model(
