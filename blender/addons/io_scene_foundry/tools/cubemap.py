@@ -203,10 +203,10 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     )
 
     def execute(self, context):
-        self.scenario_path = str(Path(self.scenario_path).with_suffix(".scenario"))
         if not self.scenario_path:
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}
+        self.scenario_path = str(Path(self.scenario_path).with_suffix(".scenario"))
         self.scenario_path = nwo_utils.relative_path(self.scenario_path)
         if not Path(nwo_utils.get_tags_path(), self.scenario_path).exists():
             self.report({"WARNING"}, f"Given scenario path does not exist: {self.scenario_path}")
