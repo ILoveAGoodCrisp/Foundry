@@ -627,8 +627,12 @@ class PrepareScene:
         # get new export_obs from split meshes
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
+        self.current_action = None
+        if bpy.data.actions:
+            self.current_action = bpy.data.actions[scene_nwo.active_action_index]
+            context.scene.tool_settings.use_keyframe_insert_auto = False
         if scene_nwo_export.export_gr2_files:
-            reset_to_basis(context, True)
+            reset_to_basis(context)
             # Convert all mesh like objects to meshes and apply modifiers
             to_mesh(context, export_obs)
             # remove meshes with zero faces
@@ -663,7 +667,6 @@ class PrepareScene:
         export_obs = context.view_layer.objects[:]
 
         self.skeleton_bones = {}
-        self.current_action = None
 
         if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
             if self.lighting:
@@ -680,10 +683,6 @@ class PrepareScene:
                     ob.parent_bone = root_bone_name
 
             if self.model_armature:
-                if bpy.data.actions:
-                    self.current_action = bpy.data.actions[scene_nwo.active_action_index]
-                    context.scene.tool_settings.use_keyframe_insert_auto = False
-
                 self.remove_relative_parenting(context, export_obs)
 
                 # set bone names equal to their name overrides (if not blank)
