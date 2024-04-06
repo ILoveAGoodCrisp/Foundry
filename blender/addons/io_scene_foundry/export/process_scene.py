@@ -572,7 +572,7 @@ class ProcessScene:
             if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
                 print("\n\nBuilding Tags")
                 print("-----------------------------------------------------------------------\n")
-                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, asset_type, tag_folder_path, asset, setup_scenario)
+                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario)
                 export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(nwo_scene.lighting), nwo_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
@@ -842,7 +842,7 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo, exported_actions, asset_type, asset_tag_dir, asset_name, setup_scenario):
+    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo, exported_actions, setup_scenario):
         node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
         # print("\n--- Foundry Tags Pre-Process\n")
         if node_usage_set or scene_nwo.ik_chains or exported_actions:
@@ -865,7 +865,7 @@ class ProcessScene:
                     # Node usages are a sign the user intends to create overlays group
                     animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
                     
-        if setup_scenario:
+        if setup_scenario and scene_nwo.scenario_type != 'solo':
             with ScenarioTag(hide_prints=True) as scenario:
                 scenario.tag.SelectField('type').SetValue(scene_nwo.scenario_type)
 
