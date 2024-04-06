@@ -181,7 +181,7 @@ class NWO_OT_Cubemap(bpy.types.Operator):
     bl_idname = "nwo.cubemap"
     bl_label = "Cubemap Farm"
     bl_description = "Generates Cubemaps for a scenario"
-    bl_options = set()
+    bl_options = {"UNDO"}
 
     @classmethod
     def poll(cls, context):

@@ -40,7 +40,7 @@ from bpy.types import PropertyGroup
 from io_scene_foundry.managed_blam.animation import AnimationTag
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_asset_animation_graph, get_prefs, is_corinth, poll_ui, reset_to_basis
+from ..utils.nwo_utils import clean_tag_path, get_asset_animation_graph, get_asset_tag, get_prefs, is_corinth, poll_ui, reset_to_basis
 
 def get_matrix_settings():
     appdata = os.getenv('APPDATA')
@@ -586,10 +586,10 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             "vehicle"
         ).strip('"')
     def template_weapon_clean_tag_path(self, context):
-        self["template_weapon"] = clean_tag_path(
-            self["template_weapon"],
-            "weapon"
-        ).strip('"')
+        self["template_weapon"] = clean_tag_path(self["template_weapon"], "weapon").strip('"')
+        if get_asset_tag('.weapon'):
+            bpy.ops.nwo.update_template().tag_type = 'vehicle'
+            
     
     template_model: StringProperty(
         name="Model Template",
@@ -706,6 +706,20 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     collision_model_expanded: BoolProperty(default=False, options=set())
     animation_graph_expanded: BoolProperty(default=False, options=set())
     physics_model_expanded: BoolProperty(default=False, options=set())
+    crate_expanded: BoolProperty(default=False, options=set())
+    scenery_expanded: BoolProperty(default=False, options=set())
+    effect_scenery_expanded: BoolProperty(default=False, options=set())
+    device_control_expanded: BoolProperty(default=False, options=set())
+    device_machine_expanded: BoolProperty(default=False, options=set())
+    device_terminal_expanded: BoolProperty(default=False, options=set())
+    device_dispenser_expanded: BoolProperty(default=False, options=set())
+    biped_expanded: BoolProperty(default=False, options=set())
+    creature_expanded: BoolProperty(default=False, options=set())
+    giant_expanded: BoolProperty(default=False, options=set())
+    vehicle_expanded: BoolProperty(default=False, options=set())
+    weapon_expanded: BoolProperty(default=False, options=set())
+    equipment_expanded: BoolProperty(default=False, options=set())
+    
     model_rig_expanded: BoolProperty(default=True, options=set())
     rig_controls_expanded: BoolProperty(default=False, options=set())
     rig_object_controls_expanded: BoolProperty(default=False, options=set())

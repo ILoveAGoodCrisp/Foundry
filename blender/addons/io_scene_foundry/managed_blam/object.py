@@ -56,3 +56,8 @@ class ObjectTag(Tag):
             return model_path.RelativePathWithExtension
         else:
             print(f"{self.path} has no model reference")
+            
+    def set_model_tag_path(self, new_path: str):
+        self.reference_model.Path = self._TagPath_from_string(new_path)
+        self.tag_has_changes = True
+        

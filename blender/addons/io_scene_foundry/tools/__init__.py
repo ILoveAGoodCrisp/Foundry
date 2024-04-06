@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.tag_templates import NWO_OT_LoadTemplate
 from io_scene_foundry.tools.cubemap import NWO_OT_Cubemap
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.tools.scale_models import NWO_OT_AddScaleModel
@@ -77,7 +78,6 @@ from io_scene_foundry.utils.nwo_utils import (
     ExportManager,
     amf_addon_installed,
     blender_toolset_installed,
-    bpy_enum,
     clean_tag_path,
     deselect_all_objects,
     dot_partition,
@@ -498,76 +498,85 @@ class NWO_FoundryPanelProps(Panel):
             )
             
             col.separator()
-            
-            row = col.row(align=True)
-            row.prop(nwo, 'template_model', icon_value=get_icon_id('model'))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_model"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_model'
-            if nwo.output_biped:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_biped', icon_value=get_icon_id('biped'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_biped"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_biped'
             if nwo.output_crate:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_crate', icon_value=get_icon_id('crate'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_crate"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_crate'
-            if nwo.output_creature:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_creature', icon_value=get_icon_id('creature'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_creature"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_creature'
-            if nwo.output_device_control:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_device_control', icon_value=get_icon_id('device_control'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_control"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_control'
-            if nwo.output_device_dispenser:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_device_dispenser', icon_value=get_icon_id('device_dispenser'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_dispenser"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_dispenser'
-            if nwo.output_device_machine:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_device_machine', icon_value=get_icon_id('device_machine'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_machine"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_machine'
-            if nwo.output_device_terminal:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_device_terminal', icon_value=get_icon_id('device_terminal'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_device_terminal"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_device_terminal'
-            if nwo.output_effect_scenery:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_effect_scenery', icon_value=get_icon_id('effect_scenery'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_effect_scenery"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_effect_scenery'
-            if nwo.output_equipment:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_equipment', icon_value=get_icon_id('equipment'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_equipment"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_equipment'
-            if nwo.output_giant:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_giant', icon_value=get_icon_id('giant'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_giant"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_giant'
+                self.draw_expandable_box(col.box(), nwo, 'crate')
             if nwo.output_scenery:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_scenery', icon_value=get_icon_id('scenery'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_scenery"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_scenery'
+                self.draw_expandable_box(col.box(), nwo, 'scenery')
+            if nwo.output_effect_scenery:
+                self.draw_expandable_box(col.box(), nwo, 'effect_scenery')
+            if nwo.output_device_control:
+                self.draw_expandable_box(col.box(), nwo, 'device_control')
+            if nwo.output_device_machine:
+                self.draw_expandable_box(col.box(), nwo, 'device_machine')
+            if nwo.output_device_terminal:
+                self.draw_expandable_box(col.box(), nwo, 'device_terminal')
+            if is_corinth(self.context) and nwo.output_device_dispenser:
+                self.draw_expandable_box(col.box(), nwo, 'device_dispenser')
+            if nwo.output_biped:
+                self.draw_expandable_box(col.box(), nwo, 'biped')
+            if nwo.output_creature:
+                self.draw_expandable_box(col.box(), nwo, 'creature')
+            if nwo.output_giant:
+                self.draw_expandable_box(col.box(), nwo, 'giant')
             if nwo.output_vehicle:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_vehicle', icon_value=get_icon_id('vehicle'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_vehicle"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_vehicle'
+                self.draw_expandable_box(col.box(), nwo, 'vehicle')
             if nwo.output_weapon:
-                row = col.row(align=True)
-                row.prop(nwo, 'template_weapon', icon_value=get_icon_id('weapon'))
-                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_weapon"
-                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_weapon'
+                self.draw_expandable_box(col.box(), nwo, 'weapon')
+            if nwo.output_equipment:
+                self.draw_expandable_box(col.box(), nwo, 'equipment')
+        
+    def draw_output_tag(self, box: bpy.types.UILayout, nwo, tag_type):
+        tag_path = get_asset_tag(tag_type)
+        if tag_path:
+            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+        row = box.row(align=True)
+        row.prop(nwo, f'template_{tag_type}', icon_value=get_icon_id(tag_type), text="Template")
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = f"template_{tag_type}"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = f'template_{tag_type}'
+        if valid_nwo_asset(self.context) and getattr(nwo, f'template_{tag_type}'):
+            box.operator('nwo.load_template', icon='DUPLICATE').tag_type = tag_type
+        
+    def draw_crate(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'crate')
+        
+    def draw_scenery(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'scenery')
+        
+    def draw_crate(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'crate')
+        
+    def draw_effect_scenery(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag( box, nwo,'effect_scenery')
+        
+    def draw_device_control(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'device_control')
+        
+    def draw_device_machine(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'device_machine')
+        
+    def draw_device_terminal(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'device_terminal')
+        
+    def draw_device_dispenser(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'device_dispenser')
+        
+    def draw_biped(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'biped')
+        
+    def draw_creature(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'creature')
+        
+    def draw_giant(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'giant')
+        
+    def draw_vehicle(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'vehicle')
+        
+    def draw_weapon(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'weapon')
+        
+    def draw_equipment(self, box: bpy.types.UILayout, nwo):
+        self.draw_output_tag(box, nwo,'equipment')
                 
     def draw_model(self, box: bpy.types.UILayout, nwo):
         tag_path = get_asset_tag(".model")
@@ -5053,6 +5062,7 @@ classeshalo = (
     NWO_ScaleScene,
     NWO_OT_ConvertToHaloRig,
     NWO_OT_Cubemap,
+    NWO_OT_LoadTemplate,
 )
 
 def register():
