@@ -71,8 +71,6 @@ def setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth):
 
 
 def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_export, scene_nwo, model_lighting, selected_bsps):
-    print("\n\nBuilding Tags")
-    print("-----------------------------------------------------------------------\n")
     tags_dir = get_tags_path()
     data_dir = get_data_path()
     tag_folder_path = asset_path.replace(data_dir, tags_dir)

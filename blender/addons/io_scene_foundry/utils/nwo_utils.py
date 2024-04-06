@@ -2061,7 +2061,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
                 bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
             
-            # Lights need scaling to have correct display 
+            # Lights need scaling to have correct display
             if ob.type == 'LIGHT':
                 sca *= scale_factor
                 

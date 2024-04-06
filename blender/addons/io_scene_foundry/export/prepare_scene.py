@@ -482,7 +482,6 @@ class PrepareScene:
 
             # add region/global_mat to sets
             uses_global_mat = has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or scenario_asset and not h4 and nwo.mesh_type == "_connected_geometry_mesh_type_default")
-
             if uses_global_mat:
                 self.global_materials.add(nwo.face_global_material)
 
@@ -544,6 +543,8 @@ class PrepareScene:
                 
             for m in self.null_path_materials:
                 print_warning(f'  {m.name}')
+                
+            print("")
                 
         if self.invalid_path_materials:
             if h4:
@@ -642,7 +643,7 @@ class PrepareScene:
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
             # Fix objects with bad scale values
-            poops, nonstandard_scale = self.fix_scale(context, export_obs)
+            poops, nonstandard_scale = self.fix_scale(context, [ob for ob in export_obs if ob.type != 'LIGHT'])
             if poops and nonstandard_scale:
                 stomp_scale_multi_user(poops)
 
@@ -3364,7 +3365,6 @@ def transform_export_scene(context, scene_nwo) -> float:
     if scale_factor != 1 or rotation:
         print("--- Transforming Scene")
         transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
-        
     return scale_factor
 
 def to_mesh(context, objects: list[bpy.types.Object]):

@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import itertools
+from pathlib import Path
 import random
 import time
 import bpy
@@ -561,14 +562,17 @@ class ProcessScene:
             tag_folder_path = asset_path.replace(get_data_path(), get_tags_path())
             scenery_path = os.path.join(tag_folder_path, f"{asset}.scenery")
             no_top_level_tag = hasattr(sidecar, "no_top_level_tag") and not os.path.exists(scenery_path)
+            
+            setup_scenario = False
+            if asset_type == 'SCENARIO':
+                scenario_path = Path(tag_folder_path, f"{asset}.scenario")
+                if not scenario_path.exists():
+                    setup_scenario = True
 
             if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
-                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions)
-                set_better_lm_res = False
-                if asset_type == 'SCENARIO':
-                    scenario_path = os.path.join(tag_folder_path, f"{asset}.scenario")
-                    if not os.path.exists(scenario_path):
-                        set_better_lm_res = True
+                print("\n\nBuilding Tags")
+                print("-----------------------------------------------------------------------\n")
+                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, asset_type, tag_folder_path, asset, setup_scenario)
                 export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(nwo_scene.lighting), nwo_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
@@ -576,7 +580,7 @@ class ProcessScene:
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_post_import_tasks(context, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations, set_better_lm_res)
+                    self.managed_blam_post_import_tasks(context, context.scene.nwo, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations, setup_scenario)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -838,15 +842,9 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo, exported_actions):
+    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo, exported_actions, asset_type, asset_tag_dir, asset_name, setup_scenario):
         node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
-        mb_justified = scene_nwo.animation_graph_from_blend and (node_usage_set or scene_nwo.ik_chains or exported_actions or scene_nwo.parent_animation_graph)
-        if not mb_justified:
-            return
-        print("\nTags Pre-Process")
-        print(
-            "-----------------------------------------------------------------------\n"
-        )
+        # print("\n--- Foundry Tags Pre-Process\n")
         if node_usage_set or scene_nwo.ik_chains or exported_actions:
             with AnimationTag(hide_prints=False) as animation:
                 if scene_nwo.parent_animation_graph:
@@ -854,20 +852,24 @@ class ProcessScene:
                     # print("--- Set Parent Animation Graph")
                 if exported_actions:
                     animation.validate_compression(exported_actions, scene_nwo.default_animation_compression)
-                    print("--- Validated Animation Compression")
+                    # print("--- Validated Animation Compression")
                 if node_usage_set:
                     animation.set_node_usages(nwo_scene.skeleton_bones)
-                    print("--- Updated Animation Node Usages")
+                    #print("--- Updated Animation Node Usages")
                 if scene_nwo.ik_chains:
                     animation.write_ik_chains(scene_nwo.ik_chains, nwo_scene.skeleton_bones)
-                    print("--- Updated Animation IK Chains")
+                    # print("--- Updated Animation IK Chains")
                     
                 if animation.tag_has_changes and (node_usage_set or scene_nwo.ik_chains):
                     # Graph should be data driven if ik chains or overlay groups in use.
                     # Node usages are a sign the user intends to create overlays group
                     animation.tag.SelectField("Struct:definitions[0]/ByteFlags:private flags").SetBit('uses data driven animation', True)
+                    
+        if setup_scenario:
+            with ScenarioTag(hide_prints=True) as scenario:
+                scenario.tag.SelectField('type').SetValue(scene_nwo.scenario_type)
 
-    def managed_blam_post_import_tasks(self, context, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, set_better_lm_res):
+    def managed_blam_post_import_tasks(self, context, scene_nwo, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, setup_scenario):
         nwo = context.scene.nwo
         model_sky = asset_type in ('MODEL', 'SKY')
         model = asset_type == 'MODEL'
@@ -878,44 +880,32 @@ class ProcessScene:
             or (not nwo.physics_model_from_blend and nwo.physics_model_path and model)
             or (not nwo.animation_graph_from_blend and nwo.animation_graph_path and model)
         )
-        mb_justified =  (
-            h4_model_lighting
-            or model_override
-            or reach_world_animations
-            or set_better_lm_res
-        )
-        if not mb_justified:
-            return
-        
-        print("\nTags Post-Process")
-        print(
-            "-----------------------------------------------------------------------\n"
-        )
-        
+        # print("\n--- Foundry Tags Post-Process")
         # If this model has lighting, add a reference to the structure_meta tag in the render_model
         if h4_model_lighting:
             meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
             with RenderModelTag(hide_prints=True) as render_model:
                 render_model.set_structure_meta_ref(meta_path)
-            print("--- Added Structure Meta Reference to Render Model")
+            # print("--- Added Structure Meta Reference to Render Model")
 
         # Apply model overrides if any
         if model_override:
             with ModelTag(hide_prints=True) as model:
                 model.set_model_overrides(nwo.render_model_path, nwo.collision_model_path, nwo.animation_graph_path, nwo.physics_model_path)
-            print("--- Applied Model Overrides")
+            # print("--- Applied Model Overrides")
             
         if reach_world_animations:
             with AnimationTag(hide_prints=True) as animation:
                 animation.set_world_animations(reach_world_animations)
-            print("--- Setup World Animations")
+            # print("--- Setup World Animations")
             
-        if set_better_lm_res:
+        if setup_scenario:
             lm_value = 6 if is_corinth(context) else 3
             with ScenarioTag(hide_prints=True) as scenario:
                 for bsp in nwo_scene.structure_bsps:
                     scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
-            print("--- Set Lightmapper size class to 1k")
+            # print("--- Set Lightmapper size class to 1k")
+            
             
 
     def any_node_usage_override(self, nwo):
