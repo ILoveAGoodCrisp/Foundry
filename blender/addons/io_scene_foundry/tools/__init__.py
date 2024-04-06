@@ -1683,12 +1683,7 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset") 
             if poll_ui(("SCENARIO", "PREFAB")):
                 if not h4:
-                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_poop_rain_blocker", "_connected_geometry_mesh_type_poop_vertical_rain_sheet"):
-                        row = box.row(align=True)
-                        row.use_property_split = True
-                        row.prop(mesh_nwo, "face_global_material_ui",text="Rain Collision Material")
-                        row.operator("nwo.global_material_globals", text="",icon="VIEWZOOM")
-                    elif nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
+                    if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
                         row.prop(mesh_nwo, "no_shadow_ui", text="No Shadow")
                 else:
                     # row.prop(mesh_nwo, "group_transparents_by_plane_ui", text="Transparents by Plane")
