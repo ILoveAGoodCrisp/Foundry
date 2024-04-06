@@ -711,6 +711,8 @@ class NWO_FoundryPanelProps(Panel):
     def draw_rig_usages(self, box, nwo):
         box.use_property_split = True
         col = box.column()
+        if not nwo.main_armature:
+            return col.label(text="Set Main Armature to use")
         col.prop_search(nwo, "node_usage_pedestal", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_pose_blend_pitch", nwo.main_armature.data, "bones")
         col.prop_search(nwo, "node_usage_pose_blend_yaw", nwo.main_armature.data, "bones")
