@@ -2597,7 +2597,7 @@ class PrepareScene:
         materials = me.materials
         scene_mats = bpy.data.materials
         mats = dict.fromkeys(slots)
-        if me.nwo.face_global_material_ui and nwo.reach_poop_collision:
+        if me.nwo.face_global_material_ui and (nwo.reach_poop_collision or ob.nwo.mesh_type in ("_connected_geometry_mesh_type_poop_rain_blocker", "_connected_geometry_mesh_type_poop_vertical_rain_sheet")):
             self.set_reach_coll_materials(me, scene_mats, True)
         else:
             self.loop_and_fix_slots(context, slots, is_halo_render, mats, ob, nwo, materials, me, does_not_support_sky, scene_coll, h4)
@@ -2660,9 +2660,12 @@ class PrepareScene:
         slots_to_remove = []
         dupe_slots_dict = {}
         is_true_mesh = ob.type == 'MESH'
+        rain_occluder = nwo.mesh_type in ("_connected_geometry_mesh_type_poop_rain_blocker", "_connected_geometry_mesh_type_poop_vertical_rain_sheet")
         for idx, slot in enumerate(slots):
             if slot.material:
-                if slot.material.name in special_material_names:
+                if rain_occluder:
+                    slot.material = self.invalid_mat
+                elif slot.material.name in special_material_names:
                     if h4 and slot.material.name not in ('+invisible', '+invalid'):
                         slot.material = self.invisible_mat
                     elif not h4 and slot.material.name.startswith('+sky') and does_not_support_sky:

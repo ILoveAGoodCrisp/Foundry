@@ -1014,6 +1014,8 @@ def has_mesh_props(ob) -> bool:
         "_connected_geometry_mesh_type_structure",
         "_connected_geometry_mesh_type_lightmap_only",
         "_connected_geometry_mesh_type_object_instance",
+        "_connected_geometry_mesh_type_poop_rain_blocker",
+        "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
     )
     nwo = ob.nwo
     return (
