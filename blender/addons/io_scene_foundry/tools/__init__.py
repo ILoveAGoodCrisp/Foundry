@@ -368,10 +368,7 @@ class NWO_FoundryPanelProps(Panel):
             self.draw_rig_ui(self.context, nwo)
             
         elif nwo.asset_type == "SCENARIO":
-            box = self.box.box()
-            col = box.column()
-            row = col.row(align=True)
-            row.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+            self.draw_expandable_box(self.box.box(), nwo, 'scenario')
             
         elif nwo.asset_type == 'camera_track_set':
             box = self.box.box()
@@ -400,7 +397,14 @@ class NWO_FoundryPanelProps(Panel):
             
         return False
     
-    def draw_output_tags(self, box, nwo):
+    def draw_scenario(self, box: bpy.types.UILayout, nwo):
+        col = box.column()
+        col.use_property_split = True
+        col.prop(nwo, "scenario_type")
+        col.separator()
+        col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+    
+    def draw_output_tags(self, box: bpy.types.UILayout, nwo):
         col = box.column()
         if nwo.asset_type == "MODEL":
             col.label(text="Output Tags")

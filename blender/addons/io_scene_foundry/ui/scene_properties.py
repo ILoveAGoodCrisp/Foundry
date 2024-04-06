@@ -37,6 +37,7 @@ from bpy.props import (
 )
 from bpy.types import PropertyGroup
 
+from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 
 from ..icons import get_icon_id
@@ -701,6 +702,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     output_tags_expanded: BoolProperty(default=True, options=set())
     asset_editor_expanded: BoolProperty(default=True, options=set())
     # model_overrides_expanded: BoolProperty(default=False, options=set())
+    scenario_expanded: BoolProperty(default=False, options=set())
     model_expanded: BoolProperty(default=True, options=set())
     render_model_expanded: BoolProperty(default=False, options=set())
     collision_model_expanded: BoolProperty(default=False, options=set())
@@ -1075,4 +1077,40 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         options=set(),
     )
     
-    parent_animation_graph_helper: StringProperty()
+    parent_animation_graph_helper: StringProperty(options=set())
+    
+    def get_scenario_type(self):
+        asset_scenario = get_asset_tag(".scenario")
+        if asset_scenario:
+            with ScenarioTag(path=asset_scenario) as scenario:
+                type_value = scenario.tag.SelectField("type").Value
+                if type_value > 2:
+                    return self.scenario_type_helper
+                else:
+                    return type_value
+        else:
+            return self.scenario_type_helper
+        
+    def set_scenario_type(self, value):
+        asset_scenario = get_asset_tag(".scenario")
+        if asset_scenario:
+            with ScenarioTag(path=asset_scenario) as scenario:
+                scenario.tag.SelectField("type").Value = value
+                scenario.tag_has_changes = True
+        self.scenario_type_helper = value
+        self["scenario_type"] = value
+    
+    scenario_type: EnumProperty(
+        name="Scenario Type",
+        description="Select whether this is a Solo, Multiplayer, or Main Menu scenario",
+        get=get_scenario_type,
+        set=set_scenario_type,
+        options=set(),
+        items=[
+            ("solo", "Singleplayer", "For campaign levels, but also valid for Firefight & Spartan Ops scenarios"),
+            ("multiplayer", "Multiplayer", "For multiplayer maps"),
+            ("main menu", "Main Menu", "For main menu maps"),
+        ]
+    )
+    
+    scenario_type_helper: IntProperty(options=set())
