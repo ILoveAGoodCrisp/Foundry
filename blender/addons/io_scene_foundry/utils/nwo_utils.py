@@ -610,9 +610,7 @@ def valid_nwo_asset(context=None):
     """Returns true if this blender scene is a valid NWO asset i.e. has an existing sidecar file"""
     if not context:
         context = bpy.context
-    return context.scene.nwo_halo_launcher.sidecar_path != "" and file_exists(
-        os.path.join(get_data_path(), context.scene.nwo_halo_launcher.sidecar_path)
-    )
+    return context.scene.nwo_halo_launcher.sidecar_path != "" and Path(get_data_path(), context.scene.nwo_halo_launcher.sidecar_path).exists()
 
 
 def nwo_asset_type():
@@ -2781,3 +2779,14 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_nwo.material_lighting_bounce_ratio_ui = light_nwo.light_bounce_ratio
     
     return plane_ob
+
+def get_asset_animation_graph(full=False):
+    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.animation_graph_from_blend:
+        asset_dir, asset_name = get_asset_info()
+        tag_path = Path(asset_dir, asset_name).with_suffix(".model_animation_graph")
+        full_path = Path(get_tags_path(), tag_path)
+        if full_path.exists():
+            if full:
+                return str(full_path)
+            else:
+                return str(tag_path)

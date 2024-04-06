@@ -29,7 +29,7 @@ import os
 from io_scene_foundry.utils.nwo_utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
 global_items = {}
-scene_props = ('render_model_path', 'collision_model_path', 'physics_model_path', 'animation_graph_path', 'fp_model_path', 'gun_model_path', 'template_model',
+scene_props = ('render_model_path', 'collision_model_path', 'physics_model_path', 'animation_graph_path', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'template_model',
                'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
                'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon')
 
@@ -107,6 +107,8 @@ def extensions_from_type(list_type):
         case 'collision_model_path':
             return (".collision_model")
         case 'animation_graph_path':
+            return (".model_animation_graph")
+        case 'parent_animation_graph':
             return (".model_animation_graph")
         case 'physics_model_path':
             return (".physics_model")
@@ -235,6 +237,8 @@ def get_glob_from_prop(prop):
         case 'collision_model_path':
             return "*.collision_mo*"
         case 'animation_graph_path':
+            return "*.model_*_graph"
+        case 'parent_animation_graph':
             return "*.model_*_graph"
         case 'physics_model_path':
             return "*.physics_model"

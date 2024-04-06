@@ -102,7 +102,7 @@ class ProcessScene:
             export_dir = os.path.join(asset_path, "export", "models")
             os.makedirs(models_dir, exist_ok=True)
             os.makedirs(export_dir, exist_ok=True)
-            if asset_type in ("MODEL", "FP ANIMATION"):
+            if asset_type in ("MODEL", "FP ANIMATION") and scene_nwo.animation_graph_from_blend:
                 if nwo_scene.model_armature and bpy.data.actions:
                     if scene_nwo_export.export_animations != "NONE":
                         timeline = context.scene
@@ -231,7 +231,7 @@ class ProcessScene:
             # if muted_armature_deforms:
             #     unmute_armature_mods(muted_armature_deforms)
             if asset_type in ("MODEL", "FP ANIMATION"):
-                if nwo_scene.render:
+                if scene_nwo.render_model_from_blend and nwo_scene.render:
                     self.export_model(
                         context,
                         asset_path,
@@ -246,7 +246,7 @@ class ProcessScene:
                         scene_nwo_export.export_render,
                     )
                 if asset_type == "MODEL":
-                    if nwo_scene.collision:
+                    if scene_nwo.collision_model_from_blend and nwo_scene.collision:
                         self.export_model(
                             context,
                             asset_path,
@@ -261,7 +261,7 @@ class ProcessScene:
                             scene_nwo_export.export_collision,
                         )
 
-                    if nwo_scene.physics:
+                    if scene_nwo.physics_model_from_blend and nwo_scene.physics:
                         self.export_model(
                             context,
                             asset_path,
@@ -276,7 +276,7 @@ class ProcessScene:
                             scene_nwo_export.export_physics,
                         )
 
-                    if nwo_scene.markers:
+                    if scene_nwo.render_model_from_blend and nwo_scene.markers:
                         self.export_model(
                             context,
                             asset_path,
@@ -290,7 +290,7 @@ class ProcessScene:
                             nwo_scene,
                             scene_nwo_export.export_markers,
                         )
-                    if nwo_scene.lighting:
+                    if scene_nwo.render_model_from_blend and nwo_scene.lighting:
                         self.export_model(
                             context,
                             asset_path,
@@ -304,7 +304,6 @@ class ProcessScene:
                             nwo_scene,
                             True,
                         )
-                    
 
                 fbx_path, json_path, gr2_path = self.get_path(
                     asset_path, asset, "skeleton", None, None, None
@@ -841,7 +840,7 @@ class ProcessScene:
 
     def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo, exported_actions):
         node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
-        mb_justified = node_usage_set or scene_nwo.ik_chains or exported_actions
+        mb_justified = scene_nwo.animation_graph_from_blend and (node_usage_set or scene_nwo.ik_chains or exported_actions or scene_nwo.parent_animation_graph)
         if not mb_justified:
             return
         print("\nTags Pre-Process")
@@ -850,6 +849,9 @@ class ProcessScene:
         )
         if node_usage_set or scene_nwo.ik_chains or exported_actions:
             with AnimationTag(hide_prints=False) as animation:
+                if scene_nwo.parent_animation_graph:
+                    animation.set_parent_graph(scene_nwo.parent_animation_graph)
+                    # print("--- Set Parent Animation Graph")
                 if exported_actions:
                     animation.validate_compression(exported_actions, scene_nwo.default_animation_compression)
                     print("--- Validated Animation Compression")
@@ -871,10 +873,10 @@ class ProcessScene:
         model = asset_type == 'MODEL'
         h4_model_lighting = (nwo_scene.lighting and is_corinth(context) and model_sky)
         model_override = (
-            (nwo.render_model_path and model)
-            or (nwo.collision_model_path and model)
-            or (nwo.physics_model_path and model)
-            or (nwo.animation_graph_path and model)
+            (not nwo.render_model_from_blend and nwo.render_model_path and model)
+            or (not nwo.collision_model_from_blend and nwo.collision_model_path and model)
+            or (not nwo.physics_model_from_blend and nwo.physics_model_path and model)
+            or (not nwo.animation_graph_from_blend and nwo.animation_graph_path and model)
         )
         mb_justified =  (
             h4_model_lighting

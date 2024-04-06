@@ -344,7 +344,8 @@ class NWO_FoundryPanelProps(Panel):
         
         if nwo.asset_type == 'MODEL':
             self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
-            self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
+            self.draw_expandable_box(self.box.box(), nwo, 'model_parts')
+            # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
             self.draw_rig_ui(self.context, nwo)
         
         elif nwo.asset_type == "FP ANIMATION":
@@ -562,6 +563,65 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(nwo, 'template_weapon', icon_value=get_icon_id('weapon'))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_weapon"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_weapon'
+                
+    def draw_model_parts(self, box: bpy.types.UILayout, nwo):
+        self.draw_expandable_box(box.box(), nwo, 'render_model')
+        self.draw_expandable_box(box.box(), nwo, 'collision_model')
+        self.draw_expandable_box(box.box(), nwo, 'animation_graph')
+        self.draw_expandable_box(box.box(), nwo, 'physics_model')
+    
+    def draw_render_model(self, box: bpy.types.UILayout, nwo):
+        col = box.column()
+        col.prop(nwo, "render_model_from_blend")
+        if nwo.render_model_from_blend:
+            pass
+        else:
+            row = col.row(align=True)
+            row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+    
+    def draw_collision_model(self, box: bpy.types.UILayout, nwo):
+        col = box.column()
+        col.prop(nwo, "collision_model_from_blend")
+        if nwo.collision_model_from_blend:
+            pass
+        else:
+            row = col.row(align=True)
+            row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "collision_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'collision_model_path'
+    
+    def draw_animation_graph(self, box: bpy.types.UILayout, nwo):
+        col = box.column()
+        col.prop(nwo, "animation_graph_from_blend")
+        if nwo.animation_graph_from_blend:
+            row = col.row(align=True)
+            row.use_property_split = True
+            row.prop(nwo, "parent_animation_graph", text="Parent Animation Graph")
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "parent_animation_graph"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'parent_animation_graph'
+            row = col.row()
+            row.use_property_split = True
+            row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
+            self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
+            self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
+        else:
+            row = col.row(align=True)
+            row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_graph_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_graph_path'
+    
+    def draw_physics_model(self, box: bpy.types.UILayout, nwo):
+        col = box.column()
+        col.prop(nwo, "physics_model_from_blend")
+        if nwo.physics_model_from_blend:
+            pass
+        else:
+            row = col.row(align=True)
+            row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
+            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
+            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
     
     def draw_model_overrides(self, box: bpy.types.UILayout, nwo):
         asset_dir, asset_name = get_asset_info()
@@ -619,7 +679,6 @@ class NWO_FoundryPanelProps(Panel):
                 col.prop_search(nwo, 'support_armature_c_parent_bone', nwo.main_armature.data, 'bones')
                 
         #col.separator()
-        col.prop(nwo, "default_animation_compression", text="Default Animation Compression")
                 
     def draw_rig_controls(self, box, nwo):
         box.use_property_split = True
@@ -712,8 +771,6 @@ class NWO_FoundryPanelProps(Panel):
             self.box.separator()
             self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
             self.draw_expandable_box(box.box(), nwo, 'rig_object_controls', 'Object Controls')
-            self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
-            self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
 
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')

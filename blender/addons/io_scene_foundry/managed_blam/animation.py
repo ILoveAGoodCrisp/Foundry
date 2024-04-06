@@ -24,7 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from pathlib import Path
 import bpy
+from io_scene_foundry.utils.nwo_utils import relative_path
 from io_scene_foundry.managed_blam import Tag
 
 class AnimationTag(Tag):
@@ -208,3 +210,23 @@ class AnimationTag(Tag):
             if compression_field.Value != compression_enum:
                 compression_field.Value = compression_enum
                 self.tag_has_changes = True
+                
+    def set_parent_graph(self, parent_graph_path):
+        parent_field = self.tag.SelectField("Struct:definitions[0]/Reference:parent animation graph")
+        if not parent_graph_path and parent_field.Path:
+            parent_field.Path = None
+            self.tag_has_changes = True
+            return
+        parent_path = str(Path(relative_path(parent_graph_path)).with_suffix(".model_animation_graph"))
+        full_path = Path(self.tags_dir, parent_path)
+        if not full_path.exists():
+            print(f"Parent graph does not exist: {full_path}")
+        new_tag_path = self._TagPath_from_string(parent_path)
+        if parent_field.Path != new_tag_path:
+            parent_field.Path = self._TagPath_from_string(parent_path)
+            self.tag_has_changes = True
+        
+    def get_parent_graph(self):
+        path = self.tag.SelectField("Struct:definitions[0]/Reference:parent animation graph").Path
+        if path:
+            return path.RelativePathWithExtension
