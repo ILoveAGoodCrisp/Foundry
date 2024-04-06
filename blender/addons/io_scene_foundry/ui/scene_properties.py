@@ -701,7 +701,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     output_tags_expanded: BoolProperty(default=True, options=set())
     asset_editor_expanded: BoolProperty(default=True, options=set())
     # model_overrides_expanded: BoolProperty(default=False, options=set())
-    model_parts_expanded: BoolProperty(default=True, options=set())
+    model_expanded: BoolProperty(default=True, options=set())
     render_model_expanded: BoolProperty(default=False, options=set())
     collision_model_expanded: BoolProperty(default=False, options=set())
     animation_graph_expanded: BoolProperty(default=False, options=set())

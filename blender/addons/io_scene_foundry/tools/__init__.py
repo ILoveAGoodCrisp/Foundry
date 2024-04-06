@@ -83,7 +83,12 @@ from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
     foundry_update_check,
     get_arm_count,
+    get_asset_animation_graph,
+    get_asset_collision_model,
     get_asset_info,
+    get_asset_physics_model,
+    get_asset_render_model,
+    get_asset_tag,
     get_data_path,
     get_export_scale,
     get_halo_material_count,
@@ -344,7 +349,7 @@ class NWO_FoundryPanelProps(Panel):
         
         if nwo.asset_type == 'MODEL':
             self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
-            self.draw_expandable_box(self.box.box(), nwo, 'model_parts')
+            self.draw_expandable_box(self.box.box(), nwo, 'model')
             # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
             self.draw_rig_ui(self.context, nwo)
         
@@ -564,7 +569,10 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_weapon"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_weapon'
                 
-    def draw_model_parts(self, box: bpy.types.UILayout, nwo):
+    def draw_model(self, box: bpy.types.UILayout, nwo):
+        tag_path = get_asset_tag(".model")
+        if tag_path:
+            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
         self.draw_expandable_box(box.box(), nwo, 'render_model')
         self.draw_expandable_box(box.box(), nwo, 'collision_model')
         self.draw_expandable_box(box.box(), nwo, 'animation_graph')
@@ -574,7 +582,9 @@ class NWO_FoundryPanelProps(Panel):
         col = box.column()
         col.prop(nwo, "render_model_from_blend")
         if nwo.render_model_from_blend:
-            pass
+            tag_path = get_asset_render_model()
+            if tag_path:
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
         else:
             row = col.row(align=True)
             row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
@@ -585,7 +595,9 @@ class NWO_FoundryPanelProps(Panel):
         col = box.column()
         col.prop(nwo, "collision_model_from_blend")
         if nwo.collision_model_from_blend:
-            pass
+            tag_path = get_asset_collision_model()
+            if tag_path:
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
         else:
             row = col.row(align=True)
             row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
@@ -596,6 +608,10 @@ class NWO_FoundryPanelProps(Panel):
         col = box.column()
         col.prop(nwo, "animation_graph_from_blend")
         if nwo.animation_graph_from_blend:
+            tag_path = get_asset_animation_graph()
+            if tag_path:
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+            col.separator()
             row = col.row(align=True)
             row.use_property_split = True
             row.prop(nwo, "parent_animation_graph", text="Parent Animation Graph")
@@ -616,7 +632,9 @@ class NWO_FoundryPanelProps(Panel):
         col = box.column()
         col.prop(nwo, "physics_model_from_blend")
         if nwo.physics_model_from_blend:
-            pass
+            tag_path = get_asset_physics_model()
+            if tag_path:
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
         else:
             row = col.row(align=True)
             row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))

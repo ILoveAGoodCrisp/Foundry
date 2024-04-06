@@ -46,7 +46,7 @@ from io_scene_foundry.utils.nwo_utils import (
 
 class NWO_OpenFoundationTag(bpy.types.Operator):
     bl_idname = "nwo.open_foundation_tag"
-    bl_label = "Open Tag in Foundation"
+    bl_label = "Open in Tag Editor"
     bl_description = "Opens the specified tag in Foundation"
 
     tag_path : bpy.props.StringProperty()

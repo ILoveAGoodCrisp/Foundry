@@ -2790,3 +2790,49 @@ def get_asset_animation_graph(full=False):
                 return str(full_path)
             else:
                 return str(tag_path)
+            
+def get_asset_render_model(full=False):
+    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.render_model_from_blend:
+        asset_dir, asset_name = get_asset_info()
+        tag_path = Path(asset_dir, asset_name).with_suffix(".render_model")
+        full_path = Path(get_tags_path(), tag_path)
+        if full_path.exists():
+            if full:
+                return str(full_path)
+            else:
+                return str(tag_path)
+            
+def get_asset_collision_model(full=False):
+    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.collision_model_from_blend:
+        asset_dir, asset_name = get_asset_info()
+        tag_path = Path(asset_dir, asset_name).with_suffix(".collision_model")
+        full_path = Path(get_tags_path(), tag_path)
+        if full_path.exists():
+            if full:
+                return str(full_path)
+            else:
+                return str(tag_path)
+            
+def get_asset_physics_model(full=False):
+    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.physics_model_from_blend:
+        asset_dir, asset_name = get_asset_info()
+        tag_path = Path(asset_dir, asset_name).with_suffix(".physics_model")
+        full_path = Path(get_tags_path(), tag_path)
+        if full_path.exists():
+            if full:
+                return str(full_path)
+            else:
+                return str(tag_path)
+            
+def get_asset_tag(extension: str, full=False):
+    if not extension.startswith('.'):
+        extension = '.' + extension
+    if valid_nwo_asset(bpy.context):
+        asset_dir, asset_name = get_asset_info()
+        tag_path = Path(asset_dir, asset_name).with_suffix(extension)
+        full_path = Path(get_tags_path(), tag_path)
+        if full_path.exists():
+            if full:
+                return str(full_path)
+            else:
+                return str(tag_path)
