@@ -327,7 +327,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 mesh_type = "_connected_geometry_mesh_type_water_surface"
             case "rain_sheet":
                 mesh_type = "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
-                material = "RainSheet"
             case "fog":
                 mesh_type = "_connected_geometry_mesh_type_planar_fog_volume"
                 material = "Fog"
@@ -360,7 +359,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
 
             case "rain_blocker":
                 mesh_type = "_connected_geometry_mesh_type_poop_rain_blocker"
-                material = "RainBlocker"
             case "decorator":
                 mesh_type = "_connected_geometry_mesh_type_decorator"
                 

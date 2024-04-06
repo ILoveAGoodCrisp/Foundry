@@ -86,6 +86,9 @@ render_mesh_types = [
     "_connected_geometry_mesh_type_water_surface",
     "_connected_geometry_mesh_type_decorator",
     "_connected_geometry_mesh_type_object_instance",
+    "_connected_geometry_mesh_type_poop_rain_blocker",
+    "_connected_geometry_mesh_type_poop_vertical_rain_sheet"
+    
 ]
 
 # Reach special materials
