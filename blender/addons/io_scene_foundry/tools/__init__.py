@@ -398,6 +398,9 @@ class NWO_FoundryPanelProps(Panel):
         return False
     
     def draw_scenario(self, box: bpy.types.UILayout, nwo):
+        tag_path = get_asset_tag(".scenario")
+        if tag_path:
+            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
         col = box.column()
         col.use_property_split = True
         col.prop(nwo, "scenario_type")
