@@ -26,6 +26,7 @@
 
 import os
 import bpy
+from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets, WO_OT_ZoneSetMove
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO_ApplyCollectionType, NWO_PermutationListCollection, NWO_RegionListCollection
 
@@ -134,7 +135,7 @@ from .animation_ui import (
     NWO_List_Remove_Animation_Rename,
 )
 
-from .scene_properties import NWO_BSP_ListItems, NWO_ControlObjects, NWO_GlobalMaterial_ListItems, NWO_IKChain, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup
+from .scene_properties import NWO_BSP_ListItems, NWO_ControlObjects, NWO_GlobalMaterial_ListItems, NWO_IKChain, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup, NWO_ZoneSets_ListItems
 
 from .scene_ui import NWO_AddIKChain, NWO_AssetMaker, NWO_MoveIKChain, NWO_OT_BatchAddObjectControls, NWO_OT_BatchRemoveObjectControls, NWO_OT_ClearAsset, NWO_OT_RemoveObjectControl, NWO_OT_SelectObjectControl, NWO_RemoveIKChain, NWO_UL_IKChain, NWO_UL_ObjectControls, NWO_UL_Permutations, NWO_UL_Regions
 
@@ -279,22 +280,30 @@ def object_context_apply_types(self, context):
             layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
             
 def object_context_sets(self, context):
+    asset_type = context.scene.nwo.asset_type
+    regions_valid = asset_type in ('MODEL', 'SKY', 'SCENARIO')
+    permutations_valid =  asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB')
+    region_name = "Scenario" if context.scene.nwo.asset_type == "SCENARIO" else "Region" 
+    permutation_name = "Layer" if context.scene.nwo.asset_type in ("SCENARIO", "PREFAB") else "Permutation"
     layout = self.layout
+    layout.separator()
     ob = context.object
     nwo = ob.nwo
-    row = layout.row()
-    if nwo.region_name_locked_ui:
-        row.enabled = False
-        row.label(text="Region::" + true_region(nwo), icon_value=get_icon_id("collection_creator"))
-    else:
-        row.menu("NWO_MT_RegionsSelection", text="Region::" + true_region(nwo), icon_value=get_icon_id("region"))
+    if regions_valid:
+        row = layout.row()
+        if nwo.region_name_locked_ui:
+            row.enabled = False
+            row.label(text=f"{region_name}: " + true_region(nwo), icon_value=get_icon_id("collection_creator"))
+        else:
+            row.menu("NWO_MT_RegionsSelection", text=f"{region_name}: " + true_region(nwo), icon_value=get_icon_id("region"))
     
-    row = layout.row()
-    if nwo.permutation_name_locked_ui:
-        row.enabled = False
-        row.label(text="Permutation::" + true_permutation(nwo), icon_value=get_icon_id("collection_creator"))
-    else:
-        row.menu("NWO_MT_PermutationsSelection", text="Permutation::" + true_permutation(nwo), icon_value=get_icon_id("permutation"))
+    if permutations_valid:
+        row = layout.row()
+        if nwo.permutation_name_locked_ui:
+            row.enabled = False
+            row.label(text=f"{permutation_name}: " + true_permutation(nwo), icon_value=get_icon_id("collection_creator"))
+        else:
+            row.menu("NWO_MT_PermutationsSelection", text=f"{permutation_name}: " + true_permutation(nwo), icon_value=get_icon_id("permutation"))
         
 def collection_context(self, context):
     layout = self.layout
@@ -319,6 +328,7 @@ classes_nwo = (
     H4EKLocationPath,
     HREKLocationPath,
     NWO_Project_ListItems,
+    NWO_ZoneSets_ListItems,
     NWO_Permutations_ListItems,
     NWO_UL_Regions,
     NWO_UL_Permutations,
@@ -435,6 +445,10 @@ classes_nwo = (
     NWO_OT_AnimationEventSetFrame,
     NWO_OT_AnimationFramesSyncToKeyFrames,
     NWO_OT_ClearAsset,
+    NWO_UL_ZoneSets,
+    NWO_OT_ZoneSetAdd,
+    NWO_OT_ZoneSetRemove,
+    WO_OT_ZoneSetMove,
 )
 
 def register():

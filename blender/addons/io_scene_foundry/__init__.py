@@ -132,6 +132,10 @@ else:
             default_permutation.old = "default"
             default_permutation.name = "default"
             
+        if not scene_nwo.zone_sets and not scene_nwo.user_removed_all_zone_set:
+            all_zone_set = scene_nwo.zone_sets.add()
+            all_zone_set.name = "all"
+            
         # prefs = get_prefs()
         # if prefs.poop_default:
         #     scene_nwo.default_mesh_type_ui = '_connected_geometry_mesh_type_poop'

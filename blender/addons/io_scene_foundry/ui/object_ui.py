@@ -64,16 +64,19 @@ class NWO_RegionsMenu(Menu):
         for r_name in region_names:
             layout.operator("nwo.region_assign_single", text=r_name).name = r_name
 
-        layout.operator("nwo.region_add", text="New BSP" if is_scenario else "New Region", icon='ADD').set_object_prop = True
+        layout.operator("nwo.region_add", text="New BSP" if is_scenario else "New Region", icon='ADD').set_object_prop = 1
         
 class NWO_RegionsMenuSelection(NWO_RegionsMenu):
     bl_idname = "NWO_MT_RegionsSelection"
     
     def draw(self, context):
         layout = self.layout
+        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
         region_names = [region.name for region in context.scene.nwo.regions_table]
         for r_name in region_names:
             layout.operator("nwo.region_assign", text=r_name).name = r_name
+            
+        layout.operator("nwo.region_add", text="New BSP" if is_scenario else "New Region", icon='ADD').set_object_prop = 2
 
 class NWO_FaceRegionsMenu(Menu):
     bl_label = "Regions"
@@ -89,7 +92,7 @@ class NWO_FaceRegionsMenu(Menu):
         for r_name in region_names:
             layout.operator("nwo.face_region_assign_single", text=r_name).name = r_name
 
-        layout.operator("nwo.face_region_add", text="New Region", icon='ADD').set_object_prop = True
+        layout.operator("nwo.face_region_add", text="New Region", icon='ADD').set_object_prop = 1
 
 class NWO_SeamBackfaceMenu(NWO_RegionsMenu):
     bl_idname = "NWO_MT_SeamBackface"
@@ -112,21 +115,24 @@ class NWO_PermutationsMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type in ('SCENARIO', 'PREFAB')
         permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign_single", text=p_name).name = p_name
 
-        layout.operator("nwo.permutation_add", text="New BSP Layer" if is_scenario else "New Permutation", icon='ADD').set_object_prop = True
+        layout.operator("nwo.permutation_add", text="New BSP Layer" if is_scenario else "New Permutation", icon='ADD').set_object_prop = 1
         
 class NWO_PermutationsMenuSelection(NWO_PermutationsMenu):
     bl_idname = "NWO_MT_PermutationsSelection"
     
     def draw(self, context):
         layout = self.layout
+        is_scenario = context.scene.nwo.asset_type in ('SCENARIO', 'PREFAB')
         permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign", text=p_name).name = p_name
+            
+        layout.operator("nwo.permutation_add", text="New BSP Layer" if is_scenario else "New Permutation", icon='ADD').set_object_prop = 2
 
 class NWO_MarkerPermutationsMenu(Menu):
     bl_label = "Marker Permutations"

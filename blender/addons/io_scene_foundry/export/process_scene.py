@@ -33,6 +33,7 @@ import os
 import json
 import multiprocessing
 import threading
+from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
 from io_scene_foundry.export.tag_builder import build_tags
 from io_scene_foundry.export.lightmapper import run_lightmapper
 
@@ -906,7 +907,8 @@ class ProcessScene:
                     scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
             # print("--- Set Lightmapper size class to 1k")
             
-            
+        if scene_nwo.zone_sets:
+            write_zone_sets_to_scenario(scene_nwo, asset_name)
 
     def any_node_usage_override(self, nwo):
         return (nwo.node_usage_physics_control

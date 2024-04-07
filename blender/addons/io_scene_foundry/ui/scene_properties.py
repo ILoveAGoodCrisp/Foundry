@@ -60,6 +60,41 @@ def get_matrix_settings():
 
 default_scale, default_forward = get_matrix_settings()
 
+class NWO_ZoneSets_ListItems(PropertyGroup):
+    name: StringProperty()
+    bsp_0: BoolProperty()
+    bsp_1: BoolProperty()
+    bsp_2: BoolProperty()
+    bsp_3: BoolProperty()
+    bsp_4: BoolProperty()
+    bsp_5: BoolProperty()
+    bsp_6: BoolProperty()
+    bsp_7: BoolProperty()
+    bsp_8: BoolProperty()
+    bsp_9: BoolProperty()
+    bsp_10: BoolProperty()
+    bsp_11: BoolProperty()
+    bsp_12: BoolProperty()
+    bsp_13: BoolProperty()
+    bsp_14: BoolProperty()
+    bsp_15: BoolProperty()
+    bsp_16: BoolProperty()
+    bsp_17: BoolProperty()
+    bsp_18: BoolProperty()
+    bsp_19: BoolProperty()
+    bsp_20: BoolProperty()
+    bsp_21: BoolProperty()
+    bsp_22: BoolProperty()
+    bsp_23: BoolProperty()
+    bsp_24: BoolProperty()
+    bsp_25: BoolProperty()
+    bsp_26: BoolProperty()
+    bsp_27: BoolProperty()
+    bsp_28: BoolProperty()
+    bsp_29: BoolProperty()
+    bsp_30: BoolProperty()
+    bsp_31: BoolProperty()
+
 class NWO_Permutations_ListItems(PropertyGroup):
 
     def update_name(self, context):
@@ -232,6 +267,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     #     default=0,
     #     min=0,
     # )
+    
+    zone_sets_active_index: IntProperty(options=set())
+    
+    zone_sets: CollectionProperty(type=NWO_ZoneSets_ListItems, options=set())
+    
+    user_removed_all_zone_set: BoolProperty()
 
     def items_mesh_type_ui(self, context):
         """Function to handle context for mesh enum lists"""
@@ -703,6 +744,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     asset_editor_expanded: BoolProperty(default=True, options=set())
     # model_overrides_expanded: BoolProperty(default=False, options=set())
     scenario_expanded: BoolProperty(default=False, options=set())
+    zone_sets_expanded: BoolProperty(default=False, options=set())
     model_expanded: BoolProperty(default=True, options=set())
     render_model_expanded: BoolProperty(default=False, options=set())
     collision_model_expanded: BoolProperty(default=False, options=set())

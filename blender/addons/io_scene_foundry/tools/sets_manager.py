@@ -62,7 +62,7 @@ class NWO_UpdateSets(bpy.types.Operator):
 class TableEntryAdd(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
-    set_object_prop: bpy.props.BoolProperty()
+    set_object_prop: bpy.props.IntProperty()
     name: bpy.props.StringProperty(name="Name")
 
     def execute(self, context):
@@ -85,9 +85,11 @@ class TableEntryAdd(bpy.types.Operator):
         entry.old = name
         entry.name = name
         setattr(nwo, f"{self.table_str}_active_index", len(table) - 1)
-        if self.set_object_prop:
+        if self.set_object_prop == 1:
             ob = context.object
             if ob: setattr(ob.nwo, self.ob_prop_str, name)
+        elif self.set_object_prop == 2:
+            [setattr(ob.nwo, self.ob_prop_str, name) for ob in context.selected_objects]
 
         context.area.tag_redraw()
         return {'FINISHED'}

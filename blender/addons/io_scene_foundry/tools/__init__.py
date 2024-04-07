@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
 from io_scene_foundry.tools.tag_templates import NWO_OT_LoadTemplate
 from io_scene_foundry.tools.cubemap import NWO_OT_Cubemap
 from io_scene_foundry.managed_blam import Tag
@@ -369,6 +370,7 @@ class NWO_FoundryPanelProps(Panel):
             
         elif nwo.asset_type == "SCENARIO":
             self.draw_expandable_box(self.box.box(), nwo, 'scenario')
+            self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
             
         elif nwo.asset_type == 'camera_track_set':
             box = self.box.box()
@@ -406,6 +408,43 @@ class NWO_FoundryPanelProps(Panel):
         col.prop(nwo, "scenario_type")
         col.separator()
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
+        
+    def draw_zone_sets(self, box: bpy.types.UILayout, nwo):
+        row = box.row()
+        
+        rows = 4
+        row.template_list(
+            "NWO_UL_ZoneSets",
+            "",
+            nwo,
+            "zone_sets",
+            nwo,
+            "zone_sets_active_index",
+            rows=rows,
+        )
+        col = row.column(align=True)
+        col.operator("nwo.zone_set_add", text="", icon="ADD")
+        col.operator("nwo.zone_set_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.remove_existing_zone_sets", icon="X", text="")
+        col.separator()
+        col.operator("nwo.zone_set_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.zone_set_move", icon="TRIA_DOWN", text="").direction = 'down'
+        if not nwo.zone_sets:
+            return
+        zone_set = nwo.zone_sets[nwo.zone_sets_active_index]
+        box.label(text=f"Zone Set BSPs")
+        if zone_set.name.lower() == "all":
+            return box.label(text="All BSPs included in Zone Set")
+        grid = box.grid_flow()
+        grid.scale_x = 0.8
+        max_index = 31 if self.h4 else 15
+        bsps = [region.name for region in nwo.regions_table]
+        for index, bsp in enumerate(bsps):
+            if index >= max_index:
+                break
+            grid.prop(zone_set, f"bsp_{index}", text=bsp)
+        
     
     def draw_output_tags(self, box: bpy.types.UILayout, nwo):
         col = box.column()
@@ -5070,6 +5109,7 @@ classeshalo = (
     NWO_OT_ConvertToHaloRig,
     NWO_OT_Cubemap,
     NWO_OT_LoadTemplate,
+    NWO_OT_RemoveExistingZoneSets,
 )
 
 def register():

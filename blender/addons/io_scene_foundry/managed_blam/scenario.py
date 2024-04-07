@@ -35,6 +35,8 @@ class ScenarioTag(Tag):
         self.block_skies = self.tag.SelectField("Block:skies")
         self.block_object_names = self.tag.SelectField("Block:object names")
         self.block_bsps = self.tag.SelectField("Block:structure bsps")
+        self.block_zone_sets = self.tag.SelectField("Block:zone sets")
+        self.block_structure_designs = self.tag.SelectField("Block:structure designs")
         
     def _get_bsp_from_name(self, bsp_name: str):
         for element in self.block_bsps.Elements:
