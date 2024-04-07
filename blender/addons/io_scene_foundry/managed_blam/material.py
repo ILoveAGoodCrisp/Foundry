@@ -91,9 +91,9 @@ class MaterialTag(ShaderTag):
             
         self.reference_material_shader.Path = self._TagPath_from_string(material_shader_path)
                 
-    def _build_basic(self, map):
+    def _build_basic(self, map: dict):
         # Set up shader parameters
-        self.group_node = map['bsdf']
+        self.group_node = map.get("bsdf")
         spec_alpha_from_diffuse = False
         si_alpha_from_diffuse = False
         if map.get('diffuse', 0):

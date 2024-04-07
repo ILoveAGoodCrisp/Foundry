@@ -113,6 +113,7 @@ class ShaderTag(Tag):
                         if albedo_tint:
                             maps['albedo_tint'] = albedo_tint
                         return maps
+                    
                     maps['bsdf'] = shader_node
                     diffuse = nwo_utils.find_linked_node(shader_node, 'base color', 'TEX_IMAGE')
                     if diffuse:
@@ -149,8 +150,8 @@ class ShaderTag(Tag):
             
         return 'blend'
             
-    def _build_basic(self, map):
-        self.group_node = map['bsdf']
+    def _build_basic(self, map: dict):
+        self.group_node = map.get("bsdf")
         albedo = self.block_options.Elements[0].SelectField('short')
         bump_mapping = self.block_options.Elements[1].SelectField('short')
         alpha_test = self.block_options.Elements[2].SelectField('short')
