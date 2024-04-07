@@ -109,6 +109,11 @@ class TableEntryRemove(bpy.types.Operator):
     def execute(self, context):
         nwo = context.scene.nwo
         table = getattr(nwo, self.table_str)
+        
+        active_zs_bsps = None
+        if self.table_str == "regions_table":
+            active_zs_bsps = save_zone_set_flags(table, nwo)
+        
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
         entry = table[table_active_index]
@@ -146,6 +151,9 @@ class TableEntryRemove(bpy.types.Operator):
                 if coll.nwo.type == 'permutation' and coll.nwo.permutation == old_entry_name:
                     coll.nwo.permutation = new_entry_name
                     coll.name = get_full_name(coll.nwo.type, new_entry_name)
+                    
+        if active_zs_bsps is not None:
+            restore_zone_set_flags(table, active_zs_bsps, nwo)
                         
         context.area.tag_redraw()
         return {'FINISHED'}
@@ -158,6 +166,11 @@ class TableEntryMove(bpy.types.Operator):
     def execute(self, context):
         nwo = context.scene.nwo
         table = getattr(nwo, self.table_str)
+        
+        active_zs_bsps = None
+        if self.table_str == "regions_table":
+            active_zs_bsps = save_zone_set_flags(table, nwo)
+            
         table_active_index_str = f"{self.table_str}_active_index"
         table_active_index = getattr(nwo, table_active_index_str)
         delta = {"down": 1, "up": -1,}[self.direction]
@@ -165,7 +178,10 @@ class TableEntryMove(bpy.types.Operator):
         to_index = (current_index + delta) % len(table)
         table.move(current_index, to_index)
         setattr(nwo, table_active_index_str, to_index)
-
+        
+        if active_zs_bsps is not None:
+            restore_zone_set_flags(table, active_zs_bsps, nwo)
+            
         context.area.tag_redraw()
         return {'FINISHED'}
 
@@ -973,3 +989,21 @@ class NWO_BSPSetLightmapRes(bpy.types.Operator):
         layout.prop(self, "size_class", text="Resolution")
         if is_corinth(context):
             layout.prop(self, "refinement_size_class", text="Refinement")
+            
+def save_zone_set_flags(regions_table, nwo) -> dict:
+    zs_active_bsps = {}
+    for zs in nwo.zone_sets:
+        zs_active_bsps[zs.name] = []
+        for i in range(len(regions_table)):
+            if getattr(zs, f"bsp_{i}", 0):
+                zs_active_bsps[zs.name].append(regions_table[i].name)
+                
+    return zs_active_bsps
+                
+def restore_zone_set_flags(regions_table, zs_active_bsps: dict, nwo):
+    bsp_names = [region.name for region in regions_table]
+    for zs in nwo.zone_sets:
+        active_bsps = zs_active_bsps[zs.name]
+        for i in range(len(nwo.regions_table)):
+            setattr(zs, f"bsp_{i}", bsp_names[i] in active_bsps)
+            
