@@ -59,7 +59,7 @@ class NWO_OT_ZoneSetRemove(bpy.types.Operator):
     def execute(self, context):
         nwo = context.scene.nwo
         table = nwo.zone_sets
-        if table(nwo.zone_sets_active_index).name.lower() == "all":
+        if table[nwo.zone_sets_active_index].name.lower() == "all":
             nwo.user_removed_all_zone_set = True
         table.remove(nwo.zone_sets_active_index)
         if nwo.zone_sets_active_index > len(table) - 1:
