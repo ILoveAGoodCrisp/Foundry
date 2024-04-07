@@ -136,6 +136,7 @@ class ShaderTag(Tag):
                             maps['albedo_tint'] = albedo_tint
                         
                 return maps
+            print(self.blender_material)
             self._build_basic(get_basic_mapping(self.blender_material))
         
         self.tag_has_changes = True
