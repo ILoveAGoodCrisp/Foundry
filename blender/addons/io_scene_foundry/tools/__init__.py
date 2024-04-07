@@ -443,7 +443,8 @@ class NWO_FoundryPanelProps(Panel):
         for index, bsp in enumerate(bsps):
             if index >= max_index:
                 break
-            grid.prop(zone_set, f"bsp_{index}", text=bsp)
+            if bsp.lower() != "shared":
+                grid.prop(zone_set, f"bsp_{index}", text=bsp)
         
     
     def draw_output_tags(self, box: bpy.types.UILayout, nwo):

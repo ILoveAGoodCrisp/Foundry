@@ -89,8 +89,8 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
     foundry_zone_sets = scene_nwo.zone_sets
     foundry_zone_set_names = [zs.name.lower() for zs in foundry_zone_sets]
     missing_zone_sets = [zs for zs in foundry_zone_sets]
-    full_bsp_names = [f"{asset_name}_{region.name}" for region in scene_nwo.regions_table if region.name != "shared"]
-    full_sd_names = [f"{asset_name}_{region.name}_structure_design" for region in scene_nwo.regions_table if region.name != "shared"]
+    full_bsp_names = [f"{asset_name}_{region.name}" for region in scene_nwo.regions_table if region.name]
+    full_sd_names = [f"{asset_name}_{region.name}_structure_design" for region in scene_nwo.regions_table if region.name]
     with ScenarioTag() as scenario:
         for element in scenario.block_zone_sets.Elements:
             tag_zs_name = element.SelectField("name").GetStringData()
@@ -112,7 +112,6 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
                 for item in bsp_flags.Items:
                     flag_name = item.FlagName
                     if flag_name not in full_bsp_names:
-                        nwo_utils.print_warning(f"Failed to find {flag_name} in Foundry. Export may be required")
                         continue
                     foundry_bsp_index = full_bsp_names.index(flag_name)
                     item.IsSet = getattr(zs, f"bsp_{foundry_bsp_index}", 0)
@@ -120,7 +119,6 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
                 for item in sd_flags.Items:
                     flag_name = item.FlagName
                     if flag_name not in full_sd_names:
-                        nwo_utils.print_warning(f"Failed to find {flag_name} in Foundry. Export may be required")
                         continue
                     foundry_bsp_index = full_sd_names.index(flag_name)
                     item.IsSet = getattr(zs, f"bsp_{foundry_bsp_index}", 0)
@@ -140,7 +138,6 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
             for item in bsp_flags.Items:
                 flag_name = item.FlagName
                 if flag_name not in full_bsp_names:
-                    nwo_utils.print_warning(f"Failed to find {flag_name} in Foundry. Export may be required")
                     continue
                 foundry_bsp_index = full_bsp_names.index(flag_name)
                 item.IsSet = getattr(zs, f"bsp_{foundry_bsp_index}", 0)
@@ -148,7 +145,6 @@ def write_zone_sets_to_scenario(scene_nwo, asset_name):
             for item in sd_flags.Items:
                 flag_name = item.FlagName
                 if flag_name not in full_sd_names:
-                    nwo_utils.print_warning(f"Failed to find {flag_name} in Foundry. Export may be required")
                     continue
                 foundry_bsp_index = full_sd_names.index(flag_name)
                 item.IsSet = getattr(zs, f"bsp_{foundry_bsp_index}", 0)
