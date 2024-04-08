@@ -779,6 +779,9 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     permutations_table_expanded: BoolProperty(default=True, options=set())
     object_visibility_expanded: BoolProperty(default=True, options=set())
 
+    mesh_properties_expanded: BoolProperty(default=True, options=set())
+    face_properties_expanded: BoolProperty(default=True, options=set())
+    instance_proxies_expanded: BoolProperty(default=True, options=set())
 
     sets_manager_active: BoolProperty(options=set())
     sets_manager_pinned: BoolProperty(options=set())
