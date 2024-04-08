@@ -240,7 +240,10 @@ class NWO_Import(bpy.types.Operator):
             try:
                 export_title = f"►►► FOUNDRY IMPORTER ◄◄◄"
                 print(export_title, '\n')
-                importer = NWOImporter(context, self.report, filepaths, self.scope.split(','))
+                scope_list = []
+                if self.scope:
+                    scope_list = self.scope.split(',')
+                importer = NWOImporter(context, self.report, filepaths, scope_list)
                 if 'amf' in importer.extensions and self.amf_okay:
                     amf_module_name = amf_addon_installed()
                     amf_addon_enabled = addon_utils.check(amf_module_name)[0]
