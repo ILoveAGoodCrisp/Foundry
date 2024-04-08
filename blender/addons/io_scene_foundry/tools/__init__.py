@@ -925,7 +925,7 @@ class NWO_FoundryPanelProps(Panel):
         # box.label(text="Other")
         # grid = box.grid_flow(align=False, even_columns=True)
         grid.prop(nwo, "connected_geometry_object_type_frame_visible", text="", icon_value=get_icon_id("frame") if nwo.connected_geometry_object_type_frame_visible else get_icon_id("frame_off"), emboss=False)
-        grid.prop(nwo, "connected_geometry_object_type_light_visible", text="", icon='OUTLINER_OB_LIGHT' if nwo.connected_geometry_object_type_light_visible else 'LIGHT', emboss=False)
+        grid.prop(nwo, "connected_geometry_object_type_light_visible", text="", icon_value=get_icon_id("light") if nwo.connected_geometry_object_type_light_visible else get_icon_id("light_off"), emboss=False)
         
     def draw_regions_table(self, box, nwo):
         row = box.row()
