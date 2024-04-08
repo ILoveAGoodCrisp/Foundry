@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from bpy.types import Context
 from ..utils.nwo_utils import (
     is_corinth,
     layer_face_count,
@@ -305,13 +306,14 @@ class NWO_EditMode(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_FaceLayerAdd(NWO_Op):
+class NWO_FaceLayerAdd(bpy.types.Operator):
     bl_idname = "nwo.face_layer_add"
     bl_label = "Add Face Layer"
+    bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.type == "MESH"
+        return context.object and context.object.type == "MESH" and context.mode == 'EDIT_MESH'
 
     new: BoolProperty(default=True)
 
@@ -452,7 +454,7 @@ class NWO_FaceLayerAdd(NWO_Op):
             # row.operator_menu_enum("nwo.face_global_material_list", "global_material", text='', icon="DOWNARROW_HLT").dialog = True
 
 
-class NWO_FaceLayerRemove(NWO_Op):
+class NWO_FaceLayerRemove(bpy.types.Operator):
     """Removes a face layer"""
 
     bl_idname = "nwo.face_layer_remove"
@@ -467,8 +469,12 @@ class NWO_FaceLayerRemove(NWO_Op):
             return nwo.face_props
         return False
 
-    def remove_face_layer(self, me, layer_name):
-        bm = bmesh.from_edit_mesh(me)
+    def remove_face_layer(self, context, me, layer_name):
+        if context.mode == 'EDIT_MESH':
+            bm = bmesh.from_edit_mesh(me)
+        else:
+            bm = bmesh.new()
+            bm.from_mesh(me)
         # get list of selected faces
         try:
             bm.faces.layers.int.remove(bm.faces.layers.int.get(layer_name))
@@ -481,7 +487,7 @@ class NWO_FaceLayerRemove(NWO_Op):
         ob = context.object
         nwo = ob.data.nwo
         item = nwo.face_props[nwo.face_props_index]
-        self.remove_face_layer(ob.data, item.layer_name)
+        self.remove_face_layer(context, ob.data, item.layer_name)
         nwo.face_props.remove(nwo.face_props_index)
         if nwo.face_props_index > len(nwo.face_props) - 1:
             nwo.face_props_index += -1
@@ -496,9 +502,10 @@ class NWO_FaceLayerRemove(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_FaceLayerAssign(NWO_Op):
+class NWO_FaceLayerAssign(bpy.types.Operator):
     bl_idname = "nwo.face_layer_assign"
     bl_label = "Remove"
+    bl_options = {'UNDO'}
 
     assign: BoolProperty(default=True)
 
@@ -526,9 +533,10 @@ class NWO_FaceLayerAssign(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_FaceLayerSelect(NWO_Op):
+class NWO_FaceLayerSelect(bpy.types.Operator):
     bl_idname = "nwo.face_layer_select"
     bl_label = "Select"
+    bl_options = {'UNDO'}
 
     select: BoolProperty(default=True)
 
@@ -550,9 +558,10 @@ class NWO_FaceLayerSelect(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_FaceLayerMove(NWO_Op):
+class NWO_FaceLayerMove(bpy.types.Operator):
     bl_idname = "nwo.face_layer_move"
     bl_label = "Move"
+    bl_options = {'UNDO'}
 
     direction: EnumProperty(
         name="Direction",
@@ -719,28 +728,30 @@ def draw(self):
 class NWO_FaceLayerColorAll(bpy.types.Operator):
     bl_idname = "nwo.face_layer_color_all"
     bl_label = "Highlight"
+    bl_description = "Highlights faces with face properties based on their assigned color"
 
     enable_highlight: BoolProperty()
+    
+    @classmethod
+    def poll(cls, context):
+        return context.object and context.object.type == "MESH" and context.mode == 'EDIT_MESH'
 
     def execute(self, context):
         ob = context.object
         me = ob.data
         me.nwo.highlight = self.enable_highlight
 
+        
+        global int_highlight
+        if int_highlight < 1000:
+            int_highlight += 1
+        else:
+            int_highlight = 0
+                
         if self.enable_highlight:
-            global int_highlight
-            if int_highlight < 1000:
-                int_highlight += 1
-            else:
-                int_highlight = 0
-
             face_layers = me.nwo.face_props
             for index in range(len(face_layers)):
-                bpy.ops.nwo.face_layer_color(
-                    "INVOKE_DEFAULT",
-                    layer_index=index,
-                    highlight=int_highlight,
-                )
+                bpy.ops.nwo.face_layer_color(layer_index=index,highlight=int_highlight)
 
         return {"FINISHED"}
 
@@ -809,7 +820,7 @@ class NWO_FaceLayerColor(bpy.types.Operator):
             bm_v = self.volume
 
         if (
-            event.type in ("G", "S", "R", "E", "K", "B", "I", "V")
+            event.type in ("G", "S", "R", "E", "K", "B", "I", "V")  
             or event.value == "CLICK_DRAG"
         ):
             self.alpha = 0
@@ -826,23 +837,24 @@ class NWO_FaceLayerColor(bpy.types.Operator):
         )
 
         if kill_highlight or bm_v != self.volume:
-            try:
-                self.handler = bpy.types.SpaceView3D.draw_handler_remove(
-                    self.handler, "WINDOW"
-                )
-            except:
-                pass
-
+            self.handler = bpy.types.SpaceView3D.draw_handler_remove(self.handler, "WINDOW")
             if kill_highlight:
-                return {"CANCELLED"}
+                self.tag_redraw()
+                return {"FINISHED"}
             else:
-                bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-                bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+                bpy.ops.object.editmode_toggle()
+                bpy.ops.object.editmode_toggle()
                 return {"CANCELLED"}
 
         return {"PASS_THROUGH"}
+    
+    def tag_redraw(self):
+        for window in bpy.context.window_manager.windows:
+            for area in window.screen.areas:
+                if(area.type == 'VIEW_3D'):
+                    area.tag_redraw()
 
-    def invoke(self, context, event):
+    def execute(self, context):
         self.ob = context.object
         self.me = self.ob.data
 
@@ -855,10 +867,10 @@ class NWO_FaceLayerColor(bpy.types.Operator):
         self.shader_prep(context)
 
         if self.verts:
-            self.handler = bpy.types.SpaceView3D.draw_handler_add(
-                draw, (self,), "WINDOW", "POST_VIEW"
-            )
+            self.handler = bpy.types.SpaceView3D.draw_handler_add(draw, (self,), "WINDOW", "POST_VIEW")
             context.window_manager.modal_handler_add(self)
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.editmode_toggle()
             return {"RUNNING_MODAL"}
 
         return {"CANCELLED"}

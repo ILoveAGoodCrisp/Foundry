@@ -2072,14 +2072,17 @@ class NWO_FoundryPanelProps(Panel):
                 rows=rows,
             )
 
-            if context.mode == "EDIT_MESH":
-                col = row.column(align=True)
+            col = row.column(align=True)
+            edit_mode = context.mode == 'EDIT_MESH'
+            if edit_mode:
                 if is_proxy or (ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision" and poll_ui(('SCENARIO', 'PREFAB'))):
                     col.operator("nwo.face_layer_add", text="", icon="ADD").options = "face_global_material"
                 else:
                     col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
-                col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
-                col.separator()
+                
+            col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
+            col.separator()
+            if edit_mode:
                 col.operator(
                     "nwo.face_layer_color_all",
                     text="",
@@ -2087,24 +2090,24 @@ class NWO_FoundryPanelProps(Panel):
                     depress=nwo.highlight,
                 ).enable_highlight = not nwo.highlight
                 col.separator()
-                col.operator(
-                    "nwo.face_layer_move", icon="TRIA_UP", text=""
-                ).direction = "UP"
-                col.operator(
-                    "nwo.face_layer_move", icon="TRIA_DOWN", text=""
-                ).direction = "DOWN"
+            col.operator(
+                "nwo.face_layer_move", icon="TRIA_UP", text=""
+            ).direction = "UP"
+            col.operator(
+                "nwo.face_layer_move", icon="TRIA_DOWN", text=""
+            ).direction = "DOWN"
 
-                row = box.row()
+            row = box.row()
 
-                if nwo.face_props:
-                    sub = row.row(align=True)
-                    sub.operator("nwo.face_layer_assign", text="Assign").assign = True
-                    sub.operator("nwo.face_layer_assign", text="Remove").assign = False
-                    sub = row.row(align=True)
-                    sub.operator("nwo.face_layer_select", text="Select").select = True
-                    sub.operator(
-                        "nwo.face_layer_select", text="Deselect"
-                    ).select = False
+            if nwo.face_props and edit_mode:
+                sub = row.row(align=True)
+                sub.operator("nwo.face_layer_assign", text="Assign").assign = True
+                sub.operator("nwo.face_layer_assign", text="Remove").assign = False
+                sub = row.row(align=True)
+                sub.operator("nwo.face_layer_select", text="Select").select = True
+                sub.operator(
+                    "nwo.face_layer_select", text="Deselect"
+                ).select = False
 
             else:
                 box.operator(
@@ -2132,9 +2135,9 @@ class NWO_FoundryPanelProps(Panel):
                     row.label(text='Region')
                     row = box.row()
                     row.menu("NWO_MT_FaceRegions", text=item.region_name_ui, icon_value=get_icon_id("region"))
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "region"
+                    # row.operator(
+                    #     "nwo.face_prop_remove", text="", icon="X"
+                    # ).options = "region"
                 if item.face_two_sided_override:
                     if is_corinth(context):
                         col.separator()
@@ -2212,39 +2215,39 @@ class NWO_FoundryPanelProps(Panel):
                 if item.lightmap_additive_transparency_override:
                     row = col.row()
                     row.prop(item, "lightmap_additive_transparency_ui", text="Additive Transparency")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_additive_transparency"
+                    # row.operator(
+                    #     "nwo.face_prop_remove", text="", icon="X"
+                    # ).options = "lightmap_additive_transparency"
                 if item.lightmap_resolution_scale_override:
                     row = col.row()
                     row.prop(item, "lightmap_resolution_scale_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_resolution_scale"
+                    # row.operator(
+                    #     "nwo.face_prop_remove", text="", icon="X"
+                    # ).options = "lightmap_resolution_scale"
                 if item.lightmap_type_override:
                     row = col.row()
                     row.prop(item, "lightmap_type_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_type"
+                    # row.operator(
+                    #     "nwo.face_prop_remove", text="", icon="X"
+                    # ).options = "lightmap_type"
                 if item.lightmap_analytical_bounce_modifier_override:
                     row = col.row()
                     row.prop(item, "lightmap_analytical_bounce_modifier_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_analytical_bounce_modifier"
+                    # row.operator(
+                    #     "nwo.face_prop_remove", text="", icon="X"
+                    # ).options = "lightmap_analytical_bounce_modifier"
                 if item.lightmap_general_bounce_modifier_override:
                     row = col.row()
                     row.prop(item, "lightmap_general_bounce_modifier_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_general_bounce_modifier"
+                    # row.operator(
+                    #     "nwo.face_prop_remove", text="", icon="X"
+                    # ).options = "lightmap_general_bounce_modifier"
                 if item.lightmap_translucency_tint_color_override:
                     row = col.row()
                     row.prop(item, "lightmap_translucency_tint_color_ui")
-                    row.operator(
-                        "nwo.face_prop_remove", text="", icon="X"
-                    ).options = "lightmap_translucency_tint_color"
+                    # row.operator(
+                    #     "nwo.face_prop_remove", text="", icon="X"
+                    # ).options = "lightmap_translucency_tint_color"
                 if item.lightmap_lighting_from_both_sides_override:
                     row = col.row()
                     row.label(text="Lightmap Lighting From Both Sides")
