@@ -1073,7 +1073,7 @@ class PrepareScene:
                 normal_bm.free()
                 normal_ob.data.normals_split_custom_set_from_vertices(correct_normals)
                 # Strip unused materials from object
-                clean_materials(ob)
+                clean_materials(normal_ob)
 
             # Ensure existing proxies aren't parented to zero face mesh
             for s_ob in no_polys:
