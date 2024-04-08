@@ -44,6 +44,7 @@ def run_lightmapper(
     lightmap_region="all",
     model_lightmap=False,
     cpu_threads=1,
+    structure_bsps=[],
 ):
     lightmap = LightMapper(
         not_bungie_game,
@@ -56,6 +57,7 @@ def run_lightmapper(
         asset,
         model_lightmap,
         cpu_threads,
+        structure_bsps,
     )
     if not_bungie_game:
         lightmap_results = lightmap.lightmap_h4()
@@ -78,6 +80,7 @@ class LightMapper:
         asset,
         model_lightmap,
         cpu_threads,
+        structure_bsps,
     ):
         self.asset_name = asset
         self.lightmap_message = "Lightmap Successful"
@@ -88,6 +91,7 @@ class LightMapper:
         self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
         self.light_group = self.get_light_group(lightmap_region, misc_halo_objects, not_bungie_game)
         self.thread_count = cpu_threads
+        self.bsps = structure_bsps
 
     # HELPERS --------------------------
     def get_light_group(self, lightmap_region, misc_halo_objects, not_bungie_game):
@@ -239,6 +243,7 @@ class LightMapper:
 
     def lightmap_h4(self):
         self.force_reatlas = "false"
+        using_asset_settings = (self.quality == "__custom__" or self.quality == "__asset__")
         self.suppress_dialog = (
             "false" if self.quality == "__custom__" or self.quality == "" else "true"
         )
@@ -256,39 +261,52 @@ class LightMapper:
                     self.force_reatlas,
                 ]
             )
-
-        elif self.quality == "__custom__" or self.quality == '__asset__':
-            run_tool(
-                [
-                    "faux_lightmap",
-                    self.scenario,
-                    self.bsp,
-                    self.suppress_dialog,
-                    self.force_reatlas,
-                ]
-            )
         else:
             if self.bsp == "all":
-                run_tool(
-                    [
-                        "faux_lightmap_with_settings_for_all",
-                        self.scenario,
-                        self.bsp,
-                        self.suppress_dialog,
-                        self.force_reatlas,
-                        self.settings,
-                    ]
-                )
+                for bsp in self.bsps:
+                    if using_asset_settings:
+                        run_tool(
+                            [
+                                "faux_lightmap",
+                                self.scenario,
+                                f"{self.asset_name}_{bsp}",
+                                self.suppress_dialog,
+                                self.force_reatlas,
+                            ]
+                        )
+                    else:
+                        run_tool(
+                            [
+                                "faux_lightmap_with_settings",
+                                self.scenario,
+                                f"{self.asset_name}_{bsp}",
+                                self.suppress_dialog,
+                                self.force_reatlas,
+                                self.settings,
+                            ]
+                        )
+                    self.suppress_dialog = "true"
             else:
-                run_tool(
-                    [
-                        "faux_lightmap_with_settings",
-                        self.scenario,
-                        self.bsp,
-                        self.suppress_dialog,
-                        self.force_reatlas,
-                        self.settings,
-                    ]
-                )
+                if using_asset_settings:
+                    run_tool(
+                        [
+                            "faux_lightmap",
+                            self.scenario,
+                            self.bsp,
+                            self.suppress_dialog,
+                            self.force_reatlas,
+                        ]
+                    )
+                else:
+                    run_tool(
+                        [
+                            "faux_lightmap_with_settings",
+                            self.scenario,
+                            self.bsp,
+                            self.suppress_dialog,
+                            self.force_reatlas,
+                            self.settings,
+                        ]
+                    )
 
         return self
