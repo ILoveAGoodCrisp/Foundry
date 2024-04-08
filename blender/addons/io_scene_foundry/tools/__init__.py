@@ -166,7 +166,7 @@ from .instance_proxies import NWO_ProxyInstanceNew, NWO_ProxyInstanceCancel, NWO
         
         
 class NWO_FoundryPanelProps(Panel):
-    bl_label = "Foundry Panel"
+    bl_label = "Foundry"
     bl_idname = "NWO_PT_FoundryPanelProps"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -2981,7 +2981,7 @@ class NWO_FoundryPanelProps(Panel):
         col.separator()
 
 class NWO_FoundryPanelPopover(Operator, NWO_FoundryPanelProps):
-    bl_label = "Foundry Panel"
+    bl_label = "Foundry"
     bl_idname = "nwo.show_foundry_panel"
     bl_description = "Loads the Foundry Panel at the position of the mouse cursor"
     bl_icon = 'MESH'

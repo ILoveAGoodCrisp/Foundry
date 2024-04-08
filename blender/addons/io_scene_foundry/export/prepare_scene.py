@@ -991,10 +991,13 @@ class PrepareScene:
         justified = self.justify_face_split(layer_faces_dict, poly_count)
         bm.to_mesh(me)
         if justified:
-            # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
-            render_mesh = ob.nwo.mesh_type in render_mesh_types
-            is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
+            # Create a custom data layer to store current normals
+            old_normal = bm.verts.layers.float_vector.new("foundry_old_normal")
+            for v in bm.verts:
+                v[old_normal] = v.normal
             
+            # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
+            is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
             if (
                 is_poop and not h4
             ):  # don't do this for h4 as collision can be open
@@ -1039,12 +1042,6 @@ class PrepareScene:
                     ori_matrix = ob.matrix_world
                     collision_ob.nwo.mesh_type = "_connected_geometry_mesh_type_poop_collision"
 
-            normals_ob = None
-            # Can get bad results with this if mesh doesn't have joined up faces. The math check here verifies the mesh has merged verts
-            if (len(me.vertices) - len(me.edges) + len(me.polygons) < 3):
-                normals_ob = ob.copy()
-                normals_ob.data = me.copy()
-
             # create new face layer for remaining faces
             remaining_faces = []
             for f in bm.faces:
@@ -1064,6 +1061,14 @@ class PrepareScene:
             # remove zero poly obs from split_objects_messy
             split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
             no_polys = [s_ob for s_ob in split_objects_messy if s_ob not in split_objects]
+            
+            # Fix normals for split_objects
+            for normal_ob in split_objects:
+                normal_bm = bmesh.new()
+                normal_bm.from_mesh(normal_ob.data)
+                correct_normals = [v[normal_bm.verts.layers.float_vector.get("foundry_old_normal")] for v in normal_bm.verts]
+                normal_bm.free()
+                normal_ob.data.normals_split_custom_set_from_vertices(correct_normals)
 
             # Ensure existing proxies aren't parented to zero face mesh
             for s_ob in no_polys:
@@ -1093,14 +1098,6 @@ class PrepareScene:
                     split_ob.name = f"{ori_ob_name}({obj_name_suffix})"
                 else:
                     split_ob.name = ori_ob_name
-                
-                if render_mesh and normals_ob is not None:
-                    # set up data transfer modifier to retain normals
-                    mod = split_ob.modifiers.new("HaloDataTransfer", "DATA_TRANSFER")
-                    mod.object = normals_ob
-                    mod.use_object_transform = False
-                    mod.use_loop_data = True
-                    mod.data_types_loops = {"CUSTOM_NORMAL"}
 
             #parent poop coll
             parent_ob = None
@@ -1526,9 +1523,7 @@ class PrepareScene:
                 for face in bm.faces:
                     face.hide_set(False)
 
-                split_objects = self.split_to_layers(
-                    ob, ob_nwo, me, face_layers, scene_coll, h4, bm, False
-                )
+                split_objects = self.split_to_layers(ob, ob_nwo, me, face_layers, scene_coll, h4, bm, False)
                 # remove the original ob from this list if needed
                 # if ob in split_objects:
                 #     split_objects.remove(ob)
@@ -2727,6 +2722,9 @@ class PrepareScene:
                     
             original_bm = bmesh.new()
             original_bm.from_mesh(me)
+            old_normal = bm.verts.layers.float_vector.new("sky_old_normal")
+            for vert in bm.verts:
+                vert[old_normal] = vert.normal
             for s in sky_slots:
                 sky_index = get_sky_perm(s.material)
                 if sky_index > -1 and sky_index < 32:
@@ -2744,11 +2742,15 @@ class PrepareScene:
                     new_sky_me = me.copy()
                     new_bm.to_mesh(new_sky_me)
                     original_bm.to_mesh(me)
+                    old_normals = [v[original_bm.verts.layers.float_vector.get("sky_old_normal")] for v in original_bm.verts]
+                    new_old_normals = [v[new_bm.verts.layers.float_vector.get("sky_old_normal")] for v in new_bm.verts]
                     new_sky_ob = ob.copy()
                     new_sky_ob.name = ob.name + f'(sky_perm_{str(sky_index)})'
                     new_sky_ob.data = new_sky_me
                     scene_coll.link(new_sky_ob)
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
+                    ob.data.normals_split_custom_set_from_vertices(old_normals)
+                    new_sky_ob.data.normals_split_custom_set_from_vertices(new_old_normals)
                 
                 s.material = self.sky_mat
 

@@ -2836,3 +2836,27 @@ def get_asset_tag(extension: str, full=False):
                 return str(full_path)
             else:
                 return str(tag_path)
+            
+def split_retain_normals(ob: bpy.types.Object):
+    mesh: bpy.types.Mesh = ob.data
+    new_mesh = mesh.copy()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    old_normal = bm.verts.layers.float_vector.new("old_normal")
+    for vert in bm.verts:
+        vert[old_normal] = vert.normal
+    copy_bm = bm.copy()
+    bm.faces.ensure_lookup_table()
+    copy_bm.faces.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.select], context="FACES")
+    bmesh.ops.delete(copy_bm, geom=[f for f in copy_bm.faces if not f.select], context="FACES")
+    bm.normal_update()
+    copy_bm.normal_update()
+    old_normals = [v[bm.verts.layers.float_vector.get("old_normal")] for v in bm.verts]
+    copy_old_normals = [v[copy_bm.verts.layers.float_vector.get("old_normal")] for v in copy_bm.verts]
+    bm.to_mesh(ob.data)
+    copy_bm.to_mesh(new_mesh)
+    new_ob = bpy.data.objects.new("new_ob", new_mesh)
+    bpy.context.scene.collection.objects.link(new_ob)
+    ob.data.normals_split_custom_set_from_vertices(old_normals)
+    new_ob.data.normals_split_custom_set_from_vertices(copy_old_normals)
