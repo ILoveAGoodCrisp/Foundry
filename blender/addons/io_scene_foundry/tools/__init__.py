@@ -378,7 +378,7 @@ class NWO_FoundryPanelProps(Panel):
             col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
             col.prop(nwo, 'camera_track_camera', text="Camera")
     
-    def draw_expandable_box(self, box: bpy.types.UILayout, nwo, name, panel_display_name='', ob=None):
+    def draw_expandable_box(self, box: bpy.types.UILayout, nwo, name, panel_display_name='', ob=None, material=None):
         if not panel_display_name:
             panel_display_name = f"{name.replace('_', ' ').title()}"
         panel_expanded = getattr(nwo, f"{name}_expanded")
@@ -394,10 +394,13 @@ class NWO_FoundryPanelProps(Panel):
         if panel_expanded:
             draw_panel = getattr(self, f"draw_{name}")
             if callable(draw_panel):
-                if ob is None:
-                    draw_panel(box, nwo)
-                else:
+                if ob:
                     draw_panel(box, ob)
+                elif material:
+                    draw_panel(box, material)
+                else:
+                    draw_panel(box, nwo)
+                    
                 return panel_expanded
             
         return False
@@ -2475,66 +2478,67 @@ class NWO_FoundryPanelProps(Panel):
                 return
             if not recursive_image_search(mat):
                 return
+            
+            self.draw_expandable_box(self.box.box(), context.scene.nwo, "image_properties", material=mat)
 
-            box = self.box.box()
-            box.use_property_split = False
-            box.label(text="Image Properties")
-            col = box.column()
-            image = nwo.active_image
-            col.template_ID_preview(nwo, "active_image")
-            if not image:
-                return
-            bitmap = image.nwo
-            editor = context.preferences.filepaths.image_editor
-            if editor and image.filepath and os.path.exists(image.filepath_from_user()):
-                col.separator()
-                end_part = os_sep_partition(editor.lower(), True).strip("\"'")
-                if "photoshop" in end_part:
-                    editor_name = "Photoshop"
-                    editor_icon = "photoshop"
-                elif "gimp" in end_part:
-                    editor_name = "Gimp"
-                    editor_icon = "paint" # gimp
-                elif "paint" in end_part:
-                    editor_name = "Paint"
-                    editor_icon = "paint"
-                elif "affinity" in end_part:
-                    editor_name = "Affinity"
-                    editor_icon = "affinity"
-                else:
-                    editor_name = "Image Editor"
-                    editor_icon = ""
-                col.operator("nwo.open_image_editor", text=f"Open in {editor_name}", icon_value=get_icon_id(editor_icon))
-
-            tags_dir = get_tags_path()
-            data_dir = get_data_path()
-            bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
-            if not os.path.exists(tags_dir + bitmap_path):
-                bitmap_path = dot_partition(image.filepath_from_user().lower().replace(data_dir, "")) + '.bitmap'
-            if not os.path.exists(tags_dir + bitmap_path):
-                col.separator()
-                col.label(text='Bitmap Export Tools')
-                col.operator("nwo.export_bitmaps_single", text="Export Bitmap", icon_value=get_icon_id("texture_export"))
-                col.separator()
-                col_props = col.column()
-                col_props.use_property_split = True
-                col_props.prop(bitmap, "bitmap_dir", text="Tiff Directory")
-                col_props.prop(bitmap, "bitmap_type", text="Type")
-                return
+                
+    def draw_image_properties(self, box, mat):
+        box.use_property_split = False
+        nwo = mat.nwo
+        col = box.column()
+        image = nwo.active_image
+        col.template_ID_preview(nwo, "active_image")
+        if not image:
+            return
+        bitmap = image.nwo
+        editor = self.context.preferences.filepaths.image_editor
+        if editor and image.filepath and os.path.exists(image.filepath_from_user()):
             col.separator()
-            col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
+            end_part = os_sep_partition(editor.lower(), True).strip("\"'")
+            if "photoshop" in end_part:
+                editor_name = "Photoshop"
+                editor_icon = "photoshop"
+            elif "gimp" in end_part:
+                editor_name = "Gimp"
+                editor_icon = "paint" # gimp
+            elif "paint" in end_part:
+                editor_name = "Paint"
+                editor_icon = "paint"
+            elif "affinity" in end_part:
+                editor_name = "Affinity"
+                editor_icon = "affinity"
+            else:
+                editor_name = "Image Editor"
+                editor_icon = ""
+            col.operator("nwo.open_image_editor", text=f"Open in {editor_name}", icon_value=get_icon_id(editor_icon))
+
+        tags_dir = get_tags_path()
+        data_dir = get_data_path()
+        bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
+        if not os.path.exists(tags_dir + bitmap_path):
+            bitmap_path = dot_partition(image.filepath_from_user().lower().replace(data_dir, "")) + '.bitmap'
+        if not os.path.exists(tags_dir + bitmap_path):
             col.separator()
             col.label(text='Bitmap Export Tools')
-            col.prop(bitmap, "export", text="Link Bitmap to Blender Image", icon="TEXTURE")
-            if bitmap.export:
-                col.operator("nwo.export_bitmaps_single", text="Update Bitmap", icon_value=get_icon_id("texture_export"))
-                col.separator()
-                col_props = col.column()
-                col_props.use_property_split = True
-                col_props.prop(bitmap, "bitmap_type", text="Type")
-                col_props.prop(bitmap, "reexport_tiff", text="Always Export TIFF")
-                
-
+            col.operator("nwo.export_bitmaps_single", text="Export Bitmap", icon_value=get_icon_id("texture_export"))
+            col.separator()
+            col_props = col.column()
+            col_props.use_property_split = True
+            col_props.prop(bitmap, "bitmap_dir", text="Tiff Directory")
+            col_props.prop(bitmap, "bitmap_type", text="Type")
+            return
+        col.separator()
+        col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
+        col.separator()
+        col.label(text='Bitmap Export Tools')
+        col.prop(bitmap, "export", text="Link Bitmap to Blender Image", icon="TEXTURE")
+        if bitmap.export:
+            col.operator("nwo.export_bitmaps_single", text="Update Bitmap", icon_value=get_icon_id("texture_export"))
+            col.separator()
+            col_props = col.column()
+            col_props.use_property_split = True
+            col_props.prop(bitmap, "bitmap_type", text="Type")
+            col_props.prop(bitmap, "reexport_tiff", text="Always Export TIFF")
 
     def draw_animation_manager(self):
         box = self.box.box()

@@ -643,7 +643,7 @@ class NWO_List_Remove_Animation_Rename(NWO_Op):
 
     bl_idname = "nwo.animation_rename_remove"
     bl_label = "Remove"
-    bl_description = "Remove an animation event from the list."
+    bl_description = "Remove an animation rename from the list"
 
     @classmethod
     def poll(cls, context):

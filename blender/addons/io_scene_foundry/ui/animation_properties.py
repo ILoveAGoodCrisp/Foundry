@@ -105,21 +105,15 @@ class NWO_List_Remove_Animation_Event(Operator):
 
     bl_idname = "animation_event.list_remove"
     bl_label = "Remove"
-    bl_description = "Remove an animation event from the list."
+    bl_description = "Remove an animation event from the list"
     bl_options = {"UNDO"}
 
     @classmethod
     def poll(cls, context):
-        return (
-            context.object
-            and context.object.type == "ARMATURE"
-            and context.object.animation_data
-            and context.object.animation_data.action
-            and len(context.object.animation_data.action.nwo.animation_events) > 0
-        )
+        return bpy.data.actions and context.scene.nwo.active_action_index > -1 and len(context.object.animation_data.action.nwo.animation_events) > 0
 
     def execute(self, context):
-        action = context.active_object.animation_data.action
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
         action_nwo = action.nwo
         index = action_nwo.animation_events_index
         action_nwo.animation_events.remove(index)

@@ -782,6 +782,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     mesh_properties_expanded: BoolProperty(default=True, options=set())
     face_properties_expanded: BoolProperty(default=True, options=set())
     instance_proxies_expanded: BoolProperty(default=True, options=set())
+    
+    image_properties_expanded: BoolProperty(default=True, options=set())
 
     sets_manager_active: BoolProperty(options=set())
     sets_manager_pinned: BoolProperty(options=set())
