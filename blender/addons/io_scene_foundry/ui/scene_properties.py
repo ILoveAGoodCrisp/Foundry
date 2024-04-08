@@ -777,6 +777,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     regions_table_expanded: BoolProperty(default=True, options=set())
     permutations_table_expanded: BoolProperty(default=True, options=set())
+    object_visibility_expanded: BoolProperty(default=True, options=set())
+
 
     sets_manager_active: BoolProperty(options=set())
     sets_manager_pinned: BoolProperty(options=set())
@@ -1167,9 +1169,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     mesh_collision_visible: BoolProperty(default=True, options=set())
     mesh_physics_visible: BoolProperty(default=True, options=set())
-    mesh_render_visible: BoolProperty(default=True, options=set())
+    mesh_default_visible: BoolProperty(default=True, options=set())
     mesh_io_visible: BoolProperty(default=True, options=set())
-    mesh_instance_visible: BoolProperty(default=True, options=set())
     mesh_structure_visible: BoolProperty(default=True, options=set())
     mesh_seam_visible: BoolProperty(default=True, options=set())
     mesh_portal_visible: BoolProperty(default=True, options=set())
@@ -1198,3 +1199,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     marker_game_instance_visible: BoolProperty(default=True, options=set())
     marker_envfx_visible: BoolProperty(default=True, options=set())
     marker_lightcone_visible: BoolProperty(default=True, options=set())
+    
+    other_frame_visible: BoolProperty(default=True, options=set())
+    other_light_visible: BoolProperty(default=True, options=set())

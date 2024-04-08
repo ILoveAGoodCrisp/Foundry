@@ -267,7 +267,7 @@ def object_context_apply_types(self, context):
             layout.label(text=f'Halo {object_type}')
 
     markers_valid = any([is_marker(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
-    meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB')
+    meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'SKY')
     has_children = any([ob.children for ob in context.selected_objects])
     if markers_valid or meshes_valid:
         if meshes_valid:
