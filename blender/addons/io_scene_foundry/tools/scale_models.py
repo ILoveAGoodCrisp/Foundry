@@ -91,7 +91,6 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
         resources_zip = os.path.join(addon_dir, "resources.zip")
 
         filepath = os.path.join(addon_dir, "resources", "scale_models", self.model_name + '.bmf')
-        print(filepath)
         if os.path.exists(filepath):
             self.write_data(context, filepath)
         elif os.path.exists(resources_zip):
