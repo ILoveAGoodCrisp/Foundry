@@ -40,6 +40,7 @@ from ..utils.nwo_utils import (
     blender_halo_rotation_diff,
     bool_str,
     calc_emissive_intensity,
+    clean_materials,
     closest_bsp_object,
     color_3p_str,
     color_4p_str,
@@ -1066,9 +1067,13 @@ class PrepareScene:
             for normal_ob in split_objects:
                 normal_bm = bmesh.new()
                 normal_bm.from_mesh(normal_ob.data)
-                correct_normals = [v[normal_bm.verts.layers.float_vector.get("foundry_old_normal")] for v in normal_bm.verts]
+                float_vector_layer = normal_bm.verts.layers.float_vector.get("foundry_old_normal")
+                correct_normals = [v[float_vector_layer] for v in normal_bm.verts]
+                normal_bm.layers.float_vector.remove(float_vector_layer)
                 normal_bm.free()
                 normal_ob.data.normals_split_custom_set_from_vertices(correct_normals)
+                # Strip unused materials from object
+                clean_materials(ob)
 
             # Ensure existing proxies aren't parented to zero face mesh
             for s_ob in no_polys:
@@ -2591,14 +2596,11 @@ class PrepareScene:
         self, context, ob, me, nwo, h4, is_halo_render, does_not_support_sky, scene_coll
     ):
         # fix multi user materials
-        slots = ob.material_slots
-        materials = me.materials
         scene_mats = bpy.data.materials
-        mats = dict.fromkeys(slots)
         if me.nwo.face_global_material_ui and nwo.reach_poop_collision:
             self.set_reach_coll_materials(me, scene_mats, True)
         else:
-            self.loop_and_fix_slots(context, slots, is_halo_render, mats, ob, nwo, materials, me, does_not_support_sky, scene_coll, h4)
+            self.loop_and_fix_slots(context, is_halo_render, ob, nwo, me, does_not_support_sky, scene_coll, h4)
 
     def set_reach_coll_materials(self, me, scene_mats, mesh_level=False):
         # handle reach poop collision material assignment
@@ -2654,51 +2656,19 @@ class PrepareScene:
         bm.to_mesh(me)
         bm.free()
 
-    def loop_and_fix_slots(self, context, slots, is_halo_render, mats, ob, nwo, materials, me, does_not_support_sky, scene_coll, h4):
-        slots_to_remove = []
-        dupe_slots_dict = {}
+    def loop_and_fix_slots(self, is_halo_render, ob, nwo, me, does_not_support_sky, scene_coll, h4):
         is_true_mesh = ob.type == 'MESH'
-        for idx, slot in enumerate(slots):
-            if slot.material:
-                if slot.material.name in special_material_names:
-                    if h4 and slot.material.name not in ('+invisible', '+invalid'):
-                        slot.material = self.invisible_mat
-                    elif not h4 and slot.material.name.startswith('+sky') and does_not_support_sky:
-                        slot.material = self.seamsealer_mat
-                elif slot.material.name in convention_material_names:
+        slots = clean_materials(ob)
+        for slot in slots:
+            if slot.material.name in special_material_names:
+                if h4 and slot.material.name not in ('+invisible', '+invalid'):
                     slot.material = self.invisible_mat
-                elif is_halo_render:
-                    self.used_materials.add(slot.material)
-                s_name = slot.material.name
-                if s_name not in mats.keys():
-                    mats[s_name] = idx
-                elif is_true_mesh:
-                    slots_to_remove.append(idx)
-                    dupe_slots_dict[idx] = mats[s_name]
-                    
-            else:
-                if nwo.mesh_type in render_mesh_types:
-                    slot.material = self.invalid_mat
-                elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-                    slot.material = self.water_surface_mat
-                else:
-                    slot.material = self.invisible_mat
-                    
-        if dupe_slots_dict:
-            bm = bmesh.new()
-            bm.from_mesh(me)
-            bm.faces.ensure_lookup_table()
-            for face in bm.faces:
-                # face: bmesh.types.BMFace
-                if face.material_index in dupe_slots_dict.keys():
-                    face.material_index = dupe_slots_dict[face.material_index]
-                    
-            bm.to_mesh(me)
-
-        while slots_to_remove:
-            materials.pop(index=slots_to_remove[0])
-            slots_to_remove.pop(0)
-            slots_to_remove = [idx - 1 for idx in slots_to_remove]
+                elif not h4 and slot.material.name.startswith('+sky') and does_not_support_sky:
+                    slot.material = self.seamsealer_mat
+            elif slot.material.name in convention_material_names:
+                slot.material = self.invisible_mat
+            elif is_halo_render:
+                self.used_materials.add(slot.material)
 
         if not slots:
             # append the new material to the object
@@ -2722,8 +2692,8 @@ class PrepareScene:
                     
             original_bm = bmesh.new()
             original_bm.from_mesh(me)
-            old_normal = bm.verts.layers.float_vector.new("sky_old_normal")
-            for vert in bm.verts:
+            old_normal = original_bm.verts.layers.float_vector.new("sky_old_normal")
+            for vert in original_bm.verts:
                 vert[old_normal] = vert.normal
             for s in sky_slots:
                 sky_index = get_sky_perm(s.material)
@@ -2742,8 +2712,12 @@ class PrepareScene:
                     new_sky_me = me.copy()
                     new_bm.to_mesh(new_sky_me)
                     original_bm.to_mesh(me)
-                    old_normals = [v[original_bm.verts.layers.float_vector.get("sky_old_normal")] for v in original_bm.verts]
-                    new_old_normals = [v[new_bm.verts.layers.float_vector.get("sky_old_normal")] for v in new_bm.verts]
+                    float_vector_layer = original_bm.verts.layers.float_vector.get("sky_old_normal")
+                    new_float_vector_layer = new_bm.verts.layers.float_vector.get("sky_old_normal")
+                    old_normals = [v[float_vector_layer] for v in original_bm.verts]
+                    new_old_normals = [v[new_float_vector_layer] for v in new_bm.verts]
+                    original_bm.verts.layers.float_vector.remove(float_vector_layer)
+                    new_bm.verts.layers.float_vector.remove(new_float_vector_layer)
                     new_sky_ob = ob.copy()
                     new_sky_ob.name = ob.name + f'(sky_perm_{str(sky_index)})'
                     new_sky_ob.data = new_sky_me

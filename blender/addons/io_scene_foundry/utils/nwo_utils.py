@@ -2850,13 +2850,55 @@ def split_retain_normals(ob: bpy.types.Object):
     copy_bm.faces.ensure_lookup_table()
     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.select], context="FACES")
     bmesh.ops.delete(copy_bm, geom=[f for f in copy_bm.faces if not f.select], context="FACES")
-    bm.normal_update()
-    copy_bm.normal_update()
-    old_normals = [v[bm.verts.layers.float_vector.get("old_normal")] for v in bm.verts]
-    copy_old_normals = [v[copy_bm.verts.layers.float_vector.get("old_normal")] for v in copy_bm.verts]
+    float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
+    copy_float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
+    old_normals = [v[float_vector_layer] for v in bm.verts]
+    copy_old_normals = [v[copy_float_vector_layer] for v in copy_bm.verts]
+    bm.verts.layers.float_vector.remove(float_vector_layer)
+    copy_bm.verts.layers.float_vector.remove(copy_float_vector_layer)
     bm.to_mesh(ob.data)
     copy_bm.to_mesh(new_mesh)
     new_ob = bpy.data.objects.new("new_ob", new_mesh)
     bpy.context.scene.collection.objects.link(new_ob)
     ob.data.normals_split_custom_set_from_vertices(old_normals)
     new_ob.data.normals_split_custom_set_from_vertices(copy_old_normals)
+    
+def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
+    materials = ob.data.materials
+    slots = ob.material_slots
+    slots_to_remove = set()
+    duplicate_slots = {}
+    material_indexes = dict.fromkeys(slots)
+    for idx, slot in enumerate(slots):
+        if not slot.material:
+            slots_to_remove.add(idx)
+            continue
+        slot_name = slot.material.name
+        if slot_name not in material_indexes.keys():
+            material_indexes[slot_name] = idx
+        else:
+            slots_to_remove.add(idx)
+            duplicate_slots[idx] = material_indexes[slot_name]
+            
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bm.faces.ensure_lookup_table()
+    used_material_indexes = set()
+    for face in bm.faces:
+        used_material_indexes.add(face.material_index)
+        if duplicate_slots and face.material_index in duplicate_slots.keys():
+            face.material_index = duplicate_slots[face.material_index]
+            
+    bm.to_mesh(ob.data)
+    bm.free()
+    
+    for i in range(len(slots)):
+        if i not in used_material_indexes:
+            slots_to_remove.add(i)
+        
+    slots_to_remove = sorted(slots_to_remove, reverse=True)
+        
+    for idx in slots_to_remove:
+        materials.pop(index=idx)
+        
+    return ob.material_slots
