@@ -59,7 +59,7 @@ from io_scene_foundry.tools.importer import NWO_Import, NWO_OT_ConvertScene
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
-from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
+from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_OT_HideObjectType, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
 from io_scene_foundry.tools.shader_farm import NWO_FarmShaders
 from io_scene_foundry.tools.shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
 from io_scene_foundry.tools.shader_reader import NWO_ShaderToNodes
@@ -871,58 +871,61 @@ class NWO_FoundryPanelProps(Panel):
         grid = box.grid_flow(align=False, even_columns=True)
         grid.alignment = 'LEFT'
         grid.scale_x = 1
+        default_icon_name = "render_geometry"
+        default_icon_off_name = "render_geometry_off"
         if asset_type in ('SCENARIO', 'PREFAB'):
             default_icon_name = "instance"
             default_icon_off_name = "instance_off"
-        else:
-            default_icon_name = "render_geometry"
-            default_icon_off_name = "render_geometry_off"
-        grid.prop(nwo, "mesh_default_visible", text="", icon_value=get_icon_id(default_icon_name) if nwo.mesh_default_visible else get_icon_id(default_icon_off_name), emboss=False, )
+        elif asset_type == 'DECORATOR SET':
+            default_icon_name = "decorator"
+            default_icon_off_name = "decorator_off"
+            
+        grid.prop(nwo, "connected_geometry_mesh_type_default_visible", text="", icon_value=get_icon_id(default_icon_name) if nwo.connected_geometry_mesh_type_default_visible else get_icon_id(default_icon_off_name), emboss=False)
         if asset_type in ('SCENARIO', 'MODEL', 'PREFAB'):
-            grid.prop(nwo, "mesh_collision_visible", text="", icon_value=get_icon_id("collider") if nwo.mesh_collision_visible else get_icon_id("collider_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_collision_visible", text="", icon_value=get_icon_id("collider") if nwo.connected_geometry_mesh_type_collision_visible else get_icon_id("collider_off"), emboss=False)
         if asset_type == 'MODEL':
-            grid.prop(nwo, "mesh_physics_visible", text="", icon_value=get_icon_id("physics") if nwo.mesh_physics_visible else get_icon_id("physics_off"), emboss=False)
-            grid.prop(nwo, "mesh_io_visible", text="", icon_value=get_icon_id("instance") if nwo.mesh_io_visible else get_icon_id("instance_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_physics_visible", text="", icon_value=get_icon_id("physics") if nwo.connected_geometry_mesh_type_physics_visible else get_icon_id("physics_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_object_instance_visible", text="", icon_value=get_icon_id("instance") if nwo.connected_geometry_mesh_type_object_instance_visible else get_icon_id("instance_off"), emboss=False)
         if asset_type == 'SCENARIO':
-            grid.prop(nwo, "mesh_structure_visible", text="", icon_value=get_icon_id("structure") if nwo.mesh_structure_visible else get_icon_id("structure_off"), emboss=False)
-            grid.prop(nwo, "mesh_seam_visible", text="", icon_value=get_icon_id("seam") if nwo.mesh_seam_visible else get_icon_id("seam_off"), emboss=False)
-            grid.prop(nwo, "mesh_portal_visible", text="", icon_value=get_icon_id("portal") if nwo.mesh_portal_visible else get_icon_id("portal_off"), emboss=False)
-            grid.prop(nwo, "mesh_lightmap_only_visible", text="", icon_value=get_icon_id("lightmap") if nwo.mesh_lightmap_only_visible else get_icon_id("lightmap_off"), emboss=False)
-            grid.prop(nwo, "mesh_water_surface_visible", text="", icon_value=get_icon_id("water") if nwo.mesh_water_surface_visible else get_icon_id("water_off"), emboss=False)
-            grid.prop(nwo, "mesh_rain_sheet_visible", text="", icon_value=get_icon_id("rain_sheet") if nwo.mesh_rain_sheet_visible else get_icon_id("rain_sheet_off"), emboss=False)
-            grid.prop(nwo, "mesh_fog_visible", text="", icon_value=get_icon_id("fog") if nwo.mesh_fog_visible else get_icon_id("fog_off"), emboss=False)
-            grid.prop(nwo, "mesh_soft_ceiling_visible", text="", icon_value=get_icon_id("soft_ceiling") if nwo.mesh_soft_ceiling_visible else get_icon_id("soft_ceiling_off"), emboss=False)
-            grid.prop(nwo, "mesh_soft_kill_visible", text="", icon_value=get_icon_id("soft_kill") if nwo.mesh_soft_kill_visible else get_icon_id("soft_kill_off"), emboss=False)
-            grid.prop(nwo, "mesh_slip_surface_visible", text="", icon_value=get_icon_id("slip_surface") if nwo.mesh_slip_surface_visible else get_icon_id("slip_surface_off"), emboss=False)
-            grid.prop(nwo, "mesh_water_physics_visible", text="", icon_value=get_icon_id("water_physics") if nwo.mesh_water_physics_visible else get_icon_id("water_physics_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_structure_visible", text="", icon_value=get_icon_id("structure") if nwo.connected_geometry_mesh_type_structure_visible else get_icon_id("structure_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_seam_visible", text="", icon_value=get_icon_id("seam") if nwo.connected_geometry_mesh_type_seam_visible else get_icon_id("seam_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_portal_visible", text="", icon_value=get_icon_id("portal") if nwo.connected_geometry_mesh_type_portal_visible else get_icon_id("portal_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_lightmap_only_visible", text="", icon_value=get_icon_id("lightmap") if nwo.connected_geometry_mesh_type_lightmap_only_visible else get_icon_id("lightmap_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_water_surface_visible", text="", icon_value=get_icon_id("water") if nwo.connected_geometry_mesh_type_water_surface_visible else get_icon_id("water_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_planar_fog_volume_visible", text="", icon_value=get_icon_id("fog") if nwo.connected_geometry_mesh_type_planar_fog_volume_visible else get_icon_id("fog_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_soft_ceiling_visible", text="", icon_value=get_icon_id("soft_ceiling") if nwo.connected_geometry_mesh_type_soft_ceiling_visible else get_icon_id("soft_ceiling_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_soft_kill_visible", text="", icon_value=get_icon_id("soft_kill") if nwo.connected_geometry_mesh_type_soft_kill_visible else get_icon_id("soft_kill_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_slip_surface_visible", text="", icon_value=get_icon_id("slip_surface") if nwo.connected_geometry_mesh_type_slip_surface_visible else get_icon_id("slip_surface_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_mesh_type_water_physics_volume_visible", text="", icon_value=get_icon_id("water_physics") if nwo.connected_geometry_mesh_type_water_physics_volume_visible else get_icon_id("water_physics_off"), emboss=False)
             if self.h4:
-                grid.prop(nwo, "mesh_streaming_visible", text="", icon_value=get_icon_id("streaming") if nwo.mesh_streaming_visible else get_icon_id("streaming_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_mesh_type_streaming_visible", text="", icon_value=get_icon_id("streaming") if nwo.connected_geometry_mesh_type_streaming_visible else get_icon_id("streaming_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_mesh_type_lightmap_exclude_visible", text="", icon_value=get_icon_id("lightmap_exclude") if nwo.connected_geometry_mesh_type_lightmap_exclude_visible else get_icon_id("lightmap_exclude_off"), emboss=False)
             else:
-                grid.prop(nwo, "mesh_cookie_cutter_visible", text="", icon_value=get_icon_id("cookie_cutter") if nwo.mesh_cookie_cutter_visible else get_icon_id("cookie_cutter_off"), emboss=False)
-                grid.prop(nwo, "mesh_rain_blocker_visible", text="", icon_value=get_icon_id("rain_blocker") if nwo.mesh_rain_blocker_visible else get_icon_id("rain_blocker_off"), emboss=False)
-        # box.label(text="Markers")
-        # grid = box.grid_flow(align=False, even_columns=True)
-        grid.prop(nwo, "marker_model_visible", text="", icon_value=get_icon_id("marker") if nwo.marker_model_visible else get_icon_id("marker_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_mesh_type_cookie_cutter_visible", text="", icon_value=get_icon_id("cookie_cutter") if nwo.connected_geometry_mesh_type_cookie_cutter_visible else get_icon_id("cookie_cutter_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_mesh_type_poop_vertical_rain_sheet_visible", text="", icon_value=get_icon_id("rain_sheet") if nwo.connected_geometry_mesh_type_poop_vertical_rain_sheet_visible else get_icon_id("rain_sheet_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_mesh_type_poop_rain_blocker_visible", text="", icon_value=get_icon_id("rain_blocker") if nwo.connected_geometry_mesh_type_poop_rain_blocker_visible else get_icon_id("rain_blocker_off"), emboss=False)
+
+        grid.prop(nwo, "connected_geometry_marker_type_model_visible", text="", icon_value=get_icon_id("marker") if nwo.connected_geometry_marker_type_model_visible else get_icon_id("marker_off"), emboss=False)
         if asset_type in ('MODEL', 'SKY'):
-            grid.prop(nwo, "marker_effect_visible", text="", icon_value=get_icon_id("effects") if nwo.marker_effect_visible else get_icon_id("effects_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_effects_visible", text="", icon_value=get_icon_id("effects") if nwo.connected_geometry_marker_type_effects_visible else get_icon_id("effects_off"), emboss=False)
         if asset_type == 'MODEL':
-            grid.prop(nwo, "marker_garbage_visible", text="", icon_value=get_icon_id("garbage") if nwo.marker_garbage_visible else get_icon_id("garbage_off"), emboss=False)
-            grid.prop(nwo, "marker_hint_visible", text="", icon_value=get_icon_id("hint") if nwo.marker_hint_visible else get_icon_id("hint_off"), emboss=False)
-            grid.prop(nwo, "marker_pathfinding_sphere_visible", text="", icon_value=get_icon_id("pathfinding_sphere") if nwo.marker_pathfinding_sphere_visible else get_icon_id("pathfinding_sphere_off"), emboss=False)
-            grid.prop(nwo, "marker_physics_constraint_visible", text="", icon_value=get_icon_id("physics_constraint") if nwo.marker_physics_constraint_visible else get_icon_id("physics_constraint_off"), emboss=False)
-            grid.prop(nwo, "marker_target_visible", text="", icon_value=get_icon_id("target") if nwo.marker_target_visible else get_icon_id("target_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_garbage_visible", text="", icon_value=get_icon_id("garbage") if nwo.connected_geometry_marker_type_garbage_visible else get_icon_id("garbage_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_hint_visible", text="", icon_value=get_icon_id("hint") if nwo.connected_geometry_marker_type_hint_visible else get_icon_id("hint_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_pathfinding_sphere_visible", text="", icon_value=get_icon_id("pathfinding_sphere") if nwo.connected_geometry_marker_type_pathfinding_sphere_visible else get_icon_id("pathfinding_sphere_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_physics_constraint_visible", text="", icon_value=get_icon_id("physics_constraint") if nwo.connected_geometry_marker_type_physics_constraint_visible else get_icon_id("physics_constraint_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_target_visible", text="", icon_value=get_icon_id("target") if nwo.connected_geometry_marker_type_target_visible else get_icon_id("target_off"), emboss=False)
                 
         if asset_type in ('MODEL', 'SCENARIO') and self.h4:
-            grid.prop(nwo, "marker_airprobe_visible", text="", icon_value=get_icon_id("airprobe") if nwo.marker_airprobe_visible else get_icon_id("airprobe_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_airprobe_visible", text="", icon_value=get_icon_id("airprobe") if nwo.connected_geometry_marker_type_airprobe_visible else get_icon_id("airprobe_off"), emboss=False)
         if asset_type == 'SCENARIO':
-            grid.prop(nwo, "marker_game_instance_visible", text="", icon_value=get_icon_id("game_object") if nwo.marker_game_instance_visible else get_icon_id("game_object_off"), emboss=False)
+            grid.prop(nwo, "connected_geometry_marker_type_game_instance_visible", text="", icon_value=get_icon_id("game_object") if nwo.connected_geometry_marker_type_game_instance_visible else get_icon_id("game_object_off"), emboss=False)
             if self.h4:
-                grid.prop(nwo, "marker_envfx_visible", text="", icon_value=get_icon_id("environment_effect") if nwo.marker_envfx_visible else get_icon_id("environment_effect_off"), emboss=False)
-                grid.prop(nwo, "marker_lightcone_visible", text="", icon_value=get_icon_id("light_cone") if nwo.marker_lightcone_visible else get_icon_id("light_cone_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_marker_type_envfx_visible", text="", icon_value=get_icon_id("environment_effect") if nwo.connected_geometry_marker_type_envfx_visible else get_icon_id("environment_effect_off"), emboss=False)
+                grid.prop(nwo, "connected_geometry_marker_type_lightCone_visible", text="", icon_value=get_icon_id("light_cone") if nwo.connected_geometry_marker_type_lightCone_visible else get_icon_id("light_cone_off"), emboss=False)
         # box.label(text="Other")
         # grid = box.grid_flow(align=False, even_columns=True)
-        grid.prop(nwo, "other_frame_visible", text="", icon_value=get_icon_id("frame") if nwo.other_frame_visible else get_icon_id("frame_off"), emboss=False)
-        grid.prop(nwo, "other_light_visible", text="", icon='OUTLINER_OB_LIGHT' if nwo.other_light_visible else 'LIGHT', emboss=False)
+        grid.prop(nwo, "connected_geometry_object_type_frame_visible", text="", icon_value=get_icon_id("frame") if nwo.connected_geometry_object_type_frame_visible else get_icon_id("frame_off"), emboss=False)
+        grid.prop(nwo, "connected_geometry_object_type_light_visible", text="", icon='OUTLINER_OB_LIGHT' if nwo.connected_geometry_object_type_light_visible else 'LIGHT', emboss=False)
         
     def draw_regions_table(self, box, nwo):
         row = box.row()
@@ -5097,6 +5100,7 @@ classeshalo = (
     NWO_PermutationRename,
     NWO_PermutationHide,
     NWO_PermutationHideSelect,
+    NWO_OT_HideObjectType,
     NWO_SeamAssignSingle,
     NWO_ImportLegacyAnimation,
     NWO_OpenImageEditor,

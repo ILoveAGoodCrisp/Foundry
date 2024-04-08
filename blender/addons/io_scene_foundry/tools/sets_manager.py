@@ -31,7 +31,7 @@ from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from io_scene_foundry.tools.collection_manager import get_full_name
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import is_corinth, is_frame, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
     if is_mesh(ob) and (ob.nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
@@ -55,6 +55,42 @@ class NWO_UpdateSets(bpy.types.Operator):
         for item in context.scene.nwo.permutations_table:
             bpy.ops.nwo.permutation_hide(entry_name=item.name)
             bpy.ops.nwo.permutation_hide_select(entry_name=item.name)
+            
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_default')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_collision')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_physics')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_object_instance')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_structure')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_seam')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_portal')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_water_surface')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_poop_vertical_rain_sheet')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_planar_fog_volume')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_soft_ceiling')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_soft_kill')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_slip_surface')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_water_physics_volume')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_lightmap_only')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_streaming')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_lightmap_exclude')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_cookie_cutter')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_poop_rain_blocker')
+        
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_model')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_effects')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_garbage')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_hint')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_pathfinding_sphere')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_physics_constraint')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_target')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_game_instance')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_airprobe')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_envfx')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_marker_type_lightCone')
+        
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_object_type_frame')
+        bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_object_type_light')
+            
         self.report({'INFO'}, "Sync Complete")
         return {"FINISHED"}
 
@@ -318,15 +354,10 @@ class TableEntryHide(bpy.types.Operator):
         should_hide = entry.hidden
         available_objects = [ob for ob in context.view_layer.objects if has_region_or_perm(ob)]
         entry_objects = [ob for ob in available_objects if true_table_entry(ob, self.ob_prop_str, entry.name)]
-        regions_table = getattr(nwo, 'regions_table')
-        permutations_table = getattr(nwo, 'permutations_table')
-        # Only unhide objects if both region and permutation are set to unhidden
-        for ob in entry_objects:
-            if should_hide == False:
-                if get_entry(regions_table, true_region(ob.nwo)).hidden or get_entry(permutations_table, true_permutation(ob.nwo)).hidden:
-                    continue
-                
-            ob.hide_set(should_hide)
+        if should_hide:
+            [ob.hide_set(True) for ob in entry_objects]
+        else:
+            unhide_objects(entry_objects, nwo)
 
         return {'FINISHED'}
     
@@ -1006,4 +1037,57 @@ def restore_zone_set_flags(regions_table, zs_active_bsps: dict, nwo):
         active_bsps = zs_active_bsps[zs.name]
         for i in range(len(nwo.regions_table)):
             setattr(zs, f"bsp_{i}", bsp_names[i] in active_bsps)
+            
+def unhide_objects(objects, nwo):
+    regions_table = nwo.regions_table
+    permutations_table = nwo.permutations_table
+    # Only unhide objects if both region and permutation are set to unhidden
+    for ob in objects:
+        if get_entry(regions_table, true_region(ob.nwo)).hidden or get_entry(permutations_table, true_permutation(ob.nwo)).hidden:
+            continue
+        if ob.type == 'LIGHT' and not nwo.connected_geometry_object_type_light_visible:
+            continue
+        elif is_frame(ob) and not nwo.connected_geometry_object_type_frame_visible:
+            continue
+        elif is_marker(ob) and not getattr(nwo, f"{ob.nwo.marker_type_ui[1:]}_visible"):
+            continue
+        elif is_mesh(ob) and not getattr(nwo, f"{ob.data.nwo.mesh_type_ui[1:]}_visible"):
+            continue
+        
+        ob.hide_set(False)
+            
+class NWO_OT_HideObjectType(bpy.types.Operator):
+    bl_idname = "nwo.hide_object_type"
+    bl_label = "Hide Object Type"
+    bl_description = "Hides/Unhides an object type"
+    bl_options = {"UNDO", "INTERNAL"}
+    
+    object_type: bpy.props.StringProperty()
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        nwo = context.scene.nwo
+        visible_str = f"{self.object_type[1:]}_visible"
+        valid_objects = objects_by_type(context, self.object_type)
+        if valid_objects:
+            if getattr(nwo, visible_str):
+                unhide_objects(valid_objects, nwo)
+            else:
+                [ob.hide_set(True) for ob in valid_objects]
+            
+        return {"FINISHED"}
+    
+def objects_by_type(context: bpy.types.Context, object_type: str) -> list[bpy.types.Object]:
+    if object_type == '_connected_geometry_object_type_light':
+        return [ob for ob in context.view_layer.objects if ob.type == 'LIGHT']
+    elif object_type == '_connected_geometry_object_type_frame':
+        return [ob for ob in context.view_layer.objects if is_frame(ob)]
+    elif object_type.startswith("_connected_geometry_marker_type"):
+        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type_ui == object_type]
+    elif object_type.startswith("_connected_geometry_mesh_type"):
+        return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type_ui == object_type]
+
             
