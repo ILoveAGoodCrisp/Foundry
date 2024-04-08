@@ -1142,16 +1142,6 @@ class PrepareScene:
     
             
     def face_prop_to_mesh_prop(self, mesh_props, face_props, h4, ob, scene_coll):
-        # ignore unused face_prop items
-        # run through each face prop and apply it to the mesh if override set
-        # if face_props.seam_override and ob.nwo.mesh_type == '_connected_geometry_mesh_type_default':
-        #     mesh_props.mesh_type = '_connected_geometry_mesh_type_seam'
-        #     create_adjacent_seam(ob, face_props.seam_adjacent_bsp)
-
-        # reset mesh props
-        # first set the persistent mesh props, followed by the optional
-
-
         if face_props.render_only_override:
             if h4:
                 mesh_props.poop_collision_type = "_connected_geometry_poop_collision_type_none"
@@ -1196,7 +1186,6 @@ class PrepareScene:
         elif has_transparency:
             face_sides_value += "one_sided_transparent"
             mesh_props.face_sides = face_sides_value
-        
 
         if face_props.region_name_override:
             reg = face_props.region_name_ui
@@ -1814,31 +1803,32 @@ class PrepareScene:
                         nwo.no_lightmap = "1"
                     if nwo_data.no_pvs_ui:
                         nwo.no_pvs = "1"
-                if nwo_data.lightmap_additive_transparency_active:
-                    nwo.lightmap_additive_transparency =  color_4p_str(nwo_data.lightmap_additive_transparency_ui)
-                if nwo_data.lightmap_resolution_scale_active:
-                    nwo.lightmap_resolution_scale = jstr(
-                        nwo_data.lightmap_resolution_scale_ui
-                    )
-                if nwo_data.lightmap_type_active:
-                    nwo.lightmap_type = nwo_data.lightmap_type_ui
-                if nwo_data.lightmap_analytical_bounce_modifier_active:
-                    nwo.lightmap_analytical_bounce_modifier = jstr(
-                        nwo_data.lightmap_analytical_bounce_modifier_ui
-                    )
-                if nwo_data.lightmap_general_bounce_modifier_active:
-                    nwo.lightmap_general_bounce_modifier = jstr(
-                        nwo_data.lightmap_general_bounce_modifier_ui
-                    )
-                if nwo_data.lightmap_translucency_tint_color_active:
-                    nwo.lightmap_translucency_tint_color = color_4p_str(
-                        nwo_data.lightmap_translucency_tint_color_ui
-                    )
+                if nwo_data.mesh_type_ui != "_connected_geometry_mesh_type_lightmap_only":
+                    if nwo_data.lightmap_additive_transparency_active:
+                        nwo.lightmap_additive_transparency =  color_4p_str(nwo_data.lightmap_additive_transparency_ui)
+                    if nwo_data.lightmap_resolution_scale_active:
+                        nwo.lightmap_resolution_scale = jstr(
+                            nwo_data.lightmap_resolution_scale_ui
+                        )
+                    if nwo_data.lightmap_type_active:
+                        nwo.lightmap_type = nwo_data.lightmap_type_ui
+                    if nwo_data.lightmap_analytical_bounce_modifier_active:
+                        nwo.lightmap_analytical_bounce_modifier = jstr(
+                            nwo_data.lightmap_analytical_bounce_modifier_ui
+                        )
+                    if nwo_data.lightmap_general_bounce_modifier_active:
+                        nwo.lightmap_general_bounce_modifier = jstr(
+                            nwo_data.lightmap_general_bounce_modifier_ui
+                        )
+                    if nwo_data.lightmap_translucency_tint_color_active:
+                        nwo.lightmap_translucency_tint_color = color_4p_str(
+                            nwo_data.lightmap_translucency_tint_color_ui
+                        )
 
-                if nwo_data.lightmap_lighting_from_both_sides_active:
-                    nwo.lightmap_lighting_from_both_sides = bool_str(
-                        nwo_data.lightmap_lighting_from_both_sides_ui
-                    )
+                    if nwo_data.lightmap_lighting_from_both_sides_active:
+                        nwo.lightmap_lighting_from_both_sides = bool_str(
+                            nwo_data.lightmap_lighting_from_both_sides_ui
+                        )
                 if nwo_data.emissive_active:
                     nwo.material_lighting_attenuation_falloff = jstr(
                         nwo_data.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor
