@@ -852,13 +852,15 @@ class NWO_FoundryPanelProps(Panel):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')
         box = self.box.box()
         nwo = self.scene.nwo
-        context = self.context
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
-        row = box.row()
-        row.label(text="BSPs" if is_scenario else "Regions")
-        row = box.row()
         if not nwo.regions_table:
             return
+        is_scenario = nwo.asset_type == 'SCENARIO'
+        self.draw_expandable_box(box.box(), nwo, "regions_table", "BSPs" if is_scenario else "Regions")
+        self.draw_expandable_box(box.box(), nwo, "permutations_table", "Layers" if is_scenario else "Permutations")
+        
+    def draw_regions_table(self, box, nwo):
+        
+        row = box.row()
         region = nwo.regions_table[nwo.regions_table_active_index]
         rows = 4
         row.template_list(
@@ -888,11 +890,8 @@ class NWO_FoundryPanelProps(Panel):
         sub = row.row(align=True)
         sub.operator("nwo.region_select", text="Select").select = True
         sub.operator("nwo.region_select", text="Deselect").select = False  
-
-        # Permutations
-        box = self.box.box()
-        row = box.row()
-        row.label(text="Layers" if is_scenario else "Permutations")
+    
+    def draw_permutations_table(self, box, nwo):
         row = box.row()
         permutation = nwo.permutations_table[nwo.permutations_table_active_index]
         rows = 4
@@ -2697,28 +2696,24 @@ class NWO_FoundryPanelProps(Panel):
             col = box.column()
 
     def draw_tools(self):
-        box = self.box.box()
-        self.draw_asset_shaders(box)
-        box = self.box.box()
-        self.draw_importer(box)
+        nwo = self.scene.nwo
+        shader_type = "Material" if self.h4 else "Shader"
+        self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
+        self.draw_expandable_box(self.box.box(), nwo, "importer")
         if poll_ui(('MODEL', 'FP ANIMATION', 'SKY')):
-            box = self.box.box()
-            self.draw_rig_tools(box)
+            self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
         elif poll_ui('SCENARIO'):
-            box = self.box.box()
-            self.draw_bsp_tools(box)
+            self.draw_expandable_box(self.box.box(), nwo, "bsp_tools", "BSP Tools")
             
-    def draw_bsp_tools(self, box):
+    def draw_bsp_tools(self, box, nwo):
         row = box.row()
         col = row.column()
-        col.label(text=f"BSP Tools")
         col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
         col.operator('nwo.cubemap', text='Cubemap Farm', icon='WORLD')
         
-    def draw_importer(self, box):
+    def draw_importer(self, box, nwo):
         row = box.row()
         col = row.column()
-        col.label(text=f"Importer")
         amf_installed = amf_addon_installed()
         toolset_installed = blender_toolset_installed()
         # if poll_ui('MODEL'):
@@ -2739,11 +2734,10 @@ class NWO_FoundryPanelProps(Panel):
         col.operator('nwo.import', text="Import Bitmaps", icon='IMAGE_DATA').scope = 'bitmap'
         col.operator("nwo.convert_scene", text="Convert Scene", icon='RIGHTARROW')
         
-    def draw_rig_tools(self, box):
+    def draw_rig_tools(self, box, nwo):
         row = box.row()
         col = row.column()
         nwo = self.scene.nwo
-        col.label(text=f"Rig Tools")
         col.use_property_split = True
         col.operator('nwo.convert_to_halo_rig', text='Convert to Halo Rig', icon='OUTLINER_OB_ARMATURE')
         col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
@@ -2769,14 +2763,13 @@ class NWO_FoundryPanelProps(Panel):
             col.label(text='Rig has bone names that exceed 31 characters', icon='ERROR')
             
 
-    def draw_asset_shaders(self, box):
+    def draw_asset_shaders(self, box, nwo):
         h4 = self.h4
         count, total = get_halo_material_count()
         shader_type = "Material" if h4 else "Shader"
         # if total:
         row = box.row()
         col = row.column()
-        col.label(text=f"Asset {shader_type}s")
         col.use_property_split = True
         # col.separator()
         col.label(
