@@ -1069,7 +1069,7 @@ class PrepareScene:
                 normal_bm.from_mesh(normal_ob.data)
                 float_vector_layer = normal_bm.verts.layers.float_vector.get("foundry_old_normal")
                 correct_normals = [v[float_vector_layer] for v in normal_bm.verts]
-                normal_bm.layers.float_vector.remove(float_vector_layer)
+                normal_bm.verts.layers.float_vector.remove(float_vector_layer)
                 normal_bm.free()
                 normal_ob.data.normals_split_custom_set_from_vertices(correct_normals)
                 # Strip unused materials from object
@@ -2600,7 +2600,7 @@ class PrepareScene:
         if me.nwo.face_global_material_ui and nwo.reach_poop_collision:
             self.set_reach_coll_materials(me, scene_mats, True)
         else:
-            self.loop_and_fix_slots(context, is_halo_render, ob, nwo, me, does_not_support_sky, scene_coll, h4)
+            self.loop_and_fix_slots(is_halo_render, ob, nwo, me, does_not_support_sky, scene_coll, h4)
 
     def set_reach_coll_materials(self, me, scene_mats, mesh_level=False):
         # handle reach poop collision material assignment
@@ -2612,7 +2612,6 @@ class PrepareScene:
                 coll_mat = scene_mats.new(new_mat_name)
             else:
                 coll_mat = scene_mats.get(new_mat_name)
-
             
             tag_path = f"levels\\reference\\sound\\shaders\\bsp_{mesh_global_mat}.shader"
             full_tag_path = get_tags_path() + tag_path
