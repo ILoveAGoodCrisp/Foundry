@@ -2725,6 +2725,8 @@ class PrepareScene:
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
                     ob.data.normals_split_custom_set_from_vertices(old_normals)
                     new_sky_ob.data.normals_split_custom_set_from_vertices(new_old_normals)
+                    clean_materials(ob)
+                    clean_materials(new_sky_ob)
                 
                 s.material = self.sky_mat
 
