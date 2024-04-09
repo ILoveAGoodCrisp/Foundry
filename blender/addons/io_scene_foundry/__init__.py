@@ -236,7 +236,6 @@ else:
 
             nwo_globals.nwo_scene_settings.clear()
 
-
     def fix_icons():
         icons.icons_activate()
 
@@ -246,8 +245,8 @@ else:
         # bpy.app.handlers.undo_post.append(get_temp_settings)
         for module in modules:
             module.register()
-
-        bpy.app.timers.register(fix_icons, first_interval=0.04, persistent=True)
+        icons.icons_activate()
+        # bpy.app.timers.register(fix_icons, first_interval=0.04, persistent=True)
 
     def unregister():
         bpy.app.handlers.load_post.remove(load_handler)
