@@ -854,6 +854,7 @@ class NWOImporter:
             
         if self.seams:
             print('Calculating seam BSP references')
+            self.context.view_layer.update()
             disallowed_front_back_associations = set()
             to_remove = []
             for ob in self.seams:

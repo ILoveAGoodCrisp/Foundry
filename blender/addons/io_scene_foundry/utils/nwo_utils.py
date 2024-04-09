@@ -747,8 +747,7 @@ def bpy_enum_seam(name, index):
     return (name, name, "", get_icon_id("seam"), index)
 
 def export_objects(context):
-    export_obs = [ob for ob in context.view_layer.objects if ob.nwo.exportable]
-    return export_obs
+    return [ob for ob in context.view_layer.objects if ob.nwo.exportable]
 
 def export_objects_no_arm():
     context = bpy.context
