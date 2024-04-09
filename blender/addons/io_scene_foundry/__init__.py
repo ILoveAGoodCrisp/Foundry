@@ -246,7 +246,7 @@ else:
         for module in modules:
             module.register()
         icons.icons_activate()
-        # bpy.app.timers.register(fix_icons, first_interval=0.04, persistent=True)
+        bpy.app.timers.register(fix_icons, first_interval=1, persistent=True)
 
     def unregister():
         bpy.app.handlers.load_post.remove(load_handler)

@@ -1164,26 +1164,24 @@ class NWOImporter:
             linked_objects = [o for o in bpy.data.objects if o != ob and o.data == ob.data]
             bm_original = bmesh.new()
             bm_original.from_mesh(ob.data)
-            old_normal = bm.verts.layers.float_vector.new("old_normal")
-            for vert in bm.verts:
+            old_normal = bm_original.verts.layers.float_vector.new("old_normal")
+            for vert in bm_original.verts:
                 vert[old_normal] = vert.normal
             for jms_mat in jms_materials:
                 if jms_mat.mesh_type == 'default':
                     continue
                 new_ob = ob.copy()
                 new_ob.data = ob.data.copy()
-                bm = bmesh.new()
-                bm.from_mesh(new_ob.data)
+                bm = bm_original.copy()
                 faces_to_remove = [face for face in bm.faces if face.material_index != jms_mat.index]
                 faces_to_remove_original = [face for face in bm_original.faces if face.material_index == jms_mat.index]
                 bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
                 bmesh.ops.delete(bm_original, geom=faces_to_remove_original, context='FACES')
                 float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
-                original_float_vector_layer = bm_original.verts.layers.float_vector.get("old_normal")
+                old_normals = [v[float_vector_layer] for v in bm.verts]
                 bm.verts.layers.float_vector.remove(float_vector_layer)
-                bm_original.verts.layers.float_vector.remove(original_float_vector_layer)
                 bm.to_mesh(new_ob.data)
-                new_ob.data.normals_split_custom_set_from_vertices(float_vector_layer)
+                new_ob.data.normals_split_custom_set_from_vertices(old_normals)
                 clean_materials(new_ob)
                     
                 new_ob.nwo.mesh_type = jms_mat.mesh_type
@@ -1195,13 +1193,16 @@ class NWOImporter:
                     new_ob_copy.parent_type = obj.parent_type
                     new_ob_copy.parent_bone = obj.parent_bone
                     new_ob_copy.matrix_world = obj.matrix_world
-        
+                
+            original_float_vector_layer = bm_original.verts.layers.float_vector.get("old_normal")
+            original_old_normals = [v[original_float_vector_layer] for v in bm_original.verts]
+            bm_original.verts.layers.float_vector.remove(original_float_vector_layer)
             bm_original.to_mesh(ob.data)
             if not ob.data.polygons:
                 objects_to_setup.remove(ob)
                 bpy.data.objects.remove(ob)
             else:
-                ob.data.normals_split_custom_set_from_vertices(original_float_vector_layer)
+                ob.data.normals_split_custom_set_from_vertices(original_old_normals)
                 clean_materials(ob)
             
         for ob in objects_to_setup:
