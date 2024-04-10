@@ -45,7 +45,6 @@ def icons_activate():
     global icons_active
     icons_active = True
 
-
 def register():
     global foundry_icons
     foundry_icons = previews.new()

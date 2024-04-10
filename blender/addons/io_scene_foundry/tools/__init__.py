@@ -267,7 +267,7 @@ class NWO_FoundryPanelProps(Panel):
                         draw_panel()
 
     def draw_scene_properties(self):
-        box = self.box.box()
+        box = self.box
         mb_active = managed_blam_active()
         nwo = self.scene.nwo
         scene = self.scene
@@ -900,7 +900,7 @@ class NWO_FoundryPanelProps(Panel):
 
     def draw_sets_manager(self):
         self.box.operator('nwo.update_sets', icon='FILE_REFRESH')
-        box = self.box.box()
+        box = self.box
         nwo = self.scene.nwo
         if not nwo.regions_table:
             return
@@ -1033,7 +1033,7 @@ class NWO_FoundryPanelProps(Panel):
         sub.operator("nwo.permutation_select", text="Deselect").select = False
 
     def draw_object_properties(self):
-        box = self.box.box()
+        box = self.box
         row = box.row()
         context = self.context
         ob = context.object
@@ -2376,7 +2376,7 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("nwo.proxy_instance_new", text="New Instance Proxy", icon="ADD")
     
     def draw_material_properties(self):
-        box = self.box.box()
+        box = self.box
         row = box.row()
         context = self.context
         ob = context.object
