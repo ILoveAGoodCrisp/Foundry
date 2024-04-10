@@ -143,7 +143,7 @@ class NWO_Import(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return amf_addon_installed()
+        return True
     
     filter_glob: bpy.props.StringProperty(
         default="",

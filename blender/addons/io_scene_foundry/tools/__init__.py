@@ -130,8 +130,8 @@ FOUNDRY_DOCS = r"https://c20.reclaimers.net/general/community-tools/foundry"
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
 
 BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Development-Toolset/releases"
-AMF_ADDON = r"https://www.mediafire.com/file/zh55pb2p3yc4e7v/Blender_AMF2.py/file"
-RECLAIMER = r"https://www.mediafire.com/file/bwnfg09iy0tbm09/Reclaimer.Setup-v1.7.309.msi/file"
+AMF_ADDON = r"https://github.com/Gravemind2401/Reclaimer/blob/master/Reclaimer.Blam/Resources/Blender%20AMF2.py"
+RECLAIMER = r"https://github.com/Gravemind2401/Reclaimer/releases"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 
 update_str, update_needed = foundry_update_check(nwo_globals.version)
