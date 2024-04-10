@@ -744,6 +744,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     asset_editor_expanded: BoolProperty(default=True, options=set())
     # model_overrides_expanded: BoolProperty(default=False, options=set())
     scenario_expanded: BoolProperty(default=False, options=set())
+    lighting_expanded: BoolProperty(default=False, options=set())
     zone_sets_expanded: BoolProperty(default=False, options=set())
     model_expanded: BoolProperty(default=True, options=set())
     render_model_expanded: BoolProperty(default=False, options=set())

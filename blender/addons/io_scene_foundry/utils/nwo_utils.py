@@ -2836,6 +2836,25 @@ def get_asset_tag(extension: str, full=False):
             else:
                 return str(tag_path)
             
+def get_asset_tags(extension= "", full=False):
+    if extension and not extension.startswith('.'):
+        extension = '.' + extension
+    if valid_nwo_asset(bpy.context):
+        tags_path = Path(get_tags_path())
+        matching_tags = set()
+        asset_dir, asset_name = get_asset_info()
+        full_dir_path = Path(get_tags_path(), asset_dir)
+        for file in full_dir_path.iterdir():
+            if file.suffix == extension:
+                if full:
+                    matching_tags.add(file)
+                else:
+                    matching_tags.add(file.relative_to(tags_path))
+    
+        return sorted(matching_tags)
+    
+    return []
+            
 def split_retain_normals(ob: bpy.types.Object):
     mesh: bpy.types.Mesh = ob.data
     new_mesh = mesh.copy()

@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.scenario.lightmap import NWO_OT_Lightmap
 from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
 from io_scene_foundry.tools.tag_templates import NWO_OT_LoadTemplate
 from io_scene_foundry.tools.cubemap import NWO_OT_Cubemap
@@ -90,6 +91,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_physics_model,
     get_asset_render_model,
     get_asset_tag,
+    get_asset_tags,
     get_data_path,
     get_export_scale,
     get_halo_material_count,
@@ -324,11 +326,9 @@ class NWO_FoundryPanelProps(Panel):
         row.prop(nwo, "rotate_markers")
 
     def draw_asset_editor(self):
-        box = self.box.box()
+        box = self.box
         nwo = self.scene.nwo
-        context = self.context
         scene = self.scene
-        h4 = self.h4
         col = box.column()
         row = col.row()
         row.scale_y = 1.5
@@ -353,8 +353,11 @@ class NWO_FoundryPanelProps(Panel):
             self.draw_expandable_box(self.box.box(), nwo, 'model')
             # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
             self.draw_rig_ui(self.context, nwo)
+            
+        if self.h4 and nwo.asset_type in ('MODEL', 'SKY'):
+            self.draw_expandable_box(self.box.box(), nwo, 'lighting')
         
-        elif nwo.asset_type == "FP ANIMATION":
+        if nwo.asset_type == "FP ANIMATION":
             box = self.box.box()
             box.label(text="Tag References")
             col = box.column()
@@ -371,6 +374,7 @@ class NWO_FoundryPanelProps(Panel):
         elif nwo.asset_type == "SCENARIO":
             self.draw_expandable_box(self.box.box(), nwo, 'scenario')
             self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
+            self.draw_expandable_box(self.box.box(), nwo, 'lighting')
             
         elif nwo.asset_type == 'camera_track_set':
             box = self.box.box()
@@ -408,16 +412,48 @@ class NWO_FoundryPanelProps(Panel):
     def draw_scenario(self, box: bpy.types.UILayout, nwo):
         tag_path = get_asset_tag(".scenario")
         if tag_path:
-            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Scenario Tag").tag_path = tag_path
         col = box.column()
         col.use_property_split = True
         col.prop(nwo, "scenario_type")
         col.separator()
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
         
+    def draw_lighting(self, box: bpy.types.UILayout, nwo):
+        box.use_property_split = True
+        scene_nwo_export = self.scene.nwo_export
+        _, asset_name = get_asset_info()
+        if self.asset_type == 'SCENARIO':
+            lighting_name = "Light Scenario"
+        else:
+            lighting_name = "Light Model"
+        if self.asset_type == "SCENARIO":
+            if self.h4:
+                box.prop(scene_nwo_export, "lightmap_quality_h4")
+            else:
+                box.prop(scene_nwo_export, "lightmap_quality")
+            if not scene_nwo_export.lightmap_all_bsps:
+                box.prop(scene_nwo_export, "lightmap_specific_bsp")
+            box.prop(scene_nwo_export, "lightmap_all_bsps")
+            if not self.h4:
+                box.prop(scene_nwo_export, "lightmap_threads")
+                    
+        box.operator('nwo.lightmap', text=lighting_name, icon='LIGHT_SUN')
+        if self.asset_type == 'SCENARIO':
+            tag_paths = get_asset_tags(".scenario_structure_lighting_info")
+            if tag_paths:
+                for path in tag_paths:
+                    name = path.with_suffix("").name
+                    if name.startswith(asset_name):
+                        name = name[len(asset_name) + 1:]
+                    box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {name} Lighting Tag").tag_path = str(path)
+        else:
+            tag_path = get_asset_tag(".scenario_structure_lighting_info")
+            if tag_path:
+                box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open Lighting Tag").tag_path = tag_path
+        
     def draw_zone_sets(self, box: bpy.types.UILayout, nwo):
         row = box.row()
-        
         rows = 4
         row.template_list(
             "NWO_UL_ZoneSets",
@@ -578,16 +614,16 @@ class NWO_FoundryPanelProps(Panel):
             if nwo.output_equipment:
                 self.draw_expandable_box(col.box(), nwo, 'equipment')
         
-    def draw_output_tag(self, box: bpy.types.UILayout, nwo, tag_type):
-        tag_path = get_asset_tag(tag_type)
-        if tag_path:
-            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+    def draw_output_tag(self, box: bpy.types.UILayout, nwo, tag_type: str):
         row = box.row(align=True)
         row.prop(nwo, f'template_{tag_type}', icon_value=get_icon_id(tag_type), text="Template")
         row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = f"template_{tag_type}"
         row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = f'template_{tag_type}'
         if valid_nwo_asset(self.context) and getattr(nwo, f'template_{tag_type}'):
             box.operator('nwo.load_template', icon='DUPLICATE').tag_type = tag_type
+        tag_path = get_asset_tag(tag_type)
+        if tag_path:
+            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {tag_type.capitalize()} Tag").tag_path = tag_path
         
     def draw_crate(self, box: bpy.types.UILayout, nwo):
         self.draw_output_tag(box, nwo,'crate')
@@ -632,9 +668,16 @@ class NWO_FoundryPanelProps(Panel):
         self.draw_output_tag(box, nwo,'equipment')
                 
     def draw_model(self, box: bpy.types.UILayout, nwo):
+        row = box.row(align=True)
+        row.prop(nwo, 'template_model', icon_value=get_icon_id("model"), text="Template")
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_model"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_model'
+        if valid_nwo_asset(self.context) and getattr(nwo, 'template_model'):
+            box.operator('nwo.load_template', icon='DUPLICATE').tag_type = 'model'
         tag_path = get_asset_tag(".model")
         if tag_path:
-            box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+            row = box.row(align=True)
+            row.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Model Tag").tag_path = tag_path
         self.draw_expandable_box(box.box(), nwo, 'render_model')
         self.draw_expandable_box(box.box(), nwo, 'collision_model')
         self.draw_expandable_box(box.box(), nwo, 'animation_graph')
@@ -646,7 +689,7 @@ class NWO_FoundryPanelProps(Panel):
         if nwo.render_model_from_blend:
             tag_path = get_asset_render_model()
             if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Render Model Tag").tag_path = tag_path
         else:
             row = col.row(align=True)
             row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
@@ -659,7 +702,7 @@ class NWO_FoundryPanelProps(Panel):
         if nwo.collision_model_from_blend:
             tag_path = get_asset_collision_model()
             if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Collision Model Tag").tag_path = tag_path
         else:
             row = col.row(align=True)
             row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
@@ -670,10 +713,6 @@ class NWO_FoundryPanelProps(Panel):
         col = box.column()
         col.prop(nwo, "animation_graph_from_blend")
         if nwo.animation_graph_from_blend:
-            tag_path = get_asset_animation_graph()
-            if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
-            col.separator()
             row = col.row(align=True)
             row.use_property_split = True
             row.prop(nwo, "parent_animation_graph", text="Parent Animation Graph")
@@ -682,6 +721,12 @@ class NWO_FoundryPanelProps(Panel):
             row = col.row()
             row.use_property_split = True
             row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
+            tag_path = get_asset_animation_graph()
+            if tag_path:
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Animation Graph Tag").tag_path = tag_path
+            frame_events_tag_path = get_asset_tag(".frame_events_list")
+            if frame_events_tag_path:
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
             self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
             self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
         else:
@@ -696,7 +741,7 @@ class NWO_FoundryPanelProps(Panel):
         if nwo.physics_model_from_blend:
             tag_path = get_asset_physics_model()
             if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation')).tag_path = tag_path
+                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Physics Model Tag").tag_path = tag_path
         else:
             row = col.row(align=True)
             row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
@@ -850,7 +895,6 @@ class NWO_FoundryPanelProps(Panel):
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
         if self.draw_expandable_box(box, nwo, 'model_rig') and nwo.main_armature:
-            self.box.separator()
             self.draw_expandable_box(box.box(), nwo, 'rig_controls', 'Bone Controls')
             self.draw_expandable_box(box.box(), nwo, 'rig_object_controls', 'Object Controls')
 
@@ -2534,7 +2578,7 @@ class NWO_FoundryPanelProps(Panel):
             col_props.prop(bitmap, "bitmap_type", text="Type")
             return
         col.separator()
-        col.operator("nwo.open_foundation_tag", text="Open in Tag Editor", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
+        col.operator("nwo.open_foundation_tag", text="Open Bitmap Tag", icon_value=get_icon_id("foundation")).tag_path = bitmap_path
         col.separator()
         col.label(text='Bitmap Export Tools')
         col.prop(bitmap, "export", text="Link Bitmap to Blender Image", icon="TEXTURE")
@@ -4454,8 +4498,17 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     def lightmap_quality_items(self, context: bpy.types.Context) -> list[bpy.types.EnumProperty]:
         items = []
         lightmapper_globals_tag_path = Path(get_tags_path(), r"globals\lightmapper_globals.lightmapper_globals")
-        if not lightmapper_globals_tag_path.exists():
-            return [("default", "Default", ""),]
+        if not lightmapper_globals_tag_path.exists() or not nwo_globals.mb_active:
+            return [("direct_only", "Direct Only", ""),
+                    ("draft", "Draft", ""),
+                    ("low", "Low", ""),
+                    ("medium", "Medium", ""),
+                    ("high", "High", ""),
+                    ("super_slow", "Super Slow", ""),
+                    ("checkerboard", "Checkboard", ""),
+                    ("special_v1", "Special V1", ""),
+                    ("special_weekend", "Special Weekend", ""),
+                    ]
         
         with Tag(path=lightmapper_globals_tag_path) as lightmapper_globals:
             block_quality_settings = lightmapper_globals.tag.SelectField("Block:quality settings")
@@ -4507,6 +4560,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         get=get_lightmap_threads,
         set=set_lightmap_threads,
         min=1,
+        options=set(),
     )
     
     ################################
@@ -5184,6 +5238,7 @@ classeshalo = (
     NWO_OT_Cubemap,
     NWO_OT_LoadTemplate,
     NWO_OT_RemoveExistingZoneSets,
+    NWO_OT_Lightmap,
 )
 
 def register():

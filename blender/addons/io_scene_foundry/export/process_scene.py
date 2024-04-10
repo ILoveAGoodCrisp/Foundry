@@ -35,8 +35,7 @@ import multiprocessing
 import threading
 from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
 from io_scene_foundry.export.tag_builder import build_tags
-from io_scene_foundry.export.lightmapper import run_lightmapper
-
+from io_scene_foundry.tools.scenario.lightmap import run_lightmapper
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
 from io_scene_foundry.managed_blam.render_model import RenderModelTag

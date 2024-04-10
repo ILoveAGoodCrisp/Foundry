@@ -1,38 +1,58 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
-import os
-from io_scene_foundry.utils.nwo_utils import (
-    formalise_string,
-    get_asset_path,
-    print_warning,
-    run_tool,
-)
 import datetime
+from pathlib import Path
+import bpy
+from io_scene_foundry.utils import nwo_utils
+import os
 
+def scenario_exists() -> bool:
+    asset_dir, asset_name = nwo_utils.get_asset_info()
+    scenario_path = Path(nwo_utils.get_tags_path(), asset_dir, asset_name).with_suffix('.scenario')
+    return scenario_path.exists()
+     
+
+class NWO_OT_Lightmap(bpy.types.Operator):
+    bl_idname = "nwo.lightmap"
+    bl_label = "Lightmap"
+    bl_options = {"UNDO"}
+    bl_description = "Runs lightmap generation on the current asset"
+
+    @classmethod
+    def poll(cls, context):
+        if not nwo_utils.valid_nwo_asset(context):
+            return False
+        asset_type = context.scene.nwo.asset_type
+        if nwo_utils.is_corinth(context):
+            return asset_type in ('MODEL', 'SKY', 'SCENARIO') and scenario_exists()
+        else:
+            return asset_type == 'SCENARIO' and scenario_exists()
+
+    def execute(self, context):
+        asset_type = context.scene.nwo.asset_type
+        _, asset_name = nwo_utils.get_asset_info()
+        scene_nwo_export = context.scene.nwo_export
+        is_corinth = nwo_utils.is_corinth(context)
+        os.system("cls")
+        if context.scene.nwo_export.show_output:
+            bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
+            context.scene.nwo_export.show_output = False
+
+        export_title = f"►►► LIGHTMAPPER ◄◄◄"
+        print(export_title)
+        
+        run_lightmapper(
+            is_corinth,
+            [],
+            asset_name,
+            scene_nwo_export.lightmap_quality,
+            scene_nwo_export.lightmap_quality_h4,
+            scene_nwo_export.lightmap_all_bsps,
+            scene_nwo_export.lightmap_specific_bsp,
+            scene_nwo_export.lightmap_region,
+            asset_type in ("MODEL", "SKY") and is_corinth,
+            scene_nwo_export.lightmap_threads,
+            [region.name for region in context.scene.nwo.regions_table])
+        return {"FINISHED"}
+    
 def run_lightmapper(
     not_bungie_game,
     misc_halo_objects,
@@ -86,7 +106,7 @@ class LightMapper:
         self.lightmap_message = "Lightmap Successful"
         self.lightmap_failed = False
         self.model_lightmap = model_lightmap
-        self.scenario = os.path.join(get_asset_path(), self.asset_name)
+        self.scenario = os.path.join(nwo_utils.get_asset_path(), self.asset_name)
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
         self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
         self.light_group = self.get_light_group(lightmap_region, misc_halo_objects, not_bungie_game)
@@ -126,7 +146,7 @@ class LightMapper:
             os.makedirs(log_dir)
         with open(log_filename, "w") as log:
             return (
-                run_tool(
+                nwo_utils.run_tool(
                     [
                         "faux_farm_" + stage,
                         self.blob_dir,
@@ -151,7 +171,7 @@ class LightMapper:
                 self.lightmap_failed = True
                 return False
 
-        run_tool(
+        nwo_utils.run_tool(
             [
                 "faux_farm_" + stage + "_merge",
                 self.blob_dir,
@@ -172,14 +192,14 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        run_tool(["faux_data_sync", self.scenario, self.bsp])
+        nwo_utils.run_tool(["faux_data_sync", self.scenario, self.bsp])
 
         print("\nFaux Farm")
         print(
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        run_tool(
+        nwo_utils.run_tool(
             [
                 "faux_farm_begin",
                 self.scenario,
@@ -220,16 +240,16 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
-        run_tool(["faux_farm_finish", self.blob_dir])
+        nwo_utils.run_tool(["faux_farm_finish", self.blob_dir])
 
-        run_tool(
+        nwo_utils.run_tool(
             [
                 "faux-reorganize-mesh-for-analytical-lights",
                 self.scenario,
                 self.bsp,
             ]
         )
-        run_tool(
+        nwo_utils.run_tool(
             [
                 "faux-build-vmf-textures-from-quadratic",
                 self.scenario,
@@ -238,7 +258,7 @@ class LightMapper:
                 "true",
             ]
         )
-        self.lightmap_message = f"{formalise_string(self.quality)} Quality lightmap complete"
+        self.lightmap_message = f"{nwo_utils.formalise_string(self.quality)} Quality lightmap complete"
         return self
 
     def lightmap_h4(self):
@@ -253,7 +273,7 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         if self.model_lightmap:
-            run_tool(
+            nwo_utils.run_tool(
                 [
                     "faux_lightmap_model",
                     self.scenario,
@@ -265,7 +285,7 @@ class LightMapper:
             if self.bsp == "all":
                 for bsp in self.bsps:
                     if using_asset_settings:
-                        run_tool(
+                        nwo_utils.run_tool(
                             [
                                 "faux_lightmap",
                                 self.scenario,
@@ -275,7 +295,7 @@ class LightMapper:
                             ]
                         )
                     else:
-                        run_tool(
+                        nwo_utils.run_tool(
                             [
                                 "faux_lightmap_with_settings",
                                 self.scenario,
@@ -288,7 +308,7 @@ class LightMapper:
                     self.suppress_dialog = "true"
             else:
                 if using_asset_settings:
-                    run_tool(
+                    nwo_utils.run_tool(
                         [
                             "faux_lightmap",
                             self.scenario,
@@ -298,7 +318,7 @@ class LightMapper:
                         ]
                     )
                 else:
-                    run_tool(
+                    nwo_utils.run_tool(
                         [
                             "faux_lightmap_with_settings",
                             self.scenario,
@@ -310,3 +330,4 @@ class LightMapper:
                     )
 
         return self
+
