@@ -60,6 +60,26 @@ def get_matrix_settings():
 
 default_scale, default_forward = get_matrix_settings()
 
+#############################################################
+# ANIMATION COPIES
+#############################################################
+
+class NWO_AnimationCopiesItems(PropertyGroup):
+    name: StringProperty(name="Name", options=set())
+    source: StringProperty(name="Source", options=set())
+
+#############################################################
+# ANIMATION COMPOSITES
+#############################################################
+
+class NWO_AnimationCompositesItems(PropertyGroup):
+    name: StringProperty(name="Name", options=set())
+    overlay: BoolProperty(name="Overlay", options=set())
+    xml_name: StringProperty(name="XML Filename", options=set())
+    
+#############################################################
+#############################################################
+
 class NWO_ZoneSets_ListItems(PropertyGroup):
     name: StringProperty()
     bsp_0: BoolProperty()
@@ -268,8 +288,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     #     min=0,
     # )
     
-    zone_sets_active_index: IntProperty(options=set())
+    animation_copies_active_index: IntProperty(options=set())
+    animation_copies: CollectionProperty(type=NWO_AnimationCopiesItems, options=set())
     
+    animation_composites_active_index: IntProperty(options=set())
+    animation_composites: CollectionProperty(type=NWO_AnimationCompositesItems, options=set())
+    
+    zone_sets_active_index: IntProperty(options=set())
     zone_sets: CollectionProperty(type=NWO_ZoneSets_ListItems, options=set())
     
     user_removed_all_zone_set: BoolProperty()
