@@ -766,6 +766,9 @@ class NWOMesh(NWOObject):
             self.bungie_face_mode = self.halo.face_mode
         if self.halo.face_sides:
             self.bungie_face_sides = self.halo.face_sides
+            
+        if self.halo.face_draw_distance:
+            self.bungie_face_draw_distance = self.halo.face_draw_distance
 
         if self.halo.ladder:
             self.bungie_ladder = self.halo.ladder

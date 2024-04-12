@@ -232,20 +232,19 @@ class ProcessScene:
             # if muted_armature_deforms:
             #     unmute_armature_mods(muted_armature_deforms)
             if asset_type in ("MODEL", "FP ANIMATION"):
-                if scene_nwo.render_model_from_blend and nwo_scene.render:
-                    self.export_model(
-                        context,
-                        asset_path,
-                        asset,
-                        "render",
-                        nwo_scene.render,
-                        nwo_scene.render_perms,
-                        nwo_scene.selected_perms,
-                        nwo_scene.model_armature,
-                        asset_type,
-                        nwo_scene,
-                        scene_nwo_export.export_render,
-                    )
+                self.export_model(
+                    context,
+                    asset_path,
+                    asset,
+                    "render",
+                    nwo_scene.render,
+                    nwo_scene.render_perms,
+                    nwo_scene.selected_perms,
+                    nwo_scene.model_armature,
+                    asset_type,
+                    nwo_scene,
+                    scene_nwo_export.export_render,
+                )
                 if asset_type == "MODEL":
                     if scene_nwo.collision_model_from_blend and nwo_scene.collision:
                         self.export_model(

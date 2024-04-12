@@ -36,6 +36,7 @@ from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from ..utils.nwo_utils import (
+    apply_loop_normals,
     area_light_to_emissive,
     blender_halo_rotation_diff,
     bool_str,
@@ -66,6 +67,7 @@ from ..utils.nwo_utils import (
     relative_path,
     reset_to_basis,
     rig_root_deform_bone,
+    save_loop_normals,
     transform_scene,
     get_tags_path,
     is_corinth,
@@ -722,7 +724,7 @@ class PrepareScene:
         # Set timeline range for use during animation export
         self.timeline_start, self.timeline_end = self.set_timeline_range(context)
         
-        if not self.render and asset_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL", "FP ANIMATION"):
+        if (not self.render or not scene_nwo.render_model_from_blend) and asset_type in ("MODEL", "SKY", "DECORATOR SET", "PARTICLE MODEL", "FP ANIMATION"):
             self.render = [self.add_null_render(scene_coll)]
             context.view_layer.update()
             export_obs = context.view_layer.objects[:]
@@ -992,10 +994,8 @@ class PrepareScene:
         justified = self.justify_face_split(layer_faces_dict, poly_count)
         bm.to_mesh(me)
         if justified:
-            # Create a custom data layer to store current normals
-            old_normal = bm.verts.layers.float_vector.new("foundry_old_normal")
-            for v in bm.verts:
-                v[old_normal] = v.normal
+            # Create a custom data layer to store current loop normals
+            save_loop_normals(bm, me)
             
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
             is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
@@ -1065,13 +1065,7 @@ class PrepareScene:
             
             # Fix normals for split_objects
             for normal_ob in split_objects:
-                normal_bm = bmesh.new()
-                normal_bm.from_mesh(normal_ob.data)
-                float_vector_layer = normal_bm.verts.layers.float_vector.get("foundry_old_normal")
-                correct_normals = [v[float_vector_layer] for v in normal_bm.verts]
-                normal_bm.verts.layers.float_vector.remove(float_vector_layer)
-                normal_bm.free()
-                normal_ob.data.normals_split_custom_set_from_vertices(correct_normals)
+                apply_loop_normals(normal_ob.data)
                 # Strip unused materials from object
                 clean_materials(normal_ob)
 
@@ -1168,6 +1162,9 @@ class PrepareScene:
             
         if not h4 and face_props.breakable_override:
             mesh_props.face_mode = '_connected_geometry_face_mode_breakable'
+            
+        if mesh_props.mesh_type in render_mesh_types and face_props.face_draw_distance_override:
+            mesh_props.face_draw_distance = face_props.face_draw_distance_ui
 
         # Handle face sides, game wants an enum but Foundry uses flags
         face_sides_value = "_connected_geometry_face_sides_"
@@ -1765,6 +1762,10 @@ class PrepareScene:
                         nwo.ladder = "1"
                     if nwo_data.slip_surface_ui:
                         nwo.slip_surface = "1"
+                        
+            if nwo.mesh_type in render_mesh_types and nwo_data.face_draw_distance_ui != '_connected_geometry_face_draw_distance_normal':
+                nwo.face_draw_distance = nwo_data.face_draw_distance_ui
+                        
             if nwo.mesh_type != "_connected_geometry_mesh_type_physics":
                 # Handle face sides, game wants an enum but Foundry uses flags
                 face_sides_value = "_connected_geometry_face_sides_"
@@ -2681,9 +2682,7 @@ class PrepareScene:
                     
             original_bm = bmesh.new()
             original_bm.from_mesh(me)
-            old_normal = original_bm.verts.layers.float_vector.new("sky_old_normal")
-            for vert in original_bm.verts:
-                vert[old_normal] = vert.normal
+            save_loop_normals(original_bm)
             for s in sky_slots:
                 sky_index = get_sky_perm(s.material)
                 if sky_index > -1 and sky_index < 32:
@@ -2701,19 +2700,13 @@ class PrepareScene:
                     new_sky_me = me.copy()
                     new_bm.to_mesh(new_sky_me)
                     original_bm.to_mesh(me)
-                    float_vector_layer = original_bm.verts.layers.float_vector.get("sky_old_normal")
-                    new_float_vector_layer = new_bm.verts.layers.float_vector.get("sky_old_normal")
-                    old_normals = [v[float_vector_layer] for v in original_bm.verts]
-                    new_old_normals = [v[new_float_vector_layer] for v in new_bm.verts]
-                    original_bm.verts.layers.float_vector.remove(float_vector_layer)
-                    new_bm.verts.layers.float_vector.remove(new_float_vector_layer)
+                    apply_loop_normals(me)
+                    apply_loop_normals(new_sky_me)
                     new_sky_ob = ob.copy()
                     new_sky_ob.name = ob.name + f'(sky_perm_{str(sky_index)})'
                     new_sky_ob.data = new_sky_me
                     scene_coll.link(new_sky_ob)
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
-                    ob.data.normals_split_custom_set_from_vertices(old_normals)
-                    new_sky_ob.data.normals_split_custom_set_from_vertices(new_old_normals)
                     clean_materials(ob)
                     clean_materials(new_sky_ob)
                 
@@ -3252,6 +3245,7 @@ def reset_export_props(nwo):
     nwo.region_name = ""
     nwo.uvmirror_across_entire_model = ""
     nwo.face_global_material = ""
+    nwo.face_draw_distance = ""
     nwo.sky_permutation_index = ""
     nwo.ladder = ""
     nwo.slip_surface = ""

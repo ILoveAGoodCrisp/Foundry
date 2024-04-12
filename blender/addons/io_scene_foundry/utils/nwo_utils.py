@@ -2856,30 +2856,86 @@ def get_asset_tags(extension= "", full=False):
     return []
             
 def split_retain_normals(ob: bpy.types.Object):
+    """Hell"""
     mesh: bpy.types.Mesh = ob.data
     new_mesh = mesh.copy()
     bm = bmesh.new()
     bm.from_mesh(mesh)
-    old_normal = bm.verts.layers.float_vector.new("old_normal")
-    for vert in bm.verts:
-        vert[old_normal] = vert.normal
-    copy_bm = bm.copy()
+    # Make a new float vector layer
+    # old_normal = bm.verts.layers.float_vector.new("old_normal")
+    # for vert in bm.verts:
+    #     vert[old_normal] = vert.normal
+        
+    for face in bm.faces:
+        for i in range(len(face.verts)):
+            if not bm.faces.layers.float_vector.get(f"ln{str(i)}"):
+                bm.faces.layers.float_vector.new(f"ln{str(i)}")
+    
     bm.faces.ensure_lookup_table()
-    copy_bm.faces.ensure_lookup_table()
+    for idx, face in enumerate(bm.faces):
+        for i in range(len(face.verts)):
+            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            face[layer] = mesh.loops[mesh.polygons[idx].loop_indices[i]].normal
+            
+    copy_bm = bm.copy()
     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.select], context="FACES")
     bmesh.ops.delete(copy_bm, geom=[f for f in copy_bm.faces if not f.select], context="FACES")
-    float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
-    copy_float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
-    old_normals = [v[float_vector_layer] for v in bm.verts]
-    copy_old_normals = [v[copy_float_vector_layer] for v in copy_bm.verts]
-    bm.verts.layers.float_vector.remove(float_vector_layer)
-    copy_bm.verts.layers.float_vector.remove(copy_float_vector_layer)
+    # float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
+    # copy_float_vector_layer = copy_bm.verts.layers.float_vector.get("old_normal")
+    # old_normals = [v[float_vector_layer] for v in bm.verts]
+    # copy_old_normals = [v[copy_float_vector_layer] for v in copy_bm.verts]
+    
+    loop_normals = []
+    for face in bm.faces:
+        for i in range(len(face.verts)):
+            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            if layer:
+                loop_normals.append(face[layer])
+    
+    copy_loop_normals = []     
+    for face in copy_bm.faces:
+        for i in range(len(face.verts)):
+            layer = copy_bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            if layer:
+                copy_loop_normals.append(face[layer])
+    
+    # bm.verts.layers.float_vector.remove(float_vector_layer)
+    # copy_bm.verts.layers.float_vector.remove(copy_float_vector_layer)
     bm.to_mesh(ob.data)
     copy_bm.to_mesh(new_mesh)
     new_ob = bpy.data.objects.new("new_ob", new_mesh)
     bpy.context.scene.collection.objects.link(new_ob)
-    ob.data.normals_split_custom_set_from_vertices(old_normals)
-    new_ob.data.normals_split_custom_set_from_vertices(copy_old_normals)
+    # ob.data.normals_split_custom_set_from_vertices(old_normals)
+    ob.data.normals_split_custom_set(loop_normals)
+    # new_ob.data.normals_split_custom_set_from_vertices(copy_old_normals)
+    new_ob.data.normals_split_custom_set(copy_loop_normals)
+    
+def save_loop_normals(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh):
+    for face in bm.faces:
+        for i in range(len(face.verts)):
+            if not bm.faces.layers.float_vector.get(f"ln{str(i)}"):
+                bm.faces.layers.float_vector.new(f"ln{str(i)}")
+    
+    bm.faces.ensure_lookup_table()
+    
+    for idx, face in enumerate(bm.faces):
+        for i in range(len(face.verts)):
+            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            face[layer] = mesh.loops[mesh.polygons[idx].loop_indices[i]].normal
+            
+def apply_loop_normals(mesh: bpy.types.Mesh):
+    loop_normals = []
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    layers_to_remove = set()
+    for face in bm.faces:
+        for i in range(len(face.verts)):
+            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            if layer:
+                loop_normals.append(face[layer])
+                layers_to_remove.add(layer)
+                         
+    mesh.normals_split_custom_set(loop_normals)
     
 def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
     materials = ob.data.materials

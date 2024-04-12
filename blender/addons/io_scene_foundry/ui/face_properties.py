@@ -51,6 +51,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     name: StringProperty()
     face_two_sided_override: BoolProperty()
     face_transparent_override: BoolProperty()
+    face_draw_distance_override: BoolProperty()
     region_name_override: BoolProperty()
     face_global_material_override: BoolProperty()
     ladder_override: BoolProperty()
@@ -125,6 +126,17 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         default="default",
         description="Define the name of the region these faces should be associated with",
     )
+    
+    face_draw_distance_ui: EnumProperty(
+        name="Draw Distance Limit",
+        options=set(),
+        description="Controls the distance at which the assigned faces will stop rendering",
+        items=[
+            ('_connected_geometry_face_draw_distance_detail_mid', 'Medium', ''),
+            ('_connected_geometry_face_draw_distance_detail_close', 'Close', ''),
+        ]
+    )
+
 
     face_global_material_ui: StringProperty(
         name="Collision Material",

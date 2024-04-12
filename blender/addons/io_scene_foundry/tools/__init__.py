@@ -1965,6 +1965,9 @@ class NWO_FoundryPanelProps(Panel):
                 if item.face_transparent_override:
                     row = col.row()
                     row.label(text="Transparent Faces")
+                if item.face_draw_distance_override:
+                    row = col.row()
+                    row.prop(item, "face_draw_distance_ui")
                 if item.face_global_material_override:
                     row = col.row()
                     row.prop(item, "face_global_material_ui")
@@ -2167,6 +2170,11 @@ class NWO_FoundryPanelProps(Panel):
                 row.use_property_split = True
                 row.prop(mesh_nwo, "face_two_sided_type_ui", text="Backside Normals")
                 
+        if nwo.mesh_type_ui in RENDER_MESH_TYPES:
+            row = box.row()
+            row.use_property_split = True
+            row.prop(mesh_nwo, "face_draw_distance_ui")
+                
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
             if has_collision and poll_ui(("SCENARIO", "PREFAB")) and not (mesh_nwo.render_only_ui and is_instance_or_structure_proxy(ob)):
                 row = box.row()
@@ -2185,31 +2193,32 @@ class NWO_FoundryPanelProps(Panel):
                 "_connected_geometry_mesh_type_physics",
                 )):
                     if not (nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default") and mesh_nwo.render_only_ui):
-                        row = box.row()
-                        row.use_property_split = True
-                        coll_mat_text = 'Collision Material'
-                        if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
-                            for prop in ob.data.nwo.face_props:
-                                if prop.face_global_material_override:
-                                    coll_mat_text += '*'
-                                    break
-                        row.prop(
-                            mesh_nwo,
-                            "face_global_material_ui",
-                            text=coll_mat_text,
-                        )
-                        if poll_ui(('SCENARIO', 'PREFAB')):
-                            row.operator(
-                                "nwo.global_material_globals",
-                                text="",
-                                icon="VIEWZOOM",
+                        if not (self.asset_type == 'MODEL' and nwo.mesh_type_ui == '_connected_geometry_mesh_type_default'):
+                            row = box.row()
+                            row.use_property_split = True
+                            coll_mat_text = 'Collision Material'
+                            if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
+                                for prop in ob.data.nwo.face_props:
+                                    if prop.face_global_material_override:
+                                        coll_mat_text += '*'
+                                        break
+                            row.prop(
+                                mesh_nwo,
+                                "face_global_material_ui",
+                                text=coll_mat_text,
                             )
-                        else:
-                            row.menu(
-                                NWO_GlobalMaterialMenu.bl_idname,
-                                text="",
-                                icon="DOWNARROW_HLT",
-                        )
+                            if poll_ui(('SCENARIO', 'PREFAB')):
+                                row.operator(
+                                    "nwo.global_material_globals",
+                                    text="",
+                                    icon="VIEWZOOM",
+                                )
+                            else:
+                                row.menu(
+                                    NWO_GlobalMaterialMenu.bl_idname,
+                                    text="",
+                                    icon="DOWNARROW_HLT",
+                            )
 
         if nwo.mesh_type_ui in (
             "_connected_geometry_mesh_type_structure",

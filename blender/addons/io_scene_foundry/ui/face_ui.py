@@ -79,6 +79,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             layout.operator(self.op_prefix, text="Two Sided").options = "two_sided"
             if nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
                 layout.operator(self.op_prefix, text="Transparent").options = "transparent"
+                layout.operator(self.op_prefix, text="Draw Distance").options = "draw_distance"
         if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
             if nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_default",
@@ -226,6 +227,8 @@ def toggle_override(context, option, bool_var):
             item.face_two_sided_override = bool_var
         case "transparent":
             item.face_transparent_override = bool_var
+        case "draw_distance":
+            item.face_draw_distance_override = bool_var
         case "render_only":
             item.render_only_override = bool_var
         case "collision_only":
@@ -236,8 +239,6 @@ def toggle_override(context, option, bool_var):
             item.bullet_collision_only_override = bool_var
         case "player_collision_only":
             item.player_collision_only_override = bool_var
-        case "face_draw_distance":
-            item.face_draw_distance_override = bool_var
         case "texcoord_usage":
             item.texcoord_usage_override = bool_var
         case "face_global_material":
@@ -326,6 +327,7 @@ class NWO_FaceLayerAdd(bpy.types.Operator):
             ("precise_position", "Precise Position", ""),
             ("two_sided", "Two Sided", ""),
             ("transparent", "Transparent", ""),
+            ("draw_distance", "Draw Distance Limit", ""),
             ("render_only", "Render Only", ""),
             ("collision_only", "Collision Only", ""),
             ("sphere_collision_only", "Sphere Collision Only", ""),
@@ -376,6 +378,8 @@ class NWO_FaceLayerAdd(bpy.types.Operator):
                 self.fm_name = "Two Sided"
             case "transparent":
                 self.fm_name = "Transparent"
+            case "draw_distance":
+                self.fm_name = "Draw Distance Limit"
             case "ladder":
                 self.fm_name = "Ladder"
             case "slip_surface":
@@ -661,6 +665,7 @@ class NWO_FacePropRemove(NWO_Op):
             ("face_mode", "", ""),
             ("two_sided", "", ""),
             ("transparent", "", ""),
+            ("draw_distance", "", ""),
             ("texcoord_usage", "", ""),
             ("ladder", "Ladder", ""),
             ("slip_surface", "", ""),

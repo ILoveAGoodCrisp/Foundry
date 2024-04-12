@@ -40,7 +40,7 @@ from io_scene_foundry.tools.property_apply import apply_props_material
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, apply_loop_normals, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -931,9 +931,7 @@ class NWOImporter:
                 else:
                     original_bm = bmesh.new()
                     original_bm.from_mesh(ob.data)
-                    old_normal = original_bm.verts.layers.float_vector.new("old_normal")
-                    for vert in original_bm.verts:
-                        vert[old_normal] = vert.normal
+                    save_loop_normals(original_bm, ob.data)
                     for idx, perm_region in enumerate(ob.region_list):
                         parts = perm_region.name.split(' ')
                         if len(parts) == 1:
@@ -954,11 +952,8 @@ class NWOImporter:
                         bm = original_bm.copy()
                         region_layer = bm.faces.layers.int.get("Region Assignment")
                         bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[region_layer] != idx + 1], context='FACES')
-                        float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
-                        old_normals = [v[float_vector_layer] for v in bm.verts]
-                        bm.verts.layers.float_vector.remove(float_vector_layer)
                         bm.to_mesh(new_ob.data)
-                        new_ob.data.normals_split_custom_set_from_vertices(old_normals)
+                        apply_loop_normals(new_ob.data)
                         clean_materials(new_ob)
                         objects.append(new_ob)
                 
@@ -1165,9 +1160,7 @@ class NWOImporter:
             linked_objects = [o for o in bpy.data.objects if o != ob and o.data == ob.data]
             bm_original = bmesh.new()
             bm_original.from_mesh(ob.data)
-            old_normal = bm_original.verts.layers.float_vector.new("old_normal")
-            for vert in bm_original.verts:
-                vert[old_normal] = vert.normal
+            save_loop_normals(bm_original, ob.data)
             for jms_mat in jms_materials:
                 if jms_mat.mesh_type == 'default':
                     continue
@@ -1178,11 +1171,8 @@ class NWOImporter:
                 faces_to_remove_original = [face for face in bm_original.faces if face.material_index == jms_mat.index]
                 bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
                 bmesh.ops.delete(bm_original, geom=faces_to_remove_original, context='FACES')
-                float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
-                old_normals = [v[float_vector_layer] for v in bm.verts]
-                bm.verts.layers.float_vector.remove(float_vector_layer)
                 bm.to_mesh(new_ob.data)
-                new_ob.data.normals_split_custom_set_from_vertices(old_normals)
+                apply_loop_normals(new_ob.data)
                 clean_materials(new_ob)
                     
                 new_ob.nwo.mesh_type = jms_mat.mesh_type
@@ -1195,15 +1185,12 @@ class NWOImporter:
                     new_ob_copy.parent_bone = obj.parent_bone
                     new_ob_copy.matrix_world = obj.matrix_world
                 
-            original_float_vector_layer = bm_original.verts.layers.float_vector.get("old_normal")
-            original_old_normals = [v[original_float_vector_layer] for v in bm_original.verts]
-            bm_original.verts.layers.float_vector.remove(original_float_vector_layer)
             bm_original.to_mesh(ob.data)
             if not ob.data.polygons:
                 objects_to_setup.remove(ob)
                 bpy.data.objects.remove(ob)
             else:
-                ob.data.normals_split_custom_set_from_vertices(original_old_normals)
+                apply_loop_normals(ob.data)
                 clean_materials(ob)
             
         for ob in objects_to_setup:

@@ -90,6 +90,18 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         name="Index for Face Property",
         default=0,
         min=0,
+        options=set(),
+    )
+    
+    face_draw_distance_ui: EnumProperty(
+        name="Draw Distance Limit",
+        options=set(),
+        description="Controls the distance at which the assigned faces will stop rendering",
+        items=[
+            ('_connected_geometry_face_draw_distance_normal', 'Default', ''),
+            ('_connected_geometry_face_draw_distance_detail_mid', 'Medium', ''),
+            ('_connected_geometry_face_draw_distance_detail_close', 'Close', ''),
+        ]
     )
 
     highlight: BoolProperty(
@@ -493,6 +505,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Index for Animation Event",
         default=0,
         min=0,
+        options=set(),
     )
 
     marker_permutation_type : EnumProperty(
@@ -1107,7 +1120,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         # set=set_marker_type_ui,
     )
 
-    marker_type_ui_help: IntProperty()
+    marker_type_ui_help: IntProperty(options=set())
     
     frame_override: BoolProperty(
         name="Frame Override",
@@ -2077,6 +2090,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     face_sides: StringProperty()
     region_name: StringProperty()
     face_global_material: StringProperty()
+    face_draw_distance: StringProperty()
     sky_permutation_index: StringProperty()
     ladder: StringProperty()
     slip_surface: StringProperty()
