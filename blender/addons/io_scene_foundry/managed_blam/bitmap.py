@@ -114,6 +114,8 @@ class BitmapTag(Tag):
         bitmap_format = override.SelectField('bitmap format')
         if bitmap_type in ("Material Map", "Diffuse Map", "Blend Map (linear for terrains)", "Self-Illum Map", "Cube Map (Reflection Map)", "Detail Map"):
             bitmap_format.SetValue('DXT5 (Compressed Color + Compressed 8-bit Alpha)')
+            if bitmap_type == 'Material Map':
+                override.SelectField('mipmap limit').SetStringData('-1')
         elif bitmap_type in ("ZBrush Bump Map (from Bump Map)", "Normal Map (aka zbump)", "Normal Map (from Standard Orientation of Maya, Modo, Zbrush)"):
             bitmap_format.SetValue('DXN Compressed Normals (better)')
             
