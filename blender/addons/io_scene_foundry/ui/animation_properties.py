@@ -121,6 +121,25 @@ class NWO_List_Remove_Animation_Event(Operator):
             action_nwo.animation_events_index += -1
         context.area.tag_redraw()
         return {"FINISHED"}
+    
+class NWO_OT_AnimationEventMove(bpy.types.Operator):
+    bl_label = ""
+    bl_idname = "nwo.animation_event_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
+        action_nwo = action.nwo
+        table = action_nwo.animation_events
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = action_nwo.animation_events_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        action_nwo.animation_events_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
 
 
 class NWO_Animation_ListItems(PropertyGroup):

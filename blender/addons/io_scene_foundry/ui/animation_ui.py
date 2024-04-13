@@ -320,7 +320,7 @@ class NWO_NewAnimation(NWO_Op):
         description="The weapon type this unit must be holding to use this animation.  Weapon name is defined per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty",
     )
     set: bpy.props.StringProperty(
-        name="Set", description="The set this animtion is a part of. Can be empty"
+        name="Set", description="The set this animation is a part of. Can be empty"
     )
     state: bpy.props.StringProperty(
         name="State",
@@ -662,6 +662,25 @@ class NWO_List_Remove_Animation_Rename(NWO_Op):
         if nwo.animation_renames_index > len(nwo.animation_renames) - 1:
             nwo.animation_renames_index += -1
         return {"FINISHED"}
+    
+class NWO_OT_AnimationRenameMove(bpy.types.Operator):
+    bl_label = ""
+    bl_idname = "nwo.animation_rename_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
+        action_nwo = action.nwo
+        table = action_nwo.animation_renames
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = action_nwo.animation_renames_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        action_nwo.animation_renames_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
 
 
 class NWO_UL_AnimationRename(bpy.types.UIList):

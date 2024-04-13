@@ -34,8 +34,7 @@ class NWO_UL_AnimationComposites(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             # row.alignment = 'LEFT'
-            layout.prop(item, 'name')
-            layout.prop(item, 'overlay', icon='CHECKBOX_HLT' if item.overlay else 'CHECKBOX_DEHLT')
+            layout.prop(item, 'name', emboss=False, text="")
         else:
             layout.label(text="", translate=False, icon_value=icon)
             
@@ -44,59 +43,55 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
     bl_idname = "nwo.animation_composite_add"
     bl_options = {'UNDO'}
     
-    def update_presets(self, context):
-        if self.presets != 'none':
-            self.name = self.presets
-    
-    preset: bpy.props.EnumProperty(
-        name="Preset",
-        description="Preset composite animations. Will generate an XML template to use",
-        update=update_presets,
+    mode: bpy.props.StringProperty(
+        name="Mode",
+        description="The mode the object must be in to use this animation. Use 'any' for all modes. Other valid inputs inlcude but are not limited to: 'crouch' when a unit is crouching,  'combat' when a unit is in combat. Modes can also refer to vehicle seats. For example an animation for a unit driving a warthog would use 'warthog_d'. For more information refer to existing model_animation_graph tags. Can be empty",
+    )
+
+    weapon_class: bpy.props.StringProperty(
+        name="Weapon Class",
+        description="The weapon class this unit must be holding to use this animation. Weapon class is defined per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty",
+    )
+    state: bpy.props.EnumProperty(
+        name="State",
         items=[
-            ('combat any locomote', 'Locomote', ''),
-            ('crouch any locomote', 'Crouch Locomote', ''),
-            ('combat any aim_locomote_up', 'Aim Locomote', ''),
-            ('crouch any aim_locomote_up', 'Crouch Aim Locomote', ''),
-            ('combat rifle locomote', 'Rifle Locomote', ''),
-            ('combat turret locomote', 'Turret Locomote', ''),
-            ('sprint any locomote', 'Sprint Locomote', ''),
-            ('combat any turn_left_composite', 'Turn Left', ''),
-            ('combat any turn_right_composite', 'Turn Right', ''),
-            ('combat any jump', 'Jump', ''),
-            ('none', 'No Preset', '')
+            ("locomote", "locomote", ""),
+            ("aim_locomote_up", "aim_locomote_up", ""),
+            ("turn_left_composite", "turn_left_composite", ""),
+            ("turn_right_composite", "turn_right_composite", ""),
+            ("jump", "jump", ""),
         ]
     )
     
-    name: bpy.props.StringProperty(
-        name="Name",
-        description="The name of this animation. Automically updated on choosing a different preset"
-    )
+    def build_name(self):
+        name = ""
+        name += self.mode.strip() if self.mode.strip() else "any"
+        name += " "
+        name += self.weapon_class.strip() if self.weapon_class.strip() else "any"
+        name += " "
+        name += self.state
+        return name
 
     def execute(self, context):
         nwo = context.scene.nwo
         table = nwo.animation_composites
         entry = table.add()
-        entry.name = self.name
+        entry.name = self.build_name()
         nwo.animation_composites_active_index = len(table) - 1
         context.area.tag_redraw()
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self, width=800)
+        return context.window_manager.invoke_props_dialog(self)
     
     def draw(self, context):
         layout = self.layout
-        split = layout.split()
-        col1 = split.column(heading="Source")
-        col3 = split.column(heading="Copy")
-        col1.prop(self, "source_mode", text=f"Mode")
-        col3.prop(self, "copy_mode", text="")
-        col1.prop(self, "source_weapon_class", text="Weapon Class")
-        col3.prop(self, "copy_weapon_class", text="")
-        col1.prop(self, "source_weapon_type", text="Weapon Type")
-        col3.prop(self, "copy_weapon_type", text="")
-        col1.prop(self, "source_set", text="Set")
-        col3.prop(self, "copy_set", text="")
+        layout.label(text="Animation Name")
+        col = layout.column()
+        col.use_property_split = True
+        col.prop(self, "mode")
+        col.prop(self, "weapon_class")
+        col.prop(self, "state", text="State")
     
 class NWO_OT_AnimationCompositeRemove(bpy.types.Operator):
     bl_label = ""
@@ -105,10 +100,10 @@ class NWO_OT_AnimationCompositeRemove(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.scene.nwo
-        table = nwo.animation_copies
-        table.remove(nwo.animation_copies_active_index)
-        if nwo.animation_copies_active_index > len(table) - 1:
-            nwo.animation_copies_active_index -= 1
+        table = nwo.animation_composites
+        table.remove(nwo.animation_composites_active_index)
+        if nwo.animation_composites_active_index > len(table) - 1:
+            nwo.animation_composites_active_index -= 1
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -121,12 +116,12 @@ class NWO_OT_AnimationCompositeMove(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.scene.nwo
-        table = nwo.animation_copies
+        table = nwo.animation_composites
         delta = {"down": 1, "up": -1,}[self.direction]
-        current_index = nwo.animation_copies_active_index
+        current_index = nwo.animation_composites_active_index
         to_index = (current_index + delta) % len(table)
         table.move(current_index, to_index)
-        nwo.animation_copies_active_index = to_index
+        nwo.animation_composites_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -146,3 +141,74 @@ def create_template_composite_xml(name: str, preset: str):
             
         with open(composite_file, 'w') as file:
             file.write(template_data)
+            
+class NWO_UL_AnimationBlendAxis(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            # row.alignment = 'LEFT'
+            layout.prop(item, 'name')
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
+            
+class NWO_OT_AnimationBlendAxisAdd(bpy.types.Operator):
+    bl_label = ""
+    bl_idname = "nwo.animation_blend_axis_add"
+    bl_options = {'UNDO'}
+    
+    blend_axis: bpy.props.EnumProperty(
+        name="Blend Axis",
+        items=[
+            ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
+            ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
+            ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
+            ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
+        ]
+    )
+    
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        table = composite.blend_axis
+        entry = table.add()
+        entry.name = self.blend_axis
+        composite.blend_axis_active_index = len(table) - 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        self.layout.prop(self, 'blend_axis')
+        
+class NWO_OT_AnimationBlendAxisRemove(bpy.types.Operator):
+    bl_label = ""
+    bl_idname = "nwo.animation_blend_axis_remove"
+    bl_options = {'UNDO'}
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        table = composite.blend_axis
+        table.remove(composite.blend_axis_active_index)
+        if composite.blend_axis_active_index > len(table) - 1:
+            composite.blend_axis_active_index -= 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_AnimationBlendAxisMove(bpy.types.Operator):
+    bl_label = ""
+    bl_idname = "nwo.animation_blend_axis_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        table = composite.blend_axis
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = composite.blend_axis_active_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        composite.blend_axis_active_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}

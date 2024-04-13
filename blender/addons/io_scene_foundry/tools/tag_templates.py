@@ -32,7 +32,7 @@ from io_scene_foundry.utils import nwo_utils
 
 class NWO_OT_LoadTemplate(bpy.types.Operator):
     bl_idname = "nwo.load_template"
-    bl_label = "Load New Template"
+    bl_label = "Load Template"
     bl_description = "Loads a template tag for the given tag type"
     bl_options = {"UNDO"}
     

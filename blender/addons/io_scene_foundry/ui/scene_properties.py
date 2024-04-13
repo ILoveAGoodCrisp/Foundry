@@ -90,7 +90,9 @@ class NWO_AnimationPhaseSetsItems(PropertyGroup):
             ("alternate", "Alternate", ""),
         ]
     )
+    leaves_active_index: IntProperty(options=set())
     leaves: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
+    
     key_primary_keyframe: BoolProperty(name="Primary Keyframe", options=set())
     key_secondary_keyframe: BoolProperty(name="Secondary Keyframe", options=set())
     key_tertiary_keyframe: BoolProperty(name="Tertiary Keyframe", options=set())
@@ -146,13 +148,20 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
         ]
     )
 
+    leaves_active_index: IntProperty(options=set())
+    leaves: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
+    
+    phase_sets_active_index: IntProperty(options=set())
+    phase_sets: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationPhaseSetsItems)
+    
+
 class NWO_AnimationCompositesItems(PropertyGroup):
     name: StringProperty(name="Name", options=set())
     overlay: BoolProperty(name="Overlay", options=set())
     
     timing_source: PointerProperty(name="Timing Source", type=bpy.types.Action)
+    blend_axis_active_index: IntProperty(options=set())
     blend_axis: CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisItems)
-    leaves: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
     
 #############################################################
 #############################################################
@@ -873,6 +882,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     rig_usages_expanded: BoolProperty(default=False, options=set())
     ik_chains_expanded: BoolProperty(default=False, options=set())
     animation_copies_expanded: BoolProperty(default=False, options=set())
+    animation_composites_expanded: BoolProperty(default=False, options=set())
     
     asset_shaders_expanded: BoolProperty(default=True, options=set())
     importer_expanded: BoolProperty(default=True, options=set())
@@ -1217,7 +1227,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 
     def set_parent_animation_graph(self, value):
         asset_graph = get_asset_animation_graph()
-        if asset_graph:
+        if asset_graph and Path(asset_graph).exists():
             with AnimationTag(path=asset_graph) as animation:
                 animation.set_parent_graph(value)
         self["parent_animation_graph"] = value

@@ -112,6 +112,7 @@ from .materials_ui import NWO_MaterialOpenTag
 from .materials_properties import NWO_MaterialPropertiesGroup
 
 from .animation_properties import (
+    NWO_OT_AnimationEventMove,
     NWO_UL_AnimProps_Events,
     NWO_List_Add_Animation_Event,
     NWO_List_Remove_Animation_Event,
@@ -127,6 +128,7 @@ from .animation_ui import (
     NWO_DeleteAnimation,
     NWO_OT_AnimationEventSetFrame,
     NWO_OT_AnimationFramesSyncToKeyFrames,
+    NWO_OT_AnimationRenameMove,
     NWO_SetTimeline,
     NWO_UL_AnimationList,
     NWO_UnlinkAnimation,
@@ -359,6 +361,7 @@ classes_nwo = (
     NWO_List_Remove_MarkerPermutation,
     NWO_List_Add_Animation_Rename,
     NWO_List_Remove_Animation_Rename,
+    NWO_OT_AnimationRenameMove,
     NWO_SetTimeline,
     NWO_NewAnimation,
     NWO_DeleteAnimation,
@@ -402,6 +405,7 @@ classes_nwo = (
     NWO_UL_AnimProps_Events,
     NWO_List_Add_Animation_Event,
     NWO_List_Remove_Animation_Event,
+    NWO_OT_AnimationEventMove,
     NWO_Animation_ListItems,
     NWO_AnimationRenamesItems,
     NWO_ActionPropertiesGroup,

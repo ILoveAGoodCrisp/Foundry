@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites
 from io_scene_foundry.tools.animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
 from io_scene_foundry.tools.scenario.lightmap import NWO_OT_Lightmap
 from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
@@ -731,6 +732,8 @@ class NWO_FoundryPanelProps(Panel):
             self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
             self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
             self.draw_expandable_box(box.box(), nwo, 'animation_copies')
+            if self.h4:
+                self.draw_expandable_box(box.box(), nwo, 'animation_composites')
         else:
             row = col.row(align=True)
             row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
@@ -919,6 +922,47 @@ class NWO_FoundryPanelProps(Panel):
             col.use_property_split = True
             col.prop(item, "source_name")
             col.prop(item, "name")
+            
+    def draw_animation_composites(self, box, nwo):
+        if not nwo.animation_composites:
+            box.operator("nwo.animation_composite_add", text="New Composite Animation", icon_value=get_icon_id("animation_composite"))
+            return
+        row = box.row()
+        row.template_list(
+            "NWO_UL_AnimationComposites",
+            "",
+            nwo,
+            "animation_composites",
+            nwo,
+            "animation_composites_active_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.animation_composite_add", text="", icon="ADD")
+        col.operator("nwo.animation_composite_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.animation_composite_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.animation_composite_move", icon="TRIA_DOWN", text="").direction = 'down'
+        if nwo.animation_composites and nwo.animation_composites_active_index > -1:
+            item = nwo.animation_composites[nwo.animation_composites_active_index]
+            col = box.column()
+            col.use_property_split = True
+            col.prop(item, "overlay")
+            col.prop(item, "timing_source")
+            row = col.row()
+            row.template_list(
+                "NWO_UL_AnimationBlendAxis",
+                "",
+                item,
+                "blend_axis",
+                item,
+                "blend_axis_active_index",
+            )
+            col = row.column(align=True)
+            col.operator("nwo.animation_blend_axis_add", text="", icon="ADD")
+            col.operator("nwo.animation_blend_axis_remove", icon="REMOVE", text="")
+            col.separator()
+            col.operator("nwo.animation_blend_axis_move", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.animation_blend_axis_move", icon="TRIA_DOWN", text="").direction = 'down'
     
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
@@ -2751,13 +2795,9 @@ class NWO_FoundryPanelProps(Panel):
                 col = row.column(align=True)
                 col.operator("nwo.animation_rename_add", text="", icon="ADD")
                 col.operator("nwo.animation_rename_remove", icon="REMOVE", text="")
-                # col.separator()
-                # col.operator(
-                #     "nwo.face_layer_move", icon="TRIA_UP", text=""
-                # ).direction = "UP"
-                # col.operator(
-                #     "nwo.face_layer_move", icon="TRIA_DOWN", text=""
-                # ).direction = "DOWN"
+                col.separator()
+                col.operator("nwo.animation_rename_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("nwo.animation_rename_move", icon="TRIA_DOWN", text="").direction = 'down'
 
             # ANIMATION EVENTS
             if not nwo.animation_events:
@@ -2782,6 +2822,9 @@ class NWO_FoundryPanelProps(Panel):
                 col = row.column(align=True)
                 col.operator("animation_event.list_add", icon="ADD", text="")
                 col.operator("animation_event.list_remove", icon="REMOVE", text="")
+                col.separator()
+                col.operator("animation_event.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("animation_event.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
 
                 if len(nwo.animation_events) > 0:
                     item = nwo.animation_events[nwo.animation_events_index]
@@ -5281,6 +5324,14 @@ classeshalo = (
     NWO_OT_AnimationCopyAdd,
     NWO_OT_AnimationCopyRemove,
     NWO_OT_AnimationCopyMove,
+    NWO_UL_AnimationBlendAxis,
+    NWO_OT_AnimationBlendAxisAdd,
+    NWO_OT_AnimationBlendAxisRemove,
+    NWO_OT_AnimationBlendAxisMove,
+    NWO_UL_AnimationComposites,
+    NWO_OT_AnimationCompositeAdd,
+    NWO_OT_AnimationCompositeRemove,
+    NWO_OT_AnimationCompositeMove,
 )
 
 def register():
