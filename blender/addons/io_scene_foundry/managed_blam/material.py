@@ -169,7 +169,7 @@ class MaterialTag(ShaderTag):
             
         if self.alpha_type == 'blend' and self.alpha_blend_mode.Value == 0:
             self.alpha_blend_mode.Value = 3
-        elif self.alpha_blend_mode.Value == 3:
+        elif not self.alpha_type and self.alpha_blend_mode.Value == 3:
             self.alpha_blend_mode.Value = 0
             
         if self.material_shader:
