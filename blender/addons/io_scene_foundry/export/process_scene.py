@@ -495,7 +495,7 @@ class ProcessScene:
 
             # make another sidecar to generate model lighting files
             if nwo_scene.lighting:
-                lighting_sidecar = Sidecar(asset_path, asset, "MODEL SCENARIO")
+                lighting_sidecar = Sidecar(asset_path, asset, "MODEL SCENARIO", context)
                 lighting_sidecar.build(context, sidecar_path, sidecar_path_full, nwo_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo, True)
 
             reports.append(sidecar.message)
