@@ -72,10 +72,87 @@ class NWO_AnimationCopiesItems(PropertyGroup):
 # ANIMATION COMPOSITES
 #############################################################
 
+class NWO_AnimationLeavesItems(PropertyGroup):
+    name: StringProperty(name="Name", options=set())
+    uses_move_speed: BoolProperty(name="Uses Move Speed", options=set())
+    move_speed: bpy.props.FloatProperty(name="Move Speed", options=set())
+    uses_move_angle: BoolProperty(name="Uses Move Angle", options=set())
+    move_angle: bpy.props.FloatProperty(name="Move Angle", options=set(), subtype='ANGLE')
+    
+class NWO_AnimationPhaseSetsItems(PropertyGroup):
+    name: StringProperty(name="Name", options=set())
+    priority: EnumProperty(
+        name="Priority",
+        items=[
+            ("default", "Default", ""),
+            ("current", "Current", ""),
+            ("cycle", "Cycle", ""),
+            ("alternate", "Alternate", ""),
+        ]
+    )
+    leaves: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
+    key_primary_keyframe: BoolProperty(name="Primary Keyframe", options=set())
+    key_secondary_keyframe: BoolProperty(name="Secondary Keyframe", options=set())
+    key_tertiary_keyframe: BoolProperty(name="Tertiary Keyframe", options=set())
+    key_left_foot: BoolProperty(name="", options=set())
+    key_right_foot: BoolProperty(name="", options=set())
+    key_body_impact: BoolProperty(name="", options=set())
+    key_left_foot_lock: BoolProperty(name="", options=set())
+    key_left_foot_unlock: BoolProperty(name="", options=set())
+    key_right_foot_lock: BoolProperty(name="", options=set())
+    key_right_foot_unlock: BoolProperty(name="", options=set())
+    key_blend_range_marker: BoolProperty(name="", options=set())
+    key_stride_expansion: BoolProperty(name="", options=set())
+    key_stride_contraction: BoolProperty(name="", options=set())
+    key_ragdoll_keyframe: BoolProperty(name="", options=set())
+    key_drop_weapon_keyframe: BoolProperty(name="", options=set())
+    key_match_a: BoolProperty(name="", options=set())
+    key_match_b: BoolProperty(name="", options=set())
+    key_match_c: BoolProperty(name="", options=set())
+    key_match_d: BoolProperty(name="", options=set())
+    key_jetpack_closed: BoolProperty(name="", options=set())
+    key_jetpack_open: BoolProperty(name="", options=set())
+    key_sound_event: BoolProperty(name="", options=set())
+    key_effect_event: BoolProperty(name="", options=set())
+
+class NWO_AnimationBlendAxisItems(PropertyGroup):
+    name: EnumProperty(
+        name="Type",
+        items=[
+            ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
+            ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
+            ("turn_rate", "Turn Rate", ""), # average_angular_rate get_turn_rate
+            ("vertical", "Vertical", ""), # translation_offset_z get_destination_vertical
+            ("horizontal", "Horizontal", ""), # translation_offset_horizontal get_destination_forward
+        ]
+    )
+    
+    animation_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
+    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set())
+    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), subtype='ANGLE')
+    
+    runtime_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
+    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set())
+    runtime_source_clamped: BoolProperty(name="Runtime Source Clamped", options=set())
+    
+    adjusted: bpy.props.EnumProperty(
+        name="Adjustment",
+        options=set(),
+        items=[
+            ("none", "None", ""),
+            ("on_start", "On Start", ""),
+            ("on_loop", "On Loop", ""),
+            ("continuous", "Continuous", ""),
+        ]
+    )
+
 class NWO_AnimationCompositesItems(PropertyGroup):
     name: StringProperty(name="Name", options=set())
     overlay: BoolProperty(name="Overlay", options=set())
-    xml_name: StringProperty(name="XML Filename", options=set())
+    
+    timing_source: PointerProperty(name="Timing Source", type=bpy.types.Action)
+    blend_axis: CollectionProperty(name="Blend Axis", options=set(), type=NWO_AnimationBlendAxisItems)
+    leaves: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
     
 #############################################################
 #############################################################

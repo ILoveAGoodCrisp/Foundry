@@ -693,3 +693,20 @@ class NWO_OT_ClearAsset(bpy.types.Operator):
     
     def invoke(self, context: bpy.types.Context, event):
         return context.window_manager.invoke_confirm(self, event)
+    
+class NWO_OT_RegisterIcons(bpy.types.Operator):
+    bl_idname = "nwo.register_icons"
+    bl_label = "Reload Icons"
+    bl_description = "Reloads the Foundry icons if any failed to load at startup"
+    bl_options = {"UNDO"}
+
+    def execute(self, context):
+        from io_scene_foundry import icons
+        if icons.icons_active:
+            icons.unregister()
+        icons.register()
+        if not icons.icons_active:
+            icons.icons_activate()
+            
+        return {"FINISHED"}
+

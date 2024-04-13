@@ -1,43 +1,31 @@
-from os import path
+from pathlib import Path
 from bpy.utils import previews
 
 foundry_icons = None
-icons_dir = path.dirname(__file__)
+icons_dir = Path(__file__).parent
 preview_collections = {}
 icons_active = False
-
 
 def get_icon_id_special(id):
     if id in foundry_icons:
         return foundry_icons[id].icon_id
-    return foundry_icons.load(id, path.join(icons_dir, id + ".png"), "IMAGE").icon_id
-
+    return foundry_icons.load(id, str(Path(icons_dir, id).with_suffix(".png")), "IMAGE", True).icon_id
 
 def get_icon_id(id):
     global icons_active
     if icons_active:
-        try:
-            if id in foundry_icons:
-                return foundry_icons[id].icon_id
-            return foundry_icons.load(
-                id, path.join(icons_dir, id + ".png"), "IMAGE"
-            ).icon_id
-        except:
-            pass
+        if id in foundry_icons:
+            return foundry_icons[id].icon_id
+        return foundry_icons.load(id, str(Path(icons_dir, id).with_suffix(".png")), "IMAGE", True).icon_id
     return 0
 
 def get_icon_id_in_directory(thumnail_path):
     global icons_active
     id = thumnail_path
     if icons_active:
-        try:
-            if id in foundry_icons:
-                return foundry_icons[id].icon_id
-            return foundry_icons.load(
-                id, thumnail_path, "IMAGE"
-            ).icon_id
-        except:
-            pass
+        if id in foundry_icons:
+            return foundry_icons[id].icon_id
+        return foundry_icons.load(id, thumnail_path, "IMAGE", True).icon_id
     return 0
 
 

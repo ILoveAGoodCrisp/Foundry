@@ -896,7 +896,7 @@ class NWO_FoundryPanelProps(Panel):
             
     def draw_animation_copies(self, box, nwo):
         if not nwo.animation_copies:
-            box.operator("nwo.animation_copy_add", text="New Animation Copy", icon="CON_SPLINEIK")
+            box.operator("nwo.animation_copy_add", text="New Animation Copy", icon_value=get_icon_id("animation_copy"))
             return
         row = box.row()
         row.template_list(
@@ -2970,6 +2970,7 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.open_url", text="AMF Importer", icon_value=get_icon_id("amf")).url = AMF_ADDON
         col.operator("nwo.open_url", text="Reclaimer", icon_value=get_icon_id("marathon")).url = RECLAIMER
         col.operator("nwo.open_url", text="Animation Repository", icon_value=get_icon_id("github")).url = ANIMATION_REPO
+        self.box.operator('nwo.register_icons', icon='FILE_REFRESH')
 
     def draw_settings(self):
         prefs = get_prefs()
