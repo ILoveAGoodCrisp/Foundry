@@ -180,6 +180,7 @@ class NWO_AssetMaker(NWO_Op):
             blend_save_path = os.path.join(asset_folder, asset_name + ".blend")
             
         context.scene.render.fps = 30
+        context.scene.render.image_settings.tiff_codec = 'LZW'
         
         if self.selected_only:
             [bpy.data.objects.remove(ob) for ob in bpy.data.objects if not ob.select_get()]
