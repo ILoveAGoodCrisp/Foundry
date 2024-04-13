@@ -38,7 +38,7 @@ from ..utils.nwo_utils import (
 )
 
 class Sidecar:
-    def __init__(self, asset_path, asset_name, asset_type):
+    def __init__(self, asset_path, asset_name, asset_type, context):
         self.reach_world_animations = set()
         self.tag_path = data_relative(os.path.join(asset_path, asset_name))
         self.asset_path = asset_path
@@ -46,7 +46,7 @@ class Sidecar:
         self.asset_type = asset_type
         self.relative_blend = bpy.data.filepath.replace(get_data_path(), "")
         self.external_blend = self.relative_blend == bpy.data.filepath
-
+        self.context = context
         self.message = f"{str.title(asset_type)} Sidecar Export Complete"
 
     def build(self, context, sidecar_path, sidecar_path_full, nwo_scene, sidecar_paths, sidecar_paths_design, scene_nwo, for_model_lighting=False):
@@ -800,7 +800,17 @@ class Sidecar:
                         Type="Rename",
                         NetworkReference=nwo.name_override,
                     )
-
+                    
+            for item in self.context.scene.nwo.animation_copies:
+                network = ET.SubElement(
+                    object,
+                    "ContentNetwork",
+                    Name=item.name,
+                    Type="Copy",
+                    NetworkReference=item.source_name,
+                )
+                
+                
             output = ET.SubElement(object, "OutputTagCollection")
             ET.SubElement(
                 output, "OutputTag", Type="frame_event_list"

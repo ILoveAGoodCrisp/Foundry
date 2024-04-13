@@ -490,7 +490,7 @@ class ProcessScene:
 
             from .build_sidecar import Sidecar
             
-            sidecar = Sidecar(asset_path, asset, asset_type)
+            sidecar = Sidecar(asset_path, asset, asset_type, context)
             sidecar.build(context, sidecar_path, sidecar_path_full, nwo_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo)
 
             # make another sidecar to generate model lighting files
