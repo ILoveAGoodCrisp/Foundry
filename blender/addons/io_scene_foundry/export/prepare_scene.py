@@ -2649,7 +2649,6 @@ class PrepareScene:
     def loop_and_fix_slots(self, is_halo_render, ob, nwo, me, does_not_support_sky, scene_coll, h4):
         is_true_mesh = ob.type == 'MESH'
         slots = clean_materials(ob)
-        print(ob.name)
         for slot in slots:
             if slot.material.name in special_material_names:
                 if h4 and slot.material.name not in ('+invisible', '+invalid'):
