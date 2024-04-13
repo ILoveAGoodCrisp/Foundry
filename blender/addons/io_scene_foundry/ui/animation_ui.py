@@ -716,7 +716,7 @@ class NWO_UL_AnimationList(bpy.types.UIList):
         nwo = item.nwo
         row = layout.row()
         row.scale_x = 1.5
-        row.prop(item, "name", text="", emboss=False, icon='ANIM')
+        row.prop(item, "name", text="", emboss=False, icon='ACTION')
         row = layout.row()
         if item.use_frame_range:
             row.label(text=str(math.floor(item.frame_end + 1) - math.floor(item.frame_start)), icon='KEYFRAME_HLT')

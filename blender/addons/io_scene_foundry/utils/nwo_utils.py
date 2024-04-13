@@ -2939,11 +2939,12 @@ def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
     materials = ob.data.materials
     slots = ob.material_slots
     slots_to_remove = set()
+    actual_slots_to_remove = set()
     duplicate_slots = {}
     material_indexes = dict.fromkeys(slots)
     for idx, slot in enumerate(slots):
         if not slot.material:
-            slots_to_remove.add(idx)
+            actual_slots_to_remove.add(idx)
             continue
         slot_name = slot.material.name
         if slot_name not in material_indexes.keys():

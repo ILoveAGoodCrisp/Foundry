@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import radians
 import os
 from pathlib import Path
 import bpy
@@ -73,7 +74,7 @@ class NWO_AnimationCopiesItems(PropertyGroup):
 #############################################################
 
 class NWO_AnimationLeavesItems(PropertyGroup):
-    name: StringProperty(name="Name", options=set())
+    animation: PointerProperty(name="Animation", type=bpy.types.Action)
     uses_move_speed: BoolProperty(name="Uses Move Speed", options=set())
     move_speed: bpy.props.FloatProperty(name="Move Speed", options=set())
     uses_move_angle: BoolProperty(name="Uses Move Angle", options=set())
@@ -120,6 +121,7 @@ class NWO_AnimationPhaseSetsItems(PropertyGroup):
 class NWO_AnimationBlendAxisItems(PropertyGroup):
     name: EnumProperty(
         name="Type",
+        options=set(),
         items=[
             ("movement_angles", "Movement Angles", ""), # linear_movement_angle get_move_angle
             ("movement_speed", "Movement Speed", ""), # linear_movement_speed get_move_speed
@@ -130,11 +132,11 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     )
     
     animation_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
-    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set())
-    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), subtype='ANGLE')
+    animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
+    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), subtype='ANGLE', min=radians(0), max=radians(360))
     
     runtime_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
-    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set())
+    runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
     runtime_source_clamped: BoolProperty(name="Runtime Source Clamped", options=set())
     
     adjusted: bpy.props.EnumProperty(

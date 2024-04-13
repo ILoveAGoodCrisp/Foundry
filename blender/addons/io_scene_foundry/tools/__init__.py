@@ -923,7 +923,7 @@ class NWO_FoundryPanelProps(Panel):
             col.prop(item, "source_name")
             col.prop(item, "name")
             
-    def draw_animation_composites(self, box, nwo):
+    def draw_animation_composites(self, box: bpy.types.UILayout, nwo):
         if not nwo.animation_composites:
             box.operator("nwo.animation_composite_add", text="New Composite Animation", icon_value=get_icon_id("animation_composite"))
             return
@@ -948,6 +948,7 @@ class NWO_FoundryPanelProps(Panel):
             col.use_property_split = True
             col.prop(item, "overlay")
             col.prop(item, "timing_source")
+            col.label(text="Blend Axes")
             row = col.row()
             row.template_list(
                 "NWO_UL_AnimationBlendAxis",
@@ -963,6 +964,47 @@ class NWO_FoundryPanelProps(Panel):
             col.separator()
             col.operator("nwo.animation_blend_axis_move", text="", icon="TRIA_UP").direction = 'up'
             col.operator("nwo.animation_blend_axis_move", icon="TRIA_DOWN", text="").direction = 'down'
+            
+            if not item.blend_axis or item.blend_axis_active_index <= -1:
+                return
+            
+            blend_axis = item.blend_axis[item.blend_axis_active_index]
+            col = box.column()
+            col.use_property_split = True
+            col.prop(blend_axis, "animation_source_bounds")
+            col.prop(blend_axis, "animation_source_limit")
+            col.prop(blend_axis, "runtime_source_bounds")
+            col.prop(blend_axis, "runtime_source_clamped")
+            col.prop(blend_axis, "adjusted")
+            
+    # def draw_animation_leaves(self, col: bpy.types.UILayout, blend_axis):
+    #     col.label(text="Animations")
+    #     row = col.row()
+    #     row.template_list(
+    #         "NWO_UL_AnimationLeaves",
+    #         "",
+    #         blend_axis,
+    #         "leaves",
+    #         blend_axis,
+    #         "leaves_active_index",
+    #     )
+    #     col = row.column(align=True)
+    #     col.operator("nwo.animation_leaf_add", text="", icon="ADD")
+    #     col.operator("nwo.animation_leaf_remove", icon="REMOVE", text="")
+    #     col.separator()
+    #     col.operator("nwo.animation_leaf_move", text="", icon="TRIA_UP").direction = 'up'
+    #     col.operator("nwo.animation_leaf_move", icon="TRIA_DOWN", text="").direction = 'down'
+    #     if blend_axis.leaves and blend_axis.leaves_active_index > -1:
+    #         leaf = blend_axis.leaves[blend_axis.leaves_active_index]
+    #         col = col.column()
+    #         col.use_property_split = True
+    #         col.prop(leaf, "animation")
+    #         col.prop(leaf, "uses_move_speed")
+    #         if leaf.use_move_speed:
+    #             col.prop(leaf, "move_speed")
+    #         col.prop(leaf, "uses_move_angle")
+    #         if leaf.uses_move_angle:
+    #             col.prop(leaf, "move_angle")
     
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()

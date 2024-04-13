@@ -34,7 +34,7 @@ class NWO_UL_AnimationComposites(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             # row.alignment = 'LEFT'
-            layout.prop(item, 'name', emboss=False, text="")
+            layout.prop(item, 'name', emboss=False, text="", icon_value=get_icon_id("animation_composite"))
         else:
             layout.label(text="", translate=False, icon_value=icon)
             
@@ -146,7 +146,7 @@ class NWO_UL_AnimationBlendAxis(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             # row.alignment = 'LEFT'
-            layout.prop(item, 'name')
+            layout.prop(item, 'name', emboss=False, text="")
         else:
             layout.label(text="", translate=False, icon_value=icon)
             
