@@ -73,7 +73,7 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
     bl_property = "shader_info"
     batch_instance = None
 
-    batch_panel : bpy.props.BoolProperty()
+    batch_panel : bpy.props.BoolProperty(options={'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):

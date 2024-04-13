@@ -2621,7 +2621,7 @@ class NWO_FoundryPanelProps(Panel):
                         if h4:
                             row = col.row(align=True)
                             row.prop(nwo, "material_shader", text="Default Shader")
-                            row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="")
+                            row.operator("nwo.get_material_shaders", icon="VIEWZOOM", text="").batch_panel = False
                         else:
                             col.prop(nwo, "shader_type", text="Shader Type")
 
