@@ -2869,7 +2869,7 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row()
         col = row.column()
         col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
-        col.operator('nwo.cubemap', text='Cubemap Farm', icon='WORLD')
+        col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
         
     def draw_importer(self, box, nwo):
         row = box.row()
