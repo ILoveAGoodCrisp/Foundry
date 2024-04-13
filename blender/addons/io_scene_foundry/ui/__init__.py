@@ -26,7 +26,7 @@
 
 import os
 import bpy
-from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets, WO_OT_ZoneSetMove
+from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets, NWO_OT_ZoneSetMove
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO_ApplyCollectionType, NWO_PermutationListCollection, NWO_RegionListCollection
 
@@ -450,7 +450,7 @@ classes_nwo = (
     NWO_UL_ZoneSets,
     NWO_OT_ZoneSetAdd,
     NWO_OT_ZoneSetRemove,
-    WO_OT_ZoneSetMove,
+    NWO_OT_ZoneSetMove,
 )
 
 def register():

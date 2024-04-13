@@ -67,7 +67,7 @@ class NWO_OT_ZoneSetRemove(bpy.types.Operator):
         context.area.tag_redraw()
         return {'FINISHED'}
     
-class WO_OT_ZoneSetMove(bpy.types.Operator):
+class NWO_OT_ZoneSetMove(bpy.types.Operator):
     bl_label = ""
     bl_idname = "nwo.zone_set_move"
     bl_options = {'UNDO'}

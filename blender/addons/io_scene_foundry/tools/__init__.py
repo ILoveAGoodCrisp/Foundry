@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
 from io_scene_foundry.tools.scenario.lightmap import NWO_OT_Lightmap
 from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
 from io_scene_foundry.tools.tag_templates import NWO_OT_LoadTemplate
@@ -729,6 +730,7 @@ class NWO_FoundryPanelProps(Panel):
                 col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
             self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
             self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
+            self.draw_expandable_box(box.box(), nwo, 'animation_copies')
         else:
             row = col.row(align=True)
             row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
@@ -891,6 +893,32 @@ class NWO_FoundryPanelProps(Panel):
             col.use_property_split = True
             col.prop_search(chain, 'start_node', nwo.main_armature.data, 'bones', text='Start Bone')
             col.prop_search(chain, 'effector_node', nwo.main_armature.data, 'bones', text='Effector Bone')
+            
+    def draw_animation_copies(self, box, nwo):
+        if not nwo.animation_copies:
+            box.operator("nwo.animation_copy_add", text="New Animation Copy", icon="CON_SPLINEIK")
+            return
+        row = box.row()
+        row.template_list(
+            "NWO_UL_AnimationCopies",
+            "",
+            nwo,
+            "animation_copies",
+            nwo,
+            "animation_copies_active_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.animation_copy_add", text="", icon="ADD")
+        col.operator("nwo.animation_copy_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.animation_copy_move", text="", icon="TRIA_UP").direction = 'up'
+        col.operator("nwo.animation_copy_move", icon="TRIA_DOWN", text="").direction = 'down'
+        if nwo.animation_copies and nwo.animation_copies_active_index > -1:
+            item = nwo.animation_copies[nwo.animation_copies_active_index]
+            col = box.column()
+            col.use_property_split = True
+            col.prop(item, "source_name")
+            col.prop(item, "name")
     
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
@@ -5248,6 +5276,10 @@ classeshalo = (
     NWO_OT_LoadTemplate,
     NWO_OT_RemoveExistingZoneSets,
     NWO_OT_Lightmap,
+    NWO_UL_AnimationCopies,
+    NWO_OT_AnimationCopyAdd,
+    NWO_OT_AnimationCopyRemove,
+    NWO_OT_AnimationCopyMove,
 )
 
 def register():

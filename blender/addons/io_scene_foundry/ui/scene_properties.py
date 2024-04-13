@@ -65,8 +65,8 @@ default_scale, default_forward = get_matrix_settings()
 #############################################################
 
 class NWO_AnimationCopiesItems(PropertyGroup):
-    name: StringProperty(name="Name", options=set())
-    source: StringProperty(name="Source", options=set())
+    name: StringProperty(name="Copy Name", options=set())
+    source_name: StringProperty(name="Source Name", options=set())
 
 #############################################################
 # ANIMATION COMPOSITES
@@ -795,6 +795,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     rig_object_controls_expanded: BoolProperty(default=False, options=set())
     rig_usages_expanded: BoolProperty(default=False, options=set())
     ik_chains_expanded: BoolProperty(default=False, options=set())
+    animation_copies_expanded: BoolProperty(default=False, options=set())
     
     asset_shaders_expanded: BoolProperty(default=True, options=set())
     importer_expanded: BoolProperty(default=True, options=set())
