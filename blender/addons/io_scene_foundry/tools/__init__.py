@@ -2924,8 +2924,8 @@ class NWO_FoundryPanelProps(Panel):
                 col.operator("animation_event.list_add", icon="ADD", text="")
                 col.operator("animation_event.list_remove", icon="REMOVE", text="")
                 col.separator()
-                col.operator("animation_event.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
-                col.operator("animation_event.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
+                col.operator("nwo.animation_event_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("nwo.animation_event_move", icon="TRIA_DOWN", text="").direction = 'down'
 
                 if len(nwo.animation_events) > 0:
                     item = nwo.animation_events[nwo.animation_events_index]

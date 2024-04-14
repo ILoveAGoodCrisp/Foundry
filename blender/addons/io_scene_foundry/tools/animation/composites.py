@@ -27,8 +27,11 @@
 from pathlib import Path
 import bpy
 
+from io_scene_foundry.ui.scene_properties import NWO_AnimationCompositesItems
 from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.utils import nwo_utils
+import xml.etree.cElementTree as ET
+import xml.dom.minidom
 
 class NWO_UL_AnimationComposites(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
@@ -346,3 +349,40 @@ class NWO_OT_AnimationLeafMove(bpy.types.Operator):
         parent.leaves_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
+    
+class CompositeXML:
+    def __init__(self, data: NWO_AnimationCompositesItems):
+        self.data = data
+        
+    def build_xml(self):
+        encoding = "utf-8"
+        self.composite = ET.Element("composite")
+        timing_action = self.data.timing_source
+        timing_name = timing_action.nwo.name_override
+        ET.SubElement(self.composite, "timing", source=timing_name)
+        for item in self.data.blend_axis:
+            self.write_blend_axis_entry(item)
+        
+    def write_blend_axis_entry(self, item):
+        blend_axis = ET.SubElement(self.composite, "blend_axis", name=item.name)
+        animation_source_name = ""
+        runtime_source_name = ""
+        match item.name:
+            case "movement_angles":
+                animation_source_name = "linear_movement_angle"
+                runtime_source_name = "get_move_angle"
+            case "movement_speed":
+                animation_source_name = "linear_movement_speed"
+                runtime_source_name = "get_move_speed"
+            case "turn_rate":
+                animation_source_name = "average_angular_rate"
+                runtime_source_name = "get_turn_rate"
+            case "vertical":
+                animation_source_name = "translation_offset_z"
+                runtime_source_name = "get_destination_vertical"
+            case "horizontal":
+                animation_source_name = "translation_offset_horizontal"
+                runtime_source_name = "get_destination_forward"
+                
+        ET.SubElement(blend_axis, "animation", source=animation_source_name, bounds="", limit="")
+        ET.SubElement(blend_axis, "runtime", source=runtime_source_name, bounds="", clamped="")
