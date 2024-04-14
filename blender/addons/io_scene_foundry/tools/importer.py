@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 import re
 import time
 from uuid import uuid4
@@ -139,7 +140,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
 class NWO_Import(bpy.types.Operator):
     bl_label = "Import File(s)/Folder(s)"
     bl_idname = "nwo.import"
-    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, bitmap"
+    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tag, camera_track tag"
     
     @classmethod
     def poll(cls, context):
@@ -747,11 +748,12 @@ class NWOImporter:
 
     def import_amf_file(self, path, import_size):
         # get all objects that exist prior to import
+        path = Path(path)
         pre_import_objects = bpy.data.objects[:]
         file_name = dot_partition(os.path.basename(path))
         print(f"Importing AMF: {file_name}")
         with MutePrints():
-            bpy.ops.import_scene.amf(filepath=path, import_units=import_size, marker_prefix='')
+            bpy.ops.import_scene.amf(files=[{'name': path.name}], directory=str(path.parent), import_units=import_size, marker_prefix='')
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         self.process_amf_objects(new_objects, file_name)
         
