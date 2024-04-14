@@ -25,11 +25,11 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 import bpy
 import glob
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from io_scene_foundry.utils.nwo_utils import (
-    dot_partition,
     get_asset_info,
     get_asset_path,
     get_data_path,
@@ -38,7 +38,6 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     is_corinth,
     nwo_asset_type,
-    relative_path,
     run_ek_cmd,
     update_debug_menu,
     valid_nwo_asset,
@@ -287,12 +286,12 @@ def LaunchFoundation(settings, context):
     run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 
     return {"FINISHED"}
-
-
-def get_tag_test_name():
-    project_dir = get_project_path()
-    for file in os.listdir(project_dir):
-        if file.lower().endswith("tag_test.exe"):
+        
+def get_exe(name: str):
+    project_dir = Path(get_project_path())
+    for file in project_dir.iterdir():
+        if file.suffix.lower() != ".exe": continue
+        if name in file.name:
             return file
 
 def launch_game(is_sapien, settings, filepath, asset_type):
@@ -302,7 +301,7 @@ def launch_game(is_sapien, settings, filepath, asset_type):
         update_debug_menu(asset_path, asset_name)
     # get the program to launch
     if is_sapien:
-        args = ["sapien"]
+        args = [get_exe("sapien")]
         if settings.use_play:
             args[0] += "_play"
         # Sapien needs the scenario in the launch args so adding this here
@@ -312,7 +311,7 @@ def launch_game(is_sapien, settings, filepath, asset_type):
         args.append(filepath)
         
     else:
-        tag_test_name = get_tag_test_name()
+        tag_test_name = get_exe("tag_test")
         args = [tag_test_name]
         if settings.use_play:
             args[0] = args[0].replace("_test", "_play")
