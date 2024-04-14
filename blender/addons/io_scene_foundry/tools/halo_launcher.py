@@ -301,9 +301,10 @@ def launch_game(is_sapien, settings, filepath, asset_type):
         update_debug_menu(asset_path, asset_name)
     # get the program to launch
     if is_sapien:
-        args = [get_exe("sapien")]
         if settings.use_play:
-            args[0] += "_play"
+            args = [get_exe("sapien_play")]
+        else:
+            args = [get_exe("sapien")]
         # Sapien needs the scenario in the launch args so adding this here
         if nwo_asset_type() == "SCENARIO" and settings.game_default == "asset":
             filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
@@ -311,10 +312,10 @@ def launch_game(is_sapien, settings, filepath, asset_type):
         args.append(filepath)
         
     else:
-        tag_test_name = get_exe("tag_test")
-        args = [tag_test_name]
         if settings.use_play:
-            args[0] = args[0].replace("_test", "_play")
+            args = [get_exe("tag_play")]
+        else:
+            args = [get_exe("tag_test")]
 
     os.chdir(get_project_path())
     # Write the init file
