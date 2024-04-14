@@ -39,7 +39,7 @@ class NWO_UL_AnimationComposites(bpy.types.UIList):
             layout.label(text="", translate=False, icon_value=icon)
             
 class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
-    bl_label = ""
+    bl_label = "Add Composite Animation"
     bl_idname = "nwo.animation_composite_add"
     bl_options = {'UNDO'}
     
@@ -94,7 +94,7 @@ class NWO_OT_AnimationCompositeAdd(bpy.types.Operator):
         col.prop(self, "state", text="State")
     
 class NWO_OT_AnimationCompositeRemove(bpy.types.Operator):
-    bl_label = ""
+    bl_label = "Remove Composite Animation"
     bl_idname = "nwo.animation_composite_remove"
     bl_options = {'UNDO'}
 
@@ -108,7 +108,7 @@ class NWO_OT_AnimationCompositeRemove(bpy.types.Operator):
         return {'FINISHED'}
     
 class NWO_OT_AnimationCompositeMove(bpy.types.Operator):
-    bl_label = ""
+    bl_label = "Move Composite Animation"
     bl_idname = "nwo.animation_composite_move"
     bl_options = {'UNDO'}
     
@@ -146,12 +146,12 @@ class NWO_UL_AnimationBlendAxis(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if item:
             # row.alignment = 'LEFT'
-            layout.prop(item, 'name', emboss=False, text="")
+            layout.prop(item, 'name', emboss=False, text="", icon='INDIRECT_ONLY_OFF')
         else:
             layout.label(text="", translate=False, icon_value=icon)
             
 class NWO_OT_AnimationBlendAxisAdd(bpy.types.Operator):
-    bl_label = ""
+    bl_label = "Add Blend Axis"
     bl_idname = "nwo.animation_blend_axis_add"
     bl_options = {'UNDO'}
     
@@ -182,7 +182,7 @@ class NWO_OT_AnimationBlendAxisAdd(bpy.types.Operator):
         self.layout.prop(self, 'blend_axis')
         
 class NWO_OT_AnimationBlendAxisRemove(bpy.types.Operator):
-    bl_label = ""
+    bl_label = "Remove Blend Axis"
     bl_idname = "nwo.animation_blend_axis_remove"
     bl_options = {'UNDO'}
 
@@ -196,7 +196,7 @@ class NWO_OT_AnimationBlendAxisRemove(bpy.types.Operator):
         return {'FINISHED'}
     
 class NWO_OT_AnimationBlendAxisMove(bpy.types.Operator):
-    bl_label = ""
+    bl_label = "Move Blend Axis"
     bl_idname = "nwo.animation_blend_axis_move"
     bl_options = {'UNDO'}
     
@@ -210,5 +210,139 @@ class NWO_OT_AnimationBlendAxisMove(bpy.types.Operator):
         to_index = (current_index + delta) % len(table)
         table.move(current_index, to_index)
         composite.blend_axis_active_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_UL_AnimationPhaseSet(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            layout.prop(item, 'name', emboss=False, text="", icon='PRESET')
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
+            
+class NWO_OT_AnimationPhaseSetAdd(bpy.types.Operator):
+    bl_label = "Add Animation Set"
+    bl_idname = "nwo.animation_phase_set_add"
+    bl_options = {'UNDO'}
+    
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.phase_sets
+        entry = table.add()
+        blend_axis.phase_sets_active_index = len(table) - 1
+        entry.name = f"set{blend_axis.phase_sets_active_index}"
+        context.area.tag_redraw()
+        return {'FINISHED'}
+        
+class NWO_OT_AnimationPhaseSetRemove(bpy.types.Operator):
+    bl_label = "Remove Animation Set"
+    bl_idname = "nwo.animation_phase_set_remove"
+    bl_options = {'UNDO'}
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.phase_sets
+        table.remove(blend_axis.phase_sets_active_index)
+        if blend_axis.phase_sets_active_index > len(table) - 1:
+            blend_axis.phase_sets_active_index -= 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_AnimationPhaseSetMove(bpy.types.Operator):
+    bl_label = "Move Animation Set"
+    bl_idname = "nwo.animation_phase_set_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.phase_sets
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = blend_axis.phase_sets_active_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        blend_axis.phase_sets_active_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_UL_AnimationLeaf(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            animation_name = "None"
+            if item.animation:
+                animation_name = item.animation.nwo.name_override if item.animation.nwo.name_override.strip() else item.animation.name
+            layout.label(text=animation_name, icon='ACTION')
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
+            
+class NWO_OT_AnimationLeafAdd(bpy.types.Operator):
+    bl_label = "Add Animation Source"
+    bl_idname = "nwo.animation_leaf_add"
+    bl_options = {'UNDO'}
+    
+    phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+    
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        
+        if self.phase_set:
+            parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+        else:
+            parent = blend_axis
+            
+        parent.leaves.add()
+        parent.leaves_active_index = len(parent.leaves) - 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+        
+class NWO_OT_AnimationLeafRemove(bpy.types.Operator):
+    bl_label = "Remove Animation Source"
+    bl_idname = "nwo.animation_leaf_remove"
+    bl_options = {'UNDO'}
+    
+    phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        
+        if self.phase_set:
+            parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+        else:
+            parent = blend_axis
+            
+        parent.leaves.remove(parent.leaves_active_index)
+        if parent.leaves_active_index > len(parent.leaves) - 1:
+            parent.leaves_active_index -= 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_AnimationLeafMove(bpy.types.Operator):
+    bl_label = "Move Animation Source"
+    bl_idname = "nwo.animation_leaf_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+    phase_set: bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        
+        if self.phase_set:
+            parent = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+        else:
+            parent = blend_axis
+            
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = parent.leaves_active_index
+        to_index = (current_index + delta) % len(parent.leaves)
+        parent.leaves.move(current_index, to_index)
+        parent.leaves_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}

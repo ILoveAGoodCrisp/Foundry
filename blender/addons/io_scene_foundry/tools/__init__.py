@@ -39,7 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
-from io_scene_foundry.tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites
+from io_scene_foundry.tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
 from io_scene_foundry.tools.animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
 from io_scene_foundry.tools.scenario.lightmap import NWO_OT_Lightmap
 from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
@@ -948,8 +948,9 @@ class NWO_FoundryPanelProps(Panel):
             col.use_property_split = True
             col.prop(item, "overlay")
             col.prop(item, "timing_source")
-            col.label(text="Blend Axes")
-            row = col.row()
+            box = col.box()
+            box.label(text="Blend Axes")
+            row = box.row()
             row.template_list(
                 "NWO_UL_AnimationBlendAxis",
                 "",
@@ -976,35 +977,93 @@ class NWO_FoundryPanelProps(Panel):
             col.prop(blend_axis, "runtime_source_bounds")
             col.prop(blend_axis, "runtime_source_clamped")
             col.prop(blend_axis, "adjusted")
+            self.draw_animation_leaves(col, blend_axis, False)
+            box = col.box()
+            box.label(text="Sets")
+            row = box.row()
+            row.template_list(
+                "NWO_UL_AnimationPhaseSet",
+                "",
+                blend_axis,
+                "phase_sets",
+                blend_axis,
+                "phase_sets_active_index",
+            )
+            col = row.column(align=True)
+            col.operator("nwo.animation_phase_set_add", text="", icon="ADD")
+            col.operator("nwo.animation_phase_set_remove", icon="REMOVE", text="")
+            col.separator()
+            col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_UP").direction = 'up'
+            col.operator("nwo.animation_phase_set_move", icon="TRIA_DOWN", text="").direction = 'down'
+            if blend_axis.phase_sets and blend_axis.phase_sets_active_index > -1:
+                phase_set = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+                col = box.column()
+                col.use_property_split = True
+                col.prop(phase_set, "name")
+                col.prop(phase_set, "priority")
+                col.label(text="Keys")
+                grid = col.grid_flow()
+                grid.prop(phase_set, 'key_primary_keyframe')
+                grid.prop(phase_set, 'key_secondary_keyframe')
+                grid.prop(phase_set, 'key_tertiary_keyframe')
+                grid.prop(phase_set, 'key_left_foot')
+                grid.prop(phase_set, 'key_right_foot')
+                grid.prop(phase_set, 'key_body_impact')
+                grid.prop(phase_set, 'key_left_foot_lock')
+                grid.prop(phase_set, 'key_left_foot_unlock')
+                grid.prop(phase_set, 'key_right_foot_lock')
+                grid.prop(phase_set, 'key_right_foot_unlock')
+                grid.prop(phase_set, 'key_blend_range_marker')
+                grid.prop(phase_set, 'key_stride_expansion')
+                grid.prop(phase_set, 'key_stride_contraction')
+                grid.prop(phase_set, 'key_ragdoll_keyframe')
+                grid.prop(phase_set, 'key_drop_weapon_keyframe')
+                grid.prop(phase_set, 'key_match_a')
+                grid.prop(phase_set, 'key_match_b')
+                grid.prop(phase_set, 'key_match_c')
+                grid.prop(phase_set, 'key_match_d')
+                grid.prop(phase_set, 'key_jetpack_closed')
+                grid.prop(phase_set, 'key_jetpack_open')
+                grid.prop(phase_set, 'key_sound_event')
+                grid.prop(phase_set, 'key_effect_event')
+                
+                self.draw_animation_leaves(col, phase_set, True)
             
-    # def draw_animation_leaves(self, col: bpy.types.UILayout, blend_axis):
-    #     col.label(text="Animations")
-    #     row = col.row()
-    #     row.template_list(
-    #         "NWO_UL_AnimationLeaves",
-    #         "",
-    #         blend_axis,
-    #         "leaves",
-    #         blend_axis,
-    #         "leaves_active_index",
-    #     )
-    #     col = row.column(align=True)
-    #     col.operator("nwo.animation_leaf_add", text="", icon="ADD")
-    #     col.operator("nwo.animation_leaf_remove", icon="REMOVE", text="")
-    #     col.separator()
-    #     col.operator("nwo.animation_leaf_move", text="", icon="TRIA_UP").direction = 'up'
-    #     col.operator("nwo.animation_leaf_move", icon="TRIA_DOWN", text="").direction = 'down'
-    #     if blend_axis.leaves and blend_axis.leaves_active_index > -1:
-    #         leaf = blend_axis.leaves[blend_axis.leaves_active_index]
-    #         col = col.column()
-    #         col.use_property_split = True
-    #         col.prop(leaf, "animation")
-    #         col.prop(leaf, "uses_move_speed")
-    #         if leaf.use_move_speed:
-    #             col.prop(leaf, "move_speed")
-    #         col.prop(leaf, "uses_move_angle")
-    #         if leaf.uses_move_angle:
-    #             col.prop(leaf, "move_angle")
+            
+    def draw_animation_leaves(self,col: bpy.types.UILayout, parent, in_set):
+        box = col.box()
+        name = "Set Animations" if in_set else "Blend Axis Animations"
+        box.label(text=name)
+        row = box.row()
+        row.template_list(
+            "NWO_UL_AnimationLeaf",
+            "",
+            parent,
+            "leaves",
+            parent,
+            "leaves_active_index",
+        )
+        col = row.column(align=True)
+        col.operator("nwo.animation_leaf_add", text="", icon="ADD").phase_set = in_set
+        col.operator("nwo.animation_leaf_remove", icon="REMOVE", text="").phase_set = in_set
+        col.separator()
+        move_up = col.operator("nwo.animation_leaf_move", text="", icon="TRIA_UP")
+        move_up.direction = 'up'
+        move_up.phase_set = in_set
+        move_down = col.operator("nwo.animation_leaf_move", icon="TRIA_DOWN", text="")
+        move_down.direction = 'down'
+        move_down.phase_set = in_set
+        if parent.leaves and parent.leaves_active_index > -1:
+            leaf = parent.leaves[parent.leaves_active_index]
+            col = box.column()
+            col.use_property_split = True
+            col.prop(leaf, "animation")
+            col.prop(leaf, "uses_move_speed")
+            if leaf.uses_move_speed:
+                col.prop(leaf, "move_speed")
+            col.prop(leaf, "uses_move_angle")
+            if leaf.uses_move_angle:
+                col.prop(leaf, "move_angle")
     
     def draw_rig_ui(self, context, nwo):
         box = self.box.box()
@@ -5374,6 +5433,14 @@ classeshalo = (
     NWO_OT_AnimationCompositeAdd,
     NWO_OT_AnimationCompositeRemove,
     NWO_OT_AnimationCompositeMove,
+    NWO_UL_AnimationPhaseSet,
+    NWO_OT_AnimationPhaseSetAdd,
+    NWO_OT_AnimationPhaseSetRemove,
+    NWO_OT_AnimationPhaseSetMove,
+    NWO_UL_AnimationLeaf,
+    NWO_OT_AnimationLeafAdd,
+    NWO_OT_AnimationLeafRemove,
+    NWO_OT_AnimationLeafMove,
 )
 
 def register():

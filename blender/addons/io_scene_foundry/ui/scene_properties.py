@@ -76,14 +76,15 @@ class NWO_AnimationCopiesItems(PropertyGroup):
 class NWO_AnimationLeavesItems(PropertyGroup):
     animation: PointerProperty(name="Animation", type=bpy.types.Action)
     uses_move_speed: BoolProperty(name="Uses Move Speed", options=set())
-    move_speed: bpy.props.FloatProperty(name="Move Speed", options=set())
+    move_speed: bpy.props.FloatProperty(name="Move Speed", options=set(), min=0, max=1, subtype='FACTOR')
     uses_move_angle: BoolProperty(name="Uses Move Angle", options=set())
-    move_angle: bpy.props.FloatProperty(name="Move Angle", options=set(), subtype='ANGLE')
+    move_angle: bpy.props.FloatProperty(name="Move Angle", options=set(), subtype='ANGLE', min=0, max=radians(360))
     
 class NWO_AnimationPhaseSetsItems(PropertyGroup):
     name: StringProperty(name="Name", options=set())
     priority: EnumProperty(
         name="Priority",
+        options=set(),
         items=[
             ("default", "Default", ""),
             ("current", "Current", ""),
@@ -97,26 +98,26 @@ class NWO_AnimationPhaseSetsItems(PropertyGroup):
     key_primary_keyframe: BoolProperty(name="Primary Keyframe", options=set())
     key_secondary_keyframe: BoolProperty(name="Secondary Keyframe", options=set())
     key_tertiary_keyframe: BoolProperty(name="Tertiary Keyframe", options=set())
-    key_left_foot: BoolProperty(name="", options=set())
-    key_right_foot: BoolProperty(name="", options=set())
-    key_body_impact: BoolProperty(name="", options=set())
-    key_left_foot_lock: BoolProperty(name="", options=set())
-    key_left_foot_unlock: BoolProperty(name="", options=set())
-    key_right_foot_lock: BoolProperty(name="", options=set())
-    key_right_foot_unlock: BoolProperty(name="", options=set())
-    key_blend_range_marker: BoolProperty(name="", options=set())
-    key_stride_expansion: BoolProperty(name="", options=set())
-    key_stride_contraction: BoolProperty(name="", options=set())
-    key_ragdoll_keyframe: BoolProperty(name="", options=set())
-    key_drop_weapon_keyframe: BoolProperty(name="", options=set())
-    key_match_a: BoolProperty(name="", options=set())
-    key_match_b: BoolProperty(name="", options=set())
-    key_match_c: BoolProperty(name="", options=set())
-    key_match_d: BoolProperty(name="", options=set())
-    key_jetpack_closed: BoolProperty(name="", options=set())
-    key_jetpack_open: BoolProperty(name="", options=set())
-    key_sound_event: BoolProperty(name="", options=set())
-    key_effect_event: BoolProperty(name="", options=set())
+    key_left_foot: BoolProperty(name="Left Foot", options=set())
+    key_right_foot: BoolProperty(name="Right Foot", options=set())
+    key_body_impact: BoolProperty(name="Body Impact", options=set())
+    key_left_foot_lock: BoolProperty(name="Left Foot Lock", options=set())
+    key_left_foot_unlock: BoolProperty(name="Left Foot Unlock", options=set())
+    key_right_foot_lock: BoolProperty(name="Right Foot Lock", options=set())
+    key_right_foot_unlock: BoolProperty(name="Right Foot Unlock", options=set())
+    key_blend_range_marker: BoolProperty(name="Blend Range Marker", options=set())
+    key_stride_expansion: BoolProperty(name="Stride Expansion", options=set())
+    key_stride_contraction: BoolProperty(name="Stride Contraction", options=set())
+    key_ragdoll_keyframe: BoolProperty(name="Ragdoll Keyframe", options=set())
+    key_drop_weapon_keyframe: BoolProperty(name="Drop Weapon Keyframe", options=set())
+    key_match_a: BoolProperty(name="Match A", options=set())
+    key_match_b: BoolProperty(name="Match B", options=set())
+    key_match_c: BoolProperty(name="Match C", options=set())
+    key_match_d: BoolProperty(name="Match D", options=set())
+    key_jetpack_closed: BoolProperty(name="Jetpack Closed", options=set())
+    key_jetpack_open: BoolProperty(name="Jetpack Open", options=set())
+    key_sound_event: BoolProperty(name="Sound Event", options=set())
+    key_effect_event: BoolProperty(name="Effect Event", options=set())
 
 class NWO_AnimationBlendAxisItems(PropertyGroup):
     name: EnumProperty(
@@ -133,7 +134,7 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     
     animation_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
     animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
-    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), subtype='ANGLE', min=radians(0), max=radians(360))
+    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), subtype='ANGLE', min=0, max=radians(360))
     
     runtime_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
     runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
