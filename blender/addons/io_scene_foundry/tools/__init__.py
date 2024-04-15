@@ -1805,7 +1805,7 @@ class NWO_FoundryPanelProps(Panel):
                     )
                     row.operator_menu_enum("nwo.get_model_variants", "variant", icon="DOWNARROW_HLT", text="")
                     if h4:
-                        col.prop(nwo, "marker_game_instance_run_scripts_ui")
+                        col.prop(nwo, "marker_always_run_scripts_ui")
 
             if nwo.marker_type_ui == "_connected_geometry_marker_type_hint":
                 row = col.row(align=True)

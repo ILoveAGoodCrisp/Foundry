@@ -1988,7 +1988,7 @@ class PrepareScene:
                 else:
                     nwo.marker_game_instance_tag_variant_name = (nwo.marker_game_instance_tag_variant_name_ui)
                     if h4:
-                        nwo.marker_game_instance_run_scripts = bool_str(nwo.marker_game_instance_run_scripts_ui)
+                        nwo.marker_always_run_scripts = bool_str(nwo.marker_always_run_scripts_ui)
             
             elif marker_type == "_connected_geometry_marker_type_envfx":
                 nwo.marker_looping_effect = nwo.marker_looping_effect_ui
@@ -2855,8 +2855,8 @@ class PrepareScene:
         node_halo.marker_game_instance_tag_variant_name = (
             ob_halo.marker_game_instance_tag_variant_name
         )
-        node_halo.marker_game_instance_run_scripts = (
-            ob_halo.marker_game_instance_run_scripts
+        node_halo.marker_always_run_scripts = (
+            ob_halo.marker_always_run_scripts
         )
         node_halo.marker_sphere_radius = ob_halo.marker_sphere_radius
 
@@ -3276,7 +3276,7 @@ def reset_export_props(nwo):
     nwo.marker_all_regions = ""
     nwo.marker_game_instance_tag_name = ""
     nwo.marker_game_instance_tag_variant_name = ""
-    nwo.marker_game_instance_run_scripts = ""
+    nwo.marker_always_run_scripts = ""
     nwo.marker_hint_length = ""
     nwo.marker_sphere_radius = ""
     nwo.marker_velocity = ""

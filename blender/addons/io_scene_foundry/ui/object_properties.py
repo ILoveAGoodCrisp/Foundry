@@ -1648,7 +1648,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Define the name of the marker game instance tag variant",
     )
 
-    marker_game_instance_run_scripts_ui: BoolProperty(
+    marker_always_run_scripts_ui: BoolProperty(
         name="Always Run Scripts",
         options=set(),
         description="Tells this game instance object to always run scripts if it has any",
@@ -2126,7 +2126,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     marker_all_regions: StringProperty()
     marker_game_instance_tag_name: StringProperty()
     marker_game_instance_tag_variant_name: StringProperty()
-    marker_game_instance_run_scripts: StringProperty()
+    marker_always_run_scripts: StringProperty()
     marker_hint_length: StringProperty()
     marker_sphere_radius: StringProperty()
     marker_velocity: StringProperty()
