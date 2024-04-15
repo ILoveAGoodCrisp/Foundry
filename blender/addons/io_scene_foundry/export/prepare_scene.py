@@ -1671,6 +1671,9 @@ class PrepareScene:
         elif mesh_type == "_connected_geometry_mesh_type_water_surface":
             nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
             
+        elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
+            nwo.face_mode = '_connected_geometry_face_mode_render_only'
+            
         elif mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
             nwo.fog_appearance_tag = nwo.fog_appearance_tag_ui
             nwo.fog_volume_depth = jstr(nwo.fog_volume_depth_ui)

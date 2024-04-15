@@ -820,7 +820,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     nwo_enum(
                         "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
                         "Rain Sheet",
-                        "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
+                        "Hand placed rain",
                         "rain_sheet",
                         index,
                     )

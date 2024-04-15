@@ -36,7 +36,6 @@ import bpy
 import platform
 from mathutils import Matrix, Vector, Quaternion
 import os
-from os.path import exists as file_exists
 from subprocess import Popen, check_call
 import random
 import xml.etree.ElementTree as ET
