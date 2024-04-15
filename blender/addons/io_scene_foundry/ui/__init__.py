@@ -137,7 +137,7 @@ from .animation_ui import (
     NWO_List_Remove_Animation_Rename,
 )
 
-from .scene_properties import NWO_AnimationBlendAxisItems, NWO_AnimationCompositesItems, NWO_AnimationCopiesItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_BSP_ListItems, NWO_ControlObjects, NWO_GlobalMaterial_ListItems, NWO_IKChain, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup, NWO_ZoneSets_ListItems
+from .scene_properties import NWO_AnimationBlendAxisItems, NWO_AnimationCompositesItems, NWO_AnimationCopiesItems, NWO_AnimationDeadZonesItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_BSP_ListItems, NWO_ControlObjects, NWO_GlobalMaterial_ListItems, NWO_IKChain, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup, NWO_ZoneSets_ListItems
 
 from .scene_ui import NWO_AddIKChain, NWO_AssetMaker, NWO_MoveIKChain, NWO_OT_BatchAddObjectControls, NWO_OT_BatchRemoveObjectControls, NWO_OT_ClearAsset, NWO_OT_RegisterIcons, NWO_OT_RemoveObjectControl, NWO_OT_SelectObjectControl, NWO_RemoveIKChain, NWO_UL_IKChain, NWO_UL_ObjectControls, NWO_UL_Permutations, NWO_UL_Regions
 
@@ -332,6 +332,7 @@ classes_nwo = (
     NWO_Project_ListItems,
     NWO_AnimationLeavesItems,
     NWO_AnimationPhaseSetsItems,
+    NWO_AnimationDeadZonesItems,
     NWO_AnimationBlendAxisItems,
     NWO_AnimationCompositesItems,
     NWO_AnimationCopiesItems,

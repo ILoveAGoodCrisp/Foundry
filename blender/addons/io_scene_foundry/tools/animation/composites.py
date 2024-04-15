@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import degrees
 from pathlib import Path
 import bpy
 
@@ -32,6 +33,31 @@ from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.utils import nwo_utils
 import xml.etree.cElementTree as ET
 import xml.dom.minidom
+
+keys = ("primary_keyframe",
+        "secondary_keyframe",
+        "tertiary_keyframe",
+        "left_foot",
+        "right_foot",
+        "body_impact",
+        "left_foot_lock",
+        "left_foot_unlock",
+        "right_foot_lock",
+        "right_foot_unlock",
+        "blend_range_marker",
+        "stride_expansion",
+        "stride_contraction",
+        "ragdoll_keyframe",
+        "drop_weapon_keyframe",
+        "match_a",
+        "match_b",
+        "match_c",
+        "match_d",
+        "jetpack_closed",
+        "jetpack_open",
+        "sound_event",
+        "effect_event",
+        )
 
 class NWO_UL_AnimationComposites(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
@@ -127,23 +153,6 @@ class NWO_OT_AnimationCompositeMove(bpy.types.Operator):
         nwo.animation_composites_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
-    
-def create_template_composite_xml(name: str, preset: str):
-    name = name.split()[-1]
-    asset_dir, asset_name = nwo_utils.get_asset_info()
-    composite_dir = Path(nwo_utils.get_tags_path(), asset_dir, asset_name, "animations", "composites")
-    if not composite_dir.exists():
-        composite_dir.mkdir(parents=True, exist_ok=True)
-    
-    composite_file = Path(composite_dir, name).with_suffix(".composite.xml")
-    if not composite_file.exists():
-        
-        template_composite_file = Path(nwo_utils.addon_root(), "composites", preset).with_suffix(".composite.xml")
-        with open(template_composite_file, 'r') as template_file:
-            template_data = template_file.read()
-            
-        with open(composite_file, 'w') as file:
-            file.write(template_data)
             
 class NWO_UL_AnimationBlendAxis(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
@@ -213,6 +222,62 @@ class NWO_OT_AnimationBlendAxisMove(bpy.types.Operator):
         to_index = (current_index + delta) % len(table)
         table.move(current_index, to_index)
         composite.blend_axis_active_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_UL_AnimationDeadZone(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if item:
+            layout.prop(item, 'name', emboss=False, text="", icon='CON_OBJECTSOLVER')
+        else:
+            layout.label(text="", translate=False, icon_value=icon)
+            
+class NWO_OT_AnimationDeadZoneAdd(bpy.types.Operator):
+    bl_label = "Add Animation Set"
+    bl_idname = "nwo.animation_dead_zone_add"
+    bl_options = {'UNDO'}
+    
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.dead_zones
+        entry = table.add()
+        blend_axis.dead_zones_active_index = len(table) - 1
+        entry.name = f"dead_zone{blend_axis.dead_zones_active_index}"
+        context.area.tag_redraw()
+        return {'FINISHED'}
+        
+class NWO_OT_AnimationDeadZoneRemove(bpy.types.Operator):
+    bl_label = "Remove Animation Set"
+    bl_idname = "nwo.animation_dead_zone_remove"
+    bl_options = {'UNDO'}
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.dead_zones
+        table.remove(blend_axis.dead_zones_active_index)
+        if blend_axis.dead_zones_active_index > len(table) - 1:
+            blend_axis.dead_zones_active_index -= 1
+        context.area.tag_redraw()
+        return {'FINISHED'}
+    
+class NWO_OT_AnimationDeadZoneMove(bpy.types.Operator):
+    bl_label = "Move Animation Set"
+    bl_idname = "nwo.animation_dead_zone_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        composite = context.scene.nwo.animation_composites[context.scene.nwo.animation_composites_active_index]
+        blend_axis = composite.blend_axis[composite.blend_axis_active_index]
+        table = blend_axis.dead_zones
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = blend_axis.dead_zones_active_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        blend_axis.dead_zones_active_index = to_index
         context.area.tag_redraw()
         return {'FINISHED'}
     
@@ -355,19 +420,38 @@ class CompositeXML:
         self.data = data
         
     def build_xml(self):
-        encoding = "utf-8"
-        self.composite = ET.Element("composite")
+        element_composite = ET.Element("composite")
         timing_action = self.data.timing_source
         timing_name = timing_action.nwo.name_override
-        ET.SubElement(self.composite, "timing", source=timing_name)
-        for item in self.data.blend_axis:
-            self.write_blend_axis_entry(item)
+        ET.SubElement(element_composite, "timing", source=timing_name)
+        for blend_axis in self.data.blend_axis:
+            self.write_blend_axis_entry(element_composite, blend_axis)
+            
+        dom = xml.dom.minidom.parseString(ET.tostring(element_composite))
+        xml_string = dom.toprettyxml(indent="  ")
+        part1, part2 = xml_string.split("?>")
+        m_encoding = "utf-8"
+        asset_dir = nwo_utils.get_asset_path()
+        composites_dir = Path(asset_dir, "animations", "composites")
+        composites_dir_full_path = Path(nwo_utils.get_data_path(), composites_dir)
+        if not composites_dir_full_path.exists():
+            composites_dir_full_path.mkdir(parents=True, exist_ok=True)
+        relative_path = Path(composites_dir, self.data.name.replace(" ", "_")).with_suffix(".composite.xml")
+        full_path = Path(nwo_utils.get_data_path(), relative_path)
+        with open(full_path, "w") as xfile:
+            xfile.write(
+                part1
+                + 'encoding="{}"?>'.format(m_encoding)
+                + part2
+            )
+            
+        return str(relative_path)
         
-    def write_blend_axis_entry(self, item):
-        blend_axis = ET.SubElement(self.composite, "blend_axis", name=item.name)
+    def write_blend_axis_entry(self, element_composite, blend_axis):
+        element_blend_axis = ET.SubElement(element_composite, "blend_axis", name=blend_axis.name)
         animation_source_name = ""
         runtime_source_name = ""
-        match item.name:
+        match blend_axis.name:
             case "movement_angles":
                 animation_source_name = "linear_movement_angle"
                 runtime_source_name = "get_move_angle"
@@ -384,5 +468,37 @@ class CompositeXML:
                 animation_source_name = "translation_offset_horizontal"
                 runtime_source_name = "get_destination_forward"
                 
-        ET.SubElement(blend_axis, "animation", source=animation_source_name, bounds="", limit="")
-        ET.SubElement(blend_axis, "runtime", source=runtime_source_name, bounds="", clamped="")
+        ET.SubElement(element_blend_axis, "animation", source=animation_source_name, bounds=self.two_vector_string(blend_axis.animation_source_bounds), limit=str(int(blend_axis.animation_source_limit)))
+        ET.SubElement(element_blend_axis, "runtime", source=runtime_source_name, bounds=self.two_vector_string(blend_axis.runtime_source_bounds), clamped=str(blend_axis.runtime_source_clamped).lower())
+        if blend_axis.adjusted != "none":
+            ET.SubElement(element_blend_axis, "adjustment", rate=blend_axis.adjusted)
+            
+        for dead_zone in blend_axis.dead_zones:
+            ET.SubElement(element_blend_axis, "dead_zone", bounds=self.two_vector_string(dead_zone.bounds), rate=str(int(dead_zone.rate)))
+        
+        for leaf in blend_axis.leaves:
+            self.write_leaf_entry(element_blend_axis, leaf)
+        
+        for phase_set in blend_axis.phase_sets:
+            self.write_phase_set_entry(element_blend_axis, phase_set)
+            
+    def write_phase_set_entry(self, element_blend_axis, phase_set):
+        element_phase_set = ET.SubElement(element_blend_axis, "phase_set", name=phase_set.name)
+        for k in keys:
+            if getattr(phase_set, f"key_{k}"):
+                ET.SubElement(element_phase_set, "sync", key=k.replace("_", " "))
+                
+        for leaf in phase_set.leaves:
+            self.write_leaf_entry(element_phase_set, leaf)
+            
+    def write_leaf_entry(self, element, leaf):
+        props = {"source": leaf.animation.nwo.name_override}
+        if leaf.uses_move_speed:
+            props["get_move_speed"] = str(round(leaf.move_speed, 1))
+        if leaf.uses_move_angle:
+            props["get_move_angle"] = str(int(degrees(leaf.move_angle)))
+        ET.SubElement(element, "leaf", props)
+    
+    @staticmethod
+    def two_vector_string(vector):
+        return f"{str(int(vector[0]))},{str(int(vector[1]))}"

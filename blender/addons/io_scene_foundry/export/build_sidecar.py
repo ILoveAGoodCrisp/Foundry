@@ -31,6 +31,8 @@ import xml.etree.cElementTree as ET
 import xml.dom.minidom
 import os
 
+from io_scene_foundry.tools.animation.composites import CompositeXML
+
 from ..utils.nwo_utils import (
     data_relative,
     get_data_path,
@@ -170,7 +172,6 @@ class Sidecar:
                 + 'encoding="{}" standalone="{}"?>'.format(m_encoding, m_standalone)
                 + part2
             )
-            xfile.close()
 
     def write_header(self, metadata):
         header = ET.SubElement(metadata, "Header")
@@ -809,7 +810,15 @@ class Sidecar:
                     Type="Copy",
                     NetworkReference=item.source_name,
                 )
-                
+
+            for item in self.context.scene.nwo.animation_composites:
+                network = ET.SubElement(
+                    object,
+                    "ContentNetwork",
+                    Name=item.name,
+                    Type="CompositeOverlay" if item.overlay else "Composite",
+                    NetworkReference=write_composite_xml(item),
+                )
                 
             output = ET.SubElement(object, "OutputTagCollection")
             ET.SubElement(
@@ -826,3 +835,7 @@ class Sidecar:
     def region_active_state(self, context, region_name):
         region = context.scene.nwo.regions_table[region_name]
         return 'true' if region.active else 'false'
+    
+def write_composite_xml(composite) -> str:
+    composite_xml = CompositeXML(composite)
+    return composite_xml.build_xml()

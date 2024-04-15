@@ -119,6 +119,11 @@ class NWO_AnimationPhaseSetsItems(PropertyGroup):
     key_sound_event: BoolProperty(name="Sound Event", options=set())
     key_effect_event: BoolProperty(name="Effect Event", options=set())
 
+class NWO_AnimationDeadZonesItems(PropertyGroup):
+    name: StringProperty(name="Name")
+    bounds: bpy.props.FloatVectorProperty(name="Dead Zone Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
+    rate: bpy.props.FloatProperty(name="Dead Zone Rate", options=set(), min=0, default=90)
+
 class NWO_AnimationBlendAxisItems(PropertyGroup):
     name: EnumProperty(
         name="Type",
@@ -134,7 +139,7 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     
     animation_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
     animation_source_bounds: bpy.props.FloatVectorProperty(name="Animation Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
-    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set(), subtype='ANGLE', min=0, max=radians(360))
+    animation_source_limit: bpy.props.FloatProperty(name="Animation Source Limit", options=set())
     
     runtime_source_bounds_manual: BoolProperty(name="Animation Manual Bounds", options=set())
     runtime_source_bounds: bpy.props.FloatVectorProperty(name="Runtime Source Bounds", options=set(), size=2, subtype='COORDINATES', min=0)
@@ -154,8 +159,11 @@ class NWO_AnimationBlendAxisItems(PropertyGroup):
     leaves_active_index: IntProperty(options=set())
     leaves: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationLeavesItems)
     
+    dead_zones_active_index: IntProperty(options=set())
+    dead_zones: CollectionProperty(name="Blend Axis Dead Zones", options=set(), type=NWO_AnimationDeadZonesItems)
+    
     phase_sets_active_index: IntProperty(options=set())
-    phase_sets: CollectionProperty(name="Animations", options=set(), type=NWO_AnimationPhaseSetsItems)
+    phase_sets: CollectionProperty(name="Animation Sets", options=set(), type=NWO_AnimationPhaseSetsItems)
     
 
 class NWO_AnimationCompositesItems(PropertyGroup):

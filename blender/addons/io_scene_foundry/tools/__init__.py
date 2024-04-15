@@ -39,7 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
-from io_scene_foundry.tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
+from io_scene_foundry.tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
 from io_scene_foundry.tools.animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
 from io_scene_foundry.tools.scenario.lightmap import NWO_OT_Lightmap
 from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
@@ -977,57 +977,87 @@ class NWO_FoundryPanelProps(Panel):
             col.prop(blend_axis, "runtime_source_bounds")
             col.prop(blend_axis, "runtime_source_clamped")
             col.prop(blend_axis, "adjusted")
-            self.draw_animation_leaves(col, blend_axis, False)
-            box = col.box()
-            box.label(text="Sets")
-            row = box.row()
-            row.template_list(
-                "NWO_UL_AnimationPhaseSet",
-                "",
-                blend_axis,
-                "phase_sets",
-                blend_axis,
-                "phase_sets_active_index",
-            )
-            col = row.column(align=True)
-            col.operator("nwo.animation_phase_set_add", text="", icon="ADD")
-            col.operator("nwo.animation_phase_set_remove", icon="REMOVE", text="")
-            col.separator()
-            col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_UP").direction = 'up'
-            col.operator("nwo.animation_phase_set_move", icon="TRIA_DOWN", text="").direction = 'down'
-            if blend_axis.phase_sets and blend_axis.phase_sets_active_index > -1:
-                phase_set = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
-                col = box.column()
-                col.use_property_split = True
-                col.prop(phase_set, "name")
-                col.prop(phase_set, "priority")
-                col.label(text="Keys")
-                grid = col.grid_flow()
-                grid.prop(phase_set, 'key_primary_keyframe')
-                grid.prop(phase_set, 'key_secondary_keyframe')
-                grid.prop(phase_set, 'key_tertiary_keyframe')
-                grid.prop(phase_set, 'key_left_foot')
-                grid.prop(phase_set, 'key_right_foot')
-                grid.prop(phase_set, 'key_body_impact')
-                grid.prop(phase_set, 'key_left_foot_lock')
-                grid.prop(phase_set, 'key_left_foot_unlock')
-                grid.prop(phase_set, 'key_right_foot_lock')
-                grid.prop(phase_set, 'key_right_foot_unlock')
-                grid.prop(phase_set, 'key_blend_range_marker')
-                grid.prop(phase_set, 'key_stride_expansion')
-                grid.prop(phase_set, 'key_stride_contraction')
-                grid.prop(phase_set, 'key_ragdoll_keyframe')
-                grid.prop(phase_set, 'key_drop_weapon_keyframe')
-                grid.prop(phase_set, 'key_match_a')
-                grid.prop(phase_set, 'key_match_b')
-                grid.prop(phase_set, 'key_match_c')
-                grid.prop(phase_set, 'key_match_d')
-                grid.prop(phase_set, 'key_jetpack_closed')
-                grid.prop(phase_set, 'key_jetpack_open')
-                grid.prop(phase_set, 'key_sound_event')
-                grid.prop(phase_set, 'key_effect_event')
+            if not blend_axis.dead_zones:
+                col.operator("nwo.animation_dead_zone_add", text="Add Dead Zone", icon='CON_OBJECTSOLVER')
+            else:
+                box = col.box()
+                box.label(text="Dead Zones")
+                row = box.row()
+                row.template_list(
+                    "NWO_UL_AnimationDeadZone",
+                    "",
+                    blend_axis,
+                    "dead_zones",
+                    blend_axis,
+                    "dead_zones_active_index",
+                )
+                col = row.column(align=True)
+                col.operator("nwo.animation_dead_zone_add", text="", icon="ADD")
+                col.operator("nwo.animation_dead_zone_remove", icon="REMOVE", text="")
+                col.separator()
+                col.operator("nwo.animation_dead_zone_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("nwo.animation_dead_zone_move", icon="TRIA_DOWN", text="").direction = 'down'
+                if blend_axis.dead_zones and blend_axis.dead_zones_active_index > -1:
+                    dead_zone = blend_axis.dead_zones[blend_axis.dead_zones_active_index]
+                    col = box.column()
+                    col.use_property_split = True
+                    col.prop(dead_zone, "bounds")
+                    col.prop(dead_zone, "rate")
                 
-                self.draw_animation_leaves(col, phase_set, True)
+            self.draw_animation_leaves(col, blend_axis, False)
+            if not blend_axis.phase_sets:
+                col.operator("nwo.animation_phase_set_add", text="Add Animation Set", icon='PRESET')
+            else:
+                box = col.box()
+                box.label(text="Sets")
+                row = box.row()
+                row.template_list(
+                    "NWO_UL_AnimationPhaseSet",
+                    "",
+                    blend_axis,
+                    "phase_sets",
+                    blend_axis,
+                    "phase_sets_active_index",
+                )
+                col = row.column(align=True)
+                col.operator("nwo.animation_phase_set_add", text="", icon="ADD")
+                col.operator("nwo.animation_phase_set_remove", icon="REMOVE", text="")
+                col.separator()
+                col.operator("nwo.animation_phase_set_move", text="", icon="TRIA_UP").direction = 'up'
+                col.operator("nwo.animation_phase_set_move", icon="TRIA_DOWN", text="").direction = 'down'
+                if blend_axis.phase_sets and blend_axis.phase_sets_active_index > -1:
+                    phase_set = blend_axis.phase_sets[blend_axis.phase_sets_active_index]
+                    col = box.column()
+                    col.use_property_split = True
+                    col.prop(phase_set, "name")
+                    col.prop(phase_set, "priority")
+                    col.label(text="Keys")
+                    grid = col.grid_flow()
+                    grid.prop(phase_set, 'key_primary_keyframe')
+                    grid.prop(phase_set, 'key_secondary_keyframe')
+                    grid.prop(phase_set, 'key_tertiary_keyframe')
+                    grid.prop(phase_set, 'key_left_foot')
+                    grid.prop(phase_set, 'key_right_foot')
+                    grid.prop(phase_set, 'key_body_impact')
+                    grid.prop(phase_set, 'key_left_foot_lock')
+                    grid.prop(phase_set, 'key_left_foot_unlock')
+                    grid.prop(phase_set, 'key_right_foot_lock')
+                    grid.prop(phase_set, 'key_right_foot_unlock')
+                    grid.prop(phase_set, 'key_blend_range_marker')
+                    grid.prop(phase_set, 'key_stride_expansion')
+                    grid.prop(phase_set, 'key_stride_contraction')
+                    grid.prop(phase_set, 'key_ragdoll_keyframe')
+                    grid.prop(phase_set, 'key_drop_weapon_keyframe')
+                    grid.prop(phase_set, 'key_match_a')
+                    grid.prop(phase_set, 'key_match_b')
+                    grid.prop(phase_set, 'key_match_c')
+                    grid.prop(phase_set, 'key_match_d')
+                    grid.prop(phase_set, 'key_jetpack_closed')
+                    grid.prop(phase_set, 'key_jetpack_open')
+                    grid.prop(phase_set, 'key_sound_event')
+                    grid.prop(phase_set, 'key_effect_event')
+                    
+                    self.draw_animation_leaves(col, phase_set, True)
             
             
     def draw_animation_leaves(self,col: bpy.types.UILayout, parent, in_set):
@@ -5433,6 +5463,10 @@ classeshalo = (
     NWO_OT_AnimationCompositeAdd,
     NWO_OT_AnimationCompositeRemove,
     NWO_OT_AnimationCompositeMove,
+    NWO_UL_AnimationDeadZone,
+    NWO_OT_AnimationDeadZoneAdd,
+    NWO_OT_AnimationDeadZoneRemove,
+    NWO_OT_AnimationDeadZoneMove,
     NWO_UL_AnimationPhaseSet,
     NWO_OT_AnimationPhaseSetAdd,
     NWO_OT_AnimationPhaseSetRemove,
