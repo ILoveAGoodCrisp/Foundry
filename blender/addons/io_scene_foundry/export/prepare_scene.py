@@ -350,9 +350,9 @@ class PrepareScene:
             if os.path.exists(get_tags_path() + h2a_water):
                 self.water_surface_mat.nwo.shader_path = h2a_water
             else:
-                self.water_surface_mat.nwo.shader_path = r"environments\shared\materials\jungle\cave_water.material"
+                self.water_surface_mat.nwo.shader_path = r"levels\multi\z11_valhalla\materials\valhalla_water_river.material"
         else:
-            self.water_surface_mat.nwo.shader_path = r"levels\multi\forge_halo\shaders\water\forge_halo_ocean_water.shader_water"
+            self.water_surface_mat.nwo.shader_path = r"levels\solo\m50\shaders\water\m50_atrium_fountain_water.shader_water"
             
         # Convet all area lights to emissive planes
         area_lights = [ob for ob in export_obs if ob.type == 'LIGHT' and ob.data.type == 'AREA']
@@ -560,6 +560,12 @@ class PrepareScene:
                 
             for m in self.invalid_path_materials:
                 print_warning(f'  {m.name}')
+        
+             
+        # Build water physics
+        water_surfaces = [ob for ob in export_obs if ob.nwo.mesh_type == '_connected_geometry_mesh_type_water_surface']
+        for ob_surf in water_surfaces:
+            self.setup_water_physics(scene_coll, ob_surf, h4)
 
         # build seams
         if self.seams:
@@ -1307,6 +1313,22 @@ class PrepareScene:
             )
 
         return [ob]
+    
+    def setup_water_physics(self, scene_coll, ob_surface, h4):
+        if ob_surface.nwo.water_volume_depth_ui:
+            ob_physics = ob_surface.copy()
+            scene_coll.link(ob_physics)
+            nwo = ob_physics.nwo
+            nwo.mesh_tessellation_density = ""
+            nwo.mesh_type = "_connected_geometry_mesh_type_water_physics_volume"
+            nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
+            nwo.water_volume_flow_direction = jstr(degrees(nwo.water_volume_flow_direction_ui))
+            nwo.water_volume_flow_velocity = jstr(nwo.water_volume_flow_velocity_ui)
+            nwo.water_volume_fog_murkiness = jstr(nwo.water_volume_fog_murkiness_ui)
+            if h4:
+                nwo.water_volume_fog_color = color_rgba_str(nwo.water_volume_fog_color_ui)
+            else:
+                nwo.water_volume_fog_color = color_argb_str(nwo.water_volume_fog_color_ui)
 
     def setup_instance_proxies(self, scenario, prefab, me, h4, linked_objects, scene_coll, context):
         if scenario or prefab:
@@ -1702,16 +1724,6 @@ class PrepareScene:
             if ob.data.materials != [self.invisible_mat]:
                 ob.data.materials.clear()
                 ob.data.materials.append(self.invisible_mat)
-            
-        elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
-            nwo.water_volume_depth = jstr(nwo.water_volume_depth_ui)
-            nwo.water_volume_flow_direction = jstr(degrees(nwo.water_volume_flow_direction_ui))
-            nwo.water_volume_flow_velocity = jstr(nwo.water_volume_flow_velocity_ui)
-            nwo.water_volume_fog_murkiness = jstr(nwo.water_volume_fog_murkiness_ui)
-            if h4:
-                nwo.water_volume_fog_color = color_rgba_str(nwo.water_volume_fog_color_ui)
-            else:
-                nwo.water_volume_fog_color = color_argb_str(nwo.water_volume_fog_color_ui)
                 
         elif mesh_type == "_connected_geometry_mesh_type_lightmap_exclude":
             nwo.mesh_type = "_connected_geometry_mesh_type_obb_volume"
@@ -2063,8 +2075,6 @@ class PrepareScene:
             namespace = "fog"
         elif nwo.mesh_type == "_connected_geometry_mesh_type_boundary_surface":
             namespace = "boundary_surface"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
-            namespace = "water_physics"
         elif nwo.mesh_type == "_connected_geometry_mesh_type_poop_collision":
             namespace = "instance_collision"
         elif nwo.mesh_type == "_connected_geometry_mesh_type_poop_physics":
@@ -2665,10 +2675,10 @@ class PrepareScene:
 
         if not slots:
             # append the new material to the object
-            if nwo.mesh_type in render_mesh_types:
-                me.materials.append(self.invalid_mat)
-            elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
+            if nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
                 me.materials.append(self.water_surface_mat)
+            elif nwo.mesh_type in render_mesh_types:
+                me.materials.append(self.invalid_mat)
             else:
                 me.materials.append(self.invisible_mat)
         elif not h4:

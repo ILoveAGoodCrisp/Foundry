@@ -386,6 +386,7 @@ def true_permutation(halo):
 
 def clean_tag_path(path, file_ext=None):
     """Cleans a path and attempts to make it appropriate for reading by Tool. Can accept a file extension (without a period) to force the existing one if it exists to be replaced"""
+    path = path.strip('"\'')
     if path != "":
         path = path.lower()
         # If a file ext is provided, replace the existing one / add it
@@ -1398,8 +1399,6 @@ def get_marker_display(mesh_type):
             return 'Pathfinding Sphere', get_icon_id('pathfinding_sphere')
         case '_connected_geometry_marker_type_physics_constraint':
             return 'Physics Constraint', get_icon_id('physics_constraint')
-        case '_connected_geometry_mesh_type_water_surface':
-            return 'Water Surface', get_icon_id('water')
         case '_connected_geometry_marker_type_target':
             return 'Target', get_icon_id('target')
         case '_connected_geometry_marker_type_game_instance':

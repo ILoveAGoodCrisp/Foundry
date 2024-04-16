@@ -31,14 +31,17 @@ from ..utils.nwo_utils import (
     get_asset_info,
     get_data_path,
     get_prefs,
+    get_project_path,
     is_corinth,
     os_sep_partition,
+    restart_blender,
     valid_nwo_asset,
 )
 from .templates import NWO_PropPanel, NWO_Op
 import bpy
 from bpy.props import BoolProperty, StringProperty
 from bpy.types import Context, OperatorProperties, UIList, Menu
+from io_scene_foundry.utils import nwo_globals
 
 class NWO_RegionsContextMenu(Menu):
     bl_label = "Regions Context Menu"
@@ -191,6 +194,12 @@ class NWO_AssetMaker(NWO_Op):
             {"INFO"},
             f"Created new {nwo_scene.asset_type.title()} asset for {nwo_scene.scene_project}. Asset Name = {asset_name}",
         )
+
+        mb_path = nwo_globals.mb_path
+        if mb_path:
+            if not str(mb_path).startswith(str(get_project_path())):
+                restart_blender()
+        
         return {"FINISHED"}
 
     def draw(self, context):

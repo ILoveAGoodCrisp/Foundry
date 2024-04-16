@@ -160,7 +160,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 nwo_enum(
                     "water_surface",
                     "Water Surface",
-                    "Plane which can cut through geometry to define a water surface",
+                    "Plane which can cut through geometry to define a water surface, optionally with water physics if the depth is greater than 0. Water physics allows material effects to play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4)",
                     "water",
                     6,
                 )
@@ -169,7 +169,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 nwo_enum(
                     "water_physics",
                     "Water Physics Volume",
-                    "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume",
+                    "Plane from which a water volume is generated based on depth value. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4+)",
                     "water_physics",
                     7,
                 )

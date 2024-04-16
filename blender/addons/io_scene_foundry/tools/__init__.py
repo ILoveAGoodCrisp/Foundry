@@ -1143,7 +1143,6 @@ class NWO_FoundryPanelProps(Panel):
             grid.prop(nwo, "connected_geometry_mesh_type_soft_ceiling_visible", text="", icon_value=get_icon_id("soft_ceiling") if nwo.connected_geometry_mesh_type_soft_ceiling_visible else get_icon_id("soft_ceiling_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_soft_kill_visible", text="", icon_value=get_icon_id("soft_kill") if nwo.connected_geometry_mesh_type_soft_kill_visible else get_icon_id("soft_kill_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_slip_surface_visible", text="", icon_value=get_icon_id("slip_surface") if nwo.connected_geometry_mesh_type_slip_surface_visible else get_icon_id("slip_surface_off"), emboss=False)
-            grid.prop(nwo, "connected_geometry_mesh_type_water_physics_volume_visible", text="", icon_value=get_icon_id("water_physics") if nwo.connected_geometry_mesh_type_water_physics_volume_visible else get_icon_id("water_physics_off"), emboss=False)
             if self.h4:
                 grid.prop(nwo, "connected_geometry_mesh_type_streaming_visible", text="", icon_value=get_icon_id("streaming") if nwo.connected_geometry_mesh_type_streaming_visible else get_icon_id("streaming_off"), emboss=False)
                 grid.prop(nwo, "connected_geometry_mesh_type_lightmap_exclude_visible", text="", icon_value=get_icon_id("lightmap_exclude") if nwo.connected_geometry_mesh_type_lightmap_exclude_visible else get_icon_id("lightmap_exclude_off"), emboss=False)
@@ -1614,31 +1613,25 @@ class NWO_FoundryPanelProps(Panel):
                     "fog_volume_depth_ui",
                     text="Fog Volume Depth",
                 )
-
-            elif (
-                nwo.mesh_type_ui == "_connected_geometry_mesh_type_water_surface"
-            ):
-                col.prop(nwo, "mesh_tessellation_density_ui", text="Tessellation Density")
-
+                
             elif (
                 nwo.mesh_type_ui
                 == "_connected_geometry_mesh_type_water_physics_volume"
             ):
-                col.separator()
                 col.prop(
                     nwo,
                     "water_volume_depth_ui",
-                    text="Water Volume Depth",
+                    text="Water Depth",
                 )
                 col.prop(
                     nwo,
                     "water_volume_flow_direction_ui",
-                    text="Flow Direction",
+                    text="Water Flow Direction",
                 )
                 col.prop(
                     nwo,
                     "water_volume_flow_velocity_ui",
-                    text="Flow Velocity",
+                    text="Water Flow Velocity",
                 )
                 col.prop(
                     nwo,
@@ -1650,6 +1643,37 @@ class NWO_FoundryPanelProps(Panel):
                     "water_volume_fog_murkiness_ui",
                     text="Underwater Fog Murkiness",
                 )
+
+            elif (
+                nwo.mesh_type_ui == "_connected_geometry_mesh_type_water_surface"
+            ):
+                col.prop(nwo, "mesh_tessellation_density_ui", text="Tessellation Density")
+                col.prop(
+                    nwo,
+                    "water_volume_depth_ui",
+                    text="Water Depth",
+                )
+                if nwo.water_volume_depth_ui:
+                    col.prop(
+                        nwo,
+                        "water_volume_flow_direction_ui",
+                        text="Water Flow Direction",
+                    )
+                    col.prop(
+                        nwo,
+                        "water_volume_flow_velocity_ui",
+                        text="Water Flow Velocity",
+                    )
+                    col.prop(
+                        nwo,
+                        "water_volume_fog_color_ui",
+                        text="Underwater Fog Color",
+                    )
+                    col.prop(
+                        nwo,
+                        "water_volume_fog_murkiness_ui",
+                        text="Underwater Fog Murkiness",
+                    )
 
             elif nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_default",

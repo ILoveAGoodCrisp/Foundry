@@ -778,7 +778,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 nwo_enum(
                     "_connected_geometry_mesh_type_water_physics_volume",
                     "Water Physics",
-                    "Defines a region where water physics should apply. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4+)",
+                    "Plane from which a water volume is generated based on depth value. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4+)",
                     "water_physics",
                     index,
                 )
