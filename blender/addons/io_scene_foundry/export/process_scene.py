@@ -948,6 +948,7 @@ class ProcessScene:
         animation_events = [model_armature]
         scene_coll = context.scene.collection.objects
         for event in events:
+            if event.event_type.startswith('_connected_geometry_animation_event_type_ik') and event.ik_chain == 'none': continue
             # create the event node to store event info
             event_ob = bpy.data.objects.new('event_export_node_' + event.event_type[41:] + '_' + str(event.event_id), None)
             nwo = event_ob.nwo
