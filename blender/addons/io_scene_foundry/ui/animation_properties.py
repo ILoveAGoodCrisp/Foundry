@@ -298,6 +298,7 @@ class NWO_Animation_ListItems(PropertyGroup):
     
     def ik_chain_items(self, context):
         items = []
+        items.append(("none", "None", ''))
         valid_chains = [chain for chain in context.scene.nwo.ik_chains if chain.start_node and chain.effector_node]
         for chain in valid_chains:
             items.append((chain.name, chain.name, ''))
