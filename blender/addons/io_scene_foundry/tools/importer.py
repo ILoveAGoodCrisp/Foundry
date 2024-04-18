@@ -1089,11 +1089,21 @@ class NWOImporter:
                 ob.data.nwo.mesh_type_ui = mesh_type
                 if mesh_type == '_connected_geometry_mesh_type_structure':
                     ob.nwo.proxy_instance = True
-                if mesh_type == '_connected_geometry_mesh_type_seam':
+                elif mesh_type == '_connected_geometry_mesh_type_seam':
                     self.seams.append(ob)
 
-                if mesh_type_legacy in ('collision', 'physics'):
+                elif mesh_type_legacy in ('collision', 'physics'):
                     self.setup_collision_materials(ob, mesh_type_legacy)
+                    if mesh_type_legacy == 'physics':
+                        match ob.data.ass_jms.Object_Type:
+                            case "CAPSULES":
+                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_pill"
+                            case "SPHERE":
+                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_sphere"
+                            case "BOX":
+                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_box"
+                            case _:
+                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_none"
                     
                 if self.apply_materials:
                     apply_props_material(ob, material)
