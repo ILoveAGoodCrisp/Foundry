@@ -836,7 +836,7 @@ class NWOImporter:
                         if hint_subtype in ('right', 'left'):
                             nwo.marker_hint_side = hint_subtype
                         elif hint_subtype in ('step', 'crouch', 'stand'):
-                            nwo.marker_hint_height = hint_subtype
+                            nwo.marker_hint_height = hint_subtype#
                             
         self.amf_marker_objects.append(ob)
         
@@ -1036,6 +1036,25 @@ class NWOImporter:
             marker.nwo.marker_type_ui = '_connected_geometry_marker_type_physics_constraint'
             marker.nwo.physics_constraint_parent_ui = marker.rigid_body_constraint.object1
             marker.nwo.physics_constraint_child_ui = marker.rigid_body_constraint.object2
+            if marker.rigid_body_constraint.type == 'HINGE':
+                marker.nwo.physics_constraint_type_ui = '_connected_geometry_marker_type_physics_hinge_constraint'
+                if marker.rigid_body_constraint.use_limit_ang_z:
+                    marker.nwo.physics_constraint_uses_limits_ui = True
+                    marker.nwo.hinge_constraint_minimum_ui = marker.rigid_body_constraint.limit_ang_z_lower
+                    marker.nwo.hinge_constraint_maximum_ui = marker.rigid_body_constraint.limit_ang_z_upper
+            elif marker.rigid_body_constraint.type == 'GENERIC':
+                marker.nwo.physics_constraint_type_ui = '_connected_geometry_marker_type_physics_socket_constraint'
+                if marker.rigid_body_constraint.use_limit_ang_x or marker.rigid_body_constraint.use_limit_ang_y or marker.rigid_body_constraint.use_limit_ang_z:
+                    marker.nwo.physics_constraint_uses_limits_ui = True
+                    if marker.rigid_body_constraint.use_limit_ang_x:
+                        marker.nwo.twist_constraint_start_ui = marker.rigid_body_constraint.limit_ang_x_lower
+                        marker.nwo.twist_constraint_end_ui = marker.rigid_body_constraint.limit_ang_x_upper
+                    if marker.rigid_body_constraint.use_limit_ang_y:
+                        marker.nwo.cone_angle_ui = marker.rigid_body_constraint.limit_ang_y_upper
+                    if marker.rigid_body_constraint.use_limit_ang_z:
+                        marker.nwo.plane_constraint_minimum_ui = marker.rigid_body_constraint.limit_ang_z_lower
+                        marker.nwo.plane_constraint_maximum_ui = marker.rigid_body_constraint.limit_ang_z_upper
+                
         elif name.startswith('fx'):
             marker.nwo.marker_type_ui = '_connected_geometry_marker_type_effects'
         elif name.startswith('target'):
