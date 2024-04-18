@@ -110,7 +110,7 @@ class NWO_List_Remove_Animation_Event(Operator):
 
     @classmethod
     def poll(cls, context):
-        return bpy.data.actions and context.scene.nwo.active_action_index > -1 and len(context.object.animation_data.action.nwo.animation_events) > 0
+        return bpy.data.actions and context.scene.nwo.active_action_index > -1 and len(bpy.data.actions[context.scene.nwo.active_action_index].nwo.animation_events) > 0
 
     def execute(self, context):
         action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]

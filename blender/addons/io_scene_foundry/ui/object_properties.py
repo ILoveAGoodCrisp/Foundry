@@ -1789,42 +1789,47 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Hinge Constraint Minimum",
         options=set(),
         description="Set the minimum rotation of a physics hinge",
-        default=-180,
-        min=-180,
-        max=180,
+        subtype='ANGLE',
+        default=radians(-180),
+        min=radians(-180),
+        max=radians(180),
     )
 
     hinge_constraint_maximum_ui: FloatProperty(
         name="Hinge Constraint Maximum",
         options=set(),
-        description="Set the maximum rotation of a physics hinge",
-        default=180,
-        min=-180,
-        max=180,
+        description="Maximum rotation of a physics hinge",
+        subtype='ANGLE',
+        default=radians(180),
+        min=radians(-180),
+        max=radians(180),
     )
 
     cone_angle_ui: FloatProperty(
         name="Cone Angle",
         options=set(),
-        description="Set the cone angle",
-        default=90,
+        subtype='ANGLE',
+        description="Cone angle",
+        default=radians(90),
         min=0,
-        max=180,
+        max=radians(180),
     )
 
     plane_constraint_minimum_ui: FloatProperty(
         name="Plane Constraint Minimum",
         options=set(),
-        description="Set the minimum rotation of a physics plane",
-        default=-90,
-        min=-90,
+        description="Minimum rotation of a physics plane",
+        subtype='ANGLE',
+        default=radians(-90),
+        min=radians(-90),
         max=0,
     )
 
     plane_constraint_maximum_ui: FloatProperty(
         name="Plane Constraint Maximum",
         options=set(),
-        description="Set the maximum rotation of a physics plane",
+        description="Maximum rotation of a physics plane",
+        subtype='ANGLE',
         default=90,
         min=-0,
         max=90,
@@ -1833,19 +1838,21 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     twist_constraint_start_ui: FloatProperty(
         name="Twist Constraint Minimum",
         options=set(),
-        description="Set the starting angle of a twist constraint",
-        default=-180,
-        min=-180,
-        max=180,
+        subtype='ANGLE',
+        description="Starting angle of a twist constraint",
+        default=radians(-180),
+        min=radians(-180),
+        max=radians(180),
     )
 
     twist_constraint_end_ui: FloatProperty(
         name="Twist Constraint Maximum",
         options=set(),
-        description="Set the ending angle of a twist constraint",
-        default=180,
-        min=-180,
-        max=180,
+        description="Ending angle of a twist constraint",
+        default=radians(180),
+        subtype='ANGLE',
+        min=radians(-180),
+        max=radians(180),
     )
 
     def effect_clean_tag_path(self, context):

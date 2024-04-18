@@ -2654,7 +2654,10 @@ def add_auto_smooth(context: bpy.types.Context, ob: bpy.types.Object, angle=radi
             bpy.ops.object.modifier_apply(modifier="foundry_auto_smooth", single_user=True)
             
 def restart_blender():
-    subprocess.Popen([bpy.app.binary_path, bpy.data.filepath])
+    if bpy.data.filepath:
+        subprocess.Popen([bpy.app.binary_path, bpy.data.filepath])
+    else:
+        subprocess.Popen([bpy.app.binary_path])
     bpy.ops.wm.quit_blender()
     
 def human_time(time: float | int, decimal_seconds=False) -> str:

@@ -595,8 +595,9 @@ class NWO_MoveIKChain(bpy.types.Operator):
     
 class NWO_UL_ObjectControls(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index, flt_flag):
-        layout.label(text=item.ob.name, icon='OBJECT_DATA')
-        layout.operator("nwo.remove_object_control", text='', icon='X', emboss=False).given_index = index
+        if item.ob:
+            layout.label(text=item.ob.name, icon='OBJECT_DATA')
+            layout.operator("nwo.remove_object_control", text='', icon='X', emboss=False).given_index = index
         
 class NWO_OT_RemoveObjectControl(bpy.types.Operator):
     bl_idname = "nwo.remove_object_control"

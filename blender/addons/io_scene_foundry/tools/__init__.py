@@ -1968,8 +1968,19 @@ class NWO_FoundryPanelProps(Panel):
                         nwo.physics_constraint_type_ui
                         == "_connected_geometry_marker_type_physics_socket_constraint"
                     ):
+                        col.prop(
+                            nwo,
+                            "twist_constraint_start_ui",
+                            text="Twist Start",
+                        )
+                        col.prop(
+                            nwo,
+                            "twist_constraint_end_ui",
+                            text="Twist End",
+                        )
+                        col.separator()
                         col.prop(nwo, "cone_angle_ui", text="Cone Angle")
-
+                        col.separator()
                         col.prop(
                             nwo,
                             "plane_constraint_minimum_ui",
@@ -1981,16 +1992,6 @@ class NWO_FoundryPanelProps(Panel):
                             text="Plane Maximum",
                         )
 
-                        col.prop(
-                            nwo,
-                            "twist_constraint_start_ui",
-                            text="Twist Start",
-                        )
-                        col.prop(
-                            nwo,
-                            "twist_constraint_end_ui",
-                            text="Twist End",
-                        )
 
             # elif (
             #     nwo.marker_type_ui

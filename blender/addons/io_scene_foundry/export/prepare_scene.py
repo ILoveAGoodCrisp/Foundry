@@ -259,19 +259,6 @@ class PrepareScene:
                 print_warning('No Camera in scene, cannot export camera track')
                 raise RuntimeError
             return
-        
-        # Combine Armatures is possible
-        
-        self.model_armature = None
-        self.root_bone = ''
-        if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
-            self.model_armature = get_rig(context)
-            if self.model_armature and not self.model_armature.nwo.exportable:
-                print_warning(f'Scene Armature [{self.model_armature.name}] is set to not export. Export cancelled')
-                raise RuntimeError
-        
-            if asset_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
-                self.consolidate_rig(context, scene_nwo)
 
         # unlink non export objects
         if asset_type == "FP ANIMATION":
@@ -290,9 +277,51 @@ class PrepareScene:
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
         
-        scenario_asset = asset_type == "SCENARIO"
+        # Combine Armatures is possible
+        
+        self.model_armature = None
+        self.root_bone = ''
+        self.skeleton_bones = {}
+        if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
+            self.model_armature = get_rig(context)
+            if self.model_armature and not self.model_armature.nwo.exportable:
+                print_warning(f'Scene Armature [{self.model_armature.name}] is set to not export. Export cancelled')
+                raise RuntimeError
+        
+            if asset_type in ('MODEL', 'FP ANIMATION') and scene_nwo.main_armature and any((scene_nwo.support_armature_a, scene_nwo.support_armature_b, scene_nwo.support_armature_c)):
+                self.consolidate_rig(context, scene_nwo)
 
-        protected_names = self.get_bone_names(export_obs, context.scene.nwo)
+            if self.model_armature:
+                self.remove_relative_parenting(context, export_obs)
+
+                # set bone names equal to their name overrides (if not blank)
+                if scene_nwo_export.export_gr2_files and self.model_armature:
+                    # self.set_bone_names(self.model_armature.data.bones) NOTE no longer renaming bones
+                    root_bones = [b for b in self.model_armature.data.bones if b.use_deform and not b.parent]
+                    if len(root_bones) > 1:
+                        self.too_many_root_bones = True
+                        return
+                    self.skeleton_bones = self.get_bone_list(self.model_armature, h4, context, asset_type)
+                        
+                if self.model_armature and asset_type != "FP ANIMATION":
+                    # unlink any unparented objects from the scene
+                    for ob in export_obs:
+                        if ob is not self.model_armature and not ob.parent:
+                            old_matrix = ob.matrix_world.copy()
+                            ob.parent = self.model_armature
+                            ob.parent_type = "BONE"
+                            ob.parent_bone = self.root_bone
+                            ob.matrix_world = old_matrix
+                            
+                    context.view_layer.update()
+                    export_obs = context.view_layer.objects[:]
+                    # NOTE skipping vertex group fixes for now until it's more stable
+                    self.fix_parenting(self.model_armature, export_obs)
+        
+        scenario_asset = asset_type == "SCENARIO"
+        protected_names = []
+        if self.model_armature:
+            protected_names = self.get_bone_names(context.scene.nwo)
         # build proxy instances from structure
         if h4:
             proxy_owners = []
@@ -679,8 +708,6 @@ class PrepareScene:
         context.view_layer.update()
         export_obs = context.view_layer.objects[:]
 
-        self.skeleton_bones = {}
-
         if asset_type in ("MODEL", "SKY", "FP ANIMATION"):
             if self.lighting:
                 box = self.wrap_bounding_box(export_obs, scene_coll, 5)
@@ -694,36 +721,6 @@ class PrepareScene:
                             root_bone_name = b.name
                             break
                     ob.parent_bone = root_bone_name
-
-            if self.model_armature:
-                self.remove_relative_parenting(context, export_obs)
-
-                # set bone names equal to their name overrides (if not blank)
-                if scene_nwo_export.export_gr2_files and self.model_armature:
-                    # self.set_bone_names(self.model_armature.data.bones) NOTE no longer renaming bones
-                    root_bones = [b for b in self.model_armature.data.bones if b.use_deform and not b.parent]
-                    if len(root_bones) > 1:
-                        self.too_many_root_bones = True
-                        return
-                    self.skeleton_bones = self.get_bone_list(
-                        self.model_armature, h4, context, asset_type
-                    )
-                        
-                if self.model_armature and asset_type != "FP ANIMATION":
-                    # unlink any unparented objects from the scene
-                    for ob in export_obs:
-                        if ob is not self.model_armature and not ob.parent:
-                            old_matrix = ob.matrix_world.copy()
-                            ob.parent = self.model_armature
-                            ob.parent_type = "BONE"
-                            ob.parent_bone = self.root_bone
-                            ob.matrix_world = old_matrix
-                            
-
-                    context.view_layer.update()
-                    export_obs = context.view_layer.objects[:]
-                    # NOTE skipping vertex group fixes for now until it's more stable
-                    self.fix_parenting(self.model_armature, export_obs)
 
         # print("armature")
 
@@ -1934,7 +1931,7 @@ class PrepareScene:
 
                 elif parent is not None:
                     nwo.physics_constraint_parent = str(
-                        nwo.physics_constraint_parent_ui.name
+                        nwo.physics_constraint_parent_ui.parent_bone
                     )
                 child = nwo.physics_constraint_child_ui
                 if (
@@ -1948,18 +1945,18 @@ class PrepareScene:
 
                 elif child is not None:
                     nwo.physics_constraint_child = str(
-                        nwo.physics_constraint_child_ui.name
+                        nwo.physics_constraint_child_ui.parent_bone
                     )
                 nwo.physics_constraint_uses_limits = bool_str(
                     nwo.physics_constraint_uses_limits_ui
                 )
-                nwo.hinge_constraint_minimum = jstr(nwo.hinge_constraint_minimum_ui)
-                nwo.hinge_constraint_maximum = jstr(nwo.hinge_constraint_maximum_ui)
-                nwo.cone_angle = jstr(nwo.cone_angle_ui)
-                nwo.plane_constraint_minimum = jstr(nwo.plane_constraint_minimum_ui)
-                nwo.plane_constraint_maximum = jstr(nwo.plane_constraint_maximum_ui)
-                nwo.twist_constraint_start = jstr(nwo.twist_constraint_start_ui)
-                nwo.twist_constraint_end = jstr(nwo.twist_constraint_end_ui)
+                nwo.hinge_constraint_minimum = jstr(degrees(nwo.hinge_constraint_minimum_ui))
+                nwo.hinge_constraint_maximum = jstr(degrees(nwo.hinge_constraint_maximum_ui))
+                nwo.cone_angle = jstr(degrees(nwo.cone_angle_ui))
+                nwo.plane_constraint_minimum = jstr(degrees(nwo.plane_constraint_minimum_ui))
+                nwo.plane_constraint_maximum = jstr(degrees(nwo.plane_constraint_maximum_ui))
+                nwo.twist_constraint_start = jstr(degrees(nwo.twist_constraint_start_ui))
+                nwo.twist_constraint_end = jstr(degrees(nwo.twist_constraint_end_ui))
                 
             elif marker_type == "_connected_geometry_marker_type_target":
                 set_marker_sphere_size(ob, nwo)
@@ -2188,21 +2185,18 @@ class PrepareScene:
             scene_nwo.main_armature = arm
             return arm
     
-    def get_bone_names(self, export_obs, scene_nwo):
-        for ob in export_obs:
-            if ob.type == "ARMATURE":
-                for b in ob.data.bones:
-                    if not self.aim_pitch and (scene_nwo.node_usage_pose_blend_pitch == b.name or b.name.endswith("aim_pitch")):
-                        self.aim_pitch = b.name
-                    elif not self.aim_yaw and (scene_nwo.node_usage_pose_blend_yaw == b.name or b.name.endswith("aim_yaw")):
-                        self.aim_yaw = b.name
-                    elif not self.gun and b.name == ("b_gun"):
-                        self.gun = b.name
-                    elif not self.pedestal and b.use_deform:
-                        self.pedestal = b.name
-                return ob.data.bones
-            
-        return []
+    def get_bone_names(self, scene_nwo):
+        for b in self.model_armature.data.bones:
+            if not self.aim_pitch and (scene_nwo.node_usage_pose_blend_pitch == b.name or b.name.endswith("aim_pitch")):
+                self.aim_pitch = b.name
+            elif not self.aim_yaw and (scene_nwo.node_usage_pose_blend_yaw == b.name or b.name.endswith("aim_yaw")):
+                self.aim_yaw = b.name
+            elif not self.gun and b.name == ("b_gun"):
+                self.gun = b.name
+            elif not self.pedestal and b.use_deform:
+                self.pedestal = b.name
+        
+        return [bone.name for bone in self.model_armature.data.bones]
 
     def fix_parenting(self, model_armature, export_obs):
         bones = model_armature.data.bones
@@ -3344,13 +3338,48 @@ def transform_export_scene(context, scene_nwo) -> float:
         transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
     return scale_factor
 
+class ArmatureMod:
+    object: bpy.types.Object
+    vertex_group: bpy.types.VertexGroup
+    use_deform_preserve_volume: bool
+    use_multi_modifier: bool
+    use_vertex_groups: bool
+    use_bone_envelopes: bool
+    
+    def __init__(self, name):
+        self.name = name
+
 def to_mesh(context, objects: list[bpy.types.Object]):
     objects_to_convert = [ob for ob in objects if ob.type in ("CURVE", "SURFACE", "META", "FONT") or (ob.type == 'MESH' and ob.modifiers)]
+    armature_mod_dict = {}
+    for ob in objects_to_convert:
+        if not ob.modifiers: continue
+        armature_mod_dict[ob] = []
+        for mod in ob.modifiers:
+            if mod.type == 'ARMATURE':
+                arm_mod = ArmatureMod(mod.name)
+                arm_mod.object = mod.object
+                arm_mod.vertex_group = mod.vertex_group
+                arm_mod.use_deform_preserve_volume = mod.use_deform_preserve_volume
+                arm_mod.use_multi_modifier = mod.use_multi_modifier
+                arm_mod.use_vertex_groups = mod.use_vertex_groups
+                arm_mod.use_bone_envelopes = mod.use_bone_envelopes
+                armature_mod_dict[ob].append(arm_mod)
+                
     if objects_to_convert:
         [ob.select_set(True) for ob in objects_to_convert]
         context.view_layer.objects.active = objects_to_convert[0]
         bpy.ops.object.convert(target='MESH')
         [ob.select_set(False) for ob in objects_to_convert]
+        for ob, arm_mods in armature_mod_dict.items():
+            for arm_mod in arm_mods:
+                mod = ob.modifiers.new(name=arm_mod.name, type="ARMATURE")
+                mod.object = arm_mod.object
+                mod.vertex_group = arm_mod.vertex_group
+                mod.use_deform_preserve_volume = arm_mod.use_deform_preserve_volume
+                mod.use_multi_modifier = arm_mod.use_multi_modifier
+                mod.use_vertex_groups = arm_mod.use_vertex_groups
+                mod.use_bone_envelopes = arm_mod.use_bone_envelopes
             
 
             
