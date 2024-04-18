@@ -1452,6 +1452,7 @@ class NWOImporter:
                 layer.face_global_material_override = True
                 material_index = slot.slot_index
                 layer.layer_name, layer.face_count = self.add_collision_face_layer(ob.data, material_index, layer.layer_name)
+                layer.layer_color = random_color()
                 
     def add_collision_face_layer(self, mesh, material_index, prefix):
         bm = bmesh.new()
