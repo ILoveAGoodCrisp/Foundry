@@ -93,6 +93,7 @@ class NWO_DeleteAnimation(bpy.types.Operator):
         if action:
             name = str(action.name)
             bpy.data.actions.remove(action)
+            reset_to_basis(context)
             self.report({"INFO"}, f"Deleted animation: {name}")
             
         new_action_index = len(bpy.data.actions) - 1 if current_action_index >= len(bpy.data.actions) else current_action_index

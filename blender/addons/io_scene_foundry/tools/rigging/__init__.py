@@ -133,7 +133,6 @@ class HaloRig:
             con.use_y = False
             con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
-            
     
     def build_bones(self, pedestal=None, pitch=None, yaw=None, build_pedestal_control=True, build_aim_control=True):
         bone_tail = globals()[f"bone_{self.forward.replace('-', '_negative')}"]
@@ -151,7 +150,7 @@ class HaloRig:
             pedestal_control.use_deform = False
             pedestal_control.tail = bone_tail
             if self.set_scene_rig_props:
-                self.context.scene.nwo.control_pedestal = pedestal_name
+                self.context.scene.nwo.control_pedestal = pedestal_control_name
             
         if self.has_pose_bones:
             if pitch is None:
