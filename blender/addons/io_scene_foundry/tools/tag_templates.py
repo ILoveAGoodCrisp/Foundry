@@ -27,6 +27,7 @@
 from pathlib import Path
 import bpy
 import os
+from io_scene_foundry.managed_blam.model import ModelTag
 from io_scene_foundry.managed_blam.object import ObjectTag
 from io_scene_foundry.utils import nwo_utils
 
@@ -60,8 +61,13 @@ class NWO_OT_LoadTemplate(bpy.types.Operator):
         tag_path = str(Path(asset_dir, asset_name).with_suffix(tag_ext))
         full_path = Path(nwo_utils.get_tags_path(), tag_path)
         nwo_utils.copy_file(template_full_path, full_path)
-        with ObjectTag(path=tag_path) as tag:
-            tag.set_model_tag_path(str(Path(asset_dir, asset_name).with_suffix(".model")))
+        if self.tag_type == 'model':
+            with ModelTag(path=tag_path) as model:
+                model.set_asset_paths()
+                model.set_model_overrides(context.scene.nwo.render_model_path, context.scene.nwo.collision_model_path, context.scene.nwo.animation_graph_path, context.scene.nwo.physics_model_path)
+        else:
+            with ObjectTag(path=tag_path) as tag:
+                tag.set_model_tag_path(str(Path(asset_dir, asset_name).with_suffix(".model")))
         return {"FINISHED"}
     
     def invoke(self, context, event):

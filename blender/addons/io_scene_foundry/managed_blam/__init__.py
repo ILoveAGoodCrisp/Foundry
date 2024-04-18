@@ -295,8 +295,7 @@ class Tag():
     
     def _tag_exists(self, path: str) -> bool:
         """Returns true if a tag given by the supplied relative path exists"""
-        relative_path = path.replace(self.tags_dir, '')
-        return os.path.exists(self.tags_dir + relative_path)
+        return Path(self.tags_dir, relative_path(path)).exists()
     
     def _EnumItems(self, element, field_name: str) -> list:
         field = element.SelectField(field_name)

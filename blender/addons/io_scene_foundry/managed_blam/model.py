@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from pathlib import Path
 from io_scene_foundry.managed_blam import Tag
 
 class ModelTag(Tag):
@@ -52,4 +53,30 @@ class ModelTag(Tag):
             
     def get_model_variants(self):
         return [v.SelectField("name").GetStringData() for v in self.block_variants.Elements]
+    
+    def set_asset_paths(self):
+        asset_render_model = Path(self.asset_dir, self.asset_name).with_suffix(".render_model")
+        if self._tag_exists(asset_render_model):
+            self.reference_render_model.Path = self._TagPath_from_string(asset_render_model)
+        else:
+            self.reference_render_model.Path = None
         
+        asset_collision_model = Path(self.asset_dir, self.asset_name).with_suffix(".collision_model")
+        if self._tag_exists(asset_collision_model):
+            self.reference_collision_model.Path = self._TagPath_from_string(asset_collision_model)
+        else:
+            self.reference_collision_model.Path = None
+        
+        asset_model_animation_graph = Path(self.asset_dir, self.asset_name).with_suffix(".model_animation_graph")
+        if self._tag_exists(asset_model_animation_graph):
+            self.reference_animation.Path = self._TagPath_from_string(asset_model_animation_graph)
+        else:
+            self.reference_animation.Path = None
+        
+        asset_physics_model = Path(self.asset_dir, self.asset_name).with_suffix(".physics_model")
+        if self._tag_exists(asset_physics_model):
+            self.reference_physics_model.Path = self._TagPath_from_string(asset_physics_model)
+        else:
+            self.reference_physics_model.Path = None
+            
+        self.tag_has_changes = True

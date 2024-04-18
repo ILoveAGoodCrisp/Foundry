@@ -288,8 +288,9 @@ def get_asset_path():
     asset_path = os_sep_partition(relative_path(bpy.context.scene.nwo_halo_launcher.sidecar_path))
     return asset_path
 
-def relative_path(path: str):
+def relative_path(path: str | Path):
     """Gets the tag/data relative path of the given filepath"""
+    path = str(path)
     tags_path = get_tags_path()
     data_path = get_data_path()
     if path.lower().startswith(tags_path):
