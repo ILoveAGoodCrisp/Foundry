@@ -579,7 +579,7 @@ class ProcessScene:
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_post_import_tasks(context, context.scene.nwo, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations, setup_scenario)
+                    self.managed_blam_post_import_tasks(context, context.scene.nwo, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations, sidecar.pose_overlays, setup_scenario)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -869,7 +869,7 @@ class ProcessScene:
             with ScenarioTag(hide_prints=True) as scenario:
                 scenario.tag.SelectField('type').SetValue(scene_nwo.scenario_type)
 
-    def managed_blam_post_import_tasks(self, context, scene_nwo, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, setup_scenario):
+    def managed_blam_post_import_tasks(self, context, scene_nwo, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, pose_overlays, setup_scenario):
         nwo = context.scene.nwo
         model_sky = asset_type in ('MODEL', 'SKY')
         model = asset_type == 'MODEL'
@@ -894,9 +894,12 @@ class ProcessScene:
                 model.set_model_overrides(nwo.render_model_path, nwo.collision_model_path, nwo.animation_graph_path, nwo.physics_model_path)
             # print("--- Applied Model Overrides")
             
-        if reach_world_animations:
-            with AnimationTag(hide_prints=True) as animation:
-                animation.set_world_animations(reach_world_animations)
+        if reach_world_animations or pose_overlays:
+            with AnimationTag(hide_prints=False) as animation:
+                if reach_world_animations:
+                    animation.set_world_animations(reach_world_animations)
+                if pose_overlays:
+                    animation.setup_blend_screens(pose_overlays)
             # print("--- Setup World Animations")
             
         if setup_scenario:

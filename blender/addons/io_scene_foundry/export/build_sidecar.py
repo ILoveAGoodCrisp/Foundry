@@ -42,6 +42,7 @@ from ..utils.nwo_utils import (
 class Sidecar:
     def __init__(self, asset_path, asset_name, asset_type, context):
         self.reach_world_animations = set()
+        self.pose_overlays = set()
         self.tag_path = data_relative(os.path.join(asset_path, asset_name))
         self.asset_path = asset_path
         self.asset_name = asset_name
@@ -752,6 +753,7 @@ class Sidecar:
                     network_attribs['ModelAnimationOverlayBlending'] = "Additive"
                     if pose_overlay:
                         network_attribs['ModelAnimationOverlayType'] = "Pose"
+                        self.pose_overlays.add(path[3].replace(' ', ':'))
                     else:
                         network_attribs['ModelAnimationOverlayType'] = "Keyframe"
                 elif a_type == 'world' and is_corinth():

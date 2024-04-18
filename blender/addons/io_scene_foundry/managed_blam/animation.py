@@ -29,6 +29,9 @@ import bpy
 from io_scene_foundry.utils.nwo_utils import relative_path
 from io_scene_foundry.managed_blam import Tag
 
+class BlendScreen:
+    name: str
+
 class AnimationTag(Tag):
     tag_ext = 'model_animation_graph'
 
@@ -38,6 +41,7 @@ class AnimationTag(Tag):
         self.block_node_usages = self.tag.SelectField("definitions[0]/Block:node usage")
         self.block_modes = self.tag.SelectField("Struct:content[0]/Block:modes")
         self.block_ik_chains = self.tag.SelectField('Struct:definitions[0]/Block:ik chains')
+        self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
         
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').SetStringData('6')
@@ -230,3 +234,54 @@ class AnimationTag(Tag):
         path = self.tag.SelectField("Struct:definitions[0]/Reference:parent animation graph").Path
         if path:
             return path.RelativePathWithExtension
+        
+    def _get_animation_name_from_index(self, index):
+        if index > self.block_animations.Elements.Count - 1:
+            return ""
+        element = self.block_animations.Elements[index]
+        return element.SelectField("name").GetStringData()
+    
+    def _get_animation_index_from_name(self, name):
+        for element in self.block_animations.Elements:
+            if element.SelectField("name").GetStringData() == name:
+                return element.ElementIndex
+        
+        return -1
+        
+    def setup_blend_screens(self, animation_name_list):
+        tag_animation_names = [name.replace(" ", ":") for name in animation_name_list]
+        for element in self.block_blend_screens.Elements:
+            if element.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value > -1:
+                animation_name = self._get_animation_name_from_index(element.ElementIndex)
+                if animation_name and animation_name in tag_animation_names:
+                    tag_animation_names.remove(animation_name)
+        
+        for name in tag_animation_names:
+            animation_index = self._get_animation_index_from_name(name)
+            if animation_index > -1:
+                element = self.block_blend_screens.AddElement()
+                element.SelectField("name").SetStringData(name)
+                element.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value = animation_index
+                state = name.split(":")[-1]
+                yaw_source_value = "none"
+                pitch_source_value = "none"
+                if "aim" in state:
+                    yaw_source_value = "aim yaw"
+                    pitch_source_value = "aim pitch"
+                elif "look" in state:
+                    yaw_source_value = "look yaw"
+                    pitch_source_value = "look pitch"
+                elif "steer" in state:
+                    yaw_source_value = "steering"
+                    pitch_source_value = "steering"
+                elif "acc" in state:
+                    yaw_source_value = "acceleration yaw"
+                    pitch_source_value = "acceleration pitch"
+                elif "pitch" in state and "turn" in state:
+                    yaw_source_value = "first person turn"
+                    pitch_source_value = "first person pitch"
+                    
+                element.SelectField("yaw source").SetValue(yaw_source_value)
+                element.SelectField("pitch source").SetValue(pitch_source_value)
+                
+                self.tag_has_changes = True
