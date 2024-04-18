@@ -1045,6 +1045,7 @@ class ProcessScene:
         export_anim,
         fbx_filepath,
     ):  
+        
         disable_prints()
 
         bpy.ops.export_scene.fbx(

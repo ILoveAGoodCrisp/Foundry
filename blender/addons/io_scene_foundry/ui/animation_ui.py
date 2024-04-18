@@ -394,6 +394,15 @@ class NWO_NewAnimation(NWO_Op):
         name="Keep Current Pose",
         description="Keeps the current pose of the object instead of resetting it to the models rest pose",
     )
+    
+    state_preset: bpy.props.EnumProperty(
+        name="State Preset",
+        description="Animation States which execute in specific hard-coded contexts. Item descriptions describe their use. Setting a preset will update the state field and animation type",
+        items=[
+            ("none", "None", ""),
+            ("airborne", "airborne", "Base animation with no root movement that plays when the object is midair"),
+        ]
+    )
 
     def __init__(self):
         self.fp_animation = poll_ui("FP ANIMATION")

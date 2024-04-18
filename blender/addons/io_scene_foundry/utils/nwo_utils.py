@@ -1480,6 +1480,14 @@ def amf_addon_installed():
             return 'Blender_AMF2'
         
     return False
+
+def fbx_addon_installed():
+    script_dirs = bpy.utils.script_paths()
+    for dir in script_dirs:
+        if Path(dir, 'addons', 'io_scene_fbx').exists():
+            return True
+        
+    return False
     
 def has_collision_type(ob: bpy.types.Object) -> bool:
     nwo = ob.nwo

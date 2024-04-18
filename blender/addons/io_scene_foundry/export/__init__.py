@@ -36,6 +36,7 @@ bl_info = {
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
 }
 
+import addon_utils
 import bpy
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty
@@ -57,6 +58,7 @@ from .process_scene import ProcessScene
 from io_scene_foundry.utils.nwo_utils import (
     MutePrints,
     check_path,
+    fbx_addon_installed,
     get_camera_track_camera,
     get_data_path,
     get_asset_info,
@@ -469,14 +471,23 @@ class NWO_Export(NWO_Export_Scene):
         
         if scene_nwo.asset_type == 'camera_track_set':
             scene_nwo.export_gr2_files = False
+            
+        fbx_installed = fbx_addon_installed()  
+        fbx_was_disabled = False          
+            
+        if fbx_installed:
+            if not addon_utils.check('io_scene_fbx')[0]:
+                addon_utils.enable('io_scene_fbx')
+                fbx_was_disabled = True
         
         try:
             try:
-                nwo_scene = PrepareScene()
-                nwo_scene.prepare_scene(context, self.asset, scene_nwo.asset_type, scene_nwo_export)
-                if not nwo_scene.too_many_root_bones and not nwo_scene.no_export_objects:
-                    export_process = ProcessScene()
-                    export_process.process_scene(context, sidecar_path, sidecar_path_full, self.asset, self.asset_path, scene_nwo.asset_type, nwo_scene, scene_nwo_export, scene_nwo)
+                if fbx_installed:
+                    nwo_scene = PrepareScene()
+                    nwo_scene.prepare_scene(context, self.asset, scene_nwo.asset_type, scene_nwo_export)
+                    if not nwo_scene.too_many_root_bones and not nwo_scene.no_export_objects:
+                        export_process = ProcessScene()
+                        export_process.process_scene(context, sidecar_path, sidecar_path_full, self.asset, self.asset_path, scene_nwo.asset_type, nwo_scene, scene_nwo_export, scene_nwo)
             
             except Exception as e:
                 if type(e) == RuntimeError:
@@ -492,6 +503,9 @@ class NWO_Export(NWO_Export_Scene):
                 context.scene.nwo_halo_launcher.sidecar_path = ""
 
             # write scene settings generated during export to temp file
+            
+            if fbx_was_disabled:
+                addon_utils.disable('io_scene_fbx')
 
             end = time.perf_counter()
 
@@ -502,6 +516,9 @@ class NWO_Export(NWO_Export_Scene):
                 print_error(
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
                 )
+                
+            elif not fbx_installed:
+                print_warning("EXPORT CANCELLED. FBX Addon not installed. io_scene_fbx normally comes with Blender. Blender reinstall may be required")
             
             elif self.known_fail:
                     print_warning(
