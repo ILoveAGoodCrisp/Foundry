@@ -1438,7 +1438,7 @@ class NWOImporter:
             return
         if mesh_type_legacy == 'physics' or len(ob.material_slots) == 1:
             if ob.material_slots[0].material:
-                ob.nwo.face_global_material_ui = ob.material_slots[0].material.name
+                ob.data.nwo.face_global_material_ui = ob.material_slots[0].material.name
                 
         elif mesh_type_legacy == 'collision':
             face_props = ob.data.nwo.face_props
