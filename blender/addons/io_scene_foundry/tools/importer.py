@@ -1110,11 +1110,11 @@ class NWOImporter:
                 
             if is_model:
                 if ':' not in ob.name:
-                    self.set_region(ob, ob.name.strip('@$~%'))
+                    self.set_region(ob, dot_partition(ob.name).strip('@$~%'))
                 else:
-                    region, permutation = ob.name.strip('@$~%').split(':')
-                    self.set_region(ob, dot_partition(region))
-                    self.set_permutation(ob, dot_partition(permutation))
+                    region, permutation = dot_partition(ob.name).strip('@$~%').split(':')
+                    self.set_region(ob, region)
+                    self.set_permutation(ob, permutation)
                 
             self.jms_mesh_objects.append(ob)
             
