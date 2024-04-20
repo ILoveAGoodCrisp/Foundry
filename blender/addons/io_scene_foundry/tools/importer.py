@@ -41,7 +41,7 @@ from io_scene_foundry.tools.property_apply import apply_props_material
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, amf_addon_installed, apply_loop_normals, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -781,6 +781,7 @@ class NWOImporter:
             
         self.amf_poops = []
         print("Setting object properties")
+        self.amf_object_instances = []
         for ob in objects:
             if file_name:
                 unlink(ob)
@@ -795,12 +796,53 @@ class NWOImporter:
         if self.amf_poops:
             print("Fixing scale")
             stomp_scale_multi_user(self.amf_poops)
+        
+        if self.amf_object_instances:
+            unsolved_instances = self.solve_amf_object_instances()
+            if unsolved_instances:
+                print_warning("\nUnable to determine object instance regions and/or permutations for:")
+                [print_warning(f"- {ob.name}") for ob in unsolved_instances]
+                print("Review the source render_model tag (if available) to determine correct region/permutations\n")
+        
+        add_to_collection(self.amf_marker_objects, True, new_coll, name="markers")
+        add_to_collection(self.amf_mesh_objects, True, new_coll, name="meshes")
+        
+    def solve_amf_object_instances(self):
+        unsolved_instances = [ob for ob in self.amf_object_instances]
+        for ob in self.amf_object_instances:
+            solved_region = False
+            solved_permutation = False
+            part_we_care_about = ob.name.split(":")[1]
+            region_part, permutation_part = part_we_care_about.split("(")
+            for region in self.context.scene.nwo.regions_table:
+                if region_part.startswith(region.name):
+                    self.set_region(ob, region.name)
+                    ob.nwo.region_name_ui = region.name
+                    ob.nwo.marker_uses_regions = True
+                    solved_region = True
+                    
+            permutation_part: str
+            permutation_part = permutation_part.strip(")").partition("_")[2]
+            for permutation in self.context.scene.nwo.permutations_table:
+                if permutation_part.startswith(permutation.name):
+                    self.set_permutation(ob, permutation.name)
+                    ob.nwo.permutation_name_ui = permutation.name
+                    ob.nwo.marker_permutations.add().name = permutation.name
+                    ob.nwo.marker_permutation_type = 'include'
+                    solved_permutation = True
+                    
+            if solved_region and solved_permutation:
+                unsolved_instances.remove(ob)
+                
+        return unsolved_instances
+                    
     
     def setup_amf_mesh(self, ob, is_model):
         name = dot_partition(ob.name)
         if is_model:
             if name.startswith('Instances:'):
                 ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_object_instance'
+                self.amf_object_instances.append(ob)
             else:
                 parts = name.split(':')
                 if len(parts) > 1:
@@ -978,6 +1020,9 @@ class NWOImporter:
                 self.setup_jms_marker(ob, is_model)
             elif ob.type == 'MESH':
                 self.setup_jms_mesh(ob, is_model)
+                
+        add_to_collection(self.jms_marker_objects, True, new_coll, name="markers")
+        add_to_collection(self.jms_mesh_objects, True, new_coll, name="meshes")
                 
     def setup_jms_frame(self, ob):
         ob.nwo.frame_override = True

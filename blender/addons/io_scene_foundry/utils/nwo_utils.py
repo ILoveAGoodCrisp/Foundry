@@ -2987,3 +2987,19 @@ def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
         ob.data.materials.clear()
         
     return ob.material_slots
+
+def add_to_collection(objects: list[bpy.types.Object], always_new=False, parent_collection=None, name="collection"):
+    if not objects:
+        return
+    
+    collection = bpy.data.collections.get(name)
+    if always_new or not collection:
+        collection = bpy.data.collections.new(name)
+    
+    if parent_collection is None:
+        parent_collection = bpy.context.scene.collection
+    
+    parent_collection.children.link(collection)
+    
+    [collection.objects.link(ob) for ob in objects]
+    

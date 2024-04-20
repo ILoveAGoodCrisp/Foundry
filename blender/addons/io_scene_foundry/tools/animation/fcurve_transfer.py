@@ -77,7 +77,7 @@ class FCurveTransfer:
 class NWO_OT_FcurveTransfer(bpy.types.Operator):
     bl_idname = "nwo.fcurve_transfer"
     bl_label = "Motion Transfer"
-    bl_description = "Transfers animations from one channel to another. For example transferring all motion on the Z location channel of bone A to the X location channel of bone B"
+    bl_description = "Transfers animation keyframes from one channel to another. For example transferring all motion on the Z location channel of bone A to the X location channel of bone B"
     bl_options = {"UNDO", "REGISTER"}
     
     @classmethod
