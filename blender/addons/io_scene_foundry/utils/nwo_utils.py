@@ -23,6 +23,7 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
+from collections import Counter
 import json
 from math import radians
 from pathlib import Path, PureWindowsPath
@@ -3002,4 +3003,17 @@ def add_to_collection(objects: list[bpy.types.Object], always_new=False, parent_
     parent_collection.children.link(collection)
     
     [collection.objects.link(ob) for ob in objects]
+    
+def get_major_vertex_group(ob: bpy.types.Object):
+    if not ob.data.vertices:
+        return
+    vert_group_indexes = []
+    for vert in ob.data.vertices:
+        for g in vert.groups:
+            vert_group_indexes.append(g.group)
+    
+    most_common_index = Counter(vert_group_indexes).most_common(1)[0][0]
+    
+    if len(ob.vertex_groups) > most_common_index: 
+        return ob.vertex_groups[most_common_index].name
     

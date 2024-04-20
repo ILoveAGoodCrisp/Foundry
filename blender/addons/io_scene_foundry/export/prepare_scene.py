@@ -54,6 +54,7 @@ from ..utils.nwo_utils import (
     exit_local_view,
     get_area_info,
     get_camera_track_camera,
+    get_major_vertex_group,
     get_object_type,
     get_rig,
     get_sky_perm,
@@ -2211,21 +2212,24 @@ class PrepareScene:
                 f"\nNo deform bones in armature, setting {bones[0].name} to deform"
             )
 
-        warn = False
         for ob in export_obs:
-            nwo = ob.nwo
-            marker = nwo.object_type == "_connected_geometry_object_type_marker"
-            physics = nwo.mesh_type == "_connected_geometry_mesh_type_physics"
+            marker = is_marker(ob)
+            physics = is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
+            io = is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_object_instance"
             if ob.parent is None:
                 continue
             if ob.parent_type != "BONE":
-                if marker or physics:
-                    # if not warn:
-                    #     self.warning_hit = True
-                    #     print("")
-                    warn = True
+                if marker or physics or io:
                     ob.parent_type = "BONE"
-                    ob.parent_bone = root_bone_name
+                    if ob.type == 'MESH':
+                        major_vertex_group = get_major_vertex_group(ob)
+                        if major_vertex_group in valid_bone_names:
+                            print(major_vertex_group)
+                            ob.parent_bone = major_vertex_group
+                        else:
+                            ob.parent_bone = root_bone_name
+                    else:
+                        ob.parent_bone = root_bone_name
                     world = ob.matrix_world.copy()
                     if ob.parent_bone in valid_bone_names:
                         ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
@@ -2235,15 +2239,7 @@ class PrepareScene:
                         ob.parent_bone = root_bone_name
                         ob.matrix_parent_inverse = bones[root_bone_name].matrix_local.inverted()
                     ob.matrix_world = world
-                    # if marker:
-                    #     print_warning(
-                    #         f"{ob.name} is a marker but is not parented to a bone. Binding to bone: {root_bone_name}"
-                    #     )
-                    # else:
-                    #     print_warning(
-                    #         f"{ob.name} is a physics mesh but is not parented to a bone. Binding to bone: {root_bone_name}"
-                    #     )
-
+                    
                 elif ob.type == "MESH":
                     # check if has armature mod
                     modifiers = ob.modifiers
