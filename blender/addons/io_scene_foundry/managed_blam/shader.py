@@ -196,7 +196,6 @@ class ShaderTag(Tag):
             print("AYYY")
             self_illumination.SetStringData('4') # self illum mask from diffuse
         elif map.get('self_illum', 0):
-            print("awdadawdwa")
             si_enum = int(self_illumination.GetStringData())
             if si_enum < 1 or si_enum == 4:
                 self_illumination.SetStringData('1') # simple

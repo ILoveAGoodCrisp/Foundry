@@ -3101,6 +3101,7 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column()
         nwo = self.scene.nwo
         col.use_property_split = True
+        col.operator("nwo.fcurve_transfer", icon='GRAPH')
         col.operator('nwo.convert_to_halo_rig', text='Convert to Halo Rig', icon='OUTLINER_OB_ARMATURE')
         col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
         if nwo.multiple_root_bones:

@@ -67,7 +67,10 @@ class RenameParser:
                 separator = "to"
                 break
         else:
-            return None, None, False
+            if "=" in line:
+                separator = "="
+            else:
+                return None, None, False
         
         if no_quotes.lower().startswith("renamed"):
             bit_we_want = " ".join(parts[1:])

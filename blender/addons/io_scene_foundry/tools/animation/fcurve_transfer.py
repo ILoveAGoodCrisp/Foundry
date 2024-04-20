@@ -76,9 +76,13 @@ class FCurveTransfer:
             
 class NWO_OT_FcurveTransfer(bpy.types.Operator):
     bl_idname = "nwo.fcurve_transfer"
-    bl_label = "Animation Channel Transfer"
+    bl_label = "Motion Transfer"
     bl_description = "Transfers animations from one channel to another. For example transferring all motion on the Z location channel of bone A to the X location channel of bone B"
     bl_options = {"UNDO", "REGISTER"}
+    
+    @classmethod
+    def poll(cls, context):
+        context.object and context.object.type == 'ARMATURE'
     
     all_animations: bpy.props.BoolProperty(
         name="All Animations",
