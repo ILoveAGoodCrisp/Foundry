@@ -460,11 +460,14 @@ class ShaderTag(Tag):
         if element is None:
             return 'opengl'
         bitmap_path = element.SelectField('bitmap').Path
-        system_bitmap_path = self.tags_dir + bitmap_path.RelativePathWithExtension
-        if not os.path.exists(system_bitmap_path):
+        if bitmap_path:
+            system_bitmap_path = self.tags_dir + bitmap_path.RelativePathWithExtension
+            if not os.path.exists(system_bitmap_path):
+                return 'opengl'
+            with BitmapTag(path=bitmap_path) as bitmap:
+                return bitmap.normal_type()
+        else:
             return 'opengl'
-        with BitmapTag(path=bitmap_path) as bitmap:
-            return bitmap.normal_type()
     
     def _color_from_parameter_name(self, name):
         color = [1, 1, 1, 1]

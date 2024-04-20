@@ -1636,8 +1636,13 @@ class NWOImporter:
                     case 'jmo':
                         nwo.animation_type = 'overlay'
                         nwo.animation_is_pose = any(hint in anim_name.lower() for hint in pose_hints)
+                        if nwo.animation_is_pose:
+                            pass
                     case 'jmr':
                         nwo.animation_type = 'replacement'
                     case 'jmrx':
                         nwo.animation_type = 'replacement'
                         nwo.animation_space = 'local'
+                        
+def setup_pose_overlay(action):
+    pass
