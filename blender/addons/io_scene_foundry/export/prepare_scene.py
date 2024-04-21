@@ -2220,24 +2220,21 @@ class PrepareScene:
                 continue
             if ob.parent_type != "BONE":
                 if marker or physics or io:
+                    world = ob.matrix_world.copy()
                     ob.parent_type = "BONE"
                     if ob.type == 'MESH':
                         major_vertex_group = get_major_vertex_group(ob)
                         if major_vertex_group in valid_bone_names:
-                            print(major_vertex_group)
                             ob.parent_bone = major_vertex_group
                         else:
                             ob.parent_bone = root_bone_name
                     else:
                         ob.parent_bone = root_bone_name
-                    world = ob.matrix_world.copy()
-                    if ob.parent_bone in valid_bone_names:
-                        ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
-                    else:
+                    if not ob.parent_bone in valid_bone_names:
                         self.warning_hit = True
                         print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {root_bone_name}')
                         ob.parent_bone = root_bone_name
-                        ob.matrix_parent_inverse = bones[root_bone_name].matrix_local.inverted()
+                    
                     ob.matrix_world = world
                     
                 elif ob.type == "MESH":
@@ -2255,16 +2252,12 @@ class PrepareScene:
             else:
                 # Ensure parent inverse matrix set
                 # If we don't do this, object can be offset in game
-                world = ob.matrix_world.copy()
-                if ob.parent_bone in valid_bone_names:
-                    ob.matrix_parent_inverse = bones[ob.parent_bone].matrix_local.inverted()
-                else:
+                if not ob.parent_bone in valid_bone_names:
+                    world = ob.matrix_world.copy()
                     self.warning_hit = True
                     print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {root_bone_name}')
                     ob.parent_bone = root_bone_name
-                    ob.matrix_parent_inverse = bones[root_bone_name].matrix_local.inverted()
-
-                ob.matrix_world = world
+                    ob.matrix_world = world
 
             if ob.parent_type == "BONE":
                 if ob.modifiers:
@@ -2957,7 +2950,11 @@ class PrepareScene:
                 self.frames.append(ob)
 
             elif render_asset:
-                if default:
+                io_with_single_perm = mesh_type == "_connected_geometry_mesh_type_object_instance" and nwo.marker_uses_regions and nwo.marker_permutation_type == "include" and len(nwo.marker_permutations) == 1
+                if default or io_with_single_perm:
+                    if io_with_single_perm:
+                        permutation = nwo.marker_permutations[0].name
+                        nwo.permutation_name = permutation
                     self.render.append(ob)
                     self.render_perms.add(permutation)
                 elif mesh_type == "_connected_geometry_mesh_type_collision":

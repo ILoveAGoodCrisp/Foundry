@@ -80,7 +80,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 nwo_enum(
                     "collision",
                     "Collision",
-                    "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player. Must use bone or rigid parenting",
+                    "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player. Must use bone parenting of have each vertex weighted to only a single vertex group if parented to an armature",
                     "collider",
                     1,
                 )
@@ -89,7 +89,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 nwo_enum(
                     "physics",
                     "Physics",
-                    "Physics only geometry. Uses havok physics to interact with static and dynamic objects. Must be bone parented if parented to an armature",
+                    "Physics only geometry. Uses havok physics to interact with static and dynamic objects. Must be bone parented / weighted to only one vertex group if parented to an armature",
                     "physics",
                     2,
                 )
@@ -98,7 +98,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 nwo_enum(
                     "io",
                     "Instanced Object",
-                    "Instanced render only geometry. Supports assignment to multiple permutations. Must be bone parented if parented to an armature",
+                    "Instanced render only geometry. Supports assignment to multiple permutations. Must be bone parented / weighted to only one vertex group if parented to an armature",
                     "instance",
                     3,
                 )

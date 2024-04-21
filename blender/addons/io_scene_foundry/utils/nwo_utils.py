@@ -2048,7 +2048,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 
         for ob in objects:
             # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
-            bone_parented = (ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE')
+            bone_parented = False
+            if ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE' and ob.parent_bone:
+                par_bone = ob.parent.data.bones.get(ob.parent_bone)
+                if par_bone and not par_bone.use_relative_parent:
+                    bone_parented = True
+                
             object_parented = (ob.parent and ob.parent.type != 'ARMATURE' and ob.parent_type == 'OBJECT')
             loc, rot, sca = ob.matrix_basis.decompose()
             if ob.rotation_mode == 'QUATERNION':
