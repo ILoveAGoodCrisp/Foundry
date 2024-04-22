@@ -31,6 +31,7 @@ from os import path
 import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
+from numpy import sign
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
@@ -3118,10 +3119,25 @@ class PrepareScene:
                 apply_targets.append(ob)
                 if self.verbose_warnings:
                     print_warning(f'Applying scale to {ob.name}')
-                    
+        
+        needs_normal_flipping = [] 
+        for ob in apply_targets:
+            normals = 1 * sign(ob.scale.x) * sign(ob.scale.y) * sign(ob.scale.z)
+            if normals < 0:
+                needs_normal_flipping.append(ob)
+                
         if apply_targets:
             with context.temp_override(selected_editable_objects=apply_targets, active_object=apply_targets[0]):
                 bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
+        
+        has_been_flipped = set()
+        for ob in needs_normal_flipping:
+            if not ob.data in has_been_flipped:
+                has_been_flipped.add(ob.data)
+                bm = bmesh.new()
+                bm.from_mesh(ob.data)
+                bmesh.ops.reverse_faces(bm, faces=[f for f in bm.faces])
+                bm.to_mesh(ob.data)
             
         return poops, linked_poops_with_nonstandard_scale
     
