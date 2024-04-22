@@ -36,6 +36,7 @@ from mathutils import Color
 from io_scene_foundry.tools.mesh_to_marker import convert_to_marker
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
+from io_scene_foundry.managed_blam.collision_model import CollisionTag
 from io_scene_foundry.tools.clear_duplicate_materials import clear_duplicate_materials
 from io_scene_foundry.tools.property_apply import apply_props_material
 from io_scene_foundry.tools.shader_finder import find_shaders
@@ -49,7 +50,7 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "collision_model"
 
 class NWO_OT_ConvertScene(bpy.types.Operator):
     bl_label = "Convert Scene"
@@ -140,7 +141,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
 class NWO_Import(bpy.types.Operator):
     bl_label = "Import File(s)/Folder(s)"
     bl_idname = "nwo.import"
-    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tag, camera_track tag"
+    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tag, camera_track tag, collision_model tag"
     
     @classmethod
     def poll(cls, context):
@@ -318,9 +319,15 @@ class NWO_Import(bpy.types.Operator):
                         
                 if 'camera_track' in importer.extensions:
                     camera_track_files = importer.sorted_filepaths["camera_track"]
-                    imported_camera_track_objects = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
+                    cameras, actions = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_camera_track_objects)
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, action=actions)
+                        
+                if 'collision_model' in importer.extensions:
+                    collision_model_files = importer.sorted_filepaths["collision_model"]
+                    imported_collision_objects = importer.import_collision_models(collision_model_files)
+                    if needs_scaling:
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_collision_objects, actions=[])
                         
             except KeyboardInterrupt:
                 print_warning("\nIMPORT CANCELLED BY USER")
@@ -369,9 +376,11 @@ class NWO_Import(bpy.types.Operator):
             self.filter_glob += '*.jms;*.ass;'
         if blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
             self.legacy_okay = True
-            self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx'
+            self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
         if (not self.scope or 'camera_track' in self.scope):
-            self.filter_glob += '*.camera_track'
+            self.filter_glob += '*.camera_track;'
+        if (not self.scope or 'collision_model' in self.scope):
+            self.filter_glob += '*.collision_mo*;'
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
@@ -637,6 +646,9 @@ class NWOImporter:
             elif 'camera_track' in valid_exts and path.lower().endswith('.camera_track'):
                 self.extensions.add('camera_track')
                 filetype_dict["camera_track"].append(path)
+            elif 'collision_model' in valid_exts and path.lower().endswith('.collision_model'):
+                self.extensions.add('collision_model')
+                filetype_dict["collision_model"].append(path)
                 
         return filetype_dict
         
@@ -680,17 +692,37 @@ class NWOImporter:
         
     # Camera track import
     def import_camera_tracks(self, paths, animation_scale):
-        imported_objects = []
+        cameras = []
+        actions = []
         for file in paths:
-            imported_objects.append(self.import_camera_track(file, animation_scale))
+            camera, action = self.import_camera_track(file, animation_scale)
+            cameras.append(camera)
+            actions.append(action)
         
-        return imported_objects
+        return cameras, actions
             
     def import_camera_track(self, file, animation_scale):
         with CameraTrackTag(path=file) as camera_track:
-            camera = camera_track.to_blender_animation(self.context, animation_scale)
+            camera, action = camera_track.to_blender_animation(self.context, animation_scale)
             
-        return camera
+        return camera, action
+    
+    # Collision Model Import
+    
+    def import_collision_models(self, paths):
+        imported_objects = []
+        for file in paths:
+            imported_objects.extend(self.import_collision_model(file))
+        
+        return imported_objects
+            
+    def import_collision_model(self, file):
+        collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
+        self.context.scene.collection.children.link(collection)
+        with CollisionTag(path=file) as collision_model:
+            collision_model_objects = collision_model.to_blend_objects(collection)
+            
+        return collision_model_objects
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):

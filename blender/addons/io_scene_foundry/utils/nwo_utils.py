@@ -1785,8 +1785,10 @@ def get_material_albedo(source: bpy.types.Material | bpy.types.Node, input=None)
                 
     return col[:3] # Only 3 since we don't care about the alpha
             
-def get_rig(context, return_mutliple=False) -> bpy.types.Object | None | list[bpy.types.Object]:
+def get_rig(context=None, return_mutliple=False) -> bpy.types.Object | None | list[bpy.types.Object]:
     """Gets the main armature from the scene (or tries to)"""
+    if context is None:
+        context = bpy.context
     scene_nwo = context.scene.nwo
     ob = context.object
     if scene_nwo.main_armature:
@@ -2047,6 +2049,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
                 
         for ob in objects:
+            old_scale = ob.scale.copy()
             # no_data_transform = ob.type in ('EMPTY', 'CAMERA', 'LIGHT', 'LIGHT_PROBE', 'SPEAKER')
             bone_parented = False
             if ob.parent and ob.parent.type == 'ARMATURE' and ob.parent_type == 'BONE' and ob.parent_bone:
@@ -2088,6 +2091,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             
             if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB'):
                 ob.rotation_euler.rotate_axis('Z', -rotation)
+                
+            ob.scale = old_scale
 
             for mod in ob.modifiers:
                 match mod.type:
@@ -3021,4 +3026,80 @@ def get_major_vertex_group(ob: bpy.types.Object):
     
     if len(ob.vertex_groups) > most_common_index: 
         return ob.vertex_groups[most_common_index].name
+    
+def set_region(ob, region):
+    regions_table = bpy.context.scene.nwo.regions_table
+    entry = regions_table.get(region, 0)
+    if not entry:
+        regions_table.add()
+        entry = regions_table[-1]
+        entry.old = region
+        entry.name = region
+        
+    ob.nwo.region_name_ui = region
+
+def set_permutation(ob, permutation):
+    permutations_table = bpy.context.scene.nwo.permutations_table
+    entry = permutations_table.get(permutation, 0)
+    if not entry:
+        permutations_table.add()
+        entry = permutations_table[-1]
+        entry.old = permutation
+        entry.name = permutation
+        
+    ob.nwo.permutation_name_ui = permutation
+    
+def new_face_prop(data, layer_name, display_name, override_prop, other_props={}) -> str:
+    face_props = data.nwo.face_props
+    layer = face_props.add()
+    layer.layer_name = layer_name
+    layer.name = display_name
+    layer.layer_color = random_color()
+    setattr(layer, override_prop, True)
+    for prop, value in other_props.items():
+        setattr(layer, prop, value)
+        
+    return layer_name
+
+def new_face_layer(bm, data, layer_name, display_name, override_prop, other_props={}):
+    layer = bm.faces.layers.int.get(layer_name)
+    if layer:
+        return layer
+    else:
+        return bm.faces.layers.int.new(new_face_prop(data, layer_name, display_name, override_prop, other_props))
+    
+class EditArmature:
+    def __init__(self, arm):
+        self.arm = arm
+        scene_coll = bpy.context.scene
+        should_be_hidden = False
+        should_be_unlinked = False
+        data: bpy.types.Armature = arm.data
+        if arm.hide_get():
+            arm.hide_set(False)
+            should_be_hidden = True
+            
+        if not arm.visible_get():
+            original_collections = arm.users_collection
+            unlink(arm)
+            scene_coll.link(arm)
+            should_be_unlinked = True       
+            
+        set_active_object(arm)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        edit_bones = arm.data.edit_bones
+        self.head_vectors = {b.name: b.head for b in edit_bones}
+        self.tail_vectors = {b.name: b.tail for b in edit_bones}
+        self.lengths = {b.name: b.length for b in edit_bones}
+        self.matrices = {b.name: b.matrix for b in edit_bones}
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        
+        if should_be_hidden:
+            arm.hide_set(True)
+            
+        if should_be_unlinked:
+            unlink(arm)
+            if original_collections:
+                for coll in original_collections:
+                    coll.objects.link(arm)
     

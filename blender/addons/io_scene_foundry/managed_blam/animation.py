@@ -29,9 +29,6 @@ import bpy
 from io_scene_foundry.utils.nwo_utils import relative_path
 from io_scene_foundry.managed_blam import Tag
 
-class BlendScreen:
-    name: str
-
 class AnimationTag(Tag):
     tag_ext = 'model_animation_graph'
 
