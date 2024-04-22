@@ -2091,8 +2091,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             
             if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB'):
                 ob.rotation_euler.rotate_axis('Z', -rotation)
-                
-            ob.scale = old_scale
+            
+            if ob.type == 'LATTICE':
+                ob.scale *= scale_factor
+            else:
+                ob.scale = old_scale
 
             for mod in ob.modifiers:
                 match mod.type:
@@ -2189,8 +2192,8 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
             metaball.nwo.material_lighting_emissive_power_ui *= scale_factor
             
-        for lattice in lattices:
-            lattice.transform(scale_matrix)
+        # for lattice in lattices:
+        #     lattice.transform(scale_matrix)
         
         for mesh in meshes:
             mesh.transform(scale_matrix)
