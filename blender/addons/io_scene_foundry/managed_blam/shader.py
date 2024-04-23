@@ -661,7 +661,7 @@ class BSDFParameter():
                 data_node.location.x = separate_rgb.location.x - 300
                 data_node.location.y = separate_rgb.location.y
                 
-        else:
+        elif self.link_node_type == 'ShaderNodeTexImage':
             self.tree.links.new(input=self.input, output=data_node.outputs[output_index])
             if self.diffspec:
                 self.tree.links.new(input=self.main_node.inputs['Specular IOR Level'], output=data_node.outputs[1])
