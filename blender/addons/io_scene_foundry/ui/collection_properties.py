@@ -32,7 +32,7 @@ class NWO_CollectionPropertiesGroup(bpy.types.PropertyGroup):
         items = []
         r_name = "Region"
         p_name = "Permutation"
-        if context.scene.nwo.asset_type == "SCENARIO":
+        if context.scene.nwo.asset_type == "scenario":
             r_name = "BSP"
             p_name = "BSP Category"
 

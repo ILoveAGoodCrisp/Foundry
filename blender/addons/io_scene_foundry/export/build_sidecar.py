@@ -52,14 +52,14 @@ class Sidecar:
         self.context = context
         self.message = f"{str.title(asset_type)} Sidecar Export Complete"
 
-    def build(self, context, sidecar_path, sidecar_path_full, nwo_scene, sidecar_paths, sidecar_paths_design, scene_nwo, for_model_lighting=False):
+    def build(self, context, sidecar_path, sidecar_path_full, export_scene, sidecar_paths, sidecar_paths_design, scene_nwo, for_model_lighting=False):
         m_encoding = "utf-8"
         m_standalone = "yes"
         metadata = ET.Element("Metadata")
         # set a boolean to check if game is h4+ or not
         not_bungo_game = is_corinth()
         self.write_header(metadata)
-        if self.asset_type == "MODEL":
+        if self.asset_type == "model":
             self.get_object_output_types(
                 metadata,
                 "model",
@@ -80,35 +80,35 @@ class Sidecar:
                     scene_nwo.output_weapon,
                 ),
             )
-        elif self.asset_type.endswith("SCENARIO"):
+        elif self.asset_type.endswith("scenario"):
             self.get_object_output_types(
                 metadata,
                 "scenario",
             )
-        elif self.asset_type == "SKY":
+        elif self.asset_type == "sky":
             self.get_object_output_types(
                 metadata,
                 "sky" if not not_bungo_game else "model",
             )
-        elif self.asset_type == "DECORATOR SET":
+        elif self.asset_type == "decorator_set":
             self.get_object_output_types(
                 metadata,
                 "decorator_set",
                 "decorator_set",
             )
-        elif self.asset_type == "PARTICLE MODEL":
+        elif self.asset_type == "particle_model":
             self.get_object_output_types(
                 metadata,
                 "particle_model",
                 "particle_model",
             )
-        elif self.asset_type == "PREFAB":
+        elif self.asset_type == "prefab":
             self.get_object_output_types(
                 metadata,
                 "prefab",
                 "prefab",
             )
-        elif self.asset_type == "FP ANIMATION":
+        elif self.asset_type == "animation":
             self.get_object_output_types(
                 metadata,
                 "model",
@@ -118,38 +118,38 @@ class Sidecar:
         self.write_face_collections(
             metadata,
             not_bungo_game,
-            nwo_scene.regions,
-            nwo_scene.global_materials_dict,
+            export_scene.regions,
+            export_scene.global_materials_dict,
             context,
         )
 
-        if self.asset_type == "MODEL":
-            self.write_model_contents(metadata, sidecar_paths, bool(nwo_scene.model_armature))
+        if self.asset_type == "model":
+            self.write_model_contents(metadata, sidecar_paths, bool(export_scene.model_armature))
 
-        elif self.asset_type == "SCENARIO":
+        elif self.asset_type == "scenario":
             self.write_scenario_contents(
-                nwo_scene,
+                export_scene,
                 metadata,
                 sidecar_paths,
                 sidecar_paths_design,
             )
 
-        elif self.asset_type == "MODEL SCENARIO":
+        elif self.asset_type == "model scenario":
             self.write_model_scenario_contents(metadata, sidecar_paths)
 
-        elif self.asset_type == "SKY":
+        elif self.asset_type == "sky":
             self.write_sky_contents(metadata, sidecar_paths)
 
-        elif self.asset_type == "DECORATOR SET":
-            self.write_decorator_contents(metadata, sidecar_paths, nwo_scene.lods)
+        elif self.asset_type == "decorator_set":
+            self.write_decorator_contents(metadata, sidecar_paths, export_scene.lods)
 
-        elif self.asset_type == "PARTICLE MODEL":
+        elif self.asset_type == "particle_model":
             self.write_particle_contents(metadata, sidecar_paths)
 
-        elif self.asset_type == "PREFAB":
+        elif self.asset_type == "prefab":
             self.write_prefab_contents(metadata, sidecar_paths)
 
-        elif self.asset_type == "FP ANIMATION":
+        elif self.asset_type == "animation":
             self.write_fp_animation_contents(
                 metadata, sidecar_paths
             )
@@ -158,7 +158,7 @@ class Sidecar:
         xml_string = dom.toprettyxml(indent="  ")
         part1, part2 = xml_string.split("?>")
 
-        if self.asset_type == "MODEL SCENARIO":
+        if self.asset_type == "model scenario":
             sidecar_path_full = sidecar_path_full.replace(
                 f"{self.asset_name}.sidecar.xml",
                 f"{self.asset_name}_lighting.sidecar.xml",
@@ -246,7 +246,7 @@ class Sidecar:
         type,
         output_tags=[],
     ):
-        if self.asset_type == "SKY":
+        if self.asset_type == "sky":
             asset = ET.SubElement(
                 metadata, "Asset", Name=self.asset_name, Type=type, Sky="true"
             )
@@ -254,7 +254,7 @@ class Sidecar:
             asset = ET.SubElement(metadata, "Asset", Name=self.asset_name, Type=type)
         tagcollection = ET.SubElement(asset, "OutputTagCollection")
 
-        if type == "model" and self.asset_type == "MODEL":
+        if type == "model" and self.asset_type == "model":
             for (
                 tag
             ) in (
@@ -356,7 +356,7 @@ class Sidecar:
     ):  # FaceCollections is where regions and global materials are defined in the sidecar.
         faceCollections = ET.SubElement(metadata, "FaceCollections")
 
-        # if self.asset_type == "SCENARIO" and not_bungie_game:
+        # if self.asset_type == "scenario" and not_bungie_game:
         #     bsp_list = ["default", ""]
         #     f1 = ET.SubElement(
         #         faceCollections,
@@ -402,7 +402,7 @@ class Sidecar:
             #         bsp_list.append(bsp)
             #         count += 1
 
-        if self.asset_type in ("MODEL", "SKY"):
+        if self.asset_type in ("model", "sky"):
             f1 = ET.SubElement(
                 faceCollections,
                 "FaceCollection",
@@ -421,7 +421,7 @@ class Sidecar:
                     Active=self.region_active_state(context, region),
                 )
 
-        if self.asset_type in ("MODEL", "SCENARIO", "PREFAB", "SKY"):
+        if self.asset_type in ("model", "scenario", "prefab", "sky"):
             f2 = ET.SubElement(
                 faceCollections,
                 "FaceCollection",
@@ -551,12 +551,12 @@ class Sidecar:
         ).text = f"{self.tag_path}"
 
     def write_scenario_contents(
-        self, nwo_scene, metadata, sidecar_paths, design_paths
+        self, export_scene, metadata, sidecar_paths, design_paths
     ):
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
-        scene_bsps = [b for b in nwo_scene.structure_bsps if b != "shared"]
-        shared = len(scene_bsps) != len(nwo_scene.regions)
+        scene_bsps = [b for b in export_scene.structure_bsps if b != "shared"]
+        shared = len(scene_bsps) != len(export_scene.regions)
         for bsp in scene_bsps:
             content = ET.SubElement(
                 contents, "Content", Name=f"{self.asset_name}_{bsp}", Type="bsp"
@@ -585,7 +585,7 @@ class Sidecar:
             ).text = f"{self.tag_path}_{bsp}"
 
         ##### STRUCTURE DESIGN #####
-        scene_design = nwo_scene.design_bsps
+        scene_design = export_scene.design_bsps
 
         for bsp in scene_design:
             bsp_paths = design_paths.get(bsp)

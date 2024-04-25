@@ -228,10 +228,10 @@ class NWO_FoundryPanelProps(Panel):
             if p == "help":
                 box = col1.box()
             elif p == "animation_manager":
-                if nwo.asset_type not in ('MODEL', 'FP ANIMATION', 'camera_track_set'):
+                if nwo.asset_type not in ('model', 'animation', 'camera_track_set'):
                     continue
             elif p in ("object_properties", "material_properties", 'sets_manager'):
-                if nwo.asset_type in ('FP ANIMATION', 'camera_track_set'):
+                if nwo.asset_type in ('animation', 'camera_track_set'):
                     continue
             
             row_icon = box.row(align=True)
@@ -305,7 +305,7 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator("nwo.project_add", text="Choose Project", icon_value=get_icon_id("tag_test")).set_scene_project = True
         col = box.column()
         col.use_property_split = True
-        # if nwo.asset_type in ("MODEL", "SCENARIO", "PREFAB"):
+        # if nwo.asset_type in ("model", "scenario", "prefab"):
         #     col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
 
         col.separator()
@@ -352,16 +352,16 @@ class NWO_FoundryPanelProps(Panel):
             row.scale_y = 1.5
             row.operator("nwo.make_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
         
-        if nwo.asset_type == 'MODEL':
+        if nwo.asset_type == 'model':
             self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
             self.draw_expandable_box(self.box.box(), nwo, 'model')
             # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
             self.draw_rig_ui(self.context, nwo)
             
-        if self.h4 and nwo.asset_type in ('MODEL', 'SKY'):
+        if self.h4 and nwo.asset_type in ('model', 'sky'):
             self.draw_expandable_box(self.box.box(), nwo, 'lighting')
         
-        if nwo.asset_type == "FP ANIMATION":
+        if nwo.asset_type == "animation":
             box = self.box.box()
             box.label(text="Tag References")
             col = box.column()
@@ -375,7 +375,7 @@ class NWO_FoundryPanelProps(Panel):
             row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
             self.draw_rig_ui(self.context, nwo)
             
-        elif nwo.asset_type == "SCENARIO":
+        elif nwo.asset_type == "scenario":
             self.draw_expandable_box(self.box.box(), nwo, 'scenario')
             self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
             self.draw_expandable_box(self.box.box(), nwo, 'lighting')
@@ -427,11 +427,11 @@ class NWO_FoundryPanelProps(Panel):
         box.use_property_split = True
         scene_nwo_export = self.scene.nwo_export
         _, asset_name = get_asset_info()
-        if self.asset_type == 'SCENARIO':
+        if self.asset_type == 'scenario':
             lighting_name = "Light Scenario"
         else:
             lighting_name = "Light Model"
-        if self.asset_type == "SCENARIO":
+        if self.asset_type == "scenario":
             if self.h4:
                 box.prop(scene_nwo_export, "lightmap_quality_h4")
             else:
@@ -443,7 +443,7 @@ class NWO_FoundryPanelProps(Panel):
                 box.prop(scene_nwo_export, "lightmap_threads")
                     
         box.operator('nwo.lightmap', text=lighting_name, icon='LIGHT_SUN')
-        if self.asset_type == 'SCENARIO':
+        if self.asset_type == 'scenario':
             tag_paths = get_asset_tags(".scenario_structure_lighting_info")
             if tag_paths:
                 for path in tag_paths:
@@ -495,7 +495,7 @@ class NWO_FoundryPanelProps(Panel):
     
     def draw_output_tags(self, box: bpy.types.UILayout, nwo):
         col = box.column()
-        if nwo.asset_type == "MODEL":
+        if nwo.asset_type == "model":
             col.label(text="Output Tags")
             row = col.grid_flow(
                 row_major=True,
@@ -1109,7 +1109,7 @@ class NWO_FoundryPanelProps(Panel):
         nwo = self.scene.nwo
         if not nwo.regions_table:
             return
-        is_scenario = nwo.asset_type == 'SCENARIO'
+        is_scenario = nwo.asset_type == 'scenario'
         self.draw_object_visibility(box.box(), nwo)
         self.draw_expandable_box(box.box(), nwo, "regions_table", "BSPs" if is_scenario else "Regions")
         self.draw_expandable_box(box.box(), nwo, "permutations_table", "Layers" if is_scenario else "Permutations")
@@ -1122,20 +1122,20 @@ class NWO_FoundryPanelProps(Panel):
         grid.scale_x = 1
         default_icon_name = "render_geometry"
         default_icon_off_name = "render_geometry_off"
-        if asset_type in ('SCENARIO', 'PREFAB'):
+        if asset_type in ('scenario', 'prefab'):
             default_icon_name = "instance"
             default_icon_off_name = "instance_off"
-        elif asset_type == 'DECORATOR SET':
+        elif asset_type == 'decorator_set':
             default_icon_name = "decorator"
             default_icon_off_name = "decorator_off"
             
         grid.prop(nwo, "connected_geometry_mesh_type_default_visible", text="", icon_value=get_icon_id(default_icon_name) if nwo.connected_geometry_mesh_type_default_visible else get_icon_id(default_icon_off_name), emboss=False)
-        if asset_type in ('SCENARIO', 'MODEL', 'PREFAB'):
+        if asset_type in ('scenario', 'model', 'prefab'):
             grid.prop(nwo, "connected_geometry_mesh_type_collision_visible", text="", icon_value=get_icon_id("collider") if nwo.connected_geometry_mesh_type_collision_visible else get_icon_id("collider_off"), emboss=False)
-        if asset_type == 'MODEL':
+        if asset_type == 'model':
             grid.prop(nwo, "connected_geometry_mesh_type_physics_visible", text="", icon_value=get_icon_id("physics") if nwo.connected_geometry_mesh_type_physics_visible else get_icon_id("physics_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_object_instance_visible", text="", icon_value=get_icon_id("instance") if nwo.connected_geometry_mesh_type_object_instance_visible else get_icon_id("instance_off"), emboss=False)
-        if asset_type == 'SCENARIO':
+        if asset_type == 'scenario':
             grid.prop(nwo, "connected_geometry_mesh_type_structure_visible", text="", icon_value=get_icon_id("structure") if nwo.connected_geometry_mesh_type_structure_visible else get_icon_id("structure_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_seam_visible", text="", icon_value=get_icon_id("seam") if nwo.connected_geometry_mesh_type_seam_visible else get_icon_id("seam_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_mesh_type_portal_visible", text="", icon_value=get_icon_id("portal") if nwo.connected_geometry_mesh_type_portal_visible else get_icon_id("portal_off"), emboss=False)
@@ -1154,18 +1154,18 @@ class NWO_FoundryPanelProps(Panel):
                 grid.prop(nwo, "connected_geometry_mesh_type_poop_rain_blocker_visible", text="", icon_value=get_icon_id("rain_blocker") if nwo.connected_geometry_mesh_type_poop_rain_blocker_visible else get_icon_id("rain_blocker_off"), emboss=False)
 
         grid.prop(nwo, "connected_geometry_marker_type_model_visible", text="", icon_value=get_icon_id("marker") if nwo.connected_geometry_marker_type_model_visible else get_icon_id("marker_off"), emboss=False)
-        if asset_type in ('MODEL', 'SKY'):
+        if asset_type in ('model', 'sky'):
             grid.prop(nwo, "connected_geometry_marker_type_effects_visible", text="", icon_value=get_icon_id("effects") if nwo.connected_geometry_marker_type_effects_visible else get_icon_id("effects_off"), emboss=False)
-        if asset_type == 'MODEL':
+        if asset_type == 'model':
             grid.prop(nwo, "connected_geometry_marker_type_garbage_visible", text="", icon_value=get_icon_id("garbage") if nwo.connected_geometry_marker_type_garbage_visible else get_icon_id("garbage_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_hint_visible", text="", icon_value=get_icon_id("hint") if nwo.connected_geometry_marker_type_hint_visible else get_icon_id("hint_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_pathfinding_sphere_visible", text="", icon_value=get_icon_id("pathfinding_sphere") if nwo.connected_geometry_marker_type_pathfinding_sphere_visible else get_icon_id("pathfinding_sphere_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_physics_constraint_visible", text="", icon_value=get_icon_id("physics_constraint") if nwo.connected_geometry_marker_type_physics_constraint_visible else get_icon_id("physics_constraint_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_target_visible", text="", icon_value=get_icon_id("target") if nwo.connected_geometry_marker_type_target_visible else get_icon_id("target_off"), emboss=False)
                 
-        if asset_type in ('MODEL', 'SCENARIO') and self.h4:
+        if asset_type in ('model', 'scenario') and self.h4:
             grid.prop(nwo, "connected_geometry_marker_type_airprobe_visible", text="", icon_value=get_icon_id("airprobe") if nwo.connected_geometry_marker_type_airprobe_visible else get_icon_id("airprobe_off"), emboss=False)
-        if asset_type == 'SCENARIO':
+        if asset_type == 'scenario':
             grid.prop(nwo, "connected_geometry_marker_type_game_instance_visible", text="", icon_value=get_icon_id("game_object") if nwo.connected_geometry_marker_type_game_instance_visible else get_icon_id("game_object_off"), emboss=False)
             if self.h4:
                 grid.prop(nwo, "connected_geometry_marker_type_envfx_visible", text="", icon_value=get_icon_id("environment_effect") if nwo.connected_geometry_marker_type_envfx_visible else get_icon_id("environment_effect_off"), emboss=False)
@@ -1191,7 +1191,7 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column(align=True)
         col.operator("nwo.region_add", text="", icon="ADD").set_object_prop = False
         col.operator("nwo.region_remove", icon="REMOVE", text="")
-        if self.asset_type == 'SCENARIO':
+        if self.asset_type == 'scenario':
             col.separator()
             col.menu('NWO_MT_BSPContextMenu', text="", icon='DOWNARROW_HLT')
         col.separator()
@@ -1270,8 +1270,8 @@ class NWO_FoundryPanelProps(Panel):
         data = ob.data
 
         halo_light = ob.type == 'LIGHT'
-        has_mesh_types = is_mesh(ob) and poll_ui(('MODEL', 'SCENARIO', 'PREFAB'))
-        has_marker_types = is_marker(ob) and poll_ui(('MODEL', 'SKY', 'SCENARIO', 'PREFAB'))
+        has_mesh_types = is_mesh(ob) and poll_ui(('model', 'scenario', 'prefab'))
+        has_marker_types = is_marker(ob) and poll_ui(('model', 'sky', 'scenario', 'prefab'))
 
         # Check if this is a linked collection
         if library_instanced_collection(ob):
@@ -1531,11 +1531,11 @@ class NWO_FoundryPanelProps(Panel):
             )
             col = flow.column()
             col.use_property_split = True
-            if self.asset_type == 'DECORATOR SET':
+            if self.asset_type == 'decorator_set':
                 col.label(text="Decorator")
                 col.prop(nwo, "decorator_lod_ui", text="Level of Detail", expand=True)
                 return
-            elif self.asset_type == 'PARTICLE MODEL':
+            elif self.asset_type == 'particle_model':
                 col.label(text="Particle Model")
                 return
             
@@ -1680,8 +1680,8 @@ class NWO_FoundryPanelProps(Panel):
             elif nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_structure",
-            ) and poll_ui(('SCENARIO', 'PREFAB')):
-                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('SCENARIO'):
+            ) and poll_ui(('scenario', 'prefab')):
+                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('scenario'):
                     col.prop(nwo, "proxy_instance")
                 if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" or (
                     nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
@@ -1754,7 +1754,7 @@ class NWO_FoundryPanelProps(Panel):
             # MESH LEVEL / FACE LEVEL PROPERTIES
 
         elif is_marker(ob) and poll_ui(
-            ("MODEL", "SCENARIO", "SKY", "PREFAB")
+            ("model", "scenario", "sky", "prefab")
         ):
             # MARKER PROPERTIES
             flow = box.grid_flow(
@@ -1786,7 +1786,7 @@ class NWO_FoundryPanelProps(Panel):
             
             col.prop(nwo, "frame_override")
 
-            if poll_ui("SCENARIO"):
+            if poll_ui("scenario"):
                 col.use_property_split = True
                 self.draw_table_menus(col, nwo, ob)
 
@@ -1798,7 +1798,7 @@ class NWO_FoundryPanelProps(Panel):
                 "_connected_geometry_marker_type_hint",
                 "_connected_geometry_marker_type_pathfinding_sphere",
             ):
-                if poll_ui(("MODEL", "SKY")):
+                if poll_ui(("model", "sky")):
                     if nwo.marker_type_ui in ('_connected_geometry_marker_type_model', '_connected_geometry_marker_type_garbage', '_connected_geometry_marker_type_effects'):
                         col.prop(nwo, 'marker_model_group', text="Marker Group")
                     row = col.row()
@@ -2026,7 +2026,7 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_light_cone_curve_ui'
                 
         elif is_frame(ob) and poll_ui(
-            ("MODEL", "SCENARIO", "SKY")):
+            ("model", "scenario", "sky")):
             col = box.column()
             col.label(text='Frame', icon_value=get_icon_id('frame'))
             if not ob.children:
@@ -2035,7 +2035,7 @@ class NWO_FoundryPanelProps(Panel):
             return
                 
 
-        if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and poll_ui('SCENARIO') and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
+        if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and poll_ui('scenario') and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
             return
 
         self.draw_expandable_box(self.box.box(), context.scene.nwo, "mesh_properties", ob=ob)
@@ -2044,7 +2044,7 @@ class NWO_FoundryPanelProps(Panel):
   
         nwo = ob.data.nwo
         # Instance Proxy Operators
-        if ob.type != 'MESH' or ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_default" or not poll_ui(('SCENARIO', 'PREFAB')) or mesh_nwo.render_only_ui:
+        if ob.type != 'MESH' or ob.nwo.mesh_type_ui != "_connected_geometry_mesh_type_default" or not poll_ui(('scenario', 'prefab')) or mesh_nwo.render_only_ui:
             return
         
         col.separator()
@@ -2098,7 +2098,7 @@ class NWO_FoundryPanelProps(Panel):
             col = row.column(align=True)
             edit_mode = context.mode == 'EDIT_MESH'
             if edit_mode:
-                if context.scene.nwo.instance_proxy_running or (ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision" and poll_ui(('SCENARIO', 'PREFAB'))):
+                if context.scene.nwo.instance_proxy_running or (ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision" and poll_ui(('scenario', 'prefab'))):
                     col.operator("nwo.face_layer_add", text="", icon="ADD").options = "face_global_material"
                 else:
                     col.menu(NWO_FaceLayerAddMenu.bl_idname, text="", icon="ADD")
@@ -2201,7 +2201,7 @@ class NWO_FoundryPanelProps(Panel):
                 if item.face_global_material_override:
                     row = col.row()
                     row.prop(item, "face_global_material_ui")
-                    if poll_ui(('SCENARIO', 'PREFAB')):
+                    if poll_ui(('scenario', 'prefab')):
                         row.operator(
                             "nwo.global_material_globals",
                             text="",
@@ -2346,8 +2346,8 @@ class NWO_FoundryPanelProps(Panel):
         mesh = ob.data
         mesh_nwo = mesh.nwo
         has_collision = has_collision_type(ob)
-        if poll_ui(("MODEL", "SKY", "SCENARIO", "PREFAB")) and nwo.mesh_type_ui != '_connected_geometry_mesh_type_physics':
-            if self.h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('SCENARIO')):
+        if poll_ui(("model", "sky", "scenario", "prefab")) and nwo.mesh_type_ui != '_connected_geometry_mesh_type_physics':
+            if self.h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('scenario')):
                 return
             row = box.grid_flow(
                 row_major=True,
@@ -2363,11 +2363,11 @@ class NWO_FoundryPanelProps(Panel):
                 row.prop(mesh_nwo, "face_two_sided_ui", text="Two Sided")
                 if nwo.mesh_type_ui in RENDER_MESH_TYPES:
                     row.prop(mesh_nwo, "face_transparent_ui", text="Transparent")
-                    # if h4 and poll_ui(('MODEL', 'SKY')):
+                    # if h4 and poll_ui(('model', 'sky')):
                     #     row.prop(mesh_nwo, "uvmirror_across_entire_model_ui", text="Mirror UVs")
             if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", '_connected_geometry_mesh_type_object_instance', "_connected_geometry_mesh_type_lightmap_only"):
                 row.prop(mesh_nwo, "decal_offset_ui", text="Decal Offset") 
-            if poll_ui(("SCENARIO", "PREFAB")):
+            if poll_ui(("scenario", "prefab")):
                 if not self.h4:
                     if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
                         row.prop(mesh_nwo, "no_shadow_ui", text="No Shadow")
@@ -2379,7 +2379,7 @@ class NWO_FoundryPanelProps(Panel):
                             row.prop(mesh_nwo, "no_lightmap_ui", text="No Lightmap")
                             row.prop(mesh_nwo, "no_pvs_ui", text="No Visibility Culling")
                             
-            if not self.h4 and poll_ui('SCENARIO') and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
+            if not self.h4 and poll_ui('scenario') and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
                 row.prop(mesh_nwo, 'render_only_ui', text='Render Only')
                 if not mesh_nwo.render_only_ui:
                     row.prop(mesh_nwo, "ladder_ui", text="Ladder")
@@ -2387,7 +2387,7 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(mesh_nwo, 'breakable_ui', text='Breakable')
                 
             elif not self.h4 and nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision':
-                if poll_ui(('SCENARIO', 'MODEL')):
+                if poll_ui(('scenario', 'model')):
                     row.prop(mesh_nwo, 'sphere_collision_only_ui', text='Sphere Collision Only')
                     row.prop(mesh_nwo, "ladder_ui", text="Ladder")
                     row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
@@ -2405,8 +2405,8 @@ class NWO_FoundryPanelProps(Panel):
             row.use_property_split = True
             row.prop(mesh_nwo, "face_draw_distance_ui")
                 
-        if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
-            if has_collision and poll_ui(("SCENARIO", "PREFAB")) and not (mesh_nwo.render_only_ui and is_instance_or_structure_proxy(ob)):
+        if poll_ui(("model", "scenario", "prefab")):
+            if has_collision and poll_ui(("scenario", "prefab")) and not (mesh_nwo.render_only_ui and is_instance_or_structure_proxy(ob)):
                 row = box.row()
                 row.use_property_split = True
                 if self.h4:
@@ -2423,7 +2423,7 @@ class NWO_FoundryPanelProps(Panel):
                 "_connected_geometry_mesh_type_physics",
                 )):
                     if not (nwo.mesh_type_ui in ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default") and mesh_nwo.render_only_ui):
-                        if not (self.asset_type == 'MODEL' and nwo.mesh_type_ui == '_connected_geometry_mesh_type_default'):
+                        if not (self.asset_type == 'model' and nwo.mesh_type_ui == '_connected_geometry_mesh_type_default'):
                             row = box.row()
                             row.use_property_split = True
                             coll_mat_text = 'Collision Material'
@@ -2437,7 +2437,7 @@ class NWO_FoundryPanelProps(Panel):
                                 "face_global_material_ui",
                                 text=coll_mat_text,
                             )
-                            if poll_ui(('SCENARIO', 'PREFAB')):
+                            if poll_ui(('scenario', 'prefab')):
                                 row.operator(
                                     "nwo.global_material_globals",
                                     text="",
@@ -2456,7 +2456,7 @@ class NWO_FoundryPanelProps(Panel):
             "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_lightmap_only",
         ):
-            if poll_ui(("SCENARIO", "PREFAB")) and (not self.h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
+            if poll_ui(("scenario", "prefab")) and (not self.h4 or nwo.proxy_instance or nwo.mesh_type_ui != "_connected_geometry_mesh_type_structure"):
                 # col.separator()
                 col_ob = box.column()
                 col_ob.use_property_split = True
@@ -3061,9 +3061,9 @@ class NWO_FoundryPanelProps(Panel):
         shader_type = "Material" if self.h4 else "Shader"
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
         self.draw_expandable_box(self.box.box(), nwo, "importer")
-        if poll_ui(('MODEL', 'FP ANIMATION', 'SKY')):
+        if poll_ui(('model', 'animation', 'sky')):
             self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
-        elif poll_ui('SCENARIO'):
+        elif poll_ui('scenario'):
             self.draw_expandable_box(self.box.box(), nwo, "bsp_tools", "BSP Tools")
             
     def draw_bsp_tools(self, box, nwo):
@@ -3077,7 +3077,7 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column()
         amf_installed = amf_addon_installed()
         toolset_installed = blender_toolset_installed()
-        # if poll_ui('MODEL'):
+        # if poll_ui('model'):
         #     if blender_toolset_installed():
         #         col.operator('nwo.import_legacy_animation', text="Import Legacy Animations", icon='ANIM')
         #     else:
@@ -3194,7 +3194,7 @@ class NWO_FoundryPanelProps(Panel):
         row = box.row()
         row.label(text="Projects")
         row = box.row()
-        rows = 3
+        rows = 5
         row.template_list(
             "NWO_UL_Projects",
             "",
@@ -3207,6 +3207,8 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column(align=True)
         col.operator("nwo.project_add", text="", icon="ADD")
         col.operator("nwo.project_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.project_edit", icon="SETTINGS", text="")
         col.separator()
         col.operator("nwo.project_move", text="", icon="TRIA_UP").direction = 'up'
         col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
@@ -3244,13 +3246,13 @@ class NWO_FoundryPanelProps(Panel):
         region_name = "Region"
         ob_is_mesh = is_mesh(ob)
         is_seam = nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam" and ob_is_mesh
-        if poll_ui("SCENARIO"):
+        if poll_ui("scenario"):
             perm_name = "Layer"
             if is_seam:
                 region_name = "Frontfacing BSP"
             else:
                 region_name = "BSP"
-        elif poll_ui('MODEL') and ob_is_mesh:
+        elif poll_ui('model') and ob_is_mesh:
             if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
                 for prop in ob.data.nwo.face_props:
                     if prop.region_name_override:
@@ -3797,7 +3799,7 @@ class NWO_HaloLauncherFoundationSettings(Panel):
         row.prop(scene_nwo_halo_launcher, "foundation_default", expand=True)
         col = layout.column(heading="Open")
         if scene_nwo_halo_launcher.foundation_default == "asset":
-            if nwo_asset_type() == "MODEL":
+            if nwo_asset_type() == "model":
                 col.prop(scene_nwo_halo_launcher, "open_model")
                 col.prop(scene_nwo_halo_launcher, "open_render_model")
                 col.prop(scene_nwo_halo_launcher, "open_collision_model")
@@ -3832,7 +3834,7 @@ class NWO_HaloLauncherFoundationSettings(Panel):
                     col.prop(scene_nwo_halo_launcher, "open_vehicle")
                 if scene.nwo.output_weapon:
                     col.prop(scene_nwo_halo_launcher, "open_weapon")
-            elif nwo_asset_type() == "SCENARIO":
+            elif nwo_asset_type() == "scenario":
                 col.prop(scene_nwo_halo_launcher, "open_scenario")
                 col.prop(scene_nwo_halo_launcher, "open_scenario_structure_bsp")
                 col.prop(scene_nwo_halo_launcher, "open_scenario_lightmap_bsp_data")
@@ -3848,22 +3850,22 @@ class NWO_HaloLauncherFoundationSettings(Panel):
                     ]
                 ):
                     col.prop(scene_nwo_halo_launcher, "bsp_name")
-            elif nwo_asset_type() == "SKY":
+            elif nwo_asset_type() == "sky":
                 col.prop(scene_nwo_halo_launcher, "open_model")
                 col.prop(scene_nwo_halo_launcher, "open_render_model")
                 col.prop(scene_nwo_halo_launcher, "open_scenery")
-            elif nwo_asset_type() == "DECORATOR SET":
+            elif nwo_asset_type() == "decorator_set":
                 col.prop(scene_nwo_halo_launcher, "open_decorator_set")
-            elif nwo_asset_type() == "PARTICLE MODEL":
+            elif nwo_asset_type() == "particle_model":
                 col.prop(scene_nwo_halo_launcher, "open_particle_model")
-            elif nwo_asset_type() == "PREFAB":
+            elif nwo_asset_type() == "prefab":
                 col.prop(scene_nwo_halo_launcher, "open_prefab")
                 col.prop(scene_nwo_halo_launcher, "open_scenario_structure_bsp")
                 col.prop(
                     scene_nwo_halo_launcher,
                     "open_scenario_structure_lighting_info",
                 )
-            elif nwo_asset_type() == "FP ANIMATION":
+            elif nwo_asset_type() == "animation":
                 col.prop(scene_nwo_halo_launcher, "open_model_animation_graph")
                 col.prop(scene_nwo_halo_launcher, "open_frame_event_list")
             elif nwo_asset_type() == "camera_track_set" and scene_nwo_halo_launcher.camera_track_name:
@@ -3945,7 +3947,7 @@ class NWO_HaloLauncher_Sapien(Operator):
         if (
             scene_nwo_halo_launcher.game_default == "default"
             or not valid_nwo_asset(context)
-            or nwo_asset_type() != "SCENARIO"
+            or nwo_asset_type() != "scenario"
         ):
             self.filepath = get_tags_path()
             context.window_manager.fileselect_add(self)
@@ -3993,7 +3995,7 @@ class NWO_HaloLauncher_TagTest(Operator):
         if (
             scene_nwo_halo_launcher.game_default == "default"
             or not valid_nwo_asset(context)
-            or nwo_asset_type() != "SCENARIO"
+            or nwo_asset_type() != "scenario"
         ):
             self.filepath = get_tags_path()
             context.window_manager.fileselect_add(self)
@@ -4430,8 +4432,8 @@ class NWO_HaloExportSettings(Panel):
         col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
         if asset_type == 'camera_track_set':
             return
-        scenario = asset_type == "SCENARIO"
-        render = asset_type in ("MODEL", "SKY")
+        scenario = asset_type == "scenario"
+        render = asset_type in ("model", "sky")
         if (h4 and render) or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
@@ -4440,7 +4442,7 @@ class NWO_HaloExportSettings(Panel):
 
             col.prop(scene_nwo_export, "lightmap_structure", text=lighting_name)
             if scene_nwo_export.lightmap_structure:
-                if asset_type == "SCENARIO":
+                if asset_type == "scenario":
                     if h4:
                         col.prop(scene_nwo_export, "lightmap_quality_h4")
                     else:
@@ -4463,7 +4465,7 @@ class NWO_HaloExportSettingsScope(Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'FP ANIMATION')
+        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('model', 'scenario', 'prefab', 'animation')
 
     def draw(self, context):
         layout = self.layout
@@ -4482,7 +4484,7 @@ class NWO_HaloExportSettingsScope(Panel):
         col = flow.column()
         col = layout.column(heading="Include")
 
-        if scene_nwo.asset_type == "MODEL":
+        if scene_nwo.asset_type == "model":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
             col.prop(scene_nwo_export, "export_collision")
@@ -4490,21 +4492,21 @@ class NWO_HaloExportSettingsScope(Panel):
             col.prop(scene_nwo_export, "export_markers")
             col.prop(scene_nwo_export, "export_skeleton")
             col.prop(scene_nwo_export, "export_animations", expand=True)
-        elif scene_nwo.asset_type == "FP ANIMATION":
+        elif scene_nwo.asset_type == "animation":
             col.prop(scene_nwo_export, "export_skeleton")
             col.prop(scene_nwo_export, "export_animations", expand=True)
-        elif scene_nwo.asset_type == "SCENARIO":
+        elif scene_nwo.asset_type == "scenario":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_structure")
             col.prop(scene_nwo_export, "export_design", text="Design")
-        elif scene_nwo.asset_type != "PREFAB":
+        elif scene_nwo.asset_type != "prefab":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
             col.prop(scene_nwo_export, "export_render")
 
-        if scene_nwo.asset_type == "SCENARIO":
+        if scene_nwo.asset_type == "scenario":
             col.prop(scene_nwo_export, "export_all_bsps", expand=True)
-        if scene_nwo.asset_type in (("MODEL", "SCENARIO", "PREFAB")):
-            if scene_nwo.asset_type == "MODEL":
+        if scene_nwo.asset_type in (("model", "scenario", "prefab")):
+            if scene_nwo.asset_type == "model":
                 txt = "Permutations"
             else:
                 txt = "Layers"
@@ -4520,7 +4522,7 @@ class NWO_HaloExportSettingsFlags(Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'SKY', 'PARTICLE MODEL', 'DECORATOR SET', 'FP ANIMATION')
+        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation')
 
     def draw(self, context):
         layout = self.layout
@@ -4528,8 +4530,8 @@ class NWO_HaloExportSettingsFlags(Panel):
         scene_nwo = scene.nwo
         scene_nwo_export = scene.nwo_export
         h4 = is_corinth(context)
-        scenario = scene_nwo.asset_type == "SCENARIO"
-        prefab = scene_nwo.asset_type == "PREFAB"
+        scenario = scene_nwo.asset_type == "scenario"
+        prefab = scene_nwo.asset_type == "prefab"
 
         layout.use_property_split = False
         flow = layout.grid_flow(
@@ -4541,7 +4543,7 @@ class NWO_HaloExportSettingsFlags(Panel):
         )
         col = flow.column()
         col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
-        # if scene_nwo.asset_type in ('MODEL', 'SKY', 'FP ANIMATION'):
+        # if scene_nwo.asset_type in ('model', 'sky', 'animation'):
         #     # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
         #     col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
         if h4:
@@ -5026,7 +5028,7 @@ class NWO_PropertiesManager(Panel):
     def draw(self, context):
         layout = self.layout
 
-        # if context.scene.nwo.asset_type == 'SCENARIO':
+        # if context.scene.nwo.asset_type == 'scenario':
         #     layout.operator("nwo.auto_seam", icon_value=get_icon_id("seam"))
 
 
@@ -5072,7 +5074,7 @@ class NWO_CollectionManager_Create(Operator):
         items = []
         r_name = "Region"
         p_name = "Permutation"
-        if context.scene.nwo.asset_type == "SCENARIO":
+        if context.scene.nwo.asset_type == "scenario":
             r_name = "BSP"
             p_name = "Layer"
 
@@ -5273,22 +5275,22 @@ def draw_foundry_nodes_toolbar(self, context):
 def foundry_nodes_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
-    nwo_scene = context.scene.nwo
+    export_scene = context.scene.nwo
     icons_only = context.preferences.addons["io_scene_foundry"].preferences.toolbar_icons_only
     row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
-    if not nwo_scene.toolbar_expanded:
+    if not export_scene.toolbar_expanded:
         sub_foundry = row.row(align=True)
-        sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
-    if nwo_scene.toolbar_expanded:
+        sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+    if export_scene.toolbar_expanded:
         error = validate_ek()
         if error is not None:
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")
             sub_foundry = row.row(align=True)
-            sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+            sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
             return
 
         sub0 = row.row(align=True)
@@ -5296,13 +5298,13 @@ def foundry_nodes_toolbar(layout, context):
             sub0.enabled = False
         else:
             sub0.enabled = True
-        sub0.prop(nwo_scene, "material_sync_rate", text="Sync Rate")
+        sub0.prop(export_scene, "material_sync_rate", text="Sync Rate")
         sub1 = row.row(align=True)
         if context.scene.nwo.shader_sync_active:
             sub1.operator("nwo.material_sync_end", text="Halo Material Sync", icon="PAUSE", depress=True)
         else:
             sub1.operator("nwo.material_sync_start", text="Halo Material Sync", icon="PLAY")
-        # sub0.prop(nwo_scene, "shader_sync_active", text="" if icons_only else "Halo Material Sync", icon_value=get_icon_id("material_exporter"))
+        # sub0.prop(export_scene, "shader_sync_active", text="" if icons_only else "Halo Material Sync", icon_value=get_icon_id("material_exporter"))
 
 def draw_foundry_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
@@ -5311,8 +5313,8 @@ def draw_foundry_toolbar(self, context):
 def foundry_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
-    nwo_scene = context.scene.nwo
-    if nwo_scene.storage_only:
+    export_scene = context.scene.nwo
+    if export_scene.storage_only:
         row.label(text='Scene is used by Foundry for object storage', icon_value=get_icon_id('foundry'))
         return
     icons_only = context.preferences.addons["io_scene_foundry"].preferences.toolbar_icons_only
@@ -5320,16 +5322,16 @@ def foundry_toolbar(layout, context):
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
-    if not nwo_scene.toolbar_expanded:
+    if not export_scene.toolbar_expanded:
         sub_foundry = row.row(align=True)
-        sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
-    if nwo_scene.toolbar_expanded:
+        sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+    if export_scene.toolbar_expanded:
         error = validate_ek()
         if error is not None:
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")
             sub_foundry = row.row(align=True)
-            sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+            sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
             return
 
         sub0 = row.row(align=True)
@@ -5372,7 +5374,7 @@ def foundry_toolbar(layout, context):
         sub3.popover(panel="NWO_PT_HaloLauncherExplorerSettings", text="")
 
         sub_foundry = row.row(align=True)
-        sub_foundry.prop(nwo_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+        sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
         
 def menu_func_import(self, context):
     self.layout.operator(NWO_Import.bl_idname, text="Halo Foundry Import")

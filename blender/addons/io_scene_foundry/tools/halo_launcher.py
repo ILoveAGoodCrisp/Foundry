@@ -73,7 +73,7 @@ def LaunchFoundation(settings, context):
     if settings.foundation_default == "asset" and valid_nwo_asset(context):
         launch_args.append("/dontloadlastopenedwindows")
         asset_path, asset_name = get_asset_info(settings.sidecar_path)
-        if nwo_asset_type() == "MODEL":
+        if nwo_asset_type() == "model":
             if settings.open_model:
                 launch_args.append(get_tag_if_exists(asset_path, asset_name, "model"))
             if settings.open_render_model:
@@ -142,7 +142,7 @@ def LaunchFoundation(settings, context):
             if settings.open_weapon and scene_nwo.output_weapon:
                 launch_args.append(get_tag_if_exists(asset_path, asset_name, "weapon"))
 
-        elif nwo_asset_type() == "SCENARIO":
+        elif nwo_asset_type() == "scenario":
             if settings.open_scenario:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "scenario")
@@ -227,7 +227,7 @@ def LaunchFoundation(settings, context):
                                 file + ".scenario_structure_lighting_info"
                             )
 
-        elif nwo_asset_type() == "SKY":
+        elif nwo_asset_type() == "sky":
             if settings.open_model:
                 launch_args.append(get_tag_if_exists(asset_path, asset_name, "model"))
             if settings.open_render_model:
@@ -237,19 +237,19 @@ def LaunchFoundation(settings, context):
             if settings.open_scenery:
                 launch_args.append(get_tag_if_exists(asset_path, asset_name, "scenery"))
 
-        elif nwo_asset_type() == "DECORATOR SET":
+        elif nwo_asset_type() == "decorator_set":
             if settings.open_decorator_set:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "decorator_set")
                 )
 
-        elif nwo_asset_type() == "PARTICLE MODEL":
+        elif nwo_asset_type() == "particle_model":
             if settings.open_particle_model:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "particle_model")
                 )
 
-        elif nwo_asset_type() == "PREFAB":
+        elif nwo_asset_type() == "prefab":
             if settings.open_prefab:
                 launch_args.append(get_tag_if_exists(asset_path, asset_name, "prefab"))
             if settings.open_scenario_structure_bsp:
@@ -265,7 +265,7 @@ def LaunchFoundation(settings, context):
                     )
                 )
 
-        elif nwo_asset_type() == "FP ANIMATION":
+        elif nwo_asset_type() == "animation":
             if settings.open_model_animation_graph:
                 launch_args.append(
                     get_tag_if_exists(asset_path, asset_name, "model_animation_graph")
@@ -297,7 +297,7 @@ def get_exe(name: str):
 def launch_game(is_sapien, settings, filepath, asset_type):
     asset_path, asset_name = get_asset_info(settings.sidecar_path)
     using_filepath = filepath.endswith(".scenario")
-    if asset_type == 'MODEL' and get_prefs().debug_menu_on_launch:
+    if asset_type == 'model' and get_prefs().debug_menu_on_launch:
         update_debug_menu(asset_path, asset_name)
     # get the program to launch
     if is_sapien:
@@ -306,7 +306,7 @@ def launch_game(is_sapien, settings, filepath, asset_type):
         else:
             args = [get_exe("sapien")]
         # Sapien needs the scenario in the launch args so adding this here
-        if nwo_asset_type() == "SCENARIO" and settings.game_default == "asset":
+        if nwo_asset_type() == "scenario" and settings.game_default == "asset":
             filepath = get_tag_if_exists(asset_path, asset_name, "scenario")
         
         args.append(filepath)

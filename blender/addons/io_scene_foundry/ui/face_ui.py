@@ -55,10 +55,10 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
         ob = context.object
         nwo = ob.nwo
         h4 = is_corinth(context)
-        if poll_ui(("MODEL", "SKY")):
+        if poll_ui(("model", "sky")):
             layout.operator(self.op_prefix, text="Region").options = "region"
         # if (
-        #     poll_ui("SCENARIO")
+        #     poll_ui("scenario")
         #     and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
         # ):
         #     layout.operator(self.op_prefix, text="Seam").options = "seam"
@@ -66,7 +66,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             (nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
             or nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
-            or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui(('SCENARIO', 'PREFAB')))
+            or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui(('scenario', 'prefab')))
         ) or (not h4 and nwo.mesh_type_ui in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision"))):
             layout.operator(
                 self.op_prefix, text="Collision Material"
@@ -80,7 +80,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             if nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
                 layout.operator(self.op_prefix, text="Transparent").options = "transparent"
                 layout.operator(self.op_prefix, text="Draw Distance").options = "draw_distance"
-        if poll_ui(("MODEL", "SCENARIO", "PREFAB")):
+        if poll_ui(("model", "scenario", "prefab")):
             if nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_structure",
@@ -89,7 +89,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     self.op_prefix, text="Uncompressed"
                 ).options = "precise_position"
                 
-            if poll_ui(("SCENARIO", "PREFAB")) and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
+            if poll_ui(("scenario", "prefab")) and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
                 if h4 and nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
                     layout.operator(
                         self.op_prefix, text="No Lightmap"
@@ -114,7 +114,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     layout.operator(
                         self.op_prefix, text="No Shadow"
                     ).options = "no_shadow"
-            elif poll_ui(("MODEL")):
+            elif poll_ui(("model")):
                 if nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' and not h4:
                     layout.operator(
                         self.op_prefix, text="Ladder"
@@ -127,7 +127,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                         self.op_prefix, text="Decal Offset"
                     ).options = "decal_offset"
 
-        if poll_ui(("SCENARIO", "PREFAB")):
+        if poll_ui(("scenario", "prefab")):
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
                 layout.operator(
                     self.op_prefix, text="Render Only"
@@ -920,14 +920,14 @@ class NWO_GlobalMaterialMenuFace(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        if poll_ui(("MODEL", "SKY")):
+        if poll_ui(("model", "sky")):
             layout.operator_menu_enum(
                 "nwo.face_global_material_regions_list",
                 property="region",
                 text="From Region",
             )
 
-        if poll_ui(("SCENARIO", "PREFAB", "MODEL")):
+        if poll_ui(("scenario", "prefab", "model")):
             layout.operator(
                 "nwo.global_material_globals",
                 text="From Globals",

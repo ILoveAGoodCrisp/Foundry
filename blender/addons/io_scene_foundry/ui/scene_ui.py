@@ -76,7 +76,7 @@ class NWO_UL_Regions(UIList):
             row.alignment = 'RIGHT'
             row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
             row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
-            if data.asset_type in ('MODEL', 'SKY'):
+            if data.asset_type in ('model', 'sky'):
                 row.prop(item, "active", text="", icon='CHECKBOX_HLT' if item.active else 'CHECKBOX_DEHLT', emboss=False)
         else:
             layout.label(text="", translate=False, icon_value=icon)
@@ -133,7 +133,7 @@ class NWO_AssetMaker(NWO_Op):
     def execute(self, context):
         data_dir = get_data_path()
         scene = context.scene
-        nwo_scene = scene.nwo
+        export_scene = scene.nwo
         if self.filename:
             asset_name = self.filename
             asset_folder = self.filepath
@@ -158,7 +158,7 @@ class NWO_AssetMaker(NWO_Op):
             else:
                 self.report(
                     {"WARNING"},
-                    f"Invalid asset location. Please ensure your file is saved to your {nwo_scene.scene_project} data directory",
+                    f"Invalid asset location. Please ensure your file is saved to your {export_scene.scene_project} data directory",
                 )
                 return {"CANCELLED"}
 
@@ -192,7 +192,7 @@ class NWO_AssetMaker(NWO_Op):
 
         self.report(
             {"INFO"},
-            f"Created new {nwo_scene.asset_type.title()} asset for {nwo_scene.scene_project}. Asset Name = {asset_name}",
+            f"Created new {export_scene.asset_type.title()} asset for {export_scene.scene_project}. Asset Name = {asset_name}",
         )
 
         mb_path = nwo_globals.mb_path
@@ -242,7 +242,7 @@ class NWO_AssetMaker(NWO_Op):
         col.prop(self, "work_dir", text="Save to work directory")
         col.separator()
         col.prop(self, "selected_only")
-        if nwo_asset.asset_type == "MODEL":
+        if nwo_asset.asset_type == "model":
             col.separator()
             col.label(text="Output Tags")
             flow = col.grid_flow(

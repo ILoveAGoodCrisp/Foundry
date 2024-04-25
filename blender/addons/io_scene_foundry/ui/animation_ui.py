@@ -405,7 +405,7 @@ class NWO_NewAnimation(NWO_Op):
     )
 
     def __init__(self):
-        self.fp_animation = poll_ui("FP ANIMATION")
+        self.fp_animation = poll_ui("animation")
         if self.fp_animation:
             self.mode = "first_person"
 

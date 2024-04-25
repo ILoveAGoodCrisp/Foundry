@@ -247,7 +247,8 @@ def project_from_scene_project(scene_project=None):
     if not prefs.projects:
         return
     if not scene_project:
-        print_warning(f"No Scene project active, returning first project: {prefs.projects[0].name}")
+        pass
+        # print_warning(f"No Scene project active, returning first project: {prefs.projects[0].name}")
     else:
         for p in prefs.projects:
             if p.name == scene_project:
@@ -996,12 +997,12 @@ def is_halo_object(ob) -> bool:
         and not (ob.type == "EMPTY" and ob.empty_display_type == "IMAGE")
         and poll_ui(
             (
-                "MODEL",
-                "SCENARIO",
-                "SKY",
-                "DECORATOR SET",
-                "PARTICLE MODEL",
-                "PREFAB",
+                "model",
+                "scenario",
+                "sky",
+                "decorator_set",
+                "particle_model",
+                "prefab",
             )
         )
     )
@@ -1030,9 +1031,9 @@ def has_face_props(ob) -> bool:
         "_connected_geometry_mesh_type_default",
         "_connected_geometry_mesh_type_structure",
     ]
-    if poll_ui('MODEL'):
+    if poll_ui('model'):
         valid_mesh_types.append('_connected_geometry_mesh_type_collision')
-    if is_corinth() and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and poll_ui('SCENARIO') and not ob.nwo.proxy_instance:
+    if is_corinth() and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and poll_ui('scenario') and not ob.nwo.proxy_instance:
         return False
     return (
         ob
@@ -1179,15 +1180,15 @@ def remove_chars(string, chars):
 
 def write_projects_list(project_list):
     appdata = os.getenv('APPDATA')
-    foundry_folder = os.path.join(appdata, "Foundry")
+    foundry_folder = Path(appdata, "Foundry")
 
-    if not os.path.exists(foundry_folder):
-        os.makedirs(foundry_folder, exist_ok=True)
+    if not foundry_folder.exists():
+        foundry_folder.mkdir(exist_ok=True)
     
-    if not os.path.exists(foundry_folder):
+    if not foundry_folder.exists():
         return print('Failed to write projects list. Foundry will not work correctly')
 
-    projects = os.path.join(foundry_folder, "projects.json")
+    projects = Path(foundry_folder, "projects.json")
     with open(projects, 'w') as file:
         json.dump(project_list, file, indent=4)
 
@@ -1209,34 +1210,83 @@ def read_projects_list() -> list:
     return projects_list
 
 class ProjectXML():
-    def __init__(self, project_root):
+    def __init__(self):
         self.name = ""
         self.display_name = ""
         self.remote_database_name = ""
         self.project_xml = ""
-        self.read_xml(project_root)
+        self.image_path = ""
+        self.default_material = ""
+        self.default_water = ""
 
-    def read_xml(self, project_root):
-        self.project_xml = os.path.join(project_root, "project.xml")
-        if not os.path.exists(self.project_xml):
+    def parse(self, project_root):
+        has_changes = False
+        self.project_xml = Path(project_root, "project.xml")
+        if not self.project_xml.exists():
             return print(f"{project_root} is not a path to a valid Halo project. Expected project root directory to contain project.xml")
-        with open(self.project_xml, 'r') as file:
-            xml = file.read()
-            root = ET.fromstring(xml)
+        tree = ET.parse(self.project_xml)
+        root = tree.getroot()
+        if self.name and self.name != root.get('name', 0):
+            root.set("name", self.name)
+            has_changes = True
+        else:
             self.name = root.get('name', 0)
             if not self.name:
                 return print(f"Failed to parse XML: {self.project_xml}. Could not return Name")
+        if self.display_name and self.display_name != root.get('displayName', 0):
+            root.set("displayName", self.display_name)
+            has_changes = True
+        else:
             self.display_name = root.get('displayName', 0)
             if not self.display_name:
                 return print(f"Failed to parse XML: {self.project_xml}. Could not return displayName")
-            self.remote_database_name = root.find('./tagDatastore').get('remoteDatabaseName', 0)
-            if not self.remote_database_name:
-                return print(f"Failed to parse XML: {self.project_xml}. Could not return remoteDatabaseName")
-            # It's fine if these fail, they are only used to render icons
-            self.remote_server_name = root.find('./tagDatastore').get('remoteServerName', 0)
-            image = root.find('./imagePath')
-            if image is not None:
-             self.image_path = image.text
+        self.remote_database_name = root.find('./tagDatastore').get('remoteDatabaseName', 0)
+        if not self.remote_database_name:
+            return print(f"Failed to parse XML: {self.project_xml}. Could not return remoteDatabaseName")
+        # It's fine if these fail, they are only used to render icons
+        self.remote_server_name = root.find('./tagDatastore').get('remoteServerName', 0)
+        image = root.find('./imagePath', 0)
+        if image is not None:
+            self.image_path = image.text
+            
+        material = root.find('./defaultMaterial', 0)
+        if material is not None:
+            if self.default_material and self.default_material != material.text:
+                material.text = self.default_material
+            else:
+                self.default_material = material.text
+        else:
+            material = ET.SubElement(root, 'defaultMaterial')
+            match self.remote_server_name:
+                case 'bngtoolsql':
+                    material.text = r"shaders\invalid.shader"
+                case 'metawins':
+                    material.text = r"levels\shared\shaders\simple\256testgrid.material"
+                case 'episql.343i.selfhost.corp.microsoft.com':
+                    material.text = r"shaders\invalid.material"
+            self.default_material = material.text
+            has_changes = True
+        
+        water = root.find('./defaultWater', 0)
+        if water is not None:
+            if self.default_water and self.default_water != water.text:
+                water.text = self.default_water
+            else:
+                self.default_water = water.text
+        else:
+            water = ET.SubElement(root, 'defaultWater')
+            match self.remote_server_name:
+                case 'bngtoolsql':
+                    water.text = r"levels\solo\m50\shaders\water\m50_atrium_fountain_water.shader_water"
+                case 'metawins':
+                    water.text = r"levels\multi\z11_valhalla\materials\valhalla_water_river.material"
+                case 'episql.343i.selfhost.corp.microsoft.com':
+                    water.text = r"levels\sway\ca_sanctuary\materials\rocks\ca_sanctuary_rockflat_water.material"
+            self.default_water = water.text
+            has_changes = True
+        
+        if has_changes:
+            tree.write(self.project_xml, encoding='utf-8', xml_declaration=True)
 
 def setup_projects_list(skip_registry_check=False, report=None):
     projects_list = read_projects_list()
@@ -1246,7 +1296,8 @@ def setup_projects_list(skip_registry_check=False, report=None):
     display_names = []
     if projects_list is not None:
         for i in projects_list:
-            xml = ProjectXML(i)
+            xml = ProjectXML()
+            xml.parse(i)
             if xml.name and xml.display_name and xml.remote_database_name and xml.project_xml:
                 if xml.display_name in display_names:
                     warning = f"{xml.display_name} already exists. Ensure new project has a unique project display name. This can be changed by editing the displayName field in {os.path.join(i, 'project.xml')}"
@@ -1259,12 +1310,14 @@ def setup_projects_list(skip_registry_check=False, report=None):
                 new_projects_list.append(i)
                 p = prefs.projects.add()
                 p.project_path = i
-                p.project_xml = xml.project_xml
+                p.project_xml = str(xml.project_xml)
                 p.project_name = xml.name
                 p.name = xml.display_name
                 p.project_remote_server_name = xml.remote_server_name
                 p.project_image_path = xml.image_path
                 p.project_corinth = xml.remote_database_name == "tags"
+                p.project_default_material = xml.default_material
+                p.project_default_water = xml.default_water
     
     if new_projects_list:
         # Write new file to ensure sync
@@ -1379,7 +1432,7 @@ def get_mesh_display(mesh_type):
         case '_connected_geometry_mesh_type_lightmap_only':
             return 'Lightmap Only', get_icon_id('lightmap')
         case _:
-            if poll_ui(('SCENARIO', 'PREFAB')):
+            if poll_ui(('scenario', 'prefab')):
                 return 'Instanced Geometry', get_icon_id('instance')
             elif poll_ui(('DECORATOR')):
                 return 'Decorator', get_icon_id('decorator')
@@ -1412,7 +1465,7 @@ def get_marker_display(mesh_type):
         case '_connected_geometry_marker_type_lightCone':
             return 'Light Cone', get_icon_id('light_cone')
         case _:
-            if poll_ui(('SCENARIO', 'PREFAB')):
+            if poll_ui(('scenario', 'prefab')):
                 return 'Structure Marker', get_icon_id('marker')
             else:
                 return 'Model Marker', get_icon_id('marker')
@@ -1493,7 +1546,7 @@ def fbx_addon_installed():
 def has_collision_type(ob: bpy.types.Object) -> bool:
     nwo = ob.nwo
     mesh_type = nwo.mesh_type_ui
-    if not poll_ui(('SCENARIO', 'PREFAB')) and mesh_type != '_connected_geometry_mesh_type_collision':
+    if not poll_ui(('scenario', 'prefab')) and mesh_type != '_connected_geometry_mesh_type_collision':
         return False
     if mesh_type in COLLISION_MESH_TYPES:
         return True
@@ -1514,7 +1567,7 @@ def get_sky_perm(mat: bpy.types.Material) -> int:
         
 def is_instance_or_structure_proxy(ob) -> bool:
     mesh_type = ob.nwo.mesh_type_ui
-    if not poll_ui(('SCENARIO', 'PREFAB')):
+    if not poll_ui(('scenario', 'prefab')):
         return False
     if mesh_type == '_connected_geometry_mesh_type_default':
         return True
@@ -2089,7 +2142,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 local_loc *= scale_factor
                 ob.matrix_local = Matrix.LocRotScale(local_loc, local_rot, local_sca)
             
-            if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB'):
+            if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('model', 'sky', 'scenario', 'prefab'):
                 ob.rotation_euler.rotate_axis('Z', -rotation)
             
             if ob.type == 'LATTICE':
@@ -2390,7 +2443,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
 
             for fc in action.fcurves:
                 fc.keyframe_points.handles_recalc()
-                
                 
             if apply_rotation:
                 with context.temp_override(selected_editable_objects=objects, object=objects[0]):
@@ -3105,4 +3157,106 @@ class EditArmature:
             if original_collections:
                 for coll in original_collections:
                     coll.objects.link(arm)
+                    
+def disable_excluded_collections(context):
+    child_coll = context.view_layer.layer_collection.children
+    for layer in child_coll:
+        hide_excluded_recursively(layer)
+
+def hide_excluded_recursively(layer):
+    if layer.collection.nwo.type == 'exclude' and layer.is_visible:
+        layer.exclude = True
+    for child_layer in layer.children:
+        hide_excluded_recursively(child_layer)
+        
+def unhide_collections(context):
+    layer_collection = context.view_layer.layer_collection
+    recursive_unhide_collections(layer_collection)
+
+def recursive_unhide_collections(collections):
+    coll_children = collections.children
+    for collection in coll_children:
+        collection.hide_viewport = False
+        if collection.children:
+            recursive_unhide_collections(collection)
+                
+def update_view_layer(context):
+    context.view_layer.update()
     
+def remove_relative_parenting(armature):
+    '''
+    Sets bone relative parenting to false for each bone on the given armature\n
+    Resolves correct object parent inverses to account for the change
+    '''
+    relative_bones = set()
+    for b in armature.data.bones:
+        if b.use_relative_parent:
+            relative_bones.add(b.name)
+
+    for ob in bpy.data.objects:
+        if ob.parent == armature and ob.parent_type == 'BONE' and ob.parent_bone in relative_bones:
+            bone = armature.data.bones[ob.parent_bone]
+            ob.matrix_parent_inverse = (armature.matrix_world @ Matrix.Translation(bone.tail_local - bone.head_local) @ bone.matrix_local).inverted()
+
+    for b in relative_bones: b.use_relative_parent = False
+    
+def apply_armature_scale(context, arm: bpy.types.Object):
+    '''Applies an armature's scale while scaling animations. Assumes scaling is positive and uniform'''
+    old_scale = arm.scale.copy()
+    scale_factor = arm.scale.x
+    scale_matrix = Matrix.Scale(scale_factor, 4)
+    scene_coll = context.scene.collection.objects
+    arm_children = {ob: ob.matrix_world.copy() for ob in bpy.data.objects if ob.parent == arm}
+    
+    arm.scale = Vector.Fill(3, 1)
+    
+    for ob, world in arm_children.items():
+        ob.matrix_world = world
+
+    
+    # scale the armature bones
+    should_be_hidden = False
+    should_be_unlinked = False
+    data: bpy.types.Armature = arm.data
+    if arm.hide_get():
+        arm.hide_set(False)
+        should_be_hidden = True
+        
+    if not arm.visible_get():
+        original_collections = arm.users_collection
+        unlink(arm)
+        scene_coll.link(arm)
+        should_be_unlinked = True
+        
+    set_active_object(arm)
+    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+    
+    uses_edit_mirror = bool(arm.data.use_mirror_x)
+    if uses_edit_mirror: arm.data.use_mirror_x = False
+    edit_bones = data.edit_bones
+    connected_bones = [b for b in edit_bones if b.use_connect]
+    for edit_bone in connected_bones: edit_bone.use_connect = False
+    for edit_bone in edit_bones: edit_bone.transform(scale_matrix)
+    for edit_bone in connected_bones: edit_bone.use_connect = True
+    if uses_edit_mirror: arm.data.use_mirror_x = True
+        
+    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+    
+    if should_be_hidden:
+        arm.hide_set(True)
+        
+    if should_be_unlinked:
+        unlink(arm)
+        if original_collections:
+            for coll in original_collections:
+                coll.objects.link(arm)
+    
+    # Scale the animations
+    for action in bpy.data.actions:
+        for fcurve in action.fcurves:
+            if fcurve.data_path.endswith('location'):
+                for keyframe_point in fcurve.keyframe_points: keyframe_point.co_ui[1] *= scale_factor
+
+        for fc in action.fcurves:
+            if fcurve.data_path.endswith('location'):
+                fc.keyframe_points.handles_recalc()

@@ -401,7 +401,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         h4 = is_corinth()
         items = []
 
-        if poll_ui("DECORATOR SET"):
+        if poll_ui("decorator_set"):
             items.append(
                 (
                     "_connected_geometry_mesh_type_decorator",
@@ -411,7 +411,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                     0,
                 )
             )
-        elif poll_ui(("MODEL", "SKY", "PARTICLE MODEL")):
+        elif poll_ui(("model", "sky", "particle_model")):
             items.append(
                 (
                     "_connected_geometry_mesh_type_render",
@@ -421,7 +421,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                     0,
                 )
             )
-            if poll_ui("MODEL"):
+            if poll_ui("model"):
                 items.append(
                     (
                         "_connected_geometry_mesh_type_collision",
@@ -442,7 +442,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                 )
                 # if not h4: NOTE removing these for now until I figure out how they work
                 #     items.append(('_connected_geometry_mesh_type_object_instance', 'Flair', 'Instanced mesh for models. Can be instanced across mutliple permutations', get_icon_id("flair"), 3))
-        elif poll_ui("SCENARIO"):
+        elif poll_ui("scenario"):
             items.append(
                 (
                     "_connected_geometry_mesh_type_structure",
@@ -488,7 +488,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                     4,
                 )
             )
-        elif poll_ui("PREFAB"):
+        elif poll_ui("prefab"):
             items.append(
                 (
                     "_connected_geometry_mesh_type_poop",
@@ -531,26 +531,26 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             ob_nwo = ob.data.nwo
 
             if ob_nwo.mesh_type_ui == "":
-                if self.asset_type == "DECORATOR SET":
+                if self.asset_type == "decorator_set":
                     ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_decorator"
-                elif self.asset_type == "SCENARIO":
+                elif self.asset_type == "scenario":
                     ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_structure"
-                elif self.asset_type == "PREFAB":
+                elif self.asset_type == "prefab":
                     ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_poop"
                 else:
                     ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_render"
 
     def asset_type_items(self, context):
         items = []
-        items.append(("MODEL", "Model", "", get_icon_id("model"), 0))
-        items.append(("SCENARIO", "Scenario", "", get_icon_id("scenario"), 1))
-        items.append(("SKY", "Sky", "", get_icon_id("sky"), 2))
+        items.append(("model", "Model", "", get_icon_id("model"), 0))
+        items.append(("scenario", "Scenario", "", get_icon_id("scenario"), 1))
+        items.append(("sky", "Sky", "", get_icon_id("sky"), 2))
         items.append(
-            ("DECORATOR SET", "Decorator Set", "", get_icon_id("decorator"), 3)
+            ("decorator_set", "Decorator Set", "", get_icon_id("decorator"), 3)
         )
         items.append(
             (
-                "PARTICLE MODEL",
+                "particle_model",
                 "Particle Model",
                 "",
                 get_icon_id("particle_model"),
@@ -559,7 +559,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         )
         items.append(
             (
-                "FP ANIMATION",
+                "animation",
                 "First Person Animation",
                 "",
                 get_icon_id("animation"),
@@ -576,12 +576,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             )
         )
         if is_corinth(context):
-            items.append(("PREFAB", "Prefab", "", get_icon_id("prefab"), 7))
+            items.append(("prefab", "Prefab", "", get_icon_id("prefab"), 7))
 
         return items
     
     def update_asset_type(self, context):
-        if self.asset_type == 'FP ANIMATION':
+        if self.asset_type == 'animation':
             context.scene.nwo_halo_launcher.open_model_animation_graph = True
 
     asset_type: EnumProperty(
@@ -590,6 +590,14 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="The type of asset you are creating",
         items=asset_type_items,
         update=update_asset_type,
+    )
+    
+    asset_animation_type: EnumProperty(
+        name="Animation Type",
+        items=[
+            ("first_person", "First Person", ""),
+            ("standalone", "Standalone", ""),
+        ]
     )
 
     forward_direction: EnumProperty(

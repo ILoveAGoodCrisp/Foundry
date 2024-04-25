@@ -8,13 +8,13 @@ class SpecialMaterial:
         self.shader_path = shader_path
         self.is_face_property = is_face_property
     
-invisible = SpecialMaterial('+invisible', ['reach', 'h4'], ['MODEL', 'SKY', 'SCENARIO', 'PREFAB'], [1, 1, 1, 0], r'objects\levels\shared\shaders\invisible', False)
-invalid = SpecialMaterial('+invalid', ['reach', 'h4'], ['MODEL', 'SKY', 'SCENARIO', 'PREFAB'], [0.5, 0.5, 0.5, 1], r'shaders\invalid', False)
-missing = SpecialMaterial('+missing', ['h4',], ['MODEL', 'SKY', 'SCENARIO', 'PREFAB'], [1, 0, 1, 1], r'shaders\missing', False)
-seamsealer = SpecialMaterial('+seamsealer', ['reach',], ['SCENARIO',], [1, 1, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_seam_sealer', True)
-sky = SpecialMaterial('+sky', ['reach',], ['SCENARIO',], [0.5, 0.7, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_sky', True)
-collision = SpecialMaterial('+collision', ['reach',], ['SCENARIO',], [0.0, 1.0, 0.0, 0.2], 'bungie_face_mode=_connected_geometry_face_mode_collision_only', True)
-sphere_collision = SpecialMaterial('+sphere_collision', ['reach',], ['SCENARIO',], [0.0, 0.0, 1.0, 0.2], 'bungie_face_mode=_connected_geometry_face_mode_sphere_collision_only', True)
+invisible = SpecialMaterial('+invisible', ['reach', 'h4'], ['model', 'sky', 'scenario', 'prefab'], [1, 1, 1, 0], r'objects\levels\shared\shaders\invisible', False)
+invalid = SpecialMaterial('+invalid', ['reach', 'h4'], ['model', 'sky', 'scenario', 'prefab'], [0.5, 0.5, 0.5, 1], r'shaders\invalid', False)
+missing = SpecialMaterial('+missing', ['h4',], ['model', 'sky', 'scenario', 'prefab'], [1, 0, 1, 1], r'shaders\missing', False)
+seamsealer = SpecialMaterial('+seamsealer', ['reach',], ['scenario',], [1, 1, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_seam_sealer', True)
+sky = SpecialMaterial('+sky', ['reach',], ['scenario',], [0.5, 0.7, 1, 0.05], 'bungie_face_type=_connected_geometry_face_type_sky', True)
+collision = SpecialMaterial('+collision', ['reach',], ['scenario',], [0.0, 1.0, 0.0, 0.2], 'bungie_face_mode=_connected_geometry_face_mode_collision_only', True)
+sphere_collision = SpecialMaterial('+sphere_collision', ['reach',], ['scenario',], [0.0, 0.0, 1.0, 0.2], 'bungie_face_mode=_connected_geometry_face_mode_sphere_collision_only', True)
 
 special_materials = invisible, invalid, missing, seamsealer, sky, collision, sphere_collision
 

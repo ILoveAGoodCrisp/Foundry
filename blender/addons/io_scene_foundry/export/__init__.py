@@ -36,6 +36,7 @@ bl_info = {
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer",
 }
 
+from pathlib import Path
 import addon_utils
 import bpy
 from bpy_extras.io_utils import ExportHelper
@@ -252,7 +253,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         box.label(text="Settings")
 
         h4 = is_corinth(context)
-        scenario = scene_nwo.asset_type == "SCENARIO"
+        scenario = scene_nwo.asset_type == "scenario"
 
         col = box.column()
         row = col.row()
@@ -265,42 +266,42 @@ class NWO_Export_Scene(Operator, ExportHelper):
         col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
         if scene_nwo.asset_type == 'camera_track_set':
             return
-        if scene_nwo_export.export_gr2_files and scene_nwo.asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'FP ANIMATION'):
+        if scene_nwo_export.export_gr2_files and scene_nwo.asset_type in ('model', 'scenario', 'prefab', 'animation'):
             col.separator()
             sub = col.column(heading="Export")
             # sub.prop(self, "export_hidden")
-            if scene_nwo.asset_type == "MODEL":
+            if scene_nwo.asset_type == "model":
                 sub.prop(scene_nwo_export, "export_render")
                 sub.prop(scene_nwo_export, "export_collision")
                 sub.prop(scene_nwo_export, "export_physics")
                 sub.prop(scene_nwo_export, "export_markers")
                 sub.prop(scene_nwo_export, "export_skeleton")
                 sub.prop(scene_nwo_export, "export_animations", expand=True)
-            elif scene_nwo.asset_type == "FP ANIMATION":
+            elif scene_nwo.asset_type == "animation":
                 sub.prop(scene_nwo_export, "export_skeleton")
                 sub.prop(scene_nwo_export, "export_animations", expand=True)
-            elif scene_nwo.asset_type == "SCENARIO":
+            elif scene_nwo.asset_type == "scenario":
                 sub.prop(scene_nwo_export, "export_structure")
                 sub.prop(scene_nwo_export, "export_design")
                 sub.prop(scene_nwo_export, "export_all_bsps", expand=True)
-            elif scene_nwo.asset_type != "PREFAB":
+            elif scene_nwo.asset_type != "prefab":
                 sub.prop(scene_nwo_export, "export_render")
             if scene_nwo.asset_type in (
-                "MODEL",
-                "SKY",
+                "model",
+                "sky",
             ):
                 sub.prop(scene_nwo_export, "export_all_perms", expand=True, text='Permutations')
-            elif scene_nwo.asset_type in ("SCENARIO", "PREFAB"):
+            elif scene_nwo.asset_type in ("scenario", "prefab"):
                 sub.prop(scene_nwo_export, "export_all_perms", expand=True, text='Layers')
         # SIDECAR SETTINGS #
-        if scene_nwo.asset_type == "MODEL" and scene_nwo_export.export_gr2_files:
+        if scene_nwo.asset_type == "model" and scene_nwo_export.export_gr2_files:
             box = layout.box()
             box.label(text="Model Settings")
             col = box.column()
             # col.prop(self, "export_sidecar_xml")
             # if self.export_sidecar_xml:
             sub = box.column(heading="Output Tags")
-            if scene_nwo.asset_type == "MODEL":
+            if scene_nwo.asset_type == "model":
                 sub.prop(scene_nwo, "output_biped")
                 sub.prop(scene_nwo, "output_crate")
                 sub.prop(scene_nwo, "output_creature")
@@ -321,7 +322,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             box = layout.box()
             sub = box.column(heading="Export Flags")
             sub.prop(scene_nwo_export, 'triangulate', text="Triangulate")
-            # if scene_nwo.asset_type in (('MODEL', 'SKY', 'FP ANIMATION')):
+            # if scene_nwo.asset_type in (('model', 'sky', 'animation')):
             #     # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
             #     col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
             if h4:
@@ -380,7 +381,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     sub.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
 
         # LIGHTMAP SETTINGS #
-        render = scene_nwo.asset_type in ("MODEL", "SKY")
+        render = scene_nwo.asset_type in ("model", "sky")
         if (h4 and render) or scenario:
             box = layout.box()
             box.label(text="Lightmap Settings")
@@ -438,9 +439,9 @@ class NWO_Export(NWO_Export_Scene):
         # get the asset name and path to the asset folder
         self.asset_path, self.asset = get_asset_info(self.filepath)
 
-        sidecar_path_full = os.path.join(self.asset_path, self.asset + ".sidecar.xml")
+        sidecar_path_full = Path(self.asset_path, self.asset).with_suffix(".sidecar.xml")
         global sidecar_path
-        sidecar_path = sidecar_path_full.replace(get_data_path(), "")
+        sidecar_path = sidecar_path_full.relative_to(get_data_path())
         
         bpy.app.timers.register(save_sidecar_path)
         
@@ -467,7 +468,7 @@ class NWO_Export(NWO_Export_Scene):
         print("\nIf you did not intend to export, hold CTRL+C")
 
         self.failed = False
-        self.known_fail = False
+        self.fail_explanation = ""
         
         if scene_nwo.asset_type == 'camera_track_set':
             scene_nwo.export_gr2_files = False
@@ -483,23 +484,19 @@ class NWO_Export(NWO_Export_Scene):
         try:
             try:
                 if fbx_installed:
-                    nwo_scene = PrepareScene()
-                    nwo_scene.prepare_scene(context, self.asset, scene_nwo.asset_type, scene_nwo_export)
-                    if not nwo_scene.too_many_root_bones and not nwo_scene.no_export_objects:
-                        export_process = ProcessScene()
-                        export_process.process_scene(context, sidecar_path, sidecar_path_full, self.asset, self.asset_path, scene_nwo.asset_type, nwo_scene, scene_nwo_export, scene_nwo)
+                    prep_results, process_results = export_asset()
             
             except Exception as e:
                 if type(e) == RuntimeError:
                     # logging.error(traceback.format_exc())
-                    self.known_fail = True
+                    self.fail_explanation = str(e)
                 else:
                     print_error("\n\nException hit. Please include in report\n")
                     logging.error(traceback.format_exc())
                     self.failed = True
 
             # validate that a sidecar file exists
-            if not file_exists(sidecar_path_full):
+            if not Path(sidecar_path_full).exists:
                 context.scene.nwo_halo_launcher.sidecar_path = ""
 
             # write scene settings generated during export to temp file
@@ -519,18 +516,10 @@ class NWO_Export(NWO_Export_Scene):
                 
             elif not fbx_installed:
                 print_warning("EXPORT CANCELLED. FBX Addon not installed. io_scene_fbx normally comes with Blender. Blender reinstall may be required")
-            
-            elif self.known_fail:
-                    print_warning(
-                    "\nEXPORT ABORTED. Please see above for details"
-                )
-            elif nwo_scene.too_many_root_bones:
-                print_warning('EXPORT CANCELLED')
-                print("Export cancelled because the main armature has multiple deform root bones.")
-            elif nwo_scene.no_export_objects:
-                print_warning('EXPORT CANCELLED')
-                print("Export cancelled because there are no Halo objects in the scene. Ensure at least one object is valid and has the export flag enabled")
-            elif export_process.gr2_fail:
+            elif self.fail_explanation:
+                    print_warning("\nEXPORT CANCELLED")
+                    print(self.fail_explanation)
+            elif process_results.gr2_fail:
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
@@ -541,26 +530,26 @@ class NWO_Export(NWO_Export_Scene):
                     "-----------------------------------------------------------------------\n"
                 )
 
-            elif export_process.sidecar_import_failed:
+            elif process_results.sidecar_import_failed:
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
                 print_error("FAILED TO CREATE TAGS\n")
-                if export_process.sidecar_import_error:
+                if process_results.sidecar_import_error:
                     # print("Explanation of error:")
-                    print(export_process.sidecar_import_error)
+                    print(process_results.sidecar_import_error)
 
                 print("\nFor further details, please review the Tool output above")
 
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
-            elif export_process.lightmap_failed:
+            elif process_results.lightmap_failed:
                 
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
-                print_error(export_process.lightmap_message)
+                print_error(process_results.lightmap_message)
 
                 print(
                     "-----------------------------------------------------------------------\n"
@@ -575,7 +564,7 @@ class NWO_Export(NWO_Export_Scene):
                     "-----------------------------------------------------------------------\n"
                 )
                 
-                if scene_nwo.asset_type == 'MODEL' and get_prefs().debug_menu_on_export:
+                if scene_nwo.asset_type == 'model' and get_prefs().debug_menu_on_export:
                     update_debug_menu(self.asset_path, self.asset)
 
         except KeyboardInterrupt:
@@ -624,3 +613,49 @@ def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.utils.unregister_class(NWO_Export_Scene)
     bpy.utils.unregister_class(NWO_Export)
+
+def export_asset(context, sidecar_path_full, asset_name, asset_path, asset_type, scene_settings, export_settings, corinth):
+    export_scene = PrepareScene()
+    export_scene.prepare_scene(context, asset_name, asset_type, export_settings)
+    export_scene.ready_scene()
+    export_scene.make_real()
+    if asset_type == 'camera_track_set':
+        export_scene.scene_transformation()
+        export_scene.get_track_camera()
+    else:
+        export_scene.unlink_non_export_objects()
+        if asset_type in ('model', 'sky', 'animation'):
+            export_scene.setup_skeleton()
+        if asset_type == 'scenario' and corinth:
+            export_scene.add_structure_instance_proxies()
+        export_scene.add_special_materials()
+        export_scene.convert_area_lights()
+        export_scene.setup_objects()
+        export_scene.get_selected_sets()
+        export_scene.validate_shader_paths()
+        if asset_type == 'scenario':
+            export_scene.water_physics_from_surfaces()
+            export_scene.build_seams()
+            
+        if not context.view_layer.objects:
+            raise RuntimeError("No exportable objects in the scene")
+            
+        export_scene.process_face_properties_and_proxies()
+        export_scene.scene_transformation()
+        export_scene.fixup_uv_names()
+        export_scene.validate_scale()
+        # need to get object props AFTER scale
+        export_scene.categorise_objects()
+        if asset_type in ('scenario', 'prefab') and corinth:
+            export_scene.create_model_lighting_bsp()
+        export_scene.animation_fixup()
+        if asset_type == 'decorator_set':
+            export_scene.get_decorator_lods()
+        export_scene.validate_sets()
+        if asset_type == 'sky' and not corinth:
+            export_scene.setup_skylights()
+        
+    
+    if not export_scene.too_many_root_bones and not export_scene.no_export_objects:
+        export_process = ProcessScene()
+        export_process.process_scene(context, sidecar_path, sidecar_path_full, asset_name, asset_path, asset_type, export_scene, export_settings, scene_settings)

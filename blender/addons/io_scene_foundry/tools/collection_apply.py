@@ -34,7 +34,7 @@ class NWO_ApplyCollectionMenu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type in ('SCENARIO', 'PREFAB')
+        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
         r_name = "Region"
         p_name = "Permutation"
         if is_scenario:
@@ -59,7 +59,7 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
         items = []
         r_name = "Region"
         p_name = "Permutation"
-        if context.scene.nwo.asset_type == "SCENARIO":
+        if context.scene.nwo.asset_type == "scenario":
             r_name = "BSP"
             p_name = "Layer"
 
@@ -92,7 +92,7 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
             return {'FINISHED'}
 
         display_name = self.c_type
-        is_scenario = context.scene.nwo.asset_type in ('SCENARIO', 'PREFAB')
+        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
         if self.c_type == 'region':
             if is_scenario:
                 display_name = 'bsp'

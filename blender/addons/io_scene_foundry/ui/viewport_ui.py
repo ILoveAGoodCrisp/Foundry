@@ -52,7 +52,7 @@ class NWO_PIE_ApplyTypeMesh(NWO_Op):
     @classmethod
     def poll(self, context):
         asset_type = context.scene.nwo.asset_type
-        return asset_type in ("MODEL", "SCENARIO", "PREFAB")
+        return asset_type in ("model", "scenario", "prefab")
 
     def execute(self, context):
         bpy.ops.wm.call_menu_pie(name="NWO_MT_PIE_ApplyTypeMesh")
@@ -70,7 +70,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
         h4 = is_corinth(context)
-        if asset_type == 'MODEL':
+        if asset_type == 'model':
             items.append(
                 nwo_enum(
                     "render", "Render", "Render only geometry", "render_geometry", 0
@@ -103,7 +103,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                     3,
                 )
             ),
-        elif asset_type == 'SCENARIO':
+        elif asset_type == 'scenario':
             items.append(
                 nwo_enum(
                     "instance",
@@ -252,7 +252,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                         14,
                     )
                 )
-        elif asset_type == 'PREFAB':
+        elif asset_type == 'prefab':
             items.append(
                 nwo_enum(
                     "instance",
@@ -441,7 +441,7 @@ class NWO_PIE_ApplyTypeMarker(NWO_Op):
     @classmethod
     def poll(self, context):
         asset_type = context.scene.nwo.asset_type
-        return asset_type in ("MODEL", "SKY", "SCENARIO", "PREFAB")
+        return asset_type in ("model", "sky", "scenario", "prefab")
 
     def execute(self, context):
         bpy.ops.wm.call_menu_pie(name="NWO_MT_PIE_ApplyTypeMarker")
@@ -459,11 +459,11 @@ class NWO_ApplyTypeMarker(NWO_Op):
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
         reach = not is_corinth(context)
-        if asset_type in ("MODEL", "SKY"):
+        if asset_type in ("model", "sky"):
             items.append(nwo_enum("model", "Model Marker", "", "marker", 0)),
             items.append(nwo_enum("effects", "Effects", "", "effects", 1)),
 
-            if asset_type == "MODEL":
+            if asset_type == "model":
                 items.append(nwo_enum("garbage", "Garbage", "", "garbage", 2)),
                 items.append(nwo_enum("hint", "Hint", "", "hint", 3)),
                 items.append(
@@ -488,7 +488,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
                 if not reach:
                     items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", 7)),
 
-        elif asset_type in ("SCENARIO", "PREFAB"):
+        elif asset_type in ("scenario", "prefab"):
             items.append(nwo_enum("model", "Structure Marker", "", "marker", 0)),
             items.append(
                 nwo_enum("game_instance", "Game Object", "", "game_object", 1)

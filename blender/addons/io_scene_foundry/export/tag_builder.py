@@ -75,7 +75,7 @@ def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_expor
     data_dir = get_data_path()
     tag_folder_path = asset_path.replace(data_dir, tags_dir)
     tag_path = os.path.join(tag_folder_path, asset_name)
-    if asset_type == 'MODEL':
+    if asset_type == 'model':
         setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth())
     faux_process = None
     if model_lighting:
@@ -114,7 +114,7 @@ def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_expor
         ],
         asset_path,
     )
-    if asset_type == "FP ANIMATION":
+    if asset_type == "animation":
         cull_unused_tags(sidecar_path.rpartition("\\")[0], asset_name)
 
     if faux_process is not None:

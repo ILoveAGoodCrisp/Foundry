@@ -25,10 +25,11 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
-from io_scene_foundry.utils.nwo_utils import foundry_update_check, get_prefs, read_projects_list, setup_projects_list, write_projects_list
+from io_scene_foundry.utils.nwo_utils import ProjectXML, foundry_update_check, get_prefs, get_tags_path, is_corinth, read_projects_list, relative_path, setup_projects_list, write_projects_list
 from io_scene_foundry.utils import nwo_globals
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
 update_str, update_needed = foundry_update_check(nwo_globals.version)
@@ -45,6 +46,8 @@ class NWO_Project_ListItems(bpy.types.PropertyGroup):
     project_corinth: BoolProperty()
     project_remote_server_name: StringProperty()
     project_image_path: StringProperty()
+    project_default_material: StringProperty()
+    project_default_water: StringProperty()
 
 class NWO_UL_Projects(bpy.types.UIList):
     def draw_item(
@@ -63,7 +66,7 @@ class NWO_UL_Projects(bpy.types.UIList):
             else:
                 icon_id = get_icon_id("tag_test")
             layout.label(text=item.name, icon_value=icon_id)
-            layout.label(text=item.project_path)
+            # layout.label(text=item.project_path)
         else:
             layout.label(text="", translate=False, icon_value=icon)
 
@@ -85,21 +88,19 @@ class NWO_ProjectAdd(Operator):
 
     def execute(self, context):
         # validate new_project_path
-        new_project_path = self.filepath
-        if os.path.isfile(new_project_path):
-            new_project_path = os.path.dirname(new_project_path)
-        new_project_path = new_project_path.strip('"\'\\ ')
-        if not os.path.exists(os.path.join(new_project_path, "project.xml")):
-            new_project_path = os.path.dirname(new_project_path)
-            new_project_path = new_project_path.strip('"\'\\ ')
-            if not os.path.exists(os.path.join(new_project_path, "project.xml")):
+        new_project_path = Path(self.filepath)
+        if new_project_path.is_file():
+            new_project_path = new_project_path.parent
+        if not Path(new_project_path, "project.xml").exists():
+            new_project_path = new_project_path.parent
+            if not Path(new_project_path, "project.xml").exists():
                 self.report({'WARNING'}, f"{new_project_path} is not a path to a valid Halo project. Expected project root directory to contain project.xml")
                 return {'CANCELLED'}
         
         projects_list = read_projects_list()
         if projects_list is None:
             projects_list = []
-        projects_list.append(new_project_path)
+        projects_list.append(str(new_project_path))
         projects_list = list(dict.fromkeys(projects_list))
 
         write_projects_list(projects_list)
@@ -173,11 +174,13 @@ class NWO_ProjectMove(Operator):
         context.area.tag_redraw()
         return {'FINISHED'}
     
-class NWO_ProjectEditDisplayName(Operator):
-    bl_label = "Edit Project Display name"
-    bl_idname = "nwo.project_edit_display_name"
+class NWO_OT_ProjectEdit(Operator):
+    bl_label = "Edit Project Settings"
+    bl_idname = "nwo.project_edit"
 
-    new_display_name: StringProperty(name="Display Name")
+    display_name: StringProperty(name="Display Name")
+    material_path: StringProperty(name="Default Material/Shader Tag")
+    water_path: StringProperty(name="Default Water Shader/Material Tag")
 
     @classmethod
     def poll(cls, context):
@@ -187,24 +190,48 @@ class NWO_ProjectEditDisplayName(Operator):
     def execute(self, context):
         prefs = get_prefs()
         active_project = prefs.projects[prefs.current_project_index]
-        project_xml = active_project.project_xml
-        if not os.path.exists(project_xml):
+        project_xml = Path(active_project.project_xml)
+        if not project_xml.exists():
             self.report({'WARNING'}, "No active project")
             return {'CANCELLED'}
-        with open(project_xml, 'r+') as file:
-            xml = file.read()
-            root = ET.fromstring(xml)
-            if not root.get('displayName', 0):
-                self.report({'WARNING'}, "Project XML does not contain displayName variable")
-                return {'CANCELLED'}
-            root.attrib['displayName'] = self.new_display_name
-            xml.seek(0)
-            xml.truncate()
-            xml.write(ET.tostring(root, encoding='utf-8'))
         
-        active_project.name = self.new_display_name
+        xml = ProjectXML()
+        name = self.display_name.strip(" '\"")
+        xml.display_name = name
+        if is_corinth(context):
+            xml.name = name
+        default_material = relative_path(self.material_path.strip(" '\""))
+        if Path(get_tags_path(), default_material).exists():
+            xml.default_material = default_material
+        default_water = relative_path(self.water_path.strip(" '\""))
+        if Path(get_tags_path(), default_water).exists():
+            xml.default_water = default_water
+        xml.parse(project_xml.parent)
+        
+        active_project.name = xml.display_name
+        active_project.project_name = xml.name
+        active_project.project_default_material = xml.default_material
+        active_project.project_default_water = xml.default_water
 
+        context.area.tag_redraw()
+        
         return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        prefs = get_prefs()
+        active_project = prefs.projects[prefs.current_project_index]
+        self.display_name = active_project.name
+        self.material_path = active_project.project_default_material
+        self.water_path = active_project.project_default_water
+        return context.window_manager.invoke_props_dialog(self, width=800)
+        
+    def draw(self, context):
+        layout = self.layout
+        shader_name = "Material" if is_corinth(context) else "Shader"
+        layout.prop(self, "display_name")
+        layout.prop(self, "material_path", text=f"Default {shader_name} Tag")
+        layout.prop(self, "water_path", text=f"Default Water {shader_name} Tag")
+        
 
 class HREKLocationPath(Operator):
     """Set the path to your Halo Reach Editing Kit"""
@@ -442,7 +469,7 @@ class ToolkitLocationPreferences(AddonPreferences):
         row = box.row()
         row.label(text="Projects")
         row = box.row()
-        rows = 3
+        rows = 5
         row.template_list(
             "NWO_UL_Projects",
             "",
@@ -455,6 +482,8 @@ class ToolkitLocationPreferences(AddonPreferences):
         col = row.column(align=True)
         col.operator("nwo.project_add", text="", icon="ADD")
         col.operator("nwo.project_remove", icon="REMOVE", text="")
+        col.separator()
+        col.operator("nwo.project_edit", icon="SETTINGS", text="")
         col.separator()
         col.operator("nwo.project_move", text="", icon="TRIA_UP").direction = 'up'
         col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'

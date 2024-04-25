@@ -44,7 +44,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
         h4 = is_corinth()
         items = []
 
-        if poll_ui(("MODEL", "SKY")):
+        if poll_ui(("model", "sky")):
             items.append(
                 (
                     "_connected_geometry_marker_type_model",
@@ -63,7 +63,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
                     1,
                 )
             )
-            if poll_ui("MODEL"):
+            if poll_ui("model"):
                 items.append(
                     (
                         "_connected_geometry_marker_type_garbage",
@@ -119,7 +119,7 @@ class NWO_MeshToMarker(bpy.types.Operator):
                             7,
                         )
                     )
-        elif poll_ui("SCENARIO"):
+        elif poll_ui("scenario"):
             items.append(
                 (
                     "_connected_geometry_marker_type_model",

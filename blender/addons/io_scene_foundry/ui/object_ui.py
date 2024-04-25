@@ -59,7 +59,7 @@ class NWO_RegionsMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         region_names = [region.name for region in context.scene.nwo.regions_table]
         for r_name in region_names:
             layout.operator("nwo.region_assign_single", text=r_name).name = r_name
@@ -71,7 +71,7 @@ class NWO_RegionsMenuSelection(NWO_RegionsMenu):
     
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         region_names = [region.name for region in context.scene.nwo.regions_table]
         for r_name in region_names:
             layout.operator("nwo.region_assign", text=r_name).name = r_name
@@ -115,7 +115,7 @@ class NWO_PermutationsMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type in ('SCENARIO', 'PREFAB')
+        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
         permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign_single", text=p_name).name = p_name
@@ -127,7 +127,7 @@ class NWO_PermutationsMenuSelection(NWO_PermutationsMenu):
     
     def draw(self, context):
         layout = self.layout
-        is_scenario = context.scene.nwo.asset_type in ('SCENARIO', 'PREFAB')
+        is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
         permutation_names = [permutation.name for permutation in context.scene.nwo.permutations_table]
         for p_name in permutation_names:
             layout.operator("nwo.permutation_assign", text=p_name).name = p_name
@@ -161,12 +161,12 @@ class NWO_MeshTypes(Menu):
     def draw(self, context):
         layout = self.layout
         h4 = is_corinth(context)
-        if poll_ui("MODEL"):
+        if poll_ui("model"):
             layout.operator('nwo.apply_type_mesh_single', text='Render', icon_value=get_icon_id('model')).m_type = 'render'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Physics', icon_value=get_icon_id('physics')).m_type = 'physics'
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Object', icon_value=get_icon_id('instance')).m_type = 'io'
-        elif poll_ui("SCENARIO"):
+        elif poll_ui("scenario"):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Structure', icon_value=get_icon_id('structure')).m_type = 'structure'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
@@ -186,7 +186,7 @@ class NWO_MeshTypes(Menu):
                 layout.operator('nwo.apply_type_mesh_single', text='Rain Sheet', icon_value=get_icon_id('rain_sheet')).m_type = 'rain_sheet'
                 layout.operator('nwo.apply_type_mesh_single', text='Pathfinding Cutout Volume', icon_value=get_icon_id('cookie_cutter')).m_type = 'cookie_cutter'
                 layout.operator('nwo.apply_type_mesh_single', text='Fog Sheet', icon_value=get_icon_id('fog')).m_type = 'fog'
-        elif poll_ui("PREFAB"):
+        elif poll_ui("prefab"):
             layout.operator('nwo.apply_type_mesh_single', text='Instanced Geometry', icon_value=get_icon_id('instance')).m_type = 'instance'
             layout.operator('nwo.apply_type_mesh_single', text='Collision', icon_value=get_icon_id('collider')).m_type = 'collision'
             layout.operator('nwo.apply_type_mesh_single', text='Lightmap Only', icon_value=get_icon_id('lightmap')).m_type = 'lightmap_only'
@@ -202,10 +202,10 @@ class NWO_MarkerTypes(Menu):
     def draw(self, context):
         layout = self.layout
         h4 = is_corinth(context)
-        if poll_ui(("MODEL", "SKY")):
+        if poll_ui(("model", "sky")):
             layout.operator('nwo.apply_type_marker_single', text='Model Marker', icon_value=get_icon_id('marker')).m_type = 'model'
             layout.operator('nwo.apply_type_marker_single', text='Effects', icon_value=get_icon_id('effects')).m_type = 'effects'
-            if poll_ui("MODEL"):
+            if poll_ui("model"):
                 layout.operator('nwo.apply_type_marker_single', text='Garbage', icon_value=get_icon_id('garbage')).m_type = 'garbage'
                 layout.operator('nwo.apply_type_marker_single', text='Hint', icon_value=get_icon_id('hint')).m_type = 'hint'
                 layout.operator('nwo.apply_type_marker_single', text='Pathfinding Sphere', icon_value=get_icon_id('pathfinding_sphere')).m_type = 'pathfinding_sphere'
@@ -213,7 +213,7 @@ class NWO_MarkerTypes(Menu):
                 layout.operator('nwo.apply_type_marker_single', text='Target', icon_value=get_icon_id('target')).m_type = 'target'
                 if h4:
                     layout.operator('nwo.apply_type_marker_single', text='Airprobe', icon_value=get_icon_id('airprobe')).m_type = 'airprobe'
-        elif poll_ui(("SCENARIO", "PREFAB")):
+        elif poll_ui(("scenario", "prefab")):
             layout.operator('nwo.apply_type_marker_single', text='Structure Marker', icon_value=get_icon_id('marker')).m_type = 'model'
             layout.operator('nwo.apply_type_marker_single', text='Game Object', icon_value=get_icon_id('game_object')).m_type = 'game_instance'
             if h4:
@@ -314,7 +314,7 @@ class NWO_MeshPropAddMenu(Menu):
     def draw(self, context):
         layout = self.layout
         nwo = context.object.nwo
-        if poll_ui(("SCENARIO", "PREFAB")):
+        if poll_ui(("scenario", "prefab")):
             # if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
             #     layout.operator(
             #         "nwo.add_mesh_property", text="Sky"
@@ -425,14 +425,14 @@ class NWO_GlobalMaterialMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        if poll_ui(("MODEL", "SKY")):
+        if poll_ui(("model", "sky")):
             layout.operator_menu_enum(
                 "nwo.global_material_regions_list",
                 property="region",
                 text="From Region",
             )
 
-        if poll_ui(("SCENARIO", "PREFAB", "MODEL")):
+        if poll_ui(("scenario", "prefab", "model")):
             layout.operator(
                 "nwo.global_material_globals",
                 text="From Globals",

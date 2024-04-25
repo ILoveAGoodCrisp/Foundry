@@ -633,7 +633,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         index = -1
         items = []
 
-        if poll_ui("DECORATOR SET"):
+        if poll_ui("decorator_set"):
             index += 1
             items.append(
                 nwo_enum(
@@ -644,7 +644,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     index,
                 )
             )
-        elif poll_ui(("MODEL", "SKY", "PARTICLE MODEL")):
+        elif poll_ui(("model", "sky", "particle_model")):
             index += 1
             items.append(
                 nwo_enum(
@@ -656,7 +656,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 )
             )
             index += 1
-            if poll_ui("MODEL"):
+            if poll_ui("model"):
                 items.append(
                     nwo_enum(
                         "_connected_geometry_mesh_type_collision",
@@ -678,7 +678,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                 )
                 # if not h4: NOTE removing these for now until I figure out how they work
                 #     items.append(('_connected_geometry_mesh_type_object_instance', 'Flair', 'Instanced mesh for models. Can be instanced across mutliple permutations', get_icon_id("flair"), 3))
-        elif poll_ui("SCENARIO"):
+        elif poll_ui("scenario"):
             if h4:
                 descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
             else:
@@ -846,7 +846,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     )
                 )
 
-        elif poll_ui("PREFAB"):
+        elif poll_ui("prefab"):
             index += 1
             items.append(
                 nwo_enum(
@@ -899,7 +899,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         h4 = is_corinth()
         items = []
 
-        if poll_ui(("MODEL", "SKY")):
+        if poll_ui(("model", "sky")):
             items.append(
                 (
                     "_connected_geometry_marker_type_model",
@@ -918,7 +918,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                     1,
                 )
             )
-            if poll_ui("MODEL"):
+            if poll_ui("model"):
                 items.append(
                     (
                         "_connected_geometry_marker_type_garbage",
@@ -974,7 +974,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
                             7,
                         )
                     )
-        elif poll_ui("SCENARIO"):
+        elif poll_ui("scenario"):
             items.append(
                 (
                     "_connected_geometry_marker_type_model",
@@ -1091,12 +1091,12 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     def get_marker_type_ui(self):
         max_int = 0
-        if poll_ui("MODEL"):
+        if poll_ui("model"):
             if is_corinth():
                 max_int = 7
             else:
                 max_int = 6
-        elif poll_ui("SCENARIO"):
+        elif poll_ui("scenario"):
             max_int = 4
             if not is_corinth():
                 max_int = 1
@@ -1555,11 +1555,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Set the depth of this water volume mesh",
         default=20,
     )
-    water_volume_flow_direction_ui: FloatProperty(  # this something which can probably be automated?
+    water_volume_flow_direction_ui: FloatVectorProperty(  # this something which can probably be automated?
         name="Water Volume Flow Direction",
         options=set(),
         description="Set the flow direction of this water volume mesh. 0 is forward on the X axis",
-        subtype='ANGLE'
+        subtype='DIRECTION',
     )
 
     water_volume_flow_velocity_ui: FloatProperty(

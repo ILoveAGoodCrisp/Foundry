@@ -40,7 +40,7 @@ class NWO_AutoSeam(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.mode == 'OBJECT' and poll_ui('SCENARIO') and len(context.scene.nwo.regions_table) > 1
+        return context.mode == 'OBJECT' and poll_ui('scenario') and len(context.scene.nwo.regions_table) > 1
 
     def execute(self, context):
         return self.auto_seam(context)

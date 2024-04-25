@@ -77,7 +77,7 @@ class NWO_NewSky(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return nwo_utils.poll_ui('SCENARIO') and nwo_utils.valid_nwo_asset(context)
+        return nwo_utils.poll_ui('scenario') and nwo_utils.valid_nwo_asset(context)
     
     def execute(self, context):
         # Read the skies block
@@ -131,7 +131,7 @@ class NWO_SetSky(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return nwo_utils.poll_ui('SCENARIO') and nwo_utils.valid_nwo_asset(context) and context.object and context.object.active_material and context.object.active_material.name.startswith('+sky')
+        return nwo_utils.poll_ui('scenario') and nwo_utils.valid_nwo_asset(context) and context.object and context.object.active_material and context.object.active_material.name.startswith('+sky')
 
     def execute(self, context):
         sky_index = int(self.scenario_skies)
@@ -158,7 +158,7 @@ class NWO_SetDefaultSky(NWO_SetSky):
 
     @classmethod
     def poll(cls, context):
-        return nwo_utils.poll_ui('SCENARIO') and nwo_utils.valid_nwo_asset(context) and nwo_utils.is_corinth(context)
+        return nwo_utils.poll_ui('scenario') and nwo_utils.valid_nwo_asset(context) and nwo_utils.is_corinth(context)
     
     def execute(self, context):
         if self.scenario_skies == 'none':

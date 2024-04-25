@@ -22,9 +22,9 @@ class NWO_OT_Lightmap(bpy.types.Operator):
             return False
         asset_type = context.scene.nwo.asset_type
         if nwo_utils.is_corinth(context):
-            return asset_type in ('MODEL', 'SKY', 'SCENARIO') and scenario_exists()
+            return asset_type in ('model', 'sky', 'scenario') and scenario_exists()
         else:
-            return asset_type == 'SCENARIO' and scenario_exists()
+            return asset_type == 'scenario' and scenario_exists()
 
     def execute(self, context):
         asset_type = context.scene.nwo.asset_type
@@ -48,7 +48,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
             scene_nwo_export.lightmap_all_bsps,
             scene_nwo_export.lightmap_specific_bsp,
             scene_nwo_export.lightmap_region,
-            asset_type in ("MODEL", "SKY") and is_corinth,
+            asset_type in ("model", "sky") and is_corinth,
             scene_nwo_export.lightmap_threads,
             [region.name for region in context.scene.nwo.regions_table])
         return {"FINISHED"}

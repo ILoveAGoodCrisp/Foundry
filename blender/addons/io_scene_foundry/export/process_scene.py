@@ -89,22 +89,22 @@ class ProcessScene:
         
         self.models_export_started = False
     
-    def process_scene(self, context, sidecar_path, sidecar_path_full, asset, asset_path, asset_type, nwo_scene, scene_nwo_export, scene_nwo):
+    def process_scene(self, context, sidecar_path, sidecar_path_full, asset, asset_path, asset_type, export_scene, scene_nwo_export, scene_nwo):
         reports = []
         gr2_count = 0
         h4 = is_corinth(context)
         muted_armature_deforms = []
         exported_actions = []
         if asset_type == 'camera_track_set':
-            return build_camera_tracks(context, nwo_scene.camera, asset_path)
+            return build_camera_tracks(context, export_scene.camera, asset_path)
         if scene_nwo_export.export_gr2_files:
             # make necessary directories
             models_dir = os.path.join(asset_path, "models")
             export_dir = os.path.join(asset_path, "export", "models")
             os.makedirs(models_dir, exist_ok=True)
             os.makedirs(export_dir, exist_ok=True)
-            if asset_type in ("MODEL", "FP ANIMATION") and scene_nwo.animation_graph_from_blend:
-                if nwo_scene.model_armature and bpy.data.actions:
+            if asset_type in ("model", "animation") and scene_nwo.animation_graph_from_blend:
+                if export_scene.model_armature and bpy.data.actions:
                     if scene_nwo_export.export_animations != "NONE":
                         timeline = context.scene
                         print("\n\nStarting Animations Export")
@@ -138,12 +138,12 @@ class ProcessScene:
                             if scene_nwo_export.export_animations != "NONE":
                                 if (
                                     scene_nwo_export.export_animations == "ALL"
-                                    or nwo_scene.current_action == action
+                                    or export_scene.current_action == action
                                 ):
                                     job = f"--- {animation_name}"
                                     update_job(job, 0)
                                     
-                                    arm = nwo_scene.model_armature
+                                    arm = export_scene.model_armature
 
                                     for ob in get_animated_objects(context):
                                         ob.animation_data.action = action
@@ -157,7 +157,7 @@ class ProcessScene:
                                         context,
                                         action_nwo.animation_events,
                                         arm,
-                                        list(nwo_scene.skeleton_bones.keys())[1],
+                                        list(export_scene.skeleton_bones.keys())[1],
                                         timeline.frame_start,
                                         timeline.frame_end,
                                     )
@@ -183,7 +183,7 @@ class ProcessScene:
                                                 export_obs,
                                                 asset_type,
                                                 asset,
-                                                nwo_scene,
+                                                export_scene,
                                             ):
                                                 self.export_gr2(
                                                     fbx_path,
@@ -231,77 +231,77 @@ class ProcessScene:
             reset_to_basis(context)
             if muted_armature_deforms:
                 unmute_armature_mods(muted_armature_deforms)
-            if asset_type in ("MODEL", "FP ANIMATION"):
+            if asset_type in ("model", "animation"):
                 self.export_model(
                     context,
                     asset_path,
                     asset,
                     "render",
-                    nwo_scene.render,
-                    nwo_scene.render_perms,
-                    nwo_scene.selected_perms,
-                    nwo_scene.model_armature,
+                    export_scene.render,
+                    export_scene.render_perms,
+                    export_scene.selected_perms,
+                    export_scene.model_armature,
                     asset_type,
-                    nwo_scene,
+                    export_scene,
                     scene_nwo_export.export_render,
                 )
-                if asset_type == "MODEL":
-                    if scene_nwo.collision_model_from_blend and nwo_scene.collision:
+                if asset_type == "model":
+                    if scene_nwo.collision_model_from_blend and export_scene.collision:
                         self.export_model(
                             context,
                             asset_path,
                             asset,
                             "collision",
-                            nwo_scene.collision,
-                            nwo_scene.collision_perms,
-                            nwo_scene.selected_perms,
-                            nwo_scene.model_armature,
+                            export_scene.collision,
+                            export_scene.collision_perms,
+                            export_scene.selected_perms,
+                            export_scene.model_armature,
                             asset_type,
-                            nwo_scene,
+                            export_scene,
                             scene_nwo_export.export_collision,
                         )
 
-                    if scene_nwo.physics_model_from_blend and nwo_scene.physics:
+                    if scene_nwo.physics_model_from_blend and export_scene.physics:
                         self.export_model(
                             context,
                             asset_path,
                             asset,
                             "physics",
-                            nwo_scene.physics,
-                            nwo_scene.physics_perms,
-                            nwo_scene.selected_perms,
-                            nwo_scene.model_armature,
+                            export_scene.physics,
+                            export_scene.physics_perms,
+                            export_scene.selected_perms,
+                            export_scene.model_armature,
                             asset_type,
-                            nwo_scene,
+                            export_scene,
                             scene_nwo_export.export_physics,
                         )
 
-                    if scene_nwo.render_model_from_blend and nwo_scene.markers:
+                    if scene_nwo.render_model_from_blend and export_scene.markers:
                         self.export_model(
                             context,
                             asset_path,
                             asset,
                             "markers",
-                            nwo_scene.markers,
+                            export_scene.markers,
                             None,
                             None,
-                            nwo_scene.model_armature,
+                            export_scene.model_armature,
                             asset_type,
-                            nwo_scene,
+                            export_scene,
                             scene_nwo_export.export_markers,
                         )
-                    if scene_nwo.render_model_from_blend and nwo_scene.lighting:
+                    if scene_nwo.render_model_from_blend and export_scene.lighting:
                         self.export_model(
                             context,
                             asset_path,
                             asset,
                             "lighting",
-                            nwo_scene.lighting,
+                            export_scene.lighting,
                             None,
                             None,
-                            nwo_scene.model_armature,
+                            export_scene.model_armature,
                             asset_type,
-                            nwo_scene,
+                            export_scene,
                             True,
                         )
 
@@ -309,8 +309,8 @@ class ProcessScene:
                     asset_path, asset, "skeleton", None, None, None
                 )
 
-                if nwo_scene.model_armature and scene_nwo_export.export_skeleton:
-                    export_obs = [nwo_scene.model_armature]
+                if export_scene.model_armature and scene_nwo_export.export_skeleton:
+                    export_obs = [export_scene.model_armature]
 
                     override = context.copy()
                     area = [
@@ -334,7 +334,7 @@ class ProcessScene:
                                 export_obs,
                                 asset_type,
                                 asset,
-                                nwo_scene,
+                                export_scene,
                             ):
                                 self.export_gr2(fbx_path, json_path, gr2_path)
                             else:
@@ -363,140 +363,140 @@ class ProcessScene:
                         ]
                     ]
 
-            elif asset_type == "SCENARIO":
-                if nwo_scene.structure:
+            elif asset_type == "scenario":
+                if export_scene.structure:
                     self.export_bsp(
                         context,
                         asset_path,
                         asset,
                         False,
-                        nwo_scene.structure,
-                        nwo_scene.selected_perms,
-                        nwo_scene.selected_bsps,
+                        export_scene.structure,
+                        export_scene.selected_perms,
+                        export_scene.selected_bsps,
                         asset_type,
-                        nwo_scene,
-                        nwo_scene.structure_bsps,
-                        nwo_scene.structure_perms,
+                        export_scene,
+                        export_scene.structure_bsps,
+                        export_scene.structure_perms,
                         scene_nwo_export.export_structure,
                     )
 
-                if nwo_scene.design:
+                if export_scene.design:
                     self.export_bsp(
                         context,
                         asset_path,
                         asset,
                         True,
-                        nwo_scene.design,
-                        nwo_scene.selected_perms,
-                        nwo_scene.selected_bsps,
+                        export_scene.design,
+                        export_scene.selected_perms,
+                        export_scene.selected_bsps,
                         asset_type,
-                        nwo_scene,
-                        nwo_scene.design_bsps,
-                        nwo_scene.design_perms,
+                        export_scene,
+                        export_scene.design_bsps,
+                        export_scene.design_perms,
                         scene_nwo_export.export_design,
                     )
 
-            elif asset_type == "SKY":
-                if nwo_scene.render:
+            elif asset_type == "sky":
+                if export_scene.render:
                     self.export_model(
                         context,
                         asset_path,
                         asset,
                         "sky",
-                        nwo_scene.render,
+                        export_scene.render,
                         None,
                         None,
-                        nwo_scene.model_armature,
+                        export_scene.model_armature,
                         asset_type,
-                        nwo_scene,
+                        export_scene,
                         scene_nwo_export.export_render,
                     )
-                if nwo_scene.markers:
+                if export_scene.markers:
                     self.export_model(
                         context,
                         asset_path,
                         asset,
                         "markers",
-                        nwo_scene.markers,
+                        export_scene.markers,
                         None,
                         None,
-                        nwo_scene.model_armature,
+                        export_scene.model_armature,
                         asset_type,
-                        nwo_scene,
+                        export_scene,
                         scene_nwo_export.export_markers,
                     )
-                if nwo_scene.lighting:
+                if export_scene.lighting:
                     self.export_model(
                         context,
                         asset_path,
                         asset,
                         "lighting",
-                        nwo_scene.lighting,
+                        export_scene.lighting,
                         None,
                         None,
-                        nwo_scene.model_armature,
+                        export_scene.model_armature,
                         asset_type,
-                        nwo_scene,
+                        export_scene,
                         True,
                     )
 
-            elif asset_type == "DECORATOR SET":
-                if nwo_scene.render:
+            elif asset_type == "decorator_set":
+                if export_scene.render:
                     self.export_model(
                         context,
                         asset_path,
                         asset,
                         "decorator",
-                        nwo_scene.render,
+                        export_scene.render,
                         None,
                         None,
                         None,
                         asset_type,
-                        nwo_scene,
+                        export_scene,
                         scene_nwo_export.export_render,
                     )
 
-            elif asset_type == "PREFAB":
-                if nwo_scene.structure:
+            elif asset_type == "prefab":
+                if export_scene.structure:
                     self.export_model(
                         context,
                         asset_path,
                         asset,
                         "prefab",
-                        nwo_scene.structure,
+                        export_scene.structure,
                         None,
                         None,
                         None,
                         asset_type,
-                        nwo_scene,
+                        export_scene,
                         True,
                     )
 
             else:  # for particles
-                if nwo_scene.render:
+                if export_scene.render:
                     self.export_model(
                         context,
                         asset_path,
                         asset,
                         "particle_model",
-                        nwo_scene.render,
+                        export_scene.render,
                         None,
                         None,
                         None,
                         asset_type,
-                        nwo_scene,
+                        export_scene,
                         scene_nwo_export.export_render,
                     )
 
             from .build_sidecar import Sidecar
             
             sidecar = Sidecar(asset_path, asset, asset_type, context)
-            sidecar.build(context, sidecar_path, sidecar_path_full, nwo_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo)
+            sidecar.build(context, sidecar_path, sidecar_path_full, export_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo)
 
             # make another sidecar to generate model lighting files
-            if nwo_scene.lighting:
-                lighting_sidecar = Sidecar(asset_path, asset, "MODEL SCENARIO", context)
-                lighting_sidecar.build(context, sidecar_path, sidecar_path_full, nwo_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo, True)
+            if export_scene.lighting:
+                lighting_sidecar = Sidecar(asset_path, asset, "model scenario", context)
+                lighting_sidecar.build(context, sidecar_path, sidecar_path_full, export_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo, True)
 
             reports.append(sidecar.message)
             print("\n\nCreating Intermediary Files")
@@ -563,7 +563,7 @@ class ProcessScene:
             no_top_level_tag = hasattr(sidecar, "no_top_level_tag") and not os.path.exists(scenery_path)
             
             setup_scenario = False
-            if asset_type == 'SCENARIO':
+            if asset_type == 'scenario':
                 scenario_path = Path(tag_folder_path, f"{asset}.scenario")
                 if not scenario_path.exists():
                     setup_scenario = True
@@ -571,15 +571,15 @@ class ProcessScene:
             if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
                 print("\n\nBuilding Tags")
                 print("-----------------------------------------------------------------------\n")
-                self.managed_blam_pre_import_tasks(nwo_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario)
-                export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(nwo_scene.lighting), nwo_scene.selected_bsps)
+                self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario)
+                export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(export_scene.lighting), export_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
                     self.sidecar_import_error = error
                     reports.append("Tag Export Failed")
                 else:
                     reports.append("Tag Export Complete")
-                    self.managed_blam_post_import_tasks(context, context.scene.nwo, nwo_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations, sidecar.pose_overlays, setup_scenario)
+                    self.managed_blam_post_import_tasks(context, context.scene.nwo, export_scene, asset_type, asset_path.replace(get_data_path(), ""), asset, sidecar.reach_world_animations, sidecar.pose_overlays, setup_scenario)
             else:
                 reports.append("Skipped tag export, asset sidecar does not exist")
 
@@ -589,22 +589,22 @@ class ProcessScene:
                     os.remove(scenery_path)
 
         should_lightmap = scene_nwo_export.lightmap_structure and (
-            asset_type == "SCENARIO" or (h4 and asset_type in ("MODEL", "SKY"))
+            asset_type == "scenario" or (h4 and asset_type in ("model", "sky"))
         )
 
         if should_lightmap:
             lightmap_results = run_lightmapper(
                 h4,
-                nwo_scene.structure,
+                export_scene.structure,
                 asset,
                 scene_nwo_export.lightmap_quality,
                 scene_nwo_export.lightmap_quality_h4,
                 scene_nwo_export.lightmap_all_bsps,
                 scene_nwo_export.lightmap_specific_bsp,
                 scene_nwo_export.lightmap_region,
-                asset_type in ("MODEL", "SKY") and h4,
+                asset_type in ("model", "sky") and h4,
                 scene_nwo_export.lightmap_threads,
-                nwo_scene.structure_bsps)
+                export_scene.structure_bsps)
 
             self.lightmap_message = lightmap_results.lightmap_message
 
@@ -622,7 +622,7 @@ class ProcessScene:
         sel_perms,
         model_armature,
         asset_type,
-        nwo_scene,
+        export_scene,
         export_check,
     ):      
         if obs_perms:
@@ -693,7 +693,7 @@ class ProcessScene:
                             fbx_path,
                         ):
                             if self.export_json(
-                                json_path, export_obs, asset_type, asset, nwo_scene
+                                json_path, export_obs, asset_type, asset, export_scene
                             ):
                                 self.export_gr2(fbx_path, json_path, gr2_path)
                             else:
@@ -713,7 +713,7 @@ class ProcessScene:
         sel_perms,
         sel_bsps,
         asset_type,
-        nwo_scene,
+        export_scene,
         bsps,
         layers,
         export_check,
@@ -770,7 +770,7 @@ class ProcessScene:
                                     export_obs,
                                     asset_type,
                                     asset,
-                                    nwo_scene,
+                                    export_scene,
                                 ):
                                     self.export_gr2(fbx_path, json_path, gr2_path)
                                 else:
@@ -842,7 +842,7 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_pre_import_tasks(self, nwo_scene, export_animations, scene_nwo, exported_actions, setup_scenario):
+    def managed_blam_pre_import_tasks(self, export_scene, export_animations, scene_nwo, exported_actions, setup_scenario):
         node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
         # print("\n--- Foundry Tags Pre-Process\n")
         if node_usage_set or scene_nwo.ik_chains or exported_actions:
@@ -854,10 +854,10 @@ class ProcessScene:
                     animation.validate_compression(exported_actions, scene_nwo.default_animation_compression)
                     # print("--- Validated Animation Compression")
                 if node_usage_set:
-                    animation.set_node_usages(nwo_scene.skeleton_bones)
+                    animation.set_node_usages(export_scene.skeleton_bones)
                     #print("--- Updated Animation Node Usages")
                 if scene_nwo.ik_chains:
-                    animation.write_ik_chains(scene_nwo.ik_chains, nwo_scene.skeleton_bones)
+                    animation.write_ik_chains(scene_nwo.ik_chains, export_scene.skeleton_bones)
                     # print("--- Updated Animation IK Chains")
                     
                 if animation.tag_has_changes and (node_usage_set or scene_nwo.ik_chains):
@@ -869,11 +869,11 @@ class ProcessScene:
             with ScenarioTag(hide_prints=True) as scenario:
                 scenario.tag.SelectField('type').SetValue(scene_nwo.scenario_type)
 
-    def managed_blam_post_import_tasks(self, context, scene_nwo, nwo_scene, asset_type, asset_path, asset_name, reach_world_animations, pose_overlays, setup_scenario):
+    def managed_blam_post_import_tasks(self, context, scene_nwo, export_scene, asset_type, asset_path, asset_name, reach_world_animations, pose_overlays, setup_scenario):
         nwo = context.scene.nwo
-        model_sky = asset_type in ('MODEL', 'SKY')
-        model = asset_type == 'MODEL'
-        h4_model_lighting = (nwo_scene.lighting and is_corinth(context) and model_sky)
+        model_sky = asset_type in ('model', 'sky')
+        model = asset_type == 'model'
+        h4_model_lighting = (export_scene.lighting and is_corinth(context) and model_sky)
         model_override = (
             (not nwo.render_model_from_blend and nwo.render_model_path and model)
             or (not nwo.collision_model_from_blend and nwo.collision_model_path and model)
@@ -905,7 +905,7 @@ class ProcessScene:
         if setup_scenario:
             lm_value = 6 if is_corinth(context) else 3
             with ScenarioTag(hide_prints=True) as scenario:
-                for bsp in nwo_scene.structure_bsps:
+                for bsp in export_scene.structure_bsps:
                     scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
             # print("--- Set Lightmapper size class to 1k")
             
@@ -1076,19 +1076,19 @@ class ProcessScene:
     #####################################################################################
     # JSON
 
-    def export_json(self, json_path, export_obs, asset_type, asset_name, nwo_scene):
+    def export_json(self, json_path, export_obs, asset_type, asset_name, export_scene):
         """Exports a json file by passing the currently selected objects to the NWOJSON class, and then writing the resulting dictionary to a .json file"""
         json_props = NWOJSON(
             export_obs,
             asset_type,
-            nwo_scene.model_armature,
+            export_scene.model_armature,
             None,
             asset_name,
-            nwo_scene.skeleton_bones,
-            nwo_scene.validated_regions,
-            nwo_scene.validated_permutations,
-            nwo_scene.global_materials_dict,
-            nwo_scene.skylights,
+            export_scene.skeleton_bones,
+            export_scene.validated_regions,
+            export_scene.validated_permutations,
+            export_scene.global_materials_dict,
+            export_scene.skylights,
         )
         with open(json_path, "w") as j:
             json.dump(json_props.json_dict, j, indent=4)

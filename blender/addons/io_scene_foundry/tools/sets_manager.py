@@ -396,7 +396,7 @@ class NWO_RegionAdd(TableEntryAdd):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Add a new BSP"
         else:
@@ -465,7 +465,7 @@ class NWO_RegionRemove(TableEntryRemove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Removes the active BSP"
         else:
@@ -485,7 +485,7 @@ class NWO_RegionMove(TableEntryMove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Moves the active BSP"
         else:
@@ -506,7 +506,7 @@ class NWO_RegionAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Assigns the selected BSP to the active Object"
         else:
@@ -548,7 +548,7 @@ class NWO_RegionAssign(TableEntryAssign):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Assigns the active BSP to selected Objects"
         else:
@@ -569,7 +569,7 @@ class NWO_RegionSelect(TableEntrySelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             if properties.select:
                 return "Selects the active BSP"
@@ -597,7 +597,7 @@ class NWO_RegionRename(TableEntryRename):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Renames the active BSP and updates scene objects"
         else:
@@ -618,7 +618,7 @@ class NWO_RegionHide(TableEntryHide):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             if properties.hidden:
                 return "Unhides the active BSP"
@@ -645,7 +645,7 @@ class NWO_RegionHideSelect(TableEntryHideSelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             if properties.hide_select:
                 return "Enables selection of the active BSP objects"
@@ -670,7 +670,7 @@ class NWO_PermutationAdd(TableEntryAdd):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Add a new Layer"
         else:
@@ -691,7 +691,7 @@ class NWO_PermutationRemove(TableEntryRemove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Removes the active Layer"
         else:
@@ -711,7 +711,7 @@ class NWO_PermutationMove(TableEntryMove):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Moves the active Layer"
         else:
@@ -732,7 +732,7 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Assigns the selected Layer to the active Object"
         else:
@@ -753,7 +753,7 @@ class NWO_PermutationAssign(TableEntryAssign):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Assigns the active Layer to selected Objects"
         else:
@@ -774,7 +774,7 @@ class NWO_PermutationSelect(TableEntrySelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             if properties.select:
                 return "Selects the active Layer"
@@ -802,7 +802,7 @@ class NWO_PermutationRename(TableEntryRename):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             return "Renames the active Layer and updates scene objects"
         else:
@@ -823,7 +823,7 @@ class NWO_PermutationHide(TableEntryHide):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             if properties.hide_select:
                 return "Enables selection of the active Layer objects"
@@ -850,7 +850,7 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
 
     @classmethod
     def description(cls, context, properties) -> str:
-        is_scenario = context.scene.nwo.asset_type == 'SCENARIO'
+        is_scenario = context.scene.nwo.asset_type == 'scenario'
         if is_scenario:
             if properties.hide_select:
                 return "Enables selection of the active Layer objects"
@@ -917,7 +917,7 @@ class NWO_BSPInfo(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return poll_ui(('SCENARIO',)) and valid_nwo_asset(context)
+        return poll_ui(('scenario',)) and valid_nwo_asset(context)
         
     def execute(self, context):
         self.info = None
@@ -992,7 +992,7 @@ class NWO_BSPSetLightmapRes(bpy.types.Operator):
     
     @classmethod
     def poll(cls, context):
-        return poll_ui(('SCENARIO',)) and valid_nwo_asset(context)
+        return poll_ui(('scenario',)) and valid_nwo_asset(context)
         
     def execute(self, context):
         self.info = None

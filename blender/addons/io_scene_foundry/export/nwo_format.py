@@ -95,7 +95,7 @@ class NWOObject:
         return obj_id
 
     def object_animates(self):
-        return bool_str(self.sidecar_type == "MODEL")
+        return bool_str(self.sidecar_type == "model")
 
 
 # ANIMATION CONTROL
@@ -591,7 +591,7 @@ class NWOMarker(NWOObject):
         self.bungie_marker_model_group = self.marker_model_group()
 
         # properties for model/sky assets only
-        if self.sidecar_type in ("MODEL", "SKY"):
+        if self.sidecar_type in ("model", "sky"):
             if self.halo.marker_all_regions:
                 self.bungie_marker_all_regions = self.halo.marker_all_regions
                 if self.bungie_marker_all_regions == "0":
@@ -750,11 +750,11 @@ class NWOMesh(NWOObject):
         super().__init__(ob, sidecar_type, model_armature, world_frame, asset_name, validated_permutations)
         # SHARED
         self.bungie_mesh_type = self.halo.mesh_type
-        if self.sidecar_type in ("MODEL", "SKY"):
+        if self.sidecar_type in ("model", "sky"):
             self.bungie_face_region = self.halo.region_name
 
         # PROPS FOR MESH TYPES WHICH HAVE RENDERED FACES:
-        if self.corinth and self.sidecar_type == 'SCENARIO' and self.bungie_mesh_type == '_connected_geometry_mesh_type_default':
+        if self.corinth and self.sidecar_type == 'scenario' and self.bungie_mesh_type == '_connected_geometry_mesh_type_default':
             self.bungie_face_type = '_connected_geometry_face_type_sky'
         elif self.halo.face_type:
             self.bungie_face_type = self.halo.face_type
@@ -1101,7 +1101,7 @@ class NWOMesh(NWOObject):
 
     def mesh_use_uncompressed_verts(self):
         if self.bungie_mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop"):
-            if self.bungie_mesh_type == "_connected_geometry_mesh_type_default" and self.sidecar_type == "SCENARIO":
+            if self.bungie_mesh_type == "_connected_geometry_mesh_type_default" and self.sidecar_type == "scenario":
                 return "0"
             else:
                 return "1"

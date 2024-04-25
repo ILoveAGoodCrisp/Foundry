@@ -82,10 +82,10 @@ class NWOJSON(dict):
         global_materials = self.get_global_materials()
         regions = self.get_regions()
         table = {}
-        if self.sidecar_type in ("MODEL", "SCENARIO", "PREFAB", "SKY"):
+        if self.sidecar_type in ("model", "scenario", "prefab", "sky"):
             table.update({"global_materials_names": list(global_materials.keys())})
             table.update({"global_materials_values": list(global_materials.values())})
-        if self.sidecar_type in ("MODEL", "SKY"):
+        if self.sidecar_type in ("model", "sky"):
             table.update({"regions_names": regions})
             table.update({"regions_values": [str(regions.index(region)) for region in regions]})
 

@@ -93,12 +93,12 @@ def get_full_name(coll_type, coll_name):
         case "exclude":
             prefix = "exclude::"
         case "region":
-            if asset_type in ("SCENARIO", "PREFAB"):
+            if asset_type in ("scenario", "prefab"):
                 prefix = "bsp::"
             else:
                 prefix = "region::"
         case _:
-            if bpy.context.scene.nwo.asset_type in ("SCENARIO", "PREFAB"):
+            if bpy.context.scene.nwo.asset_type in ("scenario", "prefab"):
                 prefix = "layer::"
             else:
                 prefix = "permutation::"

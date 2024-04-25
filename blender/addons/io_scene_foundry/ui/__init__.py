@@ -157,9 +157,9 @@ from .preferences_ui import (
     H2AMPEKLocationPath,
     H4EKLocationPath,
     HREKLocationPath,
+    NWO_OT_ProjectEdit,
     NWO_Project_ListItems,
     NWO_ProjectAdd,
-    NWO_ProjectEditDisplayName,
     NWO_ProjectMove,
     NWO_ProjectRemove,
     NWO_UL_Projects,
@@ -268,8 +268,8 @@ def object_context_apply_types(self, context):
         else:
             layout.label(text=f'Halo {object_type}')
 
-    markers_valid = any([is_marker(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'SKY', 'PREFAB')
-    meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('MODEL', 'SCENARIO', 'PREFAB', 'SKY')
+    markers_valid = any([is_marker(ob) for ob in context.selected_objects]) and asset_type in ('model', 'scenario', 'sky', 'prefab')
+    meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('model', 'scenario', 'prefab', 'sky')
     has_children = any([ob.children for ob in context.selected_objects])
     if markers_valid or meshes_valid:
         if meshes_valid:
@@ -283,10 +283,10 @@ def object_context_apply_types(self, context):
             
 def object_context_sets(self, context):
     asset_type = context.scene.nwo.asset_type
-    regions_valid = asset_type in ('MODEL', 'SKY', 'SCENARIO')
-    permutations_valid =  asset_type in ('MODEL', 'SKY', 'SCENARIO', 'PREFAB')
-    region_name = "Scenario" if context.scene.nwo.asset_type == "SCENARIO" else "Region" 
-    permutation_name = "Layer" if context.scene.nwo.asset_type in ("SCENARIO", "PREFAB") else "Permutation"
+    regions_valid = asset_type in ('model', 'sky', 'scenario')
+    permutations_valid =  asset_type in ('model', 'sky', 'scenario', 'prefab')
+    region_name = "Scenario" if context.scene.nwo.asset_type == "scenario" else "Region" 
+    permutation_name = "Layer" if context.scene.nwo.asset_type in ("scenario", "prefab") else "Permutation"
     layout = self.layout
     layout.separator()
     ob = context.object
@@ -310,7 +310,7 @@ def object_context_sets(self, context):
 def collection_context(self, context):
     layout = self.layout
     coll = context.view_layer.active_layer_collection.collection
-    is_scenario = context.scene.nwo.asset_type in ('SCENARIO', 'PREFAB')
+    is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
     if coll and coll.users:
         layout.separator()
         if coll.nwo.type == 'exclude':
@@ -354,7 +354,6 @@ classes_nwo = (
     NWO_ProjectAdd,
     NWO_ProjectRemove,
     NWO_ProjectMove,
-    NWO_ProjectEditDisplayName,
     ToolkitLocationPreferences,
     NWO_OpenAssetFoundry,
     NWO_UL_MarkerPermutations,
@@ -460,6 +459,7 @@ classes_nwo = (
     NWO_OT_ZoneSetRemove,
     NWO_OT_ZoneSetMove,
     NWO_OT_RegisterIcons,
+    NWO_OT_ProjectEdit,
 )
 
 def register():
