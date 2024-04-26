@@ -1844,7 +1844,7 @@ def get_rig(context=None, return_mutliple=False) -> bpy.types.Object | None | li
         context = bpy.context
     scene_nwo = context.scene.nwo
     ob = context.object
-    if scene_nwo.main_armature:
+    if scene_nwo.main_armature and context.scene.objects.get(scene_nwo.main_armature.name):
         return scene_nwo.main_armature
     obs = export_objects(context)
     rigs = [ob for ob in obs if ob.type == 'ARMATURE']

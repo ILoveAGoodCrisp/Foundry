@@ -76,7 +76,7 @@ from io_scene_foundry.utils.nwo_utils import (
 )
 
 # export keywords
-export_settings = {}
+export = {}
 
 # lightmapper_run_once = False
 sidecar_read = False
@@ -84,7 +84,7 @@ sidecar_read = False
 sidecar_path = ""
 
 def call_export():
-    bpy.ops.nwo.export(**export_settings)
+    bpy.ops.nwo.export(**export)
 
 def toggle_output():
     bpy.context.scene.nwo_export.show_output = False
@@ -130,7 +130,6 @@ class NWO_Export_Scene(Operator, ExportHelper):
             if not sidecar_filepath.endswith(".sidecar.xml"):
                 sidecar_filepath = ""
             if sidecar_filepath and file_exists(sidecar_filepath):
-                # export_settings = ExportSettingsFromSidecar(sidecar_filepath)
                 self.filepath = sidecar_filepath
             elif bpy.data.is_saved:
                 try:
@@ -171,8 +170,8 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Save the scene
         # bpy.ops.wm.save_mainfile()
         # save settings to global
-        global export_settings
-        export_settings = self.as_keywords()
+        global export
+        export = self.as_keywords()
         bpy.ops.ed.undo_push()
         # start the actual export operator
         bpy.app.timers.register(call_export)
@@ -437,11 +436,11 @@ class NWO_Export(NWO_Export_Scene):
         scene_nwo = scene.nwo
         start = time.perf_counter()
         # get the asset name and path to the asset folder
-        self.asset_path, self.asset = get_asset_info(self.filepath)
+        self.asset_path, self.asset_name = get_asset_info(self.filepath)
 
-        sidecar_path_full = Path(self.asset_path, self.asset).with_suffix(".sidecar.xml")
+        sidecar_path_full = str(Path(self.asset_path, self.asset_name).with_suffix(".sidecar.xml"))
         global sidecar_path
-        sidecar_path = sidecar_path_full.relative_to(get_data_path())
+        sidecar_path = str(Path(sidecar_path_full).relative_to(get_data_path()))
         
         bpy.app.timers.register(save_sidecar_path)
         
@@ -484,7 +483,7 @@ class NWO_Export(NWO_Export_Scene):
         try:
             try:
                 if fbx_installed:
-                    prep_results, process_results = export_asset()
+                    prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
             
             except Exception as e:
                 if type(e) == RuntimeError:
@@ -565,7 +564,7 @@ class NWO_Export(NWO_Export_Scene):
                 )
                 
                 if scene_nwo.asset_type == 'model' and get_prefs().debug_menu_on_export:
-                    update_debug_menu(self.asset_path, self.asset)
+                    update_debug_menu(self.asset_path, self.asset_name)
 
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
@@ -614,9 +613,9 @@ def unregister():
     bpy.utils.unregister_class(NWO_Export_Scene)
     bpy.utils.unregister_class(NWO_Export)
 
-def export_asset(context, sidecar_path_full, asset_name, asset_path, asset_type, scene_settings, export_settings, corinth):
-    export_scene = PrepareScene()
-    export_scene.prepare_scene(context, asset_name, asset_type, export_settings)
+def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_settings, export_settings, corinth):
+    asset_type = scene_settings.asset_type
+    export_scene = PrepareScene(context, asset_type, corinth, scene_settings, export_settings)
     export_scene.ready_scene()
     export_scene.make_real()
     if asset_type == 'camera_track_set':
@@ -646,16 +645,24 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, asset_type,
         export_scene.validate_scale()
         # need to get object props AFTER scale
         export_scene.categorise_objects()
-        if asset_type in ('scenario', 'prefab') and corinth:
+        if asset_type in ('model', 'sky') and corinth:
             export_scene.create_model_lighting_bsp()
-        export_scene.animation_fixup()
+        if asset_type in ('model', 'animation'):
+            export_scene.animation_fixup()
         if asset_type == 'decorator_set':
             export_scene.get_decorator_lods()
         export_scene.validate_sets()
         if asset_type == 'sky' and not corinth:
             export_scene.setup_skylights()
-        
+        if asset_type == 'scenario':
+            export_scene.generate_structure()
+        elif asset_type in ("model", "sky", "decorator_set", "particle_model", "animation"):
+            export_scene.add_null_render_if_needed()
+            
+        export_scene.finalize()
     
     if not export_scene.too_many_root_bones and not export_scene.no_export_objects:
         export_process = ProcessScene()
         export_process.process_scene(context, sidecar_path, sidecar_path_full, asset_name, asset_path, asset_type, export_scene, export_settings, scene_settings)
+        
+    return export_scene, export_process

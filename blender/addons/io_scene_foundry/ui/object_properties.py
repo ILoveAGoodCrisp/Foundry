@@ -1443,9 +1443,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     )
 
     poop_remove_from_shadow_geometry_ui: BoolProperty(  # H4+
-        name="Remove From Shadow Geometry",
+        name="Dynamic Sun Shadow",
         options=set(),
-        description="",
+        description="Shadows cast by this object are dynamic. Useful for example on tree leaves with foliage materials",
         default=False,
     )
 

@@ -24,11 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import os
 from pathlib import Path
 import bmesh
 import bpy
-from os import path
 import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
@@ -100,7 +98,7 @@ class PrepareScene:
         self.context = context
         self.asset_type = asset_type
         self.corinth = corinth
-        self.game_version = 'h4' if corinth else 'reach'
+        self.game_version = 'corinth' if corinth else 'reach'
         self.scene_settings = scene_settings
         self.export_settings = export_settings
         self.tags_dir = Path(nwo_utils.get_tags_path())
@@ -113,7 +111,7 @@ class PrepareScene:
         self.gun = None
         self.arm_name = ""
         self.prefs = nwo_utils.get_prefs()
-        self.project = self.prefs.projects[self.prefs.current_project_index]
+        self.project = nwo_utils.project_from_scene_project(scene_settings.scene_project)
         self.verbose_warnings = False
         self.no_export_objects = False
         self.too_many_root_bones = False
@@ -124,6 +122,8 @@ class PrepareScene:
         self.supports_regions_and_perms = asset_type in ('model', 'sky', 'scenario', 'prefab')
         self.validated_regions = set()
         self.validated_permutations = set()
+        self.lods = set()
+        self.skylights = {}
         
         if self.supports_regions_and_perms:
             self.regions = [entry.name for entry in context.scene.nwo.regions_table]
@@ -153,7 +153,7 @@ class PrepareScene:
             render_mesh_types.append('_connected_geometry_mesh_type_default')
             
         self.model_armature = None
-        self.root_bone = ''
+        self.root_bone_name = ''
         self.skeleton_bones = {}
         self.protected_names = set()
         self.used_materials = set()
@@ -164,6 +164,7 @@ class PrepareScene:
         self.null_path_materials = []
         self.invalid_path_materials = []
         
+        self.timeline_start, self.timeline_end = self._set_timeline_range(context)
         self.current_action = None
         if bpy.data.actions:
             self.current_action = bpy.data.actions[scene_settings.active_action_index]
@@ -174,7 +175,8 @@ class PrepareScene:
         Makes the scene ready to be parsed by ensuring object visibility and that
         a good blender unrestricted context is active
         '''
-        
+        print("\nPreparing Export Scene")
+        print(f"{'-'*70}\n")
         # Exit local view. Must do this otherwise fbx export will fail.
         nwo_utils.exit_local_view(self.context)
         # Ensure context in object mode
@@ -254,7 +256,7 @@ class PrepareScene:
                     old_matrix = ob.matrix_world.copy()
                     ob.parent = self.model_armature
                     ob.parent_type = "BONE"
-                    ob.parent_bone = self.root_bone
+                    ob.parent_bone = self.root_bone_name
                     ob.matrix_world = old_matrix
                     
     def add_structure_instance_proxies(self):
@@ -262,7 +264,7 @@ class PrepareScene:
         Sets up copies of structure objects that have the instance flagged tickem
         These copies are setup as instances so that they are renderable and collidable
         '''
-        proxy_owners = [ob for ob in self.context.view_layer.object if nwo_utils.is_mesh(ob) and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance]
+        proxy_owners = [ob for ob in self.context.view_layer.objects if nwo_utils.is_mesh(ob) and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance]
         proxy_owner_data = {ob.data for ob in proxy_owners}
         
         proxy_owner_data_copies = {}
@@ -317,7 +319,7 @@ class PrepareScene:
         if self.default_mat is None:
             self.default_mat = materials.new("+default")
         
-        default_shader = nwo_utils.relative_path(self.project.default_material)
+        default_shader = nwo_utils.relative_path(self.project.project_default_material)
         if Path(self.tags_dir, default_shader).exists():
             self.default_mat.nwo.shader_path = default_shader
         else:
@@ -329,7 +331,7 @@ class PrepareScene:
         if self.water_surface_mat is None:
             self.water_surface_mat = materials.new("+water")
         
-        default_water_shader = nwo_utils.relative_path(self.project.default_water)
+        default_water_shader = nwo_utils.relative_path(self.project.project_default_water)
         if Path(self.tags_dir, default_water_shader).exists():
             self.water_surface_mat.nwo.shader_path = default_water_shader
         else:
@@ -470,7 +472,7 @@ class PrepareScene:
             is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type in render_mesh_types
 
             # add region/global_mat to sets
-            uses_global_mat = self.has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or scenario_asset and not self.corinth and nwo.mesh_type == "_connected_geometry_mesh_type_default")
+            uses_global_mat = self.has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and nwo.mesh_type == "_connected_geometry_mesh_type_default")
             if uses_global_mat:
                 self.global_materials.add(nwo.face_global_material)
 
@@ -512,7 +514,7 @@ class PrepareScene:
                     self.warning_hit = True
                     mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
                         
-                elif not Path(self.tags_dir + mat_nwo.shader_path).exists():
+                elif not Path(self.tags_dir, mat_nwo.shader_path).exists():
                     self.invalid_path_materials.append(mat)
                     self.warning_hit = True
                     mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
@@ -733,36 +735,38 @@ class PrepareScene:
             nwo_utils.apply_armature_scale(self.context, self.model_armature)
             
         # Group objects by their meshes, spitting by instanced/non-instanced
-        mesh_objects = [ob for ob in self.context.view_layer.object if nwo_utils.is_mesh(ob)]
-        uniform_io_objects = [ob for ob in mesh_objects if ob.type in ('_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_poop') and ob.scale.x == ob.scale.y == ob.scale.z]
+        mesh_objects = [ob for ob in self.context.view_layer.objects if nwo_utils.is_mesh(ob)]
+        uniform_io_objects = [ob for ob in mesh_objects if ob.nwo.mesh_type in ('_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_poop') and ob.scale.x == ob.scale.y == ob.scale.z]
         other_objects = [ob for ob in mesh_objects if ob not in uniform_io_objects]
         meshes = {ob.data for ob in mesh_objects}
         mesh_io_dict = {data: [ob for ob in uniform_io_objects if ob.data == data] for data in meshes}
         mesh_io_dict = {data: objects_list for data, objects_list in mesh_io_dict.items() if objects_list}
-        mesh_other_dict = {data: [ob for ob in other_objects if ob.data == data] for data in meshes}
+        mesh_other_dict = {data: [ob for ob in other_objects if ob.data == data] for data in meshes if data not in mesh_io_dict.keys()}
         mesh_other_dict = {data: objects_list for data, objects_list in mesh_other_dict.items() if objects_list}
         
         # Handle instances with uniform scaling. This is allowed but can be optimised to avoid extreme scale values
-        for data, objects_list in uniform_io_objects.items():
-            scales = {ob.scale.x for ob in objects_list}
+        for data, objects_list in mesh_io_dict.items():
+            scales = {abs(ob.scale.x) for ob in objects_list}
             maximum_scale = max(scales)
             if maximum_scale > 10:
                 scale_vector = Vector.Fill(3, maximum_scale / 10)
                 for vert in data.vertices: vert.co *= scale_vector
                 for ob in objects_list:
                     child_worlds = {child: child.matrix_world.copy() for child in ob.children}
-                    ob.scale /= scale_vector
+                    ob.scale.x /= scale_vector.x
+                    ob.scale.y /= scale_vector.y
+                    ob.scale.z /= scale_vector.z
                     for child_ob, world in child_worlds.items():
                         child_ob.matrix_world = world
         
         # Must do this recursively since children are scaled during the process
         # This doesn't matter for instances as they should never have instance children
-        self._recursive_scale_check(other_objects, good_scale)
+        self._recursive_scale_check(mesh_other_dict, good_scale)
                 
     def _recursive_scale_check(self, objects_dict: dict, good_scale: Vector):
         for data, objects_list in objects_dict.items():
             # group objects by whether their scale matches
-            object_scale_dict = {ob.scale.copy(): [o for o in objects_list if o.scale == ob.scale] for ob in objects_list if ob.scale != good_scale}
+            object_scale_dict = {ob.scale.copy().freeze(): [o for o in objects_list if o.scale == ob.scale] for ob in objects_list if ob.scale != good_scale}
             if object_scale_dict:
                 for scale, objects in object_scale_dict.items():
                     if objects:
@@ -779,77 +783,51 @@ class PrepareScene:
                                 child_ob.matrix_world = world
                                 
                 self._recursive_scale_check(objects_dict, good_scale)
-        
-    def prepare_scene(self, context, asset, asset_type, scene_nwo_export):
-        print("\nPreparing Export Scene")
-        print(f"{'-'*70}\n")
-
+                
+    def categorise_objects(self):
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
         global_materials = ["default"]
         for glob_mat in self.global_materials:
             if glob_mat != "default" and glob_mat:
                 global_materials.append(glob_mat)
 
-        self.global_materials_dict = {
-            global_material: str(idx)
-            for idx, global_material in enumerate(global_materials)
-            if global_material
-        }
+        self.global_materials_dict = {global_material: str(idx) for idx, global_material in enumerate(global_materials) if global_material}
 
         # get all objects that we plan to export later
-        self.halo_objects_init()
-        self.halo_objects(asset_type, export_obs, h4)
-        # print("halo_objects")
+        self._halo_objects_init()
+        self._halo_objects()
 
-        context.view_layer.update()
-        export_obs = context.view_layer.objects[:]
-
-        if asset_type in ("model", "sky", "animation"):
-            if self.lighting:
-                box = self.wrap_bounding_box(export_obs, scene_coll, 5)
-                self.lighting.append(box)
-                if self.model_armature:
-                    box.parent = self.model_armature
-                    box.parent_type = "BONE"
-                    bones = self.model_armature.data.bones
-                    for b in bones:
-                        if b.use_deform:
-                            root_bone_name = b.name
-                            break
-                    ob.parent_bone = root_bone_name
-
-        # print("armature")
-
-        # Set timeline range for use during animation export
-        self.timeline_start, self.timeline_end = self.set_timeline_range(context)
+        nwo_utils.update_view_layer(self.context)
         
-        if (not self.render or not scene_nwo.render_model_from_blend) and asset_type in ("model", "sky", "decorator_set", "particle_model", "animation"):
-            self.render = [self.add_null_render(scene_coll)]
-            context.view_layer.update()
-            export_obs = context.view_layer.objects[:]
-
-        # rotate the model armature if needed
-        if scene_nwo_export.export_gr2_files:
+    def create_model_lighting_bsp(self):
+        if self.lighting:
+            box = self._wrap_bounding_box(self.context.view_layer.objects, 5)
+            self.lighting.append(box)
             if self.model_armature:
-                self.force_fcurves_to_start_at_zero(
-                    asset_type,
-                    scene_nwo_export.export_animations,
-                )
+                world = box.matrix_world.copy()
+                box.parent = self.model_armature
+                box.parent_type = "BONE"
+                box.parent_bone = self.root_bone_name
+                box.matrix_world = world
+                
+    def animation_fixup(self):
+        if self.export_settings.export_gr2_files and self.model_armature:
+            self._force_fcurves_to_start_at_zero()
 
-        # Set animation name overrides
         if self.model_armature:
-            self.set_animation_overrides(scene_nwo)
-
-        # get the max LOD count in the scene if we're exporting a decorator
-        self.lods = self.get_decorator_lods(asset_type == "decorator_set")
+            self._set_animation_overrides()
+    
+    def get_decorator_lods(self):
+        if self.asset_type == 'decorator_set':
+            for ob in self.render: self.lods.add(self._decorator_int(ob))
         
-        # Validate regions and perms
+    def validate_sets(self):
         null_regions = [r for r in self.regions if r not in self.validated_regions]
         if null_regions:
             self.warning_hit = True
             print('')
             for r in null_regions:
-                print_warning(f'No export object has {self.reg_name}: {r}')
+                nwo_utils.print_warning(f'No export object has {self.reg_name}: {r}')
                 
             self.regions = [r for r in self.regions if r not in null_regions]
             
@@ -858,7 +836,7 @@ class PrepareScene:
             self.warning_hit = True
             print('')
             for p in null_permutations:
-                print_warning(f'No export object has {self.perm_name}: {p}')
+                nwo_utils.print_warning(f'No export object has {self.perm_name}: {p}')
                 
             self.permutations = [p for p in self.permutations if p not in null_permutations]
             
@@ -871,73 +849,74 @@ class PrepareScene:
             self.design_bsps = [b for b in self.regions if b in self.design_bsps]
         if len(self.design_perms) > 1:
             self.design_perms = [l for l in self.permutations if l in self.design_perms]
-        
-        
-        if scene_nwo_export.export_gr2_files:
-            if asset_type == 'scenario':
-                if self.generate_structure(export_obs, scene_coll, h4):
-                    context.view_layer.update()
             
-            # Build skylight dict
-            self.skylights = {}
-            if reach_sky_lights:
-                # undo scale change
-                if scale_factor != 1:
-                    light_scale = 0.03048 ** 2
-                    sun_scale = 0.03048
-                else:
-                    light_scale = 1
-                    sun_scale = 1
-                sun = None
-                lightGen_colors = []
-                lightGen_directions = []
-                lightGen_solid_angles = []
-                for ob in reach_sky_lights:
-                    if (ob.data.energy * light_scale) < 0.01:
-                        sun = ob
-                    down = Vector((0, 0, -1))
-                    down.rotate(ob.rotation_euler)
-                    lightGen_colors.append(color_3p_str(ob.data.color))
-                    lightGen_directions.append(f'{jstr(down[0])} {jstr(down[1])} {jstr(down[2])}')
-                    lightGen_solid_angles.append(jstr(ob.data.energy * light_scale))
-                    
-                self.skylights['lightGen_colors'] = ' '.join(lightGen_colors)
-                self.skylights['lightGen_directions'] = ' '.join(lightGen_directions)
-                self.skylights['lightGen_solid_angles'] = ' '.join(lightGen_solid_angles)
-                self.skylights['lightGen_samples'] = str(len(reach_sky_lights) - 1)
-                
-                if sun is not None:
-                    if sun.data.color.v > 1:
-                        sun.data.color.v = 1
-                    self.skylights['sun_size'] = jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
-                    self.skylights['sun_intensity'] = jstr(sun.data.energy * 10000 * light_scale)
-                    self.skylights['sun_color'] = color_3p_str(sun.data.color)
-
+    def generate_structure(self):
+        bsps_in_need = [bsp for bsp in self.structure_bsps if bsp not in self.bsps_with_structure]
+        if not bsps_in_need: return
+        default_bsp_part = self.default_permutation
+        for bsp in bsps_in_need:
+            bsp_obs = [ob for ob in self.context.view_layer.objects if ob.nwo.region_name == bsp]
+            structure = self._wrap_bounding_box(bsp_obs, 0 if self.corinth else 0.01)
+            structure_mesh = structure.data
+            nwo = structure.nwo
+            if self.corinth:
+                structure_mesh.materials.append(self.invisible_mat)
+            else:
+                structure_mesh.materials.append(self.sky_mat)
+            nwo.region_name = bsp
+            nwo.permutation_name = default_bsp_part
+            self.structure.append(structure)
+            
+        nwo_utils.update_view_layer(self.context)
+    
+    def add_null_render_if_needed(self):
+        if self.render and self.scene_settings.render_model_from_blend: return
+        self.render = [self._add_null_render()]
+        nwo_utils.update_view_layer(self.context)
+        
+    def setup_skylights(self):
+        if not self.reach_sky_lights: return
+        if self.scale_factor != 1:
+            light_scale = 0.03048 ** 2
+            sun_scale = 0.03048
+        else:
+            light_scale = 1
+            sun_scale = 1
+        sun = None
+        lightGen_colors = []
+        lightGen_directions = []
+        lightGen_solid_angles = []
+        for ob in self.reach_sky_lights:
+            if (ob.data.energy * light_scale) < 0.01:
+                sun = ob
+            down = Vector((0, 0, -1))
+            down.rotate(ob.rotation_euler)
+            lightGen_colors.append(nwo_utils.color_3p_str(ob.data.color))
+            lightGen_directions.append(f'{nwo_utils.jstr(down[0])} {nwo_utils.jstr(down[1])} {nwo_utils.jstr(down[2])}')
+            lightGen_solid_angles.append(nwo_utils.jstr(ob.data.energy * light_scale))
+            
+        self.skylights['lightGen_colors'] = ' '.join(lightGen_colors)
+        self.skylights['lightGen_directions'] = ' '.join(lightGen_directions)
+        self.skylights['lightGen_solid_angles'] = ' '.join(lightGen_solid_angles)
+        self.skylights['lightGen_samples'] = str(len(self.reach_sky_lights) - 1)
+        
+        if sun is not None:
+            if sun.data.color.v > 1:
+                sun.data.color.v = 1
+            self.skylights['sun_size'] = nwo_utils.jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
+            self.skylights['sun_intensity'] = nwo_utils.jstr(sun.data.energy * 10000 * light_scale)
+            self.skylights['sun_color'] = nwo_utils.color_3p_str(sun.data.color)
+            
+    def finalize(self):
         if self.warning_hit:
-            print_warning(
+            nwo_utils.print_warning(
                 "\nScene has issues that should be resolved for subsequent exports"
             )
-            print_warning("Please see above output for details")
-        
-        # end = time.perf_counter()
-        # print(f"\nScene Prepared in {end - start} seconds")
-        # time.sleep(3)
-        # raise
-
-    ########################################################################################################################################
-    ########################################################################################################################################
-
-    def unlink(self, ob):
-        data_coll = bpy.data.collections
-        for collection in data_coll:
-            if collection in ob.users_collection:
-                collection.objects.unlink(ob)
-
-        scene_coll = bpy.context.scene.collection
-        if scene_coll in ob.users_collection:
-            scene_coll.objects.unlink(ob)
-
-    # FACEMAP SPLIT
+            nwo_utils.print_warning("Please see above output for details")
+            
+########################################################################################################################################
+# HELPER FUNCTIONS
+########################################################################################################################################
 
     def _justify_face_split(self, face_sequences, poly_count):
         """Checked whether we actually need to split this mesh up"""
@@ -960,8 +939,9 @@ class PrepareScene:
         return len(bm.faces)
 
     def _recursive_layer_split(self, ob, data, face_properties, prop_faces_dict, split_objects, bm, is_proxy, is_recursion):
+        self.bmeshes_to_clean_up.add(bm)
         # faces_layer_dict = {faces: layer for layer, faces in layer_faces_dict.keys()}
-        faces_layer_dict = {fs: prop for prop, fs in prop_faces_dict.items() if fs}
+        faces_layer_dict = {tuple(fs): prop for prop, fs in prop_faces_dict.items() if fs}
         length_layer_dict = len(faces_layer_dict)
         for idx, face_seq in enumerate(faces_layer_dict.keys()):
             if face_seq:
@@ -983,7 +963,6 @@ class PrepareScene:
                     split_me = split_ob.data
 
                     bm.to_mesh(data)
-                    bm.free()
                     bmesh.ops.delete(
                         split_bm,
                         geom=[f for f in split_bm.faces if f.index in to_delete_indexes],
@@ -1041,7 +1020,7 @@ class PrepareScene:
             
     #     return False
     
-    def coll_proxy_two_sided(self, ob, bm: bmesh.types.BMesh):
+    def _coll_proxy_two_sided(self, ob, bm: bmesh.types.BMesh):
         for props in ob.data.nwo.face_props:
             if props.face_two_sided_override:
                 if nwo_utils.layer_face_count(bm, bm.faces.layers.int.get(props.layer_name)):
@@ -1050,7 +1029,7 @@ class PrepareScene:
         return False
         
 
-    def split_to_layers(self, ob: bpy.types.Object, ob_nwo, data, face_properties, bm, is_proxy):
+    def _split_to_layers(self, ob: bpy.types.Object, ob_nwo, data, face_properties, bm, is_proxy):
         poly_count = len(bm.faces)
         prop_faces_dict = {prop: nwo_utils.layer_faces(bm, bm.faces.layers.int.get(prop.layer_name)) for prop in face_properties}
         face_sequences = prop_faces_dict.values()
@@ -1112,7 +1091,9 @@ class PrepareScene:
 
             prop_faces_dict["|~~no_face_props~~|"] = remaining_faces
             # Splits the mesh recursively until each new mesh only contains a single face layer
+            self.bmeshes_to_clean_up = set()
             split_objects_messy = self._recursive_layer_split(ob, data, face_properties, prop_faces_dict, [ob], bm, is_proxy, False)
+            for b in self.bmeshes_to_clean_up: b.free()
             ori_ob_name = str(ob.name)
                 
             # remove zero poly obs from split_objects_messy
@@ -1477,24 +1458,19 @@ class PrepareScene:
                         elif phys:
                             ig.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_bullet_collision'
 
-    def force_fcurves_to_start_at_zero(self, asset_type, export_animations):
-        if asset_type in ("model", "animation"):
-            if export_animations != "NONE" and bpy.data.actions:
-                # Force the keyframes to start at frame 0
-                for animation in bpy.data.actions:
-                    frames_from_zero = int(animation.frame_start)
-                    if frames_from_zero == 0: continue
-                    for fcurve in animation.fcurves:
-                        for kfp in fcurve.keyframe_points:
-                            kfp.co_ui[0] -= frames_from_zero
-                        fcurve.keyframe_points.handles_recalc()
-                        
-                    animation.frame_start = 0
-                    animation.frame_end -= frames_from_zero
-
-    def set_bone_names(self, bones):
-        for b in bones:
-            set_bone_prefix(b)
+    def _force_fcurves_to_start_at_zero(self):
+        if self.export_settings.export_animations != "NONE" and bpy.data.actions:
+            # Force the keyframes to start at frame 0
+            for animation in bpy.data.actions:
+                frames_from_zero = int(animation.frame_start)
+                if frames_from_zero == 0: continue
+                for fcurve in animation.fcurves:
+                    for kfp in fcurve.keyframe_points:
+                        kfp.co_ui[0] -= frames_from_zero
+                    fcurve.keyframe_points.handles_recalc()
+                    
+                animation.frame_start = 0
+                animation.frame_end -= frames_from_zero
             
     def _setup_poop_props(self, ob):
         nwo = ob.nwo
@@ -1539,6 +1515,7 @@ class PrepareScene:
             
     def _setup_mesh_properties(self, ob: bpy.types.Object, is_map):
         nwo = ob.nwo
+        mesh_type = str(ob.data.nwo.mesh_type_ui)
         if is_map:
             # The ol switcheroo
             if mesh_type == '_connected_geometry_mesh_type_default':
@@ -1662,7 +1639,7 @@ class PrepareScene:
             ) and not (not self.corinth and nwo.mesh_type in "_connected_geometry_mesh_type_poop"):
                 
                 nwo.face_global_material = nwo_data.face_global_material_ui
-                if nwo.mesh_type != "_connected_geometry_mesh_type_physics" and not h4:
+                if nwo.mesh_type != "_connected_geometry_mesh_type_physics" and not self.corinth:
                     if nwo_data.ladder_ui:
                         nwo.ladder = "1"
                     if nwo_data.slip_surface_ui:
@@ -1855,7 +1832,7 @@ class PrepareScene:
                     ob.name = "fx_" + ob.name
                     
             elif nwo.marker_type == "_connected_geometry_marker_type_garbage":
-                if not h4:
+                if not self.corinth:
                     nwo.marker_type = "_connected_geometry_marker_type_model"
                 nwo.marker_velocity = nwo_utils.vector_str(nwo.marker_velocity_ui)
         
@@ -1934,72 +1911,15 @@ class PrepareScene:
                 ob.name += "."
             ob.name += "padding"
 
-    def apply_namespaces(self, ob, asset):
-        """Reads the objects halo properties and then applies the appropriate maya namespace, or optionally a set namespace if a second arg is passed"""
-        nwo = ob.nwo
-        namespace = asset
-        if nwo.object_type == "_connected_geometry_object_type_frame":
-            namespace = "frame"
-        elif nwo.object_type == "_connected_geometry_object_type_marker":
-            namespace = "marker"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_collision":
-            namespace = "collision"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_physics":
-            namespace = "physics"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_object_instance":
-            namespace = "flair"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_poop":
-            namespace = "instance"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_portal":
-            namespace = "portal"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_seam":
-            namespace = "seam"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
-            namespace = "water_surface"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
-            namespace = "fog"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_boundary_surface":
-            namespace = "boundary_surface"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_poop_collision":
-            namespace = "instance_collision"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_poop_physics":
-            namespace = "instance_physics"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_cookie_cutter":
-            namespace = "cookie_cutter"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_obb_volume":
-            namespace = "obb_volume"
-        elif nwo.mesh_type == "_connected_geometry_mesh_type_lightmap_region":
-            namespace = "lightmap_region"
+    def _set_animation_overrides(self):
+        for action in bpy.data.actions:
+            action.name = nwo_utils.dot_partition(action.name).lower().strip(" :_,-")
+            nwo = action.nwo
+            if not nwo.name_override: nwo.name_override = action.name
+            if self.scene_settings.default_animation_compression != "Automatic" and nwo.compression == "Default":
+                nwo.compression = self.scene_settings.default_animation_compression
 
-        ob.name = f"{namespace}:{ob.name}"
-
-    def set_animation_overrides(self, scene_nwo):
-        if (
-            self.model_armature is not None
-            and len(bpy.data.actions) > 0
-        ):
-            for action in bpy.data.actions:
-                action.name = dot_partition(action.name).lower().strip(" :_,-")
-                nwo = action.nwo
-                if not nwo.name_override:
-                    nwo.name_override = action.name
-                    
-                if scene_nwo.default_animation_compression != "Automatic" and nwo.compression == "Default":
-                    nwo.compression = scene_nwo.default_animation_compression
-
-    def rotate_scene(self, objects):
-        angle_z = radians(90)
-        axis_z = (0, 0, 1)
-        pivot = Vector((0.0, 0.0, 0.0))
-        for ob in objects:
-            M = (
-                Matrix.Translation(pivot)
-                @ Matrix.Rotation(angle_z, 4, axis_z)
-                @ Matrix.Translation(-pivot)
-            )
-            ob.matrix_world = M @ ob.matrix_world
-
-    def set_timeline_range(self, context):
+    def _set_timeline_range(self, context):
         scene = context.scene
         timeline_start = scene.frame_start
         timeline_end = scene.frame_end
@@ -2009,14 +1929,6 @@ class PrepareScene:
         scene.frame_end = 0
 
         return timeline_start, timeline_end
-
-    def get_decorator_lods(self, asset_is_decorator):
-        lods = set()
-        if asset_is_decorator:
-            for ob in self.render:
-                lods.add(self._decorator_int(ob))
-
-        return lods
     
     def _decorator_int(self, ob):
         match ob.nwo.decorator_lod_ui:
@@ -2032,37 +1944,6 @@ class PrepareScene:
     #####################################################################################
     #####################################################################################
     # ARMATURE FUNCTIONS
-    def get_scene_armature(self, export_obs, asset, scene_nwo):
-        # arm_name = f"{asset}_world"
-        # old_ob = bpy.data.objects.get(arm_name)
-        # if old_ob:
-        #     old_ob.name += "__OLD__"
-        # self.arm_name = arm_name
-        # arm = None
-        if scene_nwo.main_armature:
-            arm = scene_nwo.main_armature
-        else:
-            for ob in export_obs:
-                if ob.type == "ARMATURE":
-                    arm = ob
-        
-        if arm is not None:
-            # arm.name = arm_name
-            scene_nwo.main_armature = arm
-            return arm
-    
-    def get_bone_names(self, scene_nwo):
-        for b in self.model_armature.data.bones:
-            if not self.aim_pitch and (scene_nwo.node_usage_pose_blend_pitch == b.name or b.name.endswith("aim_pitch")):
-                self.aim_pitch = b.name
-            elif not self.aim_yaw and (scene_nwo.node_usage_pose_blend_yaw == b.name or b.name.endswith("aim_yaw")):
-                self.aim_yaw = b.name
-            elif not self.gun and b.name == ("b_gun"):
-                self.gun = b.name
-            elif not self.pedestal and b.use_deform:
-                self.pedestal = b.name
-        
-        return [bone.name for bone in self.model_armature.data.bones]
 
     def _fix_parenting(self):
         bones = self.model_armature.data.bones
@@ -2082,13 +1963,13 @@ class PrepareScene:
                         if major_vertex_group in valid_bone_names:
                             ob.parent_bone = major_vertex_group
                         else:
-                            ob.parent_bone = root_bone_name
+                            ob.parent_bone = self.root_bone_name
                     else:
-                        ob.parent_bone = root_bone_name
+                        ob.parent_bone = self.root_bone_name
                     if not ob.parent_bone in valid_bone_names:
                         self.warning_hit = True
-                        nwo_utils.print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {root_bone_name}')
-                        ob.parent_bone = root_bone_name
+                        nwo_utils.print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {self.root_bone_name}')
+                        ob.parent_bone = self.root_bone_name
                     
                     ob.matrix_world = world
                     
@@ -2110,8 +1991,8 @@ class PrepareScene:
                 if not ob.parent_bone in valid_bone_names:
                     world = ob.matrix_world.copy()
                     self.warning_hit = True
-                    print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {root_bone_name}')
-                    ob.parent_bone = root_bone_name
+                    nwo_utils.print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {self.root_bone_name}')
+                    ob.parent_bone = self.root_bone_name
                     ob.matrix_world = world
 
             if ob.parent_type == "BONE":
@@ -2119,14 +2000,6 @@ class PrepareScene:
                     for mod in ob.modifiers:
                         if mod.type == "ARMATURE":
                             ob.modifiers.remove(mod)
-
-    def get_weights(self, ob, vertex_group, vertices):
-        group_index = vertex_group.index
-        for i, v in enumerate(vertices):
-            for g in v.groups:
-                if g.group == group_index:
-                    yield (i, g.weight)
-                    break
 
     #####################################################################################
     #####################################################################################
@@ -2138,7 +2011,7 @@ class PrepareScene:
         nodes_order_gun = {}
         nodes_order_fp = {}
         arm = self.model_armature.name
-        boneslist.update({arm: self.get_armature_props(self.corinth)})
+        boneslist.update({arm: self._get_armature_props()})
         bone_list = [bone for bone in self.model_armature.data.bones if bone.use_deform]
         if len(bone_list) > 256:
             raise RuntimeError(f"Armature [{self.model_armature.name}] exceeds maximum deform bone count for exporting. {len(bone_list)} > 256")
@@ -2148,9 +2021,9 @@ class PrepareScene:
         if not root_bone:
             raise RuntimeError(f"Armature [{self.model_armature.name}] does not have a root deform bone")
         elif type(root_bone) == list:
-            raise RuntimeError(f"Armature [{self.model_armature.name}] has multiple root deform bones: {root_bone}")
+            raise RuntimeError(f"Armature [{self.model_armature.name}] has multiple root deform bones: {root_bone.name}")
         
-        self.root_bone = root_bone
+        self.root_bone_name = root_bone.name
         
         # sort list
         def sorting_key(value):
@@ -2220,14 +2093,14 @@ class PrepareScene:
                 
             bone_list = bones_ordered
             
-        frameIDs = self.ReadFrameIDList()
+        frameIDs = self._read_frame_id_list()
         for idx, b in enumerate(bone_list):
             name = b.name
             self.protected_names.add(name)
             FrameID1, FrameID2 = frameIDs[idx]
             boneslist.update(
                 {
-                    name: self.get_bone_properties(
+                    name: self._get_bone_properties(
                         FrameID1,
                         FrameID2,
                         b.nwo.object_space_node,
@@ -2239,7 +2112,7 @@ class PrepareScene:
 
         return boneslist
 
-    def get_armature_props(self, h4):
+    def _get_armature_props(self):
         node_props = {}
 
         node_props.update(
@@ -2247,12 +2120,12 @@ class PrepareScene:
         ),
         node_props.update({"bungie_frame_ID1": "8078"}),
         node_props.update({"bungie_frame_ID2": "378163771"}),
-        if h4:
+        if self.corinth:
             node_props.update({"bungie_frame_world": "1"}),
 
         return node_props
 
-    def get_bone_properties(
+    def _get_bone_properties(
         self,
         FrameID1,
         FrameID2,
@@ -2277,159 +2150,15 @@ class PrepareScene:
 
         return node_props
 
-    def ReadFrameIDList(self):
+    def _read_frame_id_list(self):
         filepath = Path(nwo_utils.addon_root(), "export", "frameidlist.csv")
         frameIDList = []
         with filepath.open(mode="r") as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=",")
             for row in csv_reader:
-                frameIDList.append(row[0], row[1])
+                frameIDList.append(row)
 
         return frameIDList
-
-    def setup_poop_proxies(self, export_obs, h4):
-        poops = [
-            ob
-            for ob in export_obs
-            if ob.nwo.mesh_type == "_connected_geometry_mesh_type_poop"
-        ]
-        if poops:
-            any_poop_child = any([ob for ob in poops if ob.children])
-        else:
-            return None
-
-        if any_poop_child:
-            process = "--- Copying Instanced Geometry Proxy Meshes"
-            update_progress(process, 0)
-            meshes = set([ob.data for ob in poops])
-            #print(meshes)
-            me_ob_dict = {me: ob for me in meshes for ob in poops if ob.data == me}
-            print(me_ob_dict)
-            print("\n\n\n")
-            len_me_ob_dict = len(me_ob_dict)
-
-            for idx, me in enumerate(me_ob_dict.keys()):
-                update_progress(process, idx / len_me_ob_dict)
-                linked_poops = me_ob_dict.get(me)
-
-                if type(linked_poops) is not list:
-                    for ob in linked_poops.children:
-                        nwo = ob.nwo
-                        if nwo.mesh_type == "_connected_geometry_mesh_type_poop_collision":
-                            if nwo.poop_collision_type == "_connected_geometry_poop_collision_type_play_collision":
-                                nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
-                    continue
-                
-                for idx, ob in enumerate(linked_poops):
-                    if ob.children:
-                        child_ob_set = self.get_poop_children(ob, h4)
-                        linked_obs = linked_poops.remove(idx)
-                        break
-                else:
-                    continue
-
-                for ob in linked_obs:
-                    for ob in ob.children:
-                        nwo_utils.unlink(ob)
-
-                    # attach child obs to linked obs
-                    for child in child_ob_set.keys():
-                        local_matrix = child_ob_set.get(child)[1]
-                        child_copy = child.copy()
-                        child_copy.parent = ob
-                        child_copy.matrix_local = local_matrix
-                        if h4:
-                            world_matrix = Matrix(child_copy.matrix_world)
-                            child_copy.parent = None
-                            child.matrix_world = world_matrix
-
-            update_progress(process, 1)
-
-    def get_poop_children(self, ob, h4):
-        child_ob_set = dict.fromkeys(ob.children)
-
-        child_set = {}  # 'bullet', 'player', 'cookie', 'invis'
-        for child in ob.children:
-            nwo_mesh_type = child.nwo.mesh_type
-            nwo_coll_type = child.nwo.poop_collision_type
-
-            if nwo_mesh_type == "_connected_geometry_mesh_type_cookie_cutter":
-                if "cookie" not in child_set:
-                    child_ob_set[child] = [
-                        "cookie",
-                        Matrix(child.matrix_local),
-                    ]
-                    child_set.add("cookie")
-
-            elif nwo_mesh_type != "_connected_geometry_mesh_type_poop_collision":
-                print(
-                    f"Found invalid mesh type parented to instance: Invalid Mesh: {child.name}"
-                )
-                nwo_utils.unlink(ob)
-
-            elif (
-                nwo_coll_type
-                == "_connected_geometry_poop_collision_type_invisible_wall"
-                and h4
-            ):
-                if "invis" not in child_set:
-                    child_ob_set[child] = ["invis", Matrix(child.matrix_local)]
-                    child_set.add("invis")
-
-            elif (
-                nwo_coll_type
-                == "_connected_geometry_poop_collision_type_play_collision"
-            ):
-                if "player" not in child_set:
-                    child_ob_set[child] = [
-                        "player",
-                        Matrix(child.matrix_local),
-                    ]
-                    child_set.add("player")
-                    if not h4:
-                        nwo_mesh_type = "_connected_geometry_mesh_type_poop_physics"
-
-            elif (
-                nwo_coll_type
-                == "_connected_geometry_poop_collision_type_bullet_collision"
-            ):
-                if "bullet" not in child_set:
-                    child_ob_set[child] = [
-                        "bullet",
-                        Matrix(child.matrix_local),
-                    ]
-                    child_set.add("bullet")
-                    if not h4:
-                        child.nwo.face_mode = (
-                            "_connected_geometry_face_mode_collision_only"
-                        )
-
-            elif (
-                nwo_coll_type == "_connected_geometry_poop_collision_type_default"
-                and "player" not in child_set
-                and "bullet" not in child_set
-            ):
-                child_ob_set[child] = ["default", Matrix(child.matrix_local)]
-                child_set.add("bullet")
-                child_set.add("player")
-
-            elif (
-                nwo_coll_type == "_connected_geometry_poop_collision_type_default"
-                and "player" not in child_set
-            ):
-                child_ob_set[child] = ["player", Matrix(child.matrix_local)]
-                child_set.add("player")
-                if not h4:
-                    nwo_mesh_type = "_connected_geometry_mesh_type_poop_physics"
-
-            elif (
-                nwo_coll_type == "_connected_geometry_poop_collision_type_default"
-                and "bullet" not in child_set
-            ):
-                child_ob_set[child] = ["bullet", Matrix(child.matrix_local)]
-                child_set.add("player")
-
-        return child_ob_set
 
     def _fix_materials(self, ob, is_halo_render, does_not_support_sky):
         # fix multi user materials
@@ -2563,7 +2292,7 @@ class PrepareScene:
                 
                 s.material = self.sky_mat
 
-    def wrap_bounding_box(self, objects, scene_coll, padding):
+    def _wrap_bounding_box(self, objects, padding):
         min_x, min_y, min_z, max_x, max_y, max_z = 0, 0, 0, 0, 0, 400
         for ob in objects:
             if ob.type == 'MESH':
@@ -2616,143 +2345,18 @@ class PrepareScene:
         structure_mesh = bpy.data.meshes.new('autogenerated_structure')
         bm.to_mesh(structure_mesh)
         structure = bpy.data.objects.new('autogenerated_structure', structure_mesh)
-        scene_coll.link(structure)
+        self.scene_collection.link(structure)
         nwo = structure.nwo
         nwo.object_type = '_connected_geometry_object_type_mesh'
         nwo.mesh_type = '_connected_geometry_mesh_type_default'
         
         return structure
-                    
-    def generate_structure(self, export_obs, scene_coll, h4):
-        bsps_in_need = [bsp for bsp in self.structure_bsps if bsp not in self.bsps_with_structure]
-        if not bsps_in_need:
-            return False
-        default_bsp_part = self.default_permutation
-        for bsp in bsps_in_need:
-            bsp_obs = [ob for ob in export_obs if ob.nwo.region_name == bsp]
-            structure = self.wrap_bounding_box(bsp_obs, scene_coll, 0 if self.corinth else 0.01)
-            structure_mesh = structure.data
-            nwo = structure.nwo
-            if h4:
-                structure_mesh.materials.append(self.invisible_mat)
-            else:
-                structure_mesh.materials.append(self.sky_mat)
-            nwo.region_name = bsp
-            nwo.permutation_name = default_bsp_part
-            self.structure.append(structure)
-
-        return True
-
-    def markerify(self, export_obs, scene_coll):
-        # get a list of meshes which are nodes
-        mesh_markers = [
-            ob
-            for ob in export_obs
-            if ob.nwo.object_type == "_connected_geometry_object_type_marker"
-            and ob.type in VALID_MESHES
-        ]
-
-        # For each mesh node create an empty with the same Halo props and transforms
-        # Mesh objects need their names saved, so we make a dict. Names are stored so that the node can have the exact same name. We add a temp name to each mesh object
-
-        if not mesh_markers:
-            return None
-
-        process = "--- Converting Mesh Markers to Empties"
-        update_progress(process, 0)
-        len_mesh_markers = len(mesh_markers)
-
-        for idx, ob in enumerate(mesh_markers):
-            ob_nwo = ob.nwo
-            original_name = str(ob.name)
-            ob.name += "_OLD"
-            node = bpy.data.objects.new(original_name, None)
-            scene_coll.link(node)
-            if ob.parent is not None:
-                node.parent = ob.parent
-                node.parent_type = ob.parent_type
-                if node.parent_type == "BONE":
-                    node.parent_bone = ob.parent_bone
-
-            node.matrix_world = ob.matrix_world
-            # node.matrix_local = ob.matrix_local
-            # node.matrix_parent_inverse = ob.matrix_parent_inverse
-            node.scale = ob.scale
-            node_nwo = node.nwo
-
-            # copy the node props from the mesh to the empty
-            self.set_node_props(ob_nwo, node_nwo)
-
-            nwo_utils.unlink(ob)
-            update_progress(process, idx / len_mesh_markers)
-
-        update_progress(process, 1)
-
-        # delete_object_list(context, mesh_markers)
-
-    def set_node_props(self, ob_halo, node_halo):
-        node_halo.region_name = ob_halo.region_name
-
-        node_halo.permutation_name = ob_halo.permutation_name
-
-        node_halo.object_type = ob_halo.object_type
-        node_halo.marker_type = ob_halo.marker_type
-
-        node_halo.region_name = ob_halo.region_name
-        node_halo.marker_all_regions = ob_halo.marker_all_regions
-        node_halo.marker_velocity = ob_halo.marker_velocity
-
-        node_halo.marker_game_instance_tag_name = ob_halo.marker_game_instance_tag_name
-        node_halo.marker_game_instance_tag_variant_name = (
-            ob_halo.marker_game_instance_tag_variant_name
-        )
-        node_halo.marker_always_run_scripts = (
-            ob_halo.marker_always_run_scripts
-        )
-        node_halo.marker_sphere_radius = ob_halo.marker_sphere_radius
-
-        node_halo.marker_pathfinding_sphere_vehicle = (
-            ob_halo.marker_pathfinding_sphere_vehicle
-        )
-        node_halo.pathfinding_sphere_remains_when_open = (
-            ob_halo.pathfinding_sphere_remains_when_open
-        )
-        node_halo.pathfinding_sphere_with_sectors = (
-            ob_halo.pathfinding_sphere_with_sectors
-        )
-
-        node_halo.physics_constraint_parent = ob_halo.physics_constraint_parent
-        node_halo.physics_constraint_child = ob_halo.physics_constraint_child
-        node_halo.physics_constraint_type = ob_halo.physics_constraint_type
-        node_halo.physics_constraint_uses_limits = (
-            ob_halo.physics_constraint_uses_limits
-        )
-
-        node_halo.hinge_constraint_minimum = ob_halo.hinge_constraint_minimum
-        node_halo.hinge_constraint_maximum = ob_halo.hinge_constraint_maximum
-        node_halo.cone_angle = ob_halo.cone_angle
-        node_halo.plane_constraint_minimum = ob_halo.plane_constraint_minimum
-        node_halo.plane_constraint_maximum = ob_halo.plane_constraint_maximum
-        node_halo.twist_constraint_start = ob_halo.twist_constraint_start
-        node_halo.twist_constraint_end = ob_halo.twist_constraint_end
-
-        node_halo.marker_hint_length = ob_halo.marker_hint_length
-
-        node_halo.marker_looping_effect = ob_halo.marker_looping_effect
-
-        node_halo.marker_light_cone_tag = ob_halo.marker_light_cone_tag
-        node_halo.marker_light_cone_color = ob_halo.marker_light_cone_color
-        node_halo.marker_light_cone_alpha = ob_halo.marker_light_cone_alpha
-        node_halo.marker_light_cone_intensity = ob_halo.marker_light_cone_intensity
-        node_halo.marker_light_cone_width = ob_halo.marker_light_cone_width
-        node_halo.marker_light_cone_length = ob_halo.marker_light_cone_length
-        node_halo.marker_light_cone_curve = ob_halo.marker_light_cone_curve
 
     #####################################################################################
     #####################################################################################
     # HALO CLASS
 
-    def halo_objects_init(self):
+    def _halo_objects_init(self):
         self.frames = []
         self.markers = []
         self.lighting = []
@@ -2774,10 +2378,9 @@ class PrepareScene:
         self.structure_bsps = set()
         self.structure_perms = set()
 
-    def halo_objects(self, asset_type, export_obs, h4):
-        render_asset = asset_type in ("model", "sky", "decorator_set", "particle_model")
-
-        for ob in export_obs:
+    def _halo_objects(self):
+        render_asset = self.asset_type in ("model", "sky", "decorator_set", "particle_model")
+        for ob in self.context.view_layer.objects:
             nwo = ob.nwo
             object_type = nwo.object_type
             mesh_type = nwo.mesh_type
@@ -2819,7 +2422,7 @@ class PrepareScene:
                     self.physics.append(ob)
                     self.physics_perms.add(permutation)
                 elif (
-                    h4
+                    self.corinth
                     and ob.type == "LIGHT"
                     or nwo.marker_type == "_connected_geometry_marker_type_airprobe"
                 ):
@@ -2838,59 +2441,49 @@ class PrepareScene:
                     self.structure.append(ob)
                     self.structure_bsps.add(region)
                     self.structure_perms.add(permutation)
-
-    # def counter_matrix(self, mat_old, mat_new, bone, objects):
-    #     old_rot = mat_old.to_quaternion()
-    #     new_rot = mat_new.to_quaternion()
-    #     diff_rot = new_rot.rotation_difference(old_rot)
-    #     diff_rot_mat = diff_rot.to_matrix().to_4x4()
-    #     for ob in objects:
-    #         if ob.parent == self.model_armature and ob.parent_bone == bone:
-    #             ob.matrix_world = diff_rot_mat @ ob.matrix_world
-        
     
     def _consolidate_rig(self, context, scene_nwo):
-        if scene_nwo.support_armature_a:
-            child_bone = rig_root_deform_bone(scene_nwo.support_armature_a, True)
+        if scene_nwo.support_armature_a and context.scene.objects.get(scene_nwo.support_armature_a.name):
+            child_bone = nwo_utils.rig_root_deform_bone(scene_nwo.support_armature_a, True)
             if child_bone and scene_nwo.support_armature_a_parent_bone:
-                self.join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, child_bone)
+                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, child_bone)
             else:
                 nwo_utils.unlink(scene_nwo.support_armature_a)
                 if not scene_nwo.support_armature_a_parent_bone:
                     self.warning_hit = True
-                    print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
+                    nwo_utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
                     
                 if not child_bone:
                     self.warning_hit = True
-                    print_warning(f"{scene_nwo.support_armature_a.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    nwo_utils.print_warning(f"{scene_nwo.support_armature_a.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
-        if scene_nwo.support_armature_b:
-            child_bone = rig_root_deform_bone(scene_nwo.support_armature_b, True)
+        if scene_nwo.support_armature_b and context.scene.objects.get(scene_nwo.support_armature_b.name):
+            child_bone = nwo_utils.rig_root_deform_bone(scene_nwo.support_armature_b, True)
             if child_bone and scene_nwo.support_armature_b_parent_bone:
-                self.join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, child_bone)
+                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, child_bone)
             else:
                 nwo_utils.unlink(scene_nwo.support_armature_b)
                 if not scene_nwo.support_armature_b_parent_bone:
                     self.warning_hit = True
-                    print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
+                    nwo_utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
                     
                 if not child_bone:
                     self.warning_hit = True
-                    print_warning(f"{scene_nwo.support_armature_b.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    nwo_utils.print_warning(f"{scene_nwo.support_armature_b.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
-        if scene_nwo.support_armature_c:
-            child_bone = rig_root_deform_bone(scene_nwo.support_armature_c, True)
+        if scene_nwo.support_armature_c and context.scene.objects.get(scene_nwo.support_armature_c.name):
+            child_bone = nwo_utils.rig_root_deform_bone(scene_nwo.support_armature_c, True)
             if child_bone and scene_nwo.support_armature_c_parent_bone:
-                self.join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, child_bone)
+                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, child_bone)
             else:
                 nwo_utils.unlink(scene_nwo.support_armature_c)
                 if not scene_nwo.support_armature_c_parent_bone:
                     self.warning_hit = True
-                    print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
+                    nwo_utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
                     
                 if not child_bone:
                     self.warning_hit = True
-                    print_warning(f"{scene_nwo.support_armature_c.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    nwo_utils.print_warning(f"{scene_nwo.support_armature_c.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
     def _join_armatures(self, context: bpy.types.Context, parent, child, parent_bone, child_bone):
         with context.temp_override(selected_editable_objects=[parent, child], active_object=parent):
@@ -2904,85 +2497,20 @@ class PrepareScene:
             edit_child.parent = edit_parent
         else:
             self.warning_hit = True
-            print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
+            nwo_utils.print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
             
         bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
         
         context.view_layer.objects.active = None
-
-    def remove_constraints(self, context, arm):
-        with context.temp_override(active_object=arm, selected_editable_objects=[arm]):
-            # arm_constraints = arm.constraints
-            # for c in arm_constraints:
-            #     arm_constraints.remove(c)
-            bpy.ops.object.posemode_toggle()
-            bones = arm.pose.bones
-            for b in bones:
-                bone_constraints = b.constraints
-                for c in bone_constraints:
-                    bone_constraints.remove(c)
-            bpy.ops.object.posemode_toggle()
-        
-    def fix_scale(self, context, objects):
-        apply_targets = []
-        poops = []
-        linked_poops_with_nonstandard_scale = False
-        for ob in objects:
-            abs_scale = Vector((abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z)))
-            uniform = ob.scale.x == ob.scale.y and ob.scale.x == ob.scale.z
-            is_poop = ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop'
-            is_poop_with_outlandish_scale = is_poop and ((abs_scale > TARGET_SCALE * 10))
-            if is_poop:
-                if not is_poop_with_outlandish_scale and uniform:
-                    continue
-                poops.append(ob)
-            if abs_scale != TARGET_SCALE:
-                if ob.type == 'ARMATURE':
-                    self.warning_hit = True
-                    print_warning(f'Armature [{ob.name}] has bad scale. Animations will not work as expected in game')
-                
-                elif ob.data and ob.data.users:
-                    if ob.data.users > 1 and is_poop:
-                        linked_poops_with_nonstandard_scale = True
-                        continue
-                    elif ob.data.users > 1:
-                        # Create new mesh data and apply scale
-                        if self.verbose_warnings:
-                            print_warning(f'{ob.name} has scale values of: {ob.scale}. New mesh data created')
-                        ob.data = ob.data.copy()
-                apply_targets.append(ob)
-                if self.verbose_warnings:
-                    print_warning(f'Applying scale to {ob.name}')
-        
-        needs_normal_flipping = [] 
-        for ob in apply_targets:
-            normals = 1 * sign(ob.scale.x) * sign(ob.scale.y) * sign(ob.scale.z)
-            if normals < 0:
-                needs_normal_flipping.append(ob)
-                
-        if apply_targets:
-            with context.temp_override(selected_editable_objects=apply_targets, active_object=apply_targets[0]):
-                bpy.ops.object.transform_apply(location=False, rotation=False, scale=True, isolate_users=True)
-        
-        has_been_flipped = set()
-        for ob in needs_normal_flipping:
-            if not ob.data in has_been_flipped:
-                has_been_flipped.add(ob.data)
-                bm = bmesh.new()
-                bm.from_mesh(ob.data)
-                bmesh.ops.reverse_faces(bm, faces=[f for f in bm.faces])
-                bm.to_mesh(ob.data)
-            
-        return poops, linked_poops_with_nonstandard_scale
     
-    def add_null_render(self, scene_coll):
+    def _add_null_render(self):
         verts = [Vector((-32, -32, 0.0)), Vector((32, -32, 0.0)), Vector((-32, 32, 0.0))]
         faces = [[0, 1, 2]]
         me = bpy.data.meshes.new('null')
         me.from_pydata(verts, [], faces)
         me.materials.append(self.invisible_mat)
         ob = bpy.data.objects.new('null', me)
-        scene_coll.link(ob)
+        self.scene_collection.link(ob)
         if self.model_armature:
             ob.parent = self.model_armature
             ob.parent_type = 'BONE'
@@ -3000,49 +2528,9 @@ class PrepareScene:
 def set_marker_sphere_size(ob, nwo):
     max_abs_scale = max(abs(ob.scale.x), abs(ob.scale.y), abs(ob.scale.z))
     if ob.type == "EMPTY":
-        nwo.marker_sphere_radius = jstr(ob.empty_display_size * max_abs_scale)
+        nwo.marker_sphere_radius = nwo_utils.jstr(ob.empty_display_size * max_abs_scale)
     else:
-        nwo.marker_sphere_radius = jstr(max(ob.dimensions * max_abs_scale / 2))
-
-def poop_parent(ob):
-    parent = ob.parent
-    if parent is None:
-        return False
-    return parent.nwo.mesh_type == '_connected_geometry_mesh_type_poop'
-
-def set_bone_prefix(bone):
-    name = bone.name.lower()
-    keep_stripping = True
-    while keep_stripping:
-        if name.startswith(("frame ", "frame_")):
-            name = name[6:]
-        elif name.startswith(("bone ", "bone_")):
-            name = name[5:]
-        elif name.startswith(("bip ", "bip_")):
-            name = name[4:]
-        elif name.startswith(("b ", "b_")):
-            name = name[2:]
-        else:
-            keep_stripping = False
-
-    bone.name = f"b_{name.strip(' _')}"
-
-def set_bone_prefix_str(string):
-    name = string.lower()
-    keep_stripping = True
-    while keep_stripping:
-        if name.startswith(("frame ", "frame_")):
-            name = name[6:]
-        elif name.startswith(("bone ", "bone_")):
-            name = name[5:]
-        elif name.startswith(("bip ", "bip_")):
-            name = name[4:]
-        elif name.startswith(("b ", "b_")):
-            name = name[2:]
-        else:
-            keep_stripping = False
-
-    return f"b_{name.strip(' _')}"
+        nwo.marker_sphere_radius = nwo_utils.jstr(max(ob.dimensions * max_abs_scale / 2))
 
 # RESET PROPS
 
@@ -3156,14 +2644,6 @@ def reset_export_props(nwo):
     nwo.marker_include_perms = ""
     nwo.reach_poop_collision = False
 
-
-def matrices_equal(mat_1, mat_2):
-    for i in range(4):
-        for j in range(4):
-            if abs(mat_1[i][j] - mat_2[i][j]) > 1e-6:
-                return False
-    return True
-
 def add_triangle_mod(ob: bpy.types.Object):
     mods = ob.modifiers
     for m in mods:
@@ -3175,10 +2655,10 @@ def add_triangle_mod(ob: bpy.types.Object):
     
 def transform_export_scene(context, scene_nwo) -> float:
     scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
-    rotation = blender_halo_rotation_diff(scene_nwo.forward_direction)
+    rotation = nwo_utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
     if scale_factor != 1 or rotation:
         print("--- Transforming Scene")
-        transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
+        nwo_utils.transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
     return scale_factor
 
 class ArmatureMod:
