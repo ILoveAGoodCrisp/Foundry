@@ -736,7 +736,7 @@ class PrepareScene:
             
         # Group objects by their meshes, spitting by instanced/non-instanced
         mesh_objects = [ob for ob in self.context.view_layer.objects if nwo_utils.is_mesh(ob)]
-        uniform_io_objects = [ob for ob in mesh_objects if ob.nwo.mesh_type in ('_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_poop') and ob.scale.x == ob.scale.y == ob.scale.z]
+        uniform_io_objects = [ob for ob in mesh_objects if ob.nwo.mesh_type in ('_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_poop') and round(ob.scale.x, 4) == round(ob.scale.y, 4) == round(ob.scale.z, 4)]
         other_objects = [ob for ob in mesh_objects if ob not in uniform_io_objects]
         meshes = {ob.data for ob in mesh_objects}
         mesh_io_dict = {data: [ob for ob in uniform_io_objects if ob.data == data] for data in meshes}
@@ -781,8 +781,10 @@ class PrepareScene:
                             ob.scale = good_scale
                             for child_ob, world in child_worlds.items():
                                 child_ob.matrix_world = world
+            else:
+                return
                                 
-                self._recursive_scale_check(objects_dict, good_scale)
+        self._recursive_scale_check(objects_dict, good_scale)
                 
     def categorise_objects(self):
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar

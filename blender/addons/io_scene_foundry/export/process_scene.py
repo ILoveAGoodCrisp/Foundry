@@ -364,7 +364,6 @@ class ProcessScene:
                     ]
 
             elif asset_type == "scenario":
-                export_scene.structure.extend(export_scene.frames)
                 if export_scene.structure:
                     self.export_bsp(
                         context,
