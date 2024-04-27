@@ -119,7 +119,6 @@ from io_scene_foundry.utils.nwo_utils import (
     material_read_only,
     nwo_asset_type,
     os_sep_partition,
-    project_game_icon,
     project_icon,
     protected_material_name,
     recursive_image_search,
@@ -4384,7 +4383,7 @@ class NWO_HaloExportSettings(Panel):
         if asset_type == 'camera_track_set':
             return
         scenario = asset_type == "scenario"
-        render = poll_ui("model", "sky")
+        render = poll_ui(("model", "sky"))
         if (h4 and render) or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
