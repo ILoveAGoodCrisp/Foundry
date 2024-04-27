@@ -5294,7 +5294,7 @@ def foundry_toolbar(layout, context):
         # sub_game_version.label(text="", icon_value=project_game_icon(context))
 
         sub0 = row.row(align=True)
-        if export_scene.is_valid_asset:
+        if export_scene.is_valid_asset and export_scene.asset_type != 'resource':
             sub0.operator(
                 "nwo.export_quick",
                 text="" if icons_only else "Export",
