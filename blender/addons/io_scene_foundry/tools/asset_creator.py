@@ -293,7 +293,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         scene_settings.nwo.scene_project = project.name
         scene_settings.nwo.sidecar_path = sidecar_path
         scene_settings.nwo.asset_type = self.asset_type
-        scene_settings.nwo.scale = self.scale
+        if scene_settings.nwo.scale != self.scale:
+            scene_settings.nwo.scale = self.scale
         scene_settings.nwo.forward_direction = self.forward_direction
         # Model specific settings
         scene_settings.nwo.output_biped = self.output_biped

@@ -1205,7 +1205,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Parent Animation Graph",
         description="The parent graph of the animations exported from this scene. Allows your animation graph to use and override animations from the parent",
         update=parent_animation_clean_tag_path,
-        get=get_parent_animation_graph,
+        # get=get_parent_animation_graph,
         set=set_parent_animation_graph,
         options=set(),
     )
@@ -1215,6 +1215,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     def get_scenario_type(self):
         asset_scenario = get_asset_tag(".scenario")
         if asset_scenario:
+            print(asset_scenario)
             with ScenarioTag(path=asset_scenario) as scenario:
                 type_value = scenario.tag.SelectField("type").Value
                 if type_value > 2:
@@ -1236,7 +1237,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     scenario_type: EnumProperty(
         name="Scenario Type",
         description="Select whether this is a Solo, Multiplayer, or Main Menu scenario",
-        get=get_scenario_type,
+        # get=get_scenario_type,
         set=set_scenario_type,
         options=set(),
         items=[

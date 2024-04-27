@@ -1090,9 +1090,7 @@ class NWO_FoundryPanelProps(Panel):
     def draw_object_visibility(self, box: bpy.types.UILayout, nwo):
         asset_type = nwo.asset_type
         # box.label(text="Mesh")
-        grid = box.grid_flow(align=False, even_columns=True)
-        grid.alignment = 'LEFT'
-        grid.scale_x = 1
+        grid = box.grid_flow(align=True, even_columns=True)
         default_icon_name = "render_geometry"
         default_icon_off_name = "render_geometry_off"
         if poll_ui(('scenario', 'prefab')):
