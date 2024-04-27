@@ -107,7 +107,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
             try:
                 export_title = f"►►► FOUNDRY CONVERTER ◄◄◄"
                 print(export_title, '\n')
-                converter = NWOImporter(context, self.report, [], [])
+                converter = NWOImporter(context, self.report, [], [], existing_scene=True)
                 match self.convert_type:
                     case "amf":
                         converter.amf_marker_objects = []
@@ -118,6 +118,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                         converter.jms_marker_objects = []
                         converter.jms_mesh_objects = []
                         converter.jms_other_objects = []
+                        converter.seams = []
                         converter.process_jms_objects(objects_in_scope, "", self.jms_type == 'model')
                 
             except KeyboardInterrupt:
@@ -603,13 +604,14 @@ class JMSMaterialSlot:
 
 
 class NWOImporter:
-    def __init__(self, context, report, filepaths, scope):
+    def __init__(self, context, report, filepaths, scope, existing_scene=False):
         self.filepaths = filepaths
         self.context = context
         self.report = report
         self.mesh_objects = []
         self.marker_objects = []
         self.extensions = set()
+        self.existing_scene = existing_scene
         self.apply_materials = get_prefs().apply_materials
         self.prefix_setting = get_prefs().apply_prefix
         if filepaths:
@@ -793,7 +795,7 @@ class NWOImporter:
         is_model = bool([ob for ob in objects if ob.type == 'ARMATURE'])
         possible_bsp = file_name.rpartition('_')[2]
         # Add all objects to a collection
-        if file_name:
+        if not self.existing_scene:
             new_coll = bpy.data.collections.get(file_name, 0)
             if not new_coll:
                 new_coll = bpy.data.collections.new(file_name)
@@ -836,8 +838,9 @@ class NWOImporter:
                 [print_warning(f"- {ob.name}") for ob in unsolved_instances]
                 print("Review the source render_model tag (if available) to determine correct region/permutations\n")
         
-        add_to_collection(self.amf_marker_objects, True, new_coll, name="markers")
-        add_to_collection(self.amf_mesh_objects, True, new_coll, name="meshes")
+        if not self.existing_scene:
+            add_to_collection(self.amf_marker_objects, True, new_coll, name="markers")
+            add_to_collection(self.amf_mesh_objects, True, new_coll, name="meshes")
         
     def solve_amf_object_instances(self):
         unsolved_instances = [ob for ob in self.amf_object_instances]
@@ -886,7 +889,7 @@ class NWOImporter:
                 ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
             else:
                 self.amf_poops.append(ob)
-                
+                    
         self.amf_mesh_objects.append(ob)
         
     def setup_amf_marker(self, ob, is_model):
@@ -953,8 +956,8 @@ class NWOImporter:
     def import_jms_file(self, path, legacy_fix_rotations):
         # get all objects that exist prior to import
         pre_import_objects = bpy.data.objects[:]
-        file_name = dot_partition(os.path.basename(path))
-        ext = dot_partition(os.path.basename(path), True).upper()
+        file_name = Path(path).with_suffix("").name
+        ext = Path(path).suffix.strip('.').upper()
         print(f"Importing {ext}: {file_name}")
         with MutePrints():
             if ext == 'JMS':
@@ -967,12 +970,12 @@ class NWOImporter:
         
     def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
         # Add all objects to a collection
-        if file_name:
+        if not self.existing_scene:
             new_coll = bpy.data.collections.get(file_name, 0)
             if not new_coll:
                 new_coll = bpy.data.collections.new(file_name)
                 self.context.scene.collection.children.link(new_coll)
-        if not is_model and file_name:
+        if not is_model and not self.existing_scene:
             possible_bsp = file_name.rpartition('_')[2]
             new_coll.name = 'bsp::' + possible_bsp
             regions_table = self.context.scene.nwo.regions_table
@@ -1005,9 +1008,9 @@ class NWOImporter:
                         region = parts[-1]
                         ob.name = f'{prefix}{region}:{perm}'
                 else:
-                    original_bm = bmesh.new()
-                    original_bm.from_mesh(ob.data)
-                    save_loop_normals(original_bm, ob.data)
+                    bm = bmesh.new()
+                    bm.from_mesh(ob.data)
+                    save_loop_normals(bm, ob.data)
                     for idx, perm_region in enumerate(ob.region_list):
                         parts = perm_region.name.split(' ')
                         if len(parts) == 1:
@@ -1025,10 +1028,12 @@ class NWOImporter:
                         new_ob = ob.copy()
                         new_ob.name = new_name
                         new_ob.data = ob.data.copy()
-                        bm = original_bm.copy()
+                        if self.existing_scene:
+                            for coll in ob.users_collection: coll.objects.link(new_ob)
                         region_layer = bm.faces.layers.int.get("Region Assignment")
                         bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[region_layer] != idx + 1], context='FACES')
                         bm.to_mesh(new_ob.data)
+                        bm.free()
                         apply_loop_normals(new_ob.data)
                         clean_materials(new_ob)
                         objects.append(new_ob)
@@ -1052,14 +1057,17 @@ class NWOImporter:
                 self.setup_jms_marker(ob, is_model)
             elif ob.type == 'MESH':
                 self.setup_jms_mesh(ob, is_model)
-                
-        add_to_collection(self.jms_marker_objects, True, new_coll, name="markers")
-        add_to_collection(self.jms_mesh_objects, True, new_coll, name="meshes")
+        
+        if not self.existing_scene:
+            add_to_collection(self.jms_marker_objects, True, new_coll, name="markers")
+            add_to_collection(self.jms_mesh_objects, True, new_coll, name="meshes")
                 
     def setup_jms_frame(self, ob):
         ob.nwo.frame_override = True
         if ob.type == 'MESH':
             marker = convert_to_marker(ob)
+            if self.existing_scene:
+                for coll in ob.users_collection: coll.objects.link(marker)
             bpy.data.objects.remove(ob)
             self.jms_other_objects.append(marker)
         else:
@@ -1083,8 +1091,10 @@ class NWOImporter:
             original_parent_bone = ob.parent_bone
             radius = max(ob.dimensions.x, ob.dimensions.y, ob.dimensions.z) / 2
             scale = ob.scale.copy()
-            bpy.data.objects.remove(ob)
             marker = bpy.data.objects.new(name, None)
+            if self.existing_scene:
+                for coll in ob.users_collection: coll.objects.link(marker)
+            bpy.data.objects.remove(ob)
             marker.parent = original_parent
             marker.parent_type = original_parent_type
             marker.parent_bone = original_parent_bone
@@ -1154,8 +1164,8 @@ class NWOImporter:
                 
         self.jms_marker_objects.append(marker)
         
-    def setup_jms_mesh(self, ob, is_model):
-        new_objects = self.convert_material_props(ob)
+    def setup_jms_mesh(self, original_ob, is_model):
+        new_objects = self.convert_material_props(original_ob)
         for ob in new_objects:
             mesh_type_legacy = self.get_mesh_type(ob, is_model)
             ob.nwo.mesh_type = ''
@@ -1273,6 +1283,8 @@ class NWOImporter:
                 if jms_mat.mesh_type == 'default':
                     continue
                 new_ob = ob.copy()
+                if self.existing_scene:
+                    for coll in ob.users_collection: coll.objects.link(new_ob)
                 new_ob.data = ob.data.copy()
                 bm = bm_original.copy()
                 faces_to_remove = [face for face in bm.faces if face.material_index != jms_mat.index]
@@ -1280,6 +1292,7 @@ class NWOImporter:
                 bmesh.ops.delete(bm, geom=faces_to_remove, context='FACES')
                 bmesh.ops.delete(bm_original, geom=faces_to_remove_original, context='FACES')
                 bm.to_mesh(new_ob.data)
+                bm.free()
                 apply_loop_normals(new_ob.data)
                 clean_materials(new_ob)
                     
@@ -1294,6 +1307,7 @@ class NWOImporter:
                     new_ob_copy.matrix_world = obj.matrix_world
                 
             bm_original.to_mesh(ob.data)
+            bm_original.free()
             if not ob.data.polygons:
                 objects_to_setup.remove(ob)
                 bpy.data.objects.remove(ob)
@@ -1494,6 +1508,7 @@ class NWOImporter:
                     layer.face_count = layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
                                 
                 bm.to_mesh(ob.data)
+                bm.free()
         
         return objects_to_setup
     

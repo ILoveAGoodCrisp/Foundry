@@ -3010,6 +3010,7 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
                 loop_normals.append(face[layer])
                          
     mesh.normals_split_custom_set(loop_normals)
+    bm.free()
     
 def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
     materials = ob.data.materials

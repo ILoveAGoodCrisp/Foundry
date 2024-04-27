@@ -1555,11 +1555,11 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Set the depth of this water volume mesh",
         default=20,
     )
-    water_volume_flow_direction_ui: FloatVectorProperty(  # this something which can probably be automated?
+    water_volume_flow_direction_ui: FloatProperty(  # this something which can probably be automated?
         name="Water Volume Flow Direction",
         options=set(),
         description="Set the flow direction of this water volume mesh. 0 is forward on the X axis",
-        subtype='DIRECTION',
+        subtype='ANGLE',
     )
 
     water_volume_flow_velocity_ui: FloatProperty(

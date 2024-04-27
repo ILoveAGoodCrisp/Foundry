@@ -625,7 +625,7 @@ class PrepareScene:
         mesh_objects_dict = {data: [ob for ob in valid_for_face_properties_objects if ob.data == data] for data in meshes}
         mesh_objects_dict = {data: objects_list for data, objects_list in mesh_objects_dict.items() if objects_list}
 
-        process = "--- Creating Meshes From Face Properties"
+        process = "--- Splitting Meshes with Face Properties"
         len_mesh_object_dict = len(mesh_objects_dict)
         self.any_face_props = False
         for idx, (data, objects_list) in enumerate(mesh_objects_dict.items()):
@@ -764,10 +764,12 @@ class PrepareScene:
         self._recursive_scale_check(mesh_other_dict, good_scale)
                 
     def _recursive_scale_check(self, objects_dict: dict, good_scale: Vector):
+        continue_checking_scale = False
         for data, objects_list in objects_dict.items():
             # group objects by whether their scale matches
             object_scale_dict = {ob.scale.copy().freeze(): [o for o in objects_list if o.scale == ob.scale] for ob in objects_list if ob.scale != good_scale}
             if object_scale_dict:
+                continue_checking_scale = True
                 for scale, objects in object_scale_dict.items():
                     if objects:
                         new_data = objects[0].data.copy()
@@ -781,10 +783,8 @@ class PrepareScene:
                             ob.scale = good_scale
                             for child_ob, world in child_worlds.items():
                                 child_ob.matrix_world = world
-            else:
-                return
-                                
-        self._recursive_scale_check(objects_dict, good_scale)
+        if continue_checking_scale:
+            self._recursive_scale_check(objects_dict, good_scale)
                 
     def categorise_objects(self):
         # Establish a dictionary of scene global materials. Used later in export_gr2 and build_sidecar
