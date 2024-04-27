@@ -20,7 +20,7 @@ def load_handler_for_preferences(_):
 
 @persistent
 def load_handler(dummy):
-    bpy.ops.nwo.make_asset("INVOKE_DEFAULT", asset_name="new_fp_animation")
+    bpy.ops.nwo.new_asset("INVOKE_DEFAULT", asset_name="new_fp_animation")
 
 
 class WM_MT_splash(FoundrySplashScreen):

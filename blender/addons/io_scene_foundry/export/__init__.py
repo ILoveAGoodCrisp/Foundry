@@ -90,7 +90,7 @@ def toggle_output():
     bpy.context.scene.nwo_export.show_output = False
     
 def save_sidecar_path():
-    bpy.context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
+    bpy.context.scene.nwo.sidecar_path = sidecar_path
 
 class NWO_Export_Scene(Operator, ExportHelper):
     bl_idname = "export_scene.nwo"
@@ -100,7 +100,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
 
     @classmethod
     def poll(cls, context):
-        return not validate_ek() and not context.scene.nwo.storage_only
+        return not validate_ek() and not context.scene.nwo.storage_only and context.scene.nwo.is_valid_asset
     
     @classmethod
     def description(cls, context, properties):
@@ -122,11 +122,9 @@ class NWO_Export_Scene(Operator, ExportHelper):
         data_dir = get_data_path()
         self.game_path_not_set = False
 
-        if os.path.exists(get_tool_path() + ".exe"):
+        if Path(get_tool_path()).with_suffix(".exe").exists():
             # get sidecar path from users EK data path + internal path
-            sidecar_filepath = path.join(
-                data_dir, scene.nwo_halo_launcher.sidecar_path
-            )
+            sidecar_filepath = str(Path(data_dir, scene.nwo.sidecar_path))
             if not sidecar_filepath.endswith(".sidecar.xml"):
                 sidecar_filepath = ""
             if sidecar_filepath and file_exists(sidecar_filepath):
@@ -231,14 +229,14 @@ class NWO_Export_Scene(Operator, ExportHelper):
         scene_nwo = scene.nwo
         for p in projects:
             if p.name == scene_nwo.scene_project:
-                thumbnail = os.path.join(p.project_path, p.project_image_path)
+                thumbnail = os.path.join(p.project_path, p.image_path)
                 if os.path.exists(thumbnail):
                     icon_id = get_icon_id_in_directory(thumbnail)
-                elif p.project_remote_server_name == "bngtoolsql":
+                elif p.remote_server_name == "bngtoolsql":
                     icon_id = get_icon_id("halo_reach")
-                elif p.project_remote_server_name == "metawins":
+                elif p.remote_server_name == "metawins":
                     icon_id = get_icon_id("halo_4")
-                elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
+                elif p.remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
                     icon_id = get_icon_id("halo_2amp")
                 else:
                     icon_id = get_icon_id("tag_test")
@@ -496,7 +494,7 @@ class NWO_Export(NWO_Export_Scene):
 
             # validate that a sidecar file exists
             if not Path(sidecar_path_full).exists:
-                context.scene.nwo_halo_launcher.sidecar_path = ""
+                context.scene.nwo.sidecar_path = ""
 
             # write scene settings generated during export to temp file
             

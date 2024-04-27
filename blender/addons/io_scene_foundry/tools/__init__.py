@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.asset_creator import NWO_OT_NewAsset
 from io_scene_foundry.tools.animation.rename_importer import NWO_OT_RenameImporter
 from io_scene_foundry.tools.animation.fcurve_transfer import NWO_OT_FcurveTransfer
 from io_scene_foundry.tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
@@ -118,6 +119,8 @@ from io_scene_foundry.utils.nwo_utils import (
     material_read_only,
     nwo_asset_type,
     os_sep_partition,
+    project_game_icon,
+    project_icon,
     protected_material_name,
     recursive_image_search,
     relative_path,
@@ -228,10 +231,10 @@ class NWO_FoundryPanelProps(Panel):
             if p == "help":
                 box = col1.box()
             elif p == "animation_manager":
-                if nwo.asset_type not in ('model', 'animation', 'camera_track_set'):
+                if not nwo.is_valid_asset or not poll_ui(('model', 'animation', 'camera_track_set')):
                     continue
             elif p in ("object_properties", "material_properties", 'sets_manager'):
-                if nwo.asset_type in ('animation', 'camera_track_set'):
+                if not nwo.is_valid_asset or nwo.asset_type in ('animation', 'camera_track_set'):
                     continue
             
             row_icon = box.row(align=True)
@@ -277,43 +280,15 @@ class NWO_FoundryPanelProps(Panel):
         scene = self.scene
 
         col = box.column()
-        if mb_active:
-            col.enabled = False
         row = col.row()
-        row.scale_y = 1.5
-        prefs = get_prefs()
-        projects = prefs.projects
-        for p in projects:
-            if p.name == nwo.scene_project:
-                thumbnail = os.path.join(p.project_path, p.project_image_path)
-                if os.path.exists(thumbnail):
-                    icon_id = get_icon_id_in_directory(thumbnail)
-                elif p.project_remote_server_name == "bngtoolsql":
-                    icon_id = get_icon_id("halo_reach")
-                elif p.project_remote_server_name == "metawins":
-                    icon_id = get_icon_id("halo_4")
-                elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
-                    icon_id = get_icon_id("halo_2amp")
-                else:
-                    icon_id = get_icon_id("tag_test")
-                row.menu(NWO_ProjectChooserMenu.bl_idname, text=nwo.scene_project, icon_value=icon_id)
-                break
-        else:
-            if projects:
-                row.menu(NWO_ProjectChooserMenu.bl_idname, text="Choose Project", icon_value=get_icon_id("tag_test"))
-            else:
-                row.operator("nwo.project_add", text="Choose Project", icon_value=get_icon_id("tag_test")).set_scene_project = True
-        col = box.column()
-        col.use_property_split = True
-        # if nwo.asset_type in ("model", "scenario", "prefab"):
-        #     col.prop(nwo, "default_mesh_type_ui", text="Default Mesh Type")
-
-        col.separator()
+        col.scale_y = 1.5
 
         if not nwo_globals.clr_installed:
             col.operator("managed_blam.init", text="Install Tag API")
             col.separator()
         col.operator('nwo.scale_scene', text='Transform Scene', icon='MOD_LENGTH')
+        col = box.column()
+        col.scale_y = 1.25
         col.separator()
         row = col.row()
         row.scale_y = 1.1
@@ -332,25 +307,23 @@ class NWO_FoundryPanelProps(Panel):
     def draw_asset_editor(self):
         box = self.box
         nwo = self.scene.nwo
-        scene = self.scene
         col = box.column()
         row = col.row()
         row.scale_y = 1.5
         row.prop(nwo, "asset_type", text="")
         col.separator()
-        asset_name = scene.nwo_halo_launcher.sidecar_path.rpartition("\\")[2].replace(
-            ".sidecar.xml", ""
-        )
+        asset_name = nwo.asset_name
         
         row = col.row()
         row.scale_y = 1.5
         if asset_name:
-            row.operator("nwo.make_asset", text=f"Copy {asset_name}", icon_value=get_icon_id("halo_asset")) 
+            row.operator("nwo.new_asset", text=f"Copy {asset_name}", icon_value=get_icon_id("halo_asset")) 
             row.operator("nwo.clear_asset", text="", icon='X')
             
         else:
             row.scale_y = 1.5
-            row.operator("nwo.make_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
+            row.operator("nwo.new_asset", text="New Asset", icon_value=get_icon_id("halo_asset"))
+            return
         
         if nwo.asset_type == 'model':
             self.draw_expandable_box(self.box.box(), nwo, 'output_tags')
@@ -358,7 +331,7 @@ class NWO_FoundryPanelProps(Panel):
             # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
             self.draw_rig_ui(self.context, nwo)
             
-        if self.h4 and nwo.asset_type in ('model', 'sky'):
+        if self.h4 and poll_ui(('model', 'sky')):
             self.draw_expandable_box(self.box.box(), nwo, 'lighting')
         
         if nwo.asset_type == "animation":
@@ -1122,7 +1095,7 @@ class NWO_FoundryPanelProps(Panel):
         grid.scale_x = 1
         default_icon_name = "render_geometry"
         default_icon_off_name = "render_geometry_off"
-        if asset_type in ('scenario', 'prefab'):
+        if poll_ui(('scenario', 'prefab')):
             default_icon_name = "instance"
             default_icon_off_name = "instance_off"
         elif asset_type == 'decorator_set':
@@ -1130,7 +1103,7 @@ class NWO_FoundryPanelProps(Panel):
             default_icon_off_name = "decorator_off"
             
         grid.prop(nwo, "connected_geometry_mesh_type_default_visible", text="", icon_value=get_icon_id(default_icon_name) if nwo.connected_geometry_mesh_type_default_visible else get_icon_id(default_icon_off_name), emboss=False)
-        if asset_type in ('scenario', 'model', 'prefab'):
+        if poll_ui(('scenario', 'model', 'prefab')):
             grid.prop(nwo, "connected_geometry_mesh_type_collision_visible", text="", icon_value=get_icon_id("collider") if nwo.connected_geometry_mesh_type_collision_visible else get_icon_id("collider_off"), emboss=False)
         if asset_type == 'model':
             grid.prop(nwo, "connected_geometry_mesh_type_physics_visible", text="", icon_value=get_icon_id("physics") if nwo.connected_geometry_mesh_type_physics_visible else get_icon_id("physics_off"), emboss=False)
@@ -1154,7 +1127,7 @@ class NWO_FoundryPanelProps(Panel):
                 grid.prop(nwo, "connected_geometry_mesh_type_poop_rain_blocker_visible", text="", icon_value=get_icon_id("rain_blocker") if nwo.connected_geometry_mesh_type_poop_rain_blocker_visible else get_icon_id("rain_blocker_off"), emboss=False)
 
         grid.prop(nwo, "connected_geometry_marker_type_model_visible", text="", icon_value=get_icon_id("marker") if nwo.connected_geometry_marker_type_model_visible else get_icon_id("marker_off"), emboss=False)
-        if asset_type in ('model', 'sky'):
+        if poll_ui(('model', 'sky')):
             grid.prop(nwo, "connected_geometry_marker_type_effects_visible", text="", icon_value=get_icon_id("effects") if nwo.connected_geometry_marker_type_effects_visible else get_icon_id("effects_off"), emboss=False)
         if asset_type == 'model':
             grid.prop(nwo, "connected_geometry_marker_type_garbage_visible", text="", icon_value=get_icon_id("garbage") if nwo.connected_geometry_marker_type_garbage_visible else get_icon_id("garbage_off"), emboss=False)
@@ -1163,7 +1136,7 @@ class NWO_FoundryPanelProps(Panel):
             grid.prop(nwo, "connected_geometry_marker_type_physics_constraint_visible", text="", icon_value=get_icon_id("physics_constraint") if nwo.connected_geometry_marker_type_physics_constraint_visible else get_icon_id("physics_constraint_off"), emboss=False)
             grid.prop(nwo, "connected_geometry_marker_type_target_visible", text="", icon_value=get_icon_id("target") if nwo.connected_geometry_marker_type_target_visible else get_icon_id("target_off"), emboss=False)
                 
-        if asset_type in ('model', 'scenario') and self.h4:
+        if poll_ui(('model', 'scenario')) and self.h4:
             grid.prop(nwo, "connected_geometry_marker_type_airprobe_visible", text="", icon_value=get_icon_id("airprobe") if nwo.connected_geometry_marker_type_airprobe_visible else get_icon_id("airprobe_off"), emboss=False)
         if asset_type == 'scenario':
             grid.prop(nwo, "connected_geometry_marker_type_game_instance_visible", text="", icon_value=get_icon_id("game_object") if nwo.connected_geometry_marker_type_game_instance_visible else get_icon_id("game_object_off"), emboss=False)
@@ -1681,7 +1654,7 @@ class NWO_FoundryPanelProps(Panel):
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_structure",
             ) and poll_ui(('scenario', 'prefab')):
-                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('scenario'):
+                if h4 and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui(('scenario',)):
                     col.prop(nwo, "proxy_instance")
                 if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default" or (
                     nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
@@ -2035,7 +2008,7 @@ class NWO_FoundryPanelProps(Panel):
             return
                 
 
-        if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and poll_ui('scenario') and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
+        if not has_mesh_props(ob) or (h4 and not nwo.proxy_instance and poll_ui(('scenario',)) and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"):
             return
 
         self.draw_expandable_box(self.box.box(), context.scene.nwo, "mesh_properties", ob=ob)
@@ -2347,7 +2320,7 @@ class NWO_FoundryPanelProps(Panel):
         mesh_nwo = mesh.nwo
         has_collision = has_collision_type(ob)
         if poll_ui(("model", "sky", "scenario", "prefab")) and nwo.mesh_type_ui != '_connected_geometry_mesh_type_physics':
-            if self.h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui('scenario')):
+            if self.h4 and (not nwo.proxy_instance and nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui(('scenario',))):
                 return
             row = box.grid_flow(
                 row_major=True,
@@ -2379,7 +2352,7 @@ class NWO_FoundryPanelProps(Panel):
                             row.prop(mesh_nwo, "no_lightmap_ui", text="No Lightmap")
                             row.prop(mesh_nwo, "no_pvs_ui", text="No Visibility Culling")
                             
-            if not self.h4 and poll_ui('scenario') and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
+            if not self.h4 and poll_ui(('scenario',)) and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
                 row.prop(mesh_nwo, 'render_only_ui', text='Render Only')
                 if not mesh_nwo.render_only_ui:
                     row.prop(mesh_nwo, "ladder_ui", text="Ladder")
@@ -2712,7 +2685,7 @@ class NWO_FoundryPanelProps(Panel):
                 row.operator("nwo.shader_finder_single", icon_value=get_icon_id("material_finder"), text="")
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "shader_path"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'shader_path'
-                has_valid_path = nwo.shader_path and os.path.exists(get_tags_path() + relative_path(nwo.shader_path))
+                has_valid_path = nwo.shader_path and Path(get_tags_path(), relative_path(nwo.shader_path)).exists()
                 if has_valid_path:
                     col.separator()
                     # row.scale_y = 1.5
@@ -2722,7 +2695,7 @@ class NWO_FoundryPanelProps(Panel):
                         text="Open in Tag Editor"
                     )
                     shader_path = mat.nwo.shader_path
-                    full_path = get_tags_path() + shader_path
+                    full_path = str(Path(get_tags_path(), shader_path))
                     if os.path.exists(full_path) and shader_path.endswith(('.shader', '.material')):
                         col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL').mat_name = mat.name
                     col.separator()
@@ -3061,9 +3034,9 @@ class NWO_FoundryPanelProps(Panel):
         shader_type = "Material" if self.h4 else "Shader"
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
         self.draw_expandable_box(self.box.box(), nwo, "importer")
-        if poll_ui(('model', 'animation', 'sky')):
+        if poll_ui(('model', 'animation', 'sky', 'resource')):
             self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
-        elif poll_ui('scenario'):
+        if poll_ui(('scenario', 'resource')):
             self.draw_expandable_box(self.box.box(), nwo, "bsp_tools", "BSP Tools")
             
     def draw_bsp_tools(self, box, nwo):
@@ -3077,12 +3050,6 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column()
         amf_installed = amf_addon_installed()
         toolset_installed = blender_toolset_installed()
-        # if poll_ui('model'):
-        #     if blender_toolset_installed():
-        #         col.operator('nwo.import_legacy_animation', text="Import Legacy Animations", icon='ANIM')
-        #     else:
-        #         col.label(text="Halo Blender Toolset required for legacy animations")
-        #         col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
         if amf_installed or toolset_installed:
             col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,collision_model'
         if not toolset_installed:
@@ -3252,7 +3219,7 @@ class NWO_FoundryPanelProps(Panel):
                 region_name = "Frontfacing BSP"
             else:
                 region_name = "BSP"
-        elif poll_ui('model') and ob_is_mesh:
+        elif poll_ui(('model',)) and ob_is_mesh:
             if ob.data.nwo.face_props and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_object_structure', '_connected_geometry_mesh_type_collision', '_connected_geometry_mesh_type_default'):
                 for prop in ob.data.nwo.face_props:
                     if prop.region_name_override:
@@ -3342,14 +3309,14 @@ class NWO_ProjectChooserMenu(bpy.types.Menu):
         projects = prefs.projects
         for p in projects:
             name = p.name
-            thumbnail = os.path.join(p.project_path, p.project_image_path)
+            thumbnail = os.path.join(p.project_path, p.image_path)
             if os.path.exists(thumbnail):
                 icon_id = get_icon_id_in_directory(thumbnail)
-            elif p.project_remote_server_name == "bngtoolsql":
+            elif p.remote_server_name == "bngtoolsql":
                 icon_id = get_icon_id("halo_reach")
-            elif p.project_remote_server_name == "metawins":
+            elif p.remote_server_name == "metawins":
                 icon_id = get_icon_id("halo_4")
-            elif p.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
+            elif p.remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
                 icon_id = get_icon_id("halo_2amp")
             else:
                 icon_id = get_icon_id("tag_test")
@@ -3880,9 +3847,9 @@ class NWO_HaloLauncher_Foundation(Operator):
     bl_label = "Foundation"
 
     def execute(self, context):
-        from .halo_launcher import LaunchFoundation
+        from .halo_launcher import launch_foundation
 
-        return LaunchFoundation(context.scene.nwo_halo_launcher, context)
+        return launch_foundation(context.scene.nwo_halo_launcher, context)
 
 
 class NWO_HaloLauncher_Data(Operator):
@@ -3898,6 +3865,7 @@ class NWO_HaloLauncher_Data(Operator):
         return open_file_explorer(
             scene_nwo_halo_launcher.explorer_default,
             False,
+            scene.nwo
         )
 
 
@@ -3914,6 +3882,7 @@ class NWO_HaloLauncher_Tags(Operator):
         return open_file_explorer(
             scene_nwo_halo_launcher.explorer_default,
             True,
+            scene.nwo
         )
 
 
@@ -3939,15 +3908,15 @@ class NWO_HaloLauncher_Sapien(Operator):
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         from .halo_launcher import launch_game
 
-        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), nwo_asset_type())
+        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo)
 
     def invoke(self, context, event):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         if (
             scene_nwo_halo_launcher.game_default == "default"
-            or not valid_nwo_asset(context)
-            or nwo_asset_type() != "scenario"
+            or not scene.nwo.is_valid_asset
+            or scene.nwo.asset_type != "scenario"
         ):
             self.filepath = get_tags_path()
             context.window_manager.fileselect_add(self)
@@ -3987,15 +3956,15 @@ class NWO_HaloLauncher_TagTest(Operator):
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         from .halo_launcher import launch_game
 
-        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), nwo_asset_type())
+        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo)
 
     def invoke(self, context, event):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         if (
             scene_nwo_halo_launcher.game_default == "default"
-            or not valid_nwo_asset(context)
-            or nwo_asset_type() != "scenario"
+            or not scene.nwo.is_valid_asset
+            or scene.nwo.asset_type != "scenario"
         ):
             self.filepath = get_tags_path()
             context.window_manager.fileselect_add(self)
@@ -4014,22 +3983,6 @@ class NWO_HaloLauncher_TagTest(Operator):
 
 
 class NWO_HaloLauncherPropertiesGroup(PropertyGroup):
-    
-    def update_sidecar_path(self, context):
-        self["sidecar_path"] = clean_tag_path(self["sidecar_path"]).strip('"')
-    
-    sidecar_path: StringProperty(
-        name="",
-        description="",
-        default="",
-        update=update_sidecar_path,
-    )
-    asset_name: StringProperty(
-        name="",
-        description="",
-        default="",
-    )
-
     explorer_default: EnumProperty(
         name="Folder",
         description="Select whether to open the root data / tags folder, the blend folder, or the one for your asset. When no asset is found, defaults to root",
@@ -4433,7 +4386,7 @@ class NWO_HaloExportSettings(Panel):
         if asset_type == 'camera_track_set':
             return
         scenario = asset_type == "scenario"
-        render = asset_type in ("model", "sky")
+        render = poll_ui("model", "sky")
         if (h4 and render) or scenario:
             if scenario:
                 lighting_name = "Light Scenario"
@@ -4465,7 +4418,7 @@ class NWO_HaloExportSettingsScope(Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('model', 'scenario', 'prefab', 'animation')
+        return context.scene.nwo_export.export_gr2_files and poll_ui(('model', 'scenario', 'prefab', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -4505,7 +4458,7 @@ class NWO_HaloExportSettingsScope(Panel):
 
         if scene_nwo.asset_type == "scenario":
             col.prop(scene_nwo_export, "export_all_bsps", expand=True)
-        if scene_nwo.asset_type in (("model", "scenario", "prefab")):
+        if poll_ui(("model", "scenario", "prefab")):
             if scene_nwo.asset_type == "model":
                 txt = "Permutations"
             else:
@@ -4522,7 +4475,7 @@ class NWO_HaloExportSettingsFlags(Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files and context.scene.nwo.asset_type in ('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation')
+        return context.scene.nwo_export.export_gr2_files and poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -4543,9 +4496,6 @@ class NWO_HaloExportSettingsFlags(Panel):
         )
         col = flow.column()
         col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
-        # if scene_nwo.asset_type in ('model', 'sky', 'animation'):
-        #     # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
-        #     col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
@@ -5317,7 +5267,7 @@ def foundry_toolbar(layout, context):
     if export_scene.storage_only:
         row.label(text='Scene is used by Foundry for object storage', icon_value=get_icon_id('foundry'))
         return
-    icons_only = context.preferences.addons["io_scene_foundry"].preferences.toolbar_icons_only
+    icons_only = get_prefs().toolbar_icons_only
     row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3
@@ -5326,21 +5276,43 @@ def foundry_toolbar(layout, context):
         sub_foundry = row.row(align=True)
         sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if export_scene.toolbar_expanded:
+        sub_project = row.row(align=True)
+        if nwo_globals.mb_active:
+            sub_project.enabled = False
+        sub_project.menu(NWO_ProjectChooserMenu.bl_idname, text="", icon_value=project_icon(context))
         error = validate_ek()
         if error is not None:
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")
             sub_foundry = row.row(align=True)
+            if error.startswith("Tag API"):
+                sub_foundry.operator("managed_blam.init", text="Install Tag API")
             sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
             return
+        
+        # sub_game_version = row.row(align=True)
+        # sub_game_version.label(text="", icon_value=project_game_icon(context))
 
         sub0 = row.row(align=True)
-        sub0.operator(
-            "nwo.export_quick",
-            text="" if icons_only else "Export",
-            icon_value=get_icon_id("quick_export"),
-        )
-        sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
+        if export_scene.is_valid_asset:
+            sub0.operator(
+                "nwo.export_quick",
+                text="" if icons_only else "Export",
+                icon_value=get_icon_id("quick_export"),
+            )
+            sub0.popover(panel="NWO_PT_HaloExportSettings", text="")
+        elif export_scene.sidecar_path:
+            sub0.operator(
+                "nwo.new_asset",
+                text=f"Copy {export_scene.asset_name}",
+                icon_value=get_icon_id("halo_asset"),
+            ) 
+        else:
+            sub0.operator(
+                "nwo.new_asset",
+                text=f"New Asset",
+                icon_value=get_icon_id("halo_asset"),
+            ) 
         sub1 = row.row(align=True)
         sub1.operator(
             "nwo.launch_sapien",
@@ -5508,6 +5480,7 @@ classeshalo = (
     NWO_OT_AnimationLeafMove,
     NWO_OT_FcurveTransfer,
     NWO_OT_RenameImporter,
+    NWO_OT_NewAsset,
 )
 
 def register():

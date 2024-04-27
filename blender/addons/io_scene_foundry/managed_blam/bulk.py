@@ -26,6 +26,7 @@
 
 '''A collection of tools to read/write various tags in bulk'''
 
+from pathlib import Path
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.managed_blam.object import ObjectTag
 from io_scene_foundry.utils import nwo_utils
@@ -33,7 +34,7 @@ from contextlib import redirect_stdout
 
 def report_state_names():
     '''Returns a list of all animation graphs and their state types (objects folder only)'''
-    graphs = nwo_utils.paths_in_dir(nwo_utils.get_tags_path() + 'objects', '.model_animation_graph')
+    graphs = nwo_utils.paths_in_dir(str(Path(nwo_utils.get_tags_path(), 'objects')), '.model_animation_graph')
     state_names = set()
     for g in graphs:
         with AnimationTag(path=g) as animation:
@@ -57,7 +58,7 @@ def report_state_names():
 
 def report_seat_names():
     '''Returns a list of all seat names from vehicle and biped tags (objects folder only)'''
-    vehicle_paths = nwo_utils.paths_in_dir(nwo_utils.get_tags_path() + 'objects', ('.vehicle', '.biped'))
+    vehicle_paths = nwo_utils.paths_in_dir(str(Path(nwo_utils.get_tags_path())) + 'objects', ('.vehicle', '.biped'))
     seat_names = set()
     for p in vehicle_paths:
         with ObjectTag(path=p) as vehicle:
@@ -81,7 +82,7 @@ def report_seat_names():
 
 def report_blend_screens():
     '''Returns a list of blend screens'''
-    graphs = nwo_utils.paths_in_dir(nwo_utils.get_tags_path() + 'objects', '.model_animation_graph')
+    graphs = nwo_utils.paths_in_dir(str(Path(nwo_utils.get_tags_path())) + 'objects', '.model_animation_graph')
     yaw_sources = set()
     pitch_sources = set()
     weight_sources = set()

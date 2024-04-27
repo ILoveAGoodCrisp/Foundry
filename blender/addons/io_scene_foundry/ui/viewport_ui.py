@@ -70,214 +70,239 @@ class NWO_ApplyTypeMesh(NWO_Op):
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
         h4 = is_corinth(context)
-        if asset_type == 'model':
+        index = 0
+        if asset_type == 'model' or asset_type == 'resource':
+            index += 1
             items.append(
                 nwo_enum(
-                    "render", "Render", "Render only geometry", "render_geometry", 0
+                    "render", "Render", "Render only geometry", "render_geometry", index
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "collision",
                     "Collision",
                     "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player. Must use bone parenting of have each vertex weighted to only a single vertex group if parented to an armature",
                     "collider",
-                    1,
+                    index,
                 )
             ),
+            index += 1
             items.append(
                 nwo_enum(
                     "physics",
                     "Physics",
                     "Physics only geometry. Uses havok physics to interact with static and dynamic objects. Must be bone parented / weighted to only one vertex group if parented to an armature",
                     "physics",
-                    2,
+                    index,
                 )
             ),
+            index += 1
             items.append(
                 nwo_enum(
                     "io",
                     "Instanced Object",
                     "Instanced render only geometry. Supports assignment to multiple permutations. Must be bone parented / weighted to only one vertex group if parented to an armature",
                     "instance",
-                    3,
+                    index,
                 )
             ),
-        elif asset_type == 'scenario':
+        if asset_type == 'scenario' or asset_type == 'resource':
+            index += 1
             items.append(
                 nwo_enum(
                     "instance",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
-                    0,
+                    index,
                 )
             ),
             if h4:
                 descrip = "Defines the bounds of the BSP. Is always sky mesh and therefore has no render or collision geometry. Use the proxy instance option to add render/collision geometry"
             else:
                 descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
+            index += 1
             items.append(
                 nwo_enum("structure", "Structure", descrip, "structure", 1)
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "collision",
                     "Collision",
                     "Non rendered geometry which provides collision only",
                     "collider",
-                    2,
+                    index,
                 )
             ),
+            index += 1
             items.append(
                 nwo_enum(
                     "seam",
                     "Seam",
                     "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
                     "seam",
-                    3,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "portal",
                     "Portal",
                     "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters",
                     "portal",
-                    4,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "lightmap_only",
                     "Lightmap Only",
                     "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
                     "lightmap",
-                    5,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "water_surface",
                     "Water Surface",
                     "Plane which can cut through geometry to define a water surface, optionally with water physics if the depth is greater than 0. Water physics allows material effects to play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4)",
                     "water",
-                    6,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "water_physics",
                     "Water Physics Volume",
                     "Plane from which a water volume is generated based on depth value. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4+)",
                     "water_physics",
-                    7,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "soft_ceiling",
                     "Soft Ceiling Volume",
                     "Soft barrier that blocks the player and player camera",
                     "soft_ceiling",
-                    8,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "soft_kill",
                     "Soft Kill Volume",
                     "Defines a region where the player will be killed... softly",
                     "soft_kill",
-                    9,
+                    index,
                 )
             )
+            index += 1
             items.append(
                 nwo_enum(
                     "slip_surface",
                     "Slip Surface Volume",
                     "Defines a region in which surfaces become slippery",
                     "slip_surface",
-                    10,
+                    index,
                 )
             )
             if h4:
+                index += 1
                 items.append(
                     nwo_enum(
                         "lightmap",
                         "Lightmap Exclusion Volume",
                         "Defines a region that should not be lightmapped",
                         "lightmap_exclude",
-                        11,
+                        index,
                     )
                 )
                 stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.\nThis is useful for performance if you have textures in areas of the map the player will not get close to"""
+                index += 1
                 items.append(
-                    nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", 12)
+                    nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", index)
                 )
             else:
+                index += 1
                 items.append(
                     nwo_enum(
                         "rain_blocker",
                         "Rain Blocker Volume",
                         "Blocks rain from rendering in the region this volume occupies",
                         "rain_blocker",
-                        11,
+                        index,
                     )
                 )
+                index += 1
                 items.append(
                     nwo_enum(
                         "rain_sheet",
                         "Rain Sheet",
                         "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
                         "rain_sheet",
-                        12,
+                        index,
                     )
                 ),
+                index += 1
                 items.append(
                     nwo_enum(
                         "cookie_cutter",
                         "Pathfinding Cutout Volume",
                         "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
                         "cookie_cutter",
-                        13,
+                        index,
                     )
                 )
+                index += 1
                 items.append(
                     nwo_enum(
                         "fog",
                         "Fog",
                         "Defines an area in a cluster which renders fog defined in the scenario tag",
                         "fog",
-                        14,
+                        index,
                     )
                 )
         elif asset_type == 'prefab':
+            index += 1
             items.append(
                 nwo_enum(
                     "instance",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
                     "instance",
-                    0,
+                    index,
                 )
             ),
+            index += 1
             items.append(
                 nwo_enum(
                     "collision",
                     "Collision",
                     "Non rendered geometry which provides collision only",
                     "collider",
-                    2,
+                    index,
                 )
             ),
+            index += 1
             items.append(
                 nwo_enum(
                     "lightmap_only",
                     "Lightmap Only",
                     "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
                     "lightmap",
-                    3,
+                    index,
                 )
             )
 
@@ -459,46 +484,60 @@ class NWO_ApplyTypeMarker(NWO_Op):
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
         reach = not is_corinth(context)
-        if asset_type in ("model", "sky"):
-            items.append(nwo_enum("model", "Model Marker", "", "marker", 0)),
-            items.append(nwo_enum("effects", "Effects", "", "effects", 1)),
+        index = 0
+        if asset_type in ("model", "sky", 'resource'):
+            index += 1
+            items.append(nwo_enum("model", "Model Marker", "", "marker", index)),
+            index += 1
+            items.append(nwo_enum("effects", "Effects", "", "effects", index)),
 
-            if asset_type == "model":
-                items.append(nwo_enum("garbage", "Garbage", "", "garbage", 2)),
-                items.append(nwo_enum("hint", "Hint", "", "hint", 3)),
+            if asset_type == "model" or asset_type == 'resource':
+                index += 1
+                items.append(nwo_enum("garbage", "Garbage", "", "garbage", index)),
+                index += 1
+                items.append(nwo_enum("hint", "Hint", "", "hint", index)),
+                index += 1
                 items.append(
                     nwo_enum(
                         "pathfinding_sphere",
                         "Pathfinding Sphere",
                         "",
                         "pathfinding_sphere",
-                        4,
+                        index,
                     )
                 ),
+                index += 1
                 items.append(
                     nwo_enum(
                         "physics_constraint",
                         "Physics Constaint",
                         "",
                         "physics_constraint",
-                        5,
+                        index,
                     )
                 ),
-                items.append(nwo_enum("target", "Target", "", "target", 6)),
+                index += 1
+                items.append(nwo_enum("target", "Target", "", "target", index)),
                 if not reach:
-                    items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", 7)),
+                    index += 1
+                    items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", index)),
 
-        elif asset_type in ("scenario", "prefab"):
-            items.append(nwo_enum("model", "Structure Marker", "", "marker", 0)),
+        if asset_type in ("scenario", "prefab", 'resource'):
+            index += 1
+            items.append(nwo_enum("model", "Structure Marker", "", "marker", index)),
+            index += 1
             items.append(
-                nwo_enum("game_instance", "Game Object", "", "game_object", 1)
+                nwo_enum("game_instance", "Game Object", "", "game_object", index)
             ),
             if not reach:
-                items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", 2)),
+                index += 1
+                items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", index)),
+                index += 1
                 items.append(
-                    nwo_enum("envfx", "Environment Effect", "", "environment_effect", 3)
+                    nwo_enum("envfx", "Environment Effect", "", "environment_effect", index)
                 ),
-                items.append(nwo_enum("lightcone", "Light Cone", "", "light_cone", 4)),
+                index += 1
+                items.append(nwo_enum("lightcone", "Light Cone", "", "light_cone", index)),
 
         return items
 

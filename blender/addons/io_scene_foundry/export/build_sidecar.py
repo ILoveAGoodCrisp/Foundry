@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from datetime import datetime
+from pathlib import Path
 import bpy
 import getpass
 import xml.etree.cElementTree as ET
@@ -34,20 +35,20 @@ import os
 from io_scene_foundry.tools.animation.composites import CompositeXML
 
 from ..utils.nwo_utils import (
-    data_relative,
     get_data_path,
     is_corinth,
+    relative_path,
 )
 
 class Sidecar:
     def __init__(self, asset_path, asset_name, asset_type, context):
         self.reach_world_animations = set()
         self.pose_overlays = set()
-        self.tag_path = data_relative(os.path.join(asset_path, asset_name))
+        self.tag_path = relative_path(Path(asset_path, asset_name))
         self.asset_path = asset_path
         self.asset_name = asset_name
         self.asset_type = asset_type
-        self.relative_blend = bpy.data.filepath.replace(get_data_path(), "")
+        self.relative_blend = str(Path(bpy.data.filepath).relative_to(get_data_path()))
         self.external_blend = self.relative_blend == bpy.data.filepath
         self.context = context
         self.message = f"{str.title(asset_type)} Sidecar Export Complete"
@@ -165,7 +166,7 @@ class Sidecar:
             )
         else:
             # update sidecar path in halo launcher
-            context.scene.nwo_halo_launcher.sidecar_path = sidecar_path
+            context.scene.nwo.sidecar_path = sidecar_path
 
         with open(sidecar_path_full, "w") as xfile:
             xfile.write(

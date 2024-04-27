@@ -43,7 +43,6 @@ from io_scene_foundry.managed_blam.model import ModelTag
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from .format_json import NWOJSON
 from ..utils.nwo_utils import (
-    data_relative,
     disable_prints,
     enable_prints,
     get_animated_objects,
@@ -53,6 +52,7 @@ from ..utils.nwo_utils import (
     jstr,
     mute_armature_mods,
     print_warning,
+    relative_path,
     reset_to_basis,
     run_tool,
     unmute_armature_mods,
@@ -201,9 +201,9 @@ class ProcessScene:
                             if "animation" in self.sidecar_paths.keys():
                                 self.sidecar_paths["animation"].append(
                                     [
-                                        data_relative(fbx_path),
-                                        data_relative(json_path),
-                                        data_relative(gr2_path),
+                                        relative_path(fbx_path),
+                                        relative_path(json_path),
+                                        relative_path(gr2_path),
                                         animation_name,
                                         action_nwo.animation_type,
                                         action_nwo.animation_movement_data,
@@ -215,9 +215,9 @@ class ProcessScene:
                             else:
                                 self.sidecar_paths["animation"] = [
                                     [
-                                        data_relative(fbx_path),
-                                        data_relative(json_path),
-                                        data_relative(gr2_path),
+                                        relative_path(fbx_path),
+                                        relative_path(json_path),
+                                        relative_path(gr2_path),
                                         animation_name,
                                         action_nwo.animation_type,
                                         action_nwo.animation_movement_data,
@@ -349,17 +349,17 @@ class ProcessScene:
                 if "skeleton" in self.sidecar_paths.keys():
                     self.sidecar_paths["skeleton"].append(
                         [
-                            data_relative(fbx_path),
-                            data_relative(json_path),
-                            data_relative(gr2_path),
+                            relative_path(fbx_path),
+                            relative_path(json_path),
+                            relative_path(gr2_path),
                         ]
                     )
                 else:
                     self.sidecar_paths["skeleton"] = [
                         [
-                            data_relative(fbx_path),
-                            data_relative(json_path),
-                            data_relative(gr2_path),
+                            relative_path(fbx_path),
+                            relative_path(json_path),
+                            relative_path(gr2_path),
                         ]
                     ]
 
@@ -632,7 +632,7 @@ class ProcessScene:
 
         for perm in perms:
             fbx_path, json_path, gr2_path = self.get_path(asset_path, asset, type, perm, None, None)
-            sidecar_data =  [data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path), perm]
+            sidecar_data =  [relative_path(fbx_path), relative_path(json_path), relative_path(gr2_path), perm]
             if type in self.sidecar_paths.keys():
                 self.sidecar_paths[type].append(sidecar_data)
             else:
@@ -724,7 +724,7 @@ class ProcessScene:
                 export_obs = [ob for ob in objects if (ob.nwo.permutation_name == perm) and (ob.nwo.region_name == bsp)]
                 if not export_obs: continue
                 fbx_path, json_path, gr2_path = self.get_path(asset_path, asset, type_name, perm, bsp, None)
-                sidecar_data =  [data_relative(fbx_path), data_relative(json_path), data_relative(gr2_path), perm]
+                sidecar_data = [relative_path(fbx_path), relative_path(json_path), relative_path(gr2_path), perm]
                 if is_design:
                     if bsp in self.sidecar_paths_design.keys():
                         self.sidecar_paths_design[bsp].append(sidecar_data)
@@ -1103,9 +1103,9 @@ class ProcessScene:
         run_tool(
             [
                 "fbx-to-gr2",
-                data_relative(fbx_path),
-                data_relative(json_path),
-                data_relative(gr2_path),
+                relative_path(fbx_path),
+                relative_path(json_path),
+                relative_path(gr2_path),
             ],
             False,
             hide_output,
@@ -1131,9 +1131,9 @@ class ProcessScene:
         run_tool(
             [
                 "fbx-to-gr2",
-                data_relative(fbx_path),
-                data_relative(json_path),
-                data_relative(gr2_path),
+                relative_path(fbx_path),
+                relative_path(json_path),
+                relative_path(gr2_path),
             ],
             False,
             True,

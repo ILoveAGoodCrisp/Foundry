@@ -38,28 +38,12 @@ from bpy.props import (
 )
 from bpy.types import PropertyGroup
 
+from io_scene_foundry.utils.nwo_asset_types import asset_type_items
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 
 from ..icons import get_icon_id
-from ..utils.nwo_utils import clean_tag_path, get_asset_animation_graph, get_asset_tag, get_prefs, is_corinth, poll_ui, reset_to_basis
-
-def get_matrix_settings():
-    appdata = os.getenv('APPDATA')
-    foundry_folder = Path(appdata, "Foundry")
-
-    if not foundry_folder.exists():
-        print("No Foundry Folder")
-        return 'blender', 'y-'
-    
-    matrix_file = Path(foundry_folder, 'matrix_halo.txt')
-    if matrix_file.exists():
-        return 'max', 'x'
-    else:
-        return 'blender', 'y-'
-    
-
-default_scale, default_forward = get_matrix_settings()
+from ..utils.nwo_utils import clean_tag_path, get_asset_animation_graph, get_asset_tag, get_prefs, get_project, is_corinth, poll_ui, reset_to_basis
 
 #############################################################
 # ANIMATION COPIES
@@ -539,46 +523,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
                     ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_poop"
                 else:
                     ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_render"
-
-    def asset_type_items(self, context):
-        items = []
-        items.append(("model", "Model", "", get_icon_id("model"), 0))
-        items.append(("scenario", "Scenario", "", get_icon_id("scenario"), 1))
-        items.append(("sky", "Sky", "", get_icon_id("sky"), 2))
-        items.append(
-            ("decorator_set", "Decorator Set", "", get_icon_id("decorator"), 3)
-        )
-        items.append(
-            (
-                "particle_model",
-                "Particle Model",
-                "",
-                get_icon_id("particle_model"),
-                4,
-            )
-        )
-        items.append(
-            (
-                "animation",
-                "First Person Animation",
-                "",
-                get_icon_id("animation"),
-                5,
-            )
-        )
-        items.append(
-            (
-                "camera_track_set",
-                "Camera Track Set",
-                "",
-                'CON_CAMERASOLVER',
-                6,
-            )
-        )
-        if is_corinth(context):
-            items.append(("prefab", "Prefab", "", get_icon_id("prefab"), 7))
-
-        return items
     
     def update_asset_type(self, context):
         if self.asset_type == 'animation':
@@ -596,7 +540,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Animation Type",
         items=[
             ("first_person", "First Person", ""),
-            ("standalone", "Standalone", ""),
+            ("standalone", "Standalone / Cinematic", ""),
         ]
     )
 
@@ -604,7 +548,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Scene Forward",
         options=set(),
         description="Define the forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
-        default=default_forward,
+        default="y-",
         items=[
             ("y-", "-Y", "Model is facing Y negative"),
             ("y", "Y", "Model is facing Y positive"),
@@ -864,7 +808,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     animation_manager_pinned: BoolProperty(options=set())
     animation_manager_expanded: BoolProperty(default=True, options=set())
 
-    scene_properties_active: BoolProperty(default=True, options=set())
+    scene_properties_active: BoolProperty(default=False, options=set())
     scene_properties_pinned: BoolProperty(options=set())
     scene_properties_expanded: BoolProperty(default=True, options=set())
 
@@ -1162,7 +1106,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     def scale_items(self, context):
         items = []
         items.append(('blender', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
-        # items.append(('halo', 'Halo', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('halo_scale'), 1))
         items.append(('max', '3DS Max', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("3ds_max"), 1))
         return items
     
@@ -1175,7 +1118,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     scale: EnumProperty(
         name="Scale",
-        default=1 if default_scale == 'max' else 0,
+        default=0,
         options=set(),
         description="Select the scaling for this asset. Scale is applied at export to ensure units displayed in Blender match with in game units",
         items=scale_items,
@@ -1374,3 +1317,30 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     connected_geometry_object_type_frame_visible: BoolProperty(default=True, options=set(), name="Frame", update=update_connected_geometry_object_type_frame_visible)
     connected_geometry_object_type_light_visible: BoolProperty(default=True, options=set(), name="Light", update=update_connected_geometry_object_type_light_visible)
+
+    sidecar_path: StringProperty()
+    
+    def get_asset_name(self):
+        if not self.sidecar_path.strip(): return ""
+        return Path(self.sidecar_path).parent.name
+
+    asset_name: StringProperty(
+        get=get_asset_name,
+    )
+    
+    def get_asset_directory(self):
+        if not self.sidecar_path.strip(): return ""
+        return str(Path(self.sidecar_path).parent)
+    
+    asset_directory: StringProperty(
+        get=get_asset_directory,
+    )
+    
+    def get_is_valid_asset(self):
+        project = get_project(self.scene_project)
+        is_valid = bool(project and self.sidecar_path.strip() and Path(project.data_directory, self.sidecar_path).exists())
+        return is_valid
+    
+    is_valid_asset: BoolProperty(
+        get=get_is_valid_asset,
+    )

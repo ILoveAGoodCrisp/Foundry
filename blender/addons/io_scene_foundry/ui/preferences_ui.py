@@ -29,7 +29,7 @@ from pathlib import Path
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
-from io_scene_foundry.utils.nwo_utils import ProjectXML, foundry_update_check, get_prefs, get_tags_path, is_corinth, read_projects_list, relative_path, setup_projects_list, write_projects_list
+from io_scene_foundry.utils.nwo_utils import ProjectXML, foundry_update_check, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
 from io_scene_foundry.utils import nwo_globals
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
 update_str, update_needed = foundry_update_check(nwo_globals.version)
@@ -43,29 +43,22 @@ class NWO_Project_ListItems(bpy.types.PropertyGroup):
     project_name: StringProperty()
     name: StringProperty()
     project_xml: StringProperty()
-    project_corinth: BoolProperty()
-    project_remote_server_name: StringProperty()
-    project_image_path: StringProperty()
-    project_default_material: StringProperty()
-    project_default_water: StringProperty()
+    corinth: BoolProperty()
+    remote_server_name: StringProperty()
+    image_path: StringProperty()
+    default_material: StringProperty()
+    default_water: StringProperty()
+    tags_directory: StringProperty()
+    data_directory: StringProperty()
 
 class NWO_UL_Projects(bpy.types.UIList):
     def draw_item(
         self, context, layout, data, item, icon, active_data, active_propname
     ):
         if item:
-            thumbnail = os.path.join(item.project_path, item.project_image_path)
-            if os.path.exists(thumbnail):
-                icon_id = get_icon_id_in_directory(thumbnail)
-            elif item.project_remote_server_name == "bngtoolsql":
-                icon_id = get_icon_id("halo_reach")
-            elif item.project_remote_server_name == "metawins":
-                icon_id = get_icon_id("halo_4")
-            elif item.project_remote_server_name == "episql.343i.selfhost.corp.microsoft.com":
-                icon_id = get_icon_id("halo_2amp")
-            else:
-                icon_id = get_icon_id("tag_test")
-            layout.label(text=item.name, icon_value=icon_id)
+            layout.label(text=item.name, icon_value=project_game_icon(context, item))
+            if Path(item.project_path, item.image_path).exists():
+                layout.label(text="", icon_value=project_icon(context, item))
             # layout.label(text=item.project_path)
         else:
             layout.label(text="", translate=False, icon_value=icon)
@@ -210,8 +203,8 @@ class NWO_OT_ProjectEdit(Operator):
         
         active_project.name = xml.display_name
         active_project.project_name = xml.name
-        active_project.project_default_material = xml.default_material
-        active_project.project_default_water = xml.default_water
+        active_project.default_material = xml.default_material
+        active_project.default_water = xml.default_water
 
         context.area.tag_redraw()
         
@@ -221,8 +214,8 @@ class NWO_OT_ProjectEdit(Operator):
         prefs = get_prefs()
         active_project = prefs.projects[prefs.current_project_index]
         self.display_name = active_project.name
-        self.material_path = active_project.project_default_material
-        self.water_path = active_project.project_default_water
+        self.material_path = active_project.default_material
+        self.water_path = active_project.default_water
         return context.window_manager.invoke_props_dialog(self, width=800)
         
     def draw(self, context):
@@ -410,33 +403,15 @@ class ToolkitLocationPreferences(AddonPreferences):
     
     def scene_matrix_items(self, context):
         return [
-            ("blender", "Blender", "", "BLENDER", 0),
-            ("halo", "Halo", "", get_icon_id('halo_scale'), 1),
+            ("scene", "Use Scene", "", "", 0),
+            ("blender", "Blender", "", "BLENDER", 1),
+            ("halo", "Halo", "", get_icon_id('halo_scale'), 2),
         ]
-        
-    def update_scene_matrix(self, context):
-        scene_nwo = context.scene.nwo
-        appdata = os.getenv('APPDATA')
-        foundry_folder = os.path.join(appdata, "Foundry")
-
-        if not os.path.exists(foundry_folder):
-            os.makedirs(foundry_folder, exist_ok=True)
-            if not os.path.exists(foundry_folder):
-                return print("Failed to make foundry folder")
-        
-        matrix_file = os.path.join(foundry_folder, 'matrix_halo.txt')
-        if os.path.exists(matrix_file) and self.scene_matrix != 'halo':
-            os.remove(matrix_file)
-        elif not os.path.exists(matrix_file) and self.scene_matrix == 'halo':
-            with open(matrix_file, 'w') as file:
-                pass
-            
     
     scene_matrix: EnumProperty(
         name="Default Scene Matrix",
-        description="Set whether by default Foundry loads a scene matrix designed to work at Blender's scale and forward direction, or Halo's.",
+        description="When creating a new asset sets the default scene scale and forward direction",
         items=scene_matrix_items,
-        update=update_scene_matrix,
     )
     
     debug_menu_on_export: BoolProperty(

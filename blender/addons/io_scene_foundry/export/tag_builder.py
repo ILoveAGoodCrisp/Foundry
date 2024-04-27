@@ -137,7 +137,7 @@ def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_expor
 
 def cull_unused_tags(asset_path, asset_name):
     try:
-        tag_path = os.path.join(get_tags_path() + asset_path, asset_name)
+        tag_path = Path(get_tags_path(), asset_path, asset_name)
         scenery = f"{tag_path}.scenery"
         model = f"{tag_path}.model"
         render_model = f"{tag_path}.render_model"

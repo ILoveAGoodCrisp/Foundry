@@ -63,7 +63,7 @@ class NWO_GetModelVariants(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.object.nwo
-        if os.path.exists(get_tags_path() + nwo.marker_game_instance_tag_name_ui):
+        if str(Path(get_tags_path(), nwo.marker_game_instance_tag_name_ui)):
             nwo.marker_game_instance_tag_variant_name_ui = self.variant
             return {'FINISHED'}
         

@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from pathlib import Path
 import uuid
 import random
 from math import degrees
@@ -1163,7 +1164,7 @@ class NWOMaterial:
         elif is_corinth():
             return "material"
         else:
-            shader_type = self.halo.shader_path.rpartition(".")[2]
-            if "." + shader_type in shader_exts:
-                return shader_type
+            shader_type = Path(self.halo.shader_path).suffix
+            if shader_type in shader_exts:
+                return shader_type.strip('.')
             return "shader"

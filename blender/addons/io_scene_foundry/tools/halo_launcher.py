@@ -30,8 +30,6 @@ import bpy
 import glob
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from io_scene_foundry.utils.nwo_utils import (
-    get_asset_info,
-    get_asset_path,
     get_data_path,
     get_prefs,
     get_project_path,
@@ -51,8 +49,8 @@ class NWO_OpenFoundationTag(bpy.types.Operator):
     tag_path : bpy.props.StringProperty()
 
     def execute(self, context):
-        full_tag_path = get_tags_path() + self.tag_path
-        if os.path.exists(full_tag_path):
+        full_tag_path = Path(get_tags_path(), self.tag_path)
+        if full_tag_path.exists():
             run_ek_cmd(["foundation", "/dontloadlastopenedwindows", full_tag_path], True)
         else:
             self.report({"WARNING"}, "Tag does not exist")
@@ -60,19 +58,20 @@ class NWO_OpenFoundationTag(bpy.types.Operator):
         
 
 def get_tag_if_exists(asset_path, asset_name, type, extra=""):
-    tag = os.path.join(get_tags_path() + asset_path, f"{asset_name}.{type}")
-    if os.path.exists(tag):
-        return tag
+    tag = Path(get_tags_path(), asset_path, f"{asset_name}.{type}")
+    if tag.exists():
+        return str(tag)
     else:
         return ""
 
-def LaunchFoundation(settings, context):
+def launch_foundation(settings, context):
     scene_nwo = context.scene.nwo
     launch_args = ["Foundation.exe"]
     # set the launch args
     if settings.foundation_default == "asset" and valid_nwo_asset(context):
         launch_args.append("/dontloadlastopenedwindows")
-        asset_path, asset_name = get_asset_info(settings.sidecar_path)
+        asset_path = scene_nwo.asset_directory
+        asset_name = scene_nwo.asset_name
         if nwo_asset_type() == "model":
             if settings.open_model:
                 launch_args.append(get_tag_if_exists(asset_path, asset_name, "model"))
@@ -150,10 +149,7 @@ def LaunchFoundation(settings, context):
             if settings.open_scenario_structure_bsp:
                 if settings.bsp_name == "":
                     for file in glob.glob(
-                        os.path.join(
-                            get_tags_path() + asset_path,
-                            "*.scenario_structure_bsp",
-                        )
+                        str(Path(get_tags_path(), asset_path), "*.scenario_structure_bsp",)
                     ):
                         launch_args.append(file)
                 else:
@@ -164,8 +160,7 @@ def LaunchFoundation(settings, context):
                     bsps = tuple(bsps)
                     # added each to launch args
                     for file in glob.glob(
-                        os.path.join(
-                            get_tags_path() + asset_path,
+                        str(Path(get_tags_path(), asset_path),
                             "*.scenario_structure_bsp",
                         )
                     ):
@@ -176,8 +171,7 @@ def LaunchFoundation(settings, context):
             if settings.open_scenario_lightmap_bsp_data:
                 if settings.bsp_name == "":
                     for file in glob.glob(
-                        os.path.join(
-                            get_tags_path() + asset_path,
+                        str(Path(get_tags_path(), asset_path),
                             "*.scenario_lightmap_bsp_data",
                         )
                     ):
@@ -190,8 +184,7 @@ def LaunchFoundation(settings, context):
                     bsps = tuple(bsps)
                     # added each to launch args
                     for file in glob.glob(
-                        os.path.join(
-                            get_tags_path() + asset_path,
+                        str(Path(get_tags_path(), asset_path),
                             "*.scenario_lightmap_bsp_data",
                         )
                     ):
@@ -201,8 +194,7 @@ def LaunchFoundation(settings, context):
             if settings.open_scenario_structure_lighting_info:
                 if settings.bsp_name == "":
                     for file in glob.glob(
-                        os.path.join(
-                            get_tags_path() + asset_path,
+                        str(Path(get_tags_path(), asset_path),
                             "*.scenario_structure_lighting_info",
                         )
                     ):
@@ -215,8 +207,7 @@ def LaunchFoundation(settings, context):
                     bsps = tuple(bsps)
                     # added each to launch args
                     for file in glob.glob(
-                        os.path.join(
-                            get_tags_path() + asset_path,
+                        str(Path(get_tags_path(), asset_path),
                             "*.scenario_structure_lighting_info",
                         )
                     ):
@@ -294,10 +285,11 @@ def get_exe(name: str):
         if name in file.name:
             return file
 
-def launch_game(is_sapien, settings, filepath, asset_type):
-    asset_path, asset_name = get_asset_info(settings.sidecar_path)
+def launch_game(is_sapien, settings, filepath, scene_nwo):
+    asset_path = scene_nwo.asset_directory
+    asset_name = scene_nwo.asset_name
     using_filepath = filepath.endswith(".scenario")
-    if asset_type == 'model' and get_prefs().debug_menu_on_launch:
+    if scene_nwo.asset_type == 'model' and get_prefs().debug_menu_on_launch:
         update_debug_menu(asset_path, asset_name)
     # get the program to launch
     if is_sapien:
@@ -530,17 +522,18 @@ def open_file_explorer_default(is_tags, tags_dir, data_dir):
 
     return {"FINISHED"}
 
-def open_file_explorer(type, is_tags):
+def open_file_explorer(type, is_tags, scene_nwo):
     tags_dir = get_tags_path()
     data_dir = get_data_path()
     if type == "asset":
-        asset_path = get_asset_path()
+        asset_path = scene_nwo.asset_directory
         if valid_nwo_asset():
             if is_tags:
-                if os.path.exists(tags_dir + asset_path):
-                    os.startfile(tags_dir + asset_path)
+                if Path(tags_dir, asset_path).exists():
+                    os.startfile(Path(tags_dir, asset_path))
+                    return {"FINISHED"}
             else:
-                os.startfile(data_dir + asset_path)
+                os.startfile(Path(data_dir, asset_path))
                 return {"FINISHED"}
 
     if type == "asset" or type == "blend":
@@ -565,8 +558,8 @@ def open_file_explorer(type, is_tags):
             else:
                 return open_file_explorer_default(is_tags, tags_dir, data_dir)
         
-        elif os.path.exists(data_dir + relative):
-            os.startfile(data_dir + relative)
+        elif Path(data_dir, relative).exists():
+            os.startfile(Path(data_dir, relative))
             return {"FINISHED"}
         
     return open_file_explorer_default(is_tags, tags_dir, data_dir)

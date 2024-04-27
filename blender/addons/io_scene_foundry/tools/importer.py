@@ -356,9 +356,9 @@ class NWO_Import(bpy.types.Operator):
         if 'bitmap' in self.scope:
             self.directory = get_tags_path()
         elif 'camera_track' in self.scope:
-            cameras_dir = get_tags_path() + 'camera'
-            if os.path.exists(cameras_dir):
-                self.directory = get_tags_path() + 'camera'
+            cameras_dir = Path(get_tags_path(), 'camera')
+            if cameras_dir.exists():
+                self.directory = str(cameras_dir)
             else:
                 self.directory = get_tags_path()
         else:

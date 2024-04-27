@@ -111,7 +111,7 @@ class PrepareScene:
         self.gun = None
         self.arm_name = ""
         self.prefs = nwo_utils.get_prefs()
-        self.project = nwo_utils.project_from_scene_project(scene_settings.scene_project)
+        self.project = nwo_utils.get_project(scene_settings.scene_project)
         self.verbose_warnings = False
         self.no_export_objects = False
         self.too_many_root_bones = False
@@ -319,7 +319,7 @@ class PrepareScene:
         if self.default_mat is None:
             self.default_mat = materials.new("+default")
         
-        default_shader = nwo_utils.relative_path(self.project.project_default_material)
+        default_shader = nwo_utils.relative_path(self.project.default_material)
         if Path(self.tags_dir, default_shader).exists():
             self.default_mat.nwo.shader_path = default_shader
         else:
@@ -331,7 +331,7 @@ class PrepareScene:
         if self.water_surface_mat is None:
             self.water_surface_mat = materials.new("+water")
         
-        default_water_shader = nwo_utils.relative_path(self.project.project_default_water)
+        default_water_shader = nwo_utils.relative_path(self.project.default_water)
         if Path(self.tags_dir, default_water_shader).exists():
             self.water_surface_mat.nwo.shader_path = default_water_shader
         else:
@@ -518,6 +518,7 @@ class PrepareScene:
                     self.invalid_path_materials.append(mat)
                     self.warning_hit = True
                     mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
+                
                 
         if self.null_path_materials:
             if self.corinth:
@@ -772,7 +773,7 @@ class PrepareScene:
                 continue_checking_scale = True
                 for scale, objects in object_scale_dict.items():
                     if objects:
-                        new_data = objects[0].data.copy()
+                        new_data = data.copy()
                         for vert in new_data.vertices: vert.co *= scale
                         # check if mesh was mirrored via scaling
                         if (sign(scale.x) * sign(scale.y) * sign(scale.z)) <= 0:

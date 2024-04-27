@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 import bpy
 from io_scene_foundry.managed_blam.material import MaterialTag
 from io_scene_foundry.managed_blam.shader import ShaderTag
@@ -48,8 +49,8 @@ class NWO_ShaderToNodes(bpy.types.Operator):
             self.report({'WARNING'}, "Material not supplied")
             return {"CANCELLED"}
         shader_path = mat.nwo.shader_path
-        full_path = nwo_utils.get_tags_path() + shader_path
-        if not os.path.exists(full_path):
+        full_path = Path(nwo_utils.get_tags_path(), shader_path)
+        if not full_path.exists():
             self.report({'WARNING'}, "Tag not found")
             return {"CANCELLED"}
         if not shader_path.endswith(('.shader', '.material')):

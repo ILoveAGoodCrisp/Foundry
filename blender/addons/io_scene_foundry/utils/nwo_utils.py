@@ -45,7 +45,7 @@ import numpy as np
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES
 from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
-from ..icons import get_icon_id
+from ..icons import get_icon_id, get_icon_id_in_directory
 import requests
 
 from io_scene_foundry.utils.nwo_constants import object_asset_validation, object_game_validation
@@ -195,28 +195,29 @@ def is_linked(ob):
     return ob.data.users > 1
 
 def get_project_path():
-    project = project_from_scene_project(bpy.context.scene.nwo.scene_project)
-    if project is None:
+    project = get_project(bpy.context.scene.nwo.scene_project)
+    if not project:
         return ""
-    return project.project_path.lower()
+    return project.project_path
 
 
 def get_tool_path():
-    toolPath = os.path.join(get_project_path(), get_tool_type())
-
-    return toolPath
-
+    project = get_project(bpy.context.scene.nwo.scene_project)
+    if not project:
+        return ""
+    return str(Path(project.project_path, get_tool_type()))
 
 def get_tags_path():
-    tagsPath = os.path.join(get_project_path(), "tags" + os.sep)
-
-    return tagsPath
-
+    project = get_project(bpy.context.scene.nwo.scene_project)
+    if not project:
+        return ""
+    return project.tags_directory
 
 def get_data_path():
-    dataPath = os.path.join(get_project_path(), "data" + os.sep)
-
-    return dataPath
+    project = get_project(bpy.context.scene.nwo.scene_project)
+    if not project:
+        return ""
+    return project.data_directory
 
 
 def get_tool_type():
@@ -234,30 +235,8 @@ def is_windows():
 def is_corinth(context=None):
     if context is None:
         context = bpy.context
-
-    project = project_from_scene_project(context.scene.nwo.scene_project)
-    if project is None:
-        return False
-    return project.project_corinth
-
-def project_from_scene_project(scene_project=None):
-    if scene_project is None:
-        scene_project = bpy.context.scene.nwo.scene_project
-    prefs = get_prefs()
-    if not prefs.projects:
-        return
-    if not scene_project:
-        pass
-        # print_warning(f"No Scene project active, returning first project: {prefs.projects[0].name}")
-    else:
-        for p in prefs.projects:
-            if p.name == scene_project:
-                return p
-        else:
-            print_warning(f"Scene project active does not match any user projects. Returning {prefs.projects[0].name}")
-
-    return prefs.projects[0]
-
+    project = get_project(context.scene.nwo.scene_project)
+    return project and project.corinth
 
 def deselect_all_objects():
     bpy.ops.object.select_all(action="DESELECT")
@@ -279,7 +258,7 @@ def get_active_object():
 
 def get_asset_info(filepath=""):
     if not filepath:
-        filepath = bpy.context.scene.nwo_halo_launcher.sidecar_path
+        filepath = bpy.context.scene.nwo.sidecar_path
     asset_path = os.path.dirname(filepath).lower()
     asset = os_sep_partition(asset_path, True)
 
@@ -287,29 +266,28 @@ def get_asset_info(filepath=""):
 
 def get_asset_path():
     """Returns the path to the asset folder."""
-    asset_path = os_sep_partition(relative_path(bpy.context.scene.nwo_halo_launcher.sidecar_path))
-    return asset_path
+    return str(Path(relative_path(bpy.context.scene.nwo.sidecar_path)).parent)
 
 def relative_path(path: str | Path):
     """Gets the tag/data relative path of the given filepath"""
-    path = str(path)
-    tags_path = get_tags_path()
-    data_path = get_data_path()
-    if path.lower().startswith(tags_path):
-        return path.lower().rpartition(tags_path)[2]
-    elif path.lower().startswith(data_path):
-        return path.lower().rpartition(data_path)[2]
+    path = Path(path)
+    tags_path = Path(get_tags_path())
+    data_path = Path(get_data_path())
+    if path.is_relative_to(tags_path):
+        return str(path.relative_to(tags_path))
+    elif path.is_relative_to(data_path):
+        return str(path.relative_to(data_path))
     
-    return path.lower()
+    return str(path)
 
 
 def get_asset_path_full(tags=False):
     """Returns the full system path to the asset folder. For tags, add a True arg to the function call"""
-    asset_path = bpy.context.scene.nwo_halo_launcher.sidecar_path.rpartition(os.sep)[0].lower()
+    asset_path = bpy.context.scene.nwo.sidecar_path.rpartition(os.sep)[0].lower()
     if tags:
-        return get_tags_path() + asset_path
+        return str(Path(get_tags_path(), asset_path))
     else:
-        return get_data_path() + asset_path
+        return str(Path(get_data_path(), asset_path))
 
 
 # -------------------------------------------------------------------------------------------------------------------
@@ -389,33 +367,21 @@ def true_permutation(halo):
 
 def clean_tag_path(path, file_ext=None):
     """Cleans a path and attempts to make it appropriate for reading by Tool. Can accept a file extension (without a period) to force the existing one if it exists to be replaced"""
-    path = path.strip('"\'')
-    if path != "":
-        path = path.lower()
-        # If a file ext is provided, replace the existing one / add it
-        if file_ext is not None:
-            path = shortest_string(path, path.rpartition(".")[0])
-            path = f"{path}.{file_ext}"
-        # remove any quotation characters from path
-        path = path.replace("\"'", "")
-        # strip bad characters from the start and end of the path
-        path = path.strip("\\/.")
-        # # remove 'tags' if path starts with this
-        # if path.startswith('tags'):
-        #     path = path.replace('tags', '')
-        #     # strip following backslash
-        #     path = path.strip('\\')
-        # attempt to make path tag relative
-        path = relative_path(path)
-        # return the new path in lower case
-        return path
-    else:
+    path = path.strip('. "\'')
+    if not path:
         return ""
-
+    path = Path(path)
+    if file_ext and not file_ext.startswith('.'):
+        file_ext = '.' + file_ext
+    # If a file ext is provided, replace the existing one / add it
+    if file_ext is not None:
+        path = path.with_suffix(file_ext)
+    # attempt to make path tag relative
+    path = relative_path(path)
+    return path
 
 def is_shared(ob):
     return true_region(ob.nwo) == "shared"
-
 
 def shortest_string(*strings):
     """Takes strings and returns the shortest non null string"""
@@ -426,7 +392,6 @@ def shortest_string(*strings):
         string_list.remove(temp_string)
 
     return temp_string
-
 
 def print_box(text, line_char="-", char_count=100):
     """Prints the specified text surrounded by lines created with the specified character. Optionally define the number of charactrers to repeat per line"""
@@ -552,7 +517,7 @@ def set_project_in_registry():
     if not name:
         return
     # Get project name
-    project = project_from_scene_project(name)
+    project = get_project(name)
     project_name = project.project_name
     try:
         # Open the registry key
@@ -613,7 +578,7 @@ def valid_nwo_asset(context=None):
     """Returns true if this blender scene is a valid NWO asset i.e. has an existing sidecar file"""
     if not context:
         context = bpy.context
-    return context.scene.nwo_halo_launcher.sidecar_path != "" and Path(get_data_path(), context.scene.nwo_halo_launcher.sidecar_path).exists()
+    return context.scene.nwo.sidecar_path != "" and Path(get_data_path(), context.scene.nwo.sidecar_path).exists()
 
 
 def nwo_asset_type():
@@ -930,21 +895,6 @@ class ExportManager():
     def __exit__(self, exc_type, exc_value, traceback):
         bpy.context.scene.nwo.export_in_progress = False
 
-def data_relative(path: str) -> str:
-    """
-    Takes a full system path to a location within
-    the data folder and returns the data relative path
-    """
-    return path.replace(get_data_path(), "")
-
-def tag_relative(path: str) -> str:
-    """
-    Takes a full system path to a location within
-    the tags folder and returns the tags relative path
-    """
-    return path.replace(get_tags_path(), "")
-
-
 def update_progress(job_title, progress):
     if progress <= 1:
         length = 20  # modify this to change the length
@@ -987,7 +937,7 @@ def poll_ui(selected_types) -> bool:
     scene_nwo = bpy.context.scene.nwo
     asset_type = scene_nwo.asset_type
 
-    return asset_type in selected_types
+    return asset_type == 'resource' or asset_type in selected_types
 
 
 def is_halo_object(ob) -> bool:
@@ -1074,7 +1024,7 @@ def validate_ek() -> str | None:
     elif not Path(ek, "bin", "ManagedBlam.dll").exists():
         return f"ManagedBlam not found in your {scene_project} bin folder, please ensure this exists"
     elif not nwo_globals.clr_installed:
-        return 'ManagedBlam dependancy not installed. Please install this from Foundry preferences or use "Initialize ManagedBlam" in the Foundry Panel'
+        return 'Tag API dependancy not installed. Please install this from Foundry preferences or use "Initialize ManagedBlam" in the Foundry Panel'
     elif not nwo_globals.mb_operational:
         return 'Failed to load Managedblam.dll. Please check that your Halo Editing Kit is installed correctly'
     else:
@@ -1310,14 +1260,16 @@ def setup_projects_list(skip_registry_check=False, report=None):
                 new_projects_list.append(i)
                 p = prefs.projects.add()
                 p.project_path = i
+                p.tags_directory = str(Path(i, "tags"))
+                p.data_directory = str(Path(i, "data"))
                 p.project_xml = str(xml.project_xml)
                 p.project_name = xml.name
                 p.name = xml.display_name
-                p.project_remote_server_name = xml.remote_server_name
-                p.project_image_path = xml.image_path
-                p.project_corinth = xml.remote_database_name == "tags"
-                p.project_default_material = xml.default_material
-                p.project_default_water = xml.default_water
+                p.remote_server_name = xml.remote_server_name
+                p.image_path = xml.image_path
+                p.corinth = xml.remote_database_name == "tags"
+                p.default_material = xml.default_material
+                p.default_water = xml.default_water
     
     if new_projects_list:
         # Write new file to ensure sync
@@ -1604,16 +1556,15 @@ def set_origin_to_floor(ob: bpy.types.Object):
 def set_origin_to_centre(ob):
     with bpy.context.temp_override(object=ob, selected_editable_objects=[ob]):
         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-    
-def path_as_tag_path_no_ext(path):
-    return dot_partition(path.replace(get_tags_path(), ''))
 
-def get_project_from_scene(scene):
-    scene_project = scene.nwo.scene_project
+def get_project(project_name):
     projects = get_prefs().projects
-    for p in projects:
-        if p.name == scene_project:
-            return p
+    if projects:
+        for p in projects:
+            if p.name == project_name:
+                return p
+        
+        return projects[0]
         
     print("Failed to get project")
     
@@ -1622,8 +1573,8 @@ def material_read_only(path):
     # Return false immediately if user has disabled material protection
     if not get_prefs().protect_materials: return False
     # Ensure path is correctly sliced
-    path = path_as_tag_path_no_ext(path)
-    project = get_project_from_scene(bpy.context.scene)
+    path = str(Path(relative_path(path)).with_suffix(""))
+    project = get_project(bpy.context.scene.nwo.scene_project)
     protected_list = os.path.join(addon_root(), 'protected_tags', project.project_name, 'materials.txt')
     if not os.path.exists(protected_list): return False
     protected_materials = None
@@ -2601,7 +2552,7 @@ def paths_in_dir(directory: str, valid_extensions: tuple[str] | str = '') -> lis
 
 class DebugMenuCommand:
     def __init__(self, asset_dir, filename):
-        self.path = os.path.join(asset_dir, filename).replace('\\', '\\\\')
+        self.path = str(Path(asset_dir, filename)).replace('\\', '\\\\')
         self.tag_type = dot_partition(filename, True).lower()
         self.name = dot_partition(filename).lower()
         
@@ -2614,11 +2565,12 @@ def update_debug_menu(asset_dir="", asset_name="", for_cubemaps=False):
         menu_commands.append('<item type = command name = "Foundry: Generate Dynamic Cubemaps" variable = "\(cubemap_dynamic_generate\) \(print \\"Dynamic cubemap generation in progress\\"\)">\n')
     else:
         asset_dir = relative_path(asset_dir)
-        if not os.path.exists(get_tags_path() + asset_dir):
+        full_path = Path(get_tags_path(), asset_dir)
+        if not full_path.exists():
             return
-        for file in os.listdir(get_tags_path() + asset_dir):
-            if file.startswith(asset_name) and file.endswith(object_exts):
-                menu_commands.append(DebugMenuCommand(asset_dir, file))
+        for file in full_path.iterdir():
+            if file.name.startswith(asset_name) and file.suffix in object_exts:
+                menu_commands.append(DebugMenuCommand(asset_dir, file.name))
             
     menu_path = os.path.join(get_project_path(), 'bin', 'debug_menu_user_init.txt')
     valid_lines = None
@@ -2834,6 +2786,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
         bm.from_mesh(plane_data)
         bmesh.ops.reverse_faces(bm, faces=bm.faces)
         bm.to_mesh(plane_data)
+        bm.free()
     
     plane_ob = bpy.data.objects.new(new_name, plane_data)
     plane_ob.matrix_world = light_ob.matrix_world
@@ -2931,61 +2884,6 @@ def get_asset_tags(extension= "", full=False):
     
     return []
             
-def split_retain_normals(ob: bpy.types.Object):
-    """Hell"""
-    mesh: bpy.types.Mesh = ob.data
-    new_mesh = mesh.copy()
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    # Make a new float vector layer
-    # old_normal = bm.verts.layers.float_vector.new("old_normal")
-    # for vert in bm.verts:
-    #     vert[old_normal] = vert.normal
-        
-    for face in bm.faces:
-        for i in range(len(face.verts)):
-            if not bm.faces.layers.float_vector.get(f"ln{str(i)}"):
-                bm.faces.layers.float_vector.new(f"ln{str(i)}")
-    
-    bm.faces.ensure_lookup_table()
-    for idx, face in enumerate(bm.faces):
-        for i in range(len(face.verts)):
-            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
-            face[layer] = mesh.loops[mesh.polygons[idx].loop_indices[i]].normal
-            
-    copy_bm = bm.copy()
-    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.select], context="FACES")
-    bmesh.ops.delete(copy_bm, geom=[f for f in copy_bm.faces if not f.select], context="FACES")
-    # float_vector_layer = bm.verts.layers.float_vector.get("old_normal")
-    # copy_float_vector_layer = copy_bm.verts.layers.float_vector.get("old_normal")
-    # old_normals = [v[float_vector_layer] for v in bm.verts]
-    # copy_old_normals = [v[copy_float_vector_layer] for v in copy_bm.verts]
-    
-    loop_normals = []
-    for face in bm.faces:
-        for i in range(len(face.verts)):
-            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
-            if layer:
-                loop_normals.append(face[layer])
-    
-    copy_loop_normals = []     
-    for face in copy_bm.faces:
-        for i in range(len(face.verts)):
-            layer = copy_bm.faces.layers.float_vector.get(f"ln{str(i)}")
-            if layer:
-                copy_loop_normals.append(face[layer])
-    
-    # bm.verts.layers.float_vector.remove(float_vector_layer)
-    # copy_bm.verts.layers.float_vector.remove(copy_float_vector_layer)
-    bm.to_mesh(ob.data)
-    copy_bm.to_mesh(new_mesh)
-    new_ob = bpy.data.objects.new("new_ob", new_mesh)
-    bpy.context.scene.collection.objects.link(new_ob)
-    # ob.data.normals_split_custom_set_from_vertices(old_normals)
-    ob.data.normals_split_custom_set(loop_normals)
-    # new_ob.data.normals_split_custom_set_from_vertices(copy_old_normals)
-    new_ob.data.normals_split_custom_set(copy_loop_normals)
-    
 def save_loop_normals(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh):
     for face in bm.faces:
         for i in range(len(face.verts)):
@@ -3261,3 +3159,28 @@ def apply_armature_scale(context, arm: bpy.types.Object):
         for fc in action.fcurves:
             if fcurve.data_path.endswith('location'):
                 fc.keyframe_points.handles_recalc()
+                
+def project_game_icon(context, project=None):
+    if project is None:
+        project = get_project(context.scene.nwo.scene_project)
+    if not project:
+        return get_icon_id('tag_test')
+    match project.remote_server_name:
+        case 'bngtoolsql':
+            return get_icon_id('halo_reach')
+        case 'metawins':
+            return get_icon_id('halo_4')
+        case 'episql.343i.selfhost.corp.microsoft.com':
+            return get_icon_id('halo_2amp')
+        
+def project_icon(context, project=None):
+    if project is None:
+        project = get_project(context.scene.nwo.scene_project)
+    if not project:
+        return get_icon_id('tag_test')
+    
+    thumbnail = Path(project.project_path, project.image_path)
+    if thumbnail.exists():
+        return get_icon_id_in_directory(str(thumbnail))
+    else:
+        return project_game_icon(context, project)

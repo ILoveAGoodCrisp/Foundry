@@ -109,9 +109,10 @@ else:
         # Add projects
         projects = setup_projects_list()
         blend_path = bpy.data.filepath
-        if not context.scene.nwo.scene_project and projects:
+        project_names = [p.name for p in projects]
+        if projects and (not context.scene.nwo.scene_project or context.scene.nwo.scene_project not in project_names):
             for p in projects:
-                if blend_path.startswith(p.project_path):
+                if Path(blend_path).is_relative_to(p.project_path):
                     context.scene.nwo.scene_project = p.name
                     break
             else:
@@ -190,7 +191,7 @@ else:
         nwo_export = scene.nwo_export
         settings = nwo_globals.nwo_scene_settings
         if settings:
-            scene.nwo_halo_launcher.sidecar_path = settings["sidecar_path"]
+            nwo.sidecar_path = settings["sidecar_path"]
             nwo.scene_project = settings["scene_project"]
             nwo.asset_type = settings["asset_type"]
             nwo.output_biped = settings["output_biped"]
