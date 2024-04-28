@@ -24,7 +24,6 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import itertools
 from pathlib import Path
 import bmesh
 import bpy
@@ -37,7 +36,6 @@ from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from io_scene_foundry.utils import nwo_utils
-import time
 
 render_mesh_types = {
     "_connected_geometry_mesh_type_poop",
@@ -684,6 +682,28 @@ class PrepareScene:
             nwo_utils.update_job_count(process, "", len_mesh_objects_dict, len_mesh_objects_dict)
         
         nwo_utils.update_view_layer(self.context)
+       
+       
+    def remove_special_mats_from_poops(self):
+        poop_collision_meshes = {ob for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision'}
+        poop_render_only = {ob for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' and ob.nwo.face_mode == '_connected_geometry_face_mode_render_only'}
+        for ob in poop_collision_meshes:
+            to_replace = []
+            for idx, mat in enumerate(ob.data.materials):
+                if mat.name == self.seamsealer_mat.name:
+                    to_replace.append(idx)
+                    
+            for idx in to_replace:
+                ob.material_slots[idx].material = self.invalid_mat
+            
+        for ob in poop_render_only:
+            to_replace = []
+            for idx, mat in enumerate(ob.data.materials):
+                if mat.name == self.seamsealer_mat.name:
+                    to_replace.append(idx)
+                    
+            for idx in to_replace:
+                ob.material_slots[idx].material = self.invisible_mat
         
     def scene_transformation(self):
         '''
@@ -1062,7 +1082,7 @@ class PrepareScene:
                     coll_bm.to_mesh(collision_ob.data)
 
                     collision_ob.name = f"{ob.name}(collision)"
-                    if self._coll_proxy_two_sided(ob, coll_bm):
+                    if self._coll_proxy_two_sided(collision_ob, coll_bm):
                         collision_ob.nwo.face_sides = '_connected_geometry_face_sides_two_sided'
                     coll_bm.free()
                     ori_matrix = ob.matrix_world.copy()

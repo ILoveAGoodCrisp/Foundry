@@ -2370,7 +2370,7 @@ class NWO_FoundryPanelProps(Panel):
                 row.use_property_split = True
                 row.prop(mesh_nwo, "face_two_sided_type_ui", text="Backside Normals")
                 
-        if nwo.mesh_type_ui in RENDER_MESH_TYPES:
+        if nwo.mesh_type_ui in RENDER_MESH_TYPES and not self.__new__asset_type in ('scenario', 'prefab'):
             row = box.row()
             row.use_property_split = True
             row.prop(mesh_nwo, "face_draw_distance_ui")

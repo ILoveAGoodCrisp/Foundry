@@ -79,7 +79,8 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             layout.operator(self.op_prefix, text="Two Sided").options = "two_sided"
             if nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
                 layout.operator(self.op_prefix, text="Transparent").options = "transparent"
-                layout.operator(self.op_prefix, text="Draw Distance").options = "draw_distance"
+                if context.scene.nwo.asset_type in ('model', 'sky'):
+                    layout.operator(self.op_prefix, text="Draw Distance").options = "draw_distance"
         if poll_ui(("model", "scenario", "prefab")):
             if nwo.mesh_type_ui in (
                 "_connected_geometry_mesh_type_default",

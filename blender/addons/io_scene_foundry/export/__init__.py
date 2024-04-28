@@ -567,8 +567,8 @@ class NWO_Export(NWO_Export_Scene):
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
 
-        bpy.ops.ed.undo_push()
-        bpy.ops.ed.undo()
+        # bpy.ops.ed.undo_push()
+        # bpy.ops.ed.undo()
         context.scene.nwo.export_in_progress = False
         return {"FINISHED"}
 
@@ -639,6 +639,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
             raise RuntimeError("No exportable objects in the scene")
         
         export_scene.process_face_properties_and_proxies()
+        export_scene.remove_special_mats_from_poops()
         export_scene.scene_transformation()
         export_scene.fixup_uv_names()
         export_scene.validate_scale()
