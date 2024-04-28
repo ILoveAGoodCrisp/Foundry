@@ -4705,7 +4705,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
             for element in block_quality_settings.Elements:
                 name: str = element.Fields[0].GetStringData()
                 items.append((name, name.replace('_', ' ').capitalize(), ''))
-                
+        
         return items
 
     lightmap_quality: EnumProperty(
