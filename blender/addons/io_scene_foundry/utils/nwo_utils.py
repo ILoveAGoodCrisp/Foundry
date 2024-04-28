@@ -720,7 +720,7 @@ def bpy_enum_seam(name, index):
     return (name, name, "", get_icon_id("seam"), index)
 
 def export_objects(context):
-    return [ob for ob in context.view_layer.objects if ob.nwo.exportable]
+    return {ob for ob in context.view_layer.objects if ob.nwo.exportable}
 
 def export_objects_no_arm():
     context = bpy.context
@@ -763,7 +763,7 @@ def sort_alphanum(var_list):
     )
 
 
-def closest_bsp_object(context, ob):
+def closest_bsp_object(context, ob, valid_targets=[]):
     """
     Returns the closest bsp to the specified object
      (that is different from the current objects bsp)
@@ -795,12 +795,13 @@ def closest_bsp_object(context, ob):
 
         return
 
-    valid_targets = [ob for ob in export_objects(context) if ob.type in VALID_MESHES]
+    if not valid_targets:
+        valid_targets = {ob for ob in export_objects(context) if ob.type in VALID_MESHES}
 
     for target_ob in valid_targets:
         if (
             ob != target_ob
-            and target_ob.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+            and target_ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
             and true_region(target_ob.nwo) != true_region(ob.nwo)
         ):
             d = get_distance(ob, target_ob)

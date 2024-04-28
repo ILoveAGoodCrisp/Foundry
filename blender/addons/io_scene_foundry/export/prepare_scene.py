@@ -587,7 +587,7 @@ class PrepareScene:
                 nwo_utils.print_warning(
                     f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp"
                 )
-                closest_bsp = nwo_utils.closest_bsp_object(self.context, seam)
+                closest_bsp = nwo_utils.closest_bsp_object(self.context, seam, self.context.view_layer.objects)
                 if closest_bsp is None:
                     nwo_utils.print_warning(
                         f"Failed to automatically set back facing bsp reference for {seam.name}. Removing Seam from export"
@@ -2168,7 +2168,7 @@ class PrepareScene:
 
     def _set_reach_coll_materials(self, data, data_nwo, mesh_level=False):
         # handle reach poop collision material assignment
-        mesh_global_mat = data_nwo.face_global_material_ui
+        mesh_global_mat = data_nwo.face_global_material_ui.strip()
         if mesh_global_mat:
             data.materials.clear()
             new_mat_name = f"global_material_{mesh_global_mat}"

@@ -327,7 +327,8 @@ class NWO_ApplyTypeMesh(NWO_Op):
         match self.m_type:
             case "collision":
                 mesh_type = "_connected_geometry_mesh_type_collision"
-                material = "Collision"
+                if context.scene.nwo.asset_type == 'model':
+                    material = "Collision"
             case "physics":
                 mesh_type = "_connected_geometry_mesh_type_physics"
                 material = "Physics"

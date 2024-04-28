@@ -937,7 +937,7 @@ class NWOImporter:
             disallowed_front_back_associations = set()
             to_remove = []
             for ob in self.seams:
-                bsp_ob = closest_bsp_object(self.context, ob)
+                bsp_ob = closest_bsp_object(self.context, ob, self.jms_mesh_objects)
                 if not bsp_ob:
                     continue
                 back_face = true_region(bsp_ob.nwo)
@@ -966,7 +966,7 @@ class NWOImporter:
                 bpy.ops.import_scene.ass(filepath=path)
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
-        self.process_jms_objects(new_objects, file_name, bool([ob for ob in new_objects if ob.type == 'ARMATURE']) or ext == 'JMS')
+        self.process_jms_objects(new_objects, file_name, bool([ob for ob in new_objects if ob.type == 'ARMATURE']))
         
     def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
         # Add all objects to a collection
@@ -1179,7 +1179,7 @@ class NWOImporter:
                 elif mesh_type == '_connected_geometry_mesh_type_seam':
                     self.seams.append(ob)
 
-                elif mesh_type_legacy in ('collision', 'physics'):
+                elif mesh_type_legacy in ('collision', 'physics') and is_model:
                     self.setup_collision_materials(ob, mesh_type_legacy)
                     if mesh_type_legacy == 'physics':
                         match ob.data.ass_jms.Object_Type:
@@ -1586,7 +1586,8 @@ class NWOImporter:
         match mesh_type:
             case "collision":
                 mesh_type = "_connected_geometry_mesh_type_collision"
-                material = "Collision"
+                if is_model:
+                    material = "Collision"
             case "physics":
                 mesh_type = "_connected_geometry_mesh_type_physics"
                 material = "Physics"
