@@ -343,8 +343,8 @@ class PrepareScene:
         '''
         area_lights = {ob for ob in self.context.view_layer.objects if ob.type == 'LIGHT' and ob.data.type == 'AREA'}
         for light_ob in area_lights:
-            collections = light_ob.users_collections
-            plane_ob = nwo_utils.area_light_to_emissive(plane_ob)
+            collections = light_ob.users_collection
+            plane_ob = nwo_utils.area_light_to_emissive(light_ob)
             for collection in collections:
                 collection.objects.link(plane_ob)
             nwo_utils.unlink(light_ob)
