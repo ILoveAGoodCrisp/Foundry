@@ -1351,7 +1351,6 @@ class PrepareScene:
                 nwo.water_volume_fog_color = nwo_utils.color_argb_str(nwo.water_volume_fog_color_ui)
 
     def _setup_instance_proxies(self, data, linked_objects):
-        print("setting up proxies")
         if self.asset_type in ("scenario", "prefab"):
             proxy_physics = data.nwo.proxy_physics
             proxy_collision = data.nwo.proxy_collision
@@ -1508,6 +1507,11 @@ class PrepareScene:
                 nwo.poop_remove_from_shadow_geometry = "1"
             if nwo.poop_disallow_lighting_samples_ui:
                 nwo.poop_disallow_lighting_samples = "1"
+                
+        for child in ob.children:
+            if child.type in VALID_MESHES and child.data.nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision':
+                nwo.face_mode = '_connected_geometry_face_mode_render_only'
+                break
             
     def _setup_mesh_properties(self, ob: bpy.types.Object, is_map):
         nwo = ob.nwo
@@ -1601,6 +1605,8 @@ class PrepareScene:
             if self.corinth:
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
                 nwo.poop_collision_type = nwo_data.poop_collision_type_ui
+            elif ob.parent and ob.parent.type in VALID_MESHES and ob.parent.data.nwo.mesh_type_ui == '_connected_geometry_mesh_type_default':
+                nwo.mesh_type = '_connected_geometry_mesh_type_poop_collision'
             else:
                 nwo.mesh_type = '_connected_geometry_mesh_type_poop'
                 nwo.poop_lighting = "_connected_geometry_poop_lighting_single_probe"

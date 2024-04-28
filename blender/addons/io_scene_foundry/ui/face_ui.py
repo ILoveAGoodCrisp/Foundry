@@ -502,10 +502,11 @@ class NWO_FaceLayerRemove(bpy.types.Operator):
             bpy.ops.nwo.face_layer_color_all(enable_highlight=nwo.highlight)
 
         context.area.tag_redraw()
-        # gotta do this mess so undo states correctly register
-        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
-        bpy.ops.ed.undo_push()
-        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+        # gotta do this mess so undo states correActly register
+        if context.mode == 'EDIT_MESH':
+            bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+            bpy.ops.ed.undo_push()
+            bpy.ops.object.mode_set(mode="EDIT", toggle=False)
         return {"FINISHED"}
 
 
