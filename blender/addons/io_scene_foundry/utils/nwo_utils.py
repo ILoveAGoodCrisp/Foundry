@@ -24,12 +24,15 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 from collections import Counter
+import itertools
 import json
 from math import radians
 from pathlib import Path, PureWindowsPath
 import shutil
 import subprocess
 import sys
+import threading
+import time
 import winreg
 import zipfile
 import bmesh
@@ -49,6 +52,8 @@ from ..icons import get_icon_id, get_icon_id_in_directory
 import requests
 
 from io_scene_foundry.utils.nwo_constants import object_asset_validation, object_game_validation
+
+spinny = itertools.cycle(["|", "/", "—", "\\"])
 
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
 MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'blends', 'materials')
@@ -824,6 +829,11 @@ def layer_faces(bm, face_layer):
     """Returns the faces in a bmesh that have an face int custom_layer with a value greater than 0"""
     if face_layer:
         return [face for face in bm.faces if face[face_layer]]
+    
+def layer_face_indexes(bm, face_layer):
+    """Returns the face indexes in a bmesh that have an face int custom_layer with a value greater than 0"""
+    if face_layer:
+        return {face.index for face in bm.faces if face[face_layer]}
 
 
 def random_color(max_hue=True) -> list:
@@ -897,7 +907,7 @@ class ExportManager():
 
 def update_progress(job_title, progress):
     if progress <= 1:
-        length = 20  # modify this to change the length
+        length = 20
         block = int(round(length * progress))
         msg = "\r{0}: {1} {2}%".format(
             job_title,
@@ -908,7 +918,6 @@ def update_progress(job_title, progress):
             msg += "     \r\n"
         sys.stdout.write(msg)
         sys.stdout.flush()
-
 
 def update_job(job_title, progress):
     msg = "\r{0}".format(job_title)
@@ -931,7 +940,6 @@ def update_job_count(message, spinner, completed, total):
 
     sys.stdout.write(msg)
     sys.stdout.flush()
-
 
 def poll_ui(selected_types) -> bool:
     scene_nwo = bpy.context.scene.nwo
@@ -3186,3 +3194,28 @@ def project_icon(context, project=None):
         return get_icon_id_in_directory(str(thumbnail))
     else:
         return project_game_icon(context, project)
+    
+class Spinner:
+    busy = False
+    delay = 0.1
+
+    def __init__(self, delay=None):
+        if delay and float(delay): self.delay = delay
+
+    def spinner_task(self):
+        while self.busy:
+            sys.stdout.write(next(spinny))
+            sys.stdout.flush()
+            time.sleep(self.delay)
+            sys.stdout.write('\b')
+            sys.stdout.flush()
+
+    def __enter__(self):
+        self.busy = True
+        threading.Thread(target=self.spinner_task).start()
+
+    def __exit__(self, exception, value, tb):
+        self.busy = False
+        time.sleep(self.delay)
+        if exception is not None:
+            return False

@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import itertools
 from pathlib import Path
 import bmesh
 import bpy
@@ -36,6 +37,7 @@ from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from io_scene_foundry.utils import nwo_utils
+import time
 
 render_mesh_types = [
     "_connected_geometry_mesh_type_poop",
@@ -361,130 +363,130 @@ class PrepareScene:
         '''
         
         process = "--- Object Fixup"
-        nwo_utils.update_progress(process, 0)
         export_obs = self.context.view_layer.objects
         len_export_obs = len(export_obs)
-        scenario_or_prefab = self.asset_type in ("scenario", "prefab")
-        for idx, ob in enumerate(export_obs):
-            nwo = ob.nwo
-            reset_export_props(nwo)
-            me = ob.data
-            ob_type = ob.type
-            
-            is_mesh_loose = ob_type in VALID_MESHES
-
-            # export objects must be visible and selectable
-            ob.hide_set(False)
-            ob.hide_select = False
-
-            # If this is a Reach light, fix it's rotation
-            # Blender lights emit in -z, while Halo emits light from +y
-            if not self.corinth and ob_type == "LIGHT":
-                if self.asset_type == 'sky':
-                    self.reach_sky_lights.append(ob)
-                    nwo_utils.unlink(ob)
-                    continue
-                elif not self.asset_type == 'scenario':
-                    nwo_utils.unlink(ob)
-                    continue
+        with nwo_utils.Spinner():
+            nwo_utils.update_job_count(process, "", 0, len_export_obs)
+            scenario_or_prefab = self.asset_type in ("scenario", "prefab")
+            for idx, ob in enumerate(export_obs):
+                nwo = ob.nwo
+                reset_export_props(nwo)
+                ob_type = ob.type
                 
-                ob.matrix_world = ob.matrix_world @ halo_x_rot @ halo_z_rot
+                is_mesh_loose = ob_type in VALID_MESHES
 
-            self._strip_prefix(ob)
+                # export objects must be visible and selectable
+                ob.hide_set(False)
+                ob.hide_select = False
 
-            nwo.object_type = nwo_utils.get_object_type(ob)
-
-            if self.asset_type in ('model', 'sky', 'scenario', 'prefab'):
-                nwo.permutation_name_ui = self.default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
-                nwo.region_name_ui = self.default_permutation if not nwo.region_name_ui else nwo.region_name_ui
-                is_light = ob_type == 'LIGHT'
-                # cast ui props to export props
-                if self.supports_regions_and_perms:
-                    mesh_not_io = (nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance')
-                    if is_light or scenario_or_prefab or mesh_not_io or nwo.marker_uses_regions:
-                        reg = nwo_utils.true_region(nwo)
-                        if reg in self.regions:
-                            self.validated_regions.add(reg)
-                            nwo.region_name = nwo_utils.true_region(nwo)
-                        else:
-                            self.warning_hit = True
-                            nwo_utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
-                            nwo.permutation_name = self.default_permutation
-                        
-                        if is_light or scenario_or_prefab or mesh_not_io:
-                            perm = nwo_utils.true_permutation(nwo)
-                            if perm in self.permutations:
-                                self.validated_permutations.add(perm)
-                                nwo.permutation_name = nwo_utils.true_permutation(nwo)
-                            else:
-                                self.warning_hit = True
-                                nwo_utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
-                                nwo.permutation_name = self.default_permutation
-                                
-                        elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
-                            nwo.permutation_name = 'default'
-                            marker_perms = [item.name for item in nwo.marker_permutations]
-                            for perm in marker_perms:
-                                if perm in self.permutations:
-                                    self.validated_permutations.add(perm)
-                                else:
-                                    self.warning_hit = True
-                                    nwo_utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not presented in the {self.perm_name}s table. Ignoring {self.perm_name}")
-                                
-                        else:
-                            nwo.permutation_name = 'default'
-                else:
-                    nwo.region_name = 'default'
-                    nwo.permutation_name = 'default'
-            
-            if nwo.object_type == '_connected_geometry_object_type_none':
-                nwo_utils.unlink(ob)
-                continue
-            
-            elif nwo.object_type == '_connected_geometry_object_type_mesh':
-                if nwo.mesh_type_ui == '':
-                    nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
-                if nwo_utils.type_valid(nwo.mesh_type_ui, self.asset_type, self.game_version):
-                    if self._setup_mesh_properties(ob, scenario_or_prefab):
-                        if self.export_settings.triangulate:
-                            add_triangle_mod(ob)
-                    else:
+                # If this is a Reach light, fix it's rotation
+                # Blender lights emit in -z, while Halo emits light from +y
+                if not self.corinth and ob_type == "LIGHT":
+                    if self.asset_type == 'sky':
+                        self.reach_sky_lights.append(ob)
+                        nwo_utils.unlink(ob)
+                        continue
+                    elif not self.asset_type == 'scenario':
                         nwo_utils.unlink(ob)
                         continue
                     
-                else:
-                    self.warning_hit = True
-                    nwo_utils.print_warning(f"{ob.name} has illegal mesh type: [{nwo.mesh_type_ui}]. Skipped")
+                    ob.matrix_world = ob.matrix_world @ halo_x_rot @ halo_z_rot
+
+                self._strip_prefix(ob)
+
+                nwo.object_type = nwo_utils.get_object_type(ob)
+
+                if self.asset_type in ('model', 'sky', 'scenario', 'prefab'):
+                    nwo.permutation_name_ui = self.default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
+                    nwo.region_name_ui = self.default_permutation if not nwo.region_name_ui else nwo.region_name_ui
+                    is_light = ob_type == 'LIGHT'
+                    # cast ui props to export props
+                    if self.supports_regions_and_perms:
+                        mesh_not_io = (nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance')
+                        if is_light or scenario_or_prefab or mesh_not_io or nwo.marker_uses_regions:
+                            reg = nwo_utils.true_region(nwo)
+                            if reg in self.regions:
+                                self.validated_regions.add(reg)
+                                nwo.region_name = nwo_utils.true_region(nwo)
+                            else:
+                                self.warning_hit = True
+                                nwo_utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                                nwo.permutation_name = self.default_permutation
+                            
+                            if is_light or scenario_or_prefab or mesh_not_io:
+                                perm = nwo_utils.true_permutation(nwo)
+                                if perm in self.permutations:
+                                    self.validated_permutations.add(perm)
+                                    nwo.permutation_name = nwo_utils.true_permutation(nwo)
+                                else:
+                                    self.warning_hit = True
+                                    nwo_utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
+                                    nwo.permutation_name = self.default_permutation
+                                    
+                            elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
+                                nwo.permutation_name = 'default'
+                                marker_perms = [item.name for item in nwo.marker_permutations]
+                                for perm in marker_perms:
+                                    if perm in self.permutations:
+                                        self.validated_permutations.add(perm)
+                                    else:
+                                        self.warning_hit = True
+                                        nwo_utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not presented in the {self.perm_name}s table. Ignoring {self.perm_name}")
+                                    
+                            else:
+                                nwo.permutation_name = 'default'
+                    else:
+                        nwo.region_name = 'default'
+                        nwo.permutation_name = 'default'
+                
+                if nwo.object_type == '_connected_geometry_object_type_none':
                     nwo_utils.unlink(ob)
                     continue
                 
-            elif nwo.object_type == '_connected_geometry_object_type_marker':
-                if nwo.marker_type_ui == '':
-                    nwo.marker_type_ui = '_connected_geometry_marker_type_model'
-                if nwo_utils.type_valid(nwo.marker_type_ui, self.asset_type, self.game_version):
-                    self._setup_marker_properties(ob)
-                else:
-                    self.warning_hit = True
-                    nwo_utils.print_warning(f"{ob.name} has illegal marker type: [{nwo.marker_type_ui}]. Skipped")
-                    nwo_utils.unlink(ob)
-                    continue
+                elif nwo.object_type == '_connected_geometry_object_type_mesh':
+                    if nwo.mesh_type_ui == '':
+                        nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
+                    if nwo_utils.type_valid(nwo.mesh_type_ui, self.asset_type, self.game_version):
+                        if self._setup_mesh_properties(ob, scenario_or_prefab):
+                            if self.export_settings.triangulate:
+                                add_triangle_mod(ob)
+                        else:
+                            nwo_utils.unlink(ob)
+                            continue
+                        
+                    else:
+                        self.warning_hit = True
+                        nwo_utils.print_warning(f"{ob.name} has illegal mesh type: [{nwo.mesh_type_ui}]. Skipped")
+                        nwo_utils.unlink(ob)
+                        continue
+                    
+                elif nwo.object_type == '_connected_geometry_object_type_marker':
+                    if nwo.marker_type_ui == '':
+                        nwo.marker_type_ui = '_connected_geometry_marker_type_model'
+                    if nwo_utils.type_valid(nwo.marker_type_ui, self.asset_type, self.game_version):
+                        self._setup_marker_properties(ob)
+                    else:
+                        self.warning_hit = True
+                        nwo_utils.print_warning(f"{ob.name} has illegal marker type: [{nwo.marker_type_ui}]. Skipped")
+                        nwo_utils.unlink(ob)
+                        continue
 
-            is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type in render_mesh_types
+                is_halo_render = is_mesh_loose and nwo.object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type in render_mesh_types
 
-            # add region/global_mat to sets
-            uses_global_mat = self.has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and nwo.mesh_type == "_connected_geometry_mesh_type_default")
-            if uses_global_mat:
-                self.global_materials.add(nwo.face_global_material)
+                # add region/global_mat to sets
+                uses_global_mat = self.has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and nwo.mesh_type == "_connected_geometry_mesh_type_default")
+                if uses_global_mat:
+                    self.global_materials.add(nwo.face_global_material)
 
-            if self.export_settings.export_gr2_files:
-                if is_mesh_loose:
-                    # Add materials to all objects without one. No materials = unhappy Tool.exe
-                    does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or self.asset_type != 'scenario'
-                    self._fix_materials(ob, is_halo_render, does_not_support_sky)
+                if self.export_settings.export_gr2_files:
+                    if is_mesh_loose:
+                        # Add materials to all objects without one. No materials = unhappy Tool.exe
+                        does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or self.asset_type != 'scenario'
+                        self._fix_materials(ob, is_halo_render, does_not_support_sky)
                 
-            nwo_utils.update_progress(process, idx / len_export_obs)
+                nwo_utils.update_job_count(process, "", idx, len_export_obs)
 
-        nwo_utils.update_progress(process, 1)
+            nwo_utils.update_job_count(process, "", len_export_obs, len_export_obs)
         
     def get_selected_sets(self):
         '''
@@ -627,67 +629,72 @@ class PrepareScene:
         mesh_objects_dict = {data: objects_list for data, objects_list in mesh_objects_dict.items() if objects_list}
 
         process = "--- Splitting Meshes with Face Properties"
-        len_mesh_object_dict = len(mesh_objects_dict)
-        self.any_face_props = False
-        for idx, (data, objects_list) in enumerate(mesh_objects_dict.items()):
-            ob = objects_list[0]
-            # Running instance proxy stuff here
-            data_nwo = data.nwo
-            ob_nwo = ob.nwo
+        meshes_with_face_props = {data for data in meshes if data.nwo.face_props}
+        count_meshes_with_face_props = len(meshes_with_face_props)
+        face_prop_mesh_index = -1
+        with nwo_utils.Spinner():
+            if count_meshes_with_face_props:
+                nwo_utils.update_job_count(process, "", 0, count_meshes_with_face_props)
             
-            if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision and not data_nwo.render_only_ui:
-                self._setup_instance_proxies(data, objects_list)
+            for data, objects_list in mesh_objects_dict.items():
+                ob = objects_list[0]
+                # Running instance proxy stuff here
+                data_nwo = data.nwo
+                ob_nwo = ob.nwo
+                
+                if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision and not data_nwo.render_only_ui:
+                    self._setup_instance_proxies(data, objects_list)
 
-            face_properties = data_nwo.face_props
+                face_properties = data_nwo.face_props
 
-            if face_properties:
-                nwo_utils.update_progress(process, idx / len_mesh_object_dict)
+                if face_properties:
+                    face_prop_mesh_index += 1
+                    # must force on auto smooth to avoid Normals transfer errors on < Blender 4.1
+                    if blender_has_auto_smooth:
+                        data.use_auto_smooth = True
 
-                self.any_face_props = True
-                # must force on auto smooth to avoid Normals transfer errors on < Blender 4.1
-                if blender_has_auto_smooth:
-                    data.use_auto_smooth = True
+                    bm = bmesh.new(use_operators=True)
+                    bm.from_mesh(data)
+                    # must ensure all faces are visible
+                    for face in bm.faces: face.hide_set(False)
 
-                bm = bmesh.new()
-                bm.from_mesh(data)
-                # must ensure all faces are visible
-                for face in bm.faces: face.hide_set(False)
+                    split_objects = self._split_to_layers(ob, ob_nwo, data, face_properties, bm, False)
+                    # Can skip the below for loop if objects_list has a length of 1
+                    if len(objects_list) > 1:
+                        # copy all new face split objects to all linked objects
+                        objects_list.remove(ob)
+                        for linked_ob in objects_list:
+                            for split_ob in split_objects:
+                                new_ob = linked_ob
+                                if linked_ob.data == split_ob.data:
+                                    new_ob.name = split_ob.name
+                                    for face_props in new_ob.data.nwo.face_props:
+                                        self._face_prop_to_mesh_prop(new_ob.nwo, face_props, new_ob)
+                                else:
+                                    new_ob = split_ob.copy()
+                                    for collection in linked_ob.users_collection: collection.objects.link(new_ob)
+                                    new_ob.matrix_world = linked_ob.matrix_world
+                                    # linked objects might have different group assignments, ensure their split objects match this
+                                    new_ob.nwo.region_name = linked_ob.nwo.region_name
+                                    new_ob.nwo.permutation_name = linked_ob.nwo.permutation_name
 
-                split_objects = self._split_to_layers(ob, ob_nwo, data, face_properties, bm, False)
-                # Can skip the below for loop if objects_list has a length of 1
-                if len(objects_list) > 1:
-                    # copy all new face split objects to all linked objects
-                    objects_list.remove(ob)
-                    for linked_ob in objects_list:
-                        for split_ob in split_objects:
-                            new_ob = linked_ob
-                            if linked_ob.data == split_ob.data:
-                                new_ob.name = split_ob.name
-                                for face_props in new_ob.data.nwo.face_props:
-                                    self._face_prop_to_mesh_prop(new_ob.nwo, face_props, new_ob)
-                            else:
-                                new_ob = split_ob.copy()
-                                for collection in linked_ob.users_collection: collection.objects.link(new_ob)
-                                new_ob.matrix_world = linked_ob.matrix_world
-                                # linked objects might have different group assignments, ensure their split objects match this
-                                new_ob.nwo.region_name = linked_ob.nwo.region_name
-                                new_ob.nwo.permutation_name = linked_ob.nwo.permutation_name
-
-                            if split_ob.children and not new_ob.children:
-                                new_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
-                                for child in split_ob.children:
-                                    if not child.nwo.proxy_parent:
-                                        new_child = child.copy()
-                                        for collection in new_ob.users_collection: collection.objects.link(new_child)
-                                        new_child.parent = new_ob
-                                        new_child.matrix_world = new_ob.matrix_world
-                                        new_child.nwo.region_name = new_ob.nwo.region_name
-                                        new_child.nwo.permutation_name = new_ob.nwo.permutation_name
-                                        new_child.nwo.region_name = new_ob.nwo.region_name
-
-        if self.any_face_props:
-            nwo_utils.update_progress(process, 1)
-            
+                                if split_ob.children and not new_ob.children:
+                                    new_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                                    for child in split_ob.children:
+                                        if not child.nwo.proxy_parent:
+                                            new_child = child.copy()
+                                            for collection in new_ob.users_collection: collection.objects.link(new_child)
+                                            new_child.parent = new_ob
+                                            new_child.matrix_world = new_ob.matrix_world
+                                            new_child.nwo.region_name = new_ob.nwo.region_name
+                                            new_child.nwo.permutation_name = new_ob.nwo.permutation_name
+                                            new_child.nwo.region_name = new_ob.nwo.region_name
+                
+                nwo_utils.update_job_count(process, "", face_prop_mesh_index, count_meshes_with_face_props)
+                
+            if count_meshes_with_face_props:
+                nwo_utils.update_job_count(process, "", count_meshes_with_face_props, count_meshes_with_face_props)
+        
         nwo_utils.update_view_layer(self.context)
         
     def scene_transformation(self):
@@ -941,52 +948,40 @@ class PrepareScene:
 
         return len(bm.faces)
 
-    def _recursive_layer_split(self, ob, data, face_properties, prop_faces_dict, split_objects, bm, is_proxy, is_recursion):
+    def _recursive_layer_split(self, ob, data, face_properties, prop_faces_dict, split_objects, bm: bmesh.types.BMesh, is_proxy, is_recursion):
         self.bmeshes_to_clean_up.add(bm)
         # faces_layer_dict = {faces: layer for layer, faces in layer_faces_dict.keys()}
-        faces_layer_dict = {tuple(fs): prop for prop, fs in prop_faces_dict.items() if fs}
-        length_layer_dict = len(faces_layer_dict)
-        for idx, face_seq in enumerate(faces_layer_dict.keys()):
-            if face_seq:
+        # faces_layer_dict = {tuple(fs): prop for prop, fs in prop_faces_dict.items() if fs}
+        length_layer_dict = len(prop_faces_dict)
+        for idx, face_indexes in enumerate(prop_faces_dict.values()):
+            if face_indexes:
                 if not is_recursion and idx == length_layer_dict - 1:
                     split_objects.append(ob)
                 else:
                     # delete faces from new mesh
-                    to_delete_indexes = [f.index for f in bm.faces if f in face_seq]
                     split_bm = bm.copy()
-                    # new_face_seq = [face for face in split_bm.faces if face not in face_seq]
-                    bmesh.ops.delete(
-                        bm,
-                        geom=[f for f in bm.faces if not f.index in to_delete_indexes],
-                        context="FACES",
-                    )
+                    split_bm_delete = [f for f in split_bm.faces if f.index in face_indexes]
+                    bm_delete = [f for f in bm.faces if f.index not in face_indexes]
+                    # for i in bm_delete: bm.faces.remove(i)
+                    bmesh.ops.delete(bm, geom=bm_delete, context="FACES")
                     split_ob = ob.copy()
 
                     split_ob.data = data.copy()
                     split_me = split_ob.data
 
                     bm.to_mesh(data)
-                    bmesh.ops.delete(
-                        split_bm,
-                        geom=[f for f in split_bm.faces if f.index in to_delete_indexes],
-                        context="FACES",
-                    )
+                    # for i in split_bm_delete: split_bm.faces.remove(i)
+                    bmesh.ops.delete(split_bm, geom=split_bm_delete, context="FACES")
+                    
                     split_bm.to_mesh(split_me)
 
                     if not is_proxy:
                         for collection in ob.users_collection: collection.objects.link(split_ob)
 
-                    new_layer_faces_dict = {
-                        layer: nwo_utils.layer_faces(
-                            split_bm,
-                            split_bm.faces.layers.int.get(layer.layer_name),
-                        )
-                        for layer in face_properties
-                    }
+                    new_prop_faces_dict = {layer: nwo_utils.layer_face_indexes(split_bm, split_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
                     split_objects.append(split_ob)
-
                     if split_me.polygons:
-                        self._recursive_layer_split(split_ob, split_me, face_properties, new_layer_faces_dict, split_objects, split_bm, is_proxy, True)
+                        self._recursive_layer_split(split_ob, split_me, face_properties, new_prop_faces_dict, split_objects, split_bm, is_proxy, True)
 
         return split_objects
     
@@ -1034,7 +1029,7 @@ class PrepareScene:
 
     def _split_to_layers(self, ob: bpy.types.Object, ob_nwo, data, face_properties, bm, is_proxy):
         poly_count = len(bm.faces)
-        prop_faces_dict = {prop: nwo_utils.layer_faces(bm, bm.faces.layers.int.get(prop.layer_name)) for prop in face_properties}
+        prop_faces_dict = {prop: nwo_utils.layer_face_indexes(bm, bm.faces.layers.int.get(prop.layer_name)) for prop in face_properties}
         face_sequences = prop_faces_dict.values()
         collision_ob = None
         justified = self._justify_face_split(prop_faces_dict.values(), poly_count)
@@ -1088,9 +1083,9 @@ class PrepareScene:
             remaining_faces = set()
             for f in bm.faces:
                 for fseq in face_sequences:
-                    if f in fseq: break
+                    if f.index in fseq: break
                 else:
-                    remaining_faces.add(f)
+                    remaining_faces.add(f.index)
 
             prop_faces_dict["|~~no_face_props~~|"] = remaining_faces
             # Splits the mesh recursively until each new mesh only contains a single face layer
