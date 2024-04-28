@@ -672,7 +672,7 @@ class ProcessScene:
                 if export_check:
                     if not self.models_export_started:
                         self.models_export_started = True
-                        print("\n\nStarting Models Export")
+                        print("\n\nStarting FBX/JSON Export")
                         print(
                             "-----------------------------------------------------------------------\n"
                         )
@@ -740,7 +740,7 @@ class ProcessScene:
                     if export_check and export_obs:
                         if not self.models_export_started:
                             self.models_export_started = True
-                            print("\n\nStarting Models Export")
+                            print("\n\nStarting FBX/JSON Export")
                             print(
                                 "-----------------------------------------------------------------------\n"
                             )

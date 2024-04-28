@@ -36,14 +36,14 @@ class NWO_ScaleScene(bpy.types.Operator):
     scale_factor: bpy.props.FloatProperty(
         default=1,
         options={'SKIP_SAVE'},
-        description='Scale factor to apply to the scene. Change this to override the default set by the Blender/3DS Max Scale'
+        description='Scale factor to apply to the scene. Change this to override the default set by the Blender/Halo Scale'
         )
     
     def scale_items(self, context):
         items = []
         items.append(('none', 'None', "Does not scale the scene", 'MATPLANE', 0))
         items.append(('blender', 'To Blender', "Scales the scene by a factor of roughly 32.8", 'BLENDER', 1))
-        items.append(('max', 'To 3DS Max', "Scales the scene by a factor of roughly 0.03", nwo_utils.get_icon_id("3ds_max"), 2))
+        items.append(('max', 'To Halo', "Scales the scene by a factor of roughly 0.03", nwo_utils.get_icon_id("halo_scale"), 2))
         items.append(('custom', 'Custom', "Scales the scene by the given factor", 'FULLSCREEN_ENTER', 3))
         return items
     

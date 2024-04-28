@@ -197,13 +197,6 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         ]
     )
     
-    def scale_items(self, context):
-        items = []
-        items.append(('blender', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
-        # items.append(('halo', 'Halo', "1 meter in Blender is equal to 1 in game world unit. Use this when you want the units displayed in blender to match the units shown in Sapien", get_icon_id('halo_scale'), 1))
-        items.append(('max', '3DS Max', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("3ds_max"), 1))
-        return items
-    
     def scale_display_items(self, context):
         items = []
         unit_length: str = context.scene.unit_settings.length_unit
@@ -214,7 +207,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     def scale_items(self, context):
         items = []
         items.append(('blender', 'Blender Scale', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
-        items.append(('max', '3DS Max Scale', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("3ds_max"), 1))
+        items.append(('max', 'Halo Scale', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("halo_scale"), 1))
         return items
     
     scale: bpy.props.EnumProperty(
@@ -473,7 +466,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             self.forward_direction = context.scene.nwo.forward_direction
         else:
             self.scale = "blender" if scene_matrix == 'blender' else 'max'
-            self.forward_direction = '-y' if scene_matrix == 'blender' else 'x'
+            self.forward_direction = 'y-' if scene_matrix == 'blender' else 'x'
         
         if context.scene.nwo.scene_project:
             self.project = context.scene.nwo.scene_project

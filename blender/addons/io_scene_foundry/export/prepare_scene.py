@@ -719,6 +719,7 @@ class PrepareScene:
         Validates object scales, applying them where needed\n
         Handles instance scale, applying non-uniform scales and fixing flipped normals where needed
         '''
+        print("--- Validating Object Scales")
         good_scale = Vector.Fill(3, 1)
         # Validate armature scale. Allowing for uniform positive scale
         if self.model_armature and self.model_armature.scale != good_scale:
@@ -1220,7 +1221,7 @@ class PrepareScene:
                 mesh_props.region_name = self.default_region
 
         if face_props.face_global_material_override:
-            mesh_props.face_global_material = face_props.face_global_material_ui
+            mesh_props.face_global_material = face_props.face_global_material_ui.strip().replace(' ', "_")
             self.global_materials.add(mesh_props.face_global_material)
 
         if face_props.ladder_override:
@@ -1624,7 +1625,7 @@ class PrepareScene:
                 "_connected_geometry_mesh_type_physics",
             ) and not (not self.corinth and nwo.mesh_type in "_connected_geometry_mesh_type_poop"):
                 
-                nwo.face_global_material = nwo_data.face_global_material_ui
+                nwo.face_global_material = nwo_data.face_global_material_ui.strip().replace(' ', "_")
                 if nwo.mesh_type != "_connected_geometry_mesh_type_physics" and not self.corinth:
                     if nwo_data.ladder_ui:
                         nwo.ladder = "1"
@@ -2635,6 +2636,18 @@ def transform_export_scene(context, scene_nwo) -> float:
     scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
     rotation = nwo_utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
     if scale_factor != 1 or rotation:
+        job = "--- Transforming Scene"
+        if scale_factor != 1:
+            job += " [Blender Scale -> Halo Scale]"
+        if rotation:
+            match scene_nwo.forward_direction:
+                case "y":
+                    job += " [Y Forward -> X Forward]"
+                case "y-":
+                    job += " [-Y Forward -> X Forward]"
+                case "x-":
+                    job += " [-X Forward -> X Forward]"
+        print(job)
         nwo_utils.transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
     return scale_factor
 
