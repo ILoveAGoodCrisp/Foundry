@@ -940,6 +940,11 @@ def update_job_count(message, spinner, completed, total):
 
     sys.stdout.write(msg)
     sys.stdout.flush()
+    
+def job_for_spinner(message):
+    message += "     \r\n"
+    sys.stdout.write(message)
+    sys.stdout.flush()
 
 def poll_ui(selected_types) -> bool:
     scene_nwo = bpy.context.scene.nwo

@@ -616,6 +616,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
     export_scene = PrepareScene(context, asset_type, corinth, scene_settings, export_settings)
     export_scene.ready_scene()
     export_scene.make_real()
+    start = time.perf_counter()
     if asset_type == 'camera_track_set':
         export_scene.scene_transformation()
         export_scene.get_track_camera()
@@ -636,7 +637,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
             
         if not context.view_layer.objects:
             raise RuntimeError("No exportable objects in the scene")
-            
+        
         export_scene.process_face_properties_and_proxies()
         export_scene.scene_transformation()
         export_scene.fixup_uv_names()
@@ -653,6 +654,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         if asset_type == 'sky' and not corinth:
             export_scene.setup_skylights()
         if asset_type == 'scenario':
+            start = time.perf_counter()
             export_scene.generate_structure()
         elif asset_type in ("model", "sky", "decorator_set", "particle_model", "animation"):
             export_scene.add_null_render_if_needed()
