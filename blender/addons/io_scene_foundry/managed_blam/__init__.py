@@ -73,8 +73,8 @@ class Tag():
             
         # Asset Info
         self.context = bpy.context
-        self.tags_dir = get_tags_path() # full path to tags dir + \
-        self.data_dir = get_data_path() # full path to data dir + \
+        self.tags_dir = get_tags_path() # full path to tags dir
+        self.data_dir = get_data_path() # full path to data dir
         self.asset_dir = get_asset_path() # the relative path to the asset directory
         self.asset_name = self.asset_dir.rpartition(os.sep)[2] # the name of the asset (i.e the directory name)
         self.asset_tag_dir = Path(self.tags_dir, self.asset_dir) # full path to the asset data directory

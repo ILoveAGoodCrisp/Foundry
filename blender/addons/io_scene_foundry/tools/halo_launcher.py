@@ -543,7 +543,7 @@ def open_file_explorer(type, is_tags, scene_nwo):
         
         relative = blend_folder.replace(data_dir, "")
         if is_tags:
-            folder_path = tags_dir + relative
+            folder_path = str(Path(tags_dir, relative))
             folder_path2 = os.path.dirname(folder_path)
             folder_path3 = os.path.dirname(folder_path2)
             if os.path.exists(folder_path):

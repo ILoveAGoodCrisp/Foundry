@@ -1573,6 +1573,8 @@ def material_read_only(path):
     # Return false immediately if user has disabled material protection
     if not get_prefs().protect_materials: return False
     # Ensure path is correctly sliced
+    path = path.strip(" .\"'")
+    if not path: return False
     path = str(Path(relative_path(path)).with_suffix(""))
     project = get_project(bpy.context.scene.nwo.scene_project)
     protected_list = os.path.join(addon_root(), 'protected_tags', project.project_name, 'materials.txt')

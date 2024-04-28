@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 import bpy
 from io_scene_foundry.managed_blam.bitmap import BitmapTag
 from io_scene_foundry.utils.nwo_utils import (
@@ -59,13 +60,13 @@ def save_image_as(image, dir, tiff_name=""):
     settings.color_mode = "RGBA" if image.alpha_mode != "NONE" else "RGB"
     settings.color_depth = "8" if image.depth < 16 else "16"
     settings.tiff_codec = "LZW"
-    if dir and not os.path.exists(dir):
+    if dir and not Path(dir).exists():
         os.makedirs(dir, exist_ok=True)
-    full_path = os.path.join(dir, tiff_name)
+    full_path = str(Path(dir, tiff_name))
     image.save_render(filepath=full_path, scene=temp_scene)
     bpy.data.scenes.remove(temp_scene)
 
-    return full_path.replace(data_dir, "")
+    return str(Path(full_path).relative_to(Path(data_dir)))
 
 def export_bitmap(
     image: bpy.types.Image,
@@ -82,19 +83,19 @@ def export_bitmap(
     user_path = image.filepath_from_user().lower()
     if user_path:
         bitmap_path = dot_partition(user_path.replace(data_dir, "")) + '.bitmap'
-        if not os.path.exists(tags_dir + bitmap_path):
+        if not Path(tags_dir, bitmap_path).exists():
             bitmap_path = ''
     else:
         bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
-        if not os.path.exists(tags_dir + bitmap_path):
+        if not Path(tags_dir, bitmap_path).exists():
             bitmap_path = ''
             
     image.nwo.filepath = bitmap_path
     # Create a bitmap folder in the asset directory
     if folder:
-        bitmaps_data_dir = os.path.join(data_dir + folder)
+        bitmaps_data_dir = str(Path(data_dir, folder))
     else:
-        bitmaps_data_dir = os.path.join(data_dir + asset_path, "bitmaps")
+        bitmaps_data_dir = str(Path(data_dir, asset_path, "bitmaps"))
         # get a list of textures associated with this material
     # export the texture as a tiff to the asset bitmaps folder
     image.nwo.source_name = valid_image_name(image.name) + ".tif"
@@ -110,7 +111,7 @@ def export_bitmap(
                     report({'ERROR'}, f"{image.name} has no data. Cannot export Tif")
                     return
 
-    elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and os.path.exists(data_dir + image.nwo.filepath):
+    elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and Path(data_dir, image.nwo.filepath).exists():
         if image.nwo.reexport_tiff:
             if image.has_data:
                 image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
@@ -129,7 +130,7 @@ def export_bitmap(
                 return
 
     # Store processes
-    if image.nwo.filepath and os.path.exists(data_dir + image.nwo.filepath):
+    if image.nwo.filepath and Path(data_dir, image.nwo.filepath).exists():
         path_no_ext = dot_partition(image.nwo.filepath)
         bitmap_path = path_no_ext + '.bitmap'
         with BitmapTag(path=bitmap_path) as bitmap:

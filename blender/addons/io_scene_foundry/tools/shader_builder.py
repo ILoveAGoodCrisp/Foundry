@@ -23,6 +23,7 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
+from pathlib import Path
 import bpy
 import os
 from io_scene_foundry.managed_blam.shader import ShaderTag
@@ -85,7 +86,7 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
             return global_material_shaders
         items = []
         tags_dir = get_tags_path()
-        shaders_dir = os.path.join(tags_dir + "shaders", "material_shaders")
+        shaders_dir = str(Path(tags_dir, "shaders", "material_shaders"))
         material_shaders = []
         # walk shaders dir and collect
         for root, _, files in os.walk(shaders_dir):

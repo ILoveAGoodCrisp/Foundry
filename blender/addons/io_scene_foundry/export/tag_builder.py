@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 
 from ..utils.nwo_utils import (
     get_data_path,
@@ -44,7 +45,7 @@ def set_template(scene_nwo, tags_dir, new_tag_path_name, tag_type):
             asset_folder = os.path.dirname(expected_asset_path)
             if not os.path.exists(asset_folder):
                 os.makedirs(asset_folder, exist_ok=True)
-            full_path = tags_dir + relative_path
+            full_path = str(Path(tags_dir, relative_path))
             if os.path.exists(full_path):
                 copy_file(full_path, expected_asset_path)
                 print(f'- Loaded {tag_type} tag template')

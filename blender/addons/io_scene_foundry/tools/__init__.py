@@ -2774,9 +2774,9 @@ class NWO_FoundryPanelProps(Panel):
         tags_dir = get_tags_path()
         data_dir = get_data_path()
         bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
-        if not os.path.exists(tags_dir + bitmap_path):
+        if not Path(tags_dir, bitmap_path).exists():
             bitmap_path = dot_partition(image.filepath_from_user().lower().replace(data_dir, "")) + '.bitmap'
-        if not os.path.exists(tags_dir + bitmap_path):
+        if not Path(tags_dir, bitmap_path).exists():
             col.separator()
             col.label(text='Bitmap Export Tools')
             col.operator("nwo.export_bitmaps_single", text="Export Bitmap", icon_value=get_icon_id("texture_export"))

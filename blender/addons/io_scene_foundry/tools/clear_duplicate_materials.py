@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import bpy
 
 from io_scene_foundry.utils.nwo_utils import base_material_name, get_tags_path
@@ -30,7 +31,7 @@ class NWO_ClearShaderPaths(bpy.types.Operator):
         count = 0
         for mat in bpy.data.materials:
             if mat.nwo.shader_path:
-                if self.cull_only_bad_paths and os.path.exists(tags_dir + mat.nwo.shader_path): continue
+                if self.cull_only_bad_paths and Path(tags_dir, mat.nwo.shader_path).exists(): continue
                 mat.nwo.shader_path = ''
                 count += 1
                 
