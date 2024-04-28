@@ -330,7 +330,7 @@ class NWO_FoundryPanelProps(Panel):
             # self.draw_expandable_box(self.box.box(), nwo, 'model_overrides')
             self.draw_rig_ui(self.context, nwo)
             
-        if self.h4 and poll_ui(('model', 'sky')):
+        if self.h4 and nwo.asset_type in ('model', 'sky'):
             self.draw_expandable_box(self.box.box(), nwo, 'lighting')
         
         if nwo.asset_type == "animation":

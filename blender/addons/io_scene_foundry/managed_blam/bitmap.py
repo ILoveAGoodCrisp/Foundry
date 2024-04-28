@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+from pathlib import Path
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.utils.nwo_utils import print_warning
 
@@ -145,7 +146,7 @@ class BitmapTag(Tag):
                     Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
                     bitmap.UnlockBits(bitmap_data)
                         
-            tiff_path = self.data_dir + self.tag.Path.RelativePath + '.tiff'
+            tiff_path = str(Path(self.data_dir, self.tag.Path.RelativePath).with_suffix('.tiff'))
             tiff_dir = os.path.dirname(tiff_path)
             if not os.path.exists(tiff_dir):
                 os.makedirs(tiff_dir, exist_ok=True)

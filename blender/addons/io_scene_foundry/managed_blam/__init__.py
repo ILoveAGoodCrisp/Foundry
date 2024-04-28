@@ -77,8 +77,8 @@ class Tag():
         self.data_dir = get_data_path() # full path to data dir + \
         self.asset_dir = get_asset_path() # the relative path to the asset directory
         self.asset_name = self.asset_dir.rpartition(os.sep)[2] # the name of the asset (i.e the directory name)
-        self.asset_tag_dir = self.tags_dir + self.asset_dir # full path to the asset data directory
-        self.asset_data_dir = self.data_dir + self.asset_dir # full path to the asset tags directory
+        self.asset_tag_dir = Path(self.tags_dir, self.asset_dir) # full path to the asset data directory
+        self.asset_data_dir = Path(self.data_dir, self.asset_dir) # full path to the asset tags directory
         self.corinth = is_corinth(self.context) # bool to check whether the game is H4+
         self.unit_scale = self.context.scene.unit_settings.scale_length
         
@@ -137,13 +137,13 @@ class Tag():
                 if self.tag_ext:
                     self.path = dot_partition(self.path) + '.' + self.tag_ext
             else:
-                self.path = os.path.join(self.asset_dir, self.asset_name + '.' + self.tag_ext)
+                self.path = str(Path(self.asset_dir, self.asset_name).with_suffix("." + self.tag_ext))
 
-            self.system_path = self.tags_dir + self.path
+            self.system_path = str(Path(self.tags_dir, self.path))
             
         else:
             # Assume we have instead be given a TagPath
-            self.system_path = self.tags_dir + self.path.RelativePathWithExtension
+            self.system_path = str(Path(self.tags_dir, self.path.RelativePathWithExtension))
             is_TagPath = True
         
         self.tag, self.tag_path = self._get_tag_and_path(is_TagPath)

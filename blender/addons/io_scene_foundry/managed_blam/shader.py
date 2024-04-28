@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from pathlib import Path
 from mathutils import Vector
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.managed_blam.Tags import TagsNameSpace
@@ -274,19 +275,19 @@ class ShaderTag(Tag):
             return
         nwo = image.nwo
         if nwo.filepath:
-            bitmap = nwo_utils.dot_partition(nwo.filepath) + ".bitmap"
-            if os.path.exists(self.tags_dir + bitmap):
+            bitmap = str(Path(nwo.filepath).with_suffix(".bitmap"))
+            if Path(self.tags_dir, bitmap).exists():
                 return bitmap
             
-        if image.filepath and os.path.exists(image.filepath_from_user()):
-            bitmap = nwo_utils.dot_partition(image.filepath_from_user().lower().replace(self.data_dir, "")) + ".bitmap"
-            if os.path.exists(self.tags_dir + bitmap):
+        if image.filepath and Path(image.filepath_from_user()).exists():
+            bitmap = str(Path(image.filepath_from_user()).relative_to(Path(self.data_dir)).with_suffix(".bitmap"))
+            if Path(self.tags_dir, bitmap).exists():
                 return bitmap
 
         bitmap = export_bitmap(image)
         if not bitmap:
             return
-        if os.path.exists(self.tags_dir + bitmap):
+        if Path(self.tags_dir, bitmap).exists():
             return bitmap
     
     def _function_parameters_from_node(self, source, parameter_type):
@@ -428,11 +429,11 @@ class ShaderTag(Tag):
         bitmap_path = element.SelectField('bitmap').Path
         if not bitmap_path:
             return
-        system_bitmap_path = self.tags_dir + bitmap_path.RelativePathWithExtension
+        system_bitmap_path = str(Path(self.tags_dir, bitmap_path.RelativePathWithExtension))
         image_path = ''
         if not os.path.exists(system_bitmap_path):
             return
-        system_tiff_path = self.data_dir + bitmap_path.RelativePath + '.tiff'
+        system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
             if os.path.exists(system_tiff_path):
@@ -461,7 +462,7 @@ class ShaderTag(Tag):
             return 'opengl'
         bitmap_path = element.SelectField('bitmap').Path
         if bitmap_path:
-            system_bitmap_path = self.tags_dir + bitmap_path.RelativePathWithExtension
+            system_bitmap_path = Path(self.tags_dir, bitmap_path.RelativePathWithExtension)
             if not os.path.exists(system_bitmap_path):
                 return 'opengl'
             with BitmapTag(path=bitmap_path) as bitmap:

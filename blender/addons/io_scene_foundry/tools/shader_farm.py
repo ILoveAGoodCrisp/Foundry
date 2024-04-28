@@ -27,6 +27,7 @@
 import itertools
 import multiprocessing
 import os
+from pathlib import Path
 import threading
 import time
 import bpy
@@ -211,7 +212,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 if s_name in shader_names:
                     continue
                 shader_names.add(s_name)
-                if mat_nwo.shader_path and os.path.exists(self.tags_dir + mat_nwo.shader_path):
+                if mat_nwo.shader_path and Path(self.tags_dir, mat_nwo.shader_path).exists():
                     if mat_nwo.uses_blender_nodes:
                         shaders['update'].append(mat)
                 else:
@@ -235,9 +236,9 @@ class NWO_FarmShaders(bpy.types.Operator):
                     continue
                 bitmap = image.nwo
                 bitmap_path = dot_partition(bitmap.filepath) + '.bitmap'
-                if not os.path.exists(self.tags_dir + bitmap_path):
+                if not os.path.exists(self.tags_dir, bitmap_path):
                     bitmap_path = dot_partition(image.filepath_from_user().replace(self.data_dir, "")) + '.bitmap'
-                if os.path.exists(self.tags_dir + bitmap_path):
+                if os.path.exists(self.tags_dir, bitmap_path):
                     if image.nwo.export:
                         bitmaps['update'].append(image)
                 else:
@@ -253,13 +254,13 @@ class NWO_FarmShaders(bpy.types.Operator):
             if self.farm_type == "both" or self.farm_type == "bitmaps":
                 # Create a bitmap folder in the asset directory
                 if bitmaps_dir:
-                    self.bitmaps_data_dir = os.path.join(self.data_dir + bitmaps_dir)
+                    self.bitmaps_data_dir = os.path.join(self.data_dir, bitmaps_dir)
                 elif self.asset_path:
-                    self.bitmaps_data_dir = os.path.join(self.data_dir + self.asset_path, "bitmaps")
+                    self.bitmaps_data_dir = os.path.join(self.data_dir, self.asset_path, "bitmaps")
                 elif blend_asset_path:
                     self.bitmaps_data_dir = os.path.join(blend_asset_path, 'bitmaps')
                 else:
-                    self.bitmaps_data_dir = self.data_dir + "bitmaps"
+                    self.bitmaps_data_dir = Path(self.data_dir, "bitmaps")
                     
                 print("\nStarting Bitmap Export")
                 print(
@@ -305,7 +306,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 for idx, shader in enumerate(valid_shaders):
                     update_progress(job, idx / shader_count)
                     shader.nwo.uses_blender_nodes = self.link_shaders
-                    if self.default_material_shader and os.path.exists(self.tags_dir + self.default_material_shader):
+                    if self.default_material_shader and os.path.exists(self.tags_dir, self.default_material_shader):
                         shader.nwo.material_shader = self.default_material_shader
                     build_shader(shader, self.corinth, shaders_dir)
                 update_progress(job, 1)
@@ -338,7 +339,7 @@ class NWO_FarmShaders(bpy.types.Operator):
                 else:
                     return print_warning(f"{image.name} has no data. Cannot export Tif")
 
-        elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and os.path.exists(self.data_dir + image.nwo.filepath):
+        elif is_tiff and image.nwo.filepath.lower().endswith((".tif", ".tiff")) and os.path.exists(self.data_dir, image.nwo.filepath):
             if image.nwo.reexport_tiff:
                 if image.has_data:
                     image.nwo.filepath = save_image_as(image, "", tiff_name=image.nwo.source_name)
@@ -356,14 +357,14 @@ class NWO_FarmShaders(bpy.types.Operator):
         user_path = image.filepath_from_user().lower()
         if user_path:
             bitmap_path = dot_partition(user_path.replace(self.data_dir, "")) + '.bitmap'
-            if not os.path.exists(self.tags_dir + bitmap_path):
+            if not os.path.exists(self.tags_dir, bitmap_path):
                 bitmap_path = ''
         else:
             bitmap_path = dot_partition(image.nwo.filepath) + '.bitmap'
-            if not os.path.exists(self.tags_dir + bitmap_path):
+            if not os.path.exists(self.tags_dir, bitmap_path):
                 bitmap_path = ''
             
-        if os.path.exists(self.tags_dir + bitmap_path):
+        if os.path.exists(self.tags_dir, bitmap_path):
             job = f"-- Updated Tag:"
         else:
             job = f"-- Created Tag:"
