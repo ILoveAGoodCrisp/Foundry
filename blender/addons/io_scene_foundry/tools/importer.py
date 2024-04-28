@@ -816,6 +816,8 @@ class NWOImporter:
         self.amf_poops = []
         print("Setting object properties")
         self.amf_object_instances = []
+        self.amf_file_mesh_objects = []
+        self.amf_file_marker_objects = []
         for ob in objects:
             if file_name:
                 unlink(ob)
@@ -839,8 +841,11 @@ class NWOImporter:
                 print("Review the source render_model tag (if available) to determine correct region/permutations\n")
         
         if not self.existing_scene:
-            add_to_collection(self.amf_marker_objects, True, new_coll, name="markers")
-            add_to_collection(self.amf_mesh_objects, True, new_coll, name="meshes")
+            add_to_collection(self.amf_file_marker_objects, True, new_coll, name="markers")
+            add_to_collection(self.amf_file_mesh_objects, True, new_coll, name="meshes")
+            
+        self.amf_marker_objects.extend(self.amf_file_marker_objects)
+        self.amf_mesh_objects.extend(self.amf_file_mesh_objects)
         
     def solve_amf_object_instances(self):
         unsolved_instances = [ob for ob in self.amf_object_instances]
@@ -890,7 +895,7 @@ class NWOImporter:
             else:
                 self.amf_poops.append(ob)
                     
-        self.amf_mesh_objects.append(ob)
+        self.amf_file_mesh_objects.append(ob)
         
     def setup_amf_marker(self, ob, is_model):
         name = dot_partition(ob.name)
@@ -915,7 +920,7 @@ class NWOImporter:
                         elif hint_subtype in ('step', 'crouch', 'stand'):
                             nwo.marker_hint_height = hint_subtype#
                             
-        self.amf_marker_objects.append(ob)
+        self.amf_file_marker_objects.append(ob)
         
 # JMS/ASS importer
 ######################################################################
@@ -966,7 +971,12 @@ class NWOImporter:
                 bpy.ops.import_scene.ass(filepath=path)
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
+        self.jms_file_marker_objects = []
+        self.jms_file_mesh_objects = []
         self.process_jms_objects(new_objects, file_name, bool([ob for ob in new_objects if ob.type == 'ARMATURE']))
+        
+        self.jms_marker_objects.extend(self.jms_file_marker_objects)
+        self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
         
     def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
         # Add all objects to a collection
@@ -1059,8 +1069,8 @@ class NWOImporter:
                 self.setup_jms_mesh(ob, is_model)
         
         if not self.existing_scene:
-            add_to_collection(self.jms_marker_objects, True, new_coll, name="markers")
-            add_to_collection(self.jms_mesh_objects, True, new_coll, name="meshes")
+            add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
+            add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
                 
     def setup_jms_frame(self, ob):
         ob.nwo.frame_override = True
@@ -1162,7 +1172,7 @@ class NWOImporter:
                     elif hint_subtype in ('step', 'crouch', 'stand'):
                         marker.nwo.marker_hint_height = hint_subtype
                 
-        self.jms_marker_objects.append(marker)
+        self.jms_file_marker_objects.append(marker)
         
     def setup_jms_mesh(self, original_ob, is_model):
         new_objects = self.convert_material_props(original_ob)
@@ -1203,7 +1213,7 @@ class NWOImporter:
                     self.set_region(ob, region)
                     self.set_permutation(ob, permutation)
                 
-            self.jms_mesh_objects.append(ob)
+            self.jms_file_mesh_objects.append(ob)
             
     def set_poop_policies(self, ob):
         for char in ob.name[1:]:

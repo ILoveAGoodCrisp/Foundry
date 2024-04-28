@@ -809,7 +809,7 @@ def closest_bsp_object(context, ob, valid_targets=[]):
                 if distance < 0 or d < distance:
                     distance = d
                     closest_bsp = target_ob
-
+    
     return closest_bsp
 
 
@@ -2973,9 +2973,7 @@ def add_to_collection(objects: list[bpy.types.Object], always_new=False, parent_
     if not objects:
         return
     
-    for ob in objects:
-        unlink(ob)
-    
+    for ob in objects: unlink(ob)
     collection = bpy.data.collections.get(name)
     if always_new or not collection:
         collection = bpy.data.collections.new(name)
