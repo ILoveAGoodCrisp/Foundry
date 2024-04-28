@@ -794,6 +794,7 @@ class NWOImporter:
     def process_amf_objects(self, objects, file_name):
         is_model = bool([ob for ob in objects if ob.type == 'ARMATURE'])
         possible_bsp = file_name.rpartition('_')[2]
+        if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
         # Add all objects to a collection
         if not self.existing_scene:
             new_coll = bpy.data.collections.get(file_name, 0)
@@ -987,6 +988,7 @@ class NWOImporter:
                 self.context.scene.collection.children.link(new_coll)
         if not is_model and not self.existing_scene:
             possible_bsp = file_name.rpartition('_')[2]
+            if possible_bsp.lower() == 'shared': possible_bsp = "default_shared"
             new_coll.name = 'bsp::' + possible_bsp
             regions_table = self.context.scene.nwo.regions_table
             entry = regions_table.get(possible_bsp, 0)
@@ -1067,10 +1069,17 @@ class NWOImporter:
                 self.setup_jms_marker(ob, is_model)
             elif ob.type == 'MESH':
                 self.setup_jms_mesh(ob, is_model)
+            elif ob.type == 'LIGHT':
+                self.setup_jms_light(ob)
         
         if not self.existing_scene:
             add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
             add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
+            
+    def setup_jms_light(self, ob):
+        if ob.data.type != 'SUN':
+            ob.data.energy = ob.data.energy * 2 ** 2
+        self.jms_other_objects.append(ob)
                 
     def setup_jms_frame(self, ob):
         ob.nwo.frame_override = True

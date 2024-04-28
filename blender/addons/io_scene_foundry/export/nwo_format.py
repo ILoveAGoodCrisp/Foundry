@@ -203,7 +203,7 @@ class NWOLight(NWOObject):
         # SHARED
         self.bungie_light_type = self.light_type()
         self.bungie_light_color = self.light_color()
-        self.bungie_light_intensity = jstr(self.ob.data.nwo.light_intensity)
+        self.bungie_light_intensity = jstr(max(self.ob.data.nwo.light_intensity, 0.0001))
 
         if self.corinth:
             # H4 ONLY

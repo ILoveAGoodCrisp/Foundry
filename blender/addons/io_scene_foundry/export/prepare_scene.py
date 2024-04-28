@@ -1601,6 +1601,8 @@ class PrepareScene:
             nwo.boundary_surface_type = '_connected_geometry_boundary_surface_type_slip_surface'
             
         elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
+            nwo.lightmap_resolution_scale_active = False
+            nwo.lightmap_resolution_scale = "0"
             nwo.mesh_type = "_connected_geometry_mesh_type_poop"
             self._setup_poop_props(ob)
             if nwo_data.no_shadow_ui:
@@ -2309,7 +2311,7 @@ class PrepareScene:
                 s.material = self.sky_mat
 
     def _wrap_bounding_box(self, objects, padding):
-        min_x, min_y, min_z, max_x, max_y, max_z = 0, 0, 0, 0, 0, 400
+        min_x, min_y, min_z, max_x, max_y, max_z = -5, -5, 0, 5, 5, 50
         for ob in objects:
             if ob.type == 'MESH':
                 bbox = ob.bound_box
