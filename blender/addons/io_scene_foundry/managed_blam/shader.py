@@ -436,8 +436,8 @@ class ShaderTag(Tag):
         system_tiff_path = Path(self.data_dir, bitmap_path.RelativePath).with_suffix('.tiff')
         with BitmapTag(path=bitmap_path) as bitmap:
             is_non_color = bitmap.is_linear()
-            if os.path.exists(system_tiff_path):
-                image_path = system_tiff_path
+            if system_tiff_path.exists():
+                image_path = str(system_tiff_path)
             else:
                 image_path = bitmap.save_to_tiff(blue_channel_fix)
 

@@ -1351,6 +1351,7 @@ class PrepareScene:
                 nwo.water_volume_fog_color = nwo_utils.color_argb_str(nwo.water_volume_fog_color_ui)
 
     def _setup_instance_proxies(self, data, linked_objects):
+        print("setting up proxies")
         if self.asset_type in ("scenario", "prefab"):
             proxy_physics = data.nwo.proxy_physics
             proxy_collision = data.nwo.proxy_collision
@@ -1374,9 +1375,7 @@ class PrepareScene:
                 else:
                     proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
                     if proxy_physics.data.nwo.face_global_material_ui or proxy_physics.data.nwo.face_props:
-                        self.set_reach_coll_materials(proxy_physics.data, bpy.data.materials)
-
-
+                        self._set_reach_coll_materials(proxy_physics.data, bpy.data.materials)
             
             if coll:
                 proxy_collision.nwo.object_type = "_connected_geometry_object_type_mesh"
@@ -1393,7 +1392,7 @@ class PrepareScene:
 
                     split_collision = self.proxy_face_split(proxy_collision)
                 elif proxy_collision.data.nwo.face_global_material_ui or proxy_collision.data.nwo.face_props:
-                    self.set_reach_coll_materials(proxy_collision.data, bpy.data.materials)
+                    self._set_reach_coll_materials(proxy_collision.data, bpy.data.materials)
 
             
             if cookie:
@@ -1410,12 +1409,16 @@ class PrepareScene:
                                 for collection in ig.users_collection: collection.objects.link(o_collision)
                                 o_collision.parent = ig
                                 o_collision.matrix_world = ig.matrix_world
+                                o_collision.nwo.region_name = ig.nwo.region_name
+                                o_collision.nwo.permutation_name = ig.nwo.permutation_name
                         else:
                             ig.nwo.face_mode = "_connected_geometry_face_mode_render_only"
                             o_collision = proxy_collision.copy()
                             for collection in ig.users_collection: collection.objects.link(o_collision)
                             o_collision.parent = ig
                             o_collision.matrix_world = ig.matrix_world
+                            o_collision.nwo.region_name = ig.nwo.region_name
+                            o_collision.nwo.permutation_name = ig.nwo.permutation_name
 
                     if phys:
                         if self.corinth:
@@ -1424,18 +1427,24 @@ class PrepareScene:
                                 for collection in ig.users_collection: collection.objects.link(o_physics)
                                 o_physics.parent = ig
                                 o_physics.matrix_world = ig.matrix_world
+                                o_physics.nwo.region_name = ig.nwo.region_name
+                                o_physics.nwo.permutation_name = ig.nwo.permutation_name
 
                         else:
                             o_physics = proxy_physics.copy()
                             for collection in ig.users_collection: collection.objects.link(o_physics)
                             o_physics.parent = ig
                             o_physics.matrix_world = ig.matrix_world
+                            o_physics.nwo.region_name = ig.nwo.region_name
+                            o_physics.nwo.permutation_name = ig.nwo.permutation_name
 
                     if cookie:
                         o_cookie_cutter = proxy_cookie_cutter.copy()
                         for collection in ig.users_collection: collection.objects.link(o_cookie_cutter)
                         o_cookie_cutter.parent = ig
                         o_cookie_cutter.matrix_world = ig.matrix_world
+                        o_cookie_cutter.nwo.region_name = ig.nwo.region_name
+                        o_cookie_cutter.nwo.permutation_name = ig.nwo.permutation_name
                         
                         
                     # Correctly setup original coll type for poop if h4

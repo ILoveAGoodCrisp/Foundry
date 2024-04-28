@@ -2972,6 +2972,9 @@ def add_to_collection(objects: list[bpy.types.Object], always_new=False, parent_
     if not objects:
         return
     
+    for ob in objects:
+        unlink(ob)
+    
     collection = bpy.data.collections.get(name)
     if always_new or not collection:
         collection = bpy.data.collections.new(name)

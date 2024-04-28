@@ -484,8 +484,11 @@ class NWO_FaceLayerRemove(bpy.types.Operator):
             bm.faces.layers.int.remove(bm.faces.layers.int.get(layer_name))
         except:
             pass
-
-        bmesh.update_edit_mesh(me)
+        
+        if context.mode == 'EDIT_MESH':
+            bmesh.update_edit_mesh(me)
+        else:
+            bm.to_mesh(me)
 
     def execute(self, context):
         ob = context.object

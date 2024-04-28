@@ -274,9 +274,9 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         if not parent_directory.exists():
             parent_directory.mkdir(parents=True)
             
-        # Save a copy of the original blend if possible
-        if bpy.data.filepath and bpy.data.filepath != str(blender_filepath):
-            bpy.ops.wm.save_mainfile()
+        # # Save a copy of the original blend if possible
+        # if bpy.data.filepath and bpy.data.filepath != str(blender_filepath):
+        #     bpy.ops.wm.save_mainfile()
         
         # Set blender scene settings for new file
         scene_settings = context.scene
