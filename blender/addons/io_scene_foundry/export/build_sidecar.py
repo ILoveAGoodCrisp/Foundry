@@ -573,7 +573,7 @@ class Sidecar:
                 self.write_network_files_bsp(object, path, self.asset_name, bsp)
 
             if shared:
-                shared_paths = [i for i in sidecar_paths if i == "shared"]
+                shared_paths = sidecar_paths.get('shared')
                 for path in shared_paths:
                     self.write_network_files_bsp(object, path, self.asset_name, "shared")
 
