@@ -585,7 +585,7 @@ class PrepareScene:
                 nwo_utils.print_warning(
                     f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp"
                 )
-                closest_bsp = nwo_utils.closest_bsp_object(self.context, seam, self.context.view_layer.objects)
+                closest_bsp = nwo_utils.closest_bsp_object(self.context, seam, [ob for ob in self.context.view_layer.objects if ob in VALID_MESHES])
                 if closest_bsp is None:
                     nwo_utils.print_warning(
                         f"Failed to automatically set back facing bsp reference for {seam.name}. Removing Seam from export"
@@ -1557,8 +1557,13 @@ class PrepareScene:
             elif mesh_type == '_connected_geometry_mesh_type_structure':
                 self.bsps_with_structure.add(nwo.region_name)
                 mesh_type = '_connected_geometry_mesh_type_default'
-                if ob.data.nwo.render_only_ui:
-                    nwo.face_mode = '_connected_geometry_face_mode_render_only'
+                if not self.corinth:
+                    if ob.data.nwo.render_only_ui:
+                        nwo.face_mode = '_connected_geometry_face_mode_render_only'
+                    elif ob.data.nwo.sphere_collision_only_ui:
+                        nwo.face_mode = '_connected_geometry_face_mode_sphere_collision_only'
+                    elif ob.data.nwo.collision_only_ui:
+                        nwo.face_mode = '_connected_geometry_face_mode_collision_only'
             
         nwo.mesh_type = mesh_type
         nwo_data = ob.data.nwo

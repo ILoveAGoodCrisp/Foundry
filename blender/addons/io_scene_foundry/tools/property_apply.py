@@ -149,6 +149,8 @@ def apply_props_material(ob, mat_name):
         cleanup_empty_slots(ob.material_slots)
 
 def apply_prefix(ob, type, setting):
+    if setting == 'none':
+        return
     original_name = ob.name
     no_prefix = original_name
     # Match start of string
@@ -157,10 +159,6 @@ def apply_prefix(ob, type, setting):
             no_prefix = original_name[len(p):]
             if no_prefix: break
     type_dict = globals()[type]
-    if setting != 'none':
-        prefix = type_dict[setting]
-        ob.name = prefix + no_prefix
-    else:
-        ob.name = no_prefix
-    
+    prefix = type_dict[setting]
+    ob.name = prefix + no_prefix
     

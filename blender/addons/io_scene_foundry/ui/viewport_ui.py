@@ -125,7 +125,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
             index += 1
             items.append(
-                nwo_enum("structure", "Structure", descrip, "structure", 1)
+                nwo_enum("structure", "Structure", descrip, "structure", index)
             )
             index += 1
             items.append(

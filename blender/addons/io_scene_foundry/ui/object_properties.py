@@ -155,6 +155,12 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         options=set(),
     )
     
+    collision_only_ui: BoolProperty(
+        name="Collision Only",
+        description="Collision only. Objects and projectiles will collide with this",
+        options=set(),
+    )
+    
     breakable_ui: BoolProperty(
         name="Breakable",
         description="Geometry can be broken",
@@ -263,7 +269,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         name="Resolution Scale",
         options=set(),
         default=3.0,
-        min=0.0,
+        min=1.0,
         max=7.0,
         description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
         update=update_lightmap_resolution_scale_ui,
@@ -1277,7 +1283,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Sets lightmap resolutions scale for this instance",
         default=3.0,
-        min=0.0,
+        min=1.0,
         max=7.0,
     )
 

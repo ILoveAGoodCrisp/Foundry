@@ -118,7 +118,6 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                         converter.jms_marker_objects = []
                         converter.jms_mesh_objects = []
                         converter.jms_other_objects = []
-                        converter.seams = []
                         converter.process_jms_objects(objects_in_scope, "", self.jms_type == 'model')
                 
             except KeyboardInterrupt:
@@ -1169,12 +1168,8 @@ class NWOImporter:
             if mesh_type_legacy:
                 mesh_type, material = self.mesh_and_material(mesh_type_legacy, is_model)
                 ob.data.nwo.mesh_type_ui = mesh_type
-                if mesh_type == '_connected_geometry_mesh_type_structure':
-                    ob.nwo.proxy_instance = True
-                elif mesh_type == '_connected_geometry_mesh_type_seam':
-                    ob.nwo.seam_back_manual = True
 
-                elif mesh_type_legacy in ('collision', 'physics') and is_model:
+                if mesh_type_legacy in ('collision', 'physics') and is_model:
                     self.setup_collision_materials(ob, mesh_type_legacy)
                     if mesh_type_legacy == 'physics':
                         match ob.data.ass_jms.Object_Type:
@@ -1197,6 +1192,11 @@ class NWOImporter:
                     region, permutation = dot_partition(ob.name).strip('@$~%').split(':')
                     self.set_region(ob, region)
                     self.set_permutation(ob, permutation)
+                    
+            if ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+                ob.nwo.proxy_instance = True
+            elif ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_seam':
+                ob.nwo.seam_back_manual = True
                 
             self.jms_file_mesh_objects.append(ob)
             
@@ -1321,6 +1321,7 @@ class NWOImporter:
                     nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
                     nwo.render_only_ui = jms_mat.render_only
                     nwo.sphere_collision_only_ui = jms_mat.sphere_collision_only
+                    nwo.collision_only_ui = jms_mat.collision_only
                     nwo.ladder_ui = jms_mat.ladder
                     nwo.breakable_ui = jms_mat.breakable
                     nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
