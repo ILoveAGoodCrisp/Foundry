@@ -956,6 +956,14 @@ class PrepareScene:
                 bmesh.ops.delete(bm, geom=face_seq, context="FACES")
 
         return len(bm.faces)
+    
+    def _get_collision_only_face_indexes(self, prop_faces_dict):
+        face_indexes = set()
+        for prop, face_seq in prop_faces_dict.items():
+            if prop.collision_only_override:
+                face_indexes.update(face_seq)
+                
+        return face_indexes
 
     def _recursive_layer_split(self, ob, data, face_properties, prop_faces_dict, split_objects, bm: bmesh.types.BMesh, is_proxy, is_recursion):
         self.bmeshes_to_clean_up.add(bm)
@@ -1069,9 +1077,15 @@ class PrepareScene:
                         has_coll_child = True
 
                 if not has_coll_child:
+                    # get collision only faces
+                    collision_face_indexes = self._get_collision_only_face_indexes(prop_faces_dict)
+                    if len(collision_face_indexes) == len(ob.data.polygons):
+                        ob.nwo.face_mode = "_connected_geometry_face_mode_collision_only"
+                        return [ob]
                     collision_ob = ob.copy()
                     collision_ob.nwo.face_mode = ""
                     collision_ob.data = data.copy()
+                    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index in collision_face_indexes], context='FACES')
                     for collection in ob.users_collection: collection.objects.link(collision_ob)
                     # Remove render only property faces from coll mesh
                     coll_bm = bmesh.new()

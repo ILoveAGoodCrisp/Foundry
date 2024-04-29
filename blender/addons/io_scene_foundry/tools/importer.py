@@ -440,8 +440,6 @@ class JMSMaterialSlot:
             return 'soft_kill'
         elif name.startswith('+slip_surface'):
             return 'slip_surface'
-        elif self.collision_only or self.sphere_collision_only:
-            return 'collision'
         elif self.fog_plane:
             return 'fog'
         elif self.lightmap_only:
@@ -1077,8 +1075,7 @@ class NWOImporter:
             add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
             
     def setup_jms_light(self, ob):
-        if ob.data.type != 'SUN':
-            ob.data.energy = ob.data.energy * 2 ** 2
+        ob.data.energy = ob.data.energy * (0.03048 ** -2) / 300
         self.jms_other_objects.append(ob)
                 
     def setup_jms_frame(self, ob):
@@ -1373,7 +1370,7 @@ class NWOImporter:
                     # Emissive
                     if jms_mat.emissive_power:
                         nwo.emissive_active = True
-                        nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power
+                        nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power * (0.03048 ** -2) / 300
                         nwo.material_lighting_emissive_color_ui = jms_mat.emissive_color
                         nwo.material_lighting_emissive_quality_ui = jms_mat.emissive_quality
                         nwo.material_lighting_emissive_per_unit_ui = jms_mat.emissive_per_unit
