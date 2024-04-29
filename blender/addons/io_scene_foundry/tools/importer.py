@@ -494,7 +494,7 @@ class JMSMaterialSlot:
         self.emissive_frustum_cutoff = None
         
         if self.material.ass_jms.power > 0:
-            self.emissive_power = self.material.ass_jms.power
+            self.emissive_power = self.material.ass_jms.power * (0.03048 ** -2) / 300
             self.emissive_color = self.material.ass_jms.color
             self.emissive_quality = self.material.ass_jms.quality
             self.emissive_per_unit = self.material.ass_jms.power_per_unit_area
@@ -1350,7 +1350,7 @@ class NWOImporter:
                     # Emissive
                     if jms_mat.emissive_power:
                         nwo.emissive_active = True
-                        nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power * (0.03048 ** -2) / 300
+                        nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power
                         nwo.material_lighting_emissive_color_ui = jms_mat.emissive_color
                         nwo.material_lighting_emissive_quality_ui = jms_mat.emissive_quality
                         nwo.material_lighting_emissive_per_unit_ui = jms_mat.emissive_per_unit

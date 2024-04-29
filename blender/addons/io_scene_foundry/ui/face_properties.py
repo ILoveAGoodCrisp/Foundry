@@ -342,7 +342,9 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         options=set(),
         description="The intensity of the emissive surface",
         min=0,
-        default=2,
+        default=10,
+        subtype='POWER',
+        unit='POWER',
     )
 
     material_lighting_emissive_quality_ui: FloatProperty(
