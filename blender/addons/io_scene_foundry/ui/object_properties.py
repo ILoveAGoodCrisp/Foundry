@@ -1178,6 +1178,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         name="Seam Back Facing BSP",
         default="default",
         description="The BSP that the normals of this seam are facing away from",
+        options=set(),
+    )
+    
+    seam_back_manual: BoolProperty(
+        name="Manual Seam Backface",
+        description="Seam backface is defined by a separate seam object",
+        options=set(),
     )
 
     def mesh_primitive_type_items(self, context):

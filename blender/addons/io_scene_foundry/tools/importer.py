@@ -931,29 +931,8 @@ class NWOImporter:
         self.jms_marker_objects = []
         self.jms_mesh_objects = []
         self.jms_other_objects = []
-        self.seams = []
         for path in jms_files:
             self.import_jms_file(path,legacy_fix_rotations)
-            
-        if self.seams:
-            print('Calculating seam BSP references')
-            self.context.view_layer.update()
-            disallowed_front_back_associations = set()
-            to_remove = []
-            for ob in self.seams:
-                bsp_ob = closest_bsp_object(self.context, ob, self.jms_mesh_objects)
-                if not bsp_ob:
-                    continue
-                back_face = true_region(bsp_ob.nwo)
-                if (true_region(ob.nwo) + back_face) in disallowed_front_back_associations:
-                    to_remove.append(ob)
-                    continue
-                ob.nwo.seam_back_ui = true_region(bsp_ob.nwo)
-                disallowed_front_back_associations.add(ob.nwo.seam_back_ui + true_region(ob.nwo))
-                
-            for ob in to_remove:
-                self.jms_mesh_objects.remove(ob)
-                bpy.data.objects.remove(ob)
             
         return self.jms_marker_objects + self.jms_mesh_objects + self.jms_other_objects
     
@@ -1193,7 +1172,7 @@ class NWOImporter:
                 if mesh_type == '_connected_geometry_mesh_type_structure':
                     ob.nwo.proxy_instance = True
                 elif mesh_type == '_connected_geometry_mesh_type_seam':
-                    self.seams.append(ob)
+                    ob.nwo.seam_back_manual = True
 
                 elif mesh_type_legacy in ('collision', 'physics') and is_model:
                     self.setup_collision_materials(ob, mesh_type_legacy)

@@ -3227,21 +3227,21 @@ class NWO_FoundryPanelProps(Panel):
         split = row.split()
         col1 = split.column()
         col2 = split.column()
-        if is_seam:
+        if is_seam and not nwo.seam_back_manual:
             col3 = split.column()
         col1.enabled = not nwo.region_name_locked_ui
-        if is_seam:
+        if is_seam and not nwo.seam_back_manual:
             col3.enabled = not nwo.permutation_name_locked_ui
         else:
             col2.enabled = not nwo.permutation_name_locked_ui
         col1.label(text=region_name, icon_value=get_icon_id("collection_creator") if nwo.region_name_locked_ui else 0)
-        if is_seam:
+        if is_seam and not nwo.seam_back_manual:
             col2.label(text="Backfacing BSP", icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
             col3.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
         else:
             col2.label(text=perm_name, icon_value=get_icon_id("collection_creator") if nwo.permutation_name_locked_ui else 0)
         col1.menu("NWO_MT_Regions", text=true_region(nwo), icon_value=get_icon_id("region"))
-        if is_seam:
+        if is_seam and not nwo.seam_back_manual:
             if true_region(nwo) == nwo.seam_back_ui:
                 col2.menu("NWO_MT_SeamBackface", text="", icon='ERROR')
             else:
@@ -3250,6 +3250,11 @@ class NWO_FoundryPanelProps(Panel):
         else:
             col2.menu("NWO_MT_Permutations", text=true_permutation(nwo), icon_value=get_icon_id("permutation"))
         col.separator()
+        
+        if is_seam:
+            row = col.row()
+            row.use_property_split = False
+            row.prop(nwo, "seam_back_manual")
 
 class NWO_FoundryPanelPopover(Operator, NWO_FoundryPanelProps):
     bl_label = "Foundry"

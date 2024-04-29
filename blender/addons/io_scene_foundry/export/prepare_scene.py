@@ -563,7 +563,7 @@ class PrepareScene:
 
         skip_seams = set()
         for seam in self.seams:
-            if seam in skip_seams: continue
+            if seam in skip_seams or seam.nwo.seam_back_manual: continue
             
             # add_triangle_mod(seam)
             seam_nwo = seam.nwo
