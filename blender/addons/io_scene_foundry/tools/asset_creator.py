@@ -206,8 +206,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     
     def scale_items(self, context):
         items = []
-        items.append(('blender', 'Blender Scale', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
-        items.append(('max', 'Halo Scale', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("halo_scale"), 1))
+        items.append(('blender', 'Blender', "For working at a Blender friendly scale. Scene will be appropriately scaled at export to account for Halo's scale", 'BLENDER', 0))
+        items.append(('max', 'Halo', "Scene is exported without scaling. Use this if you're working with imported 3DS Max Files, or legacy assets such as JMS/ASS files which have not been scaled down for Blender", get_icon_id("halo_scale"), 1))
         return items
     
     scale: bpy.props.EnumProperty(
@@ -223,10 +223,10 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         description="Define the forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
         default="y-",
         items=[
-            ("y-", "-Y Forward", "Model is facing Y negative"),
-            ("y", "Y Forward", "Model is facing Y positive"),
-            ("x-", "-X Forward", "Model is facing X negative"),
-            ("x", "X Forward", "Model is facing X positive"),   
+            ("y-", "-Y", "Model is facing Y negative. This is the default for Blender"),
+            ("y", "Y", "Model is facing Y positive"),
+            ("x-", "-X", "Model is facing X negative"),
+            ("x", "X", "Model is facing X positive. This is the default for Halo"),   
         ],
     )
 
@@ -352,8 +352,10 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         if not project: return
         col.separator()
         col.prop(self, "asset_type", text="")
-        col.prop(self, 'scale', text="")
-        col.prop(self, 'forward_direction', text="")
+        col.label(text="Scale")
+        col.row().prop(self, 'scale', text=" ", expand=True)
+        col.label(text="Scene Forward")
+        col.row().prop(self, 'forward_direction', text=" ", expand=True)
         col.separator()
         col.prop(self, "work_dir", text="Save to work directory")
         col.prop(self, "selected_only")
