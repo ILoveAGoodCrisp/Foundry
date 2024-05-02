@@ -1408,7 +1408,7 @@ class PrepareScene:
                 else:
                     proxy_physics.nwo.mesh_type = "_connected_geometry_mesh_type_poop_physics"
                     if proxy_physics.data.nwo.face_global_material_ui or proxy_physics.data.nwo.face_props:
-                        self._set_reach_coll_materials(proxy_physics.data, bpy.data.materials)
+                        self._set_reach_coll_materials(proxy_physics.data)
             
             if coll:
                 proxy_collision.nwo.object_type = "_connected_geometry_object_type_mesh"
@@ -1425,7 +1425,7 @@ class PrepareScene:
 
                     split_collision = self.proxy_face_split(proxy_collision)
                 elif proxy_collision.data.nwo.face_global_material_ui or proxy_collision.data.nwo.face_props:
-                    self._set_reach_coll_materials(proxy_collision.data, bpy.data.materials)
+                    self._set_reach_coll_materials(proxy_collision.data)
 
             
             if cookie:
@@ -2203,12 +2203,13 @@ class PrepareScene:
         data = ob.data
         data_nwo = data.nwo
         if data_nwo.face_global_material_ui and nwo.reach_poop_collision:
-            self._set_reach_coll_materials(data, data_nwo, True)
+            self._set_reach_coll_materials(data, True)
         else:
             self._loop_and_fix_slots(ob, data, nwo, does_not_support_sky, is_halo_render)
 
-    def _set_reach_coll_materials(self, data, data_nwo, mesh_level=False):
+    def _set_reach_coll_materials(self, data, mesh_level=False):
         # handle reach poop collision material assignment
+        data_nwo = data.nwo
         mesh_global_mat = data_nwo.face_global_material_ui.strip()
         if mesh_global_mat:
             data.materials.clear()
