@@ -34,7 +34,7 @@ from numpy import sign
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
-from io_scene_foundry.utils.nwo_constants import VALID_MESHES
+from io_scene_foundry.utils.nwo_constants import VALID_MESHES, VALID_OBJECTS
 from io_scene_foundry.utils import nwo_utils
 
 render_mesh_types = {
@@ -227,14 +227,16 @@ class PrepareScene:
         '''
         Unlinks non-exported objects from the scene so we avoid processing them\n
         '''
-        # Unlinking objectd is preferable to removing them as we don't want to break any object parentage/modifier reliance on non-export objects
+        # Unlinking objects is preferable to removing them as we don't want to break any object parentage/modifier reliance on non-export objects
         if self.asset_type == "animation":
             non_export_obs = {ob for ob in self.context.view_layer.objects if ob.type != "ARMATURE"}
         else:
-            non_export_obs = {ob for ob in self.context.view_layer.objects if not ob.nwo.export_this or nwo_utils.get_object_type(ob, True) == 'None'}
-            
+            non_export_obs = {ob for ob in self.context.view_layer.objects if not ob.nwo.export_this or ob.type not in VALID_OBJECTS or (ob.type == 'EMTPY' and ob.empty_display_type == "IMAGE")}
+        print("got list of objects")
         for ob in non_export_obs: nwo_utils.unlink(ob)
+        print("unlinked them")
         nwo_utils.update_view_layer(self.context)
+        print("view layer update")
         
     def setup_skeleton(self):
         self.model_armature = nwo_utils.get_rig(self.context)

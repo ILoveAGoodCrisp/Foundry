@@ -616,12 +616,13 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
     export_scene = PrepareScene(context, asset_type, corinth, scene_settings, export_settings)
     export_scene.ready_scene()
     export_scene.make_real()
-    start = time.perf_counter()
     if asset_type == 'camera_track_set':
         export_scene.scene_transformation()
         export_scene.get_track_camera()
     else:
+        start = time.perf_counter()
         export_scene.unlink_non_export_objects()
+        print(time.perf_counter() - start, "unlink_non_export_objects")
         if asset_type in ('model', 'sky', 'animation'):
             export_scene.setup_skeleton()
         if asset_type == 'scenario' and corinth:

@@ -33,6 +33,8 @@ TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_g
 
 # Blender Halo Mesh Types
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
+# Object types that we export
+VALID_OBJECTS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE'}
 
 # MATERIALS
 

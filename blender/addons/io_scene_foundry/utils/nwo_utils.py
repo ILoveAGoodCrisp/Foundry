@@ -1067,14 +1067,7 @@ def foundry_update_check(current_version):
     return "Foundry is up to date", False
 
 def unlink(ob):
-    data_coll = bpy.data.collections
-    for collection in data_coll:
-        if collection in ob.users_collection:
-            collection.objects.unlink(ob)
-
-    scene_coll = bpy.context.scene.collection
-    if scene_coll in ob.users_collection:
-        scene_coll.objects.unlink(ob)
+    for collection in ob.users_collection: collection.objects.unlink(ob)
 
 def set_object_mode(context):
     mode = context.mode
@@ -1442,6 +1435,9 @@ def is_mesh(ob):
 def is_marker(ob):
     return ob.type == 'EMPTY' and not ob.nwo.frame_override and not ob.children and not library_instanced_collection(ob) and ob.empty_display_type != "IMAGE"
 
+def is_marker_quick(ob):
+    return ob.type == 'EMPTY' and not ob.nwo.frame_override and not library_instanced_collection(ob) and ob.empty_display_type != "IMAGE"
+
 def is_frame(ob):
     return (ob.type == 'EMPTY' and (ob.children or ob.nwo.frame_override)) or ob.type == 'ARMATURE'
 
@@ -1454,14 +1450,14 @@ def is_camera(ob):
 def get_object_type(ob, get_ui_name=False):
     if is_mesh(ob):
         return 'Mesh' if get_ui_name else '_connected_geometry_object_type_mesh'
-    elif is_marker(ob):
-        return 'Marker' if get_ui_name else '_connected_geometry_object_type_marker'
-    elif is_frame(ob):
-        return 'Frame' if get_ui_name else '_connected_geometry_object_type_frame'
     elif is_light(ob):
         return 'Light' if get_ui_name else '_connected_geometry_object_type_light'
     elif is_camera(ob):
         return 'Camera' if get_ui_name else '_connected_geometry_object_type_animation_camera'
+    elif is_frame(ob):
+        return 'Frame' if get_ui_name else '_connected_geometry_object_type_frame'
+    elif is_marker_quick(ob):
+        return 'Marker' if get_ui_name else '_connected_geometry_object_type_marker'
     else:
         return 'None' if get_ui_name else '_connected_geometry_object_type_none'
     
