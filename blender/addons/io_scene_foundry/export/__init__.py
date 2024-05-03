@@ -620,9 +620,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         export_scene.scene_transformation()
         export_scene.get_track_camera()
     else:
-        start = time.perf_counter()
         export_scene.unlink_non_export_objects()
-        print(time.perf_counter() - start, "unlink_non_export_objects")
         if asset_type in ('model', 'sky', 'animation'):
             export_scene.setup_skeleton()
         if asset_type == 'scenario' and corinth:
