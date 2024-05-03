@@ -280,9 +280,7 @@ class Sidecar:
             ).text = self.tag_path
 
         elif type == "particle_model":
-            ET.SubElement(
-                tagcollection, "OutputTag", Type="particle_model"
-            ).text = self.tag_path
+            ET.SubElement(tagcollection, "OutputTag", Type="particle_model").text = self.tag_path
 
         elif type == "prefab":
             ET.SubElement(
@@ -679,7 +677,8 @@ class Sidecar:
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
-        ET.SubElement(object, "OutputTagCollection")
+        output = ET.SubElement(object, "OutputTagCollection")
+        ET.SubElement(output, "OutputTag", Type="particle_emitter_custom_points").text = self.tag_path
 
     def write_prefab_contents(self, metadata, sidecar_paths):
         contents = ET.SubElement(metadata, "Contents")
@@ -698,10 +697,10 @@ class Sidecar:
         output = ET.SubElement(object, "OutputTagCollection")
         ET.SubElement(
             output, "OutputTag", Type="scenario_structure_bsp"
-        ).text = f"{self.tag_path}"
+        ).text = self.tag_path
         ET.SubElement(
             output, "OutputTag", Type="scenario_structure_lighting_info"
-        ).text = f"{self.tag_path}"
+        ).text = self.tag_path
 
     def write_fp_animation_contents(
         self, metadata, sidecar_paths

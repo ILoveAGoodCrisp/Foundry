@@ -1600,6 +1600,17 @@ class PrepareScene:
         elif mesh_type == "_connected_geometry_mesh_type_water_surface":
             nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
             
+        elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
+            nwo.mesh_tessellation_density = nwo.mesh_tessellation_density_ui
+            nwo.water_volume_depth = nwo_utils.jstr(nwo.water_volume_depth_ui)
+            nwo.water_volume_flow_direction = nwo_utils.jstr(degrees(nwo.water_volume_flow_direction_ui))
+            nwo.water_volume_flow_velocity = nwo_utils.jstr(nwo.water_volume_flow_velocity_ui)
+            nwo.water_volume_fog_murkiness = nwo_utils.jstr(nwo.water_volume_fog_murkiness_ui)
+            if self.corinth:
+                nwo.water_volume_fog_color = nwo_utils.color_rgba_str(nwo.water_volume_fog_color_ui)
+            else:
+                nwo.water_volume_fog_color = nwo_utils.color_argb_str(nwo.water_volume_fog_color_ui)
+            
         elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
             nwo.face_mode = '_connected_geometry_face_mode_render_only'
             

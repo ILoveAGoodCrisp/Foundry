@@ -873,6 +873,7 @@ class ProcessScene:
         nwo = context.scene.nwo
         model_sky = asset_type in ('model', 'sky')
         model = asset_type == 'model'
+        scenario = asset_type == 'scenario'
         h4_model_lighting = (export_scene.lighting and is_corinth(context) and model_sky)
         model_override = (
             (not nwo.render_model_from_blend and nwo.render_model_path and model)
@@ -889,7 +890,7 @@ class ProcessScene:
             # print("--- Added Structure Meta Reference to Render Model")
 
         # Apply model overrides if any
-        if model_override:
+        if model and model_override:
             with ModelTag(hide_prints=True) as model:
                 model.set_model_overrides(nwo.render_model_path, nwo.collision_model_path, nwo.animation_graph_path, nwo.physics_model_path)
             # print("--- Applied Model Overrides")
@@ -902,14 +903,14 @@ class ProcessScene:
                     animation.setup_blend_screens(pose_overlays)
             # print("--- Setup World Animations")
             
-        if setup_scenario:
+        if scenario and setup_scenario:
             lm_value = 6 if is_corinth(context) else 3
             with ScenarioTag(hide_prints=True) as scenario:
                 for bsp in export_scene.structure_bsps:
                     scenario.set_bsp_lightmap_res(bsp, lm_value, 0)
             # print("--- Set Lightmapper size class to 1k")
             
-        if scene_nwo.zone_sets:
+        if scenario and scene_nwo.zone_sets:
             write_zone_sets_to_scenario(scene_nwo, asset_name)
 
     def any_node_usage_override(self, nwo):
