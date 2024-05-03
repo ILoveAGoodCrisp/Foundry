@@ -654,7 +654,6 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         if asset_type == 'sky' and not corinth:
             export_scene.setup_skylights()
         if asset_type == 'scenario':
-            start = time.perf_counter()
             export_scene.generate_structure()
         elif asset_type in ("model", "sky", "decorator_set", "particle_model", "animation"):
             export_scene.add_null_render_if_needed()
