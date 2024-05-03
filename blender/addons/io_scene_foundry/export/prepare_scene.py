@@ -232,11 +232,8 @@ class PrepareScene:
             non_export_obs = {ob for ob in self.context.view_layer.objects if ob.type != "ARMATURE"}
         else:
             non_export_obs = {ob for ob in self.context.view_layer.objects if not ob.nwo.export_this or ob.type not in VALID_OBJECTS or (ob.type == 'EMTPY' and ob.empty_display_type == "IMAGE")}
-        print("got list of objects")
         for ob in non_export_obs: nwo_utils.unlink(ob)
-        print("unlinked them")
         nwo_utils.update_view_layer(self.context)
-        print("view layer update")
         
     def setup_skeleton(self):
         self.model_armature = nwo_utils.get_rig(self.context)
