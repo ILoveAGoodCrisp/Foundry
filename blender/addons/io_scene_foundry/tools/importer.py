@@ -1021,11 +1021,11 @@ class NWOImporter:
                         region_layer = bm.faces.layers.int.get("Region Assignment")
                         bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[region_layer] != idx + 1], context='FACES')
                         bm.to_mesh(new_ob.data)
-                        bm.free()
                         apply_loop_normals(new_ob.data)
                         clean_materials(new_ob)
                         objects.append(new_ob)
-                
+
+                    bm.free()
                     objects.remove(ob)
                     bpy.data.objects.remove(ob)
         
