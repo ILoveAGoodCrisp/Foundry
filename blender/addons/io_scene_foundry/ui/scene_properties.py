@@ -1225,20 +1225,19 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         else:
             return self.scenario_type_helper
         
-    def set_scenario_type(self, value):
+    def set_scenario_type(self, context):
+        value = self.scenario_type
         asset_scenario = get_asset_tag(".scenario")
         if asset_scenario:
             with ScenarioTag(path=asset_scenario) as scenario:
                 scenario.tag.SelectField("type").Value = value
                 scenario.tag_has_changes = True
-        self.scenario_type_helper = value
-        self["scenario_type"] = value
     
     scenario_type: EnumProperty(
         name="Scenario Type",
         description="Select whether this is a Solo, Multiplayer, or Main Menu scenario",
         # get=get_scenario_type,
-        set=set_scenario_type,
+        update=set_scenario_type,
         options=set(),
         items=[
             ("solo", "Singleplayer", "For campaign levels, but also valid for Firefight & Spartan Ops scenarios"),
@@ -1246,8 +1245,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             ("main menu", "Main Menu", "For main menu maps"),
         ]
     )
-    
-    scenario_type_helper: IntProperty(options=set())
     
     def update_connected_geometry_mesh_type_default_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_default')
     def update_connected_geometry_mesh_type_collision_visible(self, context): bpy.ops.nwo.hide_object_type(object_type = '_connected_geometry_mesh_type_collision')

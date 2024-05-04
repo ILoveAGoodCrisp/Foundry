@@ -631,6 +631,7 @@ class NWOImporter:
         self.existing_scene = existing_scene
         self.apply_materials = get_prefs().apply_materials
         self.prefix_setting = get_prefs().apply_prefix
+        self.corinth = is_corinth(context)
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -1270,6 +1271,7 @@ class NWOImporter:
             nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
             nwo.render_only_ui = jms_mat.render_only
             nwo.sphere_collision_only_ui = jms_mat.sphere_collision_only
+            nwo.collision_only_ui = jms_mat.collision_only
             nwo.ladder_ui = jms_mat.ladder
             nwo.breakable_ui = jms_mat.breakable
             nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
@@ -1285,6 +1287,42 @@ class NWOImporter:
             nwo.decal_offset_ui = jms_mat.decal_offset
             nwo.slip_surface_ui = jms_mat.slip_surface
             nwo.face_global_material_ui = jms_mat.global_material
+            
+            if jms_mat.lightmap_additive_transparency:
+                nwo.lightmap_additive_transparency_active = True
+                nwo.lightmap_additive_transparency_ui = jms_mat.lightmap_additive_transparency
+            if jms_mat.lightmap_translucency_tint_color:
+                nwo.lightmap_translucency_tint_color_active = True
+                nwo.lightmap_translucency_tint_color_ui = jms_mat.lightmap_translucency_tint_color
+            # Emissive
+            if jms_mat.emissive_power:
+                nwo.emissive_active = True
+                nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power
+                nwo.material_lighting_emissive_color_ui = jms_mat.emissive_color
+                nwo.material_lighting_emissive_quality_ui = jms_mat.emissive_quality
+                nwo.material_lighting_emissive_per_unit_ui = jms_mat.emissive_per_unit
+                nwo.material_lighting_use_shader_gel_ui = jms_mat.emissive_shader_gel
+                nwo.material_lighting_emissive_focus_ui = jms_mat.emissive_focus
+                nwo.material_lighting_attenuation_falloff_ui = jms_mat.emissive_attenuation_falloff
+                nwo.material_lighting_attenuation_cutoff_ui = jms_mat.emissive_attenuation_cutoff
+            
+            
+            if nwo.sphere_collision_only_ui:
+                nwo.poop_collision_type_ui = '_connected_geometry_poop_collision_type_invisible_wall'
+                if self.corinth:
+                    ob.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+            elif nwo.collision_only_ui:
+                nwo.poop_collision_type_ui = '_connected_geometry_poop_collision_type_bullet_collision'
+                if self.corinth:
+                    ob.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+                    
+            if self.corinth and nwo.render_only_ui:
+                ob.nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                
+            if self.corinth and ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and nwo.slip_surface_ui:
+                ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
+                ob.nwo.export_this = False
+                
         
         mesh_types = list(set([m.mesh_type for m in jms_materials if m.mesh_type]))
         if len(mesh_types) == 1:
@@ -1378,6 +1416,23 @@ class NWOImporter:
                         nwo.material_lighting_emissive_focus_ui = jms_mat.emissive_focus
                         nwo.material_lighting_attenuation_falloff_ui = jms_mat.emissive_attenuation_falloff
                         nwo.material_lighting_attenuation_cutoff_ui = jms_mat.emissive_attenuation_cutoff
+                        
+                    if nwo.sphere_collision_only_ui:
+                        ob.nwo.poop_collision_type_ui = '_connected_geometry_poop_collision_type_invisible_wall'
+                        if self.corinth:
+                            ob.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+                    elif nwo.collision_only_ui:
+                        ob.nwo.poop_collision_type_ui = '_connected_geometry_poop_collision_type_bullet_collision'
+                        if self.corinth:
+                            ob.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+                            
+                    if self.corinth and nwo.render_only_ui:
+                        ob.nwo.mesh_type = '_connected_geometry_mesh_type_poop'
+                        
+                    if self.corinth and ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and nwo.slip_surface_ui:
+                        ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
+                        ob.nwo.export_this = False
+                        
                     
             elif len(ob.data.materials) > 1:
                 bm = bmesh.new()

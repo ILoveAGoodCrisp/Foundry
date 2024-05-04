@@ -2986,7 +2986,7 @@ def add_to_collection(objects: list[bpy.types.Object], always_new=False, parent_
     [collection.objects.link(ob) for ob in objects]
     
 def get_major_vertex_group(ob: bpy.types.Object):
-    if not ob.data.vertices:
+    if not ob.data.vertices or not ob.vertex_groups:
         return
     vert_group_indexes = []
     for vert in ob.data.vertices:
