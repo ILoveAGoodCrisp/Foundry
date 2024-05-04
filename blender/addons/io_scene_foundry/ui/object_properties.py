@@ -268,9 +268,9 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     lightmap_resolution_scale_ui: IntProperty(
         name="Resolution Scale",
         options=set(),
-        default=3.0,
-        min=1.0,
-        max=7.0,
+        default=3,
+        min=1,
+        max=7,
         description="Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
         update=update_lightmap_resolution_scale_ui,
     )
