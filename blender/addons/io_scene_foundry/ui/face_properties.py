@@ -23,6 +23,7 @@
 # SOFTWARE.
 #
 # ##### END MIT LICENSE BLOCK #####
+from math import radians
 from bpy.types import PropertyGroup
 from bpy.props import (
     StringProperty,
@@ -207,7 +208,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
         max=1.0,
     )
 
-    lightmap_resolution_scale_ui: FloatProperty(
+    lightmap_resolution_scale_ui: IntProperty(
         name="Resolution Scale",
         options=set(),
         description="Determines how much texel space the faces will be given on the lightmap.  1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
@@ -296,7 +297,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     # MATERIAL LIGHTING
 
     material_lighting_attenuation_cutoff_ui: FloatProperty(
-        name="Attenuation Cutoff",
+        name="Light Cutoff",
         options=set(),
         description="Determines how far light travels before it stops",
         min=0,
@@ -304,7 +305,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_attenuation_falloff_ui: FloatProperty(
-        name="Attenuation Falloff",
+        name="Light Falloff",
         options=set(),
         description="For use on emissive surfaces. The distance in game units at which the light intensity will begin to fall off until reaching zero at the attenuation cutoff value",
         min=0,
@@ -312,12 +313,13 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     material_lighting_emissive_focus_ui: FloatProperty(
-        name="Emissive Focus",
+        name="Material Lighting Emissive Focus",
         options=set(),
-        description="Controls the spread of the light emitting from this surface. 0 will emit light in a 180 degrees hemisphere from each point, 1 will emit light nearly perpendicular to the surface",
+        description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
         min=0,
-        max=1,
-        subtype="FACTOR",
+        default=radians(180), 
+        max=radians(180),
+        subtype="ANGLE",
     )
 
     material_lighting_emissive_color_ui: FloatVectorProperty(

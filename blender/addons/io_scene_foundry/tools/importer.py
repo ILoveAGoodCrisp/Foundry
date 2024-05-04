@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import radians
 import os
 from pathlib import Path
 import re
@@ -494,12 +495,12 @@ class JMSMaterialSlot:
         self.emissive_frustum_cutoff = None
         
         if self.material.ass_jms.power > 0:
-            self.emissive_power = self.material.ass_jms.power * (0.03048 ** -2) / 300
+            self.emissive_power = self.material.ass_jms.power * (0.03048 ** -2) * 3
             self.emissive_color = self.material.ass_jms.color
             self.emissive_quality = self.material.ass_jms.quality
             self.emissive_per_unit = self.material.ass_jms.power_per_unit_area
             self.emissive_shader_gel = self.material.ass_jms.use_shader_gel
-            self.emissive_focus = self.material.ass_jms.emissive_focus
+            self.emissive_focus = radians(self.material.ass_jms.emissive_focus * 180)
             self.emissive_attenuation = self.material.ass_jms.attenuation_enabled
             if self.emissive_attenuation:
                 self.emissive_attenuation_falloff = self.material.ass_jms.falloff_distance
@@ -596,6 +597,25 @@ class JMSMaterialSlot:
             return False
         if self.global_material != __value.global_material:
             return False
+        if self.global_material != __value.global_material:
+            return False
+        
+        # if self.lightmap_resolution_scale != __value.lightmap_resolution_scale: return False
+        if self.lightmap_translucency_tint_color != __value.lightmap_resolution_scale: return False
+        if self.lightmap_additive_transparency != __value.lightmap_resolution_scale: return False
+        
+        if self.emissive_power != __value.emissive_power: return False
+        if self.emissive_color != __value.emissive_color: return False
+        if self.emissive_quality != __value.emissive_quality: return False
+        if self.emissive_per_unit != __value.emissive_per_unit: return False
+        if self.emissive_shader_gel != __value.emissive_shader_gel: return False
+        if self.emissive_focus != __value.emissive_focus: return False
+        if self.emissive_attenuation != __value.emissive_attenuation: return False
+        if self.emissive_attenuation_falloff != __value.emissive_attenuation_falloff: return False
+        if self.emissive_attenuation_cutoff != __value.emissive_attenuation_cutoff: return False
+        if self.emissive_frustum_blend != __value.emissive_frustum_blend: return False
+        if self.emissive_frustum_falloff != __value.emissive_frustum_falloff: return False
+        if self.emissive_frustum_cutoff != __value.emissive_frustum_cutoff: return False
         
         return True
 
@@ -1338,9 +1358,9 @@ class NWOImporter:
                     nwo.slip_surface_ui = jms_mat.slip_surface
                     nwo.face_global_material_ui = jms_mat.global_material
                     # Lightmap
-                    if jms_mat.lightmap_resolution_scale:
-                        nwo.lightmap_resolution_scale_active = True
-                        nwo.lightmap_resolution_scale_ui = jms_mat.lightmap_resolution_scale
+                    # if jms_mat.lightmap_resolution_scale:
+                    #     nwo.lightmap_resolution_scale_active = True
+                    #     nwo.lightmap_resolution_scale_ui = jms_mat.lightmap_resolution_scale
                     if jms_mat.lightmap_additive_transparency:
                         nwo.lightmap_additive_transparency_active = True
                         nwo.lightmap_additive_transparency_ui = jms_mat.lightmap_additive_transparency
@@ -1454,12 +1474,12 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
                         
                         # Lightmap
-                        if jms_mat.lightmap_resolution_scale:
-                            l_name = 'lightmap_resolution_scale'
-                            if bm.faces.layers.int.get(l_name):
-                                layers[idx].append(bm.faces.layers.int.get(l_name))
-                            else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale_ui": jms_mat.lightmap_resolution_scale})))
+                        # if jms_mat.lightmap_resolution_scale:
+                        #     l_name = 'lightmap_resolution_scale'
+                        #     if bm.faces.layers.int.get(l_name):
+                        #         layers[idx].append(bm.faces.layers.int.get(l_name))
+                        #     else:
+                        #         layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale_ui": jms_mat.lightmap_resolution_scale})))
                         
                         if jms_mat.lightmap_translucency_tint_color:
                             l_name = 'lightmap_translucency_tint_color'

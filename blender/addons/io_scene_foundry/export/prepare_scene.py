@@ -1315,7 +1315,7 @@ class PrepareScene:
             mesh_props.material_lighting_attenuation_cutoff = nwo_utils.jstr(
                 face_props.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor
             )
-            mesh_props.material_lighting_emissive_focus = nwo_utils.jstr(face_props.material_lighting_emissive_focus_ui / 180)
+            mesh_props.material_lighting_emissive_focus = nwo_utils.jstr(degrees(face_props.material_lighting_emissive_focus_ui) / 180)
             mesh_props.material_lighting_emissive_color = nwo_utils.color_4p_str(
                 face_props.material_lighting_emissive_color_ui
             )
@@ -1766,7 +1766,7 @@ class PrepareScene:
                     nwo.material_lighting_attenuation_cutoff = nwo_utils.jstr(
                         nwo_data.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor
                     )
-                    nwo.material_lighting_emissive_focus = nwo_utils.jstr(nwo_data.material_lighting_emissive_focus_ui / 180)
+                    nwo.material_lighting_emissive_focus = nwo_utils.jstr(degrees(nwo_data.material_lighting_emissive_focus_ui) / 180)
                     nwo.material_lighting_emissive_color = nwo_utils.color_4p_str(
                         nwo_data.material_lighting_emissive_color_ui
                     )
