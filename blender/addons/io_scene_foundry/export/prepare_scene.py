@@ -2744,7 +2744,7 @@ def to_mesh(context, objects: list[bpy.types.Object]):
                 arm_mod.use_multi_modifier = mod.use_multi_modifier
                 arm_mod.use_vertex_groups = mod.use_vertex_groups
                 arm_mod.use_bone_envelopes = mod.use_bone_envelopes
-                armature_mod_dict[ob].add(arm_mod)
+                armature_mod_dict[ob].append(arm_mod)
                 
     if objects_to_convert:
         for ob in objects_to_convert: ob.select_set(True)

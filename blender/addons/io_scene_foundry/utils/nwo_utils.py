@@ -3103,10 +3103,11 @@ def remove_relative_parenting(armature):
     relative_bones = set()
     for b in armature.data.bones:
         if b.use_relative_parent:
-            relative_bones.add(b.name)
+            relative_bones.add(b)
 
+    relative_bone_names = [b.name for b in relative_bones]
     for ob in bpy.data.objects:
-        if ob.parent == armature and ob.parent_type == 'BONE' and ob.parent_bone in relative_bones:
+        if ob.parent == armature and ob.parent_type == 'BONE' and ob.parent_bone in relative_bone_names:
             bone = armature.data.bones[ob.parent_bone]
             ob.matrix_parent_inverse = (armature.matrix_world @ Matrix.Translation(bone.tail_local - bone.head_local) @ bone.matrix_local).inverted()
 
