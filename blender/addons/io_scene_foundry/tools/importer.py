@@ -350,9 +350,10 @@ class NWO_Import(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        if self.directory or self.files:
-            self.filter_glob = "*.bitmap;*.amf;*.jms;*.ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;*.camera_track;*.collision_mo*;"
-            return self.execute(context)
+        skip_fileselect = False
+        if self.directory or self.files or self.filepath:
+            skip_fileselect = True
+            self.filter_glob = "*.bitmap;*.camera_track;*.collision_mo*;"
         else:
             if 'bitmap' in self.scope:
                 self.directory = get_tags_path()
@@ -370,19 +371,24 @@ class NWO_Import(bpy.types.Operator):
             if (not self.scope or 'bitmap' in self.scope):
                 self.directory = get_tags_path()
                 self.filter_glob += "*.bitmap;"
-            if amf_addon_installed() and (not self.scope or 'amf' in self.scope):
-                self.amf_okay = True
-                self.filter_glob += "*.amf;"
-            if blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
-                self.legacy_okay = True
-                self.filter_glob += '*.jms;*.ass;'
-            if blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
-                self.legacy_okay = True
-                self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
             if (not self.scope or 'camera_track' in self.scope):
                 self.filter_glob += '*.camera_track;'
             if (not self.scope or 'collision_model' in self.scope):
                 self.filter_glob += '*.collision_mo*;'
+                
+        if amf_addon_installed() and (not self.scope or 'amf' in self.scope):
+            self.amf_okay = True
+            self.filter_glob += "*.amf;"
+        if blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
+            self.legacy_okay = True
+            self.filter_glob += '*.jms;*.ass;'
+        if blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
+            self.legacy_okay = True
+            self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
+            
+        if skip_fileselect:
+            return self.execute(context)
+        
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
