@@ -198,7 +198,7 @@ class MaterialTag(ShaderTag):
     def _finalize_material_parameters(self, mapping, element):
         color = mapping.get('color', 0)
         if color:
-            argb_color = ['1', str(color[0]), str(color[1]), str(color[2])]
+            argb_color = ['1', str(nwo_utils.linear_to_srgb(color[0])), str(nwo_utils.linear_to_srgb(color[1])), str(nwo_utils.linear_to_srgb(color[2]))]
             element.SelectField('color').SetStringData(argb_color)
         if mapping.get(self.scale_u, 0):
             element.SelectField('real').SetStringData(str(mapping.get(self.scale_u)))
@@ -207,8 +207,7 @@ class MaterialTag(ShaderTag):
                 element.SelectField('vector').SetStringData([str(mapping.get(self.scale_v), str(mapping.get(self.translation_u)), str(mapping.get(self.translation_v)))])
             else:
                 element.SelectField('vector').SetStringData([str(mapping.get(self.scale_v)), '0', '0'])
-                
-    # READING
+
     
     def _alpha_type(self, material_shader_name):
         if self.alpha_blend_mode.Value != 0:

@@ -306,32 +306,37 @@ def vector_str(velocity):
 
 
 def color_3p_str(color):
-    red = color.r
-    green = color.g
-    blue = color.b
+    red = linear_to_srgb(color.r)
+    green = linear_to_srgb(color.g)
+    blue = linear_to_srgb(color.b)
     return f"{jstr(red)} {jstr(green)} {jstr(blue)}"
 
 
 def color_4p_str(color):
-    red = color.r * 255
-    green = color.g * 255
-    blue = color.b * 255
+    red = linear_to_srgb(color.r) * 255
+    green = linear_to_srgb(color.g) * 255
+    blue = linear_to_srgb(color.b) * 255
     return f"1 {jstr(red)} {jstr(green)} {jstr(blue)}"
 
 def color_rgba_str(color):
-    red = color[0]
-    green = color[1]
-    blue = color[2]
-    alpha = color[3]
+    red = linear_to_srgb(color[0])
+    green = linear_to_srgb(color[1])
+    blue = linear_to_srgb(color[2])
+    alpha = linear_to_srgb(color[3])
     return f"{jstr(red)} {jstr(green)} {jstr(blue)} {jstr(alpha)}"
 
 def color_argb_str(color):
-    red = color[0]
-    green = color[1]
-    blue = color[2]
-    alpha = color[3]
+    red = linear_to_srgb(color[0])
+    green = linear_to_srgb(color[1])
+    blue = linear_to_srgb(color[2])
+    alpha = linear_to_srgb(color[3])
     return f"{jstr(alpha)} {jstr(red)} {jstr(green)} {jstr(blue)}"
 
+def linear_to_srgb(linear):
+    if linear <= 0.0031308:
+        return 12.92 * linear
+    else:
+        return 1.055 * (linear ** (1/2.4)) - 0.055
 
 def bool_str(bool_var):
     """Returns a boolean as a string. 1 if true, 0 if false"""
@@ -1658,7 +1663,7 @@ def calc_light_intensity(light_data):
     return intensity
 
 def calc_emissive_intensity(emissive_power):
-    intensity = (emissive_power / 0.03048**-2) / 3
+    intensity = (emissive_power / 0.03048**-2) / (300 if is_corinth() else 3)
     return intensity
 
 def calc_light_energy(light_data, intensity):

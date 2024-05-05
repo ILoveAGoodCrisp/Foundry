@@ -34,6 +34,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_asset_path,
     get_data_path,
     get_tags_path,
+    linear_to_srgb,
     managed_blam_active,
     is_corinth,
     print_warning,
@@ -333,10 +334,10 @@ class Tag():
                 return e
             
     def _GameColor_from_RGB(self, r, g, b):
-        return Halo.Game.GameColor.FromRgb(r, g, b)
+        return Halo.Game.GameColor.FromRgb(linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b))
     
     def _GameColor_from_ARGB(self, a, r, g, b):
-        return Halo.Game.GameColor.FromArgb(a, r, g, b)
+        return Halo.Game.GameColor.FromArgb(a, linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b))
 
 
 class ManagedBlam_Init(Operator):
