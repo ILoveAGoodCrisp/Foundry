@@ -1662,9 +1662,9 @@ def calc_light_intensity(light_data):
     
     return intensity
 
-def calc_emissive_intensity(emissive_power):
+def calc_emissive_intensity(emissive_power, scale_factor=1):
     intensity = (emissive_power / 0.03048**-2) / (300 if is_corinth() else 3)
-    return intensity
+    return intensity * (scale_factor ** 2)
 
 def calc_light_energy(light_data, intensity):
     if light_data.type == "SUN":

@@ -1032,9 +1032,7 @@ class NWOMesh(NWOObject):
             #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
         # EMMISSIVE PROPERTIES
         if self.halo.emissive_active:
-            self.bungie_lighting_emissive_power = (
-                jstr(calc_emissive_intensity(self.ob.data.nwo.material_lighting_emissive_power_ui))
-            )
+            self.bungie_lighting_emissive_power = self.halo.material_lighting_emissive_power
             if self.halo.material_lighting_attenuation_cutoff:
                 self.bungie_lighting_attenuation_cutoff = (
                     self.halo.material_lighting_attenuation_cutoff
