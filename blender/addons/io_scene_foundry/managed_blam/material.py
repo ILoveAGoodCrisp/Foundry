@@ -67,7 +67,7 @@ class MaterialTag(ShaderTag):
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'
-        return nwo_utils.tag_relative(nwo_utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename))
+        return nwo_utils.relative_path(nwo_utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename))
                 
     def _build_custom(self):
         name_type_node_dict = {}
