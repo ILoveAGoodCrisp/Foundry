@@ -638,8 +638,8 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
             raise RuntimeError("No exportable objects in the scene")
         
         export_scene.process_face_properties_and_proxies()
-        # if asset_type == 'scenario':
-        #     export_scene.clean_poop_materials()
+        if asset_type == 'scenario':
+            export_scene.clean_poop_materials()
         export_scene.scene_transformation()
         export_scene.fixup_uv_names()
         export_scene.validate_scale()
