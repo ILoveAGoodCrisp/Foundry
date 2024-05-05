@@ -61,7 +61,7 @@ from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMat
 from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
 from io_scene_foundry.tools.clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
-from io_scene_foundry.tools.importer import NWO_FH_Import, NWO_Import, NWO_OT_ConvertScene
+from io_scene_foundry.tools.importer import NWO_FH_Import, NWO_FH_ImportBitmapAsImage, NWO_Import, NWO_OT_ConvertScene, NWO_OT_ImportBitmapAsImage
 from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
@@ -5444,6 +5444,8 @@ classeshalo = (
     NWO_StompMaterials,
     NWO_Import,
     NWO_FH_Import,
+    NWO_OT_ImportBitmapAsImage,
+    NWO_FH_ImportBitmapAsImage,
     NWO_OT_ConvertScene,
     NWO_SetDefaultSky,
     NWO_SetSky,

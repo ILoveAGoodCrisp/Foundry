@@ -43,7 +43,7 @@ from io_scene_foundry.tools.property_apply import apply_props_material
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, closest_bsp_object, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -305,9 +305,6 @@ class NWO_Import(bpy.types.Operator):
                                             tag_to_nodes(corinth, mat, shader_path)
                         
                 if 'bitmap' in importer.extensions:
-                    if not self.directory.startswith(get_tags_path()):
-                        self.report({'WARNING'}, "Can only extract bitmaps from the current project's tags folder")
-                        return {'FINISHED'}
                     bitmap_files = importer.sorted_filepaths["bitmap"]
                     if not bitmap_files:
                         self.nothing_imported = True
@@ -355,6 +352,7 @@ class NWO_Import(bpy.types.Operator):
     def invoke(self, context, event):
         if self.directory or self.files:
             self.filter_glob = "*.bitmap;*.amf;*.jms;*.ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;*.camera_track;*.collision_mo*;"
+            return self.execute(context)
         else:
             if 'bitmap' in self.scope:
                 self.directory = get_tags_path()
@@ -635,6 +633,7 @@ class NWOImporter:
         self.apply_materials = get_prefs().apply_materials
         self.prefix_setting = get_prefs().apply_prefix
         self.corinth = is_corinth(context)
+        self.project = get_project(context.scene.nwo.scene_project)
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -725,8 +724,9 @@ class NWOImporter:
         return cameras, actions
             
     def import_camera_track(self, file, animation_scale):
-        with CameraTrackTag(path=file) as camera_track:
-            camera, action = camera_track.to_blender_animation(self.context, animation_scale)
+        with TagImportMover(self.project.tags_directory, file) as mover:
+            with CameraTrackTag(path=mover.tag_path) as camera_track:
+                camera, action = camera_track.to_blender_animation(self.context, animation_scale)
             
         return camera, action
     
@@ -742,8 +742,9 @@ class NWOImporter:
     def import_collision_model(self, file):
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         self.context.scene.collection.children.link(collection)
-        with CollisionTag(path=file) as collision_model:
-            collision_model_objects = collision_model.to_blend_objects(collection)
+        with TagImportMover(self.project.tags_directory, file) as mover:
+            with CollisionTag(path=mover.tag_path) as collision_model:
+                collision_model_objects = collision_model.to_blend_objects(collection)
             
         return collision_model_objects
         
@@ -758,17 +759,19 @@ class NWOImporter:
         bitmap_count = len(bitmap_files)
         for idx, fp in enumerate(bitmap_files):
             update_progress(job, idx / bitmap_count)
-            bitmap_name = os.path.basename(fp)
+            bitmap_name = dot_partition(os.path.basename(fp))
             if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
-            with BitmapTag(path=fp) as bitmap:
-                if not bitmap.has_bitmap_data(): continue
-                is_non_color = bitmap.is_linear()
-                image_path = bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format)
-                if image_path:
-                    # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
-                    extracted_bitmaps[image_path] = is_non_color
+            with TagImportMover(self.project.tags_directory, fp) as mover:
+                with BitmapTag(path=mover.tag_path) as bitmap:
+                    if not bitmap.has_bitmap_data(): continue
+                    is_non_color = bitmap.is_linear()
+                    image_path = bitmap.save_to_tiff(blue_channel_fix=bitmap.used_as_normal_map(), format=image_format)
+                    if image_path:
+                        # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
+                        extracted_bitmaps[image_path] = is_non_color
         update_progress(job, 1)
         print(f"\nExtracted {len(extracted_bitmaps)} bitmaps")
+        
         return extracted_bitmaps
     
     def load_bitmaps(self, image_paths, fake_user):
@@ -776,11 +779,13 @@ class NWOImporter:
         print(
             "-----------------------------------------------------------------------\n"
         )
+        images = []
         job = "Progress"
         image_paths_count = len(image_paths)
         for idx, (path, is_non_color) in enumerate(image_paths.items()):
             update_progress(job, idx / image_paths_count)
             image = bpy.data.images.load(filepath=path, check_existing=True)
+            images.append(image)
             image.use_fake_user = fake_user
             if is_non_color:
                 image.colorspace_settings.name = 'Non-Color'
@@ -788,6 +793,8 @@ class NWOImporter:
                 image.alpha_mode = 'CHANNEL_PACKED'
             
         update_progress(job, 1)
+        
+        return images
     
     # AMF Importer
     def import_amf_files(self, amf_files, scale_factor):
@@ -1835,3 +1842,54 @@ class NWO_FH_Import(bpy.types.FileHandler):
     @classmethod
     def poll_drop(cls, context):
         return (context.area and context.area.type == 'VIEW_3D')
+    
+class NWO_OT_ImportBitmapAsImage(bpy.types.Operator):
+    bl_idname = "nwo.import_bitmap_as_image"
+    bl_label = "Bitmap Importer"
+    bl_description = "Imports an image and loads it as the active image in the image editor"
+    bl_options = {"UNDO"}
+    
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
+    filename: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    filter_glob: bpy.props.StringProperty(
+        default="*.bitmap",
+        options={"HIDDEN"},
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        if Path(self.filepath).suffix != '.bitmap':
+            return {'CANCELLED'}
+        
+        importer = NWOImporter(context, self.report, [self.filepath], ['bitmap'])
+        extracted_bitmaps = importer.extract_bitmaps([self.filepath], 'tiff')
+        images = importer.load_bitmaps(extracted_bitmaps, False)
+        if context.area.type == 'IMAGE_EDITOR' and images:
+            context.area.spaces.active.image = images[0]
+        return {"FINISHED"}
+    
+    def invoke(self, context, event):
+        return self.execute(context)
+    
+class NWO_FH_ImportBitmapAsImage(bpy.types.FileHandler):
+    bl_idname = "NWO_FH_ImportBitmapAsImage"
+    bl_label = "File handler Foundry Bitmap Importer"
+    bl_import_operator = "nwo.import_bitmap_as_image"
+    bl_file_extensions = ".bitmap"
+    
+    @classmethod
+    def poll_drop(cls, context):
+        return (context.area and context.area.type == 'IMAGE_EDITOR')
+    
+class NWO_FH_ImportBitmapAsNode(bpy.types.FileHandler):
+    bl_idname = "NWO_FH_ImportBitmapAsNode"
+    bl_label = "File handler Foundry Bitmap Importer"
+    bl_import_operator = "nwo.import_bitmap_as_node"
+    bl_file_extensions = ".bitmap"
+    
+    @classmethod
+    def poll_drop(cls, context):
+        return (context.area and context.area.type == 'NODE_EDITOR')

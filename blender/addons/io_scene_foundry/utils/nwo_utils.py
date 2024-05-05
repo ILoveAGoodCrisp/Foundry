@@ -3250,3 +3250,23 @@ class Spinner:
         time.sleep(self.delay)
         if exception is not None:
             return False
+        
+class TagImportMover():
+    def __init__(self, tags_dir, file):
+        self.needs_to_move = False
+        self.source_file = Path(file)
+        name = self.source_file.with_suffix("").name
+        self.temp_file = Path(tags_dir, name + ".temp" + self.source_file.suffix)
+        if not self.source_file.is_relative_to(Path(tags_dir)):
+            self.needs_to_move = True
+            self.tag_path = name + ".temp" + self.source_file.suffix
+            shutil.copyfile(self.source_file, self.temp_file)
+        else:
+            self.tag_path = str(self.source_file.relative_to(tags_dir))
+    
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.needs_to_move and self.temp_file.exists():
+            self.temp_file.unlink()

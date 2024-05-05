@@ -82,7 +82,7 @@ class CameraTrackTag(Tag):
     
     def to_blender_animation(self, context: bpy.types.Context, animation_scale=1):
         control_points = self.get_control_points()
-        track_name = os.path.basename(nwo_utils.dot_partition(self.tag_path.ToString()))
+        track_name = nwo_utils.dot_partition(os.path.basename(nwo_utils.dot_partition(self.tag_path.ToString())))
         camera_ob = nwo_utils.get_camera_track_camera(context)
         if camera_ob is None:
             camera_name = 'camera_' + track_name
@@ -90,11 +90,11 @@ class CameraTrackTag(Tag):
             camera_ob = bpy.data.objects.new('camera', camera_data)
             context.scene.collection.objects.link(camera_ob)
             camera_ob.rotation_euler = [radians(90), 0, radians(-90)]
-            camera_data.display_size = 50
-            camera_data.clip_end = 1000
         action = bpy.data.actions.new(track_name)
         if not camera_ob.animation_data:
             camera_ob.animation_data_create()
+        camera_ob.data.display_size = 50
+        camera_ob.data.clip_end = 1000
         camera_ob.animation_data.action = action
         
         for idx, control_point in enumerate(control_points):
