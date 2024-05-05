@@ -551,14 +551,13 @@ class PrepareScene:
         '''
         Adds matching backside seams necessary for Tool to correctly generate a structure_seams tag
         '''
-        
-        if not self.seams: return
-        if len(self.regions) < 2:
-            self.warning_hit = True
-            nwo_utils.print_warning("Only single BSP in scene, seam objects ignored from export")
-            for seam in self.seams: nwo_utils.unlink(seam)
-            nwo_utils.update_view_layer(self.context)
-            return
+        if not self.seams or len([r for r in self.regions if r.lower().strip() != 'shared']) < 2: return
+        # if len(self.regions) < 2:
+        #     self.warning_hit = True
+        #     nwo_utils.print_warning("Only single BSP in scene, seam objects ignored from export")
+        #     for seam in self.seams: nwo_utils.unlink(seam)
+        #     nwo_utils.update_view_layer(self.context)
+        #     return
 
         skip_seams = set()
         for seam in self.seams:
@@ -842,9 +841,11 @@ class PrepareScene:
     def validate_sets(self):
         null_regions = {r for r in self.regions if r not in self.validated_regions}
         if null_regions:
-            self.warning_hit = True
+            
             print('')
             for r in null_regions:
+                if self.asset_type == 'scenario' and r.lower() == 'shared': continue
+                self.warning_hit = True
                 nwo_utils.print_warning(f'No export object has {self.reg_name}: {r}')
                 
             self.regions = [r for r in self.regions if r not in null_regions]

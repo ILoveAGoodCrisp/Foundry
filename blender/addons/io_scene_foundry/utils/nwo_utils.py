@@ -3013,6 +3013,15 @@ def set_region(ob, region):
         entry.name = region
         
     ob.nwo.region_name_ui = region
+    
+def add_region(region):
+    regions_table = bpy.context.scene.nwo.regions_table
+    entry = regions_table.get(region, 0)
+    if not entry:
+        regions_table.add()
+        entry = regions_table[-1]
+        entry.old = region
+        entry.name = region
 
 def set_permutation(ob, permutation):
     permutations_table = bpy.context.scene.nwo.permutations_table
@@ -3024,6 +3033,15 @@ def set_permutation(ob, permutation):
         entry.name = permutation
         
     ob.nwo.permutation_name_ui = permutation
+    
+def add_permutation(ob, permutation):
+    permutations_table = bpy.context.scene.nwo.permutations_table
+    entry = permutations_table.get(permutation, 0)
+    if not entry:
+        permutations_table.add()
+        entry = permutations_table[-1]
+        entry.old = permutation
+        entry.name = permutation
     
 def new_face_prop(data, layer_name, display_name, override_prop, other_props={}) -> str:
     face_props = data.nwo.face_props
