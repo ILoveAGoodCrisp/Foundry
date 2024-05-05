@@ -295,21 +295,37 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     )
 
     # MATERIAL LIGHTING
+    
+    def update_lighting_attenuation_falloff(self, context):
+        if not context.scene.nwo.transforming:
+            if self.material_lighting_attenuation_falloff_ui > self.material_lighting_attenuation_cutoff_ui:
+                self.material_lighting_attenuation_cutoff_ui = self.material_lighting_attenuation_falloff_ui
+            
+    def update_lighting_attenuation_cutoff(self, context):
+        if not context.scene.nwo.transforming:
+            if self.material_lighting_attenuation_cutoff_ui < self.material_lighting_attenuation_falloff_ui:
+                self.material_lighting_attenuation_falloff_ui = self.material_lighting_attenuation_cutoff_ui
 
     material_lighting_attenuation_cutoff_ui: FloatProperty(
         name="Light Cutoff",
         options=set(),
-        description="Determines how far light travels before it stops",
+        description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
         min=0,
-        default=2,
+        default=0,
+        update=update_lighting_attenuation_cutoff,
+        subtype='DISTANCE',
+        unit='LENGTH',
     )
 
     material_lighting_attenuation_falloff_ui: FloatProperty(
         name="Light Falloff",
         options=set(),
-        description="For use on emissive surfaces. The distance in game units at which the light intensity will begin to fall off until reaching zero at the attenuation cutoff value",
+        description="Determines how far light travels before its power begins to falloff",
         min=0,
-        default=1,
+        default=0,
+        update=update_lighting_attenuation_falloff,
+        subtype='DISTANCE',
+        unit='LENGTH',
     )
 
     material_lighting_emissive_focus_ui: FloatProperty(

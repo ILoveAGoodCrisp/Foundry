@@ -2281,13 +2281,11 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(
                         item,
                         "material_lighting_attenuation_falloff_ui",
-                        text="Attenutation Falloff",
                     )
                     row = box.row()
                     row.prop(
                         item,
                         "material_lighting_attenuation_cutoff_ui",
-                        text="Attenutation Cutoff",
                     )
                     row = box.row()
                     row.prop(

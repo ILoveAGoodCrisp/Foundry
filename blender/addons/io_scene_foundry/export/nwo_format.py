@@ -30,6 +30,7 @@ import random
 from math import degrees
 
 from ..utils.nwo_utils import (
+    calc_emissive_intensity,
     dot_partition,
     is_corinth,
     color_3p_str,
@@ -1030,9 +1031,9 @@ class NWOMesh(NWOObject):
             # if self.corinth:
             #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
         # EMMISSIVE PROPERTIES
-        if self.halo.material_lighting_emissive_power:
+        if self.ob.data.nwo.emissive_active:
             self.bungie_lighting_emissive_power = (
-                self.halo.material_lighting_emissive_power
+                jstr(calc_emissive_intensity(self.ob.data.nwo.material_lighting_emissive_power_ui))
             )
             if self.halo.material_lighting_attenuation_cutoff:
                 self.bungie_lighting_attenuation_cutoff = (

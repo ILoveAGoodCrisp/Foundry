@@ -38,7 +38,15 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 
         export_title = f"►►► LIGHTMAPPER ◄◄◄"
         print(export_title)
-        
+        bsps = [region.name for region in context.scene.nwo.regions_table]
+        valid_bsps = set()
+        for ob in context.scene.objects:
+            region = nwo_utils.true_region(ob.nwo)
+            if region in bsps:
+                valid_bsps.add(region)
+                
+        bsps = [b for b in bsps if b in valid_bsps]
+                
         run_lightmapper(
             is_corinth,
             [],
@@ -50,7 +58,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
             scene_nwo_export.lightmap_region,
             asset_type in ("model", "sky") and is_corinth,
             scene_nwo_export.lightmap_threads,
-            [region.name for region in context.scene.nwo.regions_table])
+            bsps)
         return {"FINISHED"}
     
 def run_lightmapper(
@@ -267,7 +275,7 @@ class LightMapper:
         self.suppress_dialog = (
             "false" if self.quality == "__custom__" or self.quality == "" else "true"
         )
-        self.settings = os.path.join("globals", "lightmapper_settings", self.quality)
+        self.settings = str(Path("globals", "lightmapper_settings", self.quality))
         print("\n\nRunning Lightmapper")
         print(
             "-------------------------------------------------------------------------\n"
@@ -305,7 +313,7 @@ class LightMapper:
                                 self.settings,
                             ]
                         )
-                    self.suppress_dialog = "true"
+                    # self.suppress_dialog = "true"
             else:
                 if using_asset_settings:
                     nwo_utils.run_tool(

@@ -1658,7 +1658,7 @@ def calc_light_intensity(light_data):
     return intensity
 
 def calc_emissive_intensity(emissive_power):
-    intensity = (emissive_power / 0.03048**-2) / (300 if is_corinth() else 3)
+    intensity = (emissive_power / 0.03048**-2) / 3
     return intensity
 
 def calc_light_energy(light_data, intensity):
@@ -2200,13 +2200,13 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             curve.transform(scale_matrix)
             curve.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
             curve.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-            curve.nwo.material_lighting_emissive_power_ui *= scale_factor
+            curve.nwo.material_lighting_emissive_power_ui *= scale_factor ** 2
             
         for metaball in metaballs:
             metaball.transform(scale_matrix)
             metaball.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
             metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-            metaball.nwo.material_lighting_emissive_power_ui *= scale_factor
+            metaball.nwo.material_lighting_emissive_power_ui *= scale_factor ** 2
             
         # for lattice in lattices:
         #     lattice.transform(scale_matrix)

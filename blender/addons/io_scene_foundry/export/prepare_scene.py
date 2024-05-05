@@ -612,7 +612,7 @@ class PrepareScene:
             "_connected_geometry_mesh_type_default",
         )
 
-        valid_for_face_properties_objects = {ob for ob in export_obs if ob.type == 'MESH' and ob.nwo.mesh_type in valid_mesh_types and not (self.corinth and self.asset_type == 'scenario' and ob.nwo.mesh_type == "_connected_geometry_mesh_type_default")}
+        valid_for_face_properties_objects = {ob for ob in export_obs if ob.type == 'MESH' and ob.nwo.mesh_type in valid_mesh_types and not ob.nwo.face_mode == '_connected_geometry_face_mode_lightmap_only' and not (self.corinth and self.asset_type == 'scenario' and ob.nwo.mesh_type == "_connected_geometry_mesh_type_default")}
         meshes = {ob.data for ob in valid_for_face_properties_objects}
         if not meshes: return
         
@@ -1309,6 +1309,7 @@ class PrepareScene:
             
         # emissive props
         if face_props.emissive_override:
+            mesh_props.emissive_active = True
             mesh_props.material_lighting_attenuation_falloff = nwo_utils.jstr(
                 face_props.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor
             )
@@ -1322,7 +1323,8 @@ class PrepareScene:
             mesh_props.material_lighting_emissive_per_unit = nwo_utils.bool_str(
                 face_props.material_lighting_emissive_per_unit_ui
             )
-            mesh_props.material_lighting_emissive_power = nwo_utils.jstr(nwo_utils.calc_emissive_intensity(face_props.material_lighting_emissive_power_ui))
+            # mesh_props.material_lighting_emissive_power = nwo_utils.jstr(nwo_utils.calc_emissive_intensity(face_props.material_lighting_emissive_power_ui))
+            mesh_props.face_props.material_lighting_emissive_power_ui = face_props.material_lighting_emissive_power_ui
             mesh_props.material_lighting_emissive_quality = nwo_utils.jstr(
                 face_props.material_lighting_emissive_quality_ui
             )
@@ -1773,7 +1775,7 @@ class PrepareScene:
                     nwo.material_lighting_emissive_per_unit = nwo_utils.bool_str(
                         nwo_data.material_lighting_emissive_per_unit_ui
                     )
-                    nwo.material_lighting_emissive_power = nwo_utils.jstr(nwo_utils.calc_emissive_intensity(nwo_data.material_lighting_emissive_power_ui))
+                    # nwo.material_lighting_emissive_power = nwo_utils.jstr(nwo_utils.calc_emissive_intensity(nwo_data.material_lighting_emissive_power_ui))
                     nwo.material_lighting_emissive_quality = nwo_utils.jstr(
                         nwo_data.material_lighting_emissive_quality_ui
                     )

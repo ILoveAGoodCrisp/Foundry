@@ -348,7 +348,6 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 material = "Portal"
             case "lightmap_only":
                 mesh_type = "_connected_geometry_mesh_type_lightmap_only"
-                material = "Portal"
             case "water_surface":
                 mesh_type = "_connected_geometry_mesh_type_water_surface"
             case "rain_sheet":

@@ -977,6 +977,7 @@ class NWOImporter:
         self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
         
     def process_jms_objects(self, objects: list[bpy.types.Object], file_name, is_model):
+        self.light_data = set()
         # Add all objects to a collection
         if not self.existing_scene:
             new_coll = bpy.data.collections.get(file_name, 0)
@@ -1060,22 +1061,38 @@ class NWOImporter:
             if file_name:
                 unlink(ob)
                 new_coll.objects.link(ob)
-            if ob.name.startswith(legacy_frame_prefixes) or ob.type == 'ARMATURE':
+            if ob.name.lower().startswith(legacy_frame_prefixes) or ob.type == 'ARMATURE':
                 self.setup_jms_frame(ob)
             elif ob.name.startswith('#') or (is_model and ob.type =='EMPTY' and ob.name.startswith('$')):
                 self.setup_jms_marker(ob, is_model)
             elif ob.type == 'MESH':
                 self.setup_jms_mesh(ob, is_model)
             elif ob.type == 'LIGHT':
-                self.setup_jms_light(ob)
+                self.light_data.add(ob.data)
+                self.jms_other_objects.append(ob)
         
         if not self.existing_scene:
             add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
             add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
             
-    def setup_jms_light(self, ob):
-        ob.data.energy = ob.data.energy * (0.03048 ** -2) / 300
-        self.jms_other_objects.append(ob)
+        for data in self.light_data:
+            data.energy = data.energy * (0.03048 ** -2) * 10
+            if data.halo_light.light_cone_shape == 'RECTANGLE':
+                data.nwo.light_shape = '_connected_geometry_light_shape_rectangle'
+            else:
+                data.nwo.light_shape = '_connected_geometry_light_shape_circle'
+                
+            if data.type == 'SPOT':
+                data.spot_size = data.halo_light.spot_size
+                data.spot_blend = data.halo_light.spot_blend
+            
+            if data.halo_light.use_near_atten:
+                data.nwo.light_near_attenuation_start = data.halo_light.near_atten_start
+                data.nwo.light_near_attenuation_end = data.halo_light.near_atten_end
+            
+            if data.halo_light.use_far_atten:
+                data.nwo.light_far_attenuation_start = data.halo_light.far_atten_start
+                data.nwo.light_far_attenuation_end = data.halo_light.far_atten_end
                 
     def setup_jms_frame(self, ob):
         ob.nwo.frame_override = True
@@ -1209,6 +1226,21 @@ class NWOImporter:
                     for prop in ob.data.nwo.face_props:
                         if prop.face_two_sided_override:
                             ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
+                            
+                if ob.data.nwo.mesh_type_ui == '_connected_geometry_mesh_type_lightmap_only':
+                    for prop in ob.data.nwo.face_props:
+                        if prop.emissive_override:
+                            ob.data.nwo.emissive_active = True
+                            ob.data.nwo.material_lighting_attenuation_cutoff_ui = prop.material_lighting_attenuation_cutoff_ui
+                            ob.data.nwo.material_lighting_attenuation_falloff_ui = prop.material_lighting_attenuation_falloff_ui
+                            ob.data.nwo.material_lighting_emissive_focus_ui = prop.material_lighting_emissive_focus_ui
+                            ob.data.nwo.material_lighting_emissive_color_ui = prop.material_lighting_emissive_color_ui
+                            ob.data.nwo.material_lighting_emissive_per_unit_ui = prop.material_lighting_emissive_per_unit_ui
+                            ob.data.nwo.material_lighting_emissive_power_ui = prop.material_lighting_emissive_power_ui
+                            ob.data.nwo.material_lighting_emissive_quality_ui = prop.material_lighting_emissive_quality_ui
+                            ob.data.nwo.material_lighting_use_shader_gel_ui = prop.material_lighting_use_shader_gel_ui
+                            ob.data.nwo.material_lighting_bounce_ratio_ui = prop.material_lighting_bounce_ratio_ui
+                            
 
                 if mesh_type_legacy in ('collision', 'physics') and is_model:
                     self.setup_collision_materials(ob, mesh_type_legacy)
@@ -1663,7 +1695,6 @@ class NWOImporter:
                 material = "Portal"
             case "lightmap_only":
                 mesh_type = "_connected_geometry_mesh_type_lightmap_only"
-                material = "Portal"
             case "water_surface":
                 mesh_type = "_connected_geometry_mesh_type_water_surface"
             case "rain_sheet":
