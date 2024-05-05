@@ -268,6 +268,7 @@ class PrepareScene:
         proxy_owner_data_copies = {}
         for data in proxy_owner_data:
             data_copy = data.copy()
+            
             data_copy.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
             proxy_owner_data_copies[data] = data_copy
 
@@ -598,6 +599,72 @@ class PrepareScene:
             self.scene_collection.link(back_seam)
             
         nwo_utils.update_view_layer(self.context)
+        
+    def clean_poop_materials(self):
+        '''Ensures no poops have a +sky face'''
+        to_cleanup = set()
+        if self.corinth:
+            poop_obs = {ob for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop'}
+            poop_meshes = {ob.data for ob in poop_obs}
+            poop_mesh_objects_dict = {data: [ob for ob in poop_obs if ob.data == data] for data in poop_meshes}
+            poop_mesh_objects_dict = {data: objects_list for data, objects_list in poop_mesh_objects_dict.items() if objects_list}
+            for data in poop_mesh_objects_dict.keys():
+                material_names = [m.name for m in data.materials]
+                sky_mat_indexes = set()
+                for idx, name in enumerate(material_names):
+                    if name.lower().startswith((self.sky_mat.name, self.seamsealer_mat.name)):
+                        sky_mat_indexes.add(idx)
+                        
+                if sky_mat_indexes:
+                    bm = bmesh.new()
+                    bm.from_mesh(data)
+                    sky_faces = [f for f in bm.faces if f.material_index in sky_mat_indexes]
+                    bmesh.ops.delete(bm, geom=sky_faces, context='FACES')
+                    bm.to_mesh(data)
+                    bm.free()
+                    for ob in poop_mesh_objects_dict[data]:
+                        to_cleanup.add(ob)
+        else:
+            poop_objects = {ob for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop'}
+            for ob in poop_objects:
+                for slot in ob.material_slots:
+                    if slot.material and slot.material.name.lower().startswith(self.sky_mat.name):
+                        slot.material = self.seamsealer_mat
+                        
+        poop_collision_meshes = {ob for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision'}
+        for ob in poop_collision_meshes:
+            to_replace = []
+            for idx, mat in enumerate(ob.data.materials):
+                if mat.name == self.seamsealer_mat.name:
+                    to_replace.append(idx)
+                    
+            for idx in to_replace:
+                ob.material_slots[idx].material = self.invalid_mat
+                
+        poop_render_obs = {ob: ob.data for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' and ob.nwo.face_mode == '_connected_geometry_face_mode_render_only'}
+        poop_render_meshes = {ob.data for ob in poop_render_obs}
+        poop_render_mesh_objects_dict = {data: [ob for ob in poop_obs if ob.data == data] for data in poop_render_meshes}
+        poop_render_mesh_objects_dict = {data: objects_list for data, objects_list in poop_render_mesh_objects_dict.items() if objects_list}
+        
+        for data in poop_render_mesh_objects_dict.keys():
+            material_names = [m.name for m in data.materials]
+            invis_mat_indexes = set()
+            for idx, name in enumerate(material_names):
+                if name.lower().startswith((self.seamsealer_mat.name, self.invisible_mat.name)):
+                    invis_mat_indexes.add(idx)
+                    
+            if invis_mat_indexes:
+                bm = bmesh.new()
+                bm.from_mesh(data)
+                sky_faces = [f for f in bm.faces if f.material_index in invis_mat_indexes]
+                bmesh.ops.delete(bm, geom=sky_faces, context='FACES')
+                bm.to_mesh(data)
+                bm.free()
+                for ob in poop_render_mesh_objects_dict[data]:
+                    to_cleanup.add(ob)
+                    
+        for ob in to_cleanup:
+            nwo_utils.clean_materials(ob)
                 
     def process_face_properties_and_proxies(self):
         '''
@@ -680,28 +747,6 @@ class PrepareScene:
             nwo_utils.update_job_count(process, "", len_mesh_objects_dict, len_mesh_objects_dict)
         
         nwo_utils.update_view_layer(self.context)
-       
-       
-    def remove_special_mats_from_poops(self):
-        poop_collision_meshes = {ob for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop_collision'}
-        poop_render_only = {ob for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' and ob.nwo.face_mode == '_connected_geometry_face_mode_render_only'}
-        for ob in poop_collision_meshes:
-            to_replace = []
-            for idx, mat in enumerate(ob.data.materials):
-                if mat.name == self.seamsealer_mat.name:
-                    to_replace.append(idx)
-                    
-            for idx in to_replace:
-                ob.material_slots[idx].material = self.invalid_mat
-            
-        for ob in poop_render_only:
-            to_replace = []
-            for idx, mat in enumerate(ob.data.materials):
-                if mat.name == self.seamsealer_mat.name:
-                    to_replace.append(idx)
-                    
-            for idx in to_replace:
-                ob.material_slots[idx].material = self.invisible_mat
         
     def scene_transformation(self):
         '''
@@ -879,7 +924,7 @@ class PrepareScene:
             structure_mesh = structure.data
             nwo = structure.nwo
             if self.corinth:
-                structure_mesh.materials.append(self.invisible_mat)
+                structure_mesh.materials.append(self.invalid_mat)
             else:
                 structure_mesh.materials.append(self.sky_mat)
             nwo.region_name = bsp
@@ -2279,9 +2324,10 @@ class PrepareScene:
         slots = nwo_utils.clean_materials(ob)
         for slot in slots:
             if slot.material.name in nwo_utils.special_material_names:
-                if self.corinth and slot.material.name not in ('+invisible', '+invalid'):
-                    slot.material = self.invisible_mat
-                elif not self.corinth and slot.material.name.startswith('+sky') and does_not_support_sky:
+                if self.corinth and slot.material.name not in (self.invisible_mat.name, self.invalid_mat.name):
+                    if not slot.material.name.lower().startswith(self.sky_mat.name):
+                        slot.material = self.invisible_mat
+                elif not self.corinth and slot.material.name.startswith(self.sky_mat.name) and does_not_support_sky:
                     slot.material = self.seamsealer_mat
             elif slot.material.name in nwo_utils.convention_material_names:
                 slot.material = self.invisible_mat
@@ -2311,7 +2357,6 @@ class PrepareScene:
             collections = ob.users_collections
             original_bm = bmesh.new()
             original_bm.from_mesh(data)
-            nwo_utils.save_loop_normals(original_bm)
             for s in sky_slots:
                 sky_index = nwo_utils.get_sky_perm(s.material)
                 if sky_index > -1 and sky_index < 32:
@@ -2331,8 +2376,6 @@ class PrepareScene:
                     new_bm.free()
                     original_bm.to_mesh(data)
                     original_bm.free()
-                    nwo_utils.apply_loop_normals(data)
-                    nwo_utils.apply_loop_normals(new_sky_data)
                     new_sky_ob = ob.copy()
                     new_sky_ob.name = ob.name + f'(sky_perm_{str(sky_index)})'
                     new_sky_ob.data = new_sky_data
