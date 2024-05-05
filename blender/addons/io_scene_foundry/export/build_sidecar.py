@@ -30,7 +30,6 @@ import bpy
 import getpass
 import xml.etree.cElementTree as ET
 import xml.dom.minidom
-import os
 
 from io_scene_foundry.tools.animation.composites import CompositeXML
 
@@ -678,7 +677,8 @@ class Sidecar:
         ET.SubElement(network, "IntermediateFile").text = path[2]
 
         output = ET.SubElement(object, "OutputTagCollection")
-        ET.SubElement(output, "OutputTag", Type="particle_emitter_custom_points").text = self.tag_path
+        if self.context.scene.nwo.particle_uses_custom_points:
+            ET.SubElement(output, "OutputTag", Type="particle_emitter_custom_points").text = self.tag_path
 
     def write_prefab_contents(self, metadata, sidecar_paths):
         contents = ET.SubElement(metadata, "Contents")

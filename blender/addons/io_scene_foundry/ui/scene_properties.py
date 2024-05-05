@@ -1342,3 +1342,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     is_valid_asset: BoolProperty(
         get=get_is_valid_asset,
     )
+    
+    particle_uses_custom_points: BoolProperty(
+        name="Has Custom Emitter Shape",
+        description="Generates a particle_emitter_custom_points tag for this particle model. This can be referenced in an effect tag as a custom emitter shape",
+    )

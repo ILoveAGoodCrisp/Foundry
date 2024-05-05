@@ -197,6 +197,11 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         ]
     )
     
+    particle_uses_custom_points: bpy.props.BoolProperty(
+        name="Has Custom Emitter Shape",
+        description="Generates a particle_emitter_custom_points tag for this particle model at export. This can be referenced in an effect tag as a custom emitter shape",
+    )
+    
     def scale_display_items(self, context):
         items = []
         unit_length: str = context.scene.unit_settings.length_unit
@@ -305,6 +310,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         scene_settings.nwo.output_weapon = self.output_weapon
         # Animation specific settings
         scene_settings.nwo.asset_animation_type = self.animation_type
+        # Particle
+        scene_settings.nwo.particle_uses_custom_points = self.particle_uses_custom_points
         
         # Update blend data
         if self.selected_only:
@@ -459,6 +466,9 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             
         elif self.asset_type == 'animation':
             col.prop(self, 'animation_type')
+            
+        elif self.asset_type == 'particle_model':
+            col.prop(self, 'particle_uses_custom_points')
 
 
     def invoke(self, context, _):

@@ -33,6 +33,7 @@ import os
 import json
 import multiprocessing
 import threading
+from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
 from io_scene_foundry.export.tag_builder import build_tags
 from io_scene_foundry.tools.scenario.lightmap import run_lightmapper
@@ -561,6 +562,7 @@ class ProcessScene:
             tag_folder_path = asset_path.replace(get_data_path(), get_tags_path())
             scenery_path = os.path.join(tag_folder_path, f"{asset}.scenery")
             no_top_level_tag = hasattr(sidecar, "no_top_level_tag") and not os.path.exists(scenery_path)
+            relative_asset_path = relative_path(asset_path)
             
             setup_scenario = False
             if asset_type == 'scenario':
@@ -571,7 +573,7 @@ class ProcessScene:
             if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
                 print("\n\nBuilding Tags")
                 print("-----------------------------------------------------------------------\n")
-                self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario)
+                self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario, relative_asset_path, asset)
                 export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(export_scene.lighting), export_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
@@ -842,7 +844,7 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_pre_import_tasks(self, export_scene, export_animations, scene_nwo, exported_actions, setup_scenario):
+    def managed_blam_pre_import_tasks(self, export_scene, export_animations, scene_nwo, exported_actions, setup_scenario, relative_asset_path, asset_name):
         node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
         # print("\n--- Foundry Tags Pre-Process\n")
         if node_usage_set or scene_nwo.ik_chains or exported_actions:
@@ -868,6 +870,11 @@ class ProcessScene:
         if setup_scenario and scene_nwo.scenario_type != 'solo':
             with ScenarioTag(hide_prints=True) as scenario:
                 scenario.tag.SelectField('type').SetValue(scene_nwo.scenario_type)
+                
+        if scene_nwo.asset_type == 'particle_model' and scene_nwo.particle_uses_custom_points:
+            emitter_path = str(Path(relative_asset_path, asset_name).with_suffix(".particle_emitter_custom_points"))
+            if not Path(get_tags_path(), emitter_path).exists():
+                with Tag(path=emitter_path) as _: pass
 
     def managed_blam_post_import_tasks(self, context, scene_nwo, export_scene, asset_type, asset_path, asset_name, reach_world_animations, pose_overlays, setup_scenario):
         nwo = context.scene.nwo

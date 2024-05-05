@@ -357,6 +357,9 @@ class NWO_FoundryPanelProps(Panel):
             col = box.column()
             col.operator('nwo.import', text="Import Camera Track", icon='IMPORT').scope = 'camera_track'
             col.prop(nwo, 'camera_track_camera', text="Camera")
+            
+        elif nwo.asset_type == 'particle_model':
+            col.prop(nwo, 'particle_uses_custom_points')
     
     def draw_expandable_box(self, box: bpy.types.UILayout, nwo, name, panel_display_name='', ob=None, material=None):
         if not panel_display_name:
