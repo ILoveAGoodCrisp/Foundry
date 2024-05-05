@@ -322,7 +322,7 @@ class NWO_Import(bpy.types.Operator):
                     camera_track_files = importer.sorted_filepaths["camera_track"]
                     cameras, actions = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, action=actions)
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
                         
                 if 'collision_model' in importer.extensions:
                     collision_model_files = importer.sorted_filepaths["collision_model"]
@@ -353,35 +353,38 @@ class NWO_Import(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        if 'bitmap' in self.scope:
-            self.directory = get_tags_path()
-        elif 'camera_track' in self.scope:
-            cameras_dir = Path(get_tags_path(), 'camera')
-            if cameras_dir.exists():
-                self.directory = str(cameras_dir)
-            else:
-                self.directory = get_tags_path()
+        if self.directory or self.files:
+            self.filter_glob = "*.bitmap;*.amf;*.jms;*.ass;*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;*.camera_track;*.collision_mo*;"
         else:
-            self.directory = ''
-            self.filepath = ''
-            
-        self.filename = ''
-        if (not self.scope or 'bitmap' in self.scope):
-            self.directory = get_tags_path()
-            self.filter_glob += "*.bitmap;"
-        if amf_addon_installed() and (not self.scope or 'amf' in self.scope):
-            self.amf_okay = True
-            self.filter_glob += "*.amf;"
-        if blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
-            self.legacy_okay = True
-            self.filter_glob += '*.jms;*.ass;'
-        if blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
-            self.legacy_okay = True
-            self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
-        if (not self.scope or 'camera_track' in self.scope):
-            self.filter_glob += '*.camera_track;'
-        if (not self.scope or 'collision_model' in self.scope):
-            self.filter_glob += '*.collision_mo*;'
+            if 'bitmap' in self.scope:
+                self.directory = get_tags_path()
+            elif 'camera_track' in self.scope:
+                cameras_dir = Path(get_tags_path(), 'camera')
+                if cameras_dir.exists():
+                    self.directory = str(cameras_dir)
+                else:
+                    self.directory = get_tags_path()
+            else:
+                self.directory = ''
+                self.filepath = ''
+                
+            self.filename = ''
+            if (not self.scope or 'bitmap' in self.scope):
+                self.directory = get_tags_path()
+                self.filter_glob += "*.bitmap;"
+            if amf_addon_installed() and (not self.scope or 'amf' in self.scope):
+                self.amf_okay = True
+                self.filter_glob += "*.amf;"
+            if blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
+                self.legacy_okay = True
+                self.filter_glob += '*.jms;*.ass;'
+            if blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
+                self.legacy_okay = True
+                self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
+            if (not self.scope or 'camera_track' in self.scope):
+                self.filter_glob += '*.camera_track;'
+            if (not self.scope or 'collision_model' in self.scope):
+                self.filter_glob += '*.collision_mo*;'
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
@@ -1823,5 +1826,12 @@ class NWOImporter:
                         nwo.animation_type = 'replacement'
                         nwo.animation_space = 'local'
                         
-def setup_pose_overlay(action):
-    pass
+class NWO_FH_Import(bpy.types.FileHandler):
+    bl_idname = "NWO_FH_Import"
+    bl_label = "File handler Foundry Importer"
+    bl_import_operator = "nwo.import"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.collision_model;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
+
+    @classmethod
+    def poll_drop(cls, context):
+        return (context.area and context.area.type == 'VIEW_3D')
