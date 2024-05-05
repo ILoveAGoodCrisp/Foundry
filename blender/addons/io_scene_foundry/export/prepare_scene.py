@@ -643,7 +643,7 @@ class PrepareScene:
                 
         poop_render_obs = {ob: ob.data for ob in self.context.view_layer.objects if ob.nwo.mesh_type == '_connected_geometry_mesh_type_poop' and ob.nwo.face_mode == '_connected_geometry_face_mode_render_only'}
         poop_render_meshes = {ob.data for ob in poop_render_obs}
-        poop_render_mesh_objects_dict = {data: [ob for ob in poop_obs if ob.data == data] for data in poop_render_meshes}
+        poop_render_mesh_objects_dict = {data: [ob for ob in poop_render_obs if ob.data == data] for data in poop_render_meshes}
         poop_render_mesh_objects_dict = {data: objects_list for data, objects_list in poop_render_mesh_objects_dict.items() if objects_list}
         
         for data in poop_render_mesh_objects_dict.keys():

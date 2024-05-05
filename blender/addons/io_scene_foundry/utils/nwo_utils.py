@@ -3256,10 +3256,10 @@ class TagImportMover():
         self.needs_to_move = False
         self.source_file = Path(file)
         name = self.source_file.with_suffix("").name
-        self.temp_file = Path(tags_dir, name + ".temp" + self.source_file.suffix)
+        self.temp_file = Path(tags_dir, "_temp", name + self.source_file.suffix)
         if not self.source_file.is_relative_to(Path(tags_dir)):
             self.needs_to_move = True
-            self.tag_path = name + ".temp" + self.source_file.suffix
+            self.tag_path = str(Path("_temp", name + self.source_file.suffix))
             shutil.copyfile(self.source_file, self.temp_file)
         else:
             self.tag_path = str(self.source_file.relative_to(tags_dir))
