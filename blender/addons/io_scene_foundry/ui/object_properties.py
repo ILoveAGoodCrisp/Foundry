@@ -1140,6 +1140,8 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
     )
     
+    emissive_active: BoolProperty(options=set())
+    
     def get_exportable(self):
         if not self.export_this:
             return False

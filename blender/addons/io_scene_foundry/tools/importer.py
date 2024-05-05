@@ -43,7 +43,7 @@ from io_scene_foundry.tools.property_apply import apply_props_material
 from io_scene_foundry.tools.shader_finder import find_shaders
 from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, layer_face_count, mute_armature_mods, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
 pose_hints = 'aim', 'look', 'acc', 'steer'
 legacy_model_formats = '.jms', '.ass'
@@ -705,18 +705,6 @@ class NWOImporter:
             entry.name = permutation
             
         ob.nwo.permutation_name_ui = permutation
-        
-    def new_face_prop(self, data, layer_name, display_name, override_prop, other_props={}) -> str:
-        face_props = data.nwo.face_props
-        layer = face_props.add()
-        layer.layer_name = layer_name
-        layer.name = display_name
-        layer.layer_color = random_color()
-        setattr(layer, override_prop, True)
-        for prop, value in other_props.items():
-            setattr(layer, prop, value)
-            
-        return layer_name
         
     # Camera track import
     def import_camera_tracks(self, paths, animation_scale):
@@ -1482,84 +1470,84 @@ class NWOImporter:
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Two Sided", "face_two_sided_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Two Sided", "face_two_sided_override")))
                                 
                         if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
                             l_name = 'transparent'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Transparent", "face_transparent_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Transparent", "face_transparent_override")))
                                 
                         if jms_mat.render_only:
                             l_name = 'render_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Render Only", "render_only_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Render Only", "render_only_override")))
                                 
                         if jms_mat.collision_only:
                             l_name = 'collision_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Collision Only", "collision_only_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Collision Only", "collision_only_override")))
                                 
                         if jms_mat.sphere_collision_only:
                             l_name = 'sphere_collision_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Sphere Collision Only", "sphere_collision_only_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Sphere Collision Only", "sphere_collision_only_override")))
                                 
                         if jms_mat.ladder:
                             l_name = 'ladder'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Ladder", "ladder_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Ladder", "ladder_override")))
                                 
                         if jms_mat.breakable:
                             l_name = 'breakable'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Breakable", "breakable_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Breakable", "breakable_override")))
                                 
                         if jms_mat.no_shadow:
                             l_name = 'no_shadow'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "No Shadow", "no_shadow_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "No Shadow", "no_shadow_override")))
                                 
                         if jms_mat.precise:
                             l_name = 'uncompressed'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Uncompressed", "precise_position_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Uncompressed", "precise_position_override")))
                                 
                         if jms_mat.ignored_by_lightmaps:
                             l_name = 'no_lightmap'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "No Lightmap", "no_lightmap_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "No Lightmap", "no_lightmap_override")))
                                 
                         if jms_mat.decal_offset:
                             l_name = 'decal_offset'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Decal Offset", "decal_offset_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Decal Offset", "decal_offset_override")))
                                 
                         if jms_mat.slip_surface:
                             l_name = 'slip_surface'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
                         
                         # Lightmap
                         # if jms_mat.lightmap_resolution_scale:
@@ -1567,25 +1555,25 @@ class NWOImporter:
                         #     if bm.faces.layers.int.get(l_name):
                         #         layers[idx].append(bm.faces.layers.int.get(l_name))
                         #     else:
-                        #         layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale_ui": jms_mat.lightmap_resolution_scale})))
+                        #         layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale_ui": jms_mat.lightmap_resolution_scale})))
                         
                         if jms_mat.lightmap_translucency_tint_color:
                             l_name = 'lightmap_translucency_tint_color'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color_ui": jms_mat.lightmap_translucency_tint_color})))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color_ui": jms_mat.lightmap_translucency_tint_color})))
                         
                         if jms_mat.lightmap_additive_transparency:
                             l_name = 'lightmap_additive_transparency'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency_ui": jms_mat.lightmap_additive_transparency})))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency_ui": jms_mat.lightmap_additive_transparency})))
                         
                         # Emissive
                         if jms_mat.emissive_power:
-                            l_name = 'emissive'
+                            l_name = f'emissive{jstr(jms_mat.emissive_power).replace(".", "")}_{color_3p_str(jms_mat.emissive_color).replace(".", "").replace(" ", "")}'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
@@ -1599,14 +1587,14 @@ class NWOImporter:
                                     "material_lighting_attenuation_falloff_ui": jms_mat.emissive_attenuation_falloff,
                                     "material_lighting_attenuation_cutoff_ui": jms_mat.emissive_attenuation_cutoff,
                                 }
-                                layers[idx].append(bm.faces.layers.int.new(self.new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
                         
                 for face in bm.faces:
                     for idx, face_layer_list in layers.items():
                         if face.material_index == idx:
                             for face_layer in face_layer_list:
                                 face[face_layer] = 1
-                                
+                 
                 for layer in face_props:
                     layer.face_count = layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
                                 

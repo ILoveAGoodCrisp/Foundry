@@ -1808,6 +1808,7 @@ class PrepareScene:
                             nwo_data.lightmap_lighting_from_both_sides_ui
                         )
                 if nwo_data.emissive_active:
+                    nwo.emissive_active = True
                     nwo.material_lighting_attenuation_falloff = nwo_utils.jstr(
                         nwo_data.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor
                     )

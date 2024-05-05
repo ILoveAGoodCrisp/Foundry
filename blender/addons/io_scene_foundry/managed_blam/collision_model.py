@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from uuid import uuid4
 import bmesh
 from mathutils import Matrix, Vector
 from io_scene_foundry.managed_blam import Tag
@@ -163,17 +164,17 @@ class CollisionTag(Tag):
             face_props = mesh.nwo.face_props
             if split_materials:
                 for material in {surface.material for surface in surfaces}:
-                    layers[f"material:{material}"] = nwo_utils.new_face_layer(bm, mesh, material, material, "face_global_material_override")
+                    layers[f"material:{material}"] = nwo_utils.new_face_layer(bm, mesh, material, material, f"face_global_material_override_{str(uuid4())}")
                     mesh.nwo.face_props[-1].face_global_material_ui = material
                     
             if split_sides:
-                layers["flag:two_sided"] = nwo_utils.new_face_layer(bm, mesh, material, "two_sided", "two_sided_override")
+                layers["flag:two_sided"] = nwo_utils.new_face_layer(bm, mesh, material, f"two_sided_{str(uuid4())}", "two_sided_override")
             if split_ladder:
-                layers["flag:ladder"] = nwo_utils.new_face_layer(bm, mesh, material, "ladder", "ladder_override")
+                layers["flag:ladder"] = nwo_utils.new_face_layer(bm, mesh, material, f"ladder_{str(uuid4())}", "ladder_override")
             if split_breakable:
-                layers["flag:breakable"] = nwo_utils.new_face_layer(bm, mesh, material, "breakable", "breakable_override")
+                layers["flag:breakable"] = nwo_utils.new_face_layer(bm, mesh, material, f"breakable_{str(uuid4())}", "breakable_override")
             if split_slip:
-                layers["flag:slip_surface"] = nwo_utils.new_face_layer(bm, mesh, material, "slip_surface", "slip_surface_override")
+                layers["flag:slip_surface"] = nwo_utils.new_face_layer(bm, mesh, material, f"slip_surface_{str(uuid4())}", "slip_surface_override")
                     
             for idx, face in enumerate(bm.faces):
                 surface = surfaces[idx]

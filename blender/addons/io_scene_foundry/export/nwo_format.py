@@ -1031,7 +1031,7 @@ class NWOMesh(NWOObject):
             # if self.corinth:
             #     self.bungie_mesh_per_vertex_lighting = self.mesh_per_vertex_lighting()
         # EMMISSIVE PROPERTIES
-        if self.ob.data.nwo.emissive_active:
+        if self.halo.emissive_active:
             self.bungie_lighting_emissive_power = (
                 jstr(calc_emissive_intensity(self.ob.data.nwo.material_lighting_emissive_power_ui))
             )
