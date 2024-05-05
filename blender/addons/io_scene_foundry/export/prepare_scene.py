@@ -1324,7 +1324,7 @@ class PrepareScene:
                 face_props.material_lighting_emissive_per_unit_ui
             )
             # mesh_props.material_lighting_emissive_power = nwo_utils.jstr(nwo_utils.calc_emissive_intensity(face_props.material_lighting_emissive_power_ui))
-            mesh_props.face_props.material_lighting_emissive_power_ui = face_props.material_lighting_emissive_power_ui
+            mesh_props.material_lighting_emissive_power_ui = face_props.material_lighting_emissive_power_ui
             mesh_props.material_lighting_emissive_quality = nwo_utils.jstr(
                 face_props.material_lighting_emissive_quality_ui
             )
