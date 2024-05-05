@@ -1849,10 +1849,10 @@ class NWO_FH_Import(bpy.types.FileHandler):
     def poll_drop(cls, context):
         return (context.area and context.area.type == 'VIEW_3D')
     
-class NWO_OT_ImportBitmapAsImage(bpy.types.Operator):
-    bl_idname = "nwo.import_bitmap_as_image"
+class NWO_OT_ImportBitmap(bpy.types.Operator):
+    bl_idname = "nwo.import_bitmap"
     bl_label = "Bitmap Importer"
-    bl_description = "Imports an image and loads it as the active image in the image editor"
+    bl_description = "Imports an image and loads it as the active image in the image editor or as a texture node depending on area context"
     bl_options = {"UNDO"}
     
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', options={'SKIP_SAVE'})
@@ -1873,27 +1873,39 @@ class NWO_OT_ImportBitmapAsImage(bpy.types.Operator):
         importer = NWOImporter(context, self.report, [self.filepath], ['bitmap'])
         extracted_bitmaps = importer.extract_bitmaps([self.filepath], 'tiff')
         images = importer.load_bitmaps(extracted_bitmaps, False)
-        if context.area.type == 'IMAGE_EDITOR' and images:
-            context.area.spaces.active.image = images[0]
+        if images:
+            if context.area.type == 'IMAGE_EDITOR':
+                context.area.spaces.active.image = images[0]
+            elif context.area.type == 'NODE_EDITOR' and context.material and context.material.use_nodes:
+                tree = context.material.node_tree
+                node = tree.nodes.new("ShaderNodeTexImage")
+                node.image = images[0]
+                for n in tree.nodes: n.select = False
+                node.select = True
+                node.location = context.region.view2d.region_to_view(self.mouse_x, self.mouse_y)
+                    
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        self.mouse_x = event.mouse_region_x
+        self.mouse_y = event.mouse_region_y
         return self.execute(context)
     
 class NWO_FH_ImportBitmapAsImage(bpy.types.FileHandler):
     bl_idname = "NWO_FH_ImportBitmapAsImage"
     bl_label = "File handler Foundry Bitmap Importer"
-    bl_import_operator = "nwo.import_bitmap_as_image"
+    bl_import_operator = "nwo.import_bitmap"
     bl_file_extensions = ".bitmap"
     
     @classmethod
     def poll_drop(cls, context):
         return (context.area and context.area.type == 'IMAGE_EDITOR')
+
     
 class NWO_FH_ImportBitmapAsNode(bpy.types.FileHandler):
     bl_idname = "NWO_FH_ImportBitmapAsNode"
     bl_label = "File handler Foundry Bitmap Importer"
-    bl_import_operator = "nwo.import_bitmap_as_node"
+    bl_import_operator = "nwo.import_bitmap"
     bl_file_extensions = ".bitmap"
     
     @classmethod
