@@ -1369,7 +1369,10 @@ class PrepareScene:
             mesh_props.material_lighting_emissive_per_unit = nwo_utils.bool_str(
                 face_props.material_lighting_emissive_per_unit_ui
             )
-            mesh_props.material_lighting_emissive_power = nwo_utils.jstr(face_props.material_lighting_emissive_power_ui)
+            if self.corinth:
+                mesh_props.material_lighting_emissive_power = nwo_utils.jstr(face_props.material_lighting_emissive_power_ui / 30)
+            else:
+                mesh_props.material_lighting_emissive_power = nwo_utils.jstr(face_props.material_lighting_emissive_power_ui)
             mesh_props.material_lighting_emissive_quality = nwo_utils.jstr(
                 face_props.material_lighting_emissive_quality_ui
             )
@@ -1821,7 +1824,10 @@ class PrepareScene:
                     nwo.material_lighting_emissive_per_unit = nwo_utils.bool_str(
                         nwo_data.material_lighting_emissive_per_unit_ui
                     )
-                    nwo.material_lighting_emissive_power = nwo_utils.jstr(nwo_data.material_lighting_emissive_power_ui)
+                    if self.corinth:
+                        nwo.material_lighting_emissive_power = nwo_utils.jstr(nwo_data.material_lighting_emissive_power_ui / 30)
+                    else:
+                        nwo.material_lighting_emissive_power = nwo_utils.jstr(nwo_data.material_lighting_emissive_power_ui)
                     nwo.material_lighting_emissive_quality = nwo_utils.jstr(
                         nwo_data.material_lighting_emissive_quality_ui
                     )

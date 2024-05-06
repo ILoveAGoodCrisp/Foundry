@@ -313,9 +313,9 @@ def color_3p_str(color):
 
 
 def color_4p_str(color):
-    red = linear_to_srgb(color.r) * 255
-    green = linear_to_srgb(color.g) * 255
-    blue = linear_to_srgb(color.b) * 255
+    red = color.r * 255
+    green = color.g * 255
+    blue = color.b * 255
     return f"1 {jstr(red)} {jstr(green)} {jstr(blue)}"
 
 def color_rgba_str(color):
@@ -2890,6 +2890,7 @@ def get_asset_tags(extension= "", full=False):
         matching_tags = set()
         asset_dir, asset_name = get_asset_info()
         full_dir_path = Path(get_tags_path(), asset_dir)
+        if not full_dir_path.exists(): return []
         for file in full_dir_path.iterdir():
             if file.suffix == extension:
                 if full:
