@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from pathlib import Path
 import bpy
 import os
 from io_scene_foundry.utils.nwo_utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
@@ -51,7 +52,7 @@ class NWO_GetTagsList(bpy.types.Operator):
         ext_list = extensions_from_type(self.list_type)
         tags = walk_tags_dir(tags_dir, ext_list)
         for t in tags:
-            global_items[self.list_type].append((t, os_sep_partition(t, True), ""))
+            global_items[self.list_type].append((t, Path(t).name, ""))
 
         return global_items[self.list_type]
 
@@ -163,7 +164,7 @@ def walk_tags_dir(tags_dir, ext_list):
     for root, dirs, files in os.walk(tags_dir):
         for file in files:
             if file.endswith(ext_list):
-                relative_path = os.path.join(root, file).replace(tags_dir, "")
+                relative_path = str(Path(root, file).relative_to(tags_dir))
                 if relative_path not in fav_tags:
                     tags_set.add(relative_path)
 

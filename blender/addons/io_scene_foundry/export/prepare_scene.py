@@ -1369,7 +1369,7 @@ class PrepareScene:
             mesh_props.material_lighting_emissive_per_unit = nwo_utils.bool_str(
                 face_props.material_lighting_emissive_per_unit_ui
             )
-            mesh_props.material_lighting_emissive_power = nwo_utils.jstr(nwo_utils.calc_emissive_intensity(face_props.material_lighting_emissive_power_ui, self.scale_factor))
+            mesh_props.material_lighting_emissive_power = nwo_utils.jstr(face_props.material_lighting_emissive_power_ui)
             mesh_props.material_lighting_emissive_quality = nwo_utils.jstr(
                 face_props.material_lighting_emissive_quality_ui
             )
@@ -1821,7 +1821,7 @@ class PrepareScene:
                     nwo.material_lighting_emissive_per_unit = nwo_utils.bool_str(
                         nwo_data.material_lighting_emissive_per_unit_ui
                     )
-                    nwo.material_lighting_emissive_power = nwo_utils.jstr(nwo_utils.calc_emissive_intensity(nwo_data.material_lighting_emissive_power_ui, self.scale_factor))
+                    nwo.material_lighting_emissive_power = nwo_utils.jstr(nwo_data.material_lighting_emissive_power_ui)
                     nwo.material_lighting_emissive_quality = nwo_utils.jstr(
                         nwo_data.material_lighting_emissive_quality_ui
                     )

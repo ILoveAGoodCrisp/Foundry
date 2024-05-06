@@ -502,7 +502,7 @@ class JMSMaterialSlot:
         self.emissive_frustum_cutoff = None
         
         if self.material.ass_jms.power > 0:
-            self.emissive_power = self.material.ass_jms.power * (0.03048 ** -2) * 3
+            self.emissive_power = self.material.ass_jms.power
             self.emissive_color = self.material.ass_jms.color
             self.emissive_quality = self.material.ass_jms.quality
             self.emissive_per_unit = self.material.ass_jms.power_per_unit_area

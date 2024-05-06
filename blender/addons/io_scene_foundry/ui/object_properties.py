@@ -459,9 +459,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         min=0,
-        default=10,
-        subtype='POWER',
-        unit='POWER',
+        default=5,
         # update=update_emissive,
     )
 

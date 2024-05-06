@@ -558,11 +558,10 @@ class ProcessScene:
             update_job(job, 1)
 
             reports.append("Exported " + str(gr2_count) + " GR2 Files")
-
-            tag_folder_path = asset_path.replace(get_data_path(), get_tags_path())
-            scenery_path = os.path.join(tag_folder_path, f"{asset}.scenery")
-            no_top_level_tag = hasattr(sidecar, "no_top_level_tag") and not os.path.exists(scenery_path)
             relative_asset_path = relative_path(asset_path)
+            tag_folder_path = str(Path(get_tags_path(), relative_asset_path))
+            scenery_path = str(Path(tag_folder_path, f"{asset}.scenery"))
+            no_top_level_tag = hasattr(sidecar, "no_top_level_tag") and not os.path.exists(scenery_path)
             
             setup_scenario = False
             if asset_type == 'scenario':

@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import radians
 import os
 from pathlib import Path
 import bpy
@@ -166,6 +167,94 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
     
     # LE MATERIAL PROPERTIES
     
-    # face_sides: bpy.props.EnumProperty()
-    # collision_type: bpy.props.EnumProperty()
+            
+    # def update_lighting_attenuation_falloff(self, context):
+    #     if not context.scene.nwo.transforming:
+    #         if self.material_lighting_attenuation_falloff_ui > self.material_lighting_attenuation_cutoff_ui:
+    #             self.material_lighting_attenuation_cutoff_ui = self.material_lighting_attenuation_falloff_ui
+            
+    # def update_lighting_attenuation_cutoff(self, context):
+    #     if not context.scene.nwo.transforming:
+    #         if self.material_lighting_attenuation_cutoff_ui < self.material_lighting_attenuation_falloff_ui:
+    #             self.material_lighting_attenuation_falloff_ui = self.material_lighting_attenuation_cutoff_ui
+    
+    # emissive_attenuation_cutoff_ui: bpy.props.FloatProperty(
+    #     name="Light Cutoff",
+    #     options=set(),
+    #     description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
+    #     min=0,
+    #     default=0,
+    #     update=update_lighting_attenuation_cutoff,
+    #     subtype='DISTANCE',
+    #     unit='LENGTH',
+    # )
+
+    # emissive_attenuation_falloff_ui: bpy.props.FloatProperty(
+    #     name="Light Falloff",
+    #     options=set(),
+    #     description="Determines how far light travels before its power begins to falloff",
+    #     min=0,
+    #     default=0,
+    #     update=update_lighting_attenuation_falloff,
+    #     subtype='DISTANCE',
+    #     unit='LENGTH',
+    # )
+
+    # emissive_focus_ui: bpy.props.FloatProperty(
+    #     name="Material Lighting Emissive Focus",
+    #     options=set(),
+    #     description="Controls the spread of the light. 180 degrees will emit light in a hemisphere from each point, 0 degrees will emit light nearly perpendicular to the surface",
+    #     min=0,
+    #     default=radians(180), 
+    #     max=radians(180),
+    #     subtype="ANGLE",
+    # )
+
+    # emissive_color_ui: bpy.props.FloatVectorProperty(
+    #     name="Emissive Color",
+    #     options=set(),
+    #     description="The RGB value of the emitted light",
+    #     default=(1.0, 1.0, 1.0),
+    #     subtype="COLOR",
+    #     min=0.0,
+    #     max=1.0,
+    # )
+
+    # emissive_per_unit_ui: BoolProperty(
+    #     name="Emissive Per Unit",
+    #     options=set(),
+    #     description="When an emissive surface is scaled, determines if the amount of emitted light should be spread out across the surface or increased/decreased to keep a regular amount of light emission per unit area",
+    #     default=False,
+    # )
+
+    # emissive_power_ui: bpy.props.FloatProperty(
+    #     name="Emissive Power",
+    #     options=set(),
+    #     description="The intensity of this light",
+    #     min=0,
+    #     default=0,
+    # )
+
+    # emissive_quality_ui: bpy.props.FloatProperty(
+    #     name="Emissive Quality",
+    #     options=set(),
+    #     description="Controls the quality of the shadows cast by a complex occluder. For instance, a light casting shadows of tree branches on a wall would require a higher quality to get smooth shadows",
+    #     default=1,
+    #     min=0,
+    # )
+
+    # emissive_use_shader_gel_ui: BoolProperty(
+    #     name="Use Shader Gel",
+    #     options=set(),
+    #     description="Only emits light from the parts of a shader/material which have self-illumination",
+    #     default=False,
+    # )
+
+    # emissive_bounce_ratio_ui: bpy.props.FloatProperty(
+    #     name="Lighting Bounce Ratio",
+    #     options=set(),
+    #     description="0 will bounce no energy. 1 will bounce full energy. Any value greater than 1 will exaggerate the amount of bounced light. Affects 1st bounce only",
+    #     default=1,
+    #     min=0,
+    # )
     

@@ -2034,7 +2034,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             objects = bpy.data.objects
             curves = bpy.data.curves
             metaballs = bpy.data.metaballs
-            lattices = bpy.data.lattices
+            # lattices = bpy.data.lattices
             meshes = bpy.data.meshes
             cameras = bpy.data.cameras
             lights = bpy.data.lights
@@ -2205,13 +2205,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             curve.transform(scale_matrix)
             curve.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
             curve.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-            curve.nwo.material_lighting_emissive_power_ui *= scale_factor ** 2
             
         for metaball in metaballs:
             metaball.transform(scale_matrix)
             metaball.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
             metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-            metaball.nwo.material_lighting_emissive_power_ui *= scale_factor ** 2
             
         # for lattice in lattices:
         #     lattice.transform(scale_matrix)
@@ -2220,9 +2218,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             mesh.transform(scale_matrix)
             mesh.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
             mesh.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
-            mesh.nwo.material_lighting_emissive_power_ui *= scale_factor ** 2
             for prop in mesh.nwo.face_props:
-                prop.material_lighting_emissive_power_ui *= scale_factor ** 2
                 prop.material_lighting_attenuation_cutoff_ui *= scale_factor
                 prop.material_lighting_attenuation_falloff_ui *= scale_factor
             
