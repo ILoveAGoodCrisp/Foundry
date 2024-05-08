@@ -1139,31 +1139,31 @@ class NWOMesh(NWOObject):
         return bool_str(self.halo.lightmap_lighting_from_both_sides)
 
 
-class NWOMaterial:
-    def __init__(self, material):
-        self.material = material
-        self.material_name = material.name
-        self.halo = material.nwo
-        self.bungie_shader_path = self.shader_path()
-        self.bungie_shader_type = self.shader_type()
+# class NWOMaterial:
+#     def __init__(self, material):
+#         self.material = material
+#         self.material_name = material.name
+#         self.halo = material.nwo
+#         self.bungie_shader_path = self.shader_path()
+#         self.bungie_shader_type = self.shader_type()
 
-        del self.material
-        del self.material_name
-        del self.halo
+#         del self.material
+#         del self.material_name
+#         del self.halo
 
-    def shader_path(self):
-        if self.halo.shader_path == "":
-            return "override"
-        else:
-            return clean_tag_path(self.halo.shader_path, "")
+#     def shader_path(self):
+#         if self.halo.shader_path == "":
+#             return "override"
+#         else:
+#             return clean_tag_path(self.halo.shader_path, "")
 
-    def shader_type(self):
-        if self.halo.shader_path == "" or self.halo.shader_path.endswith(".override"):
-            return "override"
-        elif is_corinth():
-            return "material"
-        else:
-            shader_type = Path(self.halo.shader_path).suffix
-            if shader_type in shader_exts:
-                return shader_type.strip('.')
-            return "shader"
+#     def shader_type(self):
+#         if self.halo.shader_path == "" or self.halo.shader_path.endswith(".override"):
+#             return "override"
+#         elif is_corinth():
+#             return "material"
+#         else:
+#             shader_type = Path(self.halo.shader_path).suffix
+#             if shader_type in shader_exts:
+#                 return shader_type.strip('.')
+#             return "shader"

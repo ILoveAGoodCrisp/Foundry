@@ -34,7 +34,6 @@ from .nwo_format import (
     NWOAnimationControl,
     NWOAnimationCamera,
     NWOFramePCA,
-    NWOMaterial,
 )
 
 
@@ -69,13 +68,13 @@ class NWOJSON(dict):
             holder_of_light = self.meshes_properties[list(self.meshes_properties.keys())[0]]
             holder_of_light.update(self.skylights)
             
-        self.material_properties = self.build_material_properties()
+        # self.material_properties = self.build_material_properties()
 
         self.json_dict = {}
         self.json_dict.update({"string_table": self.string_table})
         self.json_dict.update({"nodes_properties": self.nodes_properties})
         self.json_dict.update({"meshes_properties": self.meshes_properties})
-        self.json_dict.update({"material_properties": self.material_properties})
+        # self.json_dict.update({"material_properties": self.material_properties})
 
     # STRING TABLE
     def build_string_table(self):
@@ -209,18 +208,18 @@ class NWOJSON(dict):
 
         return node_properties, mesh_properties
 
-    def build_material_properties(self):
-        # first, get all materials for the selected objects
-        materials = []
-        for ob in self.objects:
-            for slot in ob.material_slots:
-                if slot.material is not None and slot.material not in materials:
-                    materials.append(slot.material)
+    # def build_material_properties(self):
+    #     # first, get all materials for the selected objects
+    #     materials = []
+    #     for ob in self.objects:
+    #         for slot in ob.material_slots:
+    #             if slot.material is not None and slot.material not in materials:
+    #                 materials.append(slot.material)
 
-        material_properties = {}
-        # build material props
-        for mat in materials:
-            props = NWOMaterial(mat)
-            material_properties.update({mat.name: props.__dict__})
+    #     material_properties = {}
+    #     # build material props
+    #     for mat in materials:
+    #         props = NWOMaterial(mat)
+    #         material_properties.update({mat.name: props.__dict__})
 
-        return material_properties
+    #     return material_properties

@@ -83,6 +83,8 @@ halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
 
 blender_has_auto_smooth = bpy.app.version < (4, 1, 0)
 
+invalid_path = r"shaders\invalid"
+
 #####################################################################################
 #####################################################################################
 # MAIN CLASS
@@ -122,6 +124,8 @@ class PrepareScene:
         self.validated_permutations = set()
         self.lods = set()
         self.skylights = {}
+        
+        self.default_shader_type = 'material' if corinth else 'shader'
         
         if self.supports_regions_and_perms:
             self.regions = [entry.name for entry in context.scene.nwo.regions_table]
@@ -285,21 +289,17 @@ class PrepareScene:
         '''
         Adds special materials to the blend file for use later
         '''
-        invalid_path = r"shaders\invalid"
-        if self.corinth:
-            invalid_path += ".material"
-        else:
-            invalid_path += ".shader"
         materials = bpy.data.materials
         # create fixup materials
         for sm in special_materials:
             m = materials.get(sm.name)
             if not m:
                 m = materials.new(sm.name)
+            m["bungie_shader_path"] = sm.shader_path
             if self.corinth:
-                m.nwo.shader_path = sm.shader_path + '.material' # No support for material face props in H4, so always a material tag reference
+                m["bungie_shader_type"] = "material" # No support for material face props in H4, so always a material tag reference
             else:
-                m.nwo.shader_path = sm.shader_path + '.override' if sm.is_face_property else sm.shader_path + '.shader' 
+                m["bungie_shader_type"] = 'override' if sm.is_face_property else 'shader' 
             match sm.name:
                 case '+invisible':
                     self.invisible_mat = m
@@ -320,10 +320,10 @@ class PrepareScene:
         
         default_shader = nwo_utils.relative_path(self.project.default_material)
         if Path(self.tags_dir, default_shader).exists():
-            self.default_mat.nwo.shader_path = default_shader
+            self._set_shader_props(self.default_mat, default_shader)
         else:
             nwo_utils.print_warning(f"Default shader/material tag does not exist: {default_shader}")
-            self.default_mat.nwo.shader_path = invalid_path
+            self._set_shader_props(self.default_mat, invalid_path)
         
         # Not avaliable to user, but creating this to ensure water renders
         self.water_surface_mat = materials.get("+water")
@@ -332,10 +332,11 @@ class PrepareScene:
         
         default_water_shader = nwo_utils.relative_path(self.project.default_water)
         if Path(self.tags_dir, default_water_shader).exists():
-            self.water_surface_mat.nwo.shader_path = default_water_shader
+            self.default_mat["bungie_shader_path"] = str(Path(default_water_shader).with_suffix(''))
+            self._set_shader_props(self.water_surface_mat, default_water_shader)
         else:
             nwo_utils.print_warning(f"Default water tag does not exist: {default_water_shader}")
-            self.water_surface_mat.nwo.shader_path = invalid_path
+            self._set_shader_props(self.water_surface_mat, invalid_path)
         
     def convert_area_lights(self):
         ''''
@@ -502,22 +503,25 @@ class PrepareScene:
         '''
         Validates that shader paths point to existing tags\n
         Reports missing/invalid shader paths to user
+        Sets the bungie_ props for materials
         '''
         
         for idx, mat in enumerate(self.used_materials):
             mat_nwo = mat.nwo
             if nwo_utils.has_shader_path(mat):
-                mat_nwo.shader_path = nwo_utils.relative_path(mat_nwo.shader_path)
-                if not mat_nwo.shader_path:
+                shader = nwo_utils.relative_path(mat_nwo.shader_path)
+                if not shader:
                     self.null_path_materials.add(mat)
                     self.warning_hit = True
-                    mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
+                    self._set_shader_props(mat, invalid_path)
                         
-                elif not Path(self.tags_dir, mat_nwo.shader_path).exists():
+                elif not Path(self.tags_dir, shader).exists():
                     self.invalid_path_materials.add(mat)
                     self.warning_hit = True
-                    mat.nwo.shader_path = self.invalid_mat.nwo.shader_path
+                    self._set_shader_props(mat, invalid_path)
                 
+                else:
+                    self._set_shader_props(mat, shader)
                 
         if self.null_path_materials:
             if self.corinth:
@@ -701,10 +705,6 @@ class PrepareScene:
                 face_properties = data_nwo.face_props
 
                 if face_properties:
-                    # must force on auto smooth to avoid Normals transfer errors on < Blender 4.1
-                    if blender_has_auto_smooth:
-                        data.use_auto_smooth = True
-
                     bm = bmesh.new(use_operators=True)
                     bm.from_mesh(data)
                     # must ensure all faces are visible
@@ -1415,6 +1415,25 @@ class PrepareScene:
             )
 
         return [ob]
+    
+    def _set_shader_props(self, material, shader="", ext=""):
+        '''
+        Writes shader path and type to a materials custom properties
+        If no shader path is passed, this is taken from the materials nwo.shader_path property
+        The shader path extension can be overwritten if an ext argument is passed
+        '''
+        if not shader:
+            shader = material.nwo.shader_path
+        shader_path = Path(shader)
+        if ext:
+            if ext[0] != '.': ext = '.' + ext
+            shader_path = shader_path.with_suffix(ext)
+            
+        if len(shader_path.suffix) < 2:
+            shader_path = shader_path.with_suffix(f'.{self.default_shader_type}')
+        
+        material["bungie_shader_path"] = str(shader_path.with_suffix(""))
+        material["bungie_shader_type"] = shader_path.suffix[1:]
     
     def _setup_water_physics(self, ob_surface):
         collections = ob_surface.users_collection
@@ -2337,7 +2356,7 @@ class PrepareScene:
                     slot.material = self.seamsealer_mat
             elif slot.material.name in nwo_utils.convention_material_names:
                 slot.material = self.invisible_mat
-            elif is_halo_render:
+            elif is_halo_render and not slot.material.get("bungie_shader_path"):
                 self.used_materials.add(slot.material)
 
         if not slots:
