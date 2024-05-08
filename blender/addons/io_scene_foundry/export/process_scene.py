@@ -1074,6 +1074,7 @@ class ProcessScene:
             axis_forward="X",
             axis_up="Z",
             bake_anim=export_anim,
+            use_custom_props=True,
         )
 
         enable_prints()
