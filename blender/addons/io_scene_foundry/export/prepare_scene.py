@@ -510,7 +510,7 @@ class PrepareScene:
             mat_nwo = mat.nwo
             if nwo_utils.has_shader_path(mat):
                 shader = nwo_utils.relative_path(mat_nwo.shader_path)
-                if not shader:
+                if not mat_nwo.shader_path.strip():
                     self.null_path_materials.add(mat)
                     self.warning_hit = True
                     self._set_shader_props(mat, invalid_path)
