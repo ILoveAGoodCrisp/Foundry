@@ -230,10 +230,10 @@ class NWO_FoundryPanelProps(Panel):
             if p == "help":
                 box = col1.box()
             elif p == "animation_manager":
-                if not nwo.is_valid_asset or not poll_ui(('model', 'animation', 'camera_track_set')):
+                if not poll_ui(('model', 'animation', 'camera_track_set')):
                     continue
             elif p in ("object_properties", "material_properties", 'sets_manager'):
-                if not nwo.is_valid_asset or nwo.asset_type in ('animation', 'camera_track_set'):
+                if nwo.asset_type in ('animation', 'camera_track_set'):
                     continue
             
             row_icon = box.row(align=True)
