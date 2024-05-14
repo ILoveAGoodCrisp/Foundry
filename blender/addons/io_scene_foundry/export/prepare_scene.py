@@ -80,9 +80,10 @@ class PrepareScene:
     Handles converting the various halo properties to strings to be handled later by the json dumper\n
     Does lots of fixup to the objects to make sure they are ready for processing by Halo\n
     '''
-    def __init__(self, context, asset_type, corinth, scene_settings, export_settings):
+    def __init__(self, context, asset_type, corinth, scene_settings, export_settings, asset_name):
         self.context = context
         self.asset_type = asset_type
+        self.asset_name = asset_name
         self.corinth = corinth
         self.game_version = 'corinth' if corinth else 'reach'
         self.scene_settings = scene_settings
@@ -652,7 +653,7 @@ class PrepareScene:
             for idx in to_replace:
                 ob.material_slots[idx].material = self.invalid_mat
                 
-        poop_render_obs = {ob: ob.data for ob in self.context.view_layer.objects if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop' and ob.nwo.face_mode == '_connected_geometry_face_mode_render_only'}
+        poop_render_obs = {ob: ob.data for ob in self.context.view_layer.objects if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop' and ob.get("bungie_face_mode") == '_connected_geometry_face_mode_render_only'}
         poop_render_meshes = {ob.data for ob in poop_render_obs}
         poop_render_mesh_objects_dict = {data: [ob for ob in poop_render_obs if ob.data == data] for data in poop_render_meshes}
         poop_render_mesh_objects_dict = {data: objects_list for data, objects_list in poop_render_mesh_objects_dict.items() if objects_list}
@@ -738,7 +739,7 @@ class PrepareScene:
                                     new_ob.nwo.permutation_name = linked_ob.nwo.permutation_name
 
                                 if split_ob.children and not new_ob.children:
-                                    new_ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                                    new_ob["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
                                     for child in split_ob.children:
                                         if not child.nwo.proxy_parent:
                                             new_child = child.copy()
@@ -937,6 +938,7 @@ class PrepareScene:
             nwo = structure.nwo
             if self.corinth:
                 structure_mesh.materials.append(self.invalid_mat)
+                structure["bungie_face_type"] = '_connected_geometry_face_type_sky'
             else:
                 structure_mesh.materials.append(self.sky_mat)
             nwo.region_name = bsp
@@ -1154,7 +1156,7 @@ class PrepareScene:
 
                     collision_ob.name = f"{ob.name}(collision)"
                     if self._coll_proxy_two_sided(collision_ob, coll_bm):
-                        collision_ob.nwo.face_sides = '_connected_geometry_face_sides_two_sided'
+                        collision_ob["bungie_face_sides"] = "_connected_geometry_face_sides_two_sided"
                     coll_bm.free()
                     ori_matrix = ob.matrix_world.copy()
                     collision_ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_collision"
@@ -1225,7 +1227,7 @@ class PrepareScene:
                     # only way to make invisible collision...
                     if collision_ob is not None:
                         collision_ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
-                        collision_ob.nwo.face_mode = "_connected_geometry_face_mode_collision_only"
+                        collision_ob["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
 
                 if parent_ob is not None:
                     if collision_ob is not None:
@@ -1508,7 +1510,7 @@ class PrepareScene:
                                 o_collision.nwo.region_name = ig.nwo.region_name
                                 o_collision.nwo.permutation_name = ig.nwo.permutation_name
                         else:
-                            ig.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                            ig["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
                             o_collision = proxy_collision.copy()
                             for collection in ig.users_collection: collection.objects.link(o_collision)
                             o_collision.parent = ig
@@ -1668,8 +1670,12 @@ class PrepareScene:
                 
         elif mesh_type == '_connected_geometry_mesh_type_poop':
             self._setup_poop_props(ob)
+            
+        elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == 'scenario':
+            ob["bungie_face_type"] = '_connected_geometry_face_type_sky'
                     
         elif mesh_type == "_connected_geometry_mesh_type_seam":
+            ob["bungie_mesh_seam_associated_bsp"] = (f"{self.asset_name}_{nwo.region_name}")
             self.seams.add(ob)
             
         elif mesh_type == "_connected_geometry_mesh_type_portal":

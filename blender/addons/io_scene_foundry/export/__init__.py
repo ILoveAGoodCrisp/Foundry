@@ -613,7 +613,7 @@ def unregister():
 
 def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_settings, export_settings, corinth):
     asset_type = scene_settings.asset_type
-    export_scene = PrepareScene(context, asset_type, corinth, scene_settings, export_settings)
+    export_scene = PrepareScene(context, asset_type, corinth, scene_settings, export_settings, asset_name)
     export_scene.ready_scene()
     export_scene.make_real()
     # if not export_settings.clear_existing_halo_props: NOTE need to implement this debug bool
