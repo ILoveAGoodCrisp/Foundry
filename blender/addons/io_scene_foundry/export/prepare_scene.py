@@ -135,6 +135,7 @@ class PrepareScene:
         self.global_materials = {"default"}
         self.seams = set()
         self.reach_sky_lights = set()
+        self.lights = set()
         
         global render_mesh_types
         if not corinth or asset_type in ('model', 'sky'):
@@ -249,6 +250,11 @@ class PrepareScene:
         self.skeleton_bones = self._get_bone_list()
         nwo_utils.remove_relative_parenting(self.model_armature)
         self._fix_parenting()
+        
+        self.model_armature["bungie_frame_ID1"] = "8078"
+        self.model_armature["bungie_frame_ID2"] = "378163771"
+        if self.corinth:
+            self.model_armature["bungie_frame_world"] = "1"
                 
         if self.asset_type != "animation":
             for ob in self.context.view_layer.objects:
@@ -374,18 +380,14 @@ class PrepareScene:
                 ob.hide_set(False)
                 ob.hide_select = False
 
-                # If this is a Reach light, fix it's rotation
-                # Blender lights emit in -z, while Halo emits light from +y
-                if not self.corinth and ob_type == "LIGHT":
-                    if self.asset_type == 'sky':
+                # Never export lights 
+                if ob_type == "LIGHT":
+                    if not self.corinth and self.asset_type == 'sky':
                         self.reach_sky_lights.add(ob)
-                        nwo_utils.unlink(ob)
-                        continue
-                    elif not self.asset_type == 'scenario':
-                        nwo_utils.unlink(ob)
-                        continue
-                    
-                    ob.matrix_world = ob.matrix_world @ halo_light_rot
+                    else:
+                        self.lights.add(ob)
+                    nwo_utils.unlink(ob)
+                    continue
 
                 self._strip_prefix(ob)
                 
@@ -470,7 +472,7 @@ class PrepareScene:
                 is_halo_render = is_mesh_loose and object_type == '_connected_geometry_object_type_mesh' and ob.get("bungie_mesh_type") in render_mesh_types
 
                 # add region/global_mat to sets
-                uses_global_mat = self.has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and nwo.mesh_type == "_connected_geometry_mesh_type_default")
+                uses_global_mat = self.has_global_mats and (ob.get("bungie_mesh_type") in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_default")
                 if uses_global_mat:
                     self.global_materials.add(nwo.face_global_material)
 
@@ -704,7 +706,7 @@ class PrepareScene:
                 data_nwo = data.nwo
                 ob_nwo = ob.nwo
                 
-                if ob_nwo.mesh_type == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision and not data_nwo.render_only_ui:
+                if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision and not data_nwo.render_only_ui:
                     self._setup_instance_proxies(data, objects_list)
 
                 face_properties = data_nwo.face_props
@@ -1858,6 +1860,7 @@ class PrepareScene:
         nwo = ob.nwo
         marker_type = nwo.marker_type_ui
         ob["bungie_marker_type"] = marker_type
+        ob["bungie_marker_model_group"] = nwo.marker_model_group
         if self.asset_type in ('model', 'sky'):
             ob["bungie_marker_all_regions"] = nwo_utils.bool_str(not nwo.marker_uses_regions)
             if nwo.marker_uses_regions:
@@ -2090,7 +2093,6 @@ class PrepareScene:
                     world = ob.matrix_world.copy()
                     ob.parent_type = "BONE"
                     if ob.type == 'MESH':
-                        print(ob.name)
                         major_vertex_group = nwo_utils.get_major_vertex_group(ob)
                         if major_vertex_group in valid_bone_names:
                             ob.parent_bone = major_vertex_group
@@ -2143,7 +2145,6 @@ class PrepareScene:
         nodes_order_gun = {}
         nodes_order_fp = {}
         arm = self.model_armature.name
-        boneslist.update({arm: self._get_armature_props()})
         bone_list = [bone for bone in self.model_armature.data.bones if bone.use_deform]
         if len(bone_list) > 256:
             raise RuntimeError(f"Armature [{self.model_armature.name}] exceeds maximum deform bone count for exporting. {len(bone_list)} > 256")
@@ -2373,9 +2374,9 @@ class PrepareScene:
 
         if not slots:
             # append the new material to the object
-            if nwo.mesh_type == "_connected_geometry_mesh_type_water_surface":
+            if ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_water_surface":
                 data.materials.append(self.water_surface_mat)
-            elif nwo.mesh_type in render_mesh_types:
+            elif ob.get("bungie_mesh_type") in render_mesh_types:
                 data.materials.append(self.default_mat)
             else:
                 data.materials.append(self.invalid_mat)

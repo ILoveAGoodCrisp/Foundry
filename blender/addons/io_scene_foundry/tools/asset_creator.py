@@ -313,7 +313,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         # Particle
         scene_settings.nwo.particle_uses_custom_points = self.particle_uses_custom_points
         # Scenario
-        if len(scene_settings.nwo.regions_table) < 2:
+        if self.asset_type == 'scenario' and len(scene_settings.nwo.regions_table) < 2:
             nwo_utils.add_region('shared')
         
         # Update blend data

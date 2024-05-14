@@ -45,7 +45,7 @@ class AnimationTag(Tag):
         
     def _node_index_list(self, bones):
         # Have to set up the skeleton nodes block. If we end up with any node usages that point to non-existant nodes, the importer will crash
-        node_index_list = [b for b in bones.keys()][1:]
+        node_index_list = [b for b in bones.keys()]
         if self._needs_skeleton_update(node_index_list):
             self.block_skeleton_nodes.RemoveAllElements()
             for n in node_index_list:
