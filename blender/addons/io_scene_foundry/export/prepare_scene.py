@@ -637,7 +637,7 @@ class PrepareScene:
             poop_objects = {ob for ob in self.context.view_layer.objects if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop'}
             for ob in poop_objects:
                 sky_slots = {slot for slot in ob.material_slots if slot.material and slot.material.name.lower().startswith(self.sky_mat.name)}
-                if sky_slots > 1: to_cleanup.add(ob)
+                if len(sky_slots) > 1: to_cleanup.add(ob)
                 for slot in ob.material_slots:
                     if slot in sky_slots:
                         slot.material = self.seamsealer_mat
