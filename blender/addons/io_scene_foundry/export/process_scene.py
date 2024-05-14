@@ -961,85 +961,79 @@ class ProcessScene:
             if event.event_type.startswith('_connected_geometry_animation_event_type_ik') and event.ik_chain == 'none': continue
             # create the event node to store event info
             event_ob = bpy.data.objects.new('event_export_node_' + event.event_type[41:] + '_' + str(event.event_id), None)
-            nwo = event_ob.nwo
             # Set this node to be an animation event
-            nwo.object_type = "_connected_geometry_object_type_animation_event"
+            event_ob["bungie_object_type"] = "_connected_geometry_object_type_animation_event"
             # Set up the event node with the action start and end frame and id
             # add the user defined properties from the action
-            nwo.event_id = abs(event.event_id)
-            nwo.event_type = event.event_type
-            nwo.wrinkle_map_face_region = event.wrinkle_map_face_region
-            nwo.wrinkle_map_effect = jstr(event.wrinkle_map_effect)
-            nwo.ik_chain = event.ik_chain
-            nwo.ik_target_marker = event.ik_target_marker.name if event.ik_target_marker else ''
-            nwo.ik_target_usage = event.ik_target_usage
-            nwo.object_function_name = event.object_function_name
-            nwo.object_function_effect = jstr(event.object_function_effect)
-            nwo.import_frame = str(event.import_frame)
-            nwo.import_name = event.import_name
+            event_ob["bungie_animation_event_id"] = str(abs(event.event_id))
+            event_ob["bungie_animation_event_type"] = event.event_type
+            if event.event_type == '_connected_geometry_animation_event_type_wrinkle_map':
+                event_ob["bungie_animation_event_wrinkle_map_face_region"] = event.wrinkle_map_face_region
+                event_ob["bungie_animation_event_wrinkle_map_effect"] = jstr(event.wrinkle_map_effect)
+            elif event.event_type in ("_connected_geometry_animation_event_type_ik_active", "_connected_geometry_animation_event_type_ik_passive"):
+                event_ob["bungie_animation_event_ik_chain"] = event.ik_chain
+                event_ob["bungie_animation_event_ik_target_marker"] = event.ik_target_marker.name if event.ik_target_marker else ''
+                event_ob["bungie_animation_event_ik_target_usage"] = event.ik_target_usage
             # add it to the list
             scene_coll.link(event_ob)
             animation_events.append(event_ob)
             # duplicate for frame range
-            if nwo.event_type == '_connected_geometry_animation_event_type_frame':
-                nwo.frame_frame = event.frame_frame
-                nwo.frame_name = event.frame_name
+            if event.event_type == '_connected_geometry_animation_event_type_frame':
+                event_ob["bungie_animation_event_frame_frame"] = event.frame_frame
+                event_ob["bungie_animation_event_frame_name"] = event.frame_name
                 if event.multi_frame == "range" and event.frame_range > event.frame_frame:
-                    for _ in range(event.frame_range - event.frame_frame):
+                    for i in range(event.frame_range - event.frame_frame):
                         event_ob_copy = event_ob.copy()
-                        copy_nwo = event_ob_copy.nwo
-                        copy_nwo.event_id += 1
-                        copy_nwo.frame_frame += 1
-                        event_ob_copy.name = 'event_export_node_frame_' + str(copy_nwo.event_id)
+                        event_ob_copy["bungie_animation_event_id"] = str(abs(event.event_id) + i)
+                        event_ob_copy["bungie_animation_event_frame_frame"] = str(event.frame_frame + i)
+                        event_ob_copy.name = 'event_export_node_frame_' + event_ob_copy["bungie_animation_event_id"]
                         scene_coll.link(event_ob_copy)
                         animation_events.append(event_ob_copy)
                         event_ob = event_ob_copy
                     
-            elif nwo.event_type.startswith('_connected_geometry_animation_event_type_ik'):
+            elif event.event_type.startswith('_connected_geometry_animation_event_type_ik'):
                 # Create animation controls
-                proxy_target = bpy.data.objects.new('proxy_target_export_node_'+ nwo.ik_target_usage + '_' + nwo.ik_target_marker, None)
+                proxy_target = bpy.data.objects.new('proxy_target_export_node_'+ event.ik_target_usage + '_' + event_ob["bungie_animation_event_ik_target_marker"], None)
                 proxy_target.parent = model_armature
                 proxy_target.parent_type = 'BONE'
                 proxy_target.parent_bone = root_bone_name
                 rnd = random.Random()
                 rnd.seed(proxy_target.name)
                 proxy_target_id = str(rnd.randint(0, 2147483647))
-                nwo.ik_proxy_target_id = proxy_target_id
-                proxy_target_nwo = proxy_target.nwo
-                proxy_target_nwo.object_type = '_connected_geometry_object_type_animation_control'
-                proxy_target_nwo.animation_control_id = proxy_target_id
-                proxy_target_nwo.animation_control_type = '_connected_geometry_animation_control_type_target_proxy'
-                proxy_target_nwo.animation_control_proxy_target_usage = nwo.ik_target_usage
-                proxy_target_nwo.animation_control_proxy_target_marker = nwo.ik_target_marker
+                proxy_target["bungie_animation_event_ik_proxy_target_id"] = proxy_target_id
+                proxy_target["bungie_object_type"] = '_connected_geometry_object_type_animation_control'
+                proxy_target["bungie_animation_control_id"] = proxy_target_id
+                proxy_target["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_target_proxy'
+                proxy_target["bungie_animation_control_proxy_target_usage"] = event_ob["bungie_animation_event_ik_target_usage"]
+                proxy_target["bungie_animation_control_proxy_target_marker"] = event_ob["bungie_animation_event_ik_target_marker"]
                 scene_coll.link(proxy_target)
-                proxy_target.matrix_local = bpy.data.objects.get(nwo.ik_target_marker).matrix_local
+                proxy_target.matrix_local = bpy.data.objects.get(event.ik_target_marker).matrix_local
                 animation_events.append(proxy_target)
                 
-                effector = bpy.data.objects.new('ik_effector_export_node_'+ nwo.ik_chain + '_' + nwo.event_type[44:], None)
+                effector = bpy.data.objects.new('ik_effector_export_node_'+ event.ik_chain + '_' + event.event_type[44:], None)
                 effector.parent = model_armature
                 effector.parent_type = 'BONE'
                 effector.parent_bone = root_bone_name
                 rnd = random.Random()
                 rnd.seed(effector.name)
                 effector_id = str(rnd.randint(0, 2147483647))
-                nwo.ik_effector_id = effector_id
-                effector_nwo = effector.nwo
-                effector_nwo.object_type = '_connected_geometry_object_type_animation_control'
-                effector_nwo.animation_control_id = effector_id
-                effector_nwo.animation_control_type = '_connected_geometry_animation_control_type_ik_effector'
-                effector_nwo.animation_control_ik_chain = nwo.ik_chain
-                effector_nwo.animation_control_ik_effect = jstr(event.ik_influence)
+                event_ob["bungie_animation_event_ik_effector_id"] = effector_id
+                effector["bungie_object_type"] = '_connected_geometry_object_type_animation_control'
+                effector["bungie_animation_control_id"] = effector_id
+                effector["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_ik_effector'
+                effector["bungie_animation_control_ik_chain"] = event.ik_chain
+                effector["bungie_animation_control_ik_effect"] = jstr(event.ik_influence)
                 scene_coll.link(effector)
                 effector.matrix_local = proxy_target.matrix_local
                 animation_events.append(effector)
                 
                 rnd = random.Random()
                 rnd.seed(event_ob.name + '117')
-                nwo.ik_pole_vector_id = str(rnd.randint(0, 2147483647))
+                event_ob["bungie_animation_event_ik_pole_vector_id"] = str(rnd.randint(0, 2147483647))
                 
             else:
-                nwo.frame_start = str(event.frame_frame)
-                nwo.frame_end = str(event.frame_frame + event.frame_range)
+                event_ob["bungie_animation_event_start"] = str(event.frame_frame)
+                event_ob["bungie_animation_event_end"] = str(event.frame_frame + event.frame_range)
                 
         return animation_events
 

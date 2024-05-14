@@ -24,18 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import bpy
 from ..utils.nwo_utils import is_corinth
-from .nwo_format import (
-    NWOFrame,
-    NWOLight,
-    NWOMarker,
-    NWOMesh,
-    NWOAnimationEvent,
-    NWOAnimationControl,
-    NWOAnimationCamera,
-    NWOFramePCA,
-)
-
 
 class NWOJSON(dict):
     def __init__(
@@ -123,103 +113,16 @@ class NWOJSON(dict):
         node_properties.update(self.bone_list)
         # build frame props
         for ob in self.objects:
-            nwo = ob.nwo
-            match nwo.object_type:
-                case "_connected_geometry_object_type_animation_event":
-                    props = NWOAnimationEvent(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    node_properties.update({ob.name: props.__dict__})
-                case "_connected_geometry_object_type_animation_control":
-                    props = NWOAnimationControl(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    node_properties.update({ob.name: props.__dict__})
-                case "_connected_geometry_object_type_animation_camera":
-                    props = NWOAnimationCamera(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    node_properties.update({ob.name: props.__dict__})
-                case "_connected_geometry_object_type_light":
-                    props = NWOLight(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    node_properties.update({ob.name: props.__dict__})
-                case "_connected_geometry_object_type_marker":
-                    props = NWOMarker(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    node_properties.update({ob.name: props.__dict__})
-                case "_connected_geometry_object_type_frame_pca":
-                    props = NWOFramePCA(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    node_properties.update({ob.name: props.__dict__})
-                case "_connected_geometry_object_type_frame":
-                    props = NWOFrame(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    node_properties.update({ob.name: props.__dict__})
-                case "_connected_geometry_object_type_mesh":
-                    props = NWOMesh(
-                        ob,
-                        self.sidecar_type,
-                        self.model_armature,
-                        self.world_frame,
-                        self.asset_name,
-                        self.validated_permutations,
-                    )
-                    mesh_properties.update({ob.name: props.__dict__})
+            if ob.type == "MESH":
+                mesh_properties[ob.name] = self.get_halo_props(ob)
+            else:
+                node_properties[ob.name] = self.get_halo_props(ob)
 
         return node_properties, mesh_properties
-
-    # def build_material_properties(self):
-    #     # first, get all materials for the selected objects
-    #     materials = []
-    #     for ob in self.objects:
-    #         for slot in ob.material_slots:
-    #             if slot.material is not None and slot.material not in materials:
-    #                 materials.append(slot.material)
-
-    #     material_properties = {}
-    #     # build material props
-    #     for mat in materials:
-    #         props = NWOMaterial(mat)
-    #         material_properties.update({mat.name: props.__dict__})
-
-    #     return material_properties
+    
+    def get_halo_props(self, id) -> dict:
+        halo_props = {k: v for k, v in id.items() if type(k) == str and k.startswith('bungie_')}
+        if isinstance(id, bpy.types.Object):
+            halo_props["bungie_object_ID"] = id.nwo.ObjectID
+            
+        return halo_props
