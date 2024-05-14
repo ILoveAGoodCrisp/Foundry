@@ -45,43 +45,29 @@ render_mesh_types = {
     "_connected_geometry_mesh_type_poop_rain_blocker",
     "_connected_geometry_mesh_type_poop_vertical_rain_sheet"}
 
-# Reach special materials
-
-INVISIBLE_SKY = "InvisibleSky"
-SEAM_SEALER = "SeamSealer"
-COLLISION_ONLY = "CollisionOnly"
-SPHERE_COLLISION_ONLY = "SphereCollisionOnly"
-LIGHTMAP_ONLY = "LightmapOnly"
-
 # Bone matrix constants
 
-PEDESTAL_MATRIX_X_POSITIVE = Matrix(((1.0, 0.0, 0.0, 0.0),
-                                (0.0, 1.0, 0.0, 0.0),
-                                (0.0, 0.0, 1.0, 0.0),
-                                (0.0, 0.0, 0.0, 1.0)))
+# PEDESTAL_MATRIX_X_POSITIVE = Matrix(((1.0, 0.0, 0.0, 0.0),
+#                                 (0.0, 1.0, 0.0, 0.0),
+#                                 (0.0, 0.0, 1.0, 0.0),
+#                                 (0.0, 0.0, 0.0, 1.0)))
 
-PEDESTAL_MATRIX_Y_NEGATIVE = Matrix(((0.0, 1.0, 0.0, 0.0),
-                                    (-1.0, 0.0, 0.0, 0.0),
-                                    (0.0, 0.0, 1.0, 0.0),
-                                    (0.0, 0.0, 0.0, 1.0)))
+# PEDESTAL_MATRIX_Y_NEGATIVE = Matrix(((0.0, 1.0, 0.0, 0.0),
+#                                     (-1.0, 0.0, 0.0, 0.0),
+#                                     (0.0, 0.0, 1.0, 0.0),
+#                                     (0.0, 0.0, 0.0, 1.0)))
 
-PEDESTAL_MATRIX_Y_POSITIVE = Matrix(((0.0, -1.0, 0.0, 0.0),
-                                    (1.0, 0.0, 0.0, 0.0),
-                                    (0.0, 0.0, 1.0, 0.0),
-                                    (0.0, 0.0, 0.0, 1.0)))
+# PEDESTAL_MATRIX_Y_POSITIVE = Matrix(((0.0, -1.0, 0.0, 0.0),
+#                                     (1.0, 0.0, 0.0, 0.0),
+#                                     (0.0, 0.0, 1.0, 0.0),
+#                                     (0.0, 0.0, 0.0, 1.0)))
 
-PEDESTAL_MATRIX_X_NEGATIVE = Matrix(((-1.0, 0.0, 0.0, 0.0),
-                                    (0.0, -1.0, 0.0, 0.0),
-                                    (0.0, 0.0, 1.0, 0.0),
-                                    (0.0, 0.0, 0.0, 1.0)))
+# PEDESTAL_MATRIX_X_NEGATIVE = Matrix(((-1.0, 0.0, 0.0, 0.0),
+#                                     (0.0, -1.0, 0.0, 0.0),
+#                                     (0.0, 0.0, 1.0, 0.0),
+#                                     (0.0, 0.0, 0.0, 1.0)))
 
-
-TARGET_SCALE = Vector.Fill(3, 1)
-
-halo_x_rot = Matrix.Rotation(radians(90), 4, 'X')
-halo_z_rot = Matrix.Rotation(radians(180), 4, 'Z')
-
-blender_has_auto_smooth = bpy.app.version < (4, 1, 0)
+halo_light_rot = Matrix.Rotation(radians(90), 4, 'X') @ Matrix.Rotation(radians(180), 4, 'Z')
 
 invalid_path = r"shaders\invalid"
 
@@ -399,7 +385,7 @@ class PrepareScene:
                         nwo_utils.unlink(ob)
                         continue
                     
-                    ob.matrix_world = ob.matrix_world @ halo_x_rot @ halo_z_rot
+                    ob.matrix_world = ob.matrix_world @ halo_light_rot
 
                 self._strip_prefix(ob)
                 
@@ -466,7 +452,7 @@ class PrepareScene:
                         
                     else:
                         self.warning_hit = True
-                        nwo_utils.print_warning(f"{ob.name} has illegal mesh type: [{nwo.mesh_type_ui}]. Skipped")
+                        nwo_utils.print_warning(f"{ob.name} has invalid mesh type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
                         nwo_utils.unlink(ob)
                         continue
                     
@@ -477,11 +463,11 @@ class PrepareScene:
                         self._setup_marker_properties(ob)
                     else:
                         self.warning_hit = True
-                        nwo_utils.print_warning(f"{ob.name} has illegal marker type: [{nwo.marker_type_ui}]. Skipped")
+                        nwo_utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
                         nwo_utils.unlink(ob)
                         continue
 
-                is_halo_render = is_mesh_loose and object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type in render_mesh_types
+                is_halo_render = is_mesh_loose and object_type == '_connected_geometry_object_type_mesh' and ob.get("bungie_mesh_type") in render_mesh_types
 
                 # add region/global_mat to sets
                 uses_global_mat = self.has_global_mats and (nwo.mesh_type in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and nwo.mesh_type == "_connected_geometry_mesh_type_default")
@@ -491,7 +477,7 @@ class PrepareScene:
                 if self.export_settings.export_gr2_files:
                     if is_mesh_loose:
                         # Add materials to all objects without one. No materials = unhappy Tool.exe
-                        does_not_support_sky = nwo.mesh_type != '_connected_geometry_mesh_type_default' or self.asset_type != 'scenario'
+                        does_not_support_sky = ob.get("bungie_mesh_type") != '_connected_geometry_mesh_type_default' or self.asset_type != 'scenario'
                         self._fix_materials(ob, is_halo_render, does_not_support_sky)
                 
                 nwo_utils.update_job_count(process, "", idx, len_export_obs)
@@ -518,7 +504,7 @@ class PrepareScene:
         Sets the bungie_ props for materials
         '''
         
-        for idx, mat in enumerate(self.used_materials):
+        for mat in self.used_materials:
             mat_nwo = mat.nwo
             if nwo_utils.has_shader_path(mat):
                 shader = nwo_utils.relative_path(mat_nwo.shader_path)
@@ -617,7 +603,12 @@ class PrepareScene:
         nwo_utils.update_view_layer(self.context)
         
     def clean_poop_materials(self):
-        '''Ensures no poops have a +sky face'''
+        '''
+        Ensures no poops have a +sky face
+        For Reach these are replaced with seamsealer, in h4+ the faces are deleted
+        Also ensures poop_collision doesn't use seamsealer
+        Removes invisible faces from render only poops
+        '''
         to_cleanup = set()
         if self.corinth:
             poop_obs = {ob for ob in self.context.view_layer.objects if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop'}
@@ -643,8 +634,10 @@ class PrepareScene:
         else:
             poop_objects = {ob for ob in self.context.view_layer.objects if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop'}
             for ob in poop_objects:
+                sky_slots = {slot for slot in ob.material_slots if slot.material and slot.material.name.lower().startswith(self.sky_mat.name)}
+                if sky_slots > 1: to_cleanup.add(ob)
                 for slot in ob.material_slots:
-                    if slot.material and slot.material.name.lower().startswith(self.sky_mat.name):
+                    if slot in sky_slots:
                         slot.material = self.seamsealer_mat
                         
         poop_collision_meshes = {ob for ob in self.context.view_layer.objects if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop_collision'}
@@ -672,8 +665,8 @@ class PrepareScene:
             if invis_mat_indexes:
                 bm = bmesh.new()
                 bm.from_mesh(data)
-                sky_faces = [f for f in bm.faces if f.material_index in invis_mat_indexes]
-                bmesh.ops.delete(bm, geom=sky_faces, context='FACES')
+                invis_faces = [f for f in bm.faces if f.material_index in invis_mat_indexes]
+                bmesh.ops.delete(bm, geom=invis_faces, context='FACES')
                 bm.to_mesh(data)
                 bm.free()
                 for ob in poop_render_mesh_objects_dict[data]:
@@ -694,7 +687,7 @@ class PrepareScene:
             "_connected_geometry_mesh_type_default",
         )
 
-        valid_for_face_properties_objects = {ob for ob in export_obs if ob.type == 'MESH' and ob["bungie_mesh_type"] in valid_mesh_types and not ob.nwo.face_mode == '_connected_geometry_face_mode_lightmap_only' and not (self.corinth and self.asset_type == 'scenario' and ob["bungie_mesh_type"] == "_connected_geometry_mesh_type_default")}
+        valid_for_face_properties_objects = {ob for ob in export_obs if ob.type == 'MESH' and ob.get("bungie_mesh_type") in valid_mesh_types and not ob.get("bungie_face_mode") == '_connected_geometry_face_mode_lightmap_only' and not (self.corinth and self.asset_type == 'scenario' and ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_default")}
         meshes = {ob.data for ob in valid_for_face_properties_objects}
         if not meshes: return
         
@@ -930,10 +923,6 @@ class PrepareScene:
             for ob in self.context.view_layer.objects:
                 if ob.type == 'MESH':
                     ob["bungie_face_region"] = ob.nwo.region_name
-                    if ob.nwo.marker_uses_regions and ob["bungie_mesh_type"] == "_connected_geometry_mesh_type_object_instance":
-                        ob["bungie_marker_region"] = ob.nwo.region_name
-                elif ob.type == 'EMPTY' and ob.nwo.marker_uses_regions:
-                    ob["bungie_marker_region"] = ob.nwo.region_name
             
     def generate_structure(self):
         bsps_in_need = {bsp for bsp in self.structure_bsps if bsp not in self.bsps_with_structure}
@@ -1108,7 +1097,6 @@ class PrepareScene:
                     return True
             
         return False
-        
 
     def _split_to_layers(self, ob: bpy.types.Object, ob_nwo, data, face_properties, bm, is_proxy):
         poly_count = len(bm.faces)
@@ -1122,7 +1110,7 @@ class PrepareScene:
             nwo_utils.save_loop_normals(bm, data)
             
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
-            is_poop = ob_nwo.mesh_type == "_connected_geometry_mesh_type_poop"
+            is_poop = ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop"
             if (
                 is_poop and not self.corinth
             ):  # don't do this for h4+ as collision can be open
@@ -1132,7 +1120,7 @@ class PrepareScene:
                 # We do this because a custom collison mesh is being built
                 # and without the render_only property, the mesh will still
                 # report open edges in game
-                ob.nwo.face_mode = "_connected_geometry_face_mode_render_only"
+                ob["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
 
                 has_coll_child = False
 
@@ -1146,10 +1134,11 @@ class PrepareScene:
                     # get collision only faces
                     collision_face_indexes = self._get_collision_only_face_indexes(prop_faces_dict)
                     if len(collision_face_indexes) == len(ob.data.polygons):
-                        ob.nwo.face_mode = "_connected_geometry_face_mode_collision_only"
+                        ob["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
                         return [ob]
                     collision_ob = ob.copy()
-                    collision_ob.nwo.face_mode = ""
+                    if collision_ob.get("bungie_face_mode"):
+                        del collision_ob["bungie_face_mode"]
                     collision_ob.data = data.copy()
                     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index in collision_face_indexes], context='FACES')
                     for collection in ob.users_collection: collection.objects.link(collision_ob)
@@ -1227,7 +1216,7 @@ class PrepareScene:
             parent_ob = None
             if collision_ob is not None:
                 for split_ob in reversed(split_objects):
-                    if not split_ob.nwo.face_mode in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only", "_connected_geometry_face_mode_breakable"):
+                    if not split_ob.get("bungie_face_mode") in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only", "_connected_geometry_face_mode_breakable"):
                         parent_ob = split_ob
                         break
                 else:
@@ -1244,7 +1233,7 @@ class PrepareScene:
                 # remove coll only split objects, as this is already covered by the coll mesh
                 coll_only_objects = set()
                 for split_ob in split_objects:
-                    if split_ob.nwo.face_mode == "_connected_geometry_face_mode_collision_only":
+                    if split_ob.get("bungie_face_mode") == "_connected_geometry_face_mode_collision_only":
                         coll_only_objects.add(split_ob)
                         nwo_utils.unlink(split_ob)
                         
@@ -1659,6 +1648,7 @@ class PrepareScene:
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
             ob["bungie_marker_all_regions"] = nwo_utils.bool_str(not nwo.marker_uses_regions)
             if nwo.marker_uses_regions:
+                ob["bungie_marker_region"] = ob.nwo.region_name
                 nwo.region_name = nwo_utils.true_region(nwo)
                 self.validated_regions.add(nwo.region_name)
                 m_perms = nwo.marker_permutations
@@ -1870,6 +1860,21 @@ class PrepareScene:
         ob["bungie_marker_type"] = marker_type
         if self.asset_type in ('model', 'sky'):
             ob["bungie_marker_all_regions"] = nwo_utils.bool_str(not nwo.marker_uses_regions)
+            if nwo.marker_uses_regions:
+                self.validated_regions.add(ob.nwo.region_name)
+                ob["bungie_marker_region"] = ob.nwo.region_name
+                m_perms = nwo.marker_permutations
+                if m_perms:
+                    m_perm_set = set()
+                    for perm in m_perms:
+                        self.validated_permutations.add(perm.name)
+                        m_perm_set.add(perm.name)
+                    m_perm_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
+                    if nwo.marker_permutation_type == "exclude":
+                        ob["bungie_marker_exclude_from_permutations"] = m_perm_json_value
+                    else:
+                        ob["bungie_marker_include_in_permutations"] = m_perm_json_value
+                        
             if marker_type == "_connected_geometry_marker_type_hint":
                 if self.corinth:
                     scale = ob.matrix_world.to_scale()
@@ -2085,6 +2090,7 @@ class PrepareScene:
                     world = ob.matrix_world.copy()
                     ob.parent_type = "BONE"
                     if ob.type == 'MESH':
+                        print(ob.name)
                         major_vertex_group = nwo_utils.get_major_vertex_group(ob)
                         if major_vertex_group in valid_bone_names:
                             ob.parent_bone = major_vertex_group
