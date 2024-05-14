@@ -249,13 +249,14 @@ class AnimationTag(Tag):
         blend_screens_to_remove = []
         tag_animation_names = [name.replace(" ", ":") for name in animation_name_list]
         for element in self.block_blend_screens.Elements:
-            if element.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value > -1:
-                animation_name = self._get_animation_name_from_index(element.ElementIndex)
+            index = element.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
+            if index > -1:
+                animation_name = self._get_animation_name_from_index(index)
                 if animation_name and animation_name in tag_animation_names:
                     tag_animation_names.remove(animation_name)
             else:
                 blend_screens_to_remove.append(element.ElementIndex)
-                
+        
         for screen_index in reversed(blend_screens_to_remove):
             self.block_blend_screens.RemoveElement(screen_index)
             self.tag_has_changes = True

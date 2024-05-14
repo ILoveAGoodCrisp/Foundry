@@ -335,16 +335,19 @@ class NWO_FoundryPanelProps(Panel):
         
         if nwo.asset_type == "animation":
             box = self.box.box()
-            box.label(text="Tag References")
             col = box.column()
-            row = col.row(align=True)
-            row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
-            row = col.row(align=True)
-            row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
+            col.use_property_split = True
+            col.prop(nwo, "asset_animation_type")
+            if nwo.asset_animation_type == 'first_person':
+                row = col.row(align=True)
+                row.prop(nwo, "fp_model_path", text="FP Render Model", icon_value=get_icon_id("tags"))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "fp_model_path"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'fp_model_path'
+                row = col.row(align=True)
+                row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
+            self.draw_expandable_box(self.box.box(), nwo, 'animation_graph')
             self.draw_rig_ui(self.context, nwo)
             
         elif nwo.asset_type == "scenario":

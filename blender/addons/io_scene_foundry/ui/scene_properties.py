@@ -538,6 +538,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     asset_animation_type: EnumProperty(
         name="Animation Type",
+        options=set(),
         items=[
             ("first_person", "First Person", ""),
             ("standalone", "Standalone / Cinematic", ""),

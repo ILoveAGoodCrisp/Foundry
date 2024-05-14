@@ -572,7 +572,7 @@ class ProcessScene:
             if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
                 print("\n\nBuilding Tags")
                 print("-----------------------------------------------------------------------\n")
-                self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario, relative_asset_path, asset)
+                self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario, relative_asset_path, asset, asset_type, h4)
                 export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(export_scene.lighting), export_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
@@ -843,8 +843,8 @@ class ProcessScene:
     #####################################################################################
     # MANAGEDBLAM
 
-    def managed_blam_pre_import_tasks(self, export_scene, export_animations, scene_nwo, exported_actions, setup_scenario, relative_asset_path, asset_name):
-        node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo)
+    def managed_blam_pre_import_tasks(self, export_scene, export_animations, scene_nwo, exported_actions, setup_scenario, relative_asset_path, asset_name, asset_type, corinth):
+        node_usage_set = self.asset_has_animations and export_animations and self.any_node_usage_override(scene_nwo, asset_type, corinth)
         # print("\n--- Foundry Tags Pre-Process\n")
         if node_usage_set or scene_nwo.ik_chains or exported_actions:
             with AnimationTag(hide_prints=False) as animation:
@@ -919,7 +919,9 @@ class ProcessScene:
         if scenario and scene_nwo.zone_sets:
             write_zone_sets_to_scenario(scene_nwo, asset_name)
 
-    def any_node_usage_override(self, nwo):
+    def any_node_usage_override(self, nwo, asset_type, corinth):
+        if not corinth and asset_type == 'animation' and nwo.asset_animation_type == 'first_person':
+            return False # Don't want to set node usages for reach fp animations, it breaks them
         return (nwo.node_usage_physics_control
                 or nwo.node_usage_camera_control
                 or nwo.node_usage_origin_marker
