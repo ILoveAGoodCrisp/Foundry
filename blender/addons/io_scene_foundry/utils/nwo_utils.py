@@ -2818,7 +2818,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_nwo.material_lighting_emissive_focus_ui = light_nwo.light_focus
     plane_nwo.material_lighting_emissive_color_ui = light.color
     plane_nwo.material_lighting_emissive_per_unit_ui = light_nwo.light_per_unit
-    plane_nwo.material_lighting_emissive_power_ui = light.energy
+    plane_nwo.material_lighting_emissive_power_ui = calc_emissive_intensity(light.energy, 1 if bpy.context.scene.nwo.scale == 'max' else 0.03048)
     plane_nwo.material_lighting_emissive_quality_ui = light_nwo.light_quality
     plane_nwo.material_lighting_use_shader_gel_ui = light_nwo.light_use_shader_gel
     plane_nwo.material_lighting_bounce_ratio_ui = light_nwo.light_bounce_ratio
