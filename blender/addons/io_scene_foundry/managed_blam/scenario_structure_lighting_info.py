@@ -50,12 +50,11 @@ class ScenarioStructureLightingInfoTag(Tag):
     # Create a list of all defintion ids in the tag, if one in blender is not present in the tag, make a new block entry. IDs let us keep track of lights between blender/tag
     # Light instances then built from light object placements. The light data will give us the definition ID and thus the correct definition index to assign
     
-    def build_tag(self, lights, scale=1):
-        self.scale = scale
+    def build_tag(self, lights, selected_lights=[]):
         if self.corinth:
             pass
         else:
-            self._write_reach_light_definitions(lights)
+            self._write_reach_light_definitions(lights, selected_lights)
             self._write_reach_light_instances(lights)
             
         self.tag_has_changes = True
@@ -107,15 +106,23 @@ class ScenarioStructureLightingInfoTag(Tag):
             if nwo.light_lens_flare_reference:
                 element.SelectField("lens flare reference").Path = self._TagPath_from_string(nwo.light_lens_flare_reference)
         
-    def _write_reach_light_definitions(self, lights):
+    def _write_reach_light_definitions(self, lights, selected_lights):
         update_lights = set()
         to_remove_element_indexes = []
         light_ids = {get_light_id_from_data(light.data): light for light in lights}
+        
+        selected_light_ids = {get_light_id_from_data(light.data): light for light in selected_lights}
         for element in self.block_generic_light_definitions.Elements:
             definition_id = element.SelectField("clipping planes x pos").GetStringData()
-            found_light = light_ids.get(definition_id, None)
+            
+            if selected_light_ids:
+                found_light = selected_light_ids.get(definition_id, None)
+            else:
+                found_light = light_ids.get(definition_id, None)
+                
             if found_light is None:
-                to_remove_element_indexes.append(element.ElementIndex)
+                if not selected_light_ids or definition_id not in light_ids:
+                    to_remove_element_indexes.append(element.ElementIndex)
             else:
                 update_lights.add(found_light)
                 
@@ -137,8 +144,6 @@ class ScenarioStructureLightingInfoTag(Tag):
             # store id in clipping plane x pos
             element.SelectField("clipping planes x pos").SetStringData(get_light_id_from_data(data))
             self._update_reach_light_definition(element, data)
-        
-            
             
     def _update_reach_light_definition(self, element, data):
         nwo = data.nwo
@@ -174,9 +179,9 @@ class ScenarioStructureLightingInfoTag(Tag):
         element.SelectField("intensity").SetStringData(nwo_utils.jstr(max(nwo_utils.calc_light_intensity(data), 0.0001)))
         element.SelectField("aspect").SetStringData(nwo_utils.jstr(nwo.light_aspect))
         near_attenuation = element.SelectField("near attenuation bounds")
-        near_attenuation.SetStringData([nwo_utils.jstr(data.nwo.light_near_attenuation_start * 100 * self.scale * WU_SCALAR), nwo_utils.jstr(data.nwo.light_near_attenuation_end * 100  * self.scale * WU_SCALAR)])
+        near_attenuation.SetStringData([nwo_utils.jstr(data.nwo.light_near_attenuation_start * 100 * WU_SCALAR), nwo_utils.jstr(data.nwo.light_near_attenuation_end * 100  * WU_SCALAR)])
         far_attenuation = element.SelectField("far attenuation bounds")
         if inverse_square:
             far_attenuation.SetStringData(["900", "4000"])
         else:
-            far_attenuation.SetStringData([nwo_utils.jstr(data.nwo.light_far_attenuation_start * 100 * self.scale * WU_SCALAR), nwo_utils.jstr(data.nwo.light_far_attenuation_end * 100  * self.scale * WU_SCALAR)])
+            far_attenuation.SetStringData([nwo_utils.jstr(data.nwo.light_far_attenuation_start * 100 * WU_SCALAR), nwo_utils.jstr(data.nwo.light_far_attenuation_end * 100 * WU_SCALAR)])

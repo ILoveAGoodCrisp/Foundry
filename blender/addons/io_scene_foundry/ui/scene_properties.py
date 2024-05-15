@@ -978,6 +978,22 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         subtype='TIME_ABSOLUTE',
         options=set(),
     )
+    
+    light_sync_active : BoolProperty(
+        name="Light Sync",
+        description="",
+        options=set()
+    )
+    
+    light_sync_rate : bpy.props.FloatProperty(
+        name="Sync Rate",
+        description="How often Light Sync should refresh",
+        min=0.001,
+        default=0.1,
+        max=3,
+        subtype='TIME_ABSOLUTE',
+        options=set(),
+    )
 
     scene_project : StringProperty(
         name="Project",

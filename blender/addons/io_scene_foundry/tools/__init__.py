@@ -39,7 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
-from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights
+from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights, NWO_OT_LightSync
 from io_scene_foundry.tools.asset_creator import NWO_OT_NewAsset
 from io_scene_foundry.tools.animation.rename_importer import NWO_OT_RenameImporter
 from io_scene_foundry.tools.animation.fcurve_transfer import NWO_OT_FcurveTransfer
@@ -412,6 +412,10 @@ class NWO_FoundryPanelProps(Panel):
             lighting_name = "Light Model"
         
         box.operator("nwo.export_lights")
+        if self.scene.nwo.light_sync_active:
+            box.operator("nwo.light_sync", text="Light Sync", icon="PAUSE", depress=True).cancel_sync = True
+        else:
+            box.operator("nwo.light_sync", text="Light Sync", icon="PLAY")
         box.separator()
             
         if self.asset_type == "scenario":
@@ -5493,6 +5497,7 @@ classeshalo = (
     NWO_OT_RenameImporter,
     NWO_OT_NewAsset,
     NWO_OT_ExportLights,
+    NWO_OT_LightSync,
 )
 
 def register():
