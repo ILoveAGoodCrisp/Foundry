@@ -176,7 +176,7 @@ class ScenarioStructureLightingInfoTag(Tag):
         rgb_color = [str(nwo_utils.linear_to_srgb(data.color[0])), str(nwo_utils.linear_to_srgb(data.color[1])), str(nwo_utils.linear_to_srgb(data.color[2]))]
         element.SelectField('color').SetStringData(rgb_color)
         
-        element.SelectField("intensity").SetStringData(nwo_utils.jstr(max(nwo_utils.calc_light_intensity(data), 0.0001)))
+        element.SelectField("intensity").SetStringData(nwo_utils.jstr(max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001)))
         element.SelectField("aspect").SetStringData(nwo_utils.jstr(nwo.light_aspect))
         near_attenuation = element.SelectField("near attenuation bounds")
         near_attenuation.SetStringData([nwo_utils.jstr(data.nwo.light_near_attenuation_start * 100 * WU_SCALAR), nwo_utils.jstr(data.nwo.light_near_attenuation_end * 100  * WU_SCALAR)])

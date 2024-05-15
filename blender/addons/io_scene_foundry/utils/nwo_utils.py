@@ -1654,11 +1654,11 @@ def enforce_uniformity(objects):
         deselect_all_objects()
         
         
-def calc_light_intensity(light_data):
+def calc_light_intensity(light_data, factor=1):
     if light_data.type == "SUN":
         return light_data.energy
     
-    intensity = (light_data.energy / 0.03048**-2) / (10 if is_corinth() else 300)
+    intensity = factor * ((light_data.energy / 0.03048**-2) / (10 if is_corinth() else 300))
     
     return intensity
 
