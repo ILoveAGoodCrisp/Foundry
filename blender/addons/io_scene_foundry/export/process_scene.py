@@ -33,6 +33,7 @@ import os
 import json
 import multiprocessing
 import threading
+from io_scene_foundry.managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
 from io_scene_foundry.export.tag_builder import build_tags
@@ -881,6 +882,7 @@ class ProcessScene:
         model = asset_type == 'model'
         scenario = asset_type == 'scenario'
         h4_model_lighting = (export_scene.lighting and is_corinth(context) and model_sky)
+        update_lighting_infos = scenario and export_scene.bsps_with_lighting_info
         model_override = (
             (not nwo.render_model_from_blend and nwo.render_model_path and model)
             or (not nwo.collision_model_from_blend and nwo.collision_model_path and model)
@@ -918,6 +920,14 @@ class ProcessScene:
             
         if scenario and scene_nwo.zone_sets:
             write_zone_sets_to_scenario(scene_nwo, asset_name)
+            
+        if update_lighting_infos:
+            bsps = sorted(export_scene.bsps_with_lighting_info)
+            lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
+            for idx, info_path in enumerate(lighting_info_paths):
+                with ScenarioStructureLightingInfoTag(path=info_path) as info:
+                    b = bsps[idx]
+                    info.build_tag([l for l in export_scene.lights if l.bsp == b])
 
     def any_node_usage_override(self, nwo, asset_type, corinth):
         if not corinth and asset_type == 'animation' and nwo.asset_animation_type == 'first_person':

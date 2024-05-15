@@ -30,7 +30,6 @@ import random
 from math import degrees
 
 from ..utils.nwo_utils import (
-    calc_emissive_intensity,
     dot_partition,
     is_corinth,
     color_3p_str,
@@ -38,7 +37,6 @@ from ..utils.nwo_utils import (
     jstr,
     radius_str,
     clean_tag_path,
-    shader_exts,
 )
 
 P = "bungie_"
@@ -365,9 +363,9 @@ class NWOLight(NWOObject):
 
     def light_near_attenuation_end(self):
         if self.corinth:
-            return jstr(self.data.nwo.light_near_attenuation_end * 0.03048)
+            return jstr(self.data.nwo.light_near_attenuation_end * 0.03048 * 0.328084)
         else:
-            return jstr(self.data.nwo.light_near_attenuation_end * 100 * 0.03048)
+            return jstr(self.data.nwo.light_near_attenuation_end * 100 * 0.03048 * 0.328084)
 
     def light_mode(self):
         return self.data.nwo.light_mode

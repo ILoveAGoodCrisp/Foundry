@@ -478,7 +478,6 @@ class JMSMaterialSlot:
         self.decal_offset = self.material.ass_jms.decal_offset or self.decal_offset
         self.water_surface = self.material.ass_jms.water_surface or self.water_surface
         self.slip_surface = self.material.ass_jms.slip_surface
-        self.global_material = self.material.ass_jms.material_effect
         # lightmap
         if self.material.ass_jms.lightmap_res != 1:
             self.lightmap_resolution_scale = self.material.ass_jms.lightmap_res
@@ -601,10 +600,6 @@ class JMSMaterialSlot:
         if self.water_surface != __value.water_surface:
             return False
         if self.slip_surface != __value.slip_surface:
-            return False
-        if self.global_material != __value.global_material:
-            return False
-        if self.global_material != __value.global_material:
             return False
         
         # if self.lightmap_resolution_scale != __value.lightmap_resolution_scale: return False
@@ -1342,7 +1337,6 @@ class NWOImporter:
             nwo.portal_blocks_sounds_ui = jms_mat.blocks_sound
             nwo.decal_offset_ui = jms_mat.decal_offset
             nwo.slip_surface_ui = jms_mat.slip_surface
-            nwo.face_global_material_ui = jms_mat.global_material
             
             if jms_mat.lightmap_additive_transparency:
                 nwo.lightmap_additive_transparency_active = True
@@ -1432,7 +1426,6 @@ class NWOImporter:
                     nwo.portal_blocks_sounds_ui = jms_mat.blocks_sound
                     nwo.decal_offset_ui = jms_mat.decal_offset
                     nwo.slip_surface_ui = jms_mat.slip_surface
-                    nwo.face_global_material_ui = jms_mat.global_material
                     # Lightmap
                     # if jms_mat.lightmap_resolution_scale:
                     #     nwo.lightmap_resolution_scale_active = True

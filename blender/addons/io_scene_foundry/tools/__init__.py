@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights
 from io_scene_foundry.tools.asset_creator import NWO_OT_NewAsset
 from io_scene_foundry.tools.animation.rename_importer import NWO_OT_RenameImporter
 from io_scene_foundry.tools.animation.fcurve_transfer import NWO_OT_FcurveTransfer
@@ -409,6 +410,10 @@ class NWO_FoundryPanelProps(Panel):
             lighting_name = "Light Scenario"
         else:
             lighting_name = "Light Model"
+        
+        box.operator("nwo.export_lights")
+        box.separator()
+            
         if self.asset_type == "scenario":
             if self.h4:
                 box.prop(scene_nwo_export, "lightmap_quality_h4")
@@ -1385,8 +1390,6 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.separator()
 
-                col.prop(nwo, "light_hotspot_size", text="Hotspot Size")
-                col.prop(nwo, "light_hotspot_falloff", text="Hotspot Falloff")
                 col.prop(nwo, "light_falloff_shape", text="Falloff Shape")
                 col.prop(nwo, "light_aspect", text="Light Aspect")
 
@@ -1413,11 +1416,6 @@ class NWO_FoundryPanelProps(Panel):
                     nwo,
                     "light_ignore_bsp_visibility",
                     text="Ignore BSP Visibility",
-                )
-                sub.prop(
-                    nwo,
-                    "light_dynamic_has_bounce",
-                    text="Light Has Dynamic Bounce",
                 )
                 if (
                     nwo.light_sub_type
@@ -5494,6 +5492,7 @@ classeshalo = (
     NWO_OT_FcurveTransfer,
     NWO_OT_RenameImporter,
     NWO_OT_NewAsset,
+    NWO_OT_ExportLights,
 )
 
 def register():

@@ -31,6 +31,7 @@ import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
+from io_scene_foundry.tools.light_exporter import Light
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
@@ -136,7 +137,7 @@ class PrepareScene:
         self.global_materials = {"default"}
         self.seams = set()
         self.reach_sky_lights = set()
-        self.lights = set()
+        self.lights = []
         
         global render_mesh_types
         if not corinth or asset_type in ('model', 'sky'):
@@ -153,6 +154,8 @@ class PrepareScene:
         
         self.null_path_materials = set()
         self.invalid_path_materials = set()
+        
+        self.bsps_with_lighting_info = set()
         
         self.timeline_start, self.timeline_end = self._set_timeline_range(context)
         self.current_action = None
@@ -374,6 +377,7 @@ class PrepareScene:
             for idx, ob in enumerate(export_obs):
                 nwo = ob.nwo
                 ob_type = ob.type
+                is_light = ob_type == 'LIGHT'
                 
                 is_mesh_loose = ob_type in VALID_MESHES
 
@@ -381,14 +385,11 @@ class PrepareScene:
                 ob.hide_set(False)
                 ob.hide_select = False
 
-                # Never export lights 
-                if ob_type == "LIGHT":
+                if is_light:
                     if not self.corinth and self.asset_type == 'sky':
                         self.reach_sky_lights.add(ob)
-                    else:
-                        self.lights.add(ob)
-                    nwo_utils.unlink(ob)
-                    continue
+                        nwo_utils.unlink(ob)
+                        continue
 
                 self._strip_prefix(ob)
                 
@@ -398,7 +399,7 @@ class PrepareScene:
                 if self.asset_type in ('model', 'sky', 'scenario', 'prefab'):
                     nwo.permutation_name_ui = self.default_region if not nwo.permutation_name_ui else nwo.permutation_name_ui
                     nwo.region_name_ui = self.default_permutation if not nwo.region_name_ui else nwo.region_name_ui
-                    is_light = ob_type == 'LIGHT'
+                    
                     # cast ui props to export props
                     if self.supports_regions_and_perms:
                         mesh_not_io = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance')
@@ -441,6 +442,12 @@ class PrepareScene:
                 if object_type == '_connected_geometry_object_type_none':
                     nwo_utils.unlink(ob)
                     continue
+                
+                elif is_light:
+                    if self.asset_type == 'scenario':
+                        self.bsps_with_lighting_info.add(ob.nwo.region_name)
+                    self.lights.append(Light(ob, ob.nwo.region_name))
+                    nwo_utils.unlink(ob)
                 
                 elif object_type == '_connected_geometry_object_type_mesh':
                     if nwo.mesh_type_ui == '':

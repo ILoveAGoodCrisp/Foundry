@@ -2462,20 +2462,6 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         default=100,
     )
 
-    light_hotspot_size: FloatProperty(
-        name="Light Hotspot Size",
-        options=set(),
-        description="",
-        default=25,
-    )
-
-    light_hotspot_falloff: FloatProperty(
-        name="Light Hotspot Size",
-        options=set(),
-        description="",
-        default=80,
-    )
-
     light_falloff_shape: FloatProperty(
         name="Light Falloff Shape",
         options=set(),
@@ -2516,13 +2502,6 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         description="",
         default=1,
         min=0.0,
-    )
-
-    light_dynamic_has_bounce: BoolProperty(
-        name="Light Has Dynamic Bounce",
-        options=set(),
-        description="",
-        default=False,
     )
 
     light_screenspace_has_specular: BoolProperty(

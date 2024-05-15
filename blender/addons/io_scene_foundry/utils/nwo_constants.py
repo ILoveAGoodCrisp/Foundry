@@ -174,3 +174,5 @@ object_game_validation = {
     '_connected_geometry_marker_type_envfx': ('corinth',),
     '_connected_geometry_marker_type_lightCone': ('corinth',),
     }
+
+WU_SCALAR = 0.328084

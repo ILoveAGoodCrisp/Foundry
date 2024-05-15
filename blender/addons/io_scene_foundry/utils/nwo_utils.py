@@ -2024,6 +2024,47 @@ class TransformManager():
         
     def __exit__(self, exc_type, exc_value, traceback):
         bpy.context.scene.nwo.transforming = False
+        
+def rotation_and_pivot(rotation):
+    axis_z = Vector((0, 0, 1))
+    pivot = Vector((0.0, 0.0, 0.0))
+    rotation_matrix = Matrix.Rotation(rotation, 4, axis_z)
+    pivot_matrix = (Matrix.Translation(pivot) @ rotation_matrix @ Matrix.Translation(-pivot))
+    
+    return rotation_matrix, pivot_matrix
+
+def halo_transforms(ob, scale=None, rotation=None):
+    '''
+    Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
+    '''
+    if scale is None:
+        if bpy.context.scene.nwo.scale == 'max':
+            scale = 0.03048
+        else:
+            scale = 1
+            
+    scale *= 0.328084
+    
+    if rotation is None:
+        rotation = blender_halo_rotation_diff(bpy.context.scene.nwo.forward_direction)
+        
+    rotation_matrix, pivot_matrix = rotation_and_pivot(rotation)
+    
+    loc, rot, sca = ob.matrix_world.decompose()
+    
+    loc *= scale
+    loc = pivot_matrix @ loc
+    
+    if ob.rotation_mode == 'QUATERNION':
+        rot = ob.rotation_quaternion.copy()
+    else:
+        rot = ob.rotation_euler.copy()
+        
+    rot.rotate(rotation_matrix)
+    
+    new_matrix = Matrix.LocRotScale(loc, rot, sca)
+    
+    return new_matrix
 
 def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
@@ -2041,7 +2082,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         else:
             curves = {ob.data for ob in objects if ob.type =='CURVE'}
             metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
-            lattices = {ob.data for ob in objects if ob.type =='LATTICE'}
             meshes = {ob.data for ob in objects if ob.type =='MESH'}
             cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
             lights = {ob.data for ob in objects if ob.type =='LIGHT'}
@@ -2096,10 +2136,6 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 rot.rotate(rotation_matrix)
             elif bone_parented and ob.matrix_parent_inverse != Matrix.Identity(4):
                 bone_children.append(BoneChild(ob, ob.parent, ob.parent_bone))
-            
-            # Lights need scaling to have correct display
-            if ob.type == 'LIGHT':
-                sca *= scale_factor
                 
             if ob.type == 'EMPTY':
                 ob.empty_display_size *= scale_factor
@@ -2113,10 +2149,11 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             if keep_marker_axis and not is_a_frame and is_marker(ob) and nwo_asset_type() in ('model', 'sky', 'scenario', 'prefab'):
                 ob.rotation_euler.rotate_axis('Z', -rotation)
             
-            if ob.type == 'LATTICE':
+            if ob.type == 'LATTICE' or ob.type == 'LIGHT':
                 ob.scale *= scale_factor
             else:
                 ob.scale = old_scale
+                
 
             for mod in ob.modifiers:
                 match mod.type:
