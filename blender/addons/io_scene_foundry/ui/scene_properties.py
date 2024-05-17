@@ -973,7 +973,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Sync Rate",
         description="How often Halo Material Sync should refresh",
         min=0.001,
-        default=0.1,
+        default=0.01,
         max=3,
         subtype='TIME_ABSOLUTE',
         options=set(),

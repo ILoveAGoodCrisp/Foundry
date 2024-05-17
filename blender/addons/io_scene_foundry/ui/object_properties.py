@@ -2385,13 +2385,6 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         subtype='DISTANCE',
         unit='LENGTH',
     )
-
-    light_ignore_bsp_visibility: BoolProperty(
-        name="Light Ignore BSP Visibility",
-        options=set(),
-        description="",
-        default=False,
-    )
     
     def get_light_intensity(self):
         return calc_light_intensity(self.id_data)
@@ -2482,19 +2475,19 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         subtype="FACTOR",
     )
 
-    light_frustum_width: FloatProperty(
-        name="Light Hotspot Size",
-        options=set(),
-        description="",
-        default=1.0,
-    )
+    # light_frustum_width: FloatProperty(
+    #     name="Light Hotspot Size",
+    #     options=set(),
+    #     description="",
+    #     default=1.0,
+    # )
 
-    light_frustum_height: FloatProperty(
-        name="Light Hotspot Size",
-        options=set(),
-        description="",
-        default=1.0,
-    )
+    # light_frustum_height: FloatProperty(
+    #     name="Light Hotspot Size",
+    #     options=set(),
+    #     description="",
+    #     default=1.0,
+    # )
 
     light_bounce_ratio: FloatProperty(
         name="Light Bounce Ratio",

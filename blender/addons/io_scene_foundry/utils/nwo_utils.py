@@ -3312,3 +3312,24 @@ def clear_id_halo_props(ids: list):
         for k in id.keys():
             if type(k) == str and k.startswith("bungie_"):
                 del id[k]
+                
+def get_foundry_blam_exe():
+    bin_dir = Path(get_project_path(), "bin")
+    target_exe = Path(bin_dir, "FoundryBlam.exe")
+    target_json_dll = Path(bin_dir, "Newtonsoft.Json.dll")
+    if False and target_exe.exists() and target_json_dll.exists():
+        return str(target_exe)
+    else:
+        source_dir = Path(addon_root(), "managed_blam", "FoundryBlam")
+        source_exe = Path(source_dir, "FoundryBlam.exe")
+        source_json_dll = Path(source_dir, "Newtonsoft.Json.dll")
+        shutil.copyfile(source_exe, target_exe)
+        shutil.copyfile(source_json_dll, target_json_dll)
+
+    if not target_json_dll.exists():
+        raise RuntimeError("Failed to copy Newtonsoft.Json.dll for FoundryBlam")
+
+    if target_exe.exists():
+        return str(target_exe)
+    
+    raise RuntimeError("Failed to copy FoundryBlam.exe")

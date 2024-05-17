@@ -26,6 +26,7 @@
 
 from math import degrees
 import random
+from io_scene_foundry.managed_blam.Tags import TagElement
 from io_scene_foundry.utils.nwo_constants import WU_SCALAR
 from io_scene_foundry.managed_blam import Tag
 import bpy
@@ -34,7 +35,8 @@ from io_scene_foundry.utils import nwo_utils
 def get_light_id_from_data(data):
     rnd = random.Random()
     rnd.seed(data.name)
-    return str(rnd.randint(-2147483, 2147483))
+    return str(rnd.randint(-21474, 21474))
+    # return str(rnd.randint(-2147483647, 2147483647))
 
 class ScenarioStructureLightingInfoTag(Tag):
     tag_ext = 'scenario_structure_lighting_info'
@@ -43,35 +45,109 @@ class ScenarioStructureLightingInfoTag(Tag):
         self.block_generic_light_definitions = self.tag.SelectField("Block:generic light definitions")
         self.block_generic_light_instances = self.tag.SelectField("Block:generic light instances")
     
-    # TODO Write code that builds this tag from blender
-    # General ideas:
-    # Create lighting defintion id intprop for light data in blender
-    # Loop through blender lights and create entries in tag light definitions
-    # Create a list of all defintion ids in the tag, if one in blender is not present in the tag, make a new block entry. IDs let us keep track of lights between blender/tag
-    # Light instances then built from light object placements. The light data will give us the definition ID and thus the correct definition index to assign
-    
     def build_tag(self, lights, selected_lights=[]):
         if self.corinth:
-            pass
+            self._write_corinth_light_definitions(lights, selected_lights)
+            self._write_corinth_light_instances(lights)
         else:
             self._write_reach_light_definitions(lights, selected_lights)
             self._write_reach_light_instances(lights)
             
         self.tag_has_changes = True
         
-    def _index_from_id(self, id):
+    def _reach_index_from_id(self, id):
         for element in self.block_generic_light_definitions.Elements:
             if element.SelectField("clipping planes x pos").GetStringData() == id:
                 return element.ElementIndex
             
         return -1
+    
+    def _write_corinth_light_definitions(self, lights, selected_lights):
+        update_lights = set()
+        to_remove_element_indexes = []
+        light_ids = {get_light_id_from_data(light.data): light for light in lights}
+        selected_light_ids = {get_light_id_from_data(light.data): light for light in selected_lights}
+        for element in self.block_generic_light_definitions.Elements:
+            definition_id = element.SelectField("Definition Identifier").GetStringData()
+            
+            if selected_light_ids:
+                found_light = selected_light_ids.get(definition_id, None)
+            else:
+                found_light = light_ids.get(definition_id, None)
+                
+            if found_light is None:
+                if not selected_light_ids or definition_id not in light_ids:
+                    to_remove_element_indexes.append(element.ElementIndex)
+            else:
+                update_lights.add(found_light)
+                
+        for idx in reversed(to_remove_element_indexes):
+            self.block_generic_light_definitions.RemoveElement(idx)
+            
+        new_lights = [light for light in lights if light not in update_lights]
+            
+        update_lights_data = {light.data for light in update_lights}
+        new_lights_data = {light.data for light in new_lights}
+        
+        for data in update_lights_data:
+            element_index = self._corinth_index_from_id(get_light_id_from_data(data))
+            element = self.block_generic_light_definitions.Elements[element_index]
+            self._update_corinth_light_definition(element, data)
+        
+        for data in new_lights_data:
+            element = self.block_generic_light_definitions.AddElement()
+            # store id in clipping plane x pos
+            element.SelectField("Definition Identifier").SetStringData(get_light_id_from_data(data))
+            self._update_corinth_light_definition(element, data)
+            
+    def _update_reach_light_definition(self, element: TagElement, data):
+        nwo = data.nwo
+        light_parameters = element.SelectField("Midnight_Light_Parameters[0]")
+        light_parameters.SelectField("haloLightNode").SetStringData(data.name)
+        light_type = light_parameters.SelectField("Light Type")
+        if data.type == 'POINT':
+            light_type.Value = 0
+        elif data.type == 'SPOT':
+            light_type.Value = 1
+        elif data.type == 'SUN':
+            light_type.Value = 2
+            
+        rgb_color = [str(nwo_utils.linear_to_srgb(data.color[0])), str(nwo_utils.linear_to_srgb(data.color[1])), str(nwo_utils.linear_to_srgb(data.color[2]))]
+        light_parameters.SelectField('Light Color').SetStringData(rgb_color)
+        
+        intensity = light_parameters.SelectField("intensity/custom:mapping[0]")
+        intensity.Fields[0].ClampRangeMin = round(max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001), 6)
+        
+        light_parameters.SelectField("distance attenuation start").SetStringData(nwo_utils.jstr(nwo.light_far_attenuation_start * WU_SCALAR))
+        attenuation_end = light_parameters.SelectField("distance attenuation end/custom:mapping[0]")
+        attenuation_end.Fields[0].ClampRangeMin = round(nwo.light_far_attenuation_end * WU_SCALAR, 6)
+        
+        if data.nwo.light_far_attenuation_end:
+            light_parameters.SelectField("Lighting Mode").Value = 1
+        else:
+            light_parameters.SelectField("Lighting Mode").Value = 0
+            
+        light_parameters.SelectField("Specular Power").SetStringData(nwo.light_specular_power)
+        light_parameters.SelectField("Specular Intensity").SetStringData(nwo.light_specular_intensity)
+        
+        if data.type == 'SPOT':
+            hotspot_cutoff = min(degrees(data.spot_size), 160)
+            hotspot_size = hotspot_cutoff * abs(1 - data.spot_blend)
+            light_parameters.SelectField("Inner Cone Angle").SetStringData(str(hotspot_size))
+            outer_cone_end = light_parameters.SelectField("outer cone end/custom:mapping[0]")
+            outer_cone_end.Fields[0].ClampRangeMin = round(hotspot_cutoff, 6)
+            cone_shape = light_parameters.SelectField("Cone Projection Shape")
+            if nwo.light_cone_projection_shape == '_connected_geometry_cone_projection_shape_cone':
+                cone_shape.Value = 0
+            else:
+                cone_shape.Value = 1
         
     def _write_reach_light_instances(self, lights):
         self.block_generic_light_instances.RemoveAllElements()
         for light in lights:
             nwo = light.data.nwo
             element = self.block_generic_light_instances.AddElement()
-            element.SelectField("definition index").SetStringData(str(self._index_from_id(get_light_id_from_data(light.data))))
+            element.SelectField("definition index").SetStringData(str(self._reach_index_from_id(get_light_id_from_data(light.data))))
             element.SelectField("shader reference index").SetStringData("-1")
             element.SelectField("origin").SetStringData([str(light.origin[0]),str(light.origin[1]),str(light.origin[2])])
             element.SelectField("forward").SetStringData([str(light.forward[0]),str(light.forward[1]),str(light.forward[2])])
@@ -135,7 +211,7 @@ class ScenarioStructureLightingInfoTag(Tag):
         new_lights_data = {light.data for light in new_lights}
         
         for data in update_lights_data:
-            element_index = self._index_from_id(get_light_id_from_data(data))
+            element_index = self._reach_index_from_id(get_light_id_from_data(data))
             element = self.block_generic_light_definitions.Elements[element_index]
             self._update_reach_light_definition(element, data)
         
@@ -179,9 +255,9 @@ class ScenarioStructureLightingInfoTag(Tag):
         element.SelectField("intensity").SetStringData(nwo_utils.jstr(max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001)))
         element.SelectField("aspect").SetStringData(nwo_utils.jstr(nwo.light_aspect))
         near_attenuation = element.SelectField("near attenuation bounds")
-        near_attenuation.SetStringData([nwo_utils.jstr(data.nwo.light_near_attenuation_start * 100 * WU_SCALAR), nwo_utils.jstr(data.nwo.light_near_attenuation_end * 100  * WU_SCALAR)])
+        near_attenuation.SetStringData([nwo_utils.jstr(nwo.light_near_attenuation_start * 100 * WU_SCALAR), nwo_utils.jstr(nwo.light_near_attenuation_end * 100  * WU_SCALAR)])
         far_attenuation = element.SelectField("far attenuation bounds")
         if inverse_square:
             far_attenuation.SetStringData(["900", "4000"])
         else:
-            far_attenuation.SetStringData([nwo_utils.jstr(data.nwo.light_far_attenuation_start * 100 * WU_SCALAR), nwo_utils.jstr(data.nwo.light_far_attenuation_end * 100 * WU_SCALAR)])
+            far_attenuation.SetStringData([nwo_utils.jstr(nwo.light_far_attenuation_start * 100 * WU_SCALAR), nwo_utils.jstr(nwo.light_far_attenuation_end * 100 * WU_SCALAR)])

@@ -35,6 +35,9 @@ mb_operational = False
 mb_path = ""
 mb_active = False
 
+sockets = {}
+processes = []
+
 # set at export
 nwo_scene_settings = {}
 export_report = {}

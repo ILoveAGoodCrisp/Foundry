@@ -24,20 +24,80 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import degrees
 from pathlib import Path
 import bpy
-from io_scene_foundry.managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+from io_scene_foundry.utils.nwo_constants import WU_SCALAR
+from io_scene_foundry.managed_blam import blam
 from io_scene_foundry.utils import nwo_utils
 
-class Light:
+class BlamLightInstance:
     def __init__(self, ob, bsp=None, scale=None, rotation=None) -> None:
-        self.data = ob.data
-        self.bsp = bsp
+        # self.data = ob.data
+        data = ob.data
+        nwo = data.nwo
+        self.DataName = ob.data.name
+        self.Bsp = bsp
         matrix = nwo_utils.halo_transforms(ob, scale, rotation)
-        self.origin = matrix.translation.copy()
+        self.Origin = matrix.translation.to_tuple()
         matrix_3x3 = matrix.to_3x3().normalized()
-        self.forward = matrix_3x3.col[1]
-        self.up = matrix_3x3.col[2]
+        self.Forward = matrix_3x3.col[1].to_tuple()
+        self.Up = matrix_3x3.col[2].to_tuple()
+        
+        self.GameType = 0
+        match nwo.light_game_type:
+            case '_connected_geometry_bungie_light_type_uber':
+                self.GameType = 1
+            case '_connected_geometry_bungie_light_type_inlined':
+                self.GameType = 2
+            case '_connected_geometry_bungie_light_type_screen_space':
+                self.GameType = 3
+            case '_connected_geometry_bungie_light_type_rerender':
+                self.GameType = 4
+        
+        self.VolumeDistance = nwo.light_volume_distance
+        self.VolumeIntensity = nwo.light_volume_intensity
+        
+        self.BounceRatio = nwo.light_bounce_ratio
+        self.ScreenSpaceSpecular = nwo.light_screenspace_has_specular
+        
+        self.LightTag = nwo.light_tag_override
+        self.Shader = nwo.light_shader_reference
+        self.Gel = nwo.light_gel_reference
+        self.LensFlare = nwo.light_lens_flare_reference
+        
+class BlamLightDefinition:
+    def __init__(self, data):
+        nwo = data.nwo
+        self.DataName = data.name
+        self.Type = 0
+        match data.type:
+            case 'SPOT':
+                self.Type = 1
+            case 'SUN':
+                self.Type = 2
+                
+        self.Shape = 0
+        if nwo.light_shape == '_connected_geometry_light_shape_circle':
+            self.Shape = 1
+            
+        self.Color = data.color[0], data.color[1], data.color[2]
+        self.Intensity = max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001)
+        self.HotspotSize = 0
+        self.HotspotCutoff = 0
+        if data.type == 'SPOT':
+            self.HotspotSize = min(degrees(data.spot_size), 160)
+            self.HotspotCutoff = self.HotspotSize * abs(1 - data.spot_blend)
+            
+        self.HotspotFalloff = nwo.light_falloff_shape
+        
+        self.NearAttenuationStart = nwo.light_near_attenuation_start * 100 * WU_SCALAR
+        self.NearAttenuationEnd = nwo.light_near_attenuation_end * 100 * WU_SCALAR
+        self.FarAttenuationStart = nwo.light_far_attenuation_start * 100 * WU_SCALAR
+        self.FarAttenuationEnd = nwo.light_far_attenuation_end * 100 * WU_SCALAR
+        self.Aspect = nwo.light_aspect
+            
+        
         
 class NWO_OT_LightSync(bpy.types.Operator):
     bl_idname = "nwo.light_sync"
@@ -121,15 +181,14 @@ def gather_lights(context):
 
 def export_lights(light_objects, all_lights=None):
     asset_path, asset_name = nwo_utils.get_asset_info()
-    lights = [Light(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
-    bsps_with_lights = {light.bsp for light in lights}
+    lights = [BlamLightInstance(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
+    bsps_with_lights = {light.Bsp for light in lights}
     bsps = sorted(bsps_with_lights)
     lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
     for idx, info_path in enumerate(lighting_info_paths):
-        with ScenarioStructureLightingInfoTag(path=info_path) as info:
-            b = bsps[idx]
-            if all_lights is None:
-                info.build_tag([light for light in lights if light.bsp == b])
-            else:
-                every_light = [Light(ob, nwo_utils.true_region(ob.nwo)) for ob in all_lights]
-                info.build_tag([light for light in every_light if light.bsp == b], [light for light in lights if light.bsp == b])
+        b = bsps[idx]
+        lights_list = [light for light in lights if light.Bsp == b]
+        light_instances = [light.__dict__ for light in lights_list]
+        light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
+        light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
+        blam("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions})

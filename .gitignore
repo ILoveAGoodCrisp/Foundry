@@ -9,4 +9,8 @@ copy to add-ons.bat
 /packages
 /obj
 /bin
+/FoundryBlam/bin
+/FoundryBlam/obj
 *.user
+*.vsidx
+*.lock

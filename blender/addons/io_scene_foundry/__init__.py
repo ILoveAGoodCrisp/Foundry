@@ -24,11 +24,15 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import atexit
 from pathlib import Path
 import bpy
 from bpy.app.handlers import persistent
+import os
+import signal
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, restart_blender, setup_projects_list, unlink
+from io_scene_foundry.utils.nwo_utils import restart_blender, setup_projects_list, unlink
+from io_scene_foundry.utils import nwo_globals
 
 old_snapshot = {}
 old_x = None
@@ -47,6 +51,10 @@ bl_info = {
     "support": "COMMUNITY",
     "category": "Export",
 }
+
+def foundry_blam_cleanup():
+    for p in nwo_globals.processes:
+        os.kill(p.pid, signal.SIGTERM)
 
 #check that version is 4.1.0 or greater
 if bpy.app.version < (4, 1, 0):
@@ -105,7 +113,9 @@ else:
     def load_handler(dummy):
         context = bpy.context
         context.scene.nwo.shader_sync_active = False
+        context.scene.nwo.light_sync_active = False
         context.scene.nwo.export_in_progress = False
+        atexit.register(foundry_blam_cleanup)
         # Add projects
         projects = setup_projects_list()
         blend_path = bpy.data.filepath

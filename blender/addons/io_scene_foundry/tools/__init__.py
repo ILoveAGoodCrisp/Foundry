@@ -1399,10 +1399,10 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.separator()
 
-                col.prop(nwo, "light_frustum_width", text="Frustum Width")
-                col.prop(nwo, "light_frustum_height", text="Frustum Height")
+                # col.prop(nwo, "light_frustum_width", text="Frustum Width")
+                # col.prop(nwo, "light_frustum_height", text="Frustum Height")
 
-                col.separator()
+                # col.separator()
 
                 col.prop(nwo, "light_volume_distance", text="Light Volume Distance")
                 col.prop(nwo, "light_volume_intensity", text="Light Volume Intensity")
@@ -1416,11 +1416,11 @@ class NWO_FoundryPanelProps(Panel):
                 col = col.column(heading="Flags")
                 sub = col.column(align=True)
 
-                sub.prop(
-                    nwo,
-                    "light_ignore_bsp_visibility",
-                    text="Ignore BSP Visibility",
-                )
+                # sub.prop(
+                #     nwo,
+                #     "light_ignore_bsp_visibility",
+                #     text="Ignore BSP Visibility",
+                # )
                 if (
                     nwo.light_sub_type
                     == "_connected_geometry_lighting_sub_type_screenspace"

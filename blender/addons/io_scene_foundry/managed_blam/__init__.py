@@ -24,7 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import json
 from pathlib import Path
+import socket
 from io_scene_foundry.managed_blam.Tags import *
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_utils import (
@@ -33,6 +35,7 @@ from io_scene_foundry.utils.nwo_utils import (
     enable_prints,
     get_asset_path,
     get_data_path,
+    get_foundry_blam_exe,
     get_tags_path,
     linear_to_srgb,
     managed_blam_active,
@@ -54,6 +57,10 @@ last_saved_tag = None
 
 Halo = None
 Tags = TagsNameSpace()
+soc = None
+host_process = None
+
+port = 25527
 
 class Tag():
     # Stuff classes that inherit from this one may overwrite
@@ -435,6 +442,7 @@ class ManagedBlam_Init(Operator):
                     atexit.register(close_managed_blam)
                     nwo_globals.mb_active = True
                     nwo_globals.mb_path = mb_path
+                    
                 except:
                     print("ManagedBlam already initialised Once. Skipping")
                     return {"CANCELLED"}
@@ -444,6 +452,23 @@ class ManagedBlam_Init(Operator):
         
 def close_managed_blam():
     Halo.ManagedBlamSystem.Stop()
+    
+def blam(function_name, path="", data={}):
+    # Get FoundryBlam process socket
+    proj_path = get_project_path()
+    soc = nwo_globals.sockets.get(proj_path)
+    if not soc:
+        exe = get_foundry_blam_exe()
+        global port
+        nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(port)]))
+        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        soc.connect(('localhost', port))
+        port += 1
+        nwo_globals.sockets[proj_path] = soc
+        
+    json_dict = {"function": function_name, "path": path, "data": data}
+    json_dump = json.dumps(json_dict) + "\n"
+    soc.sendall(json_dump.encode('utf-8'))
 
 classeshalo = (
     ManagedBlam_Init,

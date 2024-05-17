@@ -33,8 +33,8 @@ import os
 import json
 import multiprocessing
 import threading
-from io_scene_foundry.managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
-from io_scene_foundry.managed_blam import Tag
+from io_scene_foundry.tools.light_exporter import BlamLightDefinition
+from io_scene_foundry.managed_blam import Tag, blam
 from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
 from io_scene_foundry.export.tag_builder import build_tags
 from io_scene_foundry.tools.scenario.lightmap import run_lightmapper
@@ -923,11 +923,14 @@ class ProcessScene:
             
         if update_lighting_infos:
             bsps = sorted(export_scene.bsps_with_lighting_info)
-            lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
+            lighting_info_paths = [relative_path(str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info'))) for b in bsps]
             for idx, info_path in enumerate(lighting_info_paths):
-                with ScenarioStructureLightingInfoTag(path=info_path) as info:
-                    b = bsps[idx]
-                    info.build_tag([l for l in export_scene.lights if l.bsp == b])
+                b = bsps[idx]
+                lights_list = [l for l in export_scene.lights if l.Bsp == b]
+                light_instances = [light.__dict__ for light in lights_list]
+                light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
+                light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
+                blam("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions})
 
     def any_node_usage_override(self, nwo, asset_type, corinth):
         if not corinth and asset_type == 'animation' and nwo.asset_animation_type == 'first_person':

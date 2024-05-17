@@ -31,7 +31,7 @@ import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
-from io_scene_foundry.tools.light_exporter import Light
+from io_scene_foundry.tools.light_exporter import BlamLightInstance, BlamLightDefinition
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
@@ -446,7 +446,7 @@ class PrepareScene:
                 elif is_light:
                     if self.asset_type == 'scenario':
                         self.bsps_with_lighting_info.add(ob.nwo.region_name)
-                    self.lights.append(Light(ob, ob.nwo.region_name))
+                    self.lights.append(BlamLightInstance(ob, ob.nwo.region_name))
                     nwo_utils.unlink(ob)
                 
                 elif object_type == '_connected_geometry_object_type_mesh':
