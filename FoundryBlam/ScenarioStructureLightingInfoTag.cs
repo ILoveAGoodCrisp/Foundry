@@ -50,9 +50,7 @@ namespace FoundryBlam
                 string elementId = ((TagFieldElementInteger)element.SelectField("Definition Identifier")).GetStringData();
                 LightDefinition foundLight = lights.Find(light => light.Id == elementId);
                 if (foundLight == null)
-                {
                     removeIndexes.Add(element.ElementIndex);
-                }
                 else
                 {
                     remainingLightIndexes.Remove(lights.IndexOf(foundLight));
@@ -79,7 +77,6 @@ namespace FoundryBlam
 
         private void UpdateCorinthLightDefinitions(LightDefinition light, TagElement element)
         {
-            light.Index = element.ElementIndex;
             ((TagFieldElementInteger)element.SelectField("Definition Identifier")).SetStringData(light.Id);
             TagFieldStruct parametersStruct = (TagFieldStruct)element.SelectField("Midnight_Light_Parameters");
             TagElement parameters = parametersStruct.Elements[0];
@@ -106,11 +103,11 @@ namespace FoundryBlam
             }
             if (light.Type == 1) // SPOT
             {
-                ((TagFieldElement)parameters.SelectField("Inner Cone Angle")).SetStringData(light.HotspotFalloff.ToString());
+                ((TagFieldElement)parameters.SelectField("Inner Cone Angle")).SetStringData(light.HotspotCutoff.ToString());
                 TagFieldStruct hotspotStruct = (TagFieldStruct)parameters.SelectField("Outer Cone End");
                 TagElement hotspot = hotspotStruct.Elements[0];
                 TagFieldCustomFunctionEditor hotspotMapping = (TagFieldCustomFunctionEditor)hotspot.SelectField("Custom:Mapping");
-                hotspotMapping.Value.ClampRangeMin = light.HotspotCutoff;
+                hotspotMapping.Value.ClampRangeMin = light.HotspotSize;
                 ((TagFieldEnum)parameters.SelectField("Cone Projection Shape")).Value = light.ConeShape;
             }
 
@@ -122,11 +119,11 @@ namespace FoundryBlam
             ((TagFieldElement)parameters.SelectField("Shadow Near Clip Plane")).SetStringData(light.ShadowNearClip.ToString());
             ((TagFieldElement)parameters.SelectField("Shadow Far Clip Plane")).SetStringData(light.ShadowFarClip.ToString());
             ((TagFieldElement)parameters.SelectField("Shadow Bias Offset")).SetStringData(light.ShadowBias.ToString());
-            ((TagFieldElementArray)parameters.SelectField("Shadow Color")).SetStringData(light.ShadowColor.Select(f => f.ToString()).ToArray());
             ((TagFieldEnum)parameters.SelectField("Dynamic Shadow Quality")).Value = light.ShadowQuality;
             ((TagFieldEnum)parameters.SelectField("Shadows")).Value = light.Shadows;
             ((TagFieldEnum)parameters.SelectField("Screenspace Light")).Value = light.ScreenSpace;
             ((TagFieldEnum)parameters.SelectField("Ignore Dynamic Objects")).Value = light.IgnoreDynamicObjects;
+            ((TagFieldEnum)parameters.SelectField("Cinema Objects Only")).Value = light.CinemaObjectsOnly;
             ((TagFieldEnum)parameters.SelectField("Cinema Only")).Value = light.CinemaOnly;
             ((TagFieldEnum)parameters.SelectField("Cinema Exclude")).Value = light.CinemaExclude;
             ((TagFieldEnum)parameters.SelectField("Specular Contribution")).Value = light.SpecularContribution;
@@ -145,7 +142,10 @@ namespace FoundryBlam
             foreach (LightInstance light in lights)
             {
                 TagElement element = GenericLightInstances.AddElement();
-                ((TagFieldElement)element.SelectField("Light Definition Index")).SetStringData(DefinitionIndexFromDataName(light.DataName, lightDefinitions).ToString());
+                LightId id = new LightId();
+                string nameId = id.IdFromString(light.DataName);
+                ((TagFieldElement)element.SelectField("Light Definition ID")).SetStringData(nameId);
+                ((TagFieldElement)element.SelectField("Light Definition Index")).SetStringData(DefinitionIndexFromId(nameId).ToString());
                 ((TagFieldEnum)element.SelectField("light mode")).Value = light.LightMode;
                 TagFieldElementArray origin = (TagFieldElementArray)element.SelectField("origin");
                 TagFieldElementArray forward = (TagFieldElementArray)element.SelectField("forward");
@@ -235,6 +235,17 @@ namespace FoundryBlam
 
             return 0;
         }
+
+        private int DefinitionIndexFromId(string id)
+        {
+            foreach (TagElement element in GenericLightDefinitions)
+            {
+                if (id == ((TagFieldElementInteger)element.Fields[0]).GetStringData())
+                    return element.ElementIndex;
+            }
+
+            return 0;
+        }
     }
 
     public class LightId
@@ -294,11 +305,11 @@ namespace FoundryBlam
         public float ShadowNearClip { get; set; }
         public float ShadowFarClip { get; set; }
         public float ShadowBias { get; set; }
-        public float[] ShadowColor { get; set; }
         public int ShadowQuality { get; set; }
         public int Shadows { get; set; }
         public int ScreenSpace { get; set; }
         public int IgnoreDynamicObjects { get; set; }
+        public int CinemaObjectsOnly { get; set; }
         public int CinemaOnly { get; set; }
         public int CinemaExclude { get; set; }
         public int SpecularContribution { get; set; }

@@ -1340,13 +1340,14 @@ class NWO_FoundryPanelProps(Panel):
 
                     col.prop(nwo, "light_shadows")
                     if nwo.light_shadows:
-                        col.prop(nwo, "light_shadow_color")
+                        # col.prop(nwo, "light_shadow_color")
                         row = col.row()
                         row.prop(nwo, "light_dynamic_shadow_quality", expand=True)
                         col.prop(nwo, "light_shadow_near_clipplane")
                         col.prop(nwo, "light_shadow_far_clipplane")
                         col.prop(nwo, "light_shadow_bias_offset")
-                    col.prop(nwo, "light_cinema_objects_only")
+                    if data.type == 'SPOT':
+                        col.prop(nwo, "light_cinema_objects_only")
                     col.prop(nwo, "light_specular_contribution")
                     col.prop(nwo, "light_diffuse_contribution")
                     col.prop(nwo, "light_ignore_dynamic_objects")
@@ -1375,15 +1376,6 @@ class NWO_FoundryPanelProps(Panel):
 
                 col.prop(nwo, "light_game_type", text="Game Type")
                 col.prop(nwo, "light_shape", text="Shape")
-
-                col.separator()
-
-                col.prop(
-                    nwo,
-                    "light_fade_start_distance",
-                    text="Fade Out Start Distance",
-                )
-                col.prop(nwo, "light_fade_end_distance", text="Fade Out End Distance")
 
                 col.separator()
 

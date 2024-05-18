@@ -113,11 +113,11 @@ class BlamLightDefinition:
         self.ShadowNearClip = nwo.light_shadow_near_clipplane
         self.ShadowFarClip = nwo.light_shadow_far_clipplane
         self.ShadowBias = nwo.light_shadow_bias_offset
-        self.ShadowColor = nwo_utils.linear_to_srgb(nwo.light_shadow_color[0]), nwo_utils.linear_to_srgb(nwo.light_shadow_color[1]), nwo_utils.linear_to_srgb(nwo.light_shadow_color[2])
         self.ShadowQuality = 0 if nwo.light_dynamic_shadow_quality == '_connected_geometry_dynamic_shadow_quality_normal' else 1
         self.Shadows = 1 if nwo.light_shadows else 0
         self.ScreenSpace = 1 if nwo.light_screenspace else 0
         self.IgnoreDynamicObjects = 1 if nwo.light_ignore_dynamic_objects else 0
+        self.CinemaObjectsOnly = 1 if nwo.light_cinema_objects_only else 0
         self.CinemaOnly = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_only' else 0
         self.CinemaExclude = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_exclude' else 0
         self.SpecularContribution = 1 if nwo.light_specular_contribution else 0

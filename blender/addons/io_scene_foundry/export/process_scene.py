@@ -33,7 +33,6 @@ import os
 import json
 import multiprocessing
 import threading
-from io_scene_foundry.tools.light_exporter import BlamLightDefinition
 from io_scene_foundry.managed_blam import Tag, blam
 from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
 from io_scene_foundry.export.tag_builder import build_tags
@@ -292,20 +291,6 @@ class ProcessScene:
                             export_scene,
                             scene_nwo_export.export_markers,
                         )
-                    if scene_nwo.render_model_from_blend and export_scene.lighting:
-                        self.export_model(
-                            context,
-                            asset_path,
-                            asset,
-                            "lighting",
-                            export_scene.lighting,
-                            None,
-                            None,
-                            export_scene.model_armature,
-                            asset_type,
-                            export_scene,
-                            True,
-                        )
 
                 fbx_path, json_path, gr2_path = self.get_path(
                     asset_path, asset, "skeleton", None, None, None
@@ -427,20 +412,6 @@ class ProcessScene:
                         export_scene,
                         scene_nwo_export.export_markers,
                     )
-                if export_scene.lighting:
-                    self.export_model(
-                        context,
-                        asset_path,
-                        asset,
-                        "lighting",
-                        export_scene.lighting,
-                        None,
-                        None,
-                        export_scene.model_armature,
-                        asset_type,
-                        export_scene,
-                        True,
-                    )
 
             elif asset_type == "decorator_set":
                 if export_scene.render:
@@ -494,11 +465,6 @@ class ProcessScene:
             
             sidecar = Sidecar(asset_path, asset, asset_type, context)
             sidecar.build(context, sidecar_path, sidecar_path_full, export_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo)
-
-            # make another sidecar to generate model lighting files
-            if export_scene.lighting:
-                lighting_sidecar = Sidecar(asset_path, asset, "model scenario", context)
-                lighting_sidecar.build(context, sidecar_path, sidecar_path_full, export_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo, True)
 
             reports.append(sidecar.message)
             print("\n\nCreating Intermediary Files")
@@ -574,7 +540,7 @@ class ProcessScene:
                 print("\n\nBuilding Tags")
                 print("-----------------------------------------------------------------------\n")
                 self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario, relative_asset_path, asset, asset_type, h4)
-                export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, bool(export_scene.lighting), export_scene.selected_bsps)
+                export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, export_scene.selected_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
                     self.sidecar_import_error = error
@@ -881,8 +847,8 @@ class ProcessScene:
         model_sky = asset_type in ('model', 'sky')
         model = asset_type == 'model'
         scenario = asset_type == 'scenario'
-        h4_model_lighting = (export_scene.lighting and is_corinth(context) and model_sky)
-        update_lighting_infos = scenario and export_scene.bsps_with_lighting_info
+        # h4_model_lighting = (export_scene.lighting and is_corinth(context) and model_sky)
+        update_lighting_infos = scenario and export_scene.light_tasks
         model_override = (
             (not nwo.render_model_from_blend and nwo.render_model_path and model)
             or (not nwo.collision_model_from_blend and nwo.collision_model_path and model)
@@ -891,10 +857,10 @@ class ProcessScene:
         )
         # print("\n--- Foundry Tags Post-Process")
         # If this model has lighting, add a reference to the structure_meta tag in the render_model
-        if h4_model_lighting:
-            meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
-            with RenderModelTag(hide_prints=True) as render_model:
-                render_model.set_structure_meta_ref(meta_path)
+        # if h4_model_lighting:
+        #     meta_path = os.path.join(asset_path, asset_name + '.structure_meta')
+        #     with RenderModelTag(hide_prints=True) as render_model:
+        #         render_model.set_structure_meta_ref(meta_path)
             # print("--- Added Structure Meta Reference to Render Model")
 
         # Apply model overrides if any
@@ -922,15 +888,8 @@ class ProcessScene:
             write_zone_sets_to_scenario(scene_nwo, asset_name)
             
         if update_lighting_infos:
-            bsps = sorted(export_scene.bsps_with_lighting_info)
-            lighting_info_paths = [relative_path(str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info'))) for b in bsps]
-            for idx, info_path in enumerate(lighting_info_paths):
-                b = bsps[idx]
-                lights_list = [l for l in export_scene.lights if l.Bsp == b]
-                light_instances = [light.__dict__ for light in lights_list]
-                light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
-                light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-                blam("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions})
+            for task in export_scene.light_tasks:
+                blam(*task)
 
     def any_node_usage_override(self, nwo, asset_type, corinth):
         if not corinth and asset_type == 'animation' and nwo.asset_animation_type == 'first_person':

@@ -31,7 +31,7 @@ import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
-from io_scene_foundry.tools.light_exporter import BlamLightInstance
+from io_scene_foundry.tools.light_exporter import BlamLightDefinition, BlamLightInstance
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
@@ -138,6 +138,7 @@ class PrepareScene:
         self.seams = set()
         self.reach_sky_lights = set()
         self.lights = []
+        self.light_tasks = []
         
         global render_mesh_types
         if not corinth or asset_type in ('model', 'sky'):
@@ -154,8 +155,6 @@ class PrepareScene:
         
         self.null_path_materials = set()
         self.invalid_path_materials = set()
-        
-        self.bsps_with_lighting_info = set()
         
         self.timeline_start, self.timeline_end = self._set_timeline_range(context)
         self.current_action = None
@@ -444,9 +443,7 @@ class PrepareScene:
                     continue
                 
                 elif is_light:
-                    if self.asset_type == 'scenario':
-                        self.bsps_with_lighting_info.add(ob.nwo.region_name)
-                    self.lights.append(BlamLightInstance(ob, ob.nwo.region_name))
+                    self.lights.append(ob)
                     nwo_utils.unlink(ob)
                 
                 elif object_type == '_connected_geometry_object_type_mesh':
@@ -493,7 +490,21 @@ class PrepareScene:
                 nwo_utils.update_job_count(process, "", idx, len_export_obs)
 
             nwo_utils.update_job_count(process, "", len_export_obs, len_export_obs)
-        
+    
+    def write_lights_data(self):
+        asset_path = nwo_utils.get_asset_path()
+        lights = [BlamLightInstance(ob, ob.nwo.region_name) for ob in self.lights]
+        bsps_with_lights = {light.Bsp for light in lights}
+        bsps = sorted(bsps_with_lights)
+        lighting_info_paths = [str(Path(asset_path, f'{self.asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
+        for idx, info_path in enumerate(lighting_info_paths):
+            b = bsps[idx]
+            lights_list = [light for light in lights if light.Bsp == b]
+            light_instances = [light.__dict__ for light in lights_list]
+            light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
+            light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
+            self.light_tasks.append(("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+    
     def get_selected_sets(self):
         '''
         Get selected bsps/permutations from the objects selected at export
@@ -875,17 +886,6 @@ class PrepareScene:
         self._halo_objects()
 
         nwo_utils.update_view_layer(self.context)
-        
-    def create_model_lighting_bsp(self):
-        if self.lighting:
-            box = self._wrap_bounding_box(self.context.view_layer.objects, 5)
-            self.lighting.add(box)
-            if self.model_armature:
-                world = box.matrix_world.copy()
-                box.parent = self.model_armature
-                box.parent_type = "BONE"
-                box.parent_bone = self.root_bone_name
-                box.matrix_world = world
                 
     def animation_fixup(self):
         if self.export_settings.export_gr2_files and self.model_armature:
@@ -2503,7 +2503,6 @@ class PrepareScene:
     def _halo_objects_init(self):
         self.frames = set()
         self.markers = set()
-        self.lighting = set()
 
         self.render = set()
         self.render_perms = set()
@@ -2565,12 +2564,6 @@ class PrepareScene:
                 elif mesh_type == "_connected_geometry_mesh_type_physics":
                     self.physics.add(ob)
                     self.physics_perms.add(permutation)
-                elif (
-                    self.corinth
-                    and ob.type == "LIGHT"
-                    or nwo.marker_type == "_connected_geometry_marker_type_airprobe"
-                ):
-                    self.lighting.add(ob)
                 elif object_type == "_connected_geometry_object_type_marker" or (object_type == '_connected_geometry_object_type_mesh' and mesh_type == "_connected_geometry_mesh_type_object_instance"):
                     self.markers.add(ob)
                 else:

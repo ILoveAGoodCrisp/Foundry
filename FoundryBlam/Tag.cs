@@ -21,7 +21,7 @@ namespace FoundryBlam
             tagPath = TagPathFromString(path);
             tag = new TagFile();
 
-            if (tagPath.IsTagFileAccessible())
+            if (File.Exists(tagPath.Filename))
             {
                 tag.Load(tagPath);
             }
