@@ -72,7 +72,9 @@ namespace FoundryBlam
                         case "BuildScenarioStructureLightingInfo":
                             BuildScenarioStructureLightingInfo(path, corinth, data);
                             break;
-                        // Add more cases for other function names as needed
+                        case "ClearScenarioStructureLightingInfo":
+                            ClearScenarioStructureLightingInfo(path, corinth, data);
+                            break;
                         default:
                             Console.WriteLine("Unknown function: " + functionName);
                             break;
@@ -124,6 +126,14 @@ namespace FoundryBlam
             using (ScenarioStructureLightingInfoTag info = new ScenarioStructureLightingInfoTag(path, corinth))
             {
                 info.BuildTag(lightsInstances, lightsDefinitions);
+            }
+        }
+
+        private static void ClearScenarioStructureLightingInfo(string path, bool corinth, JToken data)
+        {
+            using (ScenarioStructureLightingInfoTag info = new ScenarioStructureLightingInfoTag(path, corinth))
+            {
+                info.ClearLights();
             }
         }
     }

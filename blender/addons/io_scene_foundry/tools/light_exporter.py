@@ -165,12 +165,6 @@ class NWO_OT_LightSync(bpy.types.Operator):
         nwo = context.scene.nwo
         if not nwo.light_sync_active:
             return self.cancel(context)
-        ob = context.object
-        if not ob:
-            return {'PASS_THROUGH'}
-        selected_lights = [ob for ob in context.selected_objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
-        if not selected_lights:
-            return {'PASS_THROUGH'}
         if event.type == 'TIMER':
             for area in context.screen.areas:
                 if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and mouse_in_light_editor_region(context, event.mouse_x, event.mouse_y):
@@ -210,9 +204,6 @@ class NWO_OT_ExportLights(bpy.types.Operator):
 
     def execute(self, context):
         light_objects = gather_lights(context)
-        if not light_objects:
-            self.report({'INFO'}, "No lights in scene")
-            return {'CANCELLED'}
         export_lights(light_objects)
         return {"FINISHED"}
     
@@ -222,13 +213,16 @@ def gather_lights(context):
 def export_lights(light_objects):
     asset_path, asset_name = nwo_utils.get_asset_info()
     lights = [BlamLightInstance(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
-    bsps_with_lights = {light.Bsp for light in lights}
-    bsps = sorted(bsps_with_lights)
+    bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
     lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
     for idx, info_path in enumerate(lighting_info_paths):
         b = bsps[idx]
         lights_list = [light for light in lights if light.Bsp == b]
-        light_instances = [light.__dict__ for light in lights_list]
-        light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
-        light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-        blam("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions})
+        if not lights_list:
+            if Path(nwo_utils.get_tags_path(), nwo_utils.relative_path(info_path)).exists():
+                blam("ClearScenarioStructureLightingInfo", info_path, {})
+        else:
+            light_instances = [light.__dict__ for light in lights_list]
+            light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
+            light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
+            blam("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions})

@@ -1144,9 +1144,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         if not self.export_this:
             return False
         ob = self.id_data
+        ob: bpy.types.Object
         if get_object_type(ob) == '_connected_geometry_object_type_none':
             return False
         if not ob.users_collection:
+            return False
+        
+        if not bpy.context.view_layer.objects.get(ob.name):
             return False
         
         exclude_collections = get_exclude_collections()

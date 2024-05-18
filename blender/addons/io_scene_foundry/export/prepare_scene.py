@@ -494,16 +494,19 @@ class PrepareScene:
     def write_lights_data(self):
         asset_path = nwo_utils.get_asset_path()
         lights = [BlamLightInstance(ob, ob.nwo.region_name) for ob in self.lights]
-        bsps_with_lights = {light.Bsp for light in lights}
-        bsps = sorted(bsps_with_lights)
+        bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
         lighting_info_paths = [str(Path(asset_path, f'{self.asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
         for idx, info_path in enumerate(lighting_info_paths):
             b = bsps[idx]
             lights_list = [light for light in lights if light.Bsp == b]
-            light_instances = [light.__dict__ for light in lights_list]
-            light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
-            light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-            self.light_tasks.append(("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+            if not lights_list:
+                if Path(self.tags_dir, nwo_utils.relative_path(info_path)).exists():
+                    self.light_tasks.append(("ClearScenarioStructureLightingInfo", info_path, {}))
+            else:
+                light_instances = [light.__dict__ for light in lights_list]
+                light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
+                light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
+                self.light_tasks.append(("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
     
     def get_selected_sets(self):
         '''

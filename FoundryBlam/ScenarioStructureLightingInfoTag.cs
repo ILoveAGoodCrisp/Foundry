@@ -15,28 +15,27 @@ namespace FoundryBlam
 
         public ScenarioStructureLightingInfoTag(string path, bool corinth) : base(path, corinth) { }
 
+        public void ClearLights()
+        {
+            ((TagFieldBlock)tag.SelectField("generic light definitions")).RemoveAllElements();
+            ((TagFieldBlock)tag.SelectField("generic light instances")).RemoveAllElements();
+            tagHasChanges = true;
+        }
+
         public void BuildTag(List<LightInstance> lightsInstances, List<LightDefinition> lightDefinitions)
         {
             GenericLightDefinitions = (TagFieldBlock)tag.SelectField("generic light definitions");
             GenericLightInstances = (TagFieldBlock)tag.SelectField("generic light instances");
 
-            if (!lightDefinitions.Any())
+            if (corinth)
             {
-                GenericLightDefinitions.RemoveAllElements();
-                GenericLightInstances.RemoveAllElements();
+                WriteCorinthLightDefinitions(lightDefinitions);
+                WriteCorinthLightInstances(lightsInstances, lightDefinitions);
             }
             else
             {
-                if (corinth)
-                {
-                    WriteCorinthLightDefinitions(lightDefinitions);
-                    WriteCorinthLightInstances(lightsInstances, lightDefinitions);
-                }
-                else
-                {
-                    WriteReachLightDefinitions(lightDefinitions);
-                    WriteReachLightInstances(lightsInstances, lightDefinitions);
-                }
+                WriteReachLightDefinitions(lightDefinitions);
+                WriteReachLightInstances(lightsInstances, lightDefinitions);
             }
             tagHasChanges = true;
         }
