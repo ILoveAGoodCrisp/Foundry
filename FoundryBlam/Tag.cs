@@ -7,14 +7,17 @@ namespace FoundryBlam
 {
     public class Tag : IDisposable
     {
-        protected string tagExt = "";
-        protected bool tagHasChanges = false;
-        protected string relativePath = "";
+        protected string tagExt;
+        protected bool tagHasChanges;
+        protected string relativePath;
         protected TagFile tag;
         protected TagPath tagPath;
+        protected bool corinth;
 
-        public Tag(string path)
+        public Tag(string path, bool is_corinth)
         {
+            corinth = is_corinth;
+
             tagPath = TagPathFromString(path);
             tag = new TagFile();
 

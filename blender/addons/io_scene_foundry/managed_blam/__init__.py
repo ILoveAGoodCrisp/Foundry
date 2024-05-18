@@ -460,7 +460,7 @@ def blam(function_name, path="", data={}):
     if not soc:
         exe = get_foundry_blam_exe()
         global port
-        nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(port)]))
+        nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(is_corinth()), str(port)]))
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         soc.connect(('localhost', port))
         port += 1

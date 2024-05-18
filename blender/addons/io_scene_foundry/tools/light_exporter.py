@@ -66,8 +66,18 @@ class BlamLightInstance:
         self.Gel = nwo.light_gel_reference
         self.LensFlare = nwo.light_lens_flare_reference
         
+        self.LightMode = 0
+        if nwo.light_mode == '_connected_geometry_light_mode_static':
+            self.LightMode = 1
+        elif nwo.light_mode == '_connected_geometry_light_mode_analytic':
+            self.LightMode = 2
+        
 class BlamLightDefinition:
     def __init__(self, data):
+        if nwo_utils.is_corinth():
+            atten_scalar = 1
+        else:
+            atten_scalar = 100
         nwo = data.nwo
         self.DataName = data.name
         self.Type = 0
@@ -81,7 +91,7 @@ class BlamLightDefinition:
         if nwo.light_shape == '_connected_geometry_light_shape_circle':
             self.Shape = 1
             
-        self.Color = data.color[0], data.color[1], data.color[2]
+        self.Color = nwo_utils.linear_to_srgb(data.color[0]), nwo_utils.linear_to_srgb(data.color[1]), nwo_utils.linear_to_srgb(data.color[2])
         self.Intensity = max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001)
         self.HotspotSize = 0
         self.HotspotCutoff = 0
@@ -91,12 +101,42 @@ class BlamLightDefinition:
             
         self.HotspotFalloff = nwo.light_falloff_shape
         
-        self.NearAttenuationStart = nwo.light_near_attenuation_start * 100 * WU_SCALAR
-        self.NearAttenuationEnd = nwo.light_near_attenuation_end * 100 * WU_SCALAR
-        self.FarAttenuationStart = nwo.light_far_attenuation_start * 100 * WU_SCALAR
-        self.FarAttenuationEnd = nwo.light_far_attenuation_end * 100 * WU_SCALAR
+        self.NearAttenuationStart = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR
+        self.NearAttenuationEnd = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR
+        self.FarAttenuationStart = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
+        self.FarAttenuationEnd = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
         self.Aspect = nwo.light_aspect
+        
+        self.ConeShape = 0 if nwo.light_cone_projection_shape == '_connected_geometry_cone_projection_shape_cone' else 1
+        
+        # Dynamic only props
+        self.ShadowNearClip = nwo.light_shadow_near_clipplane
+        self.ShadowFarClip = nwo.light_shadow_far_clipplane
+        self.ShadowBias = nwo.light_shadow_bias_offset
+        self.ShadowColor = nwo_utils.linear_to_srgb(nwo.light_shadow_color[0]), nwo_utils.linear_to_srgb(nwo.light_shadow_color[1]), nwo_utils.linear_to_srgb(nwo.light_shadow_color[2])
+        self.ShadowQuality = 0 if nwo.light_dynamic_shadow_quality == '_connected_geometry_dynamic_shadow_quality_normal' else 1
+        self.Shadows = 1 if nwo.light_shadows else 0
+        self.ScreenSpace = 1 if nwo.light_screenspace else 0
+        self.IgnoreDynamicObjects = 1 if nwo.light_ignore_dynamic_objects else 0
+        self.CinemaOnly = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_only' else 0
+        self.CinemaExclude = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_exclude' else 0
+        self.SpecularContribution = 1 if nwo.light_specular_contribution else 0
+        self.DiffuseContribution = 1 if nwo.light_diffuse_contribution else 0
+        
+        # Static only props
+        self.IndirectAmp = nwo.light_amplification_factor
+        self.JitterSphere = nwo.light_jitter_sphere_radius
+        self.JitterAngle = degrees(nwo.light_jitter_angle)
+        self.JitterQuality = 0
+        if nwo.light_jitter_quality == '_connected_geometry_light_jitter_quality_medium':
+            self.JitterQuality = 1
+        elif nwo.light_jitter_quality == '_connected_geometry_light_jitter_quality_high':
+            self.JitterQuality = 2
             
+        self.IndirectOnly = 1 if nwo.light_indirect_only else 0
+        self.StaticAnalytic = 1 if nwo.light_static_analytic else 0
+        
+        
         
         
 class NWO_OT_LightSync(bpy.types.Operator):
@@ -134,7 +174,7 @@ class NWO_OT_LightSync(bpy.types.Operator):
         if event.type == 'TIMER':
             for area in context.screen.areas:
                 if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and mouse_in_light_editor_region(context, event.mouse_x, event.mouse_y):
-                    export_lights(selected_lights, gather_lights(context))
+                    export_lights(gather_lights(context))
                     return {'PASS_THROUGH'}
                 
         return {'PASS_THROUGH'}
@@ -179,7 +219,7 @@ class NWO_OT_ExportLights(bpy.types.Operator):
 def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
 
-def export_lights(light_objects, all_lights=None):
+def export_lights(light_objects):
     asset_path, asset_name = nwo_utils.get_asset_info()
     lights = [BlamLightInstance(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
     bsps_with_lights = {light.Bsp for light in lights}

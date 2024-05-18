@@ -31,7 +31,7 @@ import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
-from io_scene_foundry.tools.light_exporter import BlamLightInstance, BlamLightDefinition
+from io_scene_foundry.tools.light_exporter import BlamLightInstance
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.utils.nwo_materials import special_materials
@@ -1608,8 +1608,8 @@ class PrepareScene:
 
         if self.corinth:
             ob["bungie_mesh_poop_streamingpriority"] = nwo.poop_streaming_priority_ui
-            ob["bungie_mesh_poop_cinema_only"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui) == '_connected_geometry_poop_cinema_only'
-            ob["bungie_mesh_poop_exclude_from_cinema"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui) == '_connected_geometry_poop_cinema_exclude'
+            ob["bungie_mesh_poop_cinema_only"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_only')
+            ob["bungie_mesh_poop_exclude_from_cinema"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_exclude')
             if nwo.poop_remove_from_shadow_geometry_ui:
                 ob["bungie_mesh_poop_remove_from_shadow_geometry"] = "1"
             if nwo.poop_disallow_lighting_samples_ui:

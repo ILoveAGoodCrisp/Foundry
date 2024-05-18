@@ -11,6 +11,9 @@ copy to add-ons.bat
 /bin
 /FoundryBlam/bin
 /FoundryBlam/obj
+/FoundryBlam/FoundryBlamCorinth/bin
+/FoundryBlam/FoundryBlamCorinth/obj
+/FoundryBlam/FoundryBlamCorinth/*.cs
 *.user
 *.vsidx
 *.lock

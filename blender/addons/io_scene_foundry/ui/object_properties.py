@@ -2576,7 +2576,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         name="Specular Contribution",
         options=set(),
         description="",
-        default=False,
+        default=True,
     )
 
     light_amplification_factor: FloatProperty(
@@ -2784,7 +2784,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         options=set(),
         description="",
         default=0,
-        min=0.0,
+        subtype='ANGLE'
     )
 
     light_jitter_quality: EnumProperty(
@@ -2813,12 +2813,6 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         default=False,
     )
 
-    light_intensity_off: BoolProperty(
-        name="Set Via Tag",
-        options=set(),
-        description="Stops this value being passed to the game. Use if you want to set the intensity manually in the tag (such as if you want to make use of functions for lights)",
-        default=False,
-    )
 
     near_attenuation_end_off: BoolProperty(
         name="Set Via Tag",
@@ -2864,7 +2858,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
                 "Dynamic",
                 "Lights that appear regardless of whether the map has been lightmapped",
             ),
-            ("_connected_geometry_light_mode_analytic", "Analytic", ""),
+            ("_connected_geometry_light_mode_analytic", "Analytic", "Similar to static lights but provides better results, however only one analytic light should ever light an object at a time"),
         ],
     )
     

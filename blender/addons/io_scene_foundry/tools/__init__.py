@@ -1334,15 +1334,8 @@ class NWO_FoundryPanelProps(Panel):
                 col.separator()
 
                 if nwo.light_mode == "_connected_geometry_light_mode_dynamic":
-                    col.prop(nwo, "light_camera_fade_start", text='Camera Fade Start')
-                    col.prop(nwo, "light_camera_fade_end", text='Camera Fade End')
-
-                    col.separator()
-
                     row = col.row()
                     row.prop(nwo, "light_cinema", expand=True)
-                    col.prop(nwo, "light_destroy_after")
-
                     col.separator()
 
                     col.prop(nwo, "light_shadows")
@@ -1415,21 +1408,6 @@ class NWO_FoundryPanelProps(Panel):
 
                 col = col.column(heading="Flags")
                 sub = col.column(align=True)
-
-                # sub.prop(
-                #     nwo,
-                #     "light_ignore_bsp_visibility",
-                #     text="Ignore BSP Visibility",
-                # )
-                if (
-                    nwo.light_sub_type
-                    == "_connected_geometry_lighting_sub_type_screenspace"
-                ):
-                    sub.prop(
-                        nwo,
-                        "light_screenspace_has_specular",
-                        text="Screenspace Light Has Specular",
-                    )
 
                 col = flow.column()
 
