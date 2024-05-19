@@ -2988,22 +2988,23 @@ def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
         else:
             slots_to_remove.add(idx)
             duplicate_slots[idx] = material_indexes[slot_name]
-            
-    bm = bmesh.new()
-    bm.from_mesh(ob.data)
-    bm.faces.ensure_lookup_table()
-    used_material_indexes = set()
-    for face in bm.faces:
-        used_material_indexes.add(face.material_index)
-        if duplicate_slots and face.material_index in duplicate_slots.keys():
-            face.material_index = duplicate_slots[face.material_index]
-            
-    bm.to_mesh(ob.data)
-    bm.free()
     
-    for i in range(len(slots)):
-        if i not in used_material_indexes:
-            slots_to_remove.add(i)
+    if ob.type == 'MESH':
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        bm.faces.ensure_lookup_table()
+        used_material_indexes = set()
+        for face in bm.faces:
+            used_material_indexes.add(face.material_index)
+            if duplicate_slots and face.material_index in duplicate_slots.keys():
+                face.material_index = duplicate_slots[face.material_index]
+                
+        bm.to_mesh(ob.data)
+        bm.free()
+        
+        for i in range(len(slots)):
+            if i not in used_material_indexes:
+                slots_to_remove.add(i)
     
     slots_to_remove = sorted(slots_to_remove, reverse=True)
         

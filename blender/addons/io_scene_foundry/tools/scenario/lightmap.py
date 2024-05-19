@@ -8,6 +8,11 @@ def scenario_exists() -> bool:
     asset_dir, asset_name = nwo_utils.get_asset_info()
     scenario_path = Path(nwo_utils.get_tags_path(), asset_dir, asset_name).with_suffix('.scenario')
     return scenario_path.exists()
+
+def model_exists() -> bool:
+    asset_dir, asset_name = nwo_utils.get_asset_info()
+    model_path = Path(nwo_utils.get_tags_path(), asset_dir, asset_name).with_suffix('.model')
+    return model_path.exists()
      
 
 class NWO_OT_Lightmap(bpy.types.Operator):
@@ -22,7 +27,12 @@ class NWO_OT_Lightmap(bpy.types.Operator):
             return False
         asset_type = context.scene.nwo.asset_type
         if nwo_utils.is_corinth(context):
-            return asset_type in ('model', 'sky', 'scenario') and scenario_exists()
+            if asset_type == 'scenario':
+                return scenario_exists()
+            elif asset_type in ('model', 'sky'):
+                return model_exists()
+            else:
+                return False
         else:
             return asset_type == 'scenario' and scenario_exists()
 

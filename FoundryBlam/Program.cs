@@ -67,6 +67,9 @@ namespace FoundryBlam
                             case "WritePrefabs":
                                 WritePrefabs(path, data);
                                 break;
+                            case "ModelAssignScenarioStructureLightingInfo":
+                                ModelAssignScenarioStructureLightingInfo(path, data);
+                                break;
                             default:
                                 Console.WriteLine("Unknown function: " + functionName);
                                 break;
@@ -132,6 +135,14 @@ namespace FoundryBlam
             using (ScenarioStructureBspTag bsp = new ScenarioStructureBspTag(path))
             {
                 bsp.WritePrefabs(prefabs);
+            }
+        }
+        private static void ModelAssignScenarioStructureLightingInfo(string path, JToken data)
+        {
+            string infoPath = data["info_path"].ToString();
+            using (ModelTag model = new ModelTag(path))
+            {
+                model.ModelAssignScenarioStructureLightingInfo(infoPath);
             }
         }
     }

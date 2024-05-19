@@ -200,21 +200,35 @@ def gather_lights(context):
 
 def export_lights_tasks():
     asset_path, asset_name = nwo_utils.get_asset_info()
+    asset_type = bpy.context.scene.nwo.asset_type
     light_objects = gather_lights(bpy.context)
     lights = [BlamLightInstance(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
-    bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
-    lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
     tasks = []
-    for idx, info_path in enumerate(lighting_info_paths):
-        b = bsps[idx]
-        lights_list = [light for light in lights if light.Bsp == b]
-        if not lights_list:
-            if Path(nwo_utils.get_tags_path(), nwo_utils.relative_path(info_path)).exists():
-                tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
+    if asset_type == 'scenario':
+        bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
+        lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
+        for idx, info_path in enumerate(lighting_info_paths):
+            b = bsps[idx]
+            lights_list = [light for light in lights if light.Bsp == b]
+            if not lights_list:
+                if Path(nwo_utils.get_tags_path(), nwo_utils.relative_path(info_path)).exists():
+                    tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
+            else:
+                light_instances = [light.__dict__ for light in lights_list]
+                light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
+                light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
+                tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+    
+    elif nwo_utils.is_corinth() and asset_type in ('model', 'sky', 'prefab'):
+        info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
+        if not lights:
+            tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
         else:
-            light_instances = [light.__dict__ for light in lights_list]
-            light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
+            light_instances = [light.__dict__ for light in lights]
+            light_data = {bpy.data.lights.get(light.DataName) for light in lights}
             light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
             tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+            if asset_type in ('model', 'sky'):
+                tasks.append(Task("ModelAssignScenarioStructureLightingInfo", str(Path(asset_path, f'{asset_name}.model')), {"info_path": info_path}))
 
     return tasks

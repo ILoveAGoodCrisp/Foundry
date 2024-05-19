@@ -628,10 +628,10 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         export_scene.add_special_materials()
         export_scene.convert_area_lights()
         export_scene.setup_objects()
-        if asset_type == 'scenario':
+        if asset_type == 'scenario' or (corinth and asset_type in ('model', 'sky', 'prefab')):
             export_scene.write_lights_data()
-            if corinth:
-                export_scene.write_prefabs_data()
+        if asset_type == 'scenario' and corinth:
+            export_scene.write_prefabs_data()
             
         export_scene.get_selected_sets()
         export_scene.validate_shader_paths()
@@ -650,8 +650,6 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         export_scene.validate_scale()
         # need to get object props AFTER scale
         export_scene.categorise_objects()
-        if asset_type in ('model', 'sky') and corinth:
-            export_scene.create_model_lighting_bsp()
         if asset_type in ('model', 'animation'):
             export_scene.animation_fixup()
         if asset_type == 'decorator_set':
