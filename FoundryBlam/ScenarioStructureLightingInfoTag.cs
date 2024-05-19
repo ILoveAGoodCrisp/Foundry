@@ -87,19 +87,13 @@ namespace FoundryBlam
             TagFieldCustomFunctionEditor intensityMapping = (TagFieldCustomFunctionEditor)intensity.SelectField("Custom:Mapping");
             intensityMapping.Value.ClampRangeMin = light.Intensity;
 
-            if (light.FarAttenuationEnd > 0)
-            {
-                ((TagFieldEnum)parameters.SelectField("Lighting Mode")).Value = 1; // artistic
-                ((TagFieldElement)parameters.SelectField("Distance Attenuation Start")).SetStringData(light.FarAttenuationStart.ToString());
-                TagFieldStruct attenStruct = (TagFieldStruct)parameters.SelectField("Distance Attenuation End");
-                TagElement atten = attenStruct.Elements[0];
-                TagFieldCustomFunctionEditor attenMapping = (TagFieldCustomFunctionEditor)atten.SelectField("Custom:Mapping");
-                attenMapping.Value.ClampRangeMin = light.FarAttenuationEnd;
-            }
-            else
-            {
-                ((TagFieldEnum)parameters.SelectField("Lighting Mode")).Value = 0; // physically accurate
-            }
+            ((TagFieldEnum)parameters.SelectField("Lighting Mode")).Value = light.LightingMode;
+            ((TagFieldElement)parameters.SelectField("Distance Attenuation Start")).SetStringData(light.FarAttenuationStart.ToString());
+            TagFieldStruct attenStruct = (TagFieldStruct)parameters.SelectField("Distance Attenuation End");
+            TagElement atten = attenStruct.Elements[0];
+            TagFieldCustomFunctionEditor attenMapping = (TagFieldCustomFunctionEditor)atten.SelectField("Custom:Mapping");
+            attenMapping.Value.ClampRangeMin = light.FarAttenuationEnd;
+
             if (light.Type == 1) // SPOT
             {
                 ((TagFieldElement)parameters.SelectField("Inner Cone Angle")).SetStringData(light.HotspotCutoff.ToString());
@@ -301,6 +295,7 @@ namespace FoundryBlam
         public float FarAttenuationEnd { get; set; }
         public float Aspect { get; set; }
         public int ConeShape { get; set; }
+        public int LightingMode { get; set; }
         public float ShadowNearClip { get; set; }
         public float ShadowFarClip { get; set; }
         public float ShadowBias { get; set; }

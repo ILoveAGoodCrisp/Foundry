@@ -103,11 +103,17 @@ class BlamLightDefinition:
         
         self.NearAttenuationStart = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR
         self.NearAttenuationEnd = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR
-        self.FarAttenuationStart = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
-        self.FarAttenuationEnd = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
+        if nwo.light_near_attenuation_end:
+            self.FarAttenuationStart = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
+            self.FarAttenuationEnd = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
+        else:
+            self.FarAttenuationStart = 9 * atten_scalar
+            self.FarAttenuationEnd = 40 * atten_scalar
+            
         self.Aspect = nwo.light_aspect
         
         self.ConeShape = 0 if nwo.light_cone_projection_shape == '_connected_geometry_cone_projection_shape_cone' else 1
+        self.LightingMode = 0 if nwo.light_physically_correct else 1
         
         # Dynamic only props
         self.ShadowNearClip = nwo.light_shadow_near_clipplane

@@ -1343,9 +1343,10 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(nwo, "light_cone_projection_shape", expand=True)
 
                 col.separator()
-                
-                col.prop(nwo, "light_far_attenuation_start", text='Light Falloff')
-                col.prop(nwo, "light_far_attenuation_end", text='Light Cutoff')
+                col.prop(nwo, "light_physically_correct")
+                if not nwo.light_physically_correct:
+                    col.prop(nwo, "light_far_attenuation_start", text='Light Falloff')
+                    col.prop(nwo, "light_far_attenuation_end", text='Light Cutoff')
                 
                 col.separator()
 

@@ -398,7 +398,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         name="Material Lighting Attenuation Cutoff",
         options=set(),
         description="Determines how far light travels before it stops. Leave this at 0 to for realistic light falloff/cutoff",
-        min=0,
+        min=wu(8),
         default=0,
         update=update_lighting_attenuation_cutoff,
         subtype='DISTANCE',
@@ -417,7 +417,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         options=set(),
         description="Determines how far light travels before its power begins to falloff",
         min=0,
-        default=0,
+        default=wu(2),
         update=update_lighting_attenuation_falloff,
         subtype='DISTANCE',
         unit='LENGTH',
@@ -2333,7 +2333,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         name="Light Falloff Start",
         options=set(),
         description="After this point, the light will begin to lose power",
-        default=0,
+        default=wu(2),
         min=0,
         subtype='DISTANCE',
         unit='LENGTH',
@@ -2349,7 +2349,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         name="Light Falloff End",
         options=set(),
         description="From the light falloff start, the light will gradually lose power until it reaches zero by the end point. Setting this to 0 will let the game automatically calculate light falloff based on intensity",
-        default=0,
+        default=wu(8),
         min=0,
         subtype='DISTANCE',
         unit='LENGTH',
@@ -2557,6 +2557,13 @@ class NWO_LightPropertiesGroup(PropertyGroup):
     )
 
     # H4 LIGHT PROPERTIES
+    
+    light_physically_correct: BoolProperty(
+        name="Light Physically Correct",
+        description="Light uses power to determine light falloff and cutoff",
+        options=set(),
+    )
+    
     light_dynamic_shadow_quality: EnumProperty(
         name="Shadow Quality",
         options=set(),
