@@ -13,6 +13,9 @@ namespace FoundryBlam
 
         public void WritePrefabs(List<Prefab> prefabs)
         {
+            if (!is_corinth)
+                return;
+
             TagFieldBlock prefabBlock = (TagFieldBlock)tag.SelectField("external references");
             prefabBlock.RemoveAllElements();
             foreach(Prefab prefab in prefabs)

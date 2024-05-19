@@ -34,7 +34,7 @@ import signal
 from io_scene_foundry.managed_blam import blam
 from io_scene_foundry.tools.light_exporter import export_lights_tasks
 from io_scene_foundry.tools.prefab_exporter import export_prefabs_tasks
-from io_scene_foundry.utils.nwo_utils import restart_blender, setup_projects_list, unlink, valid_nwo_asset
+from io_scene_foundry.utils.nwo_utils import is_corinth, restart_blender, setup_projects_list, unlink, valid_nwo_asset
 from io_scene_foundry.utils import nwo_globals
 
 old_snapshot = {}
@@ -254,12 +254,13 @@ else:
     def save_object_positions_to_tags(dummy):
         if bpy.context and bpy.context.scene:
             nwo = bpy.context.scene.nwo
+            asset_type = nwo.asset_type
             if not valid_nwo_asset(): return
             managed_blam_tasks = []
-            if nwo.prefabs_export_on_save:
+            if nwo.prefabs_export_on_save and asset_type == 'scenario' and is_corinth():
                 print("Exporting Prefabs")
                 managed_blam_tasks.extend(export_prefabs_tasks())
-            if nwo.lights_export_on_save:
+            if nwo.lights_export_on_save and asset_type == 'scenario':
                 print("Exporting Lights")
                 managed_blam_tasks.extend(export_lights_tasks())
                 

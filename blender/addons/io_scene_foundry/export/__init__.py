@@ -628,8 +628,11 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         export_scene.add_special_materials()
         export_scene.convert_area_lights()
         export_scene.setup_objects()
-        export_scene.write_lights_data()
-        export_scene.write_prefabs_data()
+        if asset_type == 'scenario':
+            export_scene.write_lights_data()
+            if corinth:
+                export_scene.write_prefabs_data()
+            
         export_scene.get_selected_sets()
         export_scene.validate_shader_paths()
         if asset_type == 'scenario':

@@ -54,7 +54,7 @@ class NWO_OT_ExportPrefabs(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return nwo_utils.valid_nwo_asset(context)
+        return nwo_utils.valid_nwo_asset(context) and context.scene.nwo.asset_type == 'scenario' and nwo_utils.is_corinth(context)
 
     def execute(self, context):
         blam(export_prefabs_tasks())
