@@ -9,6 +9,7 @@ for file in os.listdir(main_dir):
             cs = f.read()
             
         new_cs = cs.replace('using Bungie', 'using Corinth')
+        new_cs = new_cs.replace('is_corinth = false;', 'is_corinth = true;')
         corinth_file = file.replace(main_dir, corinth_dir)
         with open(corinth_file, 'w', encoding='utf-8') as f:
             f.write(new_cs)

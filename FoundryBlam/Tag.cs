@@ -12,12 +12,10 @@ namespace FoundryBlam
         protected string relativePath;
         protected TagFile tag;
         protected TagPath tagPath;
-        protected bool corinth;
+        protected readonly bool is_corinth = false;
 
-        public Tag(string path, bool is_corinth)
+        public Tag(string path)
         {
-            corinth = is_corinth;
-
             tagPath = TagPathFromString(path);
             tag = new TagFile();
 

@@ -469,7 +469,7 @@ class NWO_FaceLayerRemove(bpy.types.Operator):
     @classmethod
     def poll(self, context):
         ob = context.object
-        if ob.type == "MESH":
+        if ob and ob.type == "MESH":
             nwo = ob.data.nwo
             return nwo.face_props
         return False

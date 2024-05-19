@@ -21,25 +21,14 @@ namespace FoundryBlam
 
         static void Main(string[] args)
         {
-            bool debug = false;
             string projectPath = args[0];
-            bool corinth = bool.TrueString == args[1];
-            int port = int.Parse(args[2]);
+            int port = int.Parse(args[1]);
             ManagedBlamCrashCallback callback = info => { };
             ManagedBlamStartupParameters startupParamaters = new ManagedBlamStartupParameters
             {
                 InitializationLevel = InitializationType.TagsOnly
             };
             ManagedBlamSystem.Start(projectPath, callback, startupParamaters);
-
-            if (debug)
-            {
-                string debugData = """{"function": "BuildScenarioStructureLightingInfo", "path": "foundry_test\\scenarios\\light_sync_test\\light_sync_test_default.scenario_structure_lighting_info", "data": {"instances": [{"DataName": "Point", "Bsp": "default", "Origin": [-0.0773564875125885, 0.630765974521637, 0.6964206695556641], "Forward": [-0.0, 1.0, 0.0], "Up": [0.0, -0.0, 1.0], "GameType": 0, "VolumeDistance": 0.0, "VolumeIntensity": 1.0, "BounceRatio": 1.0, "ScreenSpaceSpecular": false, "LightTag": "", "Shader": "", "Gel": "", "LensFlare": "", "LightMode": 1}], "definitions": [{"DataName": "Point", "Type": 0, "Shape": 1, "Color": [0.9999999999999999, 0.9999999999999999, 0.9999999999999999], "Intensity": 0.9999999999999999, "HotspotSize": 0, "HotspotCutoff": 0, "HotspotFalloff": 1.0, "NearAttenuationStart": 0.0, "NearAttenuationEnd": 0.0, "FarAttenuationStart": 0.0, "FarAttenuationEnd": 0.0, "Aspect": 1.0, "ConeShape": 0, "ShadowNearClip": 0.0, "ShadowFarClip": 0.0, "ShadowBias": 0.0, "ShadowColor": [0.0, 0.0, 0.0], "ShadowQuality": 0, "Shadows": 1, "ScreenSpace": 0, "IgnoreDynamicObjects": 0, "CinemaOnly": 0, "CinemaExclude": 0, "SpecularContribution": 1, "DiffuseContribution": 1, "IndirectAmp": 0.5, "JitterSphere": 0.0, "JitterAngle": 0.0, "JitterQuality": 2, "IndirectOnly": 0, "StaticAnalytic": 0}]}}""";
-                JObject debugJson = JObject.Parse(debugData);
-                JToken my_data = debugJson["data"];
-                BuildScenarioStructureLightingInfo(@"foundry_test\scenarios\light_sync_test\light_sync_test_default.scenario_structure_lighting_info", true, my_data);
-                return;
-            }
 
             TcpListener server = new TcpListener(IPAddress.Any, port);
             server.Start();
@@ -51,7 +40,7 @@ namespace FoundryBlam
 
             Task.Run(() => ReadLatestLine(reader, _cts.Token));
 
-            while (true)
+            while (!_cts.Token.IsCancellationRequested)
             {
                 string jsonData;
                 lock (_lock)
@@ -61,23 +50,27 @@ namespace FoundryBlam
 
                 if (!string.IsNullOrEmpty(jsonData))
                 {
-
-                    JObject json = JObject.Parse(jsonData);
-
-                    string functionName = json["function"].ToString();
-                    string path = json["path"].ToString();
-                    JToken data = json["data"];
-                    switch (functionName)
+                    JArray jsonArray = JArray.Parse(jsonData);
+                    foreach (JObject jsonObject in jsonArray)
                     {
-                        case "BuildScenarioStructureLightingInfo":
-                            BuildScenarioStructureLightingInfo(path, corinth, data);
-                            break;
-                        case "ClearScenarioStructureLightingInfo":
-                            ClearScenarioStructureLightingInfo(path, corinth, data);
-                            break;
-                        default:
-                            Console.WriteLine("Unknown function: " + functionName);
-                            break;
+                        string functionName = jsonObject["function"].ToString();
+                        string path = jsonObject["path"].ToString();
+                        JToken data = jsonObject["data"];
+                        switch (functionName)
+                        {
+                            case "BuildScenarioStructureLightingInfo":
+                                BuildScenarioStructureLightingInfo(path, data);
+                                break;
+                            case "ClearScenarioStructureLightingInfo":
+                                ClearScenarioStructureLightingInfo(path, data);
+                                break;
+                            case "WritePrefabs":
+                                WritePrefabs(path, data);
+                                break;
+                            default:
+                                Console.WriteLine("Unknown function: " + functionName);
+                                break;
+                        }
                     }
 
                     lock (_lock)
@@ -85,12 +78,9 @@ namespace FoundryBlam
                         _latestJsonData = null;
                     }
 
-                if (_cts.Token.IsCancellationRequested)
-                {
-                    break;
                 }
 
-                }
+                Thread.Sleep(100);
             }
             _cts.Cancel();
             client.Close();
@@ -119,21 +109,29 @@ namespace FoundryBlam
             }
         }
 
-        private static void BuildScenarioStructureLightingInfo(string path, bool corinth, JToken data)
+        private static void BuildScenarioStructureLightingInfo(string path, JToken data)
         {
             List<LightInstance> lightsInstances = JsonConvert.DeserializeObject<List<LightInstance>>(data["instances"].ToString());
             List<LightDefinition> lightsDefinitions = JsonConvert.DeserializeObject<List<LightDefinition>>(data["definitions"].ToString());
-            using (ScenarioStructureLightingInfoTag info = new ScenarioStructureLightingInfoTag(path, corinth))
+            using (ScenarioStructureLightingInfoTag info = new ScenarioStructureLightingInfoTag(path))
             {
                 info.BuildTag(lightsInstances, lightsDefinitions);
             }
         }
 
-        private static void ClearScenarioStructureLightingInfo(string path, bool corinth, JToken data)
+        private static void ClearScenarioStructureLightingInfo(string path, JToken data)
         {
-            using (ScenarioStructureLightingInfoTag info = new ScenarioStructureLightingInfoTag(path, corinth))
+            using (ScenarioStructureLightingInfoTag info = new ScenarioStructureLightingInfoTag(path))
             {
                 info.ClearLights();
+            }
+        }
+        private static void WritePrefabs(string path, JToken data)
+        {
+            List<Prefab> prefabs = JsonConvert.DeserializeObject<List<Prefab>>(data["prefabs"].ToString());
+            using (ScenarioStructureBspTag bsp = new ScenarioStructureBspTag(path))
+            {
+                bsp.WritePrefabs(prefabs);
             }
         }
     }

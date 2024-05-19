@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.prefab_exporter import NWO_OT_ExportPrefabs
 from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights, NWO_OT_LightSync
 from io_scene_foundry.tools.asset_creator import NWO_OT_NewAsset
 from io_scene_foundry.tools.animation.rename_importer import NWO_OT_RenameImporter
@@ -56,7 +57,6 @@ from io_scene_foundry.tools.rigging.convert_to_halo_rig import NWO_OT_ConvertToH
 from io_scene_foundry.tools.rigging.create_rig import NWO_OT_AddRig
 from io_scene_foundry.tools.rigging.validation import NWO_AddPedestalControl, NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig
 from io_scene_foundry.tools.scene_scaler import NWO_ScaleScene
-from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMaterials
 from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
@@ -355,6 +355,9 @@ class NWO_FoundryPanelProps(Panel):
             self.draw_expandable_box(self.box.box(), nwo, 'scenario')
             self.draw_expandable_box(self.box.box(), nwo, 'zone_sets')
             self.draw_expandable_box(self.box.box(), nwo, 'lighting')
+            # self.draw_expandable_box(self.box.box(), nwo, 'objects')
+            if self.h4:
+                self.draw_expandable_box(self.box.box(), nwo, 'prefabs')
             
         elif nwo.asset_type == 'camera_track_set':
             box = self.box.box()
@@ -403,33 +406,27 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.new_sky", text="Add New Sky to Scenario", icon_value=get_icon_id('sky'))
         
     def draw_lighting(self, box: bpy.types.UILayout, nwo):
-        box.use_property_split = True
+        box_lights = box.box()
+        box_lights.label(text="Lights")
         scene_nwo_export = self.scene.nwo_export
         _, asset_name = get_asset_info()
         if self.asset_type == 'scenario':
-            lighting_name = "Light Scenario"
+            lighting_name = "Lightmap Scenario"
         else:
-            lighting_name = "Light Model"
+            lighting_name = "Lightmap Model"
         
-        box.operator("nwo.export_lights")
+        box_lights.operator("nwo.export_lights", icon='EXPORT')
+        split = box_lights.split()
+        col1 = split.column()
+        col2 = split.column()
         if self.scene.nwo.light_sync_active:
-            box.operator("nwo.light_sync", text="Light Sync", icon="PAUSE", depress=True).cancel_sync = True
+            col1.operator("nwo.light_sync", text="Light Sync", icon="PAUSE", depress=True).cancel_sync = True
         else:
-            box.operator("nwo.light_sync", text="Light Sync", icon="PLAY")
-        box.separator()
-            
-        if self.asset_type == "scenario":
-            if self.h4:
-                box.prop(scene_nwo_export, "lightmap_quality_h4")
-            else:
-                box.prop(scene_nwo_export, "lightmap_quality")
-            if not scene_nwo_export.lightmap_all_bsps:
-                box.prop(scene_nwo_export, "lightmap_specific_bsp")
-            box.prop(scene_nwo_export, "lightmap_all_bsps")
-            if not self.h4:
-                box.prop(scene_nwo_export, "lightmap_threads")
-                    
-        box.operator('nwo.lightmap', text=lighting_name, icon='LIGHT_SUN')
+            col1.operator("nwo.light_sync", text="Light Sync", icon="PLAY")
+        col2.enabled = not self.scene.nwo.light_sync_active
+        col2.prop(nwo, "light_sync_rate")
+        box_lights.prop(nwo, "lights_export_on_save")
+        box_lights.separator()
         if self.asset_type == 'scenario':
             tag_paths = get_asset_tags(".scenario_structure_lighting_info")
             if tag_paths:
@@ -437,12 +434,31 @@ class NWO_FoundryPanelProps(Panel):
                     name = path.with_suffix("").name
                     if name.startswith(asset_name):
                         name = name[len(asset_name) + 1:]
-                    box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {name} Lighting Tag").tag_path = str(path)
+                    box_lights.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open {name} Lighting Tag").tag_path = str(path)
         else:
             tag_path = get_asset_tag(".scenario_structure_lighting_info")
             if tag_path:
                 box.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text=f"Open Lighting Tag").tag_path = tag_path
         
+        box_lightmapping = box.box()
+        box_lightmapping.label(text="Lightmapping")
+        if self.asset_type == "scenario":
+            if self.h4:
+                box_lightmapping.prop(scene_nwo_export, "lightmap_quality_h4")
+            else:
+                box_lightmapping.prop(scene_nwo_export, "lightmap_quality")
+            if not scene_nwo_export.lightmap_all_bsps:
+                box_lightmapping.prop(scene_nwo_export, "lightmap_specific_bsp")
+            box_lightmapping.prop(scene_nwo_export, "lightmap_all_bsps")
+            if not self.h4:
+                box_lightmapping.prop(scene_nwo_export, "lightmap_threads")
+                    
+        box_lightmapping.operator('nwo.lightmap', text=lighting_name, icon='LIGHT_SUN')
+    
+    def draw_prefabs(self, box: bpy.types.UILayout, nwo):
+        box.operator("nwo.export_prefabs", icon='EXPORT')
+        box.prop(nwo, "prefabs_export_on_save")
+    
     def draw_zone_sets(self, box: bpy.types.UILayout, nwo):
         row = box.row()
         rows = 4
@@ -4706,7 +4722,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     
     def bsp_items(self, context):
         items = []
-        bsps = [region.name for region in context.scene.nwo.regions_table]
+        bsps = [region.name for region in context.scene.nwo.regions_table if region.name.lower() != 'shared']
         for bsp in bsps:
             items.append((bsp, bsp, ''))
         
@@ -5468,6 +5484,7 @@ classeshalo = (
     NWO_OT_NewAsset,
     NWO_OT_ExportLights,
     NWO_OT_LightSync,
+    NWO_OT_ExportPrefabs,
 )
 
 def register():

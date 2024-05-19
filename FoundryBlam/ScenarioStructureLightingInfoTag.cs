@@ -13,7 +13,7 @@ namespace FoundryBlam
         private TagFieldBlock GenericLightDefinitions;
         private TagFieldBlock GenericLightInstances;
 
-        public ScenarioStructureLightingInfoTag(string path, bool corinth) : base(path, corinth) { }
+        public ScenarioStructureLightingInfoTag(string path) : base(path) { }
 
         public void ClearLights()
         {
@@ -27,7 +27,7 @@ namespace FoundryBlam
             GenericLightDefinitions = (TagFieldBlock)tag.SelectField("generic light definitions");
             GenericLightInstances = (TagFieldBlock)tag.SelectField("generic light instances");
 
-            if (corinth)
+            if (is_corinth)
             {
                 WriteCorinthLightDefinitions(lightDefinitions);
                 WriteCorinthLightInstances(lightsInstances, lightDefinitions);

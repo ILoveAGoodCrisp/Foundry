@@ -31,7 +31,10 @@ from bpy.app.handlers import persistent
 import os
 import signal
 
-from io_scene_foundry.utils.nwo_utils import restart_blender, setup_projects_list, unlink
+from io_scene_foundry.managed_blam import blam
+from io_scene_foundry.tools.light_exporter import export_lights_tasks
+from io_scene_foundry.tools.prefab_exporter import export_prefabs_tasks
+from io_scene_foundry.utils.nwo_utils import restart_blender, setup_projects_list, unlink, valid_nwo_asset
 from io_scene_foundry.utils import nwo_globals
 
 old_snapshot = {}
@@ -246,16 +249,33 @@ else:
                         unlink(ob)
 
             nwo_globals.nwo_scene_settings.clear()
+            
+    @persistent
+    def save_object_positions_to_tags(dummy):
+        if bpy.context and bpy.context.scene:
+            nwo = bpy.context.scene.nwo
+            if not valid_nwo_asset(): return
+            managed_blam_tasks = []
+            if nwo.prefabs_export_on_save:
+                print("Exporting Prefabs")
+                managed_blam_tasks.extend(export_prefabs_tasks())
+            if nwo.lights_export_on_save:
+                print("Exporting Lights")
+                managed_blam_tasks.extend(export_lights_tasks())
+                
+            blam(managed_blam_tasks)
 
     def register():
         bpy.app.handlers.load_post.append(load_handler)
         bpy.app.handlers.load_post.append(load_set_output_state)
+        bpy.app.handlers.save_post.append(save_object_positions_to_tags)
         # bpy.app.handlers.undo_post.append(get_temp_settings)
         for module in modules:
             module.register()
         icons.icons_activate()
 
     def unregister():
+        bpy.app.handlers.save_post.remove(save_object_positions_to_tags)
         bpy.app.handlers.load_post.remove(load_handler)
         bpy.app.handlers.load_post.remove(load_set_output_state)
         # bpy.app.handlers.undo_post.remove(get_temp_settings)

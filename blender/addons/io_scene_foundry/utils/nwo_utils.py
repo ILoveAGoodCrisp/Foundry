@@ -38,7 +38,7 @@ import zipfile
 import bmesh
 import bpy
 import platform
-from mathutils import Matrix, Vector, Quaternion
+from mathutils import Euler, Matrix, Vector, Quaternion
 import os
 from subprocess import Popen, check_call
 import random
@@ -2062,6 +2062,13 @@ def halo_transforms(ob, scale=None, rotation=None):
         
     rot.rotate(rotation_matrix)
     
+    # if is_marker(ob):
+    #     if isinstance(rot, Quaternion):
+    #         rot = rot.to_euler()
+        
+    #     rot: Euler
+    #     rot.rotate_axis('Z', -rotation)
+    
     new_matrix = Matrix.LocRotScale(loc, rot, sca)
     
     return new_matrix
@@ -3330,8 +3337,11 @@ def get_foundry_blam_exe():
             source_exe = Path(source_dir, "FoundryBlam.exe")
             
         source_json_dll = Path(source_dir, "Newtonsoft.Json.dll")
-        shutil.copyfile(source_exe, target_exe)
-        shutil.copyfile(source_json_dll, target_json_dll)
+        try:
+            shutil.copyfile(source_exe, target_exe)
+            shutil.copyfile(source_json_dll, target_json_dll)
+        except:
+            pass
 
     if not target_json_dll.exists():
         raise RuntimeError("Failed to copy Newtonsoft.Json.dll for FoundryBlam")
@@ -3340,3 +3350,17 @@ def get_foundry_blam_exe():
         return str(target_exe)
     
     raise RuntimeError("Failed to copy FoundryBlam.exe")
+
+def mouse_in_object_editor_region(context, x, y):
+    for area in context.screen.areas:
+        if area.type not in ('VIEW_3D', "PROPERTIES", "OUTLINER"):
+            continue
+        for region in area.regions:
+            if region.type == 'WINDOW':
+                if (x >= region.x and
+                    y >= region.y and
+                    x < region.width + region.x and
+                    y < region.height + region.y):
+                    return True
+
+    return False

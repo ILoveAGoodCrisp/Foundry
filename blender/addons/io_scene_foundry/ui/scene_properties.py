@@ -821,6 +821,8 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     scenario_expanded: BoolProperty(default=False, options=set())
     lighting_expanded: BoolProperty(default=False, options=set())
     zone_sets_expanded: BoolProperty(default=False, options=set())
+    objects_expanded: BoolProperty(default=False, options=set())
+    prefabs_expanded: BoolProperty(default=False, options=set())
     model_expanded: BoolProperty(default=True, options=set())
     render_model_expanded: BoolProperty(default=False, options=set())
     collision_model_expanded: BoolProperty(default=False, options=set())
@@ -990,6 +992,32 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="How often Light Sync should refresh",
         min=0.001,
         default=0.1,
+        max=3,
+        subtype='TIME_ABSOLUTE',
+        options=set(),
+    )
+    
+    lights_export_on_save : BoolProperty(
+        name="Export Lights on Blender Save",
+        description="Exports all lights from Blender whenever the Blend file is saved",
+    )
+    
+    prefabs_export_on_save : BoolProperty(
+        name="Export Prefabs on Blender Save",
+        description="Exports all prefabs from Blender whenever the Blend file is saved",
+    )
+    
+    object_sync_active : BoolProperty(
+        name="Object Sync",
+        description="",
+        options=set()
+    )
+    
+    object_sync_rate : bpy.props.FloatProperty(
+        name="Sync Rate",
+        description="How often Object Sync should refresh",
+        min=0.001,
+        default=0.01,
         max=3,
         subtype='TIME_ABSOLUTE',
         options=set(),

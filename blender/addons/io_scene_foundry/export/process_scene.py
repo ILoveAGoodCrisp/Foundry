@@ -844,11 +844,9 @@ class ProcessScene:
 
     def managed_blam_post_import_tasks(self, context, scene_nwo, export_scene, asset_type, asset_path, asset_name, reach_world_animations, pose_overlays, setup_scenario):
         nwo = context.scene.nwo
-        model_sky = asset_type in ('model', 'sky')
         model = asset_type == 'model'
         scenario = asset_type == 'scenario'
         # h4_model_lighting = (export_scene.lighting and is_corinth(context) and model_sky)
-        update_lighting_infos = scenario and export_scene.light_tasks
         model_override = (
             (not nwo.render_model_from_blend and nwo.render_model_path and model)
             or (not nwo.collision_model_from_blend and nwo.collision_model_path and model)
@@ -887,10 +885,9 @@ class ProcessScene:
         if scenario and scene_nwo.zone_sets:
             write_zone_sets_to_scenario(scene_nwo, asset_name)
             
-        if update_lighting_infos:
-            for task in export_scene.light_tasks:
-                blam(*task)
-
+        if export_scene.managed_blam_tasks:
+            blam(export_scene.managed_blam_tasks)
+            
     def any_node_usage_override(self, nwo, asset_type, corinth):
         if not corinth and asset_type == 'animation' and nwo.asset_animation_type == 'first_person':
             return False # Don't want to set node usages for reach fp animations, it breaks them

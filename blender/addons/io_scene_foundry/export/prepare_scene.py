@@ -31,6 +31,8 @@ import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
+from io_scene_foundry.managed_blam import Task
+from io_scene_foundry.tools.prefab_exporter import BlamPrefab
 from io_scene_foundry.tools.light_exporter import BlamLightDefinition, BlamLightInstance
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
@@ -138,7 +140,10 @@ class PrepareScene:
         self.seams = set()
         self.reach_sky_lights = set()
         self.lights = []
-        self.light_tasks = []
+        
+        self.prefabs = []
+        
+        self.managed_blam_tasks = []
         
         global render_mesh_types
         if not corinth or asset_type in ('model', 'sky'):
@@ -467,7 +472,11 @@ class PrepareScene:
                     if nwo.marker_type_ui == '':
                         nwo.marker_type_ui = '_connected_geometry_marker_type_model'
                     if nwo_utils.type_valid(nwo.marker_type_ui, self.asset_type, self.game_version):
-                        self._setup_marker_properties(ob)
+                        if nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name_ui.lower().endswith(".prefab"):
+                            self.prefabs.append(ob)
+                            nwo_utils.unlink(ob)
+                        else:
+                            self._setup_marker_properties(ob)
                     else:
                         self.warning_hit = True
                         nwo_utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
@@ -501,12 +510,22 @@ class PrepareScene:
             lights_list = [light for light in lights if light.Bsp == b]
             if not lights_list:
                 if Path(self.tags_dir, nwo_utils.relative_path(info_path)).exists():
-                    self.light_tasks.append(("ClearScenarioStructureLightingInfo", info_path, {}))
+                    self.managed_blam_tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
             else:
                 light_instances = [light.__dict__ for light in lights_list]
                 light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
                 light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-                self.light_tasks.append(("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+                self.managed_blam_tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+                
+    def write_prefabs_data(self):
+        asset_path = nwo_utils.get_asset_path()
+        prefabs = [BlamPrefab(ob, ob.nwo.region_name) for ob in self.prefabs]
+        bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
+        structure_bsp_paths = [str(Path(asset_path, f'{self.asset_name}_{b}.scenario_structure_bsp')) for b in bsps]
+        for idx, bsp_path in enumerate(structure_bsp_paths):
+            b = bsps[idx]
+            prefabs_list = [prefab.__dict__ for prefab in prefabs if prefab.Bsp == b]
+            self.managed_blam_tasks.append(Task("WritePrefabs", bsp_path, {"prefabs": prefabs_list}))
     
     def get_selected_sets(self):
         '''
@@ -1591,11 +1610,12 @@ class PrepareScene:
             if self.corinth:
                 nwo["bungie_mesh_poop_imposter_brightness"] = nwo_utils.jstr(nwo.poop_imposter_brightness_ui)
         if nwo_data.render_only_ui:
-            ob["bungie_mesh_poop_is_render_only"] = "1"
             if self.corinth:
                 ob["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
             else:
                 ob["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
+                ob["bungie_mesh_poop_is_render_only"] = "1"
+                
         elif not self.corinth and nwo_data.sphere_collision_only_ui:
             ob["bungie_face_mode"] = '_connected_geometry_face_mode_sphere_collision_only'
         elif self.corinth:

@@ -28,7 +28,7 @@ from math import degrees
 from pathlib import Path
 import bpy
 from io_scene_foundry.utils.nwo_constants import WU_SCALAR
-from io_scene_foundry.managed_blam import blam
+from io_scene_foundry.managed_blam import Task, blam
 from io_scene_foundry.utils import nwo_utils
 
 class BlamLightInstance:
@@ -135,21 +135,18 @@ class BlamLightDefinition:
             
         self.IndirectOnly = 1 if nwo.light_indirect_only else 0
         self.StaticAnalytic = 1 if nwo.light_static_analytic else 0
-        
-        
-        
-        
+          
 class NWO_OT_LightSync(bpy.types.Operator):
     bl_idname = "nwo.light_sync"
     bl_label = "Light Sync"
-    bl_description = "Updates lighting info tags from Blender in realtime. Runs only on the selected lights"
-    bl_options = {'UNDO'}
+    bl_description = "Updates lighting info tags from Blender in realtime"
+    bl_options = {'REGISTER'}
     
     cancel_sync: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):
-        return True
+        return nwo_utils.valid_nwo_asset(context)
     
     def execute(self, context):
         if self.cancel_sync:
@@ -167,8 +164,8 @@ class NWO_OT_LightSync(bpy.types.Operator):
             return self.cancel(context)
         if event.type == 'TIMER':
             for area in context.screen.areas:
-                if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and mouse_in_light_editor_region(context, event.mouse_x, event.mouse_y):
-                    export_lights(gather_lights(context))
+                if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and nwo_utils.mouse_in_object_editor_region(context, event.mouse_x, event.mouse_y):
+                    blam(export_lights_tasks())
                     return {'PASS_THROUGH'}
                 
         return {'PASS_THROUGH'}
@@ -177,20 +174,6 @@ class NWO_OT_LightSync(bpy.types.Operator):
         wm = context.window_manager
         wm.event_timer_remove(self.timer)
         return {'FINISHED'}
-
-def mouse_in_light_editor_region(context, x, y):
-    for area in context.screen.areas:
-        if area.type not in ('VIEW_3D', "PROPERTIES", "OUTLINER"):
-            continue
-        for region in area.regions:
-            if region.type == 'WINDOW':
-                if (x >= region.x and
-                    y >= region.y and
-                    x < region.width + region.x and
-                    y < region.height + region.y):
-                    return True
-
-    return False
 
 class NWO_OT_ExportLights(bpy.types.Operator):
     bl_idname = "nwo.export_lights"
@@ -203,26 +186,29 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return nwo_utils.valid_nwo_asset(context)
 
     def execute(self, context):
-        light_objects = gather_lights(context)
-        export_lights(light_objects)
+        blam(export_lights_tasks())
         return {"FINISHED"}
     
 def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
 
-def export_lights(light_objects):
+def export_lights_tasks():
     asset_path, asset_name = nwo_utils.get_asset_info()
+    light_objects = gather_lights(bpy.context)
     lights = [BlamLightInstance(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
     bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
     lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
+    tasks = []
     for idx, info_path in enumerate(lighting_info_paths):
         b = bsps[idx]
         lights_list = [light for light in lights if light.Bsp == b]
         if not lights_list:
             if Path(nwo_utils.get_tags_path(), nwo_utils.relative_path(info_path)).exists():
-                blam("ClearScenarioStructureLightingInfo", info_path, {})
+                tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
         else:
             light_instances = [light.__dict__ for light in lights_list]
             light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
             light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-            blam("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions})
+            tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+
+    return tasks

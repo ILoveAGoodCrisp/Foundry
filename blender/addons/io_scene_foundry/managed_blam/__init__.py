@@ -27,6 +27,7 @@
 import json
 from pathlib import Path
 import socket
+import time
 from io_scene_foundry.managed_blam.Tags import *
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_utils import (
@@ -453,21 +454,30 @@ class ManagedBlam_Init(Operator):
 def close_managed_blam():
     Halo.ManagedBlamSystem.Stop()
     
-def blam(function_name, path="", data={}):
+class Task:
+    def __init__(self, function: str, path: str, data: dict):
+        self.function = function
+        self.path = path
+        self.data = data
+    
+def blam(tasks: list[Task]):
     # Get FoundryBlam process socket
     proj_path = get_project_path()
     soc = nwo_globals.sockets.get(proj_path)
     if not soc:
         exe = get_foundry_blam_exe()
         global port
-        nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(is_corinth()), str(port)]))
+        nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(port)]))
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         soc.connect(('localhost', port))
         port += 1
         nwo_globals.sockets[proj_path] = soc
         
-    json_dict = {"function": function_name, "path": path, "data": data}
-    json_dump = json.dumps(json_dict) + "\n"
+    json_tasks = []
+    for task in tasks:
+        json_tasks.append({"function": task.function, "path": task.path, "data": task.data})
+    
+    json_dump = json.dumps(json_tasks) + "\n"
     soc.sendall(json_dump.encode('utf-8'))
 
 classeshalo = (
