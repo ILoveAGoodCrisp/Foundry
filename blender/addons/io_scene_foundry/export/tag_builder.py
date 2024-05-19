@@ -32,7 +32,7 @@ from ..utils.nwo_utils import (
     get_tags_path,
     is_corinth,
     print_warning,
-    run_tool,
+    relative_path,
     run_tool_sidecar,
     copy_file,
 )
@@ -69,15 +69,33 @@ def setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth):
     set_template(scene_nwo, tags_dir, new_tag_path_name, 'scenery')
     set_template(scene_nwo, tags_dir, new_tag_path_name, 'vehicle')
     set_template(scene_nwo, tags_dir, new_tag_path_name, 'weapon')
+    
+def save_lighting_infos(tags_dir, bsps, asset_path, asset_name):
+    relative_asset_path = relative_path(asset_path)
+    lighting_info_paths = [str(Path(tags_dir, relative_asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
+    lighting_infos = {}
+    for file in lighting_info_paths:
+        if Path(file).exists():
+            with open(file, 'r+b') as f:
+                lighting_infos[file] = f.read()
 
+    return lighting_infos
 
-def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_export, scene_nwo, selected_bsps):
+def restore_lighting_infos(lighting_infos):
+    for file, data in lighting_infos.items():
+        with open(file, 'w+b') as f:
+            f.write(data)
+
+def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_export, scene_nwo, selected_bsps, bsps):
     tags_dir = get_tags_path()
     data_dir = get_data_path()
     tag_folder_path = asset_path.replace(data_dir, tags_dir)
     tag_path = os.path.join(tag_folder_path, asset_name)
     if asset_type == 'model':
         setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth())
+    lighting_infos = []
+    if is_corinth():
+        lighting_infos = save_lighting_infos(tags_dir, bsps, asset_path, asset_name)
     faux_process = None
     failed = run_tool_sidecar(
         [
@@ -119,6 +137,9 @@ def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_expor
                 os.remove(seams)
         except:
             print_warning("Failed to remove unused lightmap tags")
+
+    if lighting_infos:
+        restore_lighting_infos(lighting_infos)
 
     return failed
 

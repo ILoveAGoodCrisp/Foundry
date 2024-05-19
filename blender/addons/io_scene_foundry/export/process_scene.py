@@ -540,7 +540,7 @@ class ProcessScene:
                 print("\n\nBuilding Tags")
                 print("-----------------------------------------------------------------------\n")
                 self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario, relative_asset_path, asset, asset_type, h4)
-                export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, export_scene.selected_bsps)
+                export_failed, error = build_tags(asset_type, sidecar_path, asset_path, asset, scene_nwo_export, scene_nwo, export_scene.selected_bsps, export_scene.structure_bsps)
                 if export_failed:
                     self.sidecar_import_failed = True
                     self.sidecar_import_error = error
