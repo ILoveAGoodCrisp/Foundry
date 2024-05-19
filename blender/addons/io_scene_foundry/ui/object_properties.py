@@ -2728,7 +2728,7 @@ class NWO_LightPropertiesGroup(PropertyGroup):
         name="Shadow Bias Offset",
         options=set(),
         description="",
-        default=0,
+        default=10,
         min=0.0,
     )
 

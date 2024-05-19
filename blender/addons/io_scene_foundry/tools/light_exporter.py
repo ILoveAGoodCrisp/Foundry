@@ -103,7 +103,7 @@ class BlamLightDefinition:
         
         self.NearAttenuationStart = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR
         self.NearAttenuationEnd = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR
-        if nwo.light_near_attenuation_end:
+        if nwo.light_far_attenuation_end:
             self.FarAttenuationStart = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
             self.FarAttenuationEnd = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
         else:

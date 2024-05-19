@@ -1658,7 +1658,7 @@ def calc_light_intensity(light_data, factor=1):
     if light_data.type == "SUN":
         return light_data.energy
     
-    intensity = factor * ((light_data.energy / 0.03048**-2) / (10 if is_corinth() else 300))
+    intensity = factor * ((light_data.energy / 0.03048**-2) / (100 if is_corinth() else 300))
     
     return intensity
 
