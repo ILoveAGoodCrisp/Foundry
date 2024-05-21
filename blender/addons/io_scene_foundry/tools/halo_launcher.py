@@ -36,6 +36,7 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tags_path,
     is_corinth,
     nwo_asset_type,
+    relative_path,
     run_ek_cmd,
     update_debug_menu,
     valid_nwo_asset,
@@ -503,11 +504,11 @@ def launch_game(is_sapien, settings, filepath, scene_nwo):
             if not is_sapien:
                 if using_filepath:
                     file.write(
-                        f'game_start "{filepath.replace(get_tags_path(), "").rpartition(".")[0]}"\n'
+                        f'game_start "{str(Path(relative_path(filepath)).with_suffix(""))}"\n'
                     )
                 else:
                     file.write(
-                        f'game_start "{get_tag_if_exists(asset_path, asset_name, "scenario").replace(get_tags_path(), "").rpartition(".")[0]}"\n'
+                        f'game_start "{str(Path(relative_path(get_tag_if_exists(asset_path, asset_name, "scenario")).with_suffix("")))}"\n'
                     )
 
     run_ek_cmd(args, True)

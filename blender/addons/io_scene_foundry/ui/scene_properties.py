@@ -1022,6 +1022,12 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         subtype='TIME_ABSOLUTE',
         options=set(),
     )
+    
+    camera_sync_active : BoolProperty(
+        name="Camera Sync",
+        description="",
+        options=set()
+    )
 
     scene_project : StringProperty(
         name="Project",

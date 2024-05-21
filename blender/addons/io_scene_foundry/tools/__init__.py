@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.camera_sync import NWO_OT_CameraSync
 from io_scene_foundry.tools.prefab_exporter import NWO_OT_ExportPrefabs
 from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights, NWO_OT_LightSync
 from io_scene_foundry.tools.asset_creator import NWO_OT_NewAsset
@@ -5486,6 +5487,7 @@ classeshalo = (
     NWO_OT_ExportLights,
     NWO_OT_LightSync,
     NWO_OT_ExportPrefabs,
+    NWO_OT_CameraSync,
 )
 
 def register():
