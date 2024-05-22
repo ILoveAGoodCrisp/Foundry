@@ -508,7 +508,7 @@ def launch_game(is_sapien, settings, filepath, scene_nwo):
                     )
                 else:
                     file.write(
-                        f'game_start "{str(Path(relative_path(get_tag_if_exists(asset_path, asset_name, "scenario")).with_suffix("")))}"\n'
+                        f'game_start "{str(Path(relative_path(get_tag_if_exists(asset_path, asset_name, "scenario"))).with_suffix(""))}"\n'
                     )
 
     run_ek_cmd(args, True)
