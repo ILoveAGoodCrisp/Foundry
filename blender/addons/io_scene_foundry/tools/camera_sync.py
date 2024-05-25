@@ -43,7 +43,7 @@ except:
 class NWO_OT_CameraSync(bpy.types.Operator):
     bl_idname = "nwo.camera_sync"
     bl_label = "Camera Sync"
-    bl_description = ""
+    bl_description = "Syncs the in game camera with the Blender viewport camera."
     bl_options = {'REGISTER'}
     
     cancel_sync: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
@@ -83,6 +83,16 @@ class NWO_OT_CameraSync(bpy.types.Operator):
         wm = context.window_manager
         wm.event_timer_remove(self.timer)
         return {'FINISHED'}
+    
+    @classmethod
+    def description(cls, context, properties) -> str:
+        desc = "Syncs the in game camera with the Blender viewport camera\n\nHow to Use:\n"
+        if nwo_utils.is_corinth(context):
+            desc += "Ensure Sapien is running (do not use the sapien_play)\nPress this button while in control of the editor camera to let Blender take control"
+        else:
+            desc += "Ensure TagTest is running (do not use tag_play)\nIn the in game console enter 'DisablePauseOnDefocus 1'. This will allow the game to run when the game window is not in focus\nPress this button while in control of the director camera to let Blender take control. To switch from the player camera to director camera press BACKSPACE"
+        
+        return desc
     
 def resolve_pointer_chain(pm, base, offsets):
     addr = pm.read_int(base)

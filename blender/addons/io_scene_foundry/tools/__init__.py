@@ -3028,6 +3028,7 @@ class NWO_FoundryPanelProps(Panel):
         shader_type = "Material" if self.h4 else "Shader"
         self.draw_expandable_box(self.box.box(), nwo, "asset_shaders", f"Asset {shader_type}s")
         self.draw_expandable_box(self.box.box(), nwo, "importer")
+        self.draw_expandable_box(self.box.box(), nwo, "camera_sync")
         if poll_ui(('model', 'animation', 'sky', 'resource')):
             self.draw_expandable_box(self.box.box(), nwo, "rig_tools")
         if poll_ui(('scenario', 'resource')):
@@ -3038,6 +3039,17 @@ class NWO_FoundryPanelProps(Panel):
         col = row.column()
         col.operator('nwo.auto_seam', text='Auto-Seam', icon_value=get_icon_id('seam'))
         col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
+        
+    def draw_camera_sync(self, box: bpy.types.UILayout, nwo):
+        if self.scene.nwo.camera_sync_active:
+            box.operator("nwo.camera_sync", icon="PAUSE", depress=True).cancel_sync = True
+        else:
+            box.operator("nwo.camera_sync", icon="PLAY")
+            
+        if self.h4:
+            box.operator("nwo.launch_sapien", text="Launch Sapien", icon_value=get_icon_id("sapien")).ignore_play = True
+        else:
+            box.operator("nwo.launch_tagtest", text="Launch Game", icon_value=get_icon_id("tag_test")).ignore_play = True
         
     def draw_importer(self, box, nwo):
         row = box.row()
@@ -3901,13 +3913,15 @@ class NWO_HaloLauncher_Sapien(Operator):
         description="Set path for the scenario",
         subtype="FILE_PATH",
     )
+    
+    ignore_play: BoolProperty(options={'SKIP_SAVE'})
 
     def execute(self, context):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         from .halo_launcher import launch_game
 
-        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo)
+        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo, self.ignore_play)
 
     def invoke(self, context, event):
         scene = context.scene
@@ -3949,13 +3963,15 @@ class NWO_HaloLauncher_TagTest(Operator):
         description="Set path for the scenario",
         subtype="FILE_PATH",
     )
+    
+    ignore_play: BoolProperty(options={'SKIP_SAVE'})
 
     def execute(self, context):
         scene = context.scene
         scene_nwo_halo_launcher = scene.nwo_halo_launcher
         from .halo_launcher import launch_game
 
-        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo)
+        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo, self.ignore_play)
 
     def invoke(self, context, event):
         scene = context.scene

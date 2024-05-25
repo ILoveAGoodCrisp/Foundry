@@ -280,7 +280,7 @@ def launch_foundation(settings, context):
 
     return {"FINISHED"}
 
-def launch_game(is_sapien, settings, filepath, scene_nwo):
+def launch_game(is_sapien, settings, filepath, scene_nwo, ignore_play=False):
     asset_path = scene_nwo.asset_directory
     asset_name = scene_nwo.asset_name
     using_filepath = filepath.endswith(".scenario")
@@ -288,7 +288,7 @@ def launch_game(is_sapien, settings, filepath, scene_nwo):
         update_debug_menu(asset_path, asset_name)
     # get the program to launch
     if is_sapien:
-        if settings.use_play:
+        if not ignore_play and settings.use_play:
             args = [get_exe("sapien_play")]
         else:
             args = [get_exe("sapien")]
@@ -299,7 +299,7 @@ def launch_game(is_sapien, settings, filepath, scene_nwo):
         args.append(filepath)
         
     else:
-        if settings.use_play:
+        if not ignore_play and settings.use_play:
             args = [get_exe("tag_play")]
         else:
             args = [get_exe("tag_test")]

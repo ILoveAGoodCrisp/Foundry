@@ -852,6 +852,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     asset_shaders_expanded: BoolProperty(default=True, options=set())
     importer_expanded: BoolProperty(default=True, options=set())
+    camera_sync_expanded: BoolProperty(default=True, options=set())
     rig_tools_expanded: BoolProperty(default=True, options=set())
     bsp_tools_expanded: BoolProperty(default=True, options=set())
     
