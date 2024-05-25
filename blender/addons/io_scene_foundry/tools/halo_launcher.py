@@ -31,6 +31,7 @@ import glob
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from io_scene_foundry.utils.nwo_utils import (
     get_data_path,
+    get_exe,
     get_prefs,
     get_project_path,
     get_tags_path,
@@ -278,13 +279,6 @@ def launch_foundation(settings, context):
     run_ek_cmd([os.path.join("bin", "tools", "bonobo", "TagWatcher.exe")], True)
 
     return {"FINISHED"}
-        
-def get_exe(name: str):
-    project_dir = Path(get_project_path())
-    for file in project_dir.iterdir():
-        if file.suffix.lower() != ".exe": continue
-        if name in file.name:
-            return file
 
 def launch_game(is_sapien, settings, filepath, scene_nwo):
     asset_path = scene_nwo.asset_directory

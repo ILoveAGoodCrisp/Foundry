@@ -3385,3 +3385,10 @@ def mouse_in_object_editor_region(context, x, y):
                     return True
 
     return False
+
+def get_exe(name: str):
+    project_dir = Path(get_project_path())
+    for file in project_dir.iterdir():
+        if file.suffix.lower() != ".exe": continue
+        if name in file.name:
+            return file

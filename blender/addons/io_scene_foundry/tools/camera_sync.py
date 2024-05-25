@@ -24,15 +24,21 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import ctypes
 import math
+from pathlib import Path
 import struct
-import time
+import subprocess
+import sys
 import bpy
-from mathutils import Vector
 import numpy as np
-from io_scene_foundry.utils.nwo_constants import WU_SCALAR
 from io_scene_foundry.utils import nwo_utils
-import pymem
+pymem_installed = False
+try:
+    import pymem
+    pymem_installed = True
+except:
+    pass
 
 class NWO_OT_CameraSync(bpy.types.Operator):
     bl_idname = "nwo.camera_sync"
@@ -50,6 +56,9 @@ class NWO_OT_CameraSync(bpy.types.Operator):
         if self.cancel_sync:
             context.scene.nwo.camera_sync_active = False
             return {'CANCELLED'}
+        if not pymem_installed:
+            pymem_install()
+            return {'CANCELLED'}
         context.scene.nwo.camera_sync_active = True
         wm = context.window_manager
         self.timer = wm.event_timer_add(0.01, window=context.window)
@@ -62,7 +71,10 @@ class NWO_OT_CameraSync(bpy.types.Operator):
             return self.cancel(context)
         if event.type == 'TIMER':
             if context.space_data and context.space_data.type == 'VIEW_3D':
-                sync_camera_to_game(context)
+                try:
+                    sync_camera_to_game(context)
+                except:
+                    pass
                 return {'PASS_THROUGH'}
                 
         return {'PASS_THROUGH'}
@@ -82,17 +94,11 @@ def write_rot(pm, address, floats):
     byte_array = struct.pack('3f', *floats)
     pm.write_bytes(address, byte_array, len(byte_array))
     
-def write_loc(pm, address, floats):
-    byte_array = struct.pack('3f', *floats)
+def write_camera(pm, address, floats):
+    byte_array = struct.pack('6f', *floats)
     pm.write_bytes(address, byte_array, len(byte_array))
     
-def quaternion_to_euler(q):
-    """
-    Convert a quaternion into euler angles (yaw, pitch, roll)
-    yaw is the rotation around the z axis
-    pitch is the rotation around the y axis
-    roll is the rotation around the x axis
-    """
+def quaternion_to_ypr(q):
     w, x, y, z = q.w, q.x, q.y, q.z
     t0 = +2.0 * (w * x + y * z)
     t1 = +1.0 - 2.0 * (x * x + y * y)
@@ -108,37 +114,85 @@ def quaternion_to_euler(q):
     yaw = math.atan2(t3, t4)
 
     return yaw, pitch, roll
-    
-def sync_camera_to_game(context: bpy.types.Context):
-    scale = 1
-    if context.scene.nwo.scale == 'max':
-        scale = 0.03048
-        
-    r3d = context.space_data.region_3d
-    # matrix = nwo_utils.halo_transform_matrix(view_matrix)
-    matrix = r3d.view_matrix
-    location = matrix.inverted().translation * WU_SCALAR
-    yaw, pitch, roll = quaternion_to_euler(r3d.view_rotation)
-    
-    in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera
-    if not in_camera:
-        roll = 0
-    
-    print(location, "location")
-    print(yaw, pitch, roll)
-    pm = pymem.Pymem('reach_tag_test.exe')
-    base = pymem.process.module_from_name(pm.process_handle, 'reach_tag_test.exe').lpBaseOfDll + 0x01D2C0A0
 
-    offsets_loc = [0xA8, 0x568, 0x2C4, 0x58, 0x28]
-    loc_address = resolve_pointer_chain(pm, base, offsets_loc)
-    
-    offsets_rot = [0xA8, 0x568, 0x1D4, 0x2C]
-    rot_address = resolve_pointer_chain(pm, base, offsets_rot)
-    
-    write_loc(pm, loc_address, (location[0], location[1], location[2]))
-    write_rot(pm, rot_address, (yaw + math.radians(90), pitch - math.radians(90), roll))
+def sync_reach_tag_test(pm, exec_name, location, yaw, pitch, roll, in_camera, context, default_fov=78.0):
+    base = pymem.process.module_from_name(pm.process_handle, 'reach_tag_test.exe').lpBaseOfDll + 0x01D2C0A0
+    try:
+        camera_address = resolve_pointer_chain(pm, base, [0xA8, 0x568, 0x2C4, 0x58, 0x28])
+        write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + math.radians(90), pitch - math.radians(90), roll))
+    except:
+        pass    
     
     if in_camera:
         fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
         pm.write_float(0x141EFA350, fov)
+    else:
+        pm.write_float(0x141EFA350, default_fov)
+    
+def sync_corinth_sapien(pm, exec_name, location, yaw, pitch, roll, in_camera, context, default_fov=78.0):
+    base = pymem.process.module_from_name(pm.process_handle, 'sapien.exe').lpBaseOfDll + 0x04F96728
+    camera_address = resolve_pointer_chain(pm, base, [0x8, 0x20])
+    print(f"base: {base}")
+    write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + math.radians(90), pitch - math.radians(90), roll))
+    if in_camera:
+        fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
+        pm.write_float(0x1425F5A50, fov)
+    else:
+        pm.write_float(0x1425F5A50, default_fov)
+
+    
+def sync_camera_to_game(context: bpy.types.Context):
+    import pymem
+    r3d = context.space_data.region_3d
+    # matrix = nwo_utils.halo_transform_matrix(view_matrix)
+    matrix = nwo_utils.halo_transform_matrix(r3d.view_matrix.inverted())
+    location = matrix.translation
+    yaw, pitch, roll = quaternion_to_ypr(matrix.to_quaternion())
+    in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera
+    if not in_camera:
+        roll = 0
+    
+    # print(location, "location")
+    # print(roll)
+    exe_name = ""
+    if nwo_utils.is_corinth(context):
+        exe_name = Path(nwo_utils.get_exe("sapien")).name
+        sync_corinth_sapien(pymem.Pymem(exe_name), exe_name, location, yaw, pitch, roll, in_camera, context)
+    else:
+        exe_name = Path(nwo_utils.get_exe("tag_test")).name
+        sync_reach_tag_test(pymem.Pymem(exe_name), exe_name, location, yaw, pitch, roll, in_camera, context)
+                
+                
+# pymem install handler
+def pymem_install():
+    print("Couldn't find pymem module, attempting pymem install")
+    install = ctypes.windll.user32.MessageBoxW(
+        0,
+        "Camera Sync requires the pymem module to be installed for Blender.\n\nInstall pymem now?",
+        f"Pymem Install Required",
+        4,
+    )
+    if install != 6:
+        return {"CANCELLED"}
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pymem"])
+        print("Succesfully installed necessary modules")
+
+        shutdown = ctypes.windll.user32.MessageBoxW(
+            0,
+            "Pymem module installed for Blender. Please restart Blender to use Camera Sync.\n\nRestart Blender now?",
+            f"Pymem Installed for Blender",
+            4,
+        )
+        if shutdown != 6:
+            return {"CANCELLED"}
+        
+        nwo_utils.restart_blender()
+
+    except:
+        print("Failed to install pymem")
+        return {"CANCELLED"}
+
+    
+
 

@@ -27,7 +27,6 @@
 import json
 from pathlib import Path
 import socket
-import time
 from io_scene_foundry.managed_blam.Tags import *
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_utils import (
