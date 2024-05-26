@@ -40,6 +40,8 @@ try:
 except:
     pass
 
+r90 = math.radians(90)
+
 class NWO_OT_CameraSync(bpy.types.Operator):
     bl_idname = "nwo.camera_sync"
     bl_label = "Camera Sync"
@@ -129,7 +131,7 @@ def sync_reach_tag_test(pm, exec_name, location, yaw, pitch, roll, in_camera, co
     base = pymem.process.module_from_name(pm.process_handle, 'reach_tag_test.exe').lpBaseOfDll + 0x01D2C0A0
     try:
         camera_address = resolve_pointer_chain(pm, base, [0xA8, 0x568, 0x2C4, 0x58, 0x28])
-        write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + math.radians(90), pitch - math.radians(90), roll))
+        write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
     except:
         pass    
     
@@ -140,10 +142,9 @@ def sync_reach_tag_test(pm, exec_name, location, yaw, pitch, roll, in_camera, co
         pm.write_float(0x141EFA350, default_fov)
     
 def sync_corinth_sapien(pm, exec_name, location, yaw, pitch, roll, in_camera, context, default_fov=78.0):
-    base = pymem.process.module_from_name(pm.process_handle, 'sapien.exe').lpBaseOfDll + 0x04F96728
-    camera_address = resolve_pointer_chain(pm, base, [0x8, 0x20])
-    print(f"base: {base}")
-    write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + math.radians(90), pitch - math.radians(90), roll))
+    base = pymem.process.module_from_name(pm.process_handle, 'sapien.exe').lpBaseOfDll + 0x0227F5C0
+    camera_address = resolve_pointer_chain(pm, base, [0x1A0, 0x8, 0x20])
+    write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
     if in_camera:
         fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
         pm.write_float(0x1425F5A50, fov)
