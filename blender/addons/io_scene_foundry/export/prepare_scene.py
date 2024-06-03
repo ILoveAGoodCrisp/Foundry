@@ -1477,7 +1477,7 @@ class PrepareScene:
             ob_physics = ob_surface.copy()
             for collection in collections: collection.objects.link(ob_physics)
             nwo = ob_physics.nwo
-            if ob_physics["mesh_tessellation_density"]:
+            if ob_physics.get("mesh_tessellation_density"):
                 del ob_physics["mesh_tessellation_density"]
                 
             ob_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_water_physics_volume"
