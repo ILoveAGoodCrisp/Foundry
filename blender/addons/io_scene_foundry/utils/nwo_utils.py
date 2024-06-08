@@ -3062,6 +3062,9 @@ def get_major_vertex_group(ob: bpy.types.Object):
         for g in vert.groups:
             vert_group_indexes.append(g.group)
     
+    if len(vert_group_indexes) < 2:
+        return ob.vertex_groups[0].name
+    
     most_common_index = Counter(vert_group_indexes).most_common(1)[0][0]
     
     if len(ob.vertex_groups) > most_common_index: 

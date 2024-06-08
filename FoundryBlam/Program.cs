@@ -39,6 +39,7 @@ namespace FoundryBlam
             StreamReader reader = new StreamReader(stream, Encoding.UTF8);
 
             Task.Run(() => ReadLatestLine(reader, _cts.Token));
+            Task.Run(() => MonitorClientConnection(client));
 
             while (!_cts.Token.IsCancellationRequested)
             {
@@ -88,6 +89,26 @@ namespace FoundryBlam
             _cts.Cancel();
             client.Close();
             server.Stop();
+        }
+
+        private static void MonitorClientConnection(TcpClient client)
+        {
+            try
+            {
+                while (true)
+                {
+                    if (client.Client.Poll(0, SelectMode.SelectRead) && client.Client.Available == 0)
+                    {
+                        _cts.Cancel();
+                        break;
+                    }
+                    Thread.Sleep(100);
+                }
+            }
+            catch (Exception)
+            {
+                _cts.Cancel();
+            }
         }
 
         private static void ReadLatestLine(StreamReader reader, CancellationToken token)

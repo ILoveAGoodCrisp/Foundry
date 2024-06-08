@@ -98,7 +98,7 @@ special_materials = (
 def clear_special_mats(materials):
     """Removes special materials from an objects material slots i.e. ones that are not used as Halo shaders/materials"""
     for idx, mat in enumerate(materials):
-        if mat.name in special_materials:
+        if mat.get("name", 0) and mat.name in special_materials:
             materials.pop(index=idx)
             clear_special_mats(materials)
 
