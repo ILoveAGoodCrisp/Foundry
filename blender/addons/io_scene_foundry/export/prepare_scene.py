@@ -653,6 +653,7 @@ class PrepareScene:
                 back_nwo.region_name = seam_nwo.seam_back_ui
 
             back_seam.name = f"seam({back_nwo.region_name}:{seam_nwo.region_name})"
+            back_seam["bungie_mesh_seam_associated_bsp"] = (f"{self.asset_name}_{back_nwo.region_name}")
             self.scene_collection.link(back_seam)
             
         nwo_utils.update_view_layer(self.context)
