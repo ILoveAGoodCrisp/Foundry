@@ -164,6 +164,7 @@ class CollisionTag(Tag):
             face_props = mesh.nwo.face_props
             if split_materials:
                 for material in {surface.material for surface in surfaces}:
+                    if material == 'default': continue
                     layers[f"material:{material}"] = nwo_utils.new_face_layer(bm, mesh, material, material, f"face_global_material_override_{str(uuid4())}")
                     mesh.nwo.face_props[-1].face_global_material_ui = material
                     
@@ -197,7 +198,8 @@ class CollisionTag(Tag):
         bm.to_mesh(mesh)
                 
         if not split_materials:
-            mesh.nwo.face_global_material_ui = surfaces[0].material
+            if surfaces[0].material != "default":
+                mesh.nwo.face_global_material_ui = surfaces[0].material
         if not split_sides:
             mesh.nwo.face_two_sided_ui = surfaces[0].two_sided
         if not split_ladder:

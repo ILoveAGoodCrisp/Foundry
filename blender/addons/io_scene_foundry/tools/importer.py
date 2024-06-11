@@ -45,7 +45,7 @@ from io_scene_foundry.tools.shader_reader import tag_to_nodes
 from io_scene_foundry.utils.nwo_constants import VALID_MESHES
 from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
-pose_hints = 'aim', 'look', 'acc', 'steer'
+pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 legacy_model_formats = '.jms', '.ass'
 legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo', '.jmr', '.jmrx'
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',

@@ -1227,24 +1227,23 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         ]
     )
     
-    def get_parent_animation_graph(self):
-        asset_graph = get_asset_animation_graph()
-        if asset_graph:
-            with AnimationTag(path=asset_graph) as animation:
-                parent_graph = animation.get_parent_graph()
-                if parent_graph:
-                    return parent_graph
-                else:
-                    return self.parent_animation_graph_helper
-        else:
-            return self.parent_animation_graph_helper
+    # def get_parent_animation_graph(self):
+    #     asset_graph = get_asset_animation_graph()
+    #     if asset_graph:
+    #         with AnimationTag(path=asset_graph) as animation:
+    #             parent_graph = animation.get_parent_graph()
+    #             if parent_graph:
+    #                 return parent_graph
+    #             else:
+    #                 return self.parent_animation_graph_helper
+    #     else:
+    #         return self.parent_animation_graph_helper
                 
-    def set_parent_animation_graph(self, value):
-        asset_graph = get_asset_animation_graph()
-        if asset_graph and Path(asset_graph).exists():
-            with AnimationTag(path=asset_graph) as animation:
-                animation.set_parent_graph(value)
-        self["parent_animation_graph"] = value
+    # def set_parent_animation_graph(self, value):
+    #     asset_graph = get_asset_animation_graph()
+    #     if asset_graph and Path(asset_graph).exists():
+    #         with AnimationTag(path=asset_graph) as animation:
+    #             animation.set_parent_graph(value)
         
     def parent_animation_clean_tag_path(self, context):
         self["parent_animation_graph"] = clean_tag_path(
@@ -1258,7 +1257,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="The parent graph of the animations exported from this scene. Allows your animation graph to use and override animations from the parent",
         update=parent_animation_clean_tag_path,
         # get=get_parent_animation_graph,
-        set=set_parent_animation_graph,
+        # set=set_parent_animation_graph,
         options=set(),
     )
     

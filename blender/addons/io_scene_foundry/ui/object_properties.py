@@ -1847,9 +1847,9 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         options=set(),
         description="Maximum rotation of a physics plane",
         subtype='ANGLE',
-        default=90,
-        min=-0,
-        max=90,
+        default=radians(90),
+        min=0,
+        max=radians(90),
     )
 
     twist_constraint_start_ui: FloatProperty(
