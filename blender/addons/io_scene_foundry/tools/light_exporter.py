@@ -179,7 +179,6 @@ class NWO_OT_LightSync(bpy.types.Operator):
     def cancel(self, context):
         wm = context.window_manager
         wm.event_timer_remove(self.timer)
-        return {'FINISHED'}
 
 class NWO_OT_ExportLights(bpy.types.Operator):
     bl_idname = "nwo.export_lights"

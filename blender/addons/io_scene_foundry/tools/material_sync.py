@@ -99,7 +99,6 @@ class NWO_MaterialSyncStart(bpy.types.Operator):
     def cancel(self, context):
         wm = context.window_manager
         wm.event_timer_remove(self.timer)
-        return {'FINISHED'}
     
 class NWO_MaterialSyncEnd(bpy.types.Operator):
     bl_idname = "nwo.material_sync_end"
