@@ -1505,7 +1505,7 @@ def amf_addon_installed():
 def fbx_addon_installed():
     script_dirs = bpy.utils.script_paths()
     for dir in script_dirs:
-        if Path(dir, 'addons', 'io_scene_fbx').exists():
+        if Path(dir, 'addons', 'io_scene_fbx').exists() or Path(dir, 'addons_core', 'io_scene_fbx').exists():
             return True
         
     return False

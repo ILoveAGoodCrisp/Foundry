@@ -43,13 +43,11 @@ class NWO_OT_ShaderDuplicate(bpy.types.Operator):
         tags_dir = nwo_utils.get_tags_path()
         nwo = context.object.active_material.nwo
         file = Path(tags_dir, nwo_utils.relative_path(nwo.shader_path))
-        dir = Path(tags_dir, nwo_utils.relative_path(nwo.shader_dir))
-        if not dir.exists():
-            asset_dir = nwo_utils.get_asset_path()
-            if nwo_utils.is_corinth():
-                dir = Path(tags_dir, asset_dir, "materials")
-            else:
-                dir = Path(tags_dir, asset_dir, "shaders")
+        asset_dir = nwo_utils.get_asset_path()
+        if nwo_utils.is_corinth():
+            dir = Path(tags_dir, asset_dir, "materials")
+        else:
+            dir = Path(tags_dir, asset_dir, "shaders")
         
         if not dir.exists():
             dir.mkdir(parents=True)

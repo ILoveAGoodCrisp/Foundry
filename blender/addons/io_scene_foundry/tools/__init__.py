@@ -2695,7 +2695,6 @@ class NWO_FoundryPanelProps(Panel):
                         col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL').mat_name = mat.name
                     col.separator()
                     col.label(text=f'{txt} Export Tools')
-                    col.prop(nwo, "shader_dir", text=f"{tag_type} Directory")
                     col.operator("nwo.shader_duplicate", icon='DUPLICATE')
                     if material_read_only(nwo.shader_path):
                         col.label(text=f"{txt} is read only")

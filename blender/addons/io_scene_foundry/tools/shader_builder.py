@@ -30,6 +30,7 @@ from io_scene_foundry.managed_blam.shader import ShaderTag
 from io_scene_foundry.managed_blam.material import MaterialTag
 from io_scene_foundry.utils.nwo_utils import (
     dot_partition,
+    get_asset_path,
     get_shader_name,
     get_tags_path,
     is_corinth,
@@ -41,6 +42,7 @@ global_material_shaders = []
 material_shader_path = ""
 
 def build_shader(material, corinth, folder="", report=None):
+    asset_dir = get_asset_path()
     if not get_shader_name(material):
         return {"FINISHED"}
     if material.name != material.name_full:
@@ -53,9 +55,17 @@ def build_shader(material, corinth, folder="", report=None):
     if nwo.shader_path:
         shader_path = nwo.shader_path
     else:
-        shader_dir = folder if folder else nwo.shader_dir
+        if folder:
+            shader_dir = folder
+        else:
+            if is_corinth():
+                shader_dir = Path(asset_dir, "materials")
+            else:
+                shader_dir = Path(asset_dir, "shaders")
+                
         shader_name = get_shader_name(material)
         shader_path = os.path.join(shader_dir, shader_name)
+        
     if corinth:
         with MaterialTag(path=shader_path) as tag:
             nwo.shader_path = tag.write_tag(material, nwo.uses_blender_nodes, material_shader=nwo.material_shader)

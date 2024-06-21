@@ -114,28 +114,6 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         options=set(),
     )
     
-    def update_shader_dir(self, context):
-        self["shader_dir"] = clean_tag_path(self["shader_dir"]).strip('"')
-
-    def get_shader_dir(self):
-        context = bpy.context
-        is_asset = valid_nwo_asset(context)
-        if is_asset:
-            return self.get("shader_dir", os.path.join(get_asset_path(), "materials" if is_corinth(context) else "shaders"))
-        return self.get("shader_dir", "")
-    
-    def set_shader_dir(self, value):
-        self['shader_dir'] = value
-
-    shader_dir : StringProperty(
-        name="Export Directory",
-        description="Specifies the directory to export this Material. Defaults to the asset materials/shaders folder",
-        options=set(),
-        update=update_shader_dir,
-        get=get_shader_dir,
-        set=set_shader_dir,
-    )
-    
     def get_special_material(self):
         material_name: str = self.id_data.name
         return material_name.startswith(tuple([m.name for m in special_materials]))
