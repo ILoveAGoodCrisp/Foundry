@@ -189,7 +189,7 @@ def pymem_install():
     if install != 6:
         return {"CANCELLED"}
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "pymem"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", "pymem"])
         print("Succesfully installed necessary modules")
 
         shutdown = ctypes.windll.user32.MessageBoxW(

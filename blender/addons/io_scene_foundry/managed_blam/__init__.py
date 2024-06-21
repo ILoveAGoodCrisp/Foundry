@@ -402,7 +402,7 @@ class ManagedBlam_Init(Operator):
                 if install != 6:
                     return {"CANCELLED"}
             try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "pythonnet"])
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", "pythonnet"])
                 print("Succesfully installed necessary modules")
 
                 shutdown = ctypes.windll.user32.MessageBoxW(
