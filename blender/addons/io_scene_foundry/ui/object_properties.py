@@ -1656,13 +1656,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     marker_game_instance_tag_name_ui: StringProperty(
         name="Marker Game Instance Tag",
-        description="Define the name of the marker game instance tag",
+        description="The name of the marker game instance tag",
         update=game_instance_clean_tag_path,
     )
 
     marker_game_instance_tag_variant_name_ui: StringProperty(
         name="Marker Game Instance Tag Variant",
-        description="Define the name of the marker game instance tag variant",
+        description="The name of the marker game instance tag variant",
     )
 
     marker_always_run_scripts_ui: BoolProperty(
@@ -1967,7 +1967,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     region_name_ui: StringProperty(
         name="Face Region",
-        description="Define the name of the region these faces should be associated with",
+        description="The name of the region these faces should be associated with",
         get=get_region_name_ui,
         set=set_region_name_ui,
         override={'LIBRARY_OVERRIDABLE'},
@@ -1979,7 +1979,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     region_name_locked_ui: StringProperty(
         name="Face Region",
-        description="Define the region for this mesh",
+        description="Tthe region for this mesh",
         get=get_region_from_collection,
         override={'LIBRARY_OVERRIDABLE'},
     )
@@ -2003,7 +2003,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     permutation_name_ui: StringProperty(
         name="Permutation",
         default="default",
-        description="Define the permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
+        description="The permutation of this object. Permutations get exported to seperate files in scenario exports, or in model exports if the mesh type is one of render/collision/physics",
         get=get_permutation_name_ui,
         set=set_permutation_name_ui,
         override={'LIBRARY_OVERRIDABLE'},
@@ -2015,7 +2015,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
 
     permutation_name_locked_ui: StringProperty(
         name="Permutation",
-        description="Define the permutation of this object. Leave blank for default",
+        description="The permutation of this object. Leave blank for default",
         get=get_permutation_from_collection,
         override={'LIBRARY_OVERRIDABLE'},
     )

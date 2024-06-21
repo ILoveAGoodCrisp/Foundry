@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.shader_duplicate import NWO_OT_ShaderDuplicate
 from io_scene_foundry.tools.camera_sync import NWO_OT_CameraSync
 from io_scene_foundry.tools.prefab_exporter import NWO_OT_ExportPrefabs
 from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights, NWO_OT_LightSync
@@ -2693,10 +2694,12 @@ class NWO_FoundryPanelProps(Panel):
                     if os.path.exists(full_path) and shader_path.endswith(('.shader', '.material')):
                         col.operator('nwo.shader_to_nodes', text=f"Convert {txt} to Blender Material", icon='NODE_MATERIAL').mat_name = mat.name
                     col.separator()
+                    col.label(text=f'{txt} Export Tools')
+                    col.prop(nwo, "shader_dir", text=f"{tag_type} Directory")
+                    col.operator("nwo.shader_duplicate", icon='DUPLICATE')
                     if material_read_only(nwo.shader_path):
                         col.label(text=f"{txt} is read only")
                         return
-                    col.label(text=f'{txt} Export Tools')
                     col.prop(nwo, "uses_blender_nodes", text=f"Link Tag to Nodes", icon='NODETREE')
                     if nwo.uses_blender_nodes:
                         col.operator("nwo.build_shader_single", text=f"Update {tag_type} Tag", icon_value=get_icon_id("material_exporter")).linked_to_blender = True
@@ -2720,7 +2723,6 @@ class NWO_FoundryPanelProps(Panel):
                         col.separator()
                         col_props = col.column()
                         col_props.use_property_split = True
-                        col_props.prop(nwo, "shader_dir", text=f"{tag_type} Directory")
                         if h4:
                             row = col_props.row(align=True)
                             row.prop(nwo, "material_shader", text="Default Shader")
@@ -4694,7 +4696,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
         name="Quality",
         options=set(),
         items=item_lightmap_quality_h4,
-        description="Define the lightmap quality you wish to use",
+        description="The Lightmap quality you wish to use",
     )
 
     lightmap_region: StringProperty(
@@ -5504,6 +5506,7 @@ classeshalo = (
     NWO_OT_LightSync,
     NWO_OT_ExportPrefabs,
     NWO_OT_CameraSync,
+    NWO_OT_ShaderDuplicate,
 )
 
 def register():

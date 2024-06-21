@@ -125,7 +125,7 @@ class NWO_FaceProperties_ListItems(PropertyGroup):
     region_name_ui: StringProperty(
         name="Region",
         default="default",
-        description="Define the name of the region these faces should be associated with",
+        description="The name of the region these faces should be associated with",
     )
     
     face_draw_distance_ui: EnumProperty(

@@ -225,7 +225,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     forward_direction: bpy.props.EnumProperty(
         name="Scene Forward",
         options=set(),
-        description="Define the forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
+        description="The forward direction you are using for the scene. By default Halo uses X forward. Whichever option is set as the forward direction in Blender will be oriented to X forward in game i.e. a model facing -Y in Blender will face X in game",
         default="y-",
         items=[
             ("y-", "-Y", "Model is facing Y negative. This is the default for Blender"),
