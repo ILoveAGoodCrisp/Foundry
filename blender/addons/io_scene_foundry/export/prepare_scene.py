@@ -2615,7 +2615,9 @@ class PrepareScene:
                     self.structure_bsps.add(region)
                     self.structure_perms.add(permutation)
     
-    def _consolidate_rig(self, context, scene_nwo):
+    def _consolidate_rig(self):
+        context = self.context
+        scene_nwo = context.scene.nwo
         if scene_nwo.support_armature_a and context.scene.objects.get(scene_nwo.support_armature_a.name):
             child_bone = nwo_utils.rig_root_deform_bone(scene_nwo.support_armature_a, True)
             if child_bone and scene_nwo.support_armature_a_parent_bone:
