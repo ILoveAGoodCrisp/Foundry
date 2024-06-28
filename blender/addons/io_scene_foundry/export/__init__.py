@@ -615,7 +615,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
     export_scene.ready_scene()
     export_scene.make_real()
     # if not export_settings.clear_existing_halo_props: NOTE need to implement this debug bool
-    # export_scene.clear_export_props()
+    export_scene.clear_export_props()
     if asset_type == 'camera_track_set':
         export_scene.scene_transformation()
         export_scene.get_track_camera()
