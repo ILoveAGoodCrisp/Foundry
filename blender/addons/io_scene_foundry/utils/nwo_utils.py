@@ -3337,12 +3337,6 @@ class TagImportMover():
     def __exit__(self, exc_type, exc_value, traceback):
         if self.needs_to_move and self.temp_file.exists():
             self.temp_file.unlink()
-            
-def clear_id_halo_props(ids: list):
-    for id in ids:
-        for k in id.keys():
-            if type(k) == str and k.startswith("bungie_"):
-                del id[k]
                 
 def get_foundry_blam_exe():
     bin_dir = Path(get_project_path(), "bin")

@@ -215,15 +215,12 @@ class PrepareScene:
         
     def clear_export_props(self):
         '''Clears custom properties beginning with bungie_'''
-        nwo_utils.clear_id_halo_props(bpy.data.objects)
-        nwo_utils.clear_id_halo_props(bpy.data.meshes)
-        nwo_utils.clear_id_halo_props(bpy.data.metaballs)
-        nwo_utils.clear_id_halo_props(bpy.data.curves)
-        nwo_utils.clear_id_halo_props(bpy.data.armatures)
-        nwo_utils.clear_id_halo_props(bpy.data.cameras)
-        nwo_utils.clear_id_halo_props(bpy.data.fonts)
-        nwo_utils.clear_id_halo_props(bpy.data.lights)
-        nwo_utils.clear_id_halo_props(bpy.data.materials)
+        for attr in dir(bpy.data):
+            if "bpy_prop_collection" in str(type(getattr(bpy.data, attr))):
+                for obj in getattr(bpy.data, attr):
+                    for prop_name in list(obj.keys()):
+                        if prop_name.startswith("bungie_"):
+                            del obj[prop_name]
         
     def get_track_camera(self):
         '''
