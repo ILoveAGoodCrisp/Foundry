@@ -2193,7 +2193,7 @@ class PrepareScene:
         nodes_order = {}
         nodes_order_gun = {}
         nodes_order_fp = {}
-        arm = self.model_armature.name
+        nodes = None
         bone_list = [bone for bone in self.model_armature.data.bones if bone.use_deform]
         if len(bone_list) > 256:
             raise RuntimeError(f"Armature [{self.model_armature.name}] exceeds maximum deform bone count for exporting. {len(bone_list)} > 256")
@@ -2258,11 +2258,12 @@ class PrepareScene:
                     nwo_utils.print_warning("FP Render Model supplied but tag path does not exist")
                     self.warning_hit = True
             
-            nodes_order.update(nodes_order_fp)
-            nodes_order.update(nodes_order_gun)
-            bone_list = sorted(bone_list, key=sorting_key)
+            if nodes is not None:
+                nodes_order.update(nodes_order_fp)
+                nodes_order.update(nodes_order_gun)
+                bone_list = sorted(bone_list, key=sorting_key)
             
-        else:
+        if nodes is None:
             # Fine, I'll order it myself
             bones_ordered = []
             bones_ordered.append(root_bone)
@@ -2665,7 +2666,7 @@ class PrepareScene:
             bpy.ops.object.join()
         # Couldn't get context override working for accessing edit_bones
         context.view_layer.objects.active = parent
-        bpy.ops.object.mode_set(mode="EDIT", toggle=False)
+        bpy.ops.object.editmode_toggle()
         edit_child = parent.data.edit_bones.get(child_bone, 0)
         edit_parent = parent.data.edit_bones.get(parent_bone, 0)
         if edit_child and edit_parent:
@@ -2674,7 +2675,7 @@ class PrepareScene:
             self.warning_hit = True
             nwo_utils.print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
             
-        bpy.ops.object.mode_set(mode="OBJECT", toggle=False)
+        bpy.ops.object.editmode_toggle()
         
         context.view_layer.objects.active = None
     

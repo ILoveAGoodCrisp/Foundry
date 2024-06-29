@@ -2321,7 +2321,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             set_active_object(arm)
             if data not in arm_datas:
                 arm_datas.add(data)
-                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.ops.object.editmode_toggle()
                 
                 uses_edit_mirror = bool(arm.data.use_mirror_x)
                 if uses_edit_mirror:
@@ -2346,7 +2346,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 if uses_edit_mirror:
                     arm.data.use_mirror_x = True
                 
-            bpy.ops.object.mode_set(mode='POSE', toggle=False)
+            bpy.ops.object.posemode_toggle()
             
             uses_pose_mirror = bool(arm.pose.use_mirror_x)
             if uses_pose_mirror:
@@ -2387,7 +2387,7 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             if uses_pose_mirror:
                 arm.pose.use_mirror_x = True
                 
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            bpy.ops.object.posemode_toggle()
             
             for bone in data.bones:
                 bone.bbone_x *= scale_factor
