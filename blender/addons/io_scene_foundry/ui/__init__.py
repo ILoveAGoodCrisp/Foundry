@@ -285,7 +285,7 @@ def object_context_sets(self, context):
     asset_type = context.scene.nwo.asset_type
     regions_valid = asset_type in ('model', 'sky', 'scenario')
     permutations_valid =  asset_type in ('model', 'sky', 'scenario', 'prefab')
-    region_name = "Scenario" if context.scene.nwo.asset_type == "scenario" else "Region" 
+    region_name = "BSP" if context.scene.nwo.asset_type == "scenario" else "Region" 
     permutation_name = "Layer" if context.scene.nwo.asset_type in ("scenario", "prefab") else "Permutation"
     layout = self.layout
     layout.separator()
