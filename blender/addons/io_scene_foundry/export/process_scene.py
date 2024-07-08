@@ -978,7 +978,8 @@ class ProcessScene:
                 proxy_target["bungie_animation_control_proxy_target_usage"] = event_ob["bungie_animation_event_ik_target_usage"]
                 proxy_target["bungie_animation_control_proxy_target_marker"] = event_ob["bungie_animation_event_ik_target_marker"]
                 scene_coll.link(proxy_target)
-                proxy_target.matrix_local = bpy.data.objects.get(event.ik_target_marker).matrix_local
+                if event.ik_target_marker:
+                    proxy_target.matrix_local = event.ik_target_marker.matrix_local
                 animation_events.append(proxy_target)
                 
                 effector = bpy.data.objects.new('ik_effector_export_node_'+ event.ik_chain + '_' + event.event_type[44:], None)
