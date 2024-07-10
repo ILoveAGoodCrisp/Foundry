@@ -102,7 +102,7 @@ class NWO_ListMaterialShaders(bpy.types.Operator):
         for root, _, files in os.walk(shaders_dir):
             for file in files:
                 if file.endswith(".material_shader"):
-                    material_shaders.append(os.path.join(root, file).replace(tags_dir, ""))
+                    material_shaders.append(os.path.join(root, file).replace(tags_dir + os.sep, ""))
         
         # Order so we get shaders in the materials folder first
         ordered_shaders = sorted(material_shaders, key=lambda s: (0, s) if s.startswith(r"shaders\material_shaders\materials") else (1, s))
