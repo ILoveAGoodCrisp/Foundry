@@ -74,16 +74,19 @@ class RenameParser:
         
         if no_quotes.lower().startswith("renamed"):
             bit_we_want = " ".join(parts[1:])
-        elif no_quotes.startswith("copied all"):
+        elif no_quotes.lower().startswith("copied all"):
             is_copy = True
             bit_we_want = " ".join(parts[2:])
-        elif no_quotes.startswith("copy_weapon_type"):
+        elif no_quotes.lower().startswith("copy_weapon_type"):
             is_copy = True
             bit_we_want = " ".join(parts[1:])
         else:
             bit_we_want = no_quotes
             
-        source_name, _, new_name = bit_we_want.rpartition(separator)
+        if separator == '=':
+            new_name, _, source_name = bit_we_want.rpartition(separator)
+        else:
+            source_name, _, new_name = bit_we_want.rpartition(separator)
         
         return source_name.strip(" ."), new_name.strip(" ."), is_copy
             

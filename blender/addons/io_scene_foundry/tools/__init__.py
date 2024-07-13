@@ -4754,11 +4754,15 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     )
     
     def get_lightmap_threads(self):
-        cpu_count = multiprocessing.cpu_count()
-        if self.get("lightmap_threads", 0):
-            if self.lightmap_threads < cpu_count:
-                return self['lightmap_threads']
-        return multiprocessing.cpu_count()
+        try:
+            cpu_count = multiprocessing.cpu_count()
+            if self.get("lightmap_threads", 0):
+                if self.lightmap_threads < cpu_count:
+                    return self['lightmap_threads']
+            return cpu_count
+        except:
+            return self['lightmap_threads']
+    
 
     def set_lightmap_threads(self, value):
         self['lightmap_threads'] = value
