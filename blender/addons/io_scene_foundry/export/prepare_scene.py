@@ -2200,7 +2200,7 @@ class PrepareScene:
         if not root_bone:
             raise RuntimeError(f"Armature [{self.model_armature.name}] does not have a root deform bone")
         elif type(root_bone) == list:
-            raise RuntimeError(f"Armature [{self.model_armature.name}] has multiple root deform bones: {root_bone.name}")
+            raise RuntimeError(f"Armature [{self.model_armature.name}] has multiple root deform bones")
         
         self.root_bone_name = root_bone.name
         
