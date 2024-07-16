@@ -3932,7 +3932,7 @@ class NWO_HaloLauncher_Sapien(Operator):
             or not scene.nwo.is_valid_asset
             or scene.nwo.asset_type != "scenario"
         ):
-            self.filepath = get_tags_path()
+            self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)
             return {"RUNNING_MODAL"}
         else:
@@ -3982,7 +3982,7 @@ class NWO_HaloLauncher_TagTest(Operator):
             or not scene.nwo.is_valid_asset
             or scene.nwo.asset_type != "scenario"
         ):
-            self.filepath = get_tags_path()
+            self.filepath = get_tags_path() + os.sep
             context.window_manager.fileselect_add(self)
             return {"RUNNING_MODAL"}
         else:
