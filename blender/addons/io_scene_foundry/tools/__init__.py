@@ -2687,7 +2687,7 @@ class NWO_FoundryPanelProps(Panel):
                     col.operator(
                         "nwo.open_halo_material",
                         icon_value=get_icon_id("foundation"),
-                        text="Open in Tag Editor"
+                        text=f"Open {txt} Tag"
                     )
                     shader_path = mat.nwo.shader_path
                     full_path = str(Path(get_tags_path(), shader_path))

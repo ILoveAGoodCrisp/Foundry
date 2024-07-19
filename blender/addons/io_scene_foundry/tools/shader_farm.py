@@ -280,7 +280,10 @@ class NWO_FarmShaders(bpy.types.Operator):
         return {'FINISHED'}
     
     def export_tiff_if_needed(self, image):
-        image.nwo.source_name = valid_image_name(image.name) + ".tif"
+        valid_name = valid_image_name(image.name) + ".tif"
+        if ".tiff" in image.name:
+            valid_name += 'f'
+        image.nwo.source_name = valid_name
         user_path = image.filepath_from_user()
         is_tiff = image.file_format == 'TIFF'
         if is_tiff and user_path and Path(user_path).is_relative_to(self.data_dir) and Path(user_path).exists():
