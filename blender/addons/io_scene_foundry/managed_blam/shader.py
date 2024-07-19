@@ -94,6 +94,8 @@ class ShaderTag(Tag):
         self.custom = True if self.group_node and self.corinth else False
         if linked_to_blender and blender_material.use_nodes:
             self._edit_tag()
+        elif self.corinth and self.material_shader:
+            self.tag.SelectField("Reference:material shader").Path = self._TagPath_from_string(self.material_shader)
             
         return self.tag.Path.RelativePathWithExtension
         
