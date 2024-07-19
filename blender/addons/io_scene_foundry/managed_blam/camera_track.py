@@ -126,22 +126,13 @@ class CameraTrackTag(Tag):
         current_frame = int(context.scene.frame_current)
         # verify no. of fcurves, must be 16 or less
         scene = context.scene
-        fcurves = [fc for fc in action.fcurves]
-            
-        keyframes = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]
-            
-        for fc in fcurves:
-            if fc.data_path.endswith(('location', 'rotation_euler', 'rotation_quaternion')):
-                for idx, kfp in enumerate(fc.keyframe_points):
-                    if idx > 15:
-                        nwo_utils.print_warning(f"Camera track action fcurve ({action.name}, {fc.data_path}[{fc.array_index}]) has more than 16 keyframes. Only using the first 16 to write camera_track tag")
-                        break
-                    keyframes[idx].append(kfp)
-                    
-        valid_keyframes = [k for k in keyframes if len(k) > 1]
+        frame_range = action.frame_range
+        if frame_range[1] - frame_range[0] > 15:
+            nwo_utils.print_warning("Camera animation has more than 16 frames. Only using the first 16 frames for camera track")
         control_points = []
-        for idx, k in enumerate(valid_keyframes):
-            frame = int(k[0].co[0])
+        frame = int(action.frame_start)
+        idx = 0
+        while frame <= action.frame_end and idx < 16:
             scene.frame_set(frame)
             control_point = ControlPoint(idx)
             loc = ob.location / 100
@@ -157,6 +148,9 @@ class CameraTrackTag(Tag):
             control_point.set_ijkw_from_rotation(camera_matrix_fixed.to_quaternion())
             
             control_points.append(control_point)
+            
+            frame += 1
+            idx += 1
         
         if self.block_control_points.Elements.Count:
             self.block_control_points.RemoveAllElements()
