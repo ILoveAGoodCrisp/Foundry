@@ -39,7 +39,7 @@ class NWO_GetTagsList(bpy.types.Operator):
     bl_idname = 'nwo.get_tags_list'
     bl_property = "tag_list"
     bl_description = "Returns a searchable list of valid tags"
-    bl_options = {"REGISTER", "UNDO"}
+    bl_options = {"UNDO"}
 
     def tag_list_items(self, context):
         global global_items
