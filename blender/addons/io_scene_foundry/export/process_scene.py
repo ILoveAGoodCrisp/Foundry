@@ -56,6 +56,7 @@ from ..utils.nwo_utils import (
     relative_path,
     reset_to_basis,
     run_tool,
+    set_active_object,
     unmute_armature_mods,
     update_job,
     update_job_count,
@@ -1136,6 +1137,7 @@ def clear_constraints():
                     pose_bone.constraints.remove(con)
                     
 def build_camera_tracks(context, camera, asset_folder_path):
+    set_active_object(camera)
     camera_track_actions = [action for action in bpy.data.actions if action.use_frame_range]
     print('')
     if not camera_track_actions:
@@ -1147,6 +1149,7 @@ def build_camera_tracks(context, camera, asset_folder_path):
         "-----------------------------------------------------------------------\n"
     )
     for action in camera_track_actions:
+        camera.animation_data.action = action
         tag_path = os.path.join(asset_folder_path, action.name + '.camera_track')
         print(f"--- {action.name}")
         with CameraTrackTag(path=tag_path) as camera_track:
