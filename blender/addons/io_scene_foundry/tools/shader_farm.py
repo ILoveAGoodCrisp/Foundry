@@ -44,49 +44,6 @@ class NWO_FarmShaders(bpy.types.Operator):
     bl_label = "Shader Farm"
     bl_idname = "nwo.shader_farm"
     bl_description = "Builds shader/material tags for all valid blender materials. Will export all necessary bitmaps"
-    
-    def update_shaders_dir(self, context):
-        self["shaders_dir"] = clean_tag_path(self["shaders_dir"]).strip('"')
-
-    def get_shaders_dir(self):
-        context = bpy.context
-        is_asset = valid_nwo_asset(context)
-        if is_asset:
-            return self.get("shaders_dir", os.path.join(get_asset_path(), "materials" if is_corinth(context) else "shaders"))
-        return self.get("shaders_dir", "")
-    
-    def set_shaders_dir(self, value):
-        self['shaders_dir'] = value
-
-    shaders_dir : bpy.props.StringProperty(
-        name="Shaders Directory",
-        description="Specifies the directory to export shaders/materials. Defaults to the asset materials/shaders folder",
-        options=set(),
-        update=update_shaders_dir,
-        get=get_shaders_dir,
-        set=set_shaders_dir,
-    )
-
-    def update_bitmaps_dir(self, context):
-        self["bitmaps_dir"] = clean_tag_path(self["bitmaps_dir"]).strip('"')
-
-    def get_bitmaps_dir(self):
-        context = bpy.context
-        is_asset = valid_nwo_asset(context)
-        if is_asset:
-            return self.get("bitmaps_dir", os.path.join(get_asset_path(), "bitmaps"))
-        return self.get("bitmaps_dir", "")
-    
-    def set_bitmaps_dir(self, value):
-        self['bitmaps_dir'] = value
-
-    bitmaps_dir : bpy.props.StringProperty(
-        name="Bitmaps Directory",
-        description="Specifies where the exported bitmaps (and tiffs, if they exist) should be saved. Defaults to the asset bitmaps folder",
-        update=update_bitmaps_dir,
-        get=get_bitmaps_dir,
-        set=set_bitmaps_dir,
-    )
 
     def farm_type_items(self, context):
         tag_type = "Materials" if is_corinth(context) else "Shaders"
@@ -191,7 +148,6 @@ class NWO_FarmShaders(bpy.types.Operator):
             if not managed_blam_active():
                 bpy.ops.managed_blam.init()
             start = time.perf_counter()
-            shaders_dir = relative_path(self.shaders_dir)
             bitmaps_dir = relative_path(self.bitmaps_dir)
             os.system("cls")
             if context.scene.nwo_export.show_output:
@@ -292,13 +248,12 @@ class NWO_FarmShaders(bpy.types.Operator):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
-                if not shaders_dir:
-                    if self.asset_path:
-                        shaders_dir = os.path.join(self.asset_path, "materials" if self.corinth else 'shaders')
-                    elif blend_asset_path:
-                        shaders_dir = os.path.join(blend_asset_path, "materials" if self.corinth else 'shaders')
-                    else:
-                        shaders_dir = "materials" if self.corinth else 'shaders'
+                if self.asset_path:
+                    shaders_dir = os.path.join(self.asset_path, "materials" if self.corinth else 'shaders')
+                elif blend_asset_path:
+                    shaders_dir = os.path.join(blend_asset_path, "materials" if self.corinth else 'shaders')
+                else:
+                    shaders_dir = "materials" if self.corinth else 'shaders'
                 shader_count = len(valid_shaders)
                 print(f"{shader_count} {tag_type}s in Scope")
                 print(f"{tag_type}s Directory = {shaders_dir}\n")
@@ -403,7 +358,6 @@ class NWO_FarmShaders(bpy.types.Operator):
         col.separator()
         if self.farm_type in ("both", "shaders"):
             col.prop(self, "shaders_scope", text=f"{tag_type}s Scope")
-            col.prop(self, "shaders_dir", text=f"{tag_type}s Export Folder", icon='FILE_FOLDER')
             if is_corinth(context):
                 row = col.row(align=True)
                 row.prop(self, "default_material_shader", text="Material Shader (Optional)", icon_value=get_icon_id('tags'))
@@ -412,7 +366,6 @@ class NWO_FarmShaders(bpy.types.Operator):
             col.separator()
         if self.farm_type in ("both", "bitmaps"):
             col.prop(self, "bitmaps_scope", text="Bitmaps Scope")
-            col.prop(self, "bitmaps_dir", text="Bitmaps Export Folder", icon='FILE_FOLDER')
             col.prop(self, "link_bitmaps", text="Re-Export Existing TIFFs")
             col.prop(self, "all_bitmaps", text="Include All Blender File Images")
 
