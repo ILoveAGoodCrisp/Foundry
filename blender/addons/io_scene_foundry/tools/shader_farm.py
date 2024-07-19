@@ -148,7 +148,6 @@ class NWO_FarmShaders(bpy.types.Operator):
             if not managed_blam_active():
                 bpy.ops.managed_blam.init()
             start = time.perf_counter()
-            bitmaps_dir = relative_path(self.bitmaps_dir)
             os.system("cls")
             if context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -209,9 +208,7 @@ class NWO_FarmShaders(bpy.types.Operator):
 
             if self.farm_type == "both" or self.farm_type == "bitmaps":
                 # Create a bitmap folder in the asset directory
-                if bitmaps_dir:
-                    self.bitmaps_data_dir = os.path.join(self.data_dir, bitmaps_dir)
-                elif self.asset_path:
+                if self.asset_path:
                     self.bitmaps_data_dir = os.path.join(self.data_dir, self.asset_path, "bitmaps")
                 elif blend_asset_path:
                     self.bitmaps_data_dir = os.path.join(blend_asset_path, 'bitmaps')
