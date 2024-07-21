@@ -817,7 +817,7 @@ class NWO_FoundryPanelProps(Panel):
                 
         #col.separator()
                 
-    def draw_rig_controls(self, box, nwo):
+    def draw_rig_controls(self, box: bpy.types.UILayout, nwo):
         box.use_property_split = True
         row = box.row(align=True)
         row.prop_search(nwo, 'control_pedestal', nwo.main_armature.data, 'bones')

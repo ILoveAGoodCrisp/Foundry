@@ -38,6 +38,8 @@ def has_region_or_perm(ob):
         return True
     elif is_marker(ob) and ob.nwo.marker_uses_regions:
         return True
+    elif ob.type == 'LIGHT':
+        return True
     
     return False
 

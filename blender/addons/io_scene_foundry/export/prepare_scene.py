@@ -1513,7 +1513,19 @@ class PrepareScene:
                     proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_physics"
                     if proxy_physics.data.nwo.face_global_material_ui or proxy_physics.data.nwo.face_props:
                         self._set_reach_coll_materials(proxy_physics.data)
-            
+                        
+                    # Physics gets split by parts
+                    bpy.context.scene.collection.objects.link(proxy_physics)
+                    proxy_physics.select_set(True)
+                    nwo_utils.set_active_object(proxy_physics)
+                    bpy.ops.object.editmode_toggle()
+                    for v in proxy_physics.data.vertices: v.select = True
+                    bpy.ops.mesh.separate(type="LOOSE")
+                    for v in proxy_physics.data.vertices: v.select = False
+                    bpy.ops.object.editmode_toggle()
+                    split_physics = bpy.context.selected_objects
+                    nwo_utils.deselect_all_objects()
+
             if coll:
                 proxy_collision["bungie_object_type"] = "_connected_geometry_object_type_mesh"
                 proxy_collision["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_collision"
@@ -1558,17 +1570,8 @@ class PrepareScene:
                             o_collision.nwo.permutation_name = ig.nwo.permutation_name
 
                     if phys:
-                        if self.corinth:
-                            for s_ob in split_physics:
-                                o_physics = s_ob.copy()
-                                for collection in ig.users_collection: collection.objects.link(o_physics)
-                                o_physics.parent = ig
-                                o_physics.matrix_world = ig.matrix_world
-                                o_physics.nwo.region_name = ig.nwo.region_name
-                                o_physics.nwo.permutation_name = ig.nwo.permutation_name
-
-                        else:
-                            o_physics = proxy_physics.copy()
+                        for s_ob in split_physics:
+                            o_physics = s_ob.copy()
                             for collection in ig.users_collection: collection.objects.link(o_physics)
                             o_physics.parent = ig
                             o_physics.matrix_world = ig.matrix_world
