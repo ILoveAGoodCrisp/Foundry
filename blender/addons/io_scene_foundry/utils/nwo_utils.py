@@ -1223,7 +1223,7 @@ class ProjectXML():
                 case 'bngtoolsql':
                     material.text = r"shaders\invalid.shader"
                 case 'metawins':
-                    material.text = r"levels\shared\shaders\simple\256testgrid.material"
+                    material.text = r"shaders\invalid.material"
                 case 'episql.343i.selfhost.corp.microsoft.com':
                     material.text = r"shaders\invalid.material"
             self.default_material = material.text

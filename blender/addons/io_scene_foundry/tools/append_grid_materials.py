@@ -42,10 +42,6 @@ class NWO_OT_AppendGridMaterials(bpy.types.Operator):
     bl_label = "Append Grid Materials"
     bl_description = "Adds a collection of grid materials to the blend file"
     bl_options = {"UNDO"}
-    
-    @classmethod
-    def poll(cls, context):
-        return nwo_utils.get_project()
 
     def execute(self, context):
         append_grid_materials()

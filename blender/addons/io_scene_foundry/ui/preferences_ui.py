@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
-from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
+from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.utils.nwo_utils import ProjectXML, foundry_update_check, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
 from io_scene_foundry.utils import nwo_globals
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
