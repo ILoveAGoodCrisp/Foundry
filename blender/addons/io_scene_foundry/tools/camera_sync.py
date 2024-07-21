@@ -124,7 +124,7 @@ def quaternion_to_ypr(q):
     t4 = +1.0 - 2.0 * (y * y + z * z)
     yaw = math.atan2(t3, t4)
 
-    return yaw, pitch, roll
+    return round(yaw, 3), round(pitch, 3), round(roll, 3)
 
 def sync_reach_tag_test(pm, exe_name, location, yaw, pitch, roll, in_camera, context, default_fov=78.0):
     base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll
@@ -160,7 +160,7 @@ def sync_camera_to_game(context: bpy.types.Context):
     r3d = context.space_data.region_3d
     # matrix = nwo_utils.halo_transform_matrix(view_matrix)
     matrix = nwo_utils.halo_transform_matrix(r3d.view_matrix.inverted())
-    location = matrix.translation
+    location = [round(t, 3) for t in matrix.translation]
     yaw, pitch, roll = quaternion_to_ypr(matrix.to_quaternion())
     in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera
     if not in_camera:
