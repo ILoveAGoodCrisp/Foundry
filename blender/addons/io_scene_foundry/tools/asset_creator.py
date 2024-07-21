@@ -27,6 +27,7 @@
 import os
 from pathlib import Path
 import bpy
+from io_scene_foundry.tools.append_grid_materials import append_grid_materials
 from io_scene_foundry.tools.rigging.create_rig import add_rig
 from io_scene_foundry.tools.append_foundry_materials import add_special_materials
 from io_scene_foundry.icons import get_icon_id
@@ -326,7 +327,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
             add_special_materials('h4' if project.corinth else 'reach', self.asset_type)
             
         if self.append_grid_materials:
-            pass
+            append_grid_materials()
         
         if self.generate_halo_skeleton:
             needs_aim_bones = self.output_biped or self.output_vehicle or self.output_giant

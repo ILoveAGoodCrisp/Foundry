@@ -2475,7 +2475,7 @@ class PrepareScene:
                 s.material = self.sky_mat
 
     def _wrap_bounding_box(self, objects, padding):
-        min_x, min_y, min_z, max_x, max_y, max_z = -5, -5, 0, 5, 5, 50
+        min_x, min_y, min_z, max_x, max_y, max_z = -5, -5, 0, 5, 5, 300
         for ob in objects:
             if ob.type == 'MESH':
                 bbox = ob.bound_box

@@ -1843,3 +1843,11 @@ objects\weapons\rifle\storm_sniper_rifle\materials\storm_sniper_rifle_default\st
 objects\weapons\rifle\storm_sniper_rifle\materials\storm_sniper_rifle_default\storm_sniper_rifle_scope_glass_default
 objects\weapons\support_high\flak_cannon\shaders\fuel_rod_bolt
 shaders\invalid
+shaders\foundry\materials\grid_checkered
+shaders\foundry\materials\grid_checkered_cross
+shaders\foundry\materials\grid_dark_cross
+shaders\foundry\materials\grid_dark_diagonal
+shaders\foundry\materials\grid_dark_square
+shaders\foundry\materials\grid_orange_cross
+shaders\foundry\materials\grid_orange_diagonal
+shaders\foundry\materials\grid_orange_square

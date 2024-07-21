@@ -6859,3 +6859,11 @@ objects\weapons\support_high\spartan_laser\shaders\spartan_laser_screen
 shaders\ca\pioneer\pioneer_wall_stone
 shaders\invalid
 shaders\physics_bounds
+shaders\foundry\shaders\grid_checkered
+shaders\foundry\shaders\grid_checkered_cross
+shaders\foundry\shaders\grid_dark_cross
+shaders\foundry\shaders\grid_dark_diagonal
+shaders\foundry\shaders\grid_dark_square
+shaders\foundry\shaders\grid_orange_cross
+shaders\foundry\shaders\grid_orange_diagonal
+shaders\foundry\shaders\grid_orange_square

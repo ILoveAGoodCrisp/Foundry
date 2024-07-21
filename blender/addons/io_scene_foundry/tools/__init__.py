@@ -39,6 +39,7 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
+from io_scene_foundry.tools.append_grid_materials import NWO_OT_AppendGridMaterials
 from io_scene_foundry.tools.shader_duplicate import NWO_OT_ShaderDuplicate
 from io_scene_foundry.tools.camera_sync import NWO_OT_CameraSync
 from io_scene_foundry.tools.prefab_exporter import NWO_OT_ExportPrefabs
@@ -5510,6 +5511,7 @@ classeshalo = (
     NWO_OT_ExportPrefabs,
     NWO_OT_CameraSync,
     NWO_OT_ShaderDuplicate,
+    NWO_OT_AppendGridMaterials,
 )
 
 def register():
