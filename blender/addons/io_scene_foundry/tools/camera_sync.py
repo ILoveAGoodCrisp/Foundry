@@ -84,6 +84,8 @@ class NWO_OT_CameraSync(bpy.types.Operator):
     def cancel(self, context):
         wm = context.window_manager
         wm.event_timer_remove(self.timer)
+        
+        return {'CANCELLED'}
     
     @classmethod
     def description(cls, context, properties) -> str:
