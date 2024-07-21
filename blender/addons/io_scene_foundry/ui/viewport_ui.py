@@ -28,7 +28,7 @@ import bpy
 from bpy.types import Context, OperatorProperties
 
 from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
-from io_scene_foundry.utils.nwo_utils import calc_light_energy, closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, true_region
+from io_scene_foundry.utils.nwo_utils import calc_light_energy, closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, to_bounding_box, to_convex_hull, true_region
 from .templates import NWO_Op
 from bpy_extras.object_utils import AddObjectHelper, object_data_add
 
@@ -64,6 +64,17 @@ class NWO_ApplyTypeMesh(NWO_Op):
     bl_label = "Apply Mesh Type"
     bl_idname = "nwo.apply_type_mesh"
     bl_description = "Applies the specified mesh type to the selected objects"
+    
+    convert_mesh: bpy.props.EnumProperty(
+        options={'SKIP_SAVE'},
+        name="Convert Mesh",
+        description="Converts a mesh to a bounding box or convex hull",
+        items=[
+            ("keep", "Keep", "Keeps the current mesh"),
+            ("convex_hull", "Convex Hull", "Convert mesh to a convex hull"),
+            ("bounding_box", "Bounding Box", "Convert mesh to its bounding box"),
+        ]
+    )
 
     def m_type_items(self, context):
         items = []
@@ -312,6 +323,18 @@ class NWO_ApplyTypeMesh(NWO_Op):
         items=m_type_items,
     )
     
+    apply_material: bpy.props.BoolProperty(
+        name="Apply Material",
+        description="Applies a new material to the object to represent its type",
+        default=True,
+    )
+    
+    apply_prefix: bpy.props.BoolProperty(
+        name="Apply Prefix",
+        description="Applies a prefix to the object name to represent its type",
+        default=True,
+    )
+    
     @classmethod
     def description(cls, context: Context, properties: OperatorProperties) -> str:
         items = cls.m_type_items(cls, context)
@@ -319,7 +342,14 @@ class NWO_ApplyTypeMesh(NWO_Op):
         return enum[2]
 
     def draw(self, context):
+        self.layout.use_property_split = True
         self.layout.prop(self, "m_type", text="Mesh Type")
+        self.layout.prop(self, "convert_mesh", text="Convert Mesh", expand=True)
+        if get_prefs().apply_materials:
+            self.layout.prop(self, "apply_material", text="Apply Material")
+        
+        if get_prefs().apply_prefix != "none":
+            self.layout.prop(self, "apply_prefix", text="Apply Prefix")
         
     def mesh_and_material(self, context):
         mesh_type = ""
@@ -405,10 +435,16 @@ class NWO_ApplyTypeMesh(NWO_Op):
             ob.select_set(True)
             ob.data.nwo.mesh_type_ui = mesh_type
 
-            apply_prefix(ob, self.m_type, prefix_setting)
+            if self.apply_prefix:
+                apply_prefix(ob, self.m_type, prefix_setting)
 
-            if apply_materials:
+            if apply_materials and self.apply_material:
                 apply_props_material(ob, material)
+                
+            if self.convert_mesh == "convex_hull":
+                to_convex_hull(ob)
+            elif self.convert_mesh == "bounding_box":
+                to_bounding_box(ob)
 
             if self.m_type == "seam":
                 closest_bsp = closest_bsp_object(context, ob)

@@ -3385,3 +3385,46 @@ def get_exe(name: str):
         if file.suffix.lower() != ".exe": continue
         if name in file.name:
             return file
+        
+def to_convex_hull(ob: bpy.types.Object):
+    """Converts the given object to a convex hull"""
+    if ob.type not in ("CURVE", "SURFACE", "META", "FONT", "MESH"): return
+    mesh = ob.to_mesh()
+    new_data = ob.data.copy()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    for edge in bm.edges: bm.edges.remove(edge)
+    bm.edges.ensure_lookup_table()
+    result = bmesh.ops.convex_hull(bm, input=bm.verts, use_existing_faces=True)
+    bmesh.ops.delete(bm, geom=result["geom_interior"], context='VERTS')
+    bm.to_mesh(new_data)
+    bm.free()
+    ob.data = new_data
+    
+
+def to_bounding_box(ob: bpy.types.Object):
+    """Converts the given object to its bounding box"""
+    if ob.type not in ("CURVE", "SURFACE", "META", "FONT", "MESH"): return
+    new_data = ob.data.copy()
+    bm = bmesh.new()
+    bbox = ob.bound_box
+    for co in bbox:
+        bmesh.ops.create_vert(bm, co=co)
+
+    bm.verts.ensure_lookup_table()
+    back_face = [bm.verts[0], bm.verts[1], bm.verts[2], bm.verts[3]]
+    front_face = [bm.verts[4], bm.verts[5], bm.verts[6], bm.verts[7]]
+    left_face = [bm.verts[0], bm.verts[1], bm.verts[4], bm.verts[5]]
+    right_face = [bm.verts[2], bm.verts[3], bm.verts[6], bm.verts[7]]
+    bottom_face = [bm.verts[0], bm.verts[3], bm.verts[4], bm.verts[7]]
+    top_face = [bm.verts[1], bm.verts[2], bm.verts[5], bm.verts[6]]
+    bmesh.ops.contextual_create(bm, geom=back_face, mat_nr=0, use_smooth=False)
+    bmesh.ops.contextual_create(bm, geom=front_face, mat_nr=0, use_smooth=False)
+    bmesh.ops.contextual_create(bm, geom=left_face, mat_nr=0, use_smooth=False)
+    bmesh.ops.contextual_create(bm, geom=right_face, mat_nr=0, use_smooth=False)
+    bmesh.ops.contextual_create(bm, geom=bottom_face, mat_nr=0, use_smooth=False)
+    bmesh.ops.contextual_create(bm, geom=top_face, mat_nr=0, use_smooth=False)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(new_data)
+    bm.free()
+    ob.data = new_data
