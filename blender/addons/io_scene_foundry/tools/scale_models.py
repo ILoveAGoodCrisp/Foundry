@@ -120,6 +120,7 @@ class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):
         model.from_file(filepath)
         ob = object_data_add(context, model.to_mesh(name), operator=self, name=name)
         ob.nwo.export_this = False
+        ob.nwo.scale_model = True
         scale_factor = 1
         if context.scene.nwo.scale == 'max':
             scale_factor = 1 / 0.03048

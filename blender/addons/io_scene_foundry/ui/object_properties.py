@@ -497,6 +497,7 @@ class NWO_MarkerPermutationItems(PropertyGroup):
 # OBJECT PROPERTIES
 # ----------------------------------------------------------
 class NWO_ObjectPropertiesGroup(PropertyGroup):
+    scale_model: BoolProperty(options={'HIDDEN'})
     ### PROXY
     proxy_parent: PointerProperty(type=bpy.types.Mesh)
     proxy_type : StringProperty()

@@ -304,7 +304,7 @@ class NWO_FoundryPanelProps(Panel):
         row = col.row()
         row.prop(nwo, "forward_direction", text="Scene Forward", expand=True)
         row = col.row()
-        row.prop(nwo, "rotate_markers")
+        row.prop(nwo, "maintain_marker_axis")
 
     def draw_asset_editor(self):
         box = self.box

@@ -2093,31 +2093,27 @@ def halo_transform_matrix(matrix: Matrix):
     
     return Matrix.LocRotScale(loc, rot, sca)
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
         if objects is None:
-            # need to scope data
             objects = bpy.data.objects
-            curves = bpy.data.curves
-            metaballs = bpy.data.metaballs
-            # lattices = bpy.data.lattices
-            meshes = bpy.data.meshes
-            cameras = bpy.data.cameras
-            lights = bpy.data.lights
-        else:
-            curves = {ob.data for ob in objects if ob.type =='CURVE'}
-            metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
-            meshes = {ob.data for ob in objects if ob.type =='MESH'}
-            cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
-            lights = {ob.data for ob in objects if ob.type =='LIGHT'}
+            
+        if exclude_scale_models:
+            objects = [ob for ob in objects if not ob.nwo.scale_model]
+            
+        curves = {ob.data for ob in objects if ob.type =='CURVE'}
+        metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
+        meshes = {ob.data for ob in objects if ob.type =='MESH'}
+        cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
+        lights = {ob.data for ob in objects if ob.type =='LIGHT'}
             
         if actions is None:
             actions = bpy.data.actions
             
         if keep_marker_axis is None:
-            keep_marker_axis = context.scene.nwo.rotate_markers
+            keep_marker_axis = context.scene.nwo.maintain_marker_axis
 
         armatures = [ob for ob in objects if ob.type == 'ARMATURE']
         parented_armatures = [ob for ob in armatures if ob.parent]

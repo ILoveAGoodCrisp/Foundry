@@ -1185,11 +1185,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         update=scale_update,
     )
     
-    rotate_markers: BoolProperty(
+    maintain_marker_axis: BoolProperty(
         name="Maintain Marker Axis",
         options=set(),
         default=True,
-        description="Maintains the forward direction of a marker when transforming the scene. Useful if your scene forward is not X forward and you want the direction of the marker to match to in game. Try toggling this on/off if you are experiencing marker issues in game",
+        description="Maintains the forward direction of markers during scene transform. Don't use this if you're re-importing existing assets and rely on marker positions exactly matching",
     )
     
     export_in_progress: BoolProperty(options=set())
