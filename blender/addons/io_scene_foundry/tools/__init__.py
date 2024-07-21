@@ -3043,15 +3043,16 @@ class NWO_FoundryPanelProps(Panel):
         col.operator('nwo.cubemap', text='Cubemap Farm', icon_value=get_icon_id("cubemap"))
         
     def draw_camera_sync(self, box: bpy.types.UILayout, nwo):
+        col = box.column()
         if self.scene.nwo.camera_sync_active:
-            box.operator("nwo.camera_sync", icon="PAUSE", depress=True).cancel_sync = True
+            col.operator("nwo.camera_sync", icon="PAUSE", depress=True).cancel_sync = True
         else:
-            box.operator("nwo.camera_sync", icon="PLAY")
+            col.operator("nwo.camera_sync", icon="PLAY")
             
         if self.h4:
-            box.operator("nwo.launch_sapien", text="Launch Sapien", icon_value=get_icon_id("sapien")).ignore_play = True
+            col.operator("nwo.launch_sapien", text="Launch Sapien", icon_value=get_icon_id("sapien")).ignore_play = True
         else:
-            box.operator("nwo.launch_tagtest", text="Launch Game", icon_value=get_icon_id("tag_test")).ignore_play = True
+            col.operator("nwo.launch_tagtest", text="Launch Game", icon_value=get_icon_id("tag_test")).ignore_play = True
         
     def draw_importer(self, box, nwo):
         row = box.row()
@@ -3122,6 +3123,7 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.clear_shader_paths", text=f"Clear {shader_type} paths", icon='X')
         col.separator()
         col.operator("nwo.append_foundry_materials", text="Append Special Materials", icon='ADD')
+        col.operator("nwo.append_grid_materials", text="Append Grid Materials", icon='ADD')
         if h4:
             col.separator()
             col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=get_icon_id("foundation"))

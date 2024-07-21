@@ -48,7 +48,7 @@ class NWO_OT_AppendGridMaterials(bpy.types.Operator):
         return nwo_utils.get_project()
 
     def execute(self, context):
-        self.append_grid_materials()
+        append_grid_materials()
         return {"FINISHED"}
     
 def append_grid_materials():
