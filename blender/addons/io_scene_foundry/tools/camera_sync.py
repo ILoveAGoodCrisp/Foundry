@@ -190,6 +190,28 @@ def pymem_install():
     )
     if install != 6:
         return {"CANCELLED"}
+    
+    py_exe = sys.executable
+    python_dir = Path(py_exe).parent.parent
+    site_packages = Path(python_dir, "lib", "site-packages")
+    test_file = Path(site_packages, "foundry_test.txt")
+    try:
+        # check if folder writable
+        with open(test_file, mode="w") as _: pass
+        test_file.unlink(missing_ok=True)
+    except:
+        shutdown = ctypes.windll.user32.MessageBoxW(
+            0,
+            "Blender does not have sufficient privilege to install new python modules. Launch Blender with admin priviledges and re-attempt install\n\nQuit Blender now?",
+            f"Could not install python module",
+            4,
+        )
+        if shutdown != 6:
+            return {"CANCELLED"}
+        
+        bpy.ops.wm.quit_blender()
+        return {"CANCELLED"}
+    
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", "pymem"])
         print("Succesfully installed necessary modules")

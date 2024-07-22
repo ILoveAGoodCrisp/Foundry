@@ -52,6 +52,7 @@ import sys
 import subprocess
 import ctypes
 import atexit
+import tempfile
 
 last_saved_tag = None
 
@@ -395,20 +396,40 @@ class ManagedBlam_Init(Operator):
                 print("Couldn't find clr module, attempting pythonnet install")
                 install = ctypes.windll.user32.MessageBoxW(
                     0,
-                    "ManagedBlam requires the pythonnet module to be installed for Blender.\n\nInstall pythonnet now?",
-                    f"Pythonnet Install Required",
+                    "Tag API requires the pythonnet module to be installed for Blender.\n\nInstall pythonnet now?",
+                    f"Tag API dependency required",
                     4,
                 )
                 if install != 6:
                     return {"CANCELLED"}
             try:
+                py_exe = sys.executable
+                python_dir = Path(py_exe).parent.parent
+                site_packages = Path(python_dir, "lib", "site-packages")
+                test_file = Path(site_packages, "foundry_test.txt")
+                try:
+                    # check if folder writable
+                    with open(test_file, mode="w") as _: pass
+                    test_file.unlink(missing_ok=True)
+                except:
+                    shutdown = ctypes.windll.user32.MessageBoxW(
+                        0,
+                        "Blender does not have sufficient privilege to install new python modules. Launch Blender with admin priviledges and re-attempt install\n\nQuit Blender now?",
+                        f"Could not install tag API dependency",
+                        4,
+                    )
+                    if shutdown != 6:
+                        return {"CANCELLED"}
+                    
+                    bpy.ops.wm.quit_blender()
+                    return {"CANCELLED"}
+                
                 subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", "pythonnet"])
-                print("Succesfully installed necessary modules")
-
+                
                 shutdown = ctypes.windll.user32.MessageBoxW(
                     0,
-                    "Pythonnet module installed for Blender. Please restart Blender to use ManagedBlam.\n\nRestart Blender now?",
-                    f"Pythonnet Installed for Blender",
+                    "Tag API dependency installed for Blender. Please restart Blender to use the Tag API.\n\nRestart Blender now?",
+                    f"Tag API dependency installed for Blender",
                     4,
                 )
                 if shutdown != 6:
@@ -421,7 +442,7 @@ class ManagedBlam_Init(Operator):
                 return {"CANCELLED"}
             else:
                 if self.install_only:
-                    self.report({'INFO'}, "ManagedBlam Setup Complete")
+                    self.report({'INFO'}, "Tag API Setup Complete")
                 return {"FINISHED"}
 
         else:
