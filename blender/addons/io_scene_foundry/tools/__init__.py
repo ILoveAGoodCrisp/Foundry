@@ -3122,8 +3122,8 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.stomp_materials", text=f"Remove Duplicate Materials", icon='X')
         col.operator("nwo.clear_shader_paths", text=f"Clear {shader_type} paths", icon='X')
         col.separator()
-        col.operator("nwo.append_foundry_materials", text="Append Special Materials", icon='ADD')
-        col.operator("nwo.append_grid_materials", text="Append Grid Materials", icon='ADD')
+        col.operator("nwo.append_foundry_materials", text="Append Special Materials", icon_value=get_icon_id("special_material"))
+        col.operator("nwo.append_grid_materials", text="Append Grid Materials", icon_value=get_icon_id("grid_material"))
         if h4:
             col.separator()
             col.operator("nwo.open_matman", text="Open Material Tag Viewer", icon_value=get_icon_id("foundation"))

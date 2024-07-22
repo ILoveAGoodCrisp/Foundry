@@ -171,7 +171,7 @@ class NWO_OT_LightSync(bpy.types.Operator):
         if event.type == 'TIMER':
             for area in context.screen.areas:
                 if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and nwo_utils.mouse_in_object_editor_region(context, event.mouse_x, event.mouse_y):
-                    blam(export_lights_tasks())
+                    # blam(export_lights_tasks())
                     return {'PASS_THROUGH'}
                 
         return {'PASS_THROUGH'}
@@ -191,7 +191,7 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return nwo_utils.valid_nwo_asset(context)
 
     def execute(self, context):
-        blam(export_lights_tasks())
+        # blam(export_lights_tasks())
         return {"FINISHED"}
     
 def gather_lights(context):

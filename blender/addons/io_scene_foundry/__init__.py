@@ -264,7 +264,7 @@ else:
                 print("Exporting Lights")
                 managed_blam_tasks.extend(export_lights_tasks())
                 
-            blam(managed_blam_tasks)
+            # blam(managed_blam_tasks)
 
     def register():
         bpy.app.handlers.load_post.append(load_handler)

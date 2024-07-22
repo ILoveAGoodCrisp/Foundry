@@ -159,7 +159,7 @@ class ProcessScene:
                                         context,
                                         action_nwo.animation_events,
                                         arm,
-                                        list(export_scene.skeleton_bones.keys())[1],
+                                        export_scene.root_bone_name,
                                         timeline.frame_start,
                                         timeline.frame_end,
                                     )
@@ -887,7 +887,8 @@ class ProcessScene:
             write_zone_sets_to_scenario(scene_nwo, asset_name)
             
         if export_scene.managed_blam_tasks:
-            blam(export_scene.managed_blam_tasks)
+            pass
+            # blam(export_scene.managed_blam_tasks)
             
     def any_node_usage_override(self, nwo, asset_type, corinth):
         if not corinth and asset_type == 'animation' and nwo.asset_animation_type == 'first_person':
