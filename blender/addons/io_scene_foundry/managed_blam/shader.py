@@ -277,7 +277,7 @@ class ShaderTag(Tag):
             if Path(self.tags_dir, bitmap).exists():
                 return bitmap
             
-        if image.filepath and Path(image.filepath_from_user()).exists():
+        if image.filepath and Path(image.filepath_from_user()).exists() and Path(image.filepath_from_user()).is_relative_to(Path(self.data_dir)):
             bitmap = str(Path(image.filepath_from_user()).relative_to(Path(self.data_dir)).with_suffix(".bitmap"))
             if Path(self.tags_dir, bitmap).exists():
                 return bitmap
