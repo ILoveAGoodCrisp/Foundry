@@ -114,7 +114,7 @@ def copy_grid_shader(name):
             file_relative = f"textures/shaders/{name}.shader"
         with zipfile.ZipFile(resources_zip, "r") as zip:
             filepath = zip.extract(file_relative)
-            nwo_utils.copy_file(source_shader_path, dest_shader_path)
+            nwo_utils.copy_file(filepath, dest_shader_path)
 
         os.remove(filepath)
         os.rmdir(os.path.dirname(filepath))
@@ -132,7 +132,7 @@ def copy_grid_shader(name):
         file_relative = f"textures/bitmaps/{name}.bitmap"
         with zipfile.ZipFile(resources_zip, "r") as zip:
             filepath = zip.extract(file_relative)
-            nwo_utils.copy_file(source_bitmap_path, dest_bitmap_path)
+            nwo_utils.copy_file(filepath, dest_bitmap_path)
             
         os.remove(filepath)
         os.rmdir(os.path.dirname(filepath))
