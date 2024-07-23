@@ -144,12 +144,8 @@ class ShaderTag(Tag):
         self.tag_has_changes = True
         
     def _alpha_type_from_blender_material(self):
-        blend_mode = self.blender_material.blend_method
-        match blend_mode:
-            case 'OPAQUE':
+        if self.blender_material.surface_render_method == 'DITHERED':
                 return ''
-            case 'CLIP':
-                return 'clip'
             
         return 'blend'
             
@@ -499,16 +495,10 @@ class ShaderTag(Tag):
         return color
     
     def _set_alpha(self, alpha_type, blender_material):
-        if alpha_type:
-            if alpha_type == 'clip':
-                blender_material.blend_method = 'CLIP'
-                blender_material.shadow_method = 'CLIP'
-            else:
-                blender_material.blend_method = 'BLEND'
-                blender_material.shadow_method = 'HASHED'
+        if alpha_type == 'blend':
+            blender_material.surface_render_method = 'BLENDED'
         else:
-            blender_material.blend_method = 'OPAQUE'
-            blender_material.shadow_method = 'OPAQUE'
+            blender_material.surface_render_method = 'DITHERED'
             
     def _alpha_type(self, alpha_test, blend_mode):
         if blend_mode > 0:

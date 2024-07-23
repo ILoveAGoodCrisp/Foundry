@@ -45,7 +45,7 @@ bl_info = {
     "name": "Foundry - Halo Blender Creation Kit",
     "author": "Crisp",
     "version": (343, 7, 343),
-    "blender": (4, 1, 0),
+    "blender": (4, 2, 0),
     "location": "File > Export",
     "description": "Asset Exporter and Toolset for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer: BUILD_VERSION_STR",
     "warning": "",
@@ -58,9 +58,9 @@ def foundry_blam_cleanup():
     for p in nwo_globals.processes:
         os.kill(p.pid, signal.SIGTERM)
 
-#check that version is 4.1.0 or greater
-if bpy.app.version < (4, 1, 0):
-    raise Warning("Blender version must be 4.1.0 or greater to use Foundry")
+#check that version is 4.2.0 or greater
+if bpy.app.version < (4, 2, 0):
+    raise Warning("Blender version must be 4.2.0 or greater to use Foundry")
 else:
     from io_scene_foundry.utils import nwo_globals
 
