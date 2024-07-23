@@ -32,7 +32,7 @@ from io_scene_foundry.icons import get_icon_id
 from io_scene_foundry.utils.nwo_utils import ProjectXML, foundry_update_check, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
 from io_scene_foundry.utils import nwo_globals
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
-update_str, update_needed = foundry_update_check(nwo_globals.version)
+# update_str, update_needed = foundry_update_check(nwo_globals.version)
 import bpy
 import xml.etree.ElementTree as ET
 
@@ -428,10 +428,10 @@ class ToolkitLocationPreferences(AddonPreferences):
     def draw(self, context):
         prefs = self
         layout = self.layout
-        box = layout.box()
-        box.label(text=update_str, icon_value=get_icon_id("foundry"))
-        if update_needed:
-            box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
+        # box = layout.box()
+        # box.label(text=update_str, icon_value=get_icon_id("foundry"))
+        # if update_needed:
+        #     box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
 
         if not nwo_globals.clr_installed:
             box = layout.box()

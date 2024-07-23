@@ -145,7 +145,7 @@ AMF_ADDON = r"https://github.com/Gravemind2401/Reclaimer/blob/master/Reclaimer.B
 RECLAIMER = r"https://github.com/Gravemind2401/Reclaimer/releases"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
 
-update_str, update_needed = foundry_update_check(nwo_globals.version)
+# update_str, update_needed = foundry_update_check(nwo_globals.version)
 
 HOTKEYS = [
     ("show_foundry_panel", "SHIFT+F"),
@@ -3144,11 +3144,11 @@ class NWO_FoundryPanelProps(Panel):
 
     def draw_settings(self):
         prefs = get_prefs()
-        box = self.box.box()
+        # box = self.box.box()
         context = self.context
-        box.label(text=update_str, icon_value=get_icon_id("foundry"))
-        if update_needed:
-            box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
+        # box.label(text=update_str, icon_value=get_icon_id("foundry"))
+        # if update_needed:
+        #     box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
 
         if not nwo_globals.clr_installed:
             box = self.box.box()
