@@ -54,9 +54,9 @@ bl_info = {
     "category": "Export",
 }
 
-def foundry_blam_cleanup():
-    for p in nwo_globals.processes:
-        os.kill(p.pid, signal.SIGTERM)
+# def foundry_blam_cleanup():
+#     for p in nwo_globals.processes:
+#         os.kill(p.pid, signal.SIGTERM)
 
 #check that version is 4.2.0 or greater
 if bpy.app.version < (4, 2, 0):
@@ -115,7 +115,8 @@ else:
     def load_handler(dummy):
         context = bpy.context
         context.scene.nwo.export_in_progress = False
-        atexit.register(foundry_blam_cleanup)
+        context.scene.nwo.camera_sync_active = False
+        # atexit.register(foundry_blam_cleanup)
         # Add projects
         projects = setup_projects_list()
         blend_path = bpy.data.filepath

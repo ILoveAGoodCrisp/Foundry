@@ -33,6 +33,7 @@ import sys
 import bpy
 import numpy as np
 from io_scene_foundry.utils import nwo_utils
+
 pymem_installed = False
 try:
     import pymem
@@ -41,6 +42,9 @@ except:
     pass
 
 r90 = math.radians(90)
+
+pm = None
+base = None
 
 class NWO_OT_CameraSync(bpy.types.Operator):
     bl_idname = "nwo.camera_sync"
@@ -73,10 +77,10 @@ class NWO_OT_CameraSync(bpy.types.Operator):
             return self.cancel(context)
         if event.type == 'TIMER':
             if context.space_data and context.space_data.type == 'VIEW_3D':
-                try:
-                    sync_camera_to_game(context)
-                except:
-                    pass
+                # try:
+                sync_camera_to_game(context)
+                # except:
+                #     pass
                 return {'PASS_THROUGH'}
                 
         return {'PASS_THROUGH'}
@@ -84,6 +88,10 @@ class NWO_OT_CameraSync(bpy.types.Operator):
     def cancel(self, context):
         wm = context.window_manager
         wm.event_timer_remove(self.timer)
+        global pm
+        global base
+        pm = None
+        base = None
         
         return {'CANCELLED'}
     
@@ -128,8 +136,7 @@ def quaternion_to_ypr(q):
 
     return round(yaw, 3), round(pitch, 3), round(roll, 3)
 
-def sync_reach_tag_test(pm, exe_name, location, yaw, pitch, roll, in_camera, context, default_fov=78.0):
-    base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll
+def sync_reach_tag_test(location, yaw, pitch, roll, in_camera, context):
     try:
         camera_address = resolve_pointer_chain(pm, base + 0x01D2C0A0, [0xA8, 0x568, 0x2C4, 0x58, 0x28])
         write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
@@ -139,26 +146,25 @@ def sync_reach_tag_test(pm, exe_name, location, yaw, pitch, roll, in_camera, con
             write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
         except:
             pass
-    
+        
     if in_camera:
         fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
-        pm.write_float(0x141EFA350, fov)
     else:
-        pm.write_float(0x141EFA350, default_fov)
+        fov = np.median([math.degrees(2 * math.atan(74 /(2 * context.space_data.lens))), 1, 150])
+        
+    pm.write_float(0x141EFA350, fov)
     
-def sync_corinth_sapien(pm, exe_name, location, yaw, pitch, roll, in_camera, context, default_fov=78.0):
-    base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll + 0x0227F5C0
+def sync_corinth_sapien(location, yaw, pitch, roll, in_camera, context):
     camera_address = resolve_pointer_chain(pm, base, [0x1A0, 0x8, 0x20])
     write_camera(pm, camera_address, (location[0], location[1], location[2], yaw + r90, pitch - r90, roll))
     if in_camera:
         fov = np.median([math.degrees(context.scene.camera.data.angle), 1, 150])
-        pm.write_float(0x1425F5A50, fov)
     else:
-        pm.write_float(0x1425F5A50, default_fov)
-
+        fov = np.median([math.degrees(2 * math.atan(36 /(2 * context.space_data.lens))), 1, 150])
+        
+    pm.write_float(0x1425F5A50, fov)
     
 def sync_camera_to_game(context: bpy.types.Context):
-    import pymem
     r3d = context.space_data.region_3d
     # matrix = nwo_utils.halo_transform_matrix(view_matrix)
     matrix = nwo_utils.halo_transform_matrix(r3d.view_matrix.inverted())
@@ -171,12 +177,20 @@ def sync_camera_to_game(context: bpy.types.Context):
     # print(location, "location")
     # print(roll)
     exe_name = ""
+    global pm
+    global base
     if nwo_utils.is_corinth(context):
         exe_name = Path(nwo_utils.get_exe("sapien")).name
-        sync_corinth_sapien(pymem.Pymem(exe_name), exe_name, location, yaw, pitch, roll, in_camera, context)
+        if not base:
+            pm = pymem.Pymem(exe_name)
+            base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll + 0x0227F5C0
+        sync_corinth_sapien(location, yaw, pitch, roll, in_camera, context)
     else:
         exe_name = Path(nwo_utils.get_exe("tag_test")).name
-        sync_reach_tag_test(pymem.Pymem(exe_name), exe_name, location, yaw, pitch, roll, in_camera, context)
+        if not base:
+            pm = pymem.Pymem(exe_name)
+            base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll
+        sync_reach_tag_test(location, yaw, pitch, roll, in_camera, context)
                 
                 
 # pymem install handler
