@@ -401,18 +401,18 @@ class ToolkitLocationPreferences(AddonPreferences):
         default=True,
     )
     
-    def scene_matrix_items(self, context):
-        return [
-            ("scene", "Use Scene", "", "", 0),
-            ("blender", "Blender", "", "BLENDER", 1),
-            ("halo", "Halo", "", get_icon_id('halo_scale'), 2),
-        ]
+    # def scene_matrix_items(self, context):
+    #     return [
+    #         ("scene", "Use Scene", "", "", 0),
+    #         ("blender", "Blender", "", "BLENDER", 1),
+    #         ("halo", "Halo", "", get_icon_id('halo_scale'), 2),
+    #     ]
     
-    scene_matrix: EnumProperty(
-        name="Default Scene Matrix",
-        description="When creating a new asset sets the default scene scale and forward direction",
-        items=scene_matrix_items,
-    )
+    # scene_matrix: EnumProperty(
+    #     name="Default Scene Matrix",
+    #     description="When creating a new asset sets the default scene scale and forward direction",
+    #     items=scene_matrix_items,
+    # )
     
     debug_menu_on_export: BoolProperty(
         name="Update Debug Menu on Export",
@@ -464,8 +464,8 @@ class ToolkitLocationPreferences(AddonPreferences):
         col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
         row = box.row(align=True, heading="Tool Version")
         row.prop(prefs, "tool_type", expand=True)
-        row = box.row(align=True, heading="Default Scene Matrix")
-        row.prop(prefs, "scene_matrix", expand=True)
+        # row = box.row(align=True, heading="Default Scene Matrix")
+        # row.prop(prefs, "scene_matrix", expand=True)
         row = box.row(align=True, heading="Default Object Prefixes")
         row.prop(prefs, "apply_prefix", expand=True)
         row = box.row(align=True)

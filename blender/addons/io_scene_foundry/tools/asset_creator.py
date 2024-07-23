@@ -476,13 +476,8 @@ class NWO_OT_NewAsset(bpy.types.Operator):
 
 
     def invoke(self, context, _):
-        scene_matrix = nwo_utils.get_prefs().scene_matrix
-        if scene_matrix == "scene":
-            self.scale = context.scene.nwo.scale
-            self.forward_direction = context.scene.nwo.forward_direction
-        else:
-            self.scale = "blender" if scene_matrix == 'blender' else 'max'
-            self.forward_direction = 'y-' if scene_matrix == 'blender' else 'x'
+        self.scale = context.scene.nwo.scale
+        self.forward_direction = context.scene.nwo.forward_direction
         
         if context.scene.nwo.scene_project:
             self.project = context.scene.nwo.scene_project

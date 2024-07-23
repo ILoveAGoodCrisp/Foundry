@@ -3181,8 +3181,8 @@ class NWO_FoundryPanelProps(Panel):
         col.operator("nwo.project_move", icon="TRIA_DOWN", text="").direction = 'down'
         row = box.row(align=True, heading="Tool Version")
         row.prop(prefs, "tool_type", expand=True)
-        row = box.row(align=True, heading="Default Scene Matrix")
-        row.prop(prefs, "scene_matrix", expand=True)
+        # row = box.row(align=True, heading="Default Scene Matrix")
+        # row.prop(prefs, "scene_matrix", expand=True)
         row = box.row(align=True, heading="Default Object Prefixes")
         row.prop(prefs, "apply_prefix", expand=True)
         row = box.row(align=True)
