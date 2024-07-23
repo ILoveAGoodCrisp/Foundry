@@ -474,34 +474,34 @@ class ManagedBlam_Init(Operator):
 def close_managed_blam():
     Halo.ManagedBlamSystem.Stop()
     
-class Task:
-    def __init__(self, function: str, path: str, data: dict):
-        self.function = function
-        self.path = path
-        self.data = data
+# class Task:
+#     def __init__(self, function: str, path: str, data: dict):
+#         self.function = function
+#         self.path = path
+#         self.data = data
     
-def blam(tasks: list[Task]):
-    # Get FoundryBlam process socket
-    try:
-        proj_path = get_project_path()
-        soc = nwo_globals.sockets.get(proj_path)
-        if not soc:
-            exe = get_foundry_blam_exe()
-            global port
-            nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(port)]))
-            soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            soc.connect(('localhost', port))
-            port += 1
-            nwo_globals.sockets[proj_path] = soc
+# def blam(tasks: list[Task]):
+#     # Get FoundryBlam process socket
+#     try:
+#         proj_path = get_project_path()
+#         soc = nwo_globals.sockets.get(proj_path)
+#         if not soc:
+#             exe = get_foundry_blam_exe()
+#             global port
+#             nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(port)]))
+#             soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#             soc.connect(('localhost', port))
+#             port += 1
+#             nwo_globals.sockets[proj_path] = soc
             
-        json_tasks = []
-        for task in tasks:
-            json_tasks.append({"function": task.function, "path": task.path, "data": task.data})
+#         json_tasks = []
+#         for task in tasks:
+#             json_tasks.append({"function": task.function, "path": task.path, "data": task.data})
         
-        json_dump = json.dumps(json_tasks) + "\n"
-        soc.sendall(json_dump.encode('utf-8'))
-    except:
-        pass
+#         json_dump = json.dumps(json_tasks) + "\n"
+#         soc.sendall(json_dump.encode('utf-8'))
+#     except:
+#         pass
 
 classeshalo = (
     ManagedBlam_Init,

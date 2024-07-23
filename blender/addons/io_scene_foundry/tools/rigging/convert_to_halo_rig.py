@@ -33,7 +33,7 @@ from io_scene_foundry.utils import nwo_utils
 class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
     bl_idname = "nwo.convert_to_halo_rig"
     bl_label = "Convert to Halo Rig"
-    bl_description = "Converts yhe active armature object to be compatiable with Halo by prepending required halo bones to the existing rig"
+    bl_description = "Converts the active armature object to be compatiable with Halo by prepending required halo bones to the existing rig"
     bl_options = {"REGISTER", "UNDO"}
     
     has_pedestal_control: bpy.props.BoolProperty(default=True)

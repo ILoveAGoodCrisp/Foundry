@@ -31,8 +31,6 @@ import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
-from io_scene_foundry.managed_blam import Task
-from io_scene_foundry.tools.prefab_exporter import BlamPrefab
 from io_scene_foundry.tools.light_exporter import BlamLightDefinition, BlamLightInstance
 from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
@@ -141,9 +139,7 @@ class PrepareScene:
         self.reach_sky_lights = set()
         self.lights = []
         
-        self.prefabs = []
-        
-        self.managed_blam_tasks = []
+        self.lighting_tasks = []
         
         global render_mesh_types
         if not corinth or asset_type in ('model', 'sky'):
@@ -469,11 +465,7 @@ class PrepareScene:
                     if nwo.marker_type_ui == '':
                         nwo.marker_type_ui = '_connected_geometry_marker_type_model'
                     if nwo_utils.type_valid(nwo.marker_type_ui, self.asset_type, self.game_version):
-                        if nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name_ui.lower().endswith(".prefab"):
-                            self.prefabs.append(ob)
-                            nwo_utils.unlink(ob)
-                        else:
-                            self._setup_marker_properties(ob)
+                        self._setup_marker_properties(ob)
                     else:
                         self.warning_hit = True
                         nwo_utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
@@ -505,36 +497,27 @@ class PrepareScene:
             lighting_info_paths = [str(Path(asset_path, f'{self.asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
             for idx, info_path in enumerate(lighting_info_paths):
                 b = bsps[idx]
-                lights_list = [light for light in lights if light.Bsp == b]
+                lights_list = [light for light in lights if light.bsp == b]
                 if not lights_list:
                     if Path(self.tags_dir, nwo_utils.relative_path(info_path)).exists():
-                        self.managed_blam_tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
+                        self.lighting_tasks.append([info_path])
                 else:
-                    light_instances = [light.__dict__ for light in lights_list]
-                    light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
-                    light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-                    self.managed_blam_tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+                    light_instances = [light for light in lights_list]
+                    light_data = {bpy.data.lights.get(light.data_name) for light in lights_list}
+                    light_definitions = [BlamLightDefinition(data) for data in light_data]
+                    self.lighting_tasks.append([info_path, light_instances, light_definitions])
+                    
         elif self.corinth and self.asset_type in ('model', 'sky', 'prefab'):
             info_path = str(Path(asset_path, f'{self.asset_name}.scenario_structure_lighting_info'))
             if not lights:
-                self.managed_blam_tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
+                self.lighting_tasks.append([info_path])
             else:
-                light_instances = [light.__dict__ for light in lights]
-                light_data = {bpy.data.lights.get(light.DataName) for light in lights}
-                light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-                self.managed_blam_tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+                light_instances = [light for light in lights]
+                light_data = {bpy.data.lights.get(light.data_name) for light in lights}
+                light_definitions = [BlamLightDefinition(data) for data in light_data]
+                self.lighting_tasks.append([info_path, light_instances, light_definitions])
                 if self.asset_type in ('model', 'sky'):
-                    self.managed_blam_tasks.append(Task("ModelAssignScenarioStructureLightingInfo", str(Path(asset_path, f'{self.asset_name}.model')), {"info_path": info_path}))
-                
-    def write_prefabs_data(self):
-        asset_path = nwo_utils.get_asset_path()
-        prefabs = [BlamPrefab(ob, ob.nwo.region_name) for ob in self.prefabs]
-        bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
-        structure_bsp_paths = [str(Path(asset_path, f'{self.asset_name}_{b}.scenario_structure_bsp')) for b in bsps]
-        for idx, bsp_path in enumerate(structure_bsp_paths):
-            b = bsps[idx]
-            prefabs_list = [prefab.__dict__ for prefab in prefabs if prefab.Bsp == b]
-            self.managed_blam_tasks.append(Task("WritePrefabs", bsp_path, {"prefabs": prefabs_list}))
+                    self.lighting_tasks.append([str(Path(asset_path, f'{self.asset_name}.model')), info_path])
     
     def get_selected_sets(self):
         '''
@@ -2023,26 +2006,27 @@ class PrepareScene:
         
         elif self.asset_type in ("scenario", "prefab"):
             if marker_type == "_connected_geometry_marker_type_game_instance":
-                ob["bungie_marker_game_instance_tag_name"] = nwo.marker_game_instance_tag_name_ui
-                if self.corinth and nwo.marker_game_instance_tag_name.lower().endswith(
+                tag_name = nwo.marker_game_instance_tag_name_ui.lower()
+                ob["bungie_marker_game_instance_tag_name"] = tag_name
+                if self.corinth and tag_name.endswith(
                     ".prefab"
                 ):
                     ob["bungie_marker_type"] = "_connected_geometry_marker_type_prefab"
                 elif (
                     self.corinth
-                    and nwo.marker_game_instance_tag_name.lower().endswith(
+                    and tag_name.endswith(
                         ".cheap_light"
                     )
                 ):
                     ob["bungie_marker_type"] = "_connected_geometry_marker_type_cheap_light"
                 elif (
                     self.corinth
-                    and nwo.marker_game_instance_tag_name.lower().endswith(".light")
+                    and tag_name.endswith(".light")
                 ):
                     ob["bungie_marker_type"] = "_connected_geometry_marker_type_light"
                 elif (
                     self.corinth
-                    and nwo.marker_game_instance_tag_name.lower().endswith(".leaf")
+                    and tag_name.endswith(".leaf")
                 ):
                     ob["bungie_marker_type"] = "_connected_geometry_marker_type_falling_leaf"
                 else:
@@ -2131,12 +2115,11 @@ class PrepareScene:
     def _fix_parenting(self):
         bones = self.model_armature.data.bones
         valid_bone_names = {b.name for b in bones if b.use_deform}
-        for ob in self.context.view_layer.objects:
+        objects_in_scope = [ob for ob in self.context.view_layer.objects if ob.parent == self.model_armature]
+        for ob in objects_in_scope:
             marker = nwo_utils.is_marker(ob)
             physics = nwo_utils.is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
             io = nwo_utils.is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_object_instance"
-            if ob.parent is None:
-                continue
             if ob.parent_type != "BONE":
                 if marker or physics or io:
                     world = ob.matrix_world.copy()

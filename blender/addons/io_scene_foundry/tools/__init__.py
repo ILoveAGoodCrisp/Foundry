@@ -43,7 +43,7 @@ from io_scene_foundry.tools.append_grid_materials import NWO_OT_AppendGridMateri
 from io_scene_foundry.tools.shader_duplicate import NWO_OT_ShaderDuplicate
 from io_scene_foundry.tools.camera_sync import NWO_OT_CameraSync
 from io_scene_foundry.tools.prefab_exporter import NWO_OT_ExportPrefabs
-from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights, NWO_OT_LightSync
+from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights
 from io_scene_foundry.tools.asset_creator import NWO_OT_NewAsset
 from io_scene_foundry.tools.animation.rename_importer import NWO_OT_RenameImporter
 from io_scene_foundry.tools.animation.fcurve_transfer import NWO_OT_FcurveTransfer
@@ -66,7 +66,6 @@ from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
 from io_scene_foundry.tools.clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
 from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
 from io_scene_foundry.tools.importer import NWO_FH_Import, NWO_FH_ImportBitmapAsImage, NWO_FH_ImportBitmapAsNode, NWO_Import, NWO_OT_ConvertScene, NWO_OT_ImportBitmap
-from io_scene_foundry.tools.material_sync import NWO_MaterialSyncEnd, NWO_MaterialSyncStart
 from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
 from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
 from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_OT_HideObjectType, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
@@ -419,15 +418,6 @@ class NWO_FoundryPanelProps(Panel):
             lighting_name = "Lightmap Model"
         
         box_lights.operator("nwo.export_lights", icon='EXPORT')
-        split = box_lights.split()
-        col1 = split.column()
-        col2 = split.column()
-        if self.scene.nwo.light_sync_active:
-            col1.operator("nwo.light_sync", text="Light Sync", icon="PAUSE", depress=True).cancel_sync = True
-        else:
-            col1.operator("nwo.light_sync", text="Light Sync", icon="PLAY")
-        col2.enabled = not self.scene.nwo.light_sync_active
-        col2.prop(nwo, "light_sync_rate")
         box_lights.prop(nwo, "lights_export_on_save")
         box_lights.separator()
         if self.asset_type == 'scenario':
@@ -2904,7 +2894,7 @@ class NWO_FoundryPanelProps(Panel):
             row = col.row()
             # ANIMATION RENAMES
             if not nwo.animation_renames:
-                row.operator("nwo.animation_rename_add", text="New Animation Rename", icon_value=get_icon_id('animation_rename'))
+                row.operator("nwo.animation_rename_add", text="New Rename", icon_value=get_icon_id('animation_rename'))
             else:
                 row = col.row()
                 row.label(text="Animation Renames")
@@ -2930,7 +2920,7 @@ class NWO_FoundryPanelProps(Panel):
             if not nwo.animation_events:
                 if nwo.animation_renames:
                     row = box.row()
-                row.operator("animation_event.list_add", text="New Animation Event", icon_value=get_icon_id('animation_event'))
+                row.operator("animation_event.list_add", text="New Event", icon_value=get_icon_id('animation_event'))
             else:
                 row = box.row()
                 row.label(text="Animation Events")
@@ -5266,19 +5256,6 @@ def foundry_nodes_toolbar(layout, context):
             sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
             return
 
-        sub0 = row.row(align=True)
-        if context.scene.nwo.shader_sync_active:
-            sub0.enabled = False
-        else:
-            sub0.enabled = True
-        sub0.prop(export_scene, "material_sync_rate", text="Sync Rate")
-        sub1 = row.row(align=True)
-        if context.scene.nwo.shader_sync_active:
-            sub1.operator("nwo.material_sync_end", text="Halo Material Sync", icon="PAUSE", depress=True)
-        else:
-            sub1.operator("nwo.material_sync_start", text="Halo Material Sync", icon="PLAY")
-        # sub0.prop(export_scene, "shader_sync_active", text="" if icons_only else "Halo Material Sync", icon_value=get_icon_id("material_exporter"))
-
 def draw_foundry_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
     foundry_toolbar(self.layout, context)
@@ -5444,8 +5421,6 @@ classeshalo = (
     NWO_OT_AddScaleModel,
     NWO_JoinHalo,
     NWO_FarmShaders,
-    NWO_MaterialSyncStart,
-    NWO_MaterialSyncEnd,
     NWO_ProjectChooser,
     NWO_ProjectChooserMenuDisallowNew,
     NWO_ProjectChooserMenu,
@@ -5509,7 +5484,6 @@ classeshalo = (
     NWO_OT_RenameImporter,
     NWO_OT_NewAsset,
     NWO_OT_ExportLights,
-    NWO_OT_LightSync,
     NWO_OT_ExportPrefabs,
     NWO_OT_CameraSync,
     NWO_OT_ShaderDuplicate,

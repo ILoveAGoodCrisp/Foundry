@@ -966,37 +966,37 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     instance_proxy_running : BoolProperty(options=set())
 
-    shader_sync_active : BoolProperty(
-        name="Shader Sync",
-        description="Sync's the active material with the corresponding Halo Shader/Material tag. Only active when the material has been marked as linked to game",
-        options=set()
-    )
+    # shader_sync_active : BoolProperty(
+    #     name="Shader Sync",
+    #     description="Sync's the active material with the corresponding Halo Shader/Material tag. Only active when the material has been marked as linked to game",
+    #     options=set()
+    # )
     
-    material_sync_rate : bpy.props.FloatProperty(
-        name="Sync Rate",
-        description="How often Halo Material Sync should refresh",
-        min=0.001,
-        default=0.01,
-        max=3,
-        subtype='TIME_ABSOLUTE',
-        options=set(),
-    )
+    # material_sync_rate : bpy.props.FloatProperty(
+    #     name="Sync Rate",
+    #     description="How often Halo Material Sync should refresh",
+    #     min=0.001,
+    #     default=0.01,
+    #     max=3,
+    #     subtype='TIME_ABSOLUTE',
+    #     options=set(),
+    # )
     
-    light_sync_active : BoolProperty(
-        name="Light Sync",
-        description="",
-        options=set()
-    )
+    # light_sync_active : BoolProperty(
+    #     name="Light Sync",
+    #     description="",
+    #     options=set()
+    # )
     
-    light_sync_rate : bpy.props.FloatProperty(
-        name="Sync Rate",
-        description="How often Light Sync should refresh",
-        min=0.001,
-        default=0.1,
-        max=3,
-        subtype='TIME_ABSOLUTE',
-        options=set(),
-    )
+    # light_sync_rate : bpy.props.FloatProperty(
+    #     name="Sync Rate",
+    #     description="How often Light Sync should refresh",
+    #     min=0.001,
+    #     default=0.1,
+    #     max=3,
+    #     subtype='TIME_ABSOLUTE',
+    #     options=set(),
+    # )
     
     lights_export_on_save : BoolProperty(
         name="Export Lights on Blender Save",
@@ -1008,21 +1008,21 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         description="Exports all prefabs from Blender whenever the Blend file is saved",
     )
     
-    object_sync_active : BoolProperty(
-        name="Object Sync",
-        description="",
-        options=set()
-    )
+    # object_sync_active : BoolProperty(
+    #     name="Object Sync",
+    #     description="",
+    #     options=set()
+    # )
     
-    object_sync_rate : bpy.props.FloatProperty(
-        name="Sync Rate",
-        description="How often Object Sync should refresh",
-        min=0.001,
-        default=0.01,
-        max=3,
-        subtype='TIME_ABSOLUTE',
-        options=set(),
-    )
+    # object_sync_rate : bpy.props.FloatProperty(
+    #     name="Sync Rate",
+    #     description="How often Object Sync should refresh",
+    #     min=0.001,
+    #     default=0.01,
+    #     max=3,
+    #     subtype='TIME_ABSOLUTE',
+    #     options=set(),
+    # )
     
     camera_sync_active : BoolProperty(
         name="Camera Sync",

@@ -80,3 +80,11 @@ class ModelTag(Tag):
             self.reference_physics_model.Path = None
             
         self.tag_has_changes = True
+        
+    def assign_lighting_info_tag(self, lighting_info_path: str):
+        if not self.corinth: return
+        info_tag_path = self._TagPath_from_string(lighting_info_path)
+        info_field = self.tag.SelectField("Lighting Info")
+        if info_field.Path != info_tag_path:
+            info_field.Path = info_tag_path
+            self.tag_has_changes = True

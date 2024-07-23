@@ -31,9 +31,8 @@ from bpy.app.handlers import persistent
 import os
 import signal
 
-from io_scene_foundry.managed_blam import blam
-from io_scene_foundry.tools.light_exporter import export_lights_tasks
-from io_scene_foundry.tools.prefab_exporter import export_prefabs_tasks
+from io_scene_foundry.tools.light_exporter import export_lights
+from io_scene_foundry.tools.prefab_exporter import export_prefabs
 from io_scene_foundry.utils.nwo_utils import is_corinth, restart_blender, setup_projects_list, unlink, valid_nwo_asset
 from io_scene_foundry.utils import nwo_globals
 
@@ -115,8 +114,6 @@ else:
     @persistent
     def load_handler(dummy):
         context = bpy.context
-        context.scene.nwo.shader_sync_active = False
-        context.scene.nwo.light_sync_active = False
         context.scene.nwo.export_in_progress = False
         atexit.register(foundry_blam_cleanup)
         # Add projects
@@ -256,16 +253,13 @@ else:
             nwo = bpy.context.scene.nwo
             asset_type = nwo.asset_type
             if not valid_nwo_asset(): return
-            managed_blam_tasks = []
             if nwo.prefabs_export_on_save and asset_type == 'scenario' and is_corinth():
                 print("Exporting Prefabs")
-                managed_blam_tasks.extend(export_prefabs_tasks())
+                export_prefabs()
             if nwo.lights_export_on_save and asset_type == 'scenario':
                 print("Exporting Lights")
-                managed_blam_tasks.extend(export_lights_tasks())
+                export_lights()
                 
-            # blam(managed_blam_tasks)
-
     def register():
         bpy.app.handlers.load_post.append(load_handler)
         bpy.app.handlers.load_post.append(load_set_output_state)

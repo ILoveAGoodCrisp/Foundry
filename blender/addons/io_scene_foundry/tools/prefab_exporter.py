@@ -26,25 +26,24 @@
 
 from pathlib import Path
 import bpy
-from io_scene_foundry.utils.nwo_constants import WU_SCALAR
-from io_scene_foundry.managed_blam import Task, blam
+from io_scene_foundry.managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from io_scene_foundry.utils import nwo_utils
 
 class BlamPrefab:
     def __init__(self, ob, bsp=None, scale=None, rotation=None):
         nwo = ob.nwo
-        self.Name = ob.name
-        self.Bsp = bsp
-        self.Reference = nwo.marker_game_instance_tag_name_ui
-        self.Scale = max(ob.scale[0], ob.scale[1], ob.scale[2])
+        self.name = ob.name
+        self.bsp = bsp
+        self.reference = nwo.marker_game_instance_tag_name_ui
+        self.scale = str(max(ob.scale[0], ob.scale[1], ob.scale[2]))
         matrix = nwo_utils.halo_transforms(ob, scale, rotation)
         matrix_3x3 = matrix.to_3x3().normalized()
         forward = -matrix_3x3.col[1]
-        self.Forward = forward.to_tuple()
+        self.forward = [str(n) for n in forward]
         left_matrix = matrix_3x3.col[0]
-        self.Left = left_matrix.to_tuple()
-        self.Up = matrix_3x3.col[2].to_tuple()
-        self.Position = matrix.translation.to_tuple()
+        self.left = [str(n) for n in left_matrix]
+        self.up = [str(n) for n in matrix_3x3.col[2]]
+        self.position = [str(n) for n in matrix.translation]
     
 class NWO_OT_ExportPrefabs(bpy.types.Operator):
     bl_idname = "nwo.export_prefabs"
@@ -57,21 +56,18 @@ class NWO_OT_ExportPrefabs(bpy.types.Operator):
         return nwo_utils.valid_nwo_asset(context) and context.scene.nwo.asset_type == 'scenario' and nwo_utils.is_corinth(context)
 
     def execute(self, context):
-        # blam(export_prefabs_tasks())
+        export_prefabs()
         return {"FINISHED"}
     
 def gather_prefabs(context):
     return [ob for ob in context.scene.objects if nwo_utils.is_marker(ob) and ob.nwo.exportable and ob.nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name_ui.lower().endswith(".prefab")]
 
-def export_prefabs_tasks():
+def export_prefabs():
     asset_path, asset_name = nwo_utils.get_asset_info()
     prefabs = [BlamPrefab(ob, nwo_utils.true_region(ob.nwo)) for ob in gather_prefabs(bpy.context)]
     bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
     structure_bsp_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_bsp')) for b in bsps]
-    tasks = []
     for idx, bsp_path in enumerate(structure_bsp_paths):
         b = bsps[idx]
-        prefabs_list = [prefab.__dict__ for prefab in prefabs if prefab.Bsp == b]
-        tasks.append(Task("WritePrefabs", bsp_path, {"prefabs": prefabs_list}))  
-        
-    return tasks
+        prefabs_list = [prefab for prefab in prefabs if prefab.bsp == b]
+        with ScenarioStructureBspTag(path=bsp_path) as bsp: bsp.write_prefabs(prefabs_list)

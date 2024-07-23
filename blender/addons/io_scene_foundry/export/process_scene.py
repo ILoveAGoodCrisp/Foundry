@@ -33,13 +33,13 @@ import os
 import json
 import multiprocessing
 import threading
-from io_scene_foundry.managed_blam import Tag, blam
+from io_scene_foundry.managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+from io_scene_foundry.managed_blam import Tag
 from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
 from io_scene_foundry.export.tag_builder import build_tags
 from io_scene_foundry.tools.scenario.lightmap import run_lightmapper
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
-from io_scene_foundry.managed_blam.render_model import RenderModelTag
 from io_scene_foundry.managed_blam.model import ModelTag
 from io_scene_foundry.managed_blam.scenario import ScenarioTag
 from .format_json import NWOJSON
@@ -641,7 +641,7 @@ class ProcessScene:
                 if export_check:
                     if not self.models_export_started:
                         self.models_export_started = True
-                        print("\n\nStarting FBX & JSON Export")
+                        print("\n\nStarting Models Export")
                         print(
                             "-----------------------------------------------------------------------\n"
                         )
@@ -709,7 +709,7 @@ class ProcessScene:
                     if export_check and export_obs:
                         if not self.models_export_started:
                             self.models_export_started = True
-                            print("\n\nStarting FBX & JSON Export")
+                            print("\n\nStarting Models Export")
                             print(
                                 "-----------------------------------------------------------------------\n"
                             )
@@ -886,9 +886,13 @@ class ProcessScene:
         if scenario and scene_nwo.zone_sets:
             write_zone_sets_to_scenario(scene_nwo, asset_name)
             
-        if export_scene.managed_blam_tasks:
-            pass
-            # blam(export_scene.managed_blam_tasks)
+        for task in export_scene.lighting_tasks:
+            if len(task) == 1:
+                with ScenarioStructureLightingInfoTag(path=task[0]) as tag: tag.clear_lights()
+            elif task[0].endswith('.model'):
+                with ModelTag(path=task[0]) as tag: tag.assign_lighting_info_tag(task[1])
+            else:
+                with ScenarioStructureLightingInfoTag(path=task[0]) as tag: tag.build_tag(task[1], task[2])
             
     def any_node_usage_override(self, nwo, asset_type, corinth):
         if not corinth and asset_type == 'animation' and nwo.asset_animation_type == 'first_person':

@@ -3428,3 +3428,7 @@ def to_bounding_box(ob: bpy.types.Object):
     bm.to_mesh(new_data)
     bm.free()
     ob.data = new_data
+    
+def id_from_string(name) -> str:
+    rand = random.Random(name)
+    return str(rand.randint(-2147483647, 2147483647))

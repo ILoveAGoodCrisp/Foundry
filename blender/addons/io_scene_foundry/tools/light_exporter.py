@@ -27,8 +27,9 @@
 from math import degrees
 from pathlib import Path
 import bpy
+from io_scene_foundry.managed_blam.model import ModelTag
+from io_scene_foundry.managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
 from io_scene_foundry.utils.nwo_constants import WU_SCALAR
-from io_scene_foundry.managed_blam import Task, blam
 from io_scene_foundry.utils import nwo_utils
 
 class BlamLightInstance:
@@ -36,41 +37,41 @@ class BlamLightInstance:
         # self.data = ob.data
         data = ob.data
         nwo = data.nwo
-        self.DataName = ob.data.name
-        self.Bsp = bsp
+        self.data_name = ob.data.name
+        self.bsp = bsp
         matrix = nwo_utils.halo_transforms(ob, scale, rotation)
-        self.Origin = matrix.translation.to_tuple()
+        self.origin = [str(n) for n in matrix.translation]
         matrix_3x3 = matrix.to_3x3().normalized()
-        self.Forward = matrix_3x3.col[1].to_tuple()
-        self.Up = matrix_3x3.col[2].to_tuple()
+        self.forward = [str(n) for n in matrix_3x3.col[1]]
+        self.up = [str(n) for n in matrix_3x3.col[2]]
         
-        self.GameType = 0
+        self.game_type = 0
         match nwo.light_game_type:
             case '_connected_geometry_bungie_light_type_uber':
-                self.GameType = 1
+                self.game_type = 1
             case '_connected_geometry_bungie_light_type_inlined':
-                self.GameType = 2
+                self.game_type = 2
             case '_connected_geometry_bungie_light_type_screen_space':
-                self.GameType = 3
+                self.game_type = 3
             case '_connected_geometry_bungie_light_type_rerender':
-                self.GameType = 4
+                self.game_type = 4
         
-        self.VolumeDistance = nwo.light_volume_distance
-        self.VolumeIntensity = nwo.light_volume_intensity
+        self.volume_distance = str(nwo.light_volume_distance)
+        self.volume_intensity = str(nwo.light_volume_intensity)
         
-        self.BounceRatio = nwo.light_bounce_ratio
-        self.ScreenSpaceSpecular = nwo.light_screenspace_has_specular
+        self.bounce_ratio = str(nwo.light_bounce_ratio)
+        self.screen_space_specular = nwo.light_screenspace_has_specular
         
-        self.LightTag = nwo.light_tag_override
-        self.Shader = nwo.light_shader_reference
-        self.Gel = nwo.light_gel_reference
-        self.LensFlare = nwo.light_lens_flare_reference
+        self.light_tag = nwo.light_tag_override
+        self.shader = nwo.light_shader_reference
+        self.gel = nwo.light_gel_reference
+        self.lens_flare = nwo.light_lens_flare_reference
         
-        self.LightMode = 0
+        self.light_mode = 0
         if nwo.light_mode == '_connected_geometry_light_mode_static':
-            self.LightMode = 1
+            self.light_mode = 1
         elif nwo.light_mode == '_connected_geometry_light_mode_analytic':
-            self.LightMode = 2
+            self.light_mode = 2
         
 class BlamLightDefinition:
     def __init__(self, data):
@@ -79,106 +80,107 @@ class BlamLightDefinition:
         else:
             atten_scalar = 100
         nwo = data.nwo
-        self.DataName = data.name
-        self.Type = 0
+        self.data_name = data.name
+        self.id = nwo_utils.id_from_string(self.data_name)
+        self.type = 0
         match data.type:
             case 'SPOT':
-                self.Type = 1
+                self.type = 1
             case 'SUN':
-                self.Type = 2
+                self.type = 2
                 
-        self.Shape = 0
+        self.shape = 0
         if nwo.light_shape == '_connected_geometry_light_shape_circle':
-            self.Shape = 1
+            self.shape = 1
             
-        self.Color = nwo_utils.linear_to_srgb(data.color[0]), nwo_utils.linear_to_srgb(data.color[1]), nwo_utils.linear_to_srgb(data.color[2])
-        self.Intensity = max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001)
-        self.HotspotSize = 0
-        self.HotspotCutoff = 0
+        self.color = str(nwo_utils.linear_to_srgb(data.color[0])), str(nwo_utils.linear_to_srgb(data.color[1])), str(nwo_utils.linear_to_srgb(data.color[2]))
+        self.intensity = max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001)
+        self.hotspot_size = "0"
+        self.hotspot_cutoff = "0"
         if data.type == 'SPOT':
-            self.HotspotSize = min(degrees(data.spot_size), 160)
-            self.HotspotCutoff = self.HotspotSize * abs(1 - data.spot_blend)
+            self.hotspot_size = min(degrees(data.spot_size), 160)
+            self.hotspot_cutoff = str(self.hotspot_size * abs(1 - data.spot_blend))
             
-        self.HotspotFalloff = nwo.light_falloff_shape
+        self.hotspot_falloff = str(nwo.light_falloff_shape)
         
-        self.NearAttenuationStart = nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR
-        self.NearAttenuationEnd = nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR
+        self.near_attenuation_start = str(nwo.light_near_attenuation_start * atten_scalar * WU_SCALAR)
+        self.near_attenuation_end = str(nwo.light_near_attenuation_end * atten_scalar * WU_SCALAR)
         if nwo.light_far_attenuation_end:
-            self.FarAttenuationStart = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
-            self.FarAttenuationEnd = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
+            self.far_attenuation_start = nwo.light_far_attenuation_start * atten_scalar * WU_SCALAR
+            self.far_attenuation_end = nwo.light_far_attenuation_end * atten_scalar * WU_SCALAR
         else:
-            self.FarAttenuationStart = 9 * atten_scalar
-            self.FarAttenuationEnd = 40 * atten_scalar
+            self.far_attenuation_start = 9 * atten_scalar
+            self.far_attenuation_end = 40 * atten_scalar
             
-        self.Aspect = nwo.light_aspect
+        self.aspect = str(nwo.light_aspect)
         
-        self.ConeShape = 0 if nwo.light_cone_projection_shape == '_connected_geometry_cone_projection_shape_cone' else 1
-        self.LightingMode = 0 if nwo.light_physically_correct else 1
+        self.cone_shape = 0 if nwo.light_cone_projection_shape == '_connected_geometry_cone_projection_shape_cone' else 1
+        self.lighting_mode = 0 if nwo.light_physically_correct else 1
         
         # Dynamic only props
-        self.ShadowNearClip = nwo.light_shadow_near_clipplane
-        self.ShadowFarClip = nwo.light_shadow_far_clipplane
-        self.ShadowBias = nwo.light_shadow_bias_offset
-        self.ShadowQuality = 0 if nwo.light_dynamic_shadow_quality == '_connected_geometry_dynamic_shadow_quality_normal' else 1
-        self.Shadows = 1 if nwo.light_shadows else 0
-        self.ScreenSpace = 1 if nwo.light_screenspace else 0
-        self.IgnoreDynamicObjects = 1 if nwo.light_ignore_dynamic_objects else 0
-        self.CinemaObjectsOnly = 1 if nwo.light_cinema_objects_only else 0
-        self.CinemaOnly = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_only' else 0
-        self.CinemaExclude = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_exclude' else 0
-        self.SpecularContribution = 1 if nwo.light_specular_contribution else 0
-        self.DiffuseContribution = 1 if nwo.light_diffuse_contribution else 0
+        self.shadow_near_clip = str(nwo.light_shadow_near_clipplane)
+        self.shadow_far_clip = str(nwo.light_shadow_far_clipplane)
+        self.shadow_bias = str(nwo.light_shadow_bias_offset)
+        self.shadow_quality = 0 if nwo.light_dynamic_shadow_quality == '_connected_geometry_dynamic_shadow_quality_normal' else 1
+        self.shadows = 1 if nwo.light_shadows else 0
+        self.screen_space = 1 if nwo.light_screenspace else 0
+        self.ignore_dynamic_objects = 1 if nwo.light_ignore_dynamic_objects else 0
+        self.cinema_objects_only = 1 if nwo.light_cinema_objects_only else 0
+        self.cinema_only = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_only' else 0
+        self.cinema_exclude = 1 if nwo.light_cinema == '_connected_geometry_lighting_cinema_exclude' else 0
+        self.specular_contribution = 1 if nwo.light_specular_contribution else 0
+        self.diffuse_contribution = 1 if nwo.light_diffuse_contribution else 0
         
         # Static only props
-        self.IndirectAmp = nwo.light_amplification_factor
-        self.JitterSphere = nwo.light_jitter_sphere_radius
-        self.JitterAngle = degrees(nwo.light_jitter_angle)
-        self.JitterQuality = 0
+        self.indirect_amp = str(nwo.light_amplification_factor)
+        self.jitter_sphere = str(nwo.light_jitter_sphere_radius)
+        self.jitter_angle = str(degrees(nwo.light_jitter_angle))
+        self.jitter_quality = 0
         if nwo.light_jitter_quality == '_connected_geometry_light_jitter_quality_medium':
-            self.JitterQuality = 1
+            self.jitter_quality = 1
         elif nwo.light_jitter_quality == '_connected_geometry_light_jitter_quality_high':
-            self.JitterQuality = 2
+            self.jitter_quality = 2
             
-        self.IndirectOnly = 1 if nwo.light_indirect_only else 0
-        self.StaticAnalytic = 1 if nwo.light_static_analytic else 0
+        self.indirect_only = 1 if nwo.light_indirect_only else 0
+        self.static_analytic = 1 if nwo.light_static_analytic else 0
           
-class NWO_OT_LightSync(bpy.types.Operator):
-    bl_idname = "nwo.light_sync"
-    bl_label = "Light Sync"
-    bl_description = "Updates lighting info tags from Blender in realtime"
-    bl_options = {'REGISTER'}
+# class NWO_OT_LightSync(bpy.types.Operator):
+#     bl_idname = "nwo.light_sync"
+#     bl_label = "Light Sync"
+#     bl_description = "Updates lighting info tags from Blender in realtime"
+#     bl_options = {'REGISTER'}
     
-    cancel_sync: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
+#     cancel_sync: bpy.props.BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
 
-    @classmethod
-    def poll(cls, context):
-        return nwo_utils.valid_nwo_asset(context)
+#     @classmethod
+#     def poll(cls, context):
+#         return nwo_utils.valid_nwo_asset(context)
     
-    def execute(self, context):
-        if self.cancel_sync:
-            context.scene.nwo.light_sync_active = False
-            return {'CANCELLED'}
-        context.scene.nwo.light_sync_active = True
-        wm = context.window_manager
-        self.timer = wm.event_timer_add(context.scene.nwo.light_sync_rate, window=context.window)
-        wm.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
+#     def execute(self, context):
+#         if self.cancel_sync:
+#             context.scene.nwo.light_sync_active = False
+#             return {'CANCELLED'}
+#         context.scene.nwo.light_sync_active = True
+#         wm = context.window_manager
+#         self.timer = wm.event_timer_add(context.scene.nwo.light_sync_rate, window=context.window)
+#         wm.modal_handler_add(self)
+#         return {'RUNNING_MODAL'}
 
-    def modal(self, context, event):
-        nwo = context.scene.nwo
-        if not nwo.light_sync_active:
-            return self.cancel(context)
-        if event.type == 'TIMER':
-            for area in context.screen.areas:
-                if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and nwo_utils.mouse_in_object_editor_region(context, event.mouse_x, event.mouse_y):
-                    # blam(export_lights_tasks())
-                    return {'PASS_THROUGH'}
+#     def modal(self, context, event):
+#         nwo = context.scene.nwo
+#         if not nwo.light_sync_active:
+#             return self.cancel(context)
+#         if event.type == 'TIMER':
+#             for area in context.screen.areas:
+#                 if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and nwo_utils.mouse_in_object_editor_region(context, event.mouse_x, event.mouse_y):
+#                     # blam(export_lights_tasks())
+#                     return {'PASS_THROUGH'}
                 
-        return {'PASS_THROUGH'}
+#         return {'PASS_THROUGH'}
     
-    def cancel(self, context):
-        wm = context.window_manager
-        wm.event_timer_remove(self.timer)
+#     def cancel(self, context):
+#         wm = context.window_manager
+#         wm.event_timer_remove(self.timer)
 
 class NWO_OT_ExportLights(bpy.types.Operator):
     bl_idname = "nwo.export_lights"
@@ -191,43 +193,41 @@ class NWO_OT_ExportLights(bpy.types.Operator):
         return nwo_utils.valid_nwo_asset(context)
 
     def execute(self, context):
-        # blam(export_lights_tasks())
+        export_lights()
         return {"FINISHED"}
     
 def gather_lights(context):
     return [ob for ob in context.scene.objects if ob.type == 'LIGHT' and ob.data.type != 'AREA' and ob.nwo.exportable]
 
-def export_lights_tasks():
+def export_lights():
+    context = bpy.context
     asset_path, asset_name = nwo_utils.get_asset_info()
-    asset_type = bpy.context.scene.nwo.asset_type
-    light_objects = gather_lights(bpy.context)
+    asset_type = context.scene.nwo.asset_type
+    light_objects = gather_lights(context)
     lights = [BlamLightInstance(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
-    tasks = []
     if asset_type == 'scenario':
-        bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
+        bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']
         lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
         for idx, info_path in enumerate(lighting_info_paths):
             b = bsps[idx]
-            lights_list = [light for light in lights if light.Bsp == b]
+            lights_list = [light for light in lights if light.bsp == b]
             if not lights_list:
                 if Path(nwo_utils.get_tags_path(), nwo_utils.relative_path(info_path)).exists():
-                    tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
+                    with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
             else:
-                light_instances = [light.__dict__ for light in lights_list]
-                light_data = {bpy.data.lights.get(light.DataName) for light in lights_list}
-                light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-                tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+                light_instances = [light for light in lights_list]
+                light_data = {bpy.data.lights.get(light.data_name) for light in lights_list}
+                light_definitions = [BlamLightDefinition(data) for data in light_data]
+                with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.build_tag(light_instances, light_definitions)
     
-    elif nwo_utils.is_corinth() and asset_type in ('model', 'sky', 'prefab'):
+    elif nwo_utils.is_corinth(context) and asset_type in ('model', 'sky', 'prefab'):
         info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
         if not lights:
-            tasks.append(Task("ClearScenarioStructureLightingInfo", info_path, {}))
+            with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
         else:
-            light_instances = [light.__dict__ for light in lights]
-            light_data = {bpy.data.lights.get(light.DataName) for light in lights}
-            light_definitions = [BlamLightDefinition(data).__dict__ for data in light_data]
-            tasks.append(Task("BuildScenarioStructureLightingInfo", info_path, {"instances": light_instances, "definitions": light_definitions}))
+            light_instances = [light for light in lights]
+            light_data = {bpy.data.lights.get(light.data_name) for light in lights}
+            light_definitions = [BlamLightDefinition(data) for data in light_data]
+            with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.build_tag(light_instances, light_definitions)
             if asset_type in ('model', 'sky'):
-                tasks.append(Task("ModelAssignScenarioStructureLightingInfo", str(Path(asset_path, f'{asset_name}.model')), {"info_path": info_path}))
-
-    return tasks
+                with ModelTag(path=str(Path(asset_path, f'{asset_name}.model'))) as tag: tag.assign_lighting_info_tag(info_path)
