@@ -160,8 +160,6 @@ class ProcessScene:
                                         action_nwo.animation_events,
                                         arm,
                                         export_scene.root_bone_name,
-                                        timeline.frame_start,
-                                        timeline.frame_end,
                                     )
 
                                     override = context.copy()
@@ -930,7 +928,7 @@ class ProcessScene:
     # ANIMATION EVENTS
 
     def create_event_nodes(
-        self, context, events, model_armature, root_bone_name, frame_start, frame_end
+        self, context, events, model_armature, root_bone_name
     ):
         animation_events = [model_armature]
         scene_coll = context.scene.collection.objects
@@ -956,7 +954,7 @@ class ProcessScene:
             animation_events.append(event_ob)
             # duplicate for frame range
             if event.event_type == '_connected_geometry_animation_event_type_frame':
-                event_ob["bungie_animation_event_frame_frame"] = event.frame_frame
+                event_ob["bungie_animation_event_frame_frame"] = str(event.frame_frame)
                 event_ob["bungie_animation_event_frame_name"] = event.frame_name
                 if event.multi_frame == "range" and event.frame_range > event.frame_frame:
                     for i in range(event.frame_range - event.frame_frame):

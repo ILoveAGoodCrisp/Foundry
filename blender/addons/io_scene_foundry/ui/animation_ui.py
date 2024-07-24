@@ -847,6 +847,9 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
         return {'PASS_THROUGH'}
 
     def execute(self, context):
+        if context.scene.nwo.keyframe_sync_active:
+            context.scene.nwo.keyframe_sync_active = False
+            return {"CANCELLED"}
         context.scene.nwo.keyframe_sync_active = True
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.5, window=context.window)
