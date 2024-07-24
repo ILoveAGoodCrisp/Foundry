@@ -58,7 +58,7 @@ from io_scene_foundry.tools.scale_models import NWO_OT_AddScaleModel
 from io_scene_foundry.tools.animation.automate_pose_overlay import NWO_AddAimAnimation
 from io_scene_foundry.tools.rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
 from io_scene_foundry.tools.rigging.create_rig import NWO_OT_AddRig
-from io_scene_foundry.tools.rigging.validation import NWO_AddPedestalControl, NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig
+from io_scene_foundry.tools.rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig
 from io_scene_foundry.tools.scene_scaler import NWO_ScaleScene
 from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
 from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMaterials
@@ -810,10 +810,6 @@ class NWO_FoundryPanelProps(Panel):
                 
     def draw_rig_controls(self, box: bpy.types.UILayout, nwo):
         box.use_property_split = True
-        row = box.row(align=True)
-        row.prop_search(nwo, 'control_pedestal', nwo.main_armature.data, 'bones')
-        if not nwo.control_pedestal:
-            row.operator('nwo.add_pedestal_control', text='', icon='ADD')
         row = box.row(align=True)
         row.prop_search(nwo, 'control_aim', nwo.main_armature.data, 'bones')
         if not nwo.control_aim:
@@ -3068,7 +3064,6 @@ class NWO_FoundryPanelProps(Panel):
         nwo = self.scene.nwo
         col.use_property_split = True
         col.operator("nwo.fcurve_transfer", icon='GRAPH')
-        col.operator('nwo.convert_to_halo_rig', text='Convert to Halo Rig', icon='OUTLINER_OB_ARMATURE')
         col.operator('nwo.validate_rig', text='Validate Rig', icon='ARMATURE_DATA')
         if nwo.multiple_root_bones:
             col.label(text='Multiple Root Bones', icon='ERROR')
@@ -3387,9 +3382,7 @@ class NWO_SelectArmature(Operator):
     def poll(cls, context):
         return context.mode == 'OBJECT'
     
-    has_pedestal_control: BoolProperty()
     has_pose_bones: BoolProperty()
-    has_aim_control: BoolProperty()
     create_arm: BoolProperty(options={'HIDDEN', 'SKIP_SAVE'})
 
     def execute(self, context):
@@ -3422,10 +3415,7 @@ class NWO_SelectArmature(Operator):
     def draw(self, context):
         layout = self.layout
         layout.label(text='No Armature in Scene. Press OK to create one')
-        layout.prop(self, 'has_pedestal_control', text='With Pedestal Control Bone')
         layout.prop(self, 'has_pose_bones', text='With Aim Bones')
-        if self.has_pose_bones:
-            layout.prop(self, 'has_aim_control', text='With Aim Control Bone')
 
 class NWO_OT_PanelUnpin(Operator):
     bl_idname = "nwo.panel_unpin"
@@ -5430,7 +5420,6 @@ classeshalo = (
     NWO_FixRootBone,
     NWO_FixPoseBones,
     NWO_FixArmatureTransforms,
-    NWO_AddPedestalControl,
     NWO_AddAimAnimation,
     NWO_MeshToMarker,
     NWO_StompMaterials,

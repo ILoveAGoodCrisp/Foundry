@@ -147,8 +147,6 @@ class NWO_ValidateRig(bpy.types.Operator):
     
     def strip_null_rig_refs(self, scene_nwo, rig):
         bone_names = [b.name for b in rig.data.bones]
-        if scene_nwo.control_pedestal and scene_nwo.control_pedestal not in bone_names:
-            scene_nwo.control_pedestal = ""
         if scene_nwo.control_aim and scene_nwo.control_aim not in bone_names:
             scene_nwo.control_aim = ""
         if scene_nwo.node_usage_pedestal and scene_nwo.node_usage_pedestal not in bone_names:
@@ -456,9 +454,9 @@ class NWO_AddPoseBones(bpy.types.Operator):
         rig.rig_data = arm.data
         context.view_layer.objects.active = arm
         arm.select_set(True)
-        rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None, build_pedestal_control=(not bool(scene_nwo.control_pedestal)), build_aim_control=(not bool(scene_nwo.control_aim)))
+        rig.build_bones(pedestal=scene_nwo.node_usage_pedestal if scene_nwo.node_usage_pedestal else None, pitch=scene_nwo.node_usage_pose_blend_pitch if scene_nwo.node_usage_pose_blend_pitch else None, yaw=scene_nwo.node_usage_pose_blend_yaw if scene_nwo.node_usage_pose_blend_yaw else None)
         if self.add_control_bone:
-            rig.build_and_apply_control_shapes(pitch=rig.rig_ob.pose.bones.get(scene_nwo.node_usage_pose_blend_pitch), yaw=rig.rig_ob.pose.bones.get(scene_nwo.node_usage_pose_blend_yaw))
+            rig.build_and_apply_control_shapes(pitch=scene_nwo.node_usage_pose_blend_pitch, yaw=scene_nwo.node_usage_pose_blend_yaw)
         context.scene.nwo.needs_pose_bones = False
         return {'FINISHED'}
     
@@ -478,44 +476,3 @@ class NWO_AddPoseBones(bpy.types.Operator):
     
     def draw(self, context):
         self.layout.prop(self, 'add_control_bone', text='Add Aim Control Bone')
-    
-class NWO_AddPedestalControl(bpy.types.Operator):
-    bl_label = "Add Pedestal Control"
-    bl_idname = "nwo.add_pedestal_control"
-    bl_description = "Adds a control bone and custom shape to the armature pedestal bone"
-    bl_options = {'UNDO'}
-    
-    armature: bpy.props.StringProperty()
-    
-    def execute(self, context):
-        nwo_utils.set_object_mode(context)
-        scene_nwo = context.scene.nwo
-        tail_scale = 1 if scene_nwo.scale == 'blender' else (1 / 0.03048)
-        if self.armature:
-            arm = bpy.data.objects.get(self.armature)
-        else:
-            arm = nwo_utils.get_rig(context)
-            
-        bones = arm.data.bones
-        root = None
-        for b in bones:
-            if b.use_deform and not b.parent:
-                root = arm.pose.bones.get(b.name)
-                break
-        else:
-            self.report({'WARNING'}, 'No root bone found')
-            return {'FINISHED'}
-            
-        if scene_nwo.main_armature == arm and scene_nwo.control_pedestal:
-            self.report({'INFO'}, "Pedestal control already in place")
-            return {'CANCELLED'}
-        else:
-            rig = HaloRig(context, tail_scale, scene_nwo.forward_direction, True, False, False, True)
-            rig.rig_ob = arm
-            rig.rig_data = arm.data
-            context.view_layer.objects.active = arm
-            arm.select_set(True)
-            rig.build_bones(pedestal=root.name)
-            rig.build_and_apply_control_shapes(pedestal=root)
-            
-        return {'FINISHED'}

@@ -1125,7 +1125,6 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     node_usage_right_hand : StringProperty(name="Right Hand", options=set())
     node_usage_weapon_ik : StringProperty(name="Weapon IK", options=set())
     
-    control_pedestal: StringProperty(name='Pedestal Control', options=set())
     control_aim: StringProperty(name='Aim Control', options=set())
     
     # Scale

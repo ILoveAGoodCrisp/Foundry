@@ -306,6 +306,10 @@ def object_context_sets(self, context):
             row.label(text=f"{permutation_name}: " + true_permutation(nwo), icon_value=get_icon_id("collection_creator"))
         else:
             row.menu("NWO_MT_PermutationsSelection", text=f"{permutation_name}: " + true_permutation(nwo), icon_value=get_icon_id("permutation"))
+            
+    if ob.type == 'ARMATURE':
+        row = layout.row()
+        row.operator('nwo.convert_to_halo_rig', text='Convert to Halo Rig', icon='OUTLINER_OB_ARMATURE')
         
 def collection_context(self, context):
     layout = self.layout

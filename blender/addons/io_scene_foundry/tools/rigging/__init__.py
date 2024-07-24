@@ -33,7 +33,7 @@ bone_y = -0.1, 0, 0
 bone_y_negative = 0.1, 0, 0
 
 pedestal_name, aim_pitch_name, aim_yaw_name = 'pedestal', 'aim_pitch', 'aim_yaw'
-pedestal_control_name, aim_control_name = 'CTRL_pedestal', 'CTRL_aim'
+aim_control_name = 'CTRL_aim'
 pedestal_shape_name, aim_shape_name = 'pedestal_shape', 'aim_shape'
 
 pedestal_shape_vert_coords = [(0.809309, 0.60584, 0.0), (0.756688, 0.674648, 0.0), (0.690572, 0.74488, 0.0), (0.625647, 0.799433, 0.0), (0.552399, 0.849233, 0.0), (0.472018, 0.893502, 1e-06), (0.385693, 0.931465, 1e-06), (0.294613, 0.962344, 1e-06), (0.199964, 0.985363, 1e-06), (0.10294, 0.999742, 1e-06), (0.004724, 1.004709, 1e-06), (-0.093539, 0.999675, 1e-06), (-0.190899, 0.984823, 1e-06), (-0.28646, 0.960528, 1e-06), (-0.379317, 0.927159, 1e-06), (-0.468572, 0.885094, 1e-06), (-0.553322, 0.834703, 0.0), (-0.63267, 0.776358, 0.0), (-0.705711, 0.710436, 0.0), (-0.771635, 0.637395, 0.0), (-0.829979, 0.558048, 0.0), (-0.880369, 0.473297, 0.0), (-0.922439, 0.384043, 0.0), (-0.955806, 0.291185, 0.0), (-0.980101, 0.195624, 0.0), (-0.99495, 0.098263, 0.0), (-0.999985, -0.0, -0.0), (-0.99495, -0.098263, -0.0), (-0.980101, -0.195624, -0.0), (-0.955806, -0.291185, -0.0), (-0.922439, -0.384043, -0.0), (-0.880369, -0.473297, -0.0), (-0.829979, -0.558048, -0.0), (-0.771635, -0.637395, -0.0), (-0.705711, -0.710435, -0.0), (-0.63267, -0.776358, -0.0), (-0.553322, -0.834703, -0.0), (-0.468572, -0.885094, -1e-06), (-0.379317, -0.927159, -1e-06), (-0.28646, -0.960527, -1e-06), (-0.190899, -0.984823, -1e-06), (-0.093538, -0.999675, -1e-06), (0.004724, -1.004709, -1e-06), (0.102987, -0.999675, -1e-06), (0.200348, -0.984823, -1e-06), (0.295908, -0.960527, -1e-06), (0.388767, -0.92716, -1e-06), (0.478021, -0.885094, -1e-06), (0.562772, -0.834703, -0.0), (0.642119, -0.776358, -0.0), (0.71516, -0.710435, -0.0), (0.768886, -0.652072, -0.0), (0.817734, -0.589496, -0.0), (0.861507, -0.523183, -0.0), (0.90001, -0.4536, -0.0), (1.13563, -0.4536, -0.0), (1.13563, -0.9072, -1e-06), (2.042828, -0.0, -0.0), (1.135629, 0.9072, 1e-06), (1.13563, 0.4536, 0.0), (0.902965, 0.454077, 0.0), (0.859238, 0.528559, 0.0)]
@@ -42,39 +42,34 @@ pedestal_shape_faces = [[61, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 1
 aim_shape_faces = [[1, 3, 0, 2]]
 
 class HaloRig:
-    def __init__(self, context: bpy.types.Context, scale, forward, has_pedestal_control=False, has_pose_bones=False, has_aim_control=False, set_scene_rig_props=False):
+    def __init__(self, context: bpy.types.Context, scale, forward, has_pose_bones=False, set_scene_rig_props=False):
         self.context = context
         self.scale = scale
         self.forward = forward
-        self.has_pedestal_control = has_pedestal_control
         self.has_pose_bones = has_pose_bones
-        self.has_aim_control = has_aim_control
         self.set_scene_rig_props = set_scene_rig_props
     
-    def build_and_apply_control_shapes(self, pedestal=None, pedestal_control=None, pitch=None, yaw=None, aim_control=None):
-        if self.has_pedestal_control:
-            if pedestal is None:
-                pedestal: bpy.types.PoseBone = self.rig_ob.pose.bones.get(pedestal_name)
-            if pedestal_control is None:
-                pedestal_control: bpy.types.PoseBone = self.rig_ob.pose.bones.get(pedestal_control_name)
-            shape_ob = bpy.data.objects.get(pedestal_shape_name)
-            if shape_ob is None:
-                shape_data = bpy.data.meshes.new(pedestal_shape_name)
-                verts = [Vector(co) for co in pedestal_shape_vert_coords]
-                shape_data.from_pydata(vertices=verts, edges=[], faces=pedestal_shape_faces)
-                shape_ob = bpy.data.objects.new(pedestal_shape_name, shape_data)
+    def build_and_apply_control_shapes(self, pedestal=None, pitch=None, yaw=None, aim_control=None, wireframe=False):
+        if pedestal is None:
+            pedestal: bpy.types.PoseBone = self.rig_ob.pose.bones.get(pedestal_name)
+        else:
+            pedestal = self.rig_ob.pose.bones.get(pedestal)
+        shape_ob = bpy.data.objects.get(pedestal_shape_name)
+        if shape_ob is None:
+            shape_data = bpy.data.meshes.new(pedestal_shape_name)
+            verts = [Vector(co) for co in pedestal_shape_vert_coords]
+            shape_data.from_pydata(vertices=verts, edges=[], faces=pedestal_shape_faces)
+            shape_ob = bpy.data.objects.new(pedestal_shape_name, shape_data)
             
             shape_ob.nwo.export_this = False
-            pedestal_control.custom_shape = shape_ob
-            pedestal_control.custom_shape_scale_xyz *= self.scale
-            pedestal_control.use_custom_shape_bone_size = False
-            con = pedestal.constraints.new('COPY_TRANSFORMS')
-            con.target = self.rig_ob
-            con.subtarget = pedestal_control_name
-            con.target_space = 'LOCAL_OWNER_ORIENT'
-            con.owner_space = 'LOCAL'
+            
+        pedestal.custom_shape = shape_ob
+        pedestal.custom_shape_scale_xyz *= self.scale
+        pedestal.use_custom_shape_bone_size = False
+        if wireframe:
+            self.rig_data.bones[pedestal.name].show_wire = True
         
-        if self.has_pose_bones and self.has_aim_control:
+        if self.has_pose_bones:
             if aim_control is None:
                 aim_control: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_control_name)
             shape_ob = bpy.data.objects.get(aim_shape_name)
@@ -83,11 +78,14 @@ class HaloRig:
                 verts = [Vector(co) for co in aim_shape_vert_coords]
                 shape_data.from_pydata(vertices=verts, edges=[], faces=aim_shape_faces)
                 shape_ob = bpy.data.objects.new(aim_shape_name, shape_data)
-            
-            shape_ob.nwo.export_this = False
+                shape_ob.nwo.export_this = False
+                
             aim_control.custom_shape = shape_ob
             aim_control.custom_shape_scale_xyz *= self.scale
             aim_control.use_custom_shape_bone_size = False
+            if wireframe:
+                self.rig_data.bones[aim_control.name].show_wire = True
+                
             con = aim_control.constraints.new('LIMIT_SCALE')
             con.use_min_x = True
             con.use_min_y = True
@@ -116,6 +114,8 @@ class HaloRig:
             
             if pitch is None:
                 pitch: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_pitch_name)
+            else:
+                pitch = self.rig_ob.pose.bones.get(pitch)
             con = pitch.constraints.new('COPY_ROTATION')
             con.target = self.rig_ob
             con.subtarget = aim_control.name
@@ -126,6 +126,8 @@ class HaloRig:
             
             if yaw is None:
                 yaw: bpy.types.PoseBone = self.rig_ob.pose.bones.get(aim_yaw_name)
+            else:
+                yaw = self.rig_ob.pose.bones.get(yaw)
             con = yaw.constraints.new('COPY_ROTATION')
             con.target = self.rig_ob
             con.subtarget = aim_control.name
@@ -134,7 +136,7 @@ class HaloRig:
             con.target_space = 'LOCAL_OWNER_ORIENT'
             con.owner_space = 'LOCAL'
     
-    def build_bones(self, pedestal=None, pitch=None, yaw=None, build_pedestal_control=True, build_aim_control=True):
+    def build_bones(self, pedestal=None, pitch=None, yaw=None):
         bone_tail = globals()[f"bone_{self.forward.replace('-', '_negative')}"]
         bpy.ops.object.editmode_toggle()
         if pedestal is None:
@@ -145,12 +147,6 @@ class HaloRig:
             
         if self.set_scene_rig_props and self.has_pose_bones and not self.context.scene.nwo.node_usage_pedestal:
             self.context.scene.nwo.node_usage_pedestal = pedestal_name
-        if self.has_pedestal_control:
-            pedestal_control = self.rig_data.edit_bones.new(pedestal_control_name)
-            pedestal_control.use_deform = False
-            pedestal_control.tail = bone_tail
-            if self.set_scene_rig_props:
-                self.context.scene.nwo.control_pedestal = pedestal_control_name
             
         if self.has_pose_bones:
             if pitch is None:
@@ -172,32 +168,15 @@ class HaloRig:
                     self.context.scene.nwo.node_usage_pose_blend_pitch = aim_pitch_name
                 if not self.context.scene.nwo.node_usage_pose_blend_yaw:
                     self.context.scene.nwo.node_usage_pose_blend_yaw = aim_yaw_name
-            if self.has_aim_control:
-                aim_control = self.rig_data.edit_bones.new(aim_control_name)
-                aim_control.use_deform = False
-                aim_control.parent = pedestal
-                aim_control.tail = bone_tail
-                if self.set_scene_rig_props and not self.context.scene.nwo.control_aim:
-                    self.context.scene.nwo.control_aim = aim_control_name
+                    
+            aim_control = self.rig_data.edit_bones.new(aim_control_name)
+            aim_control.use_deform = False
+            aim_control.parent = pedestal
+            aim_control.tail = bone_tail
+            if self.set_scene_rig_props and not self.context.scene.nwo.control_aim:
+                self.context.scene.nwo.control_aim = aim_control_name
 
         bpy.ops.object.editmode_toggle()
-        
-        
-    def build_bone_collections(self):
-        deform_collection = self.rig_data.collections.new('halo_deform_bones')
-        deform_collection.assign(self.rig_data.bones.get(pedestal_name))
-        if self.has_pose_bones:
-            deform_collection.assign(self.rig_data.bones.get(aim_pitch_name))
-            deform_collection.assign(self.rig_data.bones.get(aim_yaw_name))
-            
-        if self.has_pedestal_control or self.has_aim_control:
-            # deform_collection.is_visible = False
-            control_collection = self.rig_data.collections.new('halo_control_bones')
-            if self.has_pedestal_control:
-                control_collection.assign(self.rig_data.bones.get(pedestal_control_name))
-                
-            if self.has_aim_control:
-                control_collection.assign(self.rig_data.bones.get(aim_control_name))
                 
     def make_parent(self, child_bone_name):
         bpy.ops.object.editmode_toggle()
