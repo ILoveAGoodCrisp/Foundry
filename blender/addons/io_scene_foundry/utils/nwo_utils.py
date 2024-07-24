@@ -2033,7 +2033,7 @@ def rotation_and_pivot(rotation):
     
     return rotation_matrix, pivot_matrix
 
-def halo_transforms(ob, scale=None, rotation=None):
+def halo_transforms(ob, scale=None, rotation=None, marker=False):
     '''
     Returns an object's matrix_world transformed for Halo. Used when writing object transforms directly to tags
     '''
@@ -2062,12 +2062,12 @@ def halo_transforms(ob, scale=None, rotation=None):
         
     rot.rotate(rotation_matrix)
     
-    # if is_marker(ob):
-    #     if isinstance(rot, Quaternion):
-    #         rot = rot.to_euler()
+    if marker and not bpy.context.scene.nwo.maintain_marker_axis:
+        if isinstance(rot, Quaternion):
+            rot = rot.to_euler()
         
-    #     rot: Euler
-    #     rot.rotate_axis('Z', -rotation)
+        rot: Euler
+        rot.rotate_axis('Z', rotation)
     
     new_matrix = Matrix.LocRotScale(loc, rot, sca)
     

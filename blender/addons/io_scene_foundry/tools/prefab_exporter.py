@@ -36,7 +36,7 @@ class BlamPrefab:
         self.bsp = bsp
         self.reference = nwo.marker_game_instance_tag_name_ui
         self.scale = str(max(ob.scale[0], ob.scale[1], ob.scale[2]))
-        matrix = nwo_utils.halo_transforms(ob, scale, rotation)
+        matrix = nwo_utils.halo_transforms(ob, scale, rotation, True)
         matrix_3x3 = matrix.to_3x3().normalized()
         forward = -matrix_3x3.col[1]
         self.forward = [str(n) for n in forward]
