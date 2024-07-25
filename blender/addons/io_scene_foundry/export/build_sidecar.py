@@ -25,6 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from datetime import datetime
+import os
 from pathlib import Path
 import bpy
 import getpass
@@ -167,6 +168,10 @@ class Sidecar:
             # update sidecar path in halo launcher
             context.scene.nwo.sidecar_path = sidecar_path
 
+        if Path(sidecar_path_full).exists():
+            if not os.access(sidecar_path_full, os.W_OK):
+                raise RuntimeError(f"Sidecar is read only, cannot complete export: {sidecar_path_full}\n")
+        
         with open(sidecar_path_full, "w") as xfile:
             xfile.write(
                 part1
