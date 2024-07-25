@@ -24,9 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-import json
 from pathlib import Path
-import socket
 from io_scene_foundry.managed_blam.Tags import *
 from io_scene_foundry.utils import nwo_globals
 from io_scene_foundry.utils.nwo_utils import (
@@ -35,7 +33,6 @@ from io_scene_foundry.utils.nwo_utils import (
     enable_prints,
     get_asset_path,
     get_data_path,
-    get_foundry_blam_exe,
     get_tags_path,
     linear_to_srgb,
     managed_blam_active,
@@ -52,7 +49,6 @@ import sys
 import subprocess
 import ctypes
 import atexit
-import tempfile
 
 last_saved_tag = None
 

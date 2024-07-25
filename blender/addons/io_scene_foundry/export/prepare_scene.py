@@ -2012,6 +2012,39 @@ class PrepareScene:
                     ".prefab"
                 ):
                     ob["bungie_marker_type"] = "_connected_geometry_marker_type_prefab"
+                    if nwo.prefab_pathfinding != "no_override":
+                        ob["bungie_mesh_poop_pathfinding"] = nwo.prefab_pathfinding
+                    if nwo.prefab_lighting != "no_override":
+                        ob["bungie_mesh_poop_lighting"] = nwo.prefab_lighting
+                    if nwo.prefab_imposter_policy != "no_override":
+                        ob["bungie_mesh_poop_imposter_policy"] = nwo.prefab_imposter_policy
+                        if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
+                            if nwo.prefab_imposter_brightness > 0:
+                                ob["bungie_mesh_poop_imposter_brightness"] = nwo_utils.jstr(nwo.prefab_imposter_brightness)
+                            if not nwo.prefab_imposter_transition_distance_auto:
+                                ob["bungie_mesh_poop_imposter_transition_distance"] = nwo_utils.jstr(nwo.prefab_imposter_transition_distance_auto)
+                                
+                    if nwo.prefab_streaming_priority != "no_override":
+                        ob["bungie_mesh_poop_streamingpriority"] = nwo.prefab_streaming_priority
+                    
+                    if nwo.prefab_cinematic_properties == '_connected_geometry_poop_cinema_only':
+                        ob["bungie_mesh_poop_cinema_only"] = "1"
+                    elif nwo.prefab_cinematic_properties == '_connected_geometry_poop_cinema_exclude':
+                        ob["bungie_mesh_poop_exclude_from_cinema"] = "1"
+                        
+                    if nwo.prefab_render_only:
+                        ob["bungie_mesh_poop_is_render_only"] = "1"
+                    if nwo.prefab_does_not_block_aoe:
+                        ob["bungie_mesh_poop_does_not_block_aoe"] = "1"
+                    if nwo.prefab_excluded_from_lightprobe:
+                        ob["bungie_mesh_poop_excluded_from_lightprobe"] = "1"
+                    if nwo.prefab_decal_spacing:
+                        ob["bungie_mesh_poop_decal_spacing"] = "1"
+                    if nwo.prefab_remove_from_shadow_geometry:
+                        ob["bungie_mesh_poop_remove_from_shadow_geometry"] = "1"
+                    if nwo.prefab_disallow_lighting_samples:
+                        ob["bungie_mesh_poop_disallow_object_lighting_samples"] = "1"       
+                        
                 elif (
                     self.corinth
                     and tag_name.endswith(

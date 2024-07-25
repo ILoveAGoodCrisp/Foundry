@@ -1261,7 +1261,6 @@ class NWO_FoundryPanelProps(Panel):
 
         halo_light = ob.type == 'LIGHT'
         has_mesh_types = is_mesh(ob) and poll_ui(('model', 'scenario', 'prefab'))
-        has_marker_types = is_marker(ob) and poll_ui(('model', 'sky', 'scenario', 'prefab'))
 
         # Check if this is a linked collection
         if library_instanced_collection(ob):
@@ -1797,16 +1796,14 @@ class NWO_FoundryPanelProps(Panel):
                 )
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "marker_game_instance_tag_name_ui"
                 row.operator("nwo.tag_explore", icon="FILE_FOLDER", text="").prop = 'marker_game_instance_tag_name_ui'
-                tag_name = nwo.marker_game_instance_tag_name_ui
-                if tag_name.endswith("decorator_set"):
+                tag_name = Path(nwo.marker_game_instance_tag_name_ui).suffix.lower()
+                if tag_name == ".decorator_set":
                     col.prop(
                         nwo,
                         "marker_game_instance_tag_variant_name_ui",
                         text="Decorator Type",
                     )
-                elif not tag_name.endswith(
-                    (".prefab", ".cheap_light", ".light", ".leaf")
-                ):
+                elif not tag_name in (".prefab", ".cheap_light", ".light", ".leaf"):
                     row = col.row(align=True)
                     row.prop(
                         nwo,
@@ -1816,7 +1813,40 @@ class NWO_FoundryPanelProps(Panel):
                     row.operator_menu_enum("nwo.get_model_variants", "variant", icon="DOWNARROW_HLT", text="")
                     if h4:
                         col.prop(nwo, "marker_always_run_scripts_ui")
+                        
+                elif tag_name == ".prefab":
+                    col.separator()
+                    tip(col, "Prefab Overrides", "Prefab overrides will override the default properties of the referenced prefab tag for this specific prefab instance")
+                    col.prop(nwo, "prefab_lighting")
+                    col.prop(nwo, "prefab_pathfinding")
+                    col.prop(nwo, "prefab_imposter_policy")
+                    if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
+                        sub = col.row(heading="Imposter Transition")
+                        sub.prop(
+                            nwo,
+                            "prefab_imposter_transition_distance_auto",
+                            text="Automatic",
+                        )
+                        if not nwo.prefab_imposter_transition_distance_auto:
+                            sub.prop(
+                                nwo,
+                                "prefab_imposter_transition_distance",
+                                text="Distance",
+                            )
+                            
+                    col.prop(nwo, "prefab_imposter_brightness")
 
+                    col.prop(nwo, "prefab_streaming_priority")
+                    col.prop(nwo, "prefab_cinematic_properties")
+                    col.separator()
+                    col = col.column(heading="Prefab Flags")
+                    col.prop(nwo, "prefab_render_only")
+                    col.prop(nwo, "prefab_does_not_block_aoe")
+                    col.prop(nwo, "prefab_decal_spacing")
+                    col.prop(nwo, "prefab_remove_from_shadow_geometry")
+                    col.prop(nwo, "prefab_disallow_lighting_samples")
+                    col.prop(nwo, "prefab_excluded_from_lightprobe")
+                    
             if nwo.marker_type_ui == "_connected_geometry_marker_type_hint":
                 row = col.row(align=True)
                 row.prop(nwo, "marker_hint_type")
@@ -5220,6 +5250,26 @@ class NWO_OpenImageEditor(Operator):
             self.report({'ERROR'}, 'Image editor could not be launched, ensure that the path in User Preferences > File is valid, and Blender has rights to launch it')
             return {'CANCELLED'}
         return {'FINISHED'}
+    
+class NWO_OT_FoundryTip(bpy.types.Operator):
+    bl_idname = "nwo.show_tip"
+    bl_label = ""
+    bl_description = ""
+    bl_options = {"UNDO"}
+    
+    tip: bpy.props.StringProperty({'HIDDEN'})
+
+    def execute(self, context):
+        # self.report({"INFO"}, self.tip)
+        return {"FINISHED"}
+    
+    @classmethod
+    def description(cls, context, properties) -> str:
+        return properties.tip
+    
+def tip(ui: bpy.types.UILayout, label: str, desc: str):
+    """Adds a button in the UI which displays the given text when pressed and hovered over. Requires the UI element to render the button in to be passed as the first argument"""
+    ui.operator("nwo.show_tip", text=label, emboss=False).tip = desc
 
 def draw_foundry_nodes_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
@@ -5477,6 +5527,7 @@ classeshalo = (
     NWO_OT_CameraSync,
     NWO_OT_ShaderDuplicate,
     NWO_OT_AppendGridMaterials,
+    NWO_OT_FoundryTip,
 )
 
 def register():

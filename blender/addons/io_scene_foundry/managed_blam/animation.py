@@ -245,7 +245,8 @@ class AnimationTag(Tag):
         
         return -1
         
-    def setup_blend_screens(self, animation_name_list):
+    def setup_blend_screens(self, animation_name_list: list):
+        animation_name_list.sort()
         blend_screens_to_remove = []
         tag_animation_names = [name.replace(" ", ":") for name in animation_name_list]
         for element in self.block_blend_screens.Elements:
@@ -270,23 +271,49 @@ class AnimationTag(Tag):
                 state = name.split(":")[-1]
                 yaw_source_value = "none"
                 pitch_source_value = "none"
+                weight_source_value = "none"
+                interpolation_rate = "0"
+                flag_weapon_down = False
+                flag_blending = False
+                flag_parent_adjust = False
                 if "aim" in state:
                     yaw_source_value = "aim yaw"
                     pitch_source_value = "aim pitch"
                 elif "look" in state:
                     yaw_source_value = "look yaw"
                     pitch_source_value = "look pitch"
+                    flag_parent_adjust = True
                 elif "steer" in state:
                     yaw_source_value = "steering"
                     pitch_source_value = "steering"
                 elif "acc" in state:
                     yaw_source_value = "acceleration yaw"
                     pitch_source_value = "acceleration pitch"
+                    weight_source_value = "acceleration magnitude"
+                    interpolation_rate = "0.333"
                 elif "pitch" in state and "turn" in state:
                     yaw_source_value = "first person turn"
                     pitch_source_value = "first person pitch"
                     
+                if state.endswith("_down"):
+                    flag_weapon_down = True
+                elif state == "aiming":
+                    flag_blending = True
+                    
                 element.SelectField("yaw source").SetValue(yaw_source_value)
                 element.SelectField("pitch source").SetValue(pitch_source_value)
+                element.SelectField("weight source").SetValue(weight_source_value)
+                element.SelectField("interpolation rate").SetValue(interpolation_rate)
+                
+                flags = element.SelectField("flags")
+                
+                if flag_weapon_down:
+                    flags.SetBit("active only when weapon down", True)
+                    
+                if flag_blending:
+                    flags.SetBit("attempt piece-wise blending", True)
+                
+                if flag_parent_adjust:
+                    flags.SetBit("allow parent adjustment", True)
                 
                 self.tag_has_changes = True

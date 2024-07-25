@@ -1255,17 +1255,17 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         (
             "_connected_geometry_poop_lighting_per_pixel",
             "Per Pixel",
-            "Sets the lighting policy to per pixel. Can be forced on with the prefix: '%?'",
+            "Sets the lighting policy to per pixel",
         ),
         (
             "_connected_geometry_poop_lighting_per_vertex",
             "Per Vertex",
-            "Sets the lighting policy to per vertex. Can be forced on with the prefix: '%!'",
+            "Sets the lighting policy to per vertex",
         ),
         (
             "_connected_geometry_poop_lighting_single_probe",
             "Single Probe",
-            "Sets the lighting policy to single probe. Can be forced on with the prefix: '%>'",
+            "Sets the lighting policy to single probe",
         ),
         (
             "_connected_geometry_poop_lighting_per_vertex_ao",
@@ -1301,12 +1301,12 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         (
             "_connected_poop_instance_pathfinding_policy_none",
             "None",
-            "Sets the pathfinding policy to none. This mesh will be ignored during pathfinding generation. Can be forced on with the prefix: '%-'",
+            "Sets the pathfinding policy to none. This mesh will be ignored during pathfinding generation",
         ),
         (
             "_connected_poop_instance_pathfinding_policy_static",
             "Static",
-            "Sets the pathfinding policy to static. AI will be able to pathfind around and on this mesh. Can be forced on with the prefix: '%+'",
+            "Sets the pathfinding policy to static. AI will be able to pathfind around and on this mesh",
         ),
     ]
 
@@ -1442,7 +1442,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     poop_excluded_from_lightprobe_ui: BoolProperty(
         name="Excluded From Lightprobe",
         options=set(),
-        description="Sets this instanced geometry to be exlcuded from any lightprobes",
+        description="Instanced geometry to be excluded from any lightprobes",
         default=False,
     )
 
@@ -1672,6 +1672,224 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
         description="Tells this game instance object to always run scripts if it has any",
         default=True,
     )
+    
+    # Prefab marker specific props
+    
+    prefab_render_only: BoolProperty(
+        name="Render Only",
+        description="Prefab instance has no collision",
+        options=set(),
+    )
+    prefab_does_not_block_aoe: BoolProperty(
+        name="Does Not Block AOE",
+        options=set(),
+        description="Prefab instance does not block area of effect damage",
+        default=False,
+    )
+    prefab_decal_spacing: BoolProperty(
+        name="Decal Spacing",
+        options=set(),
+        description="Prefab instance set to have decal spacing (like decal_offset)",
+        default=False,
+    )
+    prefab_remove_from_shadow_geometry: BoolProperty(
+        name="Dynamic Sun Shadow",
+        options=set(),
+        description="Shadows cast by this prefab instance are dynamic. Useful for example on tree leaves with foliage materials",
+        default=False,
+    )
+    prefab_disallow_lighting_samples: BoolProperty(
+        name="Disallow Lighting Samples",
+        options=set(),
+        description="",
+        default=False,
+    )
+    
+    prefab_excluded_from_lightprobe: BoolProperty(
+        name="Excluded From Lightprobe",
+        options=set(),
+        description="Prefab instance is excluded from any lightprobes",
+        default=False,
+    )
+    
+    prefab_cinematic_properties: EnumProperty(
+        name="Cinematic Properties",
+        options=set(),
+        description="Sets whether the prefab instance should render only in cinematics, only outside of cinematics, or in both environments",
+        default="_connected_geometry_poop_cinema_default",
+        items=[
+            (
+                "_connected_geometry_poop_cinema_default",
+                "Default",
+                "Include both in cinematics and outside of them",
+            ),
+            (
+                "_connected_geometry_poop_cinema_only",
+                "Cinematic Only",
+                "Only render in cinematics",
+            ),
+            (
+                "_connected_geometry_poop_cinema_exclude",
+                "Exclude From Cinematics",
+                "Do not render in cinematics",
+            ),
+        ],
+    )
+    
+    prefab_lighting_items = [
+        (
+            "no_override",
+            "No Override",
+            "Does not override the lighting policy for this prefab instance",
+        ),
+        (
+            "_connected_geometry_poop_lighting_per_pixel",
+            "Per Pixel",
+            "Sets the lighting policy to per pixel",
+        ),
+        (
+            "_connected_geometry_poop_lighting_per_vertex",
+            "Per Vertex",
+            "Sets the lighting policy to per vertex",
+        ),
+        (
+            "_connected_geometry_poop_lighting_single_probe",
+            "Single Probe",
+            "Sets the lighting policy to single probe",
+        ),
+        (
+            "_connected_geometry_poop_lighting_per_vertex_ao",
+            "Per Vertex AO",
+            "H4+ only. Sets the lighting policy to per vertex ambient occlusion.",
+        ),
+    ]
+
+    prefab_lighting: EnumProperty(
+        name="Lighting Policy",
+        options=set(),
+        description="Sets the lighting policy for this prefab instance",
+        default="no_override",
+        items=prefab_lighting_items,
+    )
+
+    prefab_pathfinding_items = [
+        (
+            "no_override",
+            "No Override",
+            "Does not override the pathfinding policy for this prefab instance",
+        ),
+        (
+            "_connected_poop_instance_pathfinding_policy_cutout",
+            "Cutout",
+            "Sets the pathfinding policy to cutout. AI will be able to pathfind around this mesh, but not on it.",
+        ),
+        (
+            "_connected_poop_instance_pathfinding_policy_none",
+            "None",
+            "Sets the pathfinding policy to none. This mesh will be ignored during pathfinding generation",
+        ),
+        (
+            "_connected_poop_instance_pathfinding_policy_static",
+            "Static",
+            "Sets the pathfinding policy to static. AI will be able to pathfind around and on this mesh",
+        ),
+    ]
+
+    prefab_pathfinding: EnumProperty(
+        name="Pathfinding Policy",
+        options=set(),
+        description="Sets the pathfinding policy for this prefab instance",
+        default="no_override",
+        items=prefab_pathfinding_items,
+    )
+
+    prefab_imposter_policy: EnumProperty(
+        name="Imposter Policy",
+        options=set(),
+        description="Sets the imposter policy for this prefab instance",
+        default="no_override",
+        items=[
+            (
+                "no_override",
+                "No Override",
+                "Does not override the imposter policy for this prefab instance",
+            ),
+            (
+                "_connected_poop_instance_imposter_policy_polygon_default",
+                "Polygon Default",
+                "",
+            ),
+            (
+                "_connected_poop_instance_imposter_policy_polygon_high",
+                "Polygon High",
+                "",
+            ),
+            (
+                "_connected_poop_instance_imposter_policy_card_default",
+                "Card Default",
+                "",
+            ),
+            (
+                "_connected_poop_instance_imposter_policy_card_high",
+                "Card High",
+                "",
+            ),
+            ("_connected_poop_instance_imposter_policy_never", "Never", ""),
+        ],
+    )
+
+    prefab_imposter_brightness: FloatProperty(
+        name="Imposter Brightness",
+        options=set(),
+        description="Sets the brightness of the imposter variant of this prefab. Leave at zero for no override",
+        default=0.0,
+        min=0.0,
+    )
+
+    prefab_imposter_transition_distance: FloatProperty(
+        name="Imposter Transition Distance",
+        options=set(),
+        description="The distance at which the instanced geometry transitions to its imposter variant",
+        default=50,
+    )
+
+    prefab_imposter_transition_distance_auto: BoolProperty(
+        name="Imposter Transition Override",
+        options=set(),
+        description="Enable to override the imposter transition distance of this prefab instance",
+        default=True,
+    )
+
+    prefab_streaming_priority: EnumProperty(
+        name="Streaming Priority",
+        options=set(),
+        description="Sets the streaming priority for this prefab instance",
+        default="no_override",
+        items=[
+            (
+                "no_override",
+                "No Override",
+                "Does not override the streaming priority for this prefab instance",
+            ),
+            (
+                "_connected_geometry_poop_streamingpriority_default",
+                "Default",
+                "",
+            ),
+            (
+                "_connected_geometry_poop_streamingpriority_higher",
+                "Higher",
+                "",
+            ),
+            (
+                "_connected_geometry_poop_streamingpriority_highest",
+                "Highest",
+                "",
+            ),
+        ],
+    )
+    
+    #####
 
     marker_hint_length_ui: FloatProperty(
         name="Hint Length",

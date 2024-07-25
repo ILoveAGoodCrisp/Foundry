@@ -44,6 +44,7 @@ class BlamPrefab:
         self.left = [str(n) for n in left_matrix]
         self.up = [str(n) for n in matrix_3x3.col[2]]
         self.position = [str(n) for n in matrix.translation]
+        self.props = nwo
     
 class NWO_OT_ExportPrefabs(bpy.types.Operator):
     bl_idname = "nwo.export_prefabs"
