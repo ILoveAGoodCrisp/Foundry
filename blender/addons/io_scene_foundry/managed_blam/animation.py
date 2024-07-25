@@ -245,10 +245,10 @@ class AnimationTag(Tag):
         
         return -1
         
-    def setup_blend_screens(self, animation_name_list: list):
-        animation_name_list.sort()
+    def setup_blend_screens(self, animation_names: set):
+        sorted_animations  = sorted(animation_names)
         blend_screens_to_remove = []
-        tag_animation_names = [name.replace(" ", ":") for name in animation_name_list]
+        tag_animation_names = [name.replace(" ", ":") for name in sorted_animations]
         for element in self.block_blend_screens.Elements:
             index = element.SelectField("Struct:animation[0]/ShortBlockIndex:animation").Value
             if index > -1:
@@ -303,7 +303,7 @@ class AnimationTag(Tag):
                 element.SelectField("yaw source").SetValue(yaw_source_value)
                 element.SelectField("pitch source").SetValue(pitch_source_value)
                 element.SelectField("weight source").SetValue(weight_source_value)
-                element.SelectField("interpolation rate").SetValue(interpolation_rate)
+                element.SelectField("interpolation rate").SetStringData(interpolation_rate)
                 
                 flags = element.SelectField("flags")
                 
