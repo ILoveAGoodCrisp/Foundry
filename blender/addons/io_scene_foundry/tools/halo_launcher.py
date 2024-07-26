@@ -73,6 +73,7 @@ def launch_foundation(settings, context):
     if settings.foundation_default == "asset" and valid_nwo_asset(context):
         launch_args.append("/dontloadlastopenedwindows")
         asset_path = scene_nwo.asset_directory
+        asset_path_full = Path(get_tags_path(), asset_path)
         asset_name = scene_nwo.asset_name
         if nwo_asset_type() == "model":
             if settings.open_model:
@@ -150,10 +151,8 @@ def launch_foundation(settings, context):
                 )
             if settings.open_scenario_structure_bsp:
                 if settings.bsp_name == "":
-                    for file in glob.glob(
-                        str(Path(get_tags_path(), asset_path), "*.scenario_structure_bsp",)
-                    ):
-                        launch_args.append(file)
+                    for file in asset_path_full.glob("*.scenario_structure_bsp"):
+                        launch_args.append(str(file))
                 else:
                     # get all bsps given by user and add asset name
                     bsps = settings.bsp_name.replace(" ", "")
@@ -161,23 +160,13 @@ def launch_foundation(settings, context):
                     bsps = [asset_name + "_" + bsp for bsp in bsps]
                     bsps = tuple(bsps)
                     # added each to launch args
-                    for file in glob.glob(
-                        str(Path(get_tags_path(), asset_path),
-                            "*.scenario_structure_bsp",
-                        )
-                    ):
-                        file = file.rpartition(".")[0]
-                        if file.endswith(bsps):
-                            launch_args.append(file + ".scenario_structure_bsp")
+                    for file in asset_path_full.glob("*.scenario_structure_bsp"):
+                        launch_args.append(str(file))
 
             if settings.open_scenario_lightmap_bsp_data:
                 if settings.bsp_name == "":
-                    for file in glob.glob(
-                        str(Path(get_tags_path(), asset_path),
-                            "*.scenario_lightmap_bsp_data",
-                        )
-                    ):
-                        launch_args.append(file)
+                    for file in asset_path_full.glob("*.scenario_lightmap_bsp_data"):
+                        launch_args.append(str(file))
                 else:
                     # get all bsps given by user and add asset name
                     bsps = settings.bsp_name.replace(" ", "")
@@ -185,22 +174,13 @@ def launch_foundation(settings, context):
                     bsps = [asset_name + "_" + bsp for bsp in bsps]
                     bsps = tuple(bsps)
                     # added each to launch args
-                    for file in glob.glob(
-                        str(Path(get_tags_path(), asset_path),
-                            "*.scenario_lightmap_bsp_data",
-                        )
-                    ):
-                        file = file.rpartition(".")[0]
-                        if file.endswith(bsps):
-                            launch_args.append(file + ".scenario_lightmap_bsp_data")
+                    for file in asset_path_full.glob("*.scenario_lightmap_bsp_data"):
+                        launch_args.append(str(file))
+                        
             if settings.open_scenario_structure_lighting_info:
                 if settings.bsp_name == "":
-                    for file in glob.glob(
-                        str(Path(get_tags_path(), asset_path),
-                            "*.scenario_structure_lighting_info",
-                        )
-                    ):
-                        launch_args.append(file)
+                    for file in asset_path_full.glob("*.scenario_structure_lighting_info"):
+                        launch_args.append(str(file))
                 else:
                     # get all bsps given by user and add asset name
                     bsps = settings.bsp_name.replace(" ", "")
@@ -208,17 +188,8 @@ def launch_foundation(settings, context):
                     bsps = [asset_name + "_" + bsp for bsp in bsps]
                     bsps = tuple(bsps)
                     # added each to launch args
-                    for file in glob.glob(
-                        str(Path(get_tags_path(), asset_path),
-                            "*.scenario_structure_lighting_info",
-                        )
-                    ):
-                        file = file.rpartition(".")[0]
-
-                        if file.endswith(bsps):
-                            launch_args.append(
-                                file + ".scenario_structure_lighting_info"
-                            )
+                    for file in asset_path_full.glob("*.scenario_structure_lighting_info"):
+                        launch_args.append(str(file))
 
         elif nwo_asset_type() == "sky":
             if settings.open_model:
