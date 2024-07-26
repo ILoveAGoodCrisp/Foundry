@@ -1524,6 +1524,8 @@ class NWO_FoundryPanelProps(Panel):
 
             if nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics":
                 col.prop(nwo, "mesh_primitive_type_ui", text="Primitive Type")
+                if self.h4:
+                    col.prop(nwo, "mopp_physics")
 
             elif nwo.mesh_type_ui == "_connected_geometry_mesh_type_portal":
                 row = col.row()

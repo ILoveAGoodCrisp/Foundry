@@ -1683,6 +1683,10 @@ class PrepareScene:
                 nwo_utils.set_origin_to_centre(ob)
                 ob["bungie_mesh_primitive_sphere_radius"] = nwo_utils.radius_str(ob)
                 
+            elif self.corinth and nwo.mopp_physics:
+                ob["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
+                ob["bungie_havok_isshape"] = "1"
+                
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
             ob["bungie_marker_all_regions"] = nwo_utils.bool_str(not nwo.marker_uses_regions)
             if nwo.marker_uses_regions:

@@ -1217,8 +1217,15 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     mesh_primitive_type_ui: EnumProperty(
         name="Mesh Primitive Type",
         options=set(),
-        description="Select the primtive type of this mesh",
+        description="If this is not none then the in game physics shape will be simplified to the selected primitive, using the objects dimensions",
         items=mesh_primitive_type_items,
+    )
+    
+    mopp_physics: BoolProperty(
+        name="Allow Non-Convex Shape",
+        options=set(),
+        description="Tells the game to generate a physics representation of this mesh without converting it to a convex hull",
+        
     )
 
     mesh_tessellation_density_ui: EnumProperty(
