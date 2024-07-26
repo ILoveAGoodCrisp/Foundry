@@ -1643,8 +1643,8 @@ class NWO_FoundryPanelProps(Panel):
                 ):
                     col.prop(nwo, "poop_lighting_ui", text="Lighting Policy")
 
-                    # if h4:
-                    #     col.prop(nwo, "poop_lightmap_resolution_scale_ui")
+                    if h4:
+                        col.prop(nwo, "poop_lightmap_resolution_scale_ui")
 
                     col.prop(
                         nwo,
@@ -1683,10 +1683,15 @@ class NWO_FoundryPanelProps(Panel):
                     col.separator()
 
                     col = col.column(heading="Instance Flags")
+                    # col.prop(
+                    #     nwo,
+                    #     "poop_chops_portals_ui",
+                    #     text="Chops Portals",
+                    # )
                     col.prop(
                         nwo,
-                        "poop_chops_portals_ui",
-                        text="Chops Portals",
+                        "poop_render_only_ui",
+                        text="Render Only",
                     )
                     col.prop(
                         nwo,
@@ -1698,7 +1703,7 @@ class NWO_FoundryPanelProps(Panel):
                         "poop_excluded_from_lightprobe_ui",
                         text="Excluded From Lightprobe",
                     )
-                    # col.prop(nwo, "poop_decal_spacing_ui", text='Decal Spacing')
+                    col.prop(nwo, "poop_decal_spacing_ui", text='Decal Spacing')
                     if h4:
                         col.prop(nwo, "poop_remove_from_shadow_geometry_ui")
                         col.prop(nwo, "poop_disallow_lighting_samples_ui")
@@ -1818,6 +1823,7 @@ class NWO_FoundryPanelProps(Panel):
                     col.separator()
                     tip(col, "Prefab Overrides", "Prefab overrides will override the default properties of the referenced prefab tag for this specific prefab instance")
                     col.prop(nwo, "prefab_lighting")
+                    col.prop(nwo, "prefab_lightmap_res")
                     col.prop(nwo, "prefab_pathfinding")
                     col.prop(nwo, "prefab_imposter_policy")
                     if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
@@ -2362,7 +2368,7 @@ class NWO_FoundryPanelProps(Panel):
                             row.prop(mesh_nwo, "no_pvs_ui", text="No Visibility Culling")
                             
             if not self.h4 and poll_ui(('scenario',)) and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure'):
-                row.prop(mesh_nwo, 'render_only_ui', text='Render Only')
+                row.prop(mesh_nwo, 'render_only_ui')
                 if not mesh_nwo.render_only_ui:
                     row.prop(mesh_nwo, "ladder_ui", text="Ladder")
                     row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
@@ -2378,7 +2384,7 @@ class NWO_FoundryPanelProps(Panel):
                     row.prop(mesh_nwo, "slip_surface_ui", text="Slip Surface")
                 
             elif self.h4 and has_collision and nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
-                row.prop(mesh_nwo, 'render_only_ui', text='Render Only')
+                row.prop(mesh_nwo, 'render_only_ui')
 
             if self.h4 and nwo.mesh_type_ui in RENDER_MESH_TYPES and mesh_nwo.face_two_sided_ui:
                 row = box.row()
@@ -2392,9 +2398,9 @@ class NWO_FoundryPanelProps(Panel):
                 
         if poll_ui(("model", "scenario", "prefab")):
             if has_collision and poll_ui(("scenario", "prefab")) and not (mesh_nwo.render_only_ui and is_instance_or_structure_proxy(ob)):
-                row = box.row()
-                row.use_property_split = True
                 if self.h4:
+                    row = box.row()
+                    row.use_property_split = True
                     row.prop(mesh_nwo, 'poop_collision_type_ui', text='Collision Type')
                         
             if (self.h4 and (nwo.mesh_type_ui in (

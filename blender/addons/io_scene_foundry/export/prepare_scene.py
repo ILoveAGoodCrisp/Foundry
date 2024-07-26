@@ -1606,18 +1606,23 @@ class PrepareScene:
             if self.corinth:
                 nwo["bungie_mesh_poop_imposter_brightness"] = nwo_utils.jstr(nwo.poop_imposter_brightness_ui)
         if nwo_data.render_only_ui:
+            ob["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
             if self.corinth:
                 ob["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
             else:
-                ob["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
+                ob["bungie_mesh_poop_is_render_only"] = "1"
+        elif nwo.poop_render_only_ui:
+            if self.corinth:
+                ob["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
+            else:
                 ob["bungie_mesh_poop_is_render_only"] = "1"
                 
         elif not self.corinth and nwo_data.sphere_collision_only_ui:
             ob["bungie_face_mode"] = '_connected_geometry_face_mode_sphere_collision_only'
         elif self.corinth:
             ob["bungie_mesh_poop_collision_type"] = nwo_data.poop_collision_type_ui
-        if nwo.poop_chops_portals_ui:
-            ob["bungie_mesh_poop_chops_portals"] = "1"
+        # if nwo.poop_chops_portals_ui:
+        #     ob["bungie_mesh_poop_chops_portals"] = "1"
         if nwo.poop_does_not_block_aoe_ui:
             ob["bungie_mesh_poop_does_not_block_aoe"] = "1"
         if nwo.poop_excluded_from_lightprobe_ui:
@@ -1626,6 +1631,7 @@ class PrepareScene:
             ob["bungie_mesh_poop_decal_spacing"] = "1"
 
         if self.corinth:
+            ob["bungie_mesh_poop_lightmap_resolution_scale"] = str(nwo.poop_lightmap_resolution_scale_ui)
             ob["bungie_mesh_poop_streamingpriority"] = nwo.poop_streaming_priority_ui
             ob["bungie_mesh_poop_cinema_only"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_only')
             ob["bungie_mesh_poop_exclude_from_cinema"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_exclude')
@@ -1662,6 +1668,8 @@ class PrepareScene:
         if mesh_type == "_connected_geometry_mesh_type_physics":
             prim_type = nwo.mesh_primitive_type_ui
             ob["bungie_mesh_primitive_type"] = prim_type
+            # ob["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
+            # ob["bungie_havok_isshape"] = "1"
             if prim_type in ('_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'):
                 nwo_utils.set_origin_to_floor(ob)
                 if prim_type == '_connected_geometry_primitive_type_box':
@@ -2014,6 +2022,8 @@ class PrepareScene:
                     ob["bungie_marker_type"] = "_connected_geometry_marker_type_prefab"
                     if nwo.prefab_pathfinding != "no_override":
                         ob["bungie_mesh_poop_pathfinding"] = nwo.prefab_pathfinding
+                    if nwo.prefab_lightmap_res > 0:
+                        ob["bungie_mesh_poop_lightmap_resolution_scale"] = str(nwo.prefab_lightmap_res)
                     if nwo.prefab_lighting != "no_override":
                         ob["bungie_mesh_poop_lighting"] = nwo.prefab_lighting
                     if nwo.prefab_imposter_policy != "no_override":

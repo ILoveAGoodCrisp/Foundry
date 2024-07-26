@@ -27,6 +27,7 @@
 '''A collection of tools to read/write various tags in bulk'''
 
 from pathlib import Path
+from io_scene_foundry.managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
 from io_scene_foundry.managed_blam.animation import AnimationTag
 from io_scene_foundry.managed_blam.object import ObjectTag
 from io_scene_foundry.utils import nwo_utils
@@ -145,3 +146,33 @@ def report_blend_screens():
     print(f'Found {len(animation_names)} unique animation state names:')
     for name in ordered_animations:
         print(f'--- {name}')
+        
+def report_prefab_lightmap_res():
+    bsps = nwo_utils.paths_in_dir(Path(nwo_utils.get_tags_path()), '.scenario_structure_bsp')
+    lm_res_list = []
+    for b in bsps:
+        with ScenarioStructureBspTag(path=b) as tag:
+                for element in tag.block_prefabs.Elements:
+                    lm_res = int(element.SelectField("override lightmap resolution scale").GetStringData())
+                    if lm_res > 0 and lm_res != 3:
+                        lm_res_list.append([tag.tag_path.RelativePath, element.ElementIndex, lm_res])
+                        
+    print(f'Found {len(lm_res_list)} set lightmap res overrides:')
+    print('\n')
+    for items in lm_res_list:
+        print(items[2], items[1], items[0])
+        
+def report_instance_lightmap_res():
+    bsps = nwo_utils.paths_in_dir(Path(nwo_utils.get_tags_path()), '.scenario_structure_bsp')
+    lm_res_list = []
+    for b in bsps:
+        with ScenarioStructureBspTag(path=b) as tag:
+                for element in tag.block_instances.Elements:
+                    lm_res = float(element.SelectField("lightmap resolution scale").GetStringData())
+                    if lm_res != 1:
+                        lm_res_list.append([tag.tag_path.RelativePath, element.ElementIndex, lm_res])
+                        
+    print(f'Found {len(lm_res_list)} set lightmap resses:')
+    print('\n')
+    for items in lm_res_list:
+        print(items[2], items[1], items[0])

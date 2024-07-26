@@ -31,6 +31,7 @@ class ScenarioStructureBspTag(Tag):
     tag_ext = 'scenario_structure_bsp'
     
     def _read_fields(self):
+        self.block_instances = self.tag.SelectField("instanced geometry instances")
         if self.corinth:
             self.block_prefabs = self.tag.SelectField("Block:external references")
     
@@ -65,6 +66,10 @@ class ScenarioStructureBspTag(Tag):
                         lighting.Value = 2
                     case "_connected_geometry_poop_lighting_per_vertex_ao":
                         lighting.Value = 5
+                        
+            if nwo.prefab_lightmap_res > 0:
+                policy_mask.SetBit("override lightmap resolution policy", True)
+                element.SelectField("override lightmap resolution scale").SetStringData(str(nwo.prefab_lightmap_res))
                     
             if nwo.prefab_pathfinding != "no_override":
                 policy_mask.SetBit("override pathfinding policy", True)

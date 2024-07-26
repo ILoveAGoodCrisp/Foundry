@@ -144,8 +144,8 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     )
     
     render_only_ui: BoolProperty(
-        name="Render Only",
-        description="Mesh has no collision",
+        name="No Collision",
+        description="Game will not build a collision representation of this mesh. It will not be collidable in game",
         options=set(),
     )
     
@@ -169,7 +169,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
 
     face_two_sided_ui: BoolProperty(
         name="Two Sided",
-        description="Render the backfacing normal of this mesh, or if this mesh is collision, prevent open edges being treated as such in game",
+        description="Render the backfacing normal of this mesh if it has render geometry. Collision geometry will not result in open edges, but will be more expensive",
         options=set(),
     )
 
@@ -206,20 +206,20 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
     decal_offset_ui: BoolProperty(
         name="Decal Offset",
         options=set(),
-        description="Enable to offset these faces so that they appear to be layered on top of another face",
+        description="This gives the mesh a small offset from its game calculated position, so that it avoids z-fighting with another mesh",
         default=False,
     )
     
     no_shadow_ui: BoolProperty(
         name="No Shadow",
         options=set(),
-        description="Prevents faces from casting shadows",
+        description="Prevents the mesh from casting shadows",
     )
 
     precise_position_ui: BoolProperty(
-        name="Precise Position",
+        name="Uncompressed",
         options=set(),
-        description="Disables compression of vertices during export, resulting in more accurate (and expensive) meshes in game. Only use this when you need to",
+        description="Lowers the degree of compression of vertices during export, resulting in more accurate (and expensive) meshes in game. Only use this when you need to",
     )
 
     no_lightmap_ui: BoolProperty(
@@ -271,7 +271,7 @@ class NWO_MeshPropertiesGroup(PropertyGroup):
         default=3,
         min=1,
         max=7,
-        description="Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag",
+        description="Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag under the bsp tag block",
         update=update_lightmap_resolution_scale_ui,
     )
 
@@ -1275,21 +1275,27 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     ]
 
     # POOP PROPERTIES
+    poop_render_only_ui: BoolProperty(
+        name="Render Only",
+        options=set(),
+        description="Instance is render only regardless of whether the underlying mesh itself has collision",
+    )
+    
     poop_lighting_ui: EnumProperty(
         name="Lighting Policy",
         options=set(),
-        description="Sets the lighting policy for this instanced geometry",
+        description="Determines how this instance is lightmapped",
         default="_connected_geometry_poop_lighting_per_pixel",
         items=poop_lighting_items,
     )
 
-    poop_lightmap_resolution_scale_ui: FloatProperty(  # H4+ only NOTE not exposing this directly in UI. Instead using the mesh lightmap res prop
-        name="Lightmap Resolution Scale",
+    poop_lightmap_resolution_scale_ui: IntProperty(
+        name="Lightmap Resolution",
         options=set(),
-        description="Sets lightmap resolutions scale for this instance",
-        default=3.0,
-        min=1.0,
-        max=7.0,
+        description="Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag under the bsp tag block",
+        default=3,
+        min=1,
+        max=7,
     )
 
     poop_pathfinding_items = [
@@ -1313,7 +1319,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     poop_pathfinding_ui: EnumProperty(
         name="Instanced Geometry Pathfinding",
         options=set(),
-        description="Sets the pathfinding policy for this instanced geometry",
+        description="Sets how this instanced is assessed when the game builds a pathfinding representation of the map",
         default="_connected_poop_instance_pathfinding_policy_cutout",
         items=poop_pathfinding_items,
     )
@@ -1321,7 +1327,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     poop_imposter_policy_ui: EnumProperty(
         name="Instanced Geometry Imposter Policy",
         options=set(),
-        description="Sets the imposter policy for this instanced geometry",
+        description="Sets what kind of imposter model is assigned to this instance. If any the policy is set to anything other than 'Never', you will need to generate imposters for this to render correctly. See https://c20.reclaimers.net/hr/guides/imposter-generation/ for how to generate these",
         default="_connected_poop_instance_imposter_policy_never",
         items=[
             (
@@ -1435,7 +1441,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     poop_does_not_block_aoe_ui: BoolProperty(
         name="Does Not Block AOE",
         options=set(),
-        description="Instanced geometry set to not block area of effect forces",
+        description="Instance does not block area of effect damage",
         default=False,
     )
 
@@ -1449,7 +1455,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     poop_decal_spacing_ui: BoolProperty(
         name="Decal Spacing",
         options=set(),
-        description="Instanced geometry set to have decal spacing (like decal_offset)",
+        description="Instanced geometry set to have decal spacing. This gives the mesh a small offset from its game calculated position, so that it avoids z-fighting with another mesh",
         default=False,
     )
 
@@ -1675,6 +1681,13 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     
     # Prefab marker specific props
     
+    prefab_lightmap_res: IntProperty(
+        name="Lightmap Resolution",
+        description="Override the lightmap resolution of this prefab instance. 0 for no override. The default lightmap resolution meshes used is 3. Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag under the bsp tag block",
+        min=0,
+        max=7,
+    )
+    
     prefab_render_only: BoolProperty(
         name="Render Only",
         description="Prefab instance has no collision",
@@ -1689,7 +1702,7 @@ class NWO_ObjectPropertiesGroup(PropertyGroup):
     prefab_decal_spacing: BoolProperty(
         name="Decal Spacing",
         options=set(),
-        description="Prefab instance set to have decal spacing (like decal_offset)",
+        description="Prefab instance set to have decal spacing. This gives the mesh a small offset from its game calculated position, so that it avoids z-fighting with another mesh",
         default=False,
     )
     prefab_remove_from_shadow_geometry: BoolProperty(
