@@ -63,7 +63,6 @@ def load_handler(dummy):
     context = bpy.context
     context.scene.nwo.export_in_progress = False
     context.scene.nwo.camera_sync_active = False
-    # atexit.register(foundry_blam_cleanup)
     # Add projects
     projects = utils.setup_projects_list()
     blend_path = bpy.data.filepath

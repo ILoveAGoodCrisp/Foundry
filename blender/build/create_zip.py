@@ -11,7 +11,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-version = "0.4"
+version = "1.0.0"
 
 def build_resources_zip() -> io.BytesIO:
     search_path = os.path.join("blender" ,"addons", "io_scene_foundry", "resources")
