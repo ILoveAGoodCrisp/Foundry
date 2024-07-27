@@ -24,7 +24,30 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from mathutils import Matrix, Vector
 from ..managed_blam import Tag
+import bpy
+
+class Node:
+    translation = []
+    rotation = []
+    parent = ""
+    def __init__(self, name):
+        self.name = name
+        
+    def to_bone(self):
+        pass
+
+class RenderArmature():
+    def __init__(self, name):
+        self.data = bpy.data.armatures.new(name)
+        self.ob = bpy.data.objects.new(name, self.data)
+        self.bones: Node = []
+        
+    def create_bone(self, node: Node):
+        bone = self.data.edit_bones.new(node.name)
+        matrix = Matrix.LocRotScale(node.translation, node.rotation, Vector(3, 1))
+        bone.matrix = matrix
 
 class RenderModelTag(Tag):
     tag_ext = 'render_model'
@@ -79,3 +102,23 @@ class RenderModelTag(Tag):
         print("\ntex_coords")
         print("#"*50 + '\n')
         print([i for i in tex_coords])
+        
+    def to_blend_objects(self):
+        pass
+    
+    def create_armature(self, name):
+        arm = RenderArmature(name)
+        nodes: list[Node] = []
+        for element in self.block_nodes.Elements:
+            node = Node(element.SelectField("name").GetStringData())
+            translation = element.SelectField("default translation").GetStringData()
+            node.translation = [float(n) for n in translation]
+            rotation = element.SelectField("default rotation").GetStringData()
+            node.rotation = float(rotation[3]), float(rotation[0]), float(rotation[1]), float(rotation[2])
+            parent_index = element.SelectField("parent node").Value
+            if parent_index > -1:
+                node.parent = self.block_nodes.Elements[parent_index].SelectField("name").GetStringData()
+                
+        for node in nodes:
+            arm.create_bone(node)
+            

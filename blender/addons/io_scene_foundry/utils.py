@@ -322,7 +322,7 @@ def bool_str(bool_var):
         return "0"
 
 
-def radius_str(ob, pill=False):
+def radius_str(ob, pill=False, scale=1):
     """Returns the radius of a sphere (or a pill if second arg is True) as a string"""
     if pill:
         diameter = max(ob.dimensions.x, ob.dimensions.y)
@@ -331,7 +331,7 @@ def radius_str(ob, pill=False):
 
     radius = diameter / 2.0
 
-    return jstr(radius)
+    return jstr(radius * scale)
 
 
 def jstr(number):

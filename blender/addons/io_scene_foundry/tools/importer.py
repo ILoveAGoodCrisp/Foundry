@@ -35,6 +35,8 @@ import bpy
 import addon_utils
 from mathutils import Color
 
+from ..managed_blam.render_model import RenderModelTag
+
 from ..managed_blam.model import ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
 from ..managed_blam.bitmap import BitmapTag
@@ -749,11 +751,22 @@ class NWOImporter:
         for file in paths:
             with TagImportMover(self.project.tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path) as model:
-                    
-                    imported_objects.extend(self.import_collision_model(file))
+                    render, collision, animation, physics = model.get_model_paths()
+                    imported_objects.extend(self.import_render_model(render))
+                    imported_objects.extend(self.import_collision_model(collision))
+                    # imported_objects.extend(self.import_physics_model(physics))
         
         return imported_objects
             
+    def import_render_model(self, file):
+        collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
+        self.context.scene.collection.children.link(collection)
+        with TagImportMover(self.project.tags_directory, file) as mover:
+            with RenderModelTag(path=mover.tag_path) as render_model:
+                render_model_objects = render_model.to_blend_objects(collection)
+            
+        return render_model_objects
+    
     def import_collision_model(self, file):
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         self.context.scene.collection.children.link(collection)
@@ -762,6 +775,15 @@ class NWOImporter:
                 collision_model_objects = collision_model.to_blend_objects(collection)
             
         return collision_model_objects
+    
+    # def import_physics_model(self, file):
+    #     collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
+    #     self.context.scene.collection.children.link(collection)
+    #     with TagImportMover(self.project.tags_directory, file) as mover:
+    #         with PhysicsTag(path=mover.tag_path) as physics_model:
+    #             physics_model_objects = physics_model.to_blend_objects(collection)
+            
+    #     return physics_model_objects
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
