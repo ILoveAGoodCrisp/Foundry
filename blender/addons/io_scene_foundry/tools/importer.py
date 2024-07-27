@@ -327,6 +327,26 @@ class NWO_Import(bpy.types.Operator):
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_collision_objects, actions=[])
                         
+                    # fix up object transforms
+                    ob_infos = []
+                    for ob in imported_collision_objects:
+                        ob_infos.append([ob, ob.parent, ob.parent_type, ob.parent_bone])
+                        
+                    if imported_collision_objects:
+                        with context.temp_override(selected_editable_objects=imported_collision_objects, object=imported_collision_objects[0]):
+                            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+                            
+                    for info in ob_infos:
+                        ob = info[0]
+                        mat = ob.matrix_world.copy()
+                        ob.parent = info[1]
+                        if info[2] == "BONE":
+                            ob.parent_type == "BONE"
+                            ob.parent_bone = info[3]
+                            
+                        ob.matrix_world = mat
+                        
+                        
             except KeyboardInterrupt:
                 print_warning("\nIMPORT CANCELLED BY USER")
                 self.user_cancelled = True

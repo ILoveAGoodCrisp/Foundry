@@ -3290,6 +3290,8 @@ class TagImportMover():
         if not self.source_file.is_relative_to(Path(tags_dir)):
             self.needs_to_move = True
             self.tag_path = str(Path("_temp", name + self.source_file.suffix))
+            if not self.temp_file.parent.exists():
+                self.temp_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(self.source_file, self.temp_file)
         else:
             self.tag_path = str(self.source_file.relative_to(tags_dir))
