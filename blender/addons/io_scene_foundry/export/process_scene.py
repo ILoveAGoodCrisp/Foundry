@@ -1,29 +1,3 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 import itertools
 from pathlib import Path
 import random
@@ -33,17 +7,17 @@ import os
 import json
 import multiprocessing
 import threading
-from io_scene_foundry.managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.tools.scenario.zone_sets import write_zone_sets_to_scenario
-from io_scene_foundry.export.tag_builder import build_tags
-from io_scene_foundry.tools.scenario.lightmap import run_lightmapper
-from io_scene_foundry.managed_blam.animation import AnimationTag
-from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
-from io_scene_foundry.managed_blam.model import ModelTag
-from io_scene_foundry.managed_blam.scenario import ScenarioTag
+from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+from ..managed_blam import Tag
+from ..tools.scenario.zone_sets import write_zone_sets_to_scenario
+from ..export.tag_builder import build_tags
+from ..tools.scenario.lightmap import run_lightmapper
+from ..managed_blam.animation import AnimationTag
+from ..managed_blam.camera_track import CameraTrackTag
+from ..managed_blam.model import ModelTag
+from ..managed_blam.scenario import ScenarioTag
 from .format_json import NWOJSON
-from ..utils.nwo_utils import (
+from ..utils import (
     disable_prints,
     enable_prints,
     get_animated_objects,

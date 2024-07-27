@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
-from io_scene_foundry.utils import nwo_utils
+from ... import utils
     
 class FCurveTransfer:
     source_fcurve: bpy.types.FCurve
@@ -160,7 +160,7 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
             actions = [bpy.data.actions[active_action_index]]
         
         for action in actions:
-            nwo_utils.reset_to_basis(context)
+            utils.reset_to_basis(context)
             fcurve_transfer = FCurveTransfer(action, self.source_bone, self.target_bone, self.source_channel, self.target_channel)
             fcurve_transfer.get_fcurves()
             if fcurve_transfer.source_fcurve:

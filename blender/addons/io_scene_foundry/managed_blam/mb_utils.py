@@ -1,6 +1,6 @@
 import os
-from io_scene_foundry.managed_blam import Halo
-from io_scene_foundry.utils.nwo_utils import get_project_path, is_corinth
+from ..managed_blam import Halo
+from ..utils import get_project_path, is_corinth
 
 ##### UTIL FUNCTIONS
 
@@ -15,9 +15,9 @@ def get_bungie(report=None):
             clr.AddReference(mb_path)
             print(mb_path)
             if is_corinth():
-                import Corinth as Bungie
+                import Corinth as Bungie # type: ignore
             else:
-                import Bungie
+                import Bungie # type: ignore
         except:
             print("Failed to add reference to ManagedBlam")
             # return({'CANCELLED'})

@@ -27,7 +27,7 @@
 import os
 from pathlib import Path
 
-from ..utils.nwo_utils import (
+from ..utils import (
     get_data_path,
     get_tags_path,
     is_corinth,

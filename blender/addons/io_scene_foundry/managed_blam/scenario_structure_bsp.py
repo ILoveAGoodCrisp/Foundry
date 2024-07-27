@@ -24,8 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.utils.nwo_utils import jstr
-from io_scene_foundry.managed_blam import Tag
+from ..utils import jstr
+from ..managed_blam import Tag
 
 class ScenarioStructureBspTag(Tag):
     tag_ext = 'scenario_structure_bsp'

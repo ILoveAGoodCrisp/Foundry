@@ -26,14 +26,14 @@
 
 import os
 import bpy
-from io_scene_foundry.utils import nwo_utils
-from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
+from .. import utils
+from ..managed_blam.camera_track import CameraTrackTag
 
 def export_current_action_as_camera_track(context):
     print("Running export!")
-    camera = nwo_utils.get_camera_track_camera(context)
+    camera = utils.get_camera_track_camera(context)
     action = camera.animation_data.action
-    asset_path = nwo_utils.get_asset_path()
+    asset_path = utils.get_asset_path()
     tag_path = os.path.join(asset_path, action.name + '.camera_track')
     
     with CameraTrackTag(path=tag_path) as camera_track:
@@ -48,14 +48,14 @@ class NWO_CameraTrackSync(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        camera = nwo_utils.get_camera_track_camera(context)
-        return camera and camera.animation_data and camera.animation_data.action and nwo_utils.valid_nwo_asset(context)
+        camera = utils.get_camera_track_camera(context)
+        return camera and camera.animation_data and camera.animation_data.action and utils.valid_nwo_asset(context)
     
     def execute(self, context):
         if context.scene.nwo.camera_track_syncing:
             self.cancel(context)
             return {'FINISHED'}
-        camera = nwo_utils.get_camera_track_camera(context)
+        camera = utils.get_camera_track_camera(context)
         self.action = camera.animation_data.action
         
         self.kfp_coords = []

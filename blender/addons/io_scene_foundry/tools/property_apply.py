@@ -69,8 +69,8 @@ all_prefixes = [p for p in all_prefixes if p != '']
 all_prefixes = set(all_prefixes)
 
 import bpy
-from io_scene_foundry.utils.nwo_utils import is_corinth
-from io_scene_foundry.utils.nwo_materials import convention_materials
+from ..utils import is_corinth
+from ..tools.materials import convention_materials
 
 special_materials = (
     "InvisibleSky",

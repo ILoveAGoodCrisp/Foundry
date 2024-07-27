@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
-from io_scene_foundry.utils import nwo_utils
+from .. import utils
 
 class NWO_ScaleScene(bpy.types.Operator):
     bl_idname = "nwo.scale_scene"
@@ -43,7 +43,7 @@ class NWO_ScaleScene(bpy.types.Operator):
         items = []
         items.append(('none', 'None', "Does not scale the scene", 'MATPLANE', 0))
         items.append(('blender', 'To Blender', "Scales the scene by a factor of roughly 32.8", 'BLENDER', 1))
-        items.append(('max', 'To Halo', "Scales the scene by a factor of roughly 0.03", nwo_utils.get_icon_id("halo_scale"), 2))
+        items.append(('max', 'To Halo', "Scales the scene by a factor of roughly 0.03", utils.get_icon_id("halo_scale"), 2))
         items.append(('custom', 'Custom', "Scales the scene by the given factor", 'FULLSCREEN_ENTER', 3))
         return items
     
@@ -55,7 +55,7 @@ class NWO_ScaleScene(bpy.types.Operator):
     )
     
     def update_forward(self, context):
-        rot = nwo_utils.blender_rotation_diff(self.forward, context.scene.nwo.forward_direction)
+        rot = utils.blender_rotation_diff(self.forward, context.scene.nwo.forward_direction)
         self.rotation = rot
     
     forward: bpy.props.EnumProperty(
@@ -121,7 +121,7 @@ class NWO_ScaleScene(bpy.types.Operator):
             self.report({'INFO'}, "No scaling or rotation applied")
             return {'FINISHED'}
             
-        nwo_utils.exit_local_view(context)
+        utils.exit_local_view(context)
         old_mode = context.mode
         old_object = context.object
         old_selection = context.selected_objects
@@ -131,8 +131,8 @@ class NWO_ScaleScene(bpy.types.Operator):
         # if bpy.ops.nwo.unlink_animation.poll():
         #     animation_index = int(context.scene.nwo.active_action_index)
         #     bpy.ops.nwo.unlink_animation()
-        nwo_utils.set_object_mode(context)
-        nwo_utils.deselect_all_objects()
+        utils.set_object_mode(context)
+        utils.deselect_all_objects()
         objects_to_transform = old_selection if self.selected_only else None
         actions_to_transform = None
         if self.animations != "all":
@@ -142,10 +142,10 @@ class NWO_ScaleScene(bpy.types.Operator):
             else:
                 actions_to_transform = []
                 
-        nwo_utils.transform_scene(context, self.scale_factor, self.rotation, context.scene.nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models)
+        utils.transform_scene(context, self.scale_factor, self.rotation, context.scene.nwo.forward_direction, self.forward, keep_marker_axis=self.maintain_marker_axis, objects=objects_to_transform, actions=actions_to_transform, exclude_scale_models=self.exclude_scale_models)
 
         if old_object:
-            nwo_utils.set_active_object(old_object)
+            utils.set_active_object(old_object)
         [ob.select_set(True) for ob in old_selection]
         
         if 'EDIT' in old_mode:

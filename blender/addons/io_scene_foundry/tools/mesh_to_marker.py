@@ -26,9 +26,9 @@
 
 import bpy
 from mathutils import Matrix
-from io_scene_foundry.icons import get_icon_id
+from ..icons import get_icon_id
 
-from io_scene_foundry.utils.nwo_utils import get_foundry_storage_scene, is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
+from ..utils import get_foundry_storage_scene, is_corinth, is_marker, is_mesh, poll_ui, set_active_object, unlink
 
 class NWO_MeshToMarker(bpy.types.Operator):
     bl_idname = 'nwo.mesh_to_marker'

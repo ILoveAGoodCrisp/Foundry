@@ -32,7 +32,7 @@ import subprocess
 import sys
 import bpy
 import numpy as np
-from io_scene_foundry.utils import nwo_utils
+from .. import utils
 
 pymem_installed = False
 try:
@@ -56,7 +56,7 @@ class NWO_OT_CameraSync(bpy.types.Operator):
 
     # @classmethod
     # def poll(cls, context):
-    #     return nwo_utils.valid_nwo_asset(context)
+    #     return utils.valid_nwo_asset(context)
     
     def execute(self, context):
         if self.cancel_sync:
@@ -98,7 +98,7 @@ class NWO_OT_CameraSync(bpy.types.Operator):
     @classmethod
     def description(cls, context, properties) -> str:
         desc = "Syncs the in game camera with the Blender viewport camera\n\nHow to Use:\n"
-        if nwo_utils.is_corinth(context):
+        if utils.is_corinth(context):
             desc += "Ensure Sapien is running (do not use the sapien_play)\nPress this button while in control of the editor camera to let Blender take control"
         else:
             desc += "Ensure TagTest is running (do not use tag_play)\nIn the in game console enter 'DisablePauseOnDefocus 1'. This will allow the game to run when the game window is not in focus\nPress this button while in control of the director camera to let Blender take control. To switch from the player camera to director camera press BACKSPACE"
@@ -166,8 +166,8 @@ def sync_corinth_sapien(location, yaw, pitch, roll, in_camera, context):
     
 def sync_camera_to_game(context: bpy.types.Context):
     r3d = context.space_data.region_3d
-    # matrix = nwo_utils.halo_transform_matrix(view_matrix)
-    matrix = nwo_utils.halo_transform_matrix(r3d.view_matrix.inverted())
+    # matrix = utils.halo_transform_matrix(view_matrix)
+    matrix = utils.halo_transform_matrix(r3d.view_matrix.inverted())
     location = [round(t, 3) for t in matrix.translation]
     yaw, pitch, roll = quaternion_to_ypr(matrix.to_quaternion())
     in_camera = r3d.view_perspective == 'CAMERA' and context.scene.camera
@@ -179,14 +179,14 @@ def sync_camera_to_game(context: bpy.types.Context):
     exe_name = ""
     global pm
     global base
-    if nwo_utils.is_corinth(context):
-        exe_name = Path(nwo_utils.get_exe("sapien")).name
+    if utils.is_corinth(context):
+        exe_name = Path(utils.get_exe("sapien")).name
         if not base:
             pm = pymem.Pymem(exe_name)
             base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll + 0x0227F5C0
         sync_corinth_sapien(location, yaw, pitch, roll, in_camera, context)
     else:
-        exe_name = Path(nwo_utils.get_exe("tag_test")).name
+        exe_name = Path(utils.get_exe("tag_test")).name
         if not base:
             pm = pymem.Pymem(exe_name)
             base = pymem.process.module_from_name(pm.process_handle, exe_name).lpBaseOfDll
@@ -239,7 +239,7 @@ def pymem_install():
         if shutdown != 6:
             return {"CANCELLED"}
         
-        nwo_utils.restart_blender()
+        utils.restart_blender()
 
     except:
         print("Failed to install pymem")

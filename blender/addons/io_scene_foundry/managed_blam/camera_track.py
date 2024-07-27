@@ -28,8 +28,8 @@ from math import radians
 import bpy
 import os
 from mathutils import Matrix, Quaternion, Vector
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.utils import nwo_utils
+from ..managed_blam import Tag
+from .. import utils
 
 #  This matrix corrects for the camera's forward direction
 camera_correction_matrix = Matrix(((-0, 0, -1), (-1, -0, 0), (-0, 1, 0)))
@@ -82,8 +82,8 @@ class CameraTrackTag(Tag):
     
     def to_blender_animation(self, context: bpy.types.Context, animation_scale=1):
         control_points = self.get_control_points()
-        track_name = nwo_utils.dot_partition(os.path.basename(nwo_utils.dot_partition(self.tag_path.ToString())))
-        camera_ob = nwo_utils.get_camera_track_camera(context)
+        track_name = utils.dot_partition(os.path.basename(utils.dot_partition(self.tag_path.ToString())))
+        camera_ob = utils.get_camera_track_camera(context)
         if camera_ob is None:
             camera_name = 'camera_' + track_name
             camera_data = bpy.data.cameras.new(camera_name)
@@ -128,7 +128,7 @@ class CameraTrackTag(Tag):
         scene = context.scene
         frame_range = action.frame_range
         if frame_range[1] - frame_range[0] > 15:
-            nwo_utils.print_warning("Camera animation has more than 16 frames. Only using the first 16 frames for camera track")
+            utils.print_warning("Camera animation has more than 16 frames. Only using the first 16 frames for camera track")
         control_points = []
         frame = int(action.frame_start)
         idx = 0

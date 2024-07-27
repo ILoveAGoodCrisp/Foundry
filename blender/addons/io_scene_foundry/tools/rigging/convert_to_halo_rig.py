@@ -27,8 +27,8 @@
 '''Prepends Foundry's halo armature to an existing armature'''
 
 import bpy
-from io_scene_foundry.tools.rigging import HaloRig
-from io_scene_foundry.utils import nwo_utils
+from ...tools.rigging import HaloRig
+from ... import utils
 
 class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
     bl_idname = "nwo.convert_to_halo_rig"
@@ -46,7 +46,7 @@ class NWO_OT_ConvertToHaloRig(bpy.types.Operator):
 
     def execute(self, context):
         scene_nwo = context.scene.nwo
-        target_root_bone = nwo_utils.rig_root_deform_bone(context.object, True)
+        target_root_bone = utils.rig_root_deform_bone(context.object, True)
         if "pedestal" in target_root_bone or scene_nwo.node_usage_pedestal == target_root_bone:
             self.report({'WARNING'}, f"Armature [{context.object.name}] already has Halo skeleton structure, skipping")
             return {'CANCELLED'}

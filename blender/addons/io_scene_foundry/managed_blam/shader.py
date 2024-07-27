@@ -26,15 +26,15 @@
 
 from pathlib import Path
 from mathutils import Vector
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.managed_blam.Tags import TagsNameSpace
+from ..managed_blam import Tag
+from ..managed_blam.Tags import TagsNameSpace
 import os
-from io_scene_foundry.managed_blam.bitmap import BitmapTag
-from io_scene_foundry.tools.export_bitmaps import export_bitmap
-from io_scene_foundry.utils import nwo_utils
+from ..managed_blam.bitmap import BitmapTag
+from ..tools.export_bitmaps import export_bitmap
+from .. import utils
 import bpy
 
-from io_scene_foundry.managed_blam.render_method_definition import RenderMethodDefinitionTag
+from ..managed_blam.render_method_definition import RenderMethodDefinitionTag
 
 global_render_method_definition = None
 last_group_node = None
@@ -110,31 +110,31 @@ class ShaderTag(Tag):
                 maps = {}
                 node_tree = blender_material.node_tree
                 if node_tree and node_tree.nodes:
-                    shader_node = nwo_utils.get_blender_shader(node_tree)
+                    shader_node = utils.get_blender_shader(node_tree)
                     if not shader_node:
-                        albedo_tint = nwo_utils.get_material_albedo(blender_material)
+                        albedo_tint = utils.get_material_albedo(blender_material)
                         if albedo_tint:
                             maps['albedo_tint'] = albedo_tint
                         return maps
                     
                     maps['bsdf'] = shader_node
-                    diffuse = nwo_utils.find_linked_node(shader_node, 'base color', 'TEX_IMAGE')
+                    diffuse = utils.find_linked_node(shader_node, 'base color', 'TEX_IMAGE')
                     if diffuse:
                         maps['diffuse'] = diffuse
-                    specular = nwo_utils.find_linked_node(shader_node, 'specular ior level', 'TEX_IMAGE')
+                    specular = utils.find_linked_node(shader_node, 'specular ior level', 'TEX_IMAGE')
                     if specular:
                         maps['specular'] = specular
-                    normal = nwo_utils.find_linked_node(shader_node, 'normal', 'TEX_IMAGE')
+                    normal = utils.find_linked_node(shader_node, 'normal', 'TEX_IMAGE')
                     if normal:
                         maps['normal'] = normal
-                    self_illum = nwo_utils.find_linked_node(shader_node, 'emission color', 'TEX_IMAGE')
+                    self_illum = utils.find_linked_node(shader_node, 'emission color', 'TEX_IMAGE')
                     if self_illum:
                         maps['self_illum'] = self_illum
-                    alpha = nwo_utils.find_linked_node(shader_node, 'alpha', 'TEX_IMAGE')
+                    alpha = utils.find_linked_node(shader_node, 'alpha', 'TEX_IMAGE')
                     if alpha and alpha not in maps.values():
                         maps['alpha'] = alpha
                     if diffuse is None:
-                        albedo_tint = nwo_utils.get_material_albedo(shader_node)
+                        albedo_tint = utils.get_material_albedo(shader_node)
                         if albedo_tint:
                             maps['albedo_tint'] = albedo_tint
                         
@@ -293,7 +293,7 @@ class ShaderTag(Tag):
         match parameter_type:
             case 'bitmap':
                 if isinstance(source, bpy.types.Node):
-                    scale_node, is_texture_tiling = nwo_utils.find_mapping_node(source, self.group_node)
+                    scale_node, is_texture_tiling = utils.find_mapping_node(source, self.group_node)
                     if not scale_node: return mapping
                     if is_texture_tiling:
                         factor = scale_node.inputs['Scale Multiplier'].default_value
@@ -350,7 +350,7 @@ class ShaderTag(Tag):
         input_name = input.name.lower()
         match parameter_type:
             case 'bitmap':
-                return nwo_utils.find_linked_node(self.group_node, input_name, 'TEX_IMAGE')
+                return utils.find_linked_node(self.group_node, input_name, 'TEX_IMAGE')
             case 'real':
                 return float(input.default_value)
             case 'int':
@@ -358,7 +358,7 @@ class ShaderTag(Tag):
             case 'bool':
                 return int(bool(input.default_value))
             case 'color':
-                return nwo_utils.get_material_albedo(self.group_node, input)
+                return utils.get_material_albedo(self.group_node, input)
             
             
     # READING
@@ -666,7 +666,7 @@ class BSDFParameter():
             
         if self.mapping:
             mapping_node = self.tree.nodes.new('ShaderNodeGroup')
-            mapping_node.node_tree = nwo_utils.add_node_from_resources('Texture Tiling')
+            mapping_node.node_tree = utils.add_node_from_resources('Texture Tiling')
             mapping_node.location.x = data_node.location.x - 300
             mapping_node.location.y = data_node.location.y
             scale_uni = self.mapping.get('scale_uni', 0)

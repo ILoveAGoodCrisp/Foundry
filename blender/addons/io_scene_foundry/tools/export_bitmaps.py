@@ -27,8 +27,8 @@
 import os
 from pathlib import Path
 import bpy
-from io_scene_foundry.managed_blam.bitmap import BitmapTag
-from io_scene_foundry.utils.nwo_utils import (
+from ..managed_blam.bitmap import BitmapTag
+from ..utils import (
     dot_partition,
     get_asset_path,
     get_data_path,
@@ -37,7 +37,6 @@ from io_scene_foundry.utils.nwo_utils import (
     print_error,
     print_warning,
     run_tool,
-    valid_filename,
     valid_image_name,
 )
 

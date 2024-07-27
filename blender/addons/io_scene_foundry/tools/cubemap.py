@@ -29,9 +29,9 @@ import bpy
 import os
 import time
 import shutil
-from io_scene_foundry.managed_blam.scenario import ScenarioTag
-from io_scene_foundry.managed_blam.bitmap import BitmapTag
-from io_scene_foundry.utils import nwo_utils
+from ..managed_blam.scenario import ScenarioTag
+from ..managed_blam.bitmap import BitmapTag
+from .. import utils
 from pathlib import Path
 
 instructions_given = False
@@ -63,7 +63,7 @@ class CubemapFarm:
     def __init__(self, scenario_path) -> None:
         self.scenario_path = scenario_path
         self.scenario_path_no_ext = str(Path(scenario_path).with_suffix(""))
-        self.project_dir = Path(nwo_utils.get_project_path())
+        self.project_dir = Path(utils.get_project_path())
         self.cubemaps_dir = Path(self.project_dir, "cubemaps")
         
     def get_tagplay_exe(self):
@@ -75,7 +75,7 @@ class CubemapFarm:
         executable = self.get_tagplay_exe()
         try:
             with open(Path(self.project_dir, "bonobo_init.txt"), "w") as init:
-                if nwo_utils.is_corinth():
+                if utils.is_corinth():
                     init.write("prune_globals 1\n")
                 else:
                     init.write("prune_global 1\n")
@@ -91,7 +91,7 @@ class CubemapFarm:
         except:
             print("Unable to replace bonobo_init.txt. It is currently read only")
         
-        nwo_utils.update_debug_menu(for_cubemaps=True)
+        utils.update_debug_menu(for_cubemaps=True)
         
         if self.cubemaps_dir.exists():
             shutil.rmtree(self.cubemaps_dir)
@@ -107,7 +107,7 @@ class CubemapFarm:
             )
             instructions_given = True
         print("Waiting for the game to close...\n")
-        nwo_utils.run_ek_cmd([executable])
+        utils.run_ek_cmd([executable])
             
     def write_cubemap_bitmaps(self):
         if not self.cubemaps_dir.exists():
@@ -126,7 +126,7 @@ class CubemapFarm:
                 cubemaps.append(Cubemap(float(points[0]), float(points[1]), float(points[2])))
         
             print("--- Generating cubemap bitmap tag")
-            nwo_utils.run_tool(["cubemaps", self.scenario_path_no_ext, self.cubemaps_dir])
+            utils.run_tool(["cubemaps", self.scenario_path_no_ext, self.cubemaps_dir])
             print("\n--- Fixing up cubemap bitmap checksums")
                 
             for bsp_element in scenario.block_bsps.Elements:
@@ -136,7 +136,7 @@ class CubemapFarm:
                 cubemap_bitmap_name = f"{scenario_name}_{bsp_name}_cubemaps.bitmap"
                 scenario_dir = Path(self.scenario_path_no_ext).parent
                 cubemap_bitmap_path = str(Path(scenario_dir, cubemap_bitmap_name))
-                if nwo_utils.is_corinth():
+                if utils.is_corinth():
                     bitmap_tagpath = bsp_element.SelectField("bsp specific cubemap")
                 else:
                     bitmap_tagpath = bsp_element.SelectField("cubemap bitmap group reference")
@@ -188,7 +188,7 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         return True
     
     def update_scenario_path(self, context):
-        self["scenario_path"] = nwo_utils.clean_tag_path(self["scenario_path"]).strip('"')
+        self["scenario_path"] = utils.clean_tag_path(self["scenario_path"]).strip('"')
     
     scenario_path: bpy.props.StringProperty(
         name="Scenario Tag Path",
@@ -207,8 +207,8 @@ class NWO_OT_Cubemap(bpy.types.Operator):
             self.report({"WARNING"}, "No scenario path given. Operation cancelled")
             return {'CANCELLED'}
         self.scenario_path = str(Path(self.scenario_path).with_suffix(".scenario"))
-        self.scenario_path = nwo_utils.relative_path(self.scenario_path)
-        if not Path(nwo_utils.get_tags_path(), self.scenario_path).exists():
+        self.scenario_path = utils.relative_path(self.scenario_path)
+        if not Path(utils.get_tags_path(), self.scenario_path).exists():
             self.report({"WARNING"}, f"Given scenario path does not exist: {self.scenario_path}")
             return {'CANCELLED'}
         farm = CubemapFarm(self.scenario_path)
@@ -222,17 +222,17 @@ class NWO_OT_Cubemap(bpy.types.Operator):
         message = farm.write_cubemap_bitmaps()
         if message:
             self.report({'WARNING'}, message)
-            nwo_utils.print_warning("\n Cubemap farm cancelled")
+            utils.print_warning("\n Cubemap farm cancelled")
             return {"CANCELLED"}
         end = time.perf_counter()
         print("\n-----------------------------------------------------------------------")
-        print(f"Cubemaps generated in {nwo_utils.human_time(end - start, True)}")
+        print(f"Cubemaps generated in {utils.human_time(end - start, True)}")
         print("-----------------------------------------------------------------------")
         return {"FINISHED"}
     
     def invoke(self, context, event):
-        if not self.scenario_path and nwo_utils.valid_nwo_asset:
-            asset_path, asset_name = nwo_utils.get_asset_info()
+        if not self.scenario_path and utils.valid_nwo_asset:
+            asset_path, asset_name = utils.get_asset_info()
             if asset_path and asset_name:
                 self.scenario_path = str(Path(asset_path, asset_name).with_suffix(".scenario"))
             

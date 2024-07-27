@@ -27,11 +27,11 @@
 '''Handles bpy operators and functions for the Sets Manager panel'''
 
 import bpy
-from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.managed_blam.scenario import ScenarioTag
-from io_scene_foundry.tools.collection_manager import get_full_name
+from ..icons import get_icon_id
+from ..managed_blam.scenario import ScenarioTag
+from ..tools.collection_manager import get_full_name
 
-from io_scene_foundry.utils.nwo_utils import is_corinth, is_frame, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
+from ..utils import is_corinth, is_frame, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
     if is_mesh(ob) and (ob.nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):

@@ -29,8 +29,8 @@ from bpy_extras.object_utils import object_data_add
 import os
 import zipfile
 
-from io_scene_foundry.utils.nwo_utils import add_auto_smooth, rotation_diff_from_forward, transform_scene
-from io_scene_foundry.utils.barebones_model_format import BarebonesModelFormat
+from ..utils import add_auto_smooth, rotation_diff_from_forward, transform_scene
+from ..tools.barebones_model_format import BarebonesModelFormat
 from bpy_extras.object_utils import AddObjectHelper
 
 class NWO_OT_AddScaleModel(bpy.types.Operator, AddObjectHelper):

@@ -27,9 +27,8 @@
 import os
 from pathlib import Path
 import bpy
-import glob
-from io_scene_foundry.managed_blam.scenario import ScenarioTag
-from io_scene_foundry.utils.nwo_utils import (
+from ..managed_blam.scenario import ScenarioTag
+from ..utils import (
     get_data_path,
     get_exe,
     get_prefs,

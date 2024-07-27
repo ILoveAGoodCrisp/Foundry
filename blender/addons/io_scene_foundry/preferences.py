@@ -28,15 +28,9 @@ import os
 from pathlib import Path
 from bpy.types import Operator, AddonPreferences
 from bpy.props import BoolProperty, StringProperty, EnumProperty, CollectionProperty
-from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.utils.nwo_utils import ProjectXML, foundry_update_check, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
-from io_scene_foundry.utils import nwo_globals
+from .utils import ProjectXML, get_prefs, get_tags_path, is_corinth, project_game_icon, project_icon, read_projects_list, relative_path, setup_projects_list, write_projects_list
 FOUNDRY_GITHUB = r"https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit"
-# update_str, update_needed = foundry_update_check(nwo_globals.version)
 import bpy
-import xml.etree.ElementTree as ET
-
-from io_scene_foundry.utils import nwo_globals
 
 class NWO_Project_ListItems(bpy.types.PropertyGroup):
     project_path: StringProperty()
@@ -243,9 +237,7 @@ class HREKLocationPath(Operator):
     )
 
     def execute(self, context):
-        context.preferences.addons[
-            "io_scene_foundry"
-        ].preferences.hrek_path = self.directory.strip('"\\')
+        context.preferences.addons[__package__].preferences.hrek_path = self.directory.strip('"\\')
 
         return {"FINISHED"}
 
@@ -272,9 +264,7 @@ class H4EKLocationPath(Operator):
     )
 
     def execute(self, context):
-        context.preferences.addons[
-            "io_scene_foundry"
-        ].preferences.h4ek_path = self.directory.strip('"\\')
+        context.preferences.addons[__package__].preferences.h4ek_path = self.directory.strip('"\\')
 
         return {"FINISHED"}
 
@@ -301,9 +291,7 @@ class H2AMPEKLocationPath(Operator):
     )
 
     def execute(self, context):
-        context.preferences.addons[
-            "io_scene_foundry"
-        ].preferences.h2aek_path = self.directory.strip('"\\')
+        context.preferences.addons[__package__].preferences.h2aek_path = self.directory.strip('"\\')
 
         return {"FINISHED"}
 
@@ -313,38 +301,8 @@ class H2AMPEKLocationPath(Operator):
         return {"RUNNING_MODAL"}
 
 
-class ToolkitLocationPreferences(AddonPreferences):
-    bl_idname = "io_scene_foundry"
-
-    def clean_hrek_path(self, context):
-        self["hrek_path"] = self["hrek_path"].strip('"\\')
-
-    hrek_path: StringProperty(
-        name="HREK Path",
-        description="Specify the path to your Halo Reach Editing Kit folder containing tool / tool_fast",
-        default="",
-        update=clean_hrek_path,
-    )
-
-    def clean_h4ek_path(self, context):
-        self["h4ek_path"] = self["h4ek_path"].strip('"\\')
-
-    h4ek_path: StringProperty(
-        name="H4EK Path",
-        description="Specify the path to your Halo 4 Editing Kit folder containing tool / tool_fast",
-        default="",
-        update=clean_h4ek_path,
-    )
-
-    def clean_h2aek_path(self, context):
-        self["h2aek_path"] = self["h2aek_path"].strip('"\\')
-
-    h2aek_path: StringProperty(
-        name="H2AMPEK Path",
-        description="Specify the path to your Halo 2 Anniversary MP Editing Kit folder containing tool / tool_fast",
-        default="",
-        update=clean_h2aek_path,
-    )
+class FoundryPreferences(AddonPreferences):
+    bl_idname = __package__
 
     tool_type: EnumProperty(
         name="Tool Type",
@@ -401,19 +359,6 @@ class ToolkitLocationPreferences(AddonPreferences):
         default=True,
     )
     
-    # def scene_matrix_items(self, context):
-    #     return [
-    #         ("scene", "Use Scene", "", "", 0),
-    #         ("blender", "Blender", "", "BLENDER", 1),
-    #         ("halo", "Halo", "", get_icon_id('halo_scale'), 2),
-    #     ]
-    
-    # scene_matrix: EnumProperty(
-    #     name="Default Scene Matrix",
-    #     description="When creating a new asset sets the default scene scale and forward direction",
-    #     items=scene_matrix_items,
-    # )
-    
     debug_menu_on_export: BoolProperty(
         name="Update Debug Menu on Export",
         description="Updates the debug menu at export with the current scene asset (if it is a model)",
@@ -428,17 +373,6 @@ class ToolkitLocationPreferences(AddonPreferences):
     def draw(self, context):
         prefs = self
         layout = self.layout
-        # box = layout.box()
-        # box.label(text=update_str, icon_value=get_icon_id("foundry"))
-        # if update_needed:
-        #     box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
-
-        if not nwo_globals.clr_installed:
-            box = layout.box()
-            box.label(text="Install required to use Halo Tag API (ManagedBlam)")
-            row = box.row(align=True)
-            row.scale_y = 1.5
-            row.operator("managed_blam.init", text="Install Tag API Dependency", icon='IMPORT').install_only = True
         
         box = layout.box()
         row = box.row()
@@ -486,3 +420,24 @@ class ToolkitLocationPreferences(AddonPreferences):
         row.prop(prefs, "debug_menu_on_export")
         row = box.row(align=True)
         row.prop(prefs, "debug_menu_on_launch")
+        
+classes = [
+    H2AMPEKLocationPath,
+    H4EKLocationPath,
+    HREKLocationPath,
+    NWO_Project_ListItems,
+    NWO_UL_Projects,
+    NWO_ProjectAdd,
+    NWO_ProjectRemove,
+    NWO_ProjectMove,
+    NWO_OT_ProjectEdit,
+    FoundryPreferences,
+]
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)

@@ -28,7 +28,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from io_scene_foundry.managed_blam.Game import GameColor, GamePoint2d
+from ..managed_blam.Game import GameColor, GamePoint2d
 
 # Extras that we need
 

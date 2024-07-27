@@ -26,9 +26,9 @@
 
 import bpy
 import bmesh
-from io_scene_foundry.tools.property_apply import apply_props_material
+from ..tools.property_apply import apply_props_material
 
-from io_scene_foundry.utils.nwo_utils import deselect_all_objects, export_objects_mesh_only, get_prefs, poll_ui, set_active_object, true_permutation, true_region
+from ..utils import deselect_all_objects, export_objects_mesh_only, get_prefs, poll_ui, set_active_object, true_permutation, true_region
 
 class NWO_AutoSeam(bpy.types.Operator):
     bl_idname = "nwo.auto_seam"

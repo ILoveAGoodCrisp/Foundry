@@ -1,38 +1,12 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 import os
 import bpy
-from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets, NWO_OT_ZoneSetMove
-from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.tools.collection_apply import NWO_ApplyCollectionMenu, NWO_ApplyCollectionType, NWO_PermutationListCollection, NWO_RegionListCollection
+from ..tools.scenario.zone_sets import NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets, NWO_OT_ZoneSetMove
+from ..icons import get_icon_id
+from ..tools.collection_apply import NWO_ApplyCollectionMenu, NWO_ApplyCollectionType, NWO_PermutationListCollection, NWO_RegionListCollection
 
-from io_scene_foundry.ui.collection_properties import NWO_CollectionPropertiesGroup
-from io_scene_foundry.ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
-from io_scene_foundry.utils.nwo_utils import get_marker_display, get_mesh_display, get_object_type, is_marker, is_mesh, true_permutation, true_region
+from ..ui.collection_properties import NWO_CollectionPropertiesGroup
+from ..ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
+from ..utils import get_marker_display, get_mesh_display, get_object_type, is_marker, is_mesh, true_permutation, true_region
 
 # from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
 from .templates import NWO_Op
@@ -151,19 +125,6 @@ from .viewport_ui import (
     NWO_ApplyTypeMarker,
     NWO_MT_PIE_ApplyTypeMarker,
     NWO_PIE_ApplyTypeMarker,
-)
-
-from .preferences_ui import (
-    H2AMPEKLocationPath,
-    H4EKLocationPath,
-    HREKLocationPath,
-    NWO_OT_ProjectEdit,
-    NWO_Project_ListItems,
-    NWO_ProjectAdd,
-    NWO_ProjectMove,
-    NWO_ProjectRemove,
-    NWO_UL_Projects,
-    ToolkitLocationPreferences,
 )
 
 from .image_properties import NWO_ImagePropertiesGroup
@@ -330,10 +291,6 @@ def collection_context(self, context):
 
 classes_nwo = (
     NWO_GlobalMaterialGlobals,
-    H2AMPEKLocationPath,
-    H4EKLocationPath,
-    HREKLocationPath,
-    NWO_Project_ListItems,
     NWO_AnimationLeavesItems,
     NWO_AnimationPhaseSetsItems,
     NWO_AnimationDeadZonesItems,
@@ -354,11 +311,6 @@ classes_nwo = (
     NWO_MarkerPermutationsMenu,
     NWO_BSP_ListItems,
     NWO_GlobalMaterial_ListItems,
-    NWO_UL_Projects,
-    NWO_ProjectAdd,
-    NWO_ProjectRemove,
-    NWO_ProjectMove,
-    ToolkitLocationPreferences,
     NWO_OpenAssetFoundry,
     NWO_UL_MarkerPermutations,
     NWO_List_Add_MarkerPermutation,
@@ -462,7 +414,6 @@ classes_nwo = (
     NWO_OT_ZoneSetRemove,
     NWO_OT_ZoneSetMove,
     NWO_OT_RegisterIcons,
-    NWO_OT_ProjectEdit,
 )
 
 def register():

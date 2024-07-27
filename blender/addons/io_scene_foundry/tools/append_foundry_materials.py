@@ -26,8 +26,8 @@
 
 import bpy
 
-from io_scene_foundry.utils import nwo_utils
-from io_scene_foundry.utils.nwo_materials import special_materials
+from .. import utils
+from ..tools.materials import special_materials
 
 class NWO_AppendFoundryMaterials(bpy.types.Operator):
     bl_idname = "nwo.append_foundry_materials"
@@ -36,7 +36,7 @@ class NWO_AppendFoundryMaterials(bpy.types.Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context):
-        game = 'h4' if nwo_utils.is_corinth(context) else 'reach'
+        game = 'h4' if utils.is_corinth(context) else 'reach'
         asset_type = context.scene.nwo.asset_type
         count = add_special_materials(game, asset_type)
         

@@ -39,59 +39,55 @@ from bpy.props import (
     EnumProperty,
     PointerProperty,
 )
-from io_scene_foundry.tools.append_grid_materials import NWO_OT_AppendGridMaterials
-from io_scene_foundry.tools.shader_duplicate import NWO_OT_ShaderDuplicate
-from io_scene_foundry.tools.camera_sync import NWO_OT_CameraSync
-from io_scene_foundry.tools.prefab_exporter import NWO_OT_ExportPrefabs
-from io_scene_foundry.tools.light_exporter import NWO_OT_ExportLights
-from io_scene_foundry.tools.asset_creator import NWO_OT_NewAsset
-from io_scene_foundry.tools.animation.rename_importer import NWO_OT_RenameImporter
-from io_scene_foundry.tools.animation.fcurve_transfer import NWO_OT_FcurveTransfer
-from io_scene_foundry.tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
-from io_scene_foundry.tools.animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
-from io_scene_foundry.tools.scenario.lightmap import NWO_OT_Lightmap
-from io_scene_foundry.tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
-from io_scene_foundry.tools.tag_templates import NWO_OT_LoadTemplate
-from io_scene_foundry.tools.cubemap import NWO_OT_Cubemap
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.tools.scale_models import NWO_OT_AddScaleModel
-from io_scene_foundry.tools.animation.automate_pose_overlay import NWO_AddAimAnimation
-from io_scene_foundry.tools.rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
-from io_scene_foundry.tools.rigging.create_rig import NWO_OT_AddRig
-from io_scene_foundry.tools.rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig
-from io_scene_foundry.tools.scene_scaler import NWO_ScaleScene
-from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
-from io_scene_foundry.tools.append_foundry_materials import NWO_AppendFoundryMaterials
-from io_scene_foundry.tools.auto_seam import NWO_AutoSeam
-from io_scene_foundry.tools.clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
-from io_scene_foundry.tools.export_bitmaps import NWO_ExportBitmapsSingle
-from io_scene_foundry.tools.importer import NWO_FH_Import, NWO_FH_ImportBitmapAsImage, NWO_FH_ImportBitmapAsNode, NWO_Import, NWO_OT_ConvertScene, NWO_OT_ImportBitmap
-from io_scene_foundry.tools.mesh_to_marker import NWO_MeshToMarker
-from io_scene_foundry.tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
-from io_scene_foundry.tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_OT_HideObjectType, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
-from io_scene_foundry.tools.shader_farm import NWO_FarmShaders
-from io_scene_foundry.tools.shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
-from io_scene_foundry.tools.shader_reader import NWO_ShaderToNodes
-from io_scene_foundry.ui.face_ui import NWO_FaceLayerAddMenu
-from io_scene_foundry.ui.object_ui import NWO_GlobalMaterialMenu
-from io_scene_foundry.tools.get_model_variants import NWO_GetModelVariants
-from io_scene_foundry.tools.get_tag_list import NWO_GetTagsList, NWO_TagExplore
-from io_scene_foundry.tools.halo_launcher import NWO_OpenFoundationTag
-from io_scene_foundry.utils.nwo_constants import RENDER_MESH_TYPES, TWO_SIDED_MESH_TYPES
+from ..tools.append_grid_materials import NWO_OT_AppendGridMaterials
+from ..tools.shader_duplicate import NWO_OT_ShaderDuplicate
+from ..tools.camera_sync import NWO_OT_CameraSync
+from ..tools.prefab_exporter import NWO_OT_ExportPrefabs
+from ..tools.light_exporter import NWO_OT_ExportLights
+from ..tools.asset_creator import NWO_OT_NewAsset
+from ..tools.animation.rename_importer import NWO_OT_RenameImporter
+from ..tools.animation.fcurve_transfer import NWO_OT_FcurveTransfer
+from ..tools.animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
+from ..tools.animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
+from ..tools.scenario.lightmap import NWO_OT_Lightmap
+from ..tools.scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
+from ..tools.tag_templates import NWO_OT_LoadTemplate
+from ..tools.cubemap import NWO_OT_Cubemap
+from ..managed_blam import Tag
+from ..tools.scale_models import NWO_OT_AddScaleModel
+from ..tools.animation.automate_pose_overlay import NWO_AddAimAnimation
+from ..tools.rigging.convert_to_halo_rig import NWO_OT_ConvertToHaloRig
+from ..tools.rigging.create_rig import NWO_OT_AddRig
+from ..tools.rigging.validation import NWO_AddPoseBones, NWO_FixArmatureTransforms, NWO_FixPoseBones, NWO_FixRootBone, NWO_ValidateRig
+from ..tools.scene_scaler import NWO_ScaleScene
+from ..icons import get_icon_id, get_icon_id_in_directory
+from ..tools.append_foundry_materials import NWO_AppendFoundryMaterials
+from ..tools.auto_seam import NWO_AutoSeam
+from ..tools.clear_duplicate_materials import NWO_ClearShaderPaths, NWO_StompMaterials
+from ..tools.export_bitmaps import NWO_ExportBitmapsSingle
+from ..tools.importer import NWO_FH_Import, NWO_FH_ImportBitmapAsImage, NWO_FH_ImportBitmapAsNode, NWO_Import, NWO_OT_ConvertScene, NWO_OT_ImportBitmap
+from ..tools.mesh_to_marker import NWO_MeshToMarker
+from ..tools.set_sky_permutation_index import NWO_NewSky, NWO_SetDefaultSky, NWO_SetSky
+from ..tools.sets_manager import NWO_BSPContextMenu, NWO_BSPInfo, NWO_BSPSetLightmapRes, NWO_FaceRegionAdd, NWO_FaceRegionAssignSingle, NWO_OT_HideObjectType, NWO_PermutationAdd, NWO_PermutationAssign, NWO_PermutationAssignSingle, NWO_PermutationHide, NWO_PermutationHideSelect, NWO_PermutationMove, NWO_PermutationRemove, NWO_PermutationRename, NWO_PermutationSelect, NWO_RegionAdd, NWO_RegionAssign, NWO_RegionAssignSingle, NWO_RegionHide, NWO_RegionHideSelect, NWO_RegionMove, NWO_RegionRemove, NWO_RegionRename, NWO_RegionSelect, NWO_SeamAssignSingle, NWO_UpdateSets
+from ..tools.shader_farm import NWO_FarmShaders
+from ..tools.shader_finder import NWO_ShaderFinder_Find, NWO_ShaderFinder_FindSingle
+from ..tools.shader_reader import NWO_ShaderToNodes
+from ..ui.face_ui import NWO_FaceLayerAddMenu
+from ..ui.object_ui import NWO_GlobalMaterialMenu
+from ..tools.get_model_variants import NWO_GetModelVariants
+from ..tools.get_tag_list import NWO_GetTagsList, NWO_TagExplore
+from ..tools.halo_launcher import NWO_OpenFoundationTag
+from ..constants import RENDER_MESH_TYPES, TWO_SIDED_MESH_TYPES
 from .shader_builder import NWO_ListMaterialShaders, build_shader
-
-from io_scene_foundry.utils import nwo_globals
 
 from .halo_launcher import NWO_MaterialGirl, open_file_explorer
 
-from io_scene_foundry.utils.nwo_utils import (
+from ..utils import (
     ExportManager,
     amf_addon_installed,
     blender_toolset_installed,
-    clean_tag_path,
     deselect_all_objects,
     dot_partition,
-    foundry_update_check,
     get_arm_count,
     get_asset_animation_graph,
     get_asset_collision_model,
@@ -117,7 +113,6 @@ from io_scene_foundry.utils.nwo_utils import (
     is_marker,
     is_mesh,
     library_instanced_collection,
-    managed_blam_active,
     is_corinth,
     material_read_only,
     nwo_asset_type,
@@ -133,7 +128,8 @@ from io_scene_foundry.utils.nwo_utils import (
     poll_ui,
     validate_ek,
 )
-from bpy_extras.object_utils import AddObjectHelper
+from .. import managed_blam
+from .. import utils
 
 is_blender_startup = True
 
@@ -144,8 +140,6 @@ BLENDER_TOOLSET = r"https://github.com/General-101/Halo-Asset-Blender-Developmen
 AMF_ADDON = r"https://github.com/Gravemind2401/Reclaimer/blob/master/Reclaimer.Blam/Resources/Blender%20AMF2.py"
 RECLAIMER = r"https://github.com/Gravemind2401/Reclaimer/releases"
 ANIMATION_REPO = r"https://github.com/77Mynameislol77/HaloAnimationRepository"
-
-# update_str, update_needed = foundry_update_check(nwo_globals.version)
 
 HOTKEYS = [
     ("show_foundry_panel", "SHIFT+F"),
@@ -277,7 +271,6 @@ class NWO_FoundryPanelProps(Panel):
 
     def draw_scene_properties(self):
         box = self.box
-        mb_active = managed_blam_active()
         nwo = self.scene.nwo
         scene = self.scene
 
@@ -285,9 +278,6 @@ class NWO_FoundryPanelProps(Panel):
         row = col.row()
         col.scale_y = 1.5
 
-        if not nwo_globals.clr_installed:
-            col.operator("managed_blam.init", text="Install Tag API")
-            col.separator()
         col.operator('nwo.scale_scene', text='Transform Scene', icon='MOD_LENGTH')
         col = box.column()
         col.scale_y = 1.25
@@ -3183,13 +3173,6 @@ class NWO_FoundryPanelProps(Panel):
         # if update_needed:
         #     box.operator("nwo.open_url", text="Get Latest", icon_value=get_icon_id("github")).url = FOUNDRY_GITHUB
 
-        if not nwo_globals.clr_installed:
-            box = self.box.box()
-            box.label(text="Install required to use Halo Tag API (ManagedBlam)")
-            row = box.row(align=True)
-            row.scale_y = 1.5
-            row.operator("managed_blam.init", text="Install Tag API Dependency", icon='IMPORT').install_only = True
-        
         box = self.box.box()
         row = box.row()
         row.label(text="Projects")
@@ -4728,7 +4711,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     def lightmap_quality_items(self, context: bpy.types.Context) -> list[bpy.types.EnumProperty]:
         items = []
         lightmapper_globals_tag_path = Path(get_tags_path(), r"globals\lightmapper_globals.lightmapper_globals")
-        if not lightmapper_globals_tag_path.exists() or not nwo_globals.mb_active:
+        if not lightmapper_globals_tag_path.exists() or not globals.mb_active:
             return [("direct_only", "Direct Only", ""),
                     ("draft", "Draft", ""),
                     ("low", "Low", ""),
@@ -4899,7 +4882,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     #     self["show_output"] = value
 
     def update_show_output(self, context):
-        nwo_globals.foundry_output_state = self.show_output
+        utils.foundry_output_state = self.show_output
 
     show_output: BoolProperty(
         name="Toggle Output",
@@ -5218,7 +5201,7 @@ class NWO_ImportLegacyAnimation(Operator):
         arm.hide_set(False)
         arm.hide_select = False
         set_active_object(arm)
-        from io_scene_foundry.tools.importer import import_legacy_animations
+        from ..tools.importer import import_legacy_animations
         filepaths = [self.directory + f.name for f in self.files]
         import_legacy_animations(context, filepaths, self.report)
         if old_active is not None:
@@ -5287,7 +5270,7 @@ def foundry_nodes_toolbar(layout, context):
     #layout.label(text=" ")
     row = layout.row()
     export_scene = context.scene.nwo
-    icons_only = context.preferences.addons["io_scene_foundry"].preferences.toolbar_icons_only
+    icons_only = context.preferences.addons[__package__].preferences.toolbar_icons_only
     row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3
@@ -5325,7 +5308,7 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if export_scene.toolbar_expanded:
         sub_project = row.row(align=True)
-        if nwo_globals.mb_active:
+        if managed_blam.mb_active:
             sub_project.enabled = False
         sub_project.menu(NWO_ProjectChooserMenu.bl_idname, text="", icon_value=project_icon(context))
         error = validate_ek()

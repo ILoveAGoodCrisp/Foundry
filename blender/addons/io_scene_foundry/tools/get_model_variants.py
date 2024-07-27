@@ -25,11 +25,10 @@
 # ##### END MIT LICENSE BLOCK #####
 from pathlib import Path
 import bpy
-import os
-from io_scene_foundry.managed_blam.model import ModelTag
-from io_scene_foundry.managed_blam.object import ObjectTag
+from ..managed_blam.model import ModelTag
+from ..managed_blam.object import ObjectTag
 
-from io_scene_foundry.utils.nwo_utils import get_tags_path
+from ..utils import get_tags_path
 
 class NWO_GetModelVariants(bpy.types.Operator):
     bl_idname = "nwo.get_model_variants"

@@ -25,9 +25,10 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import os
+import clr
 from pathlib import Path
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.utils.nwo_utils import print_warning
+from ..managed_blam import Tag
+from ..utils import print_warning
 
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
@@ -124,12 +125,11 @@ class BitmapTag(Tag):
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
         try:
-            import clr
             clr.AddReference('System.Drawing')
-            from System import Array, Byte
-            from System.Runtime.InteropServices import Marshal
-            from System.Drawing import Rectangle
-            from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat
+            from System import Array, Byte # type: ignore
+            from System.Runtime.InteropServices import Marshal # type: ignore
+            from System.Drawing import Rectangle # type: ignore
+            from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
             game_bitmap = self._GameBitmap()
             bitmap = game_bitmap.GetBitmap()
             game_bitmap.Dispose()

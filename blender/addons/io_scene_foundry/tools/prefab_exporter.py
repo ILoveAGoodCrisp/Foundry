@@ -26,8 +26,8 @@
 
 from pathlib import Path
 import bpy
-from io_scene_foundry.managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
-from io_scene_foundry.utils import nwo_utils
+from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
+from .. import utils
 
 class BlamPrefab:
     def __init__(self, ob, bsp=None, scale=None, rotation=None):
@@ -36,7 +36,7 @@ class BlamPrefab:
         self.bsp = bsp
         self.reference = nwo.marker_game_instance_tag_name_ui
         self.scale = str(max(ob.scale[0], ob.scale[1], ob.scale[2]))
-        matrix = nwo_utils.halo_transforms(ob, scale, rotation, True)
+        matrix = utils.halo_transforms(ob, scale, rotation, True)
         matrix_3x3 = matrix.to_3x3().normalized()
         forward = -matrix_3x3.col[1]
         self.forward = [str(n) for n in forward]
@@ -54,18 +54,18 @@ class NWO_OT_ExportPrefabs(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return nwo_utils.valid_nwo_asset(context) and context.scene.nwo.asset_type == 'scenario' and nwo_utils.is_corinth(context)
+        return utils.valid_nwo_asset(context) and context.scene.nwo.asset_type == 'scenario' and utils.is_corinth(context)
 
     def execute(self, context):
         export_prefabs()
         return {"FINISHED"}
     
 def gather_prefabs(context):
-    return [ob for ob in context.scene.objects if nwo_utils.is_marker(ob) and ob.nwo.exportable and ob.nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name_ui.lower().endswith(".prefab")]
+    return [ob for ob in context.scene.objects if utils.is_marker(ob) and ob.nwo.exportable and ob.nwo.marker_type_ui == '_connected_geometry_marker_type_game_instance' and ob.nwo.marker_game_instance_tag_name_ui.lower().endswith(".prefab")]
 
 def export_prefabs():
-    asset_path, asset_name = nwo_utils.get_asset_info()
-    prefabs = [BlamPrefab(ob, nwo_utils.true_region(ob.nwo)) for ob in gather_prefabs(bpy.context)]
+    asset_path, asset_name = utils.get_asset_info()
+    prefabs = [BlamPrefab(ob, utils.true_region(ob.nwo)) for ob in gather_prefabs(bpy.context)]
     bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
     structure_bsp_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_bsp')) for b in bsps]
     for idx, bsp_path in enumerate(structure_bsp_paths):

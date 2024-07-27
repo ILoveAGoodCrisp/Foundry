@@ -27,9 +27,9 @@
 from uuid import uuid4
 import bmesh
 from mathutils import Matrix, Vector
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.utils import nwo_utils
-from io_scene_foundry.utils.nwo_materials import collision
+from ..managed_blam import Tag
+from .. import utils
+from ..tools.materials import collision
 import bpy
 
 class CollisionSurface:
@@ -52,11 +52,11 @@ class CollisionTag(Tag):
         
     def to_blend_objects(self, collection: bpy.types.Collection):
         # Find Armature
-        armature = nwo_utils.get_rig()
+        armature = utils.get_rig()
         armature_bones = []
         if armature:
             armature_bones = [b.name for b in armature.data.bones]
-            edit_armature = nwo_utils.EditArmature(armature)
+            edit_armature = utils.EditArmature(armature)
         else:
             print("No Armature in Scene to parent collision mesh to")
         objects = []
@@ -80,10 +80,10 @@ class CollisionTag(Tag):
                                 collision_object.matrix_parent_inverse = collision_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
                                 
                             else:
-                                nwo_utils.print_warning(f"Armature does not have bone [{node}] for {collision_object.name}")
+                                utils.print_warning(f"Armature does not have bone [{node}] for {collision_object.name}")
                                 
-                        nwo_utils.set_region(collision_object, region)
-                        nwo_utils.set_permutation(collision_object, permutation)
+                        utils.set_region(collision_object, region)
+                        utils.set_permutation(collision_object, permutation)
                         
                         collection.objects.link(collision_object)
                         objects.append(collision_object)
@@ -110,7 +110,7 @@ class CollisionTag(Tag):
                     sphere_object.parent_bone = node
                     sphere_object.matrix_parent_inverse = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
                 else:
-                    nwo_utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
+                    utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
             
             objects.append(sphere_object)
             collection.objects.link(sphere_object)
@@ -165,17 +165,17 @@ class CollisionTag(Tag):
             if split_materials:
                 for material in {surface.material for surface in surfaces}:
                     if material == 'default': continue
-                    layers[f"material:{material}"] = nwo_utils.new_face_layer(bm, mesh, material, material, f"face_global_material_override_{str(uuid4())}")
+                    layers[f"material:{material}"] = utils.new_face_layer(bm, mesh, material, material, f"face_global_material_override_{str(uuid4())}")
                     mesh.nwo.face_props[-1].face_global_material_ui = material
                     
             if split_sides:
-                layers["flag:two_sided"] = nwo_utils.new_face_layer(bm, mesh, material, f"two_sided_{str(uuid4())}", "two_sided_override")
+                layers["flag:two_sided"] = utils.new_face_layer(bm, mesh, material, f"two_sided_{str(uuid4())}", "two_sided_override")
             if split_ladder:
-                layers["flag:ladder"] = nwo_utils.new_face_layer(bm, mesh, material, f"ladder_{str(uuid4())}", "ladder_override")
+                layers["flag:ladder"] = utils.new_face_layer(bm, mesh, material, f"ladder_{str(uuid4())}", "ladder_override")
             if split_breakable:
-                layers["flag:breakable"] = nwo_utils.new_face_layer(bm, mesh, material, f"breakable_{str(uuid4())}", "breakable_override")
+                layers["flag:breakable"] = utils.new_face_layer(bm, mesh, material, f"breakable_{str(uuid4())}", "breakable_override")
             if split_slip:
-                layers["flag:slip_surface"] = nwo_utils.new_face_layer(bm, mesh, material, f"slip_surface_{str(uuid4())}", "slip_surface_override")
+                layers["flag:slip_surface"] = utils.new_face_layer(bm, mesh, material, f"slip_surface_{str(uuid4())}", "slip_surface_override")
                     
             for idx, face in enumerate(bm.faces):
                 surface = surfaces[idx]
@@ -193,7 +193,7 @@ class CollisionTag(Tag):
                         face[layer] = 1
                             
             for layer in face_props:
-                layer.face_count = nwo_utils.layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
+                layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
                 
         bm.to_mesh(mesh)
                 

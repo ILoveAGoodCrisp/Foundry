@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.utils.nwo_utils import all_prefixes
+from ..utils import all_prefixes
 
 
 def CopyProps(report, template, targets):

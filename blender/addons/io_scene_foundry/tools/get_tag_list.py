@@ -27,7 +27,7 @@
 from pathlib import Path
 import bpy
 import os
-from io_scene_foundry.utils.nwo_utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
+from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
 global_items = {}
 scene_props = ('render_model_path', 'collision_model_path', 'physics_model_path', 'animation_graph_path', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'template_model',

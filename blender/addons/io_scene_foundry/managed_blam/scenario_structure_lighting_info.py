@@ -24,9 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.managed_blam.Tags import TagFieldBlockElement
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.utils import nwo_utils
+from ..managed_blam.Tags import TagFieldBlockElement
+from ..managed_blam import Tag
+from .. import utils
 
 class ScenarioStructureLightingInfoTag(Tag):
     tag_ext = 'scenario_structure_lighting_info'
@@ -140,7 +140,7 @@ class ScenarioStructureLightingInfoTag(Tag):
         self.block_generic_light_instances.RemoveAllElements()
         for light in light_instances:
             element = self.block_generic_light_instances.AddElement()
-            id = nwo_utils.id_from_string(light.data_name)
+            id = utils.id_from_string(light.data_name)
             element.SelectField("Light Definition ID").SetStringData(id)
             element.SelectField("Light Definition Index").SetStringData(self._definition_index_from_id(id))
             element.SelectField("light mode").Value = light.light_mode

@@ -26,12 +26,12 @@
 
 from pathlib import Path
 from mathutils import Vector
-from io_scene_foundry.managed_blam.material_shader import MaterialShaderTag
-from io_scene_foundry.managed_blam.shader import BSDFParameter, ShaderTag
-from io_scene_foundry.utils import nwo_utils
+from ..managed_blam.material_shader import MaterialShaderTag
+from ..managed_blam.shader import BSDFParameter, ShaderTag
+from .. import utils
 import bpy
 
-from io_scene_foundry.utils.nwo_constants import MATERIAL_SHADERS_DIR
+from ..constants import MATERIAL_SHADERS_DIR
 
 
 global_material_shader = None
@@ -58,7 +58,7 @@ class MaterialTag(ShaderTag):
         global last_group_node
         global material_shader_path
         if not global_material_shader or last_group_node != self.group_node or material_shader_path == "":
-            group_node_name = nwo_utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
+            group_node_name = utils.dot_partition(self.group_node.node_tree.name.lower().replace(' ', '_'))
             material_shader_path = self._material_shader_path_from_group_node(group_node_name)
             assert material_shader_path, f"Group node in use for material but no corresponding material shader found. Expected material shader named {group_node_name} in {MATERIAL_SHADERS_DIR} (or sub-folders)"
             last_group_node = self.group_node
@@ -67,7 +67,7 @@ class MaterialTag(ShaderTag):
 
     def _material_shader_path_from_group_node(self, group_node_name):
         filename = group_node_name + '.material_shader'
-        return nwo_utils.relative_path(nwo_utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename))
+        return utils.relative_path(utils.find_file_in_directory(str(Path(self.tags_dir, MATERIAL_SHADERS_DIR)), filename))
                 
     def _build_custom(self):
         name_type_node_dict = {}
@@ -76,9 +76,9 @@ class MaterialTag(ShaderTag):
         for i in inputs:
             for parameter_name, value in global_material_shader.items():
                 d_name, param_type = value
-                parameter_name_culled = nwo_utils.remove_chars(parameter_name.lower(), cull_chars)
-                display_name = nwo_utils.remove_chars(d_name.lower(), cull_chars)
-                input_name = nwo_utils.remove_chars(i.name.lower(), cull_chars)
+                parameter_name_culled = utils.remove_chars(parameter_name.lower(), cull_chars)
+                display_name = utils.remove_chars(d_name.lower(), cull_chars)
+                input_name = utils.remove_chars(i.name.lower(), cull_chars)
                 if input_name == parameter_name_culled or input_name == display_name:
                     name_type_node_dict[parameter_name] = [param_type, self._source_from_input_and_parameter_type(i, param_type)]
                     break
@@ -198,7 +198,7 @@ class MaterialTag(ShaderTag):
     def _finalize_material_parameters(self, mapping, element):
         color = mapping.get('color', 0)
         if color:
-            argb_color = ['1', str(nwo_utils.linear_to_srgb(color[0])), str(nwo_utils.linear_to_srgb(color[1])), str(nwo_utils.linear_to_srgb(color[2]))]
+            argb_color = ['1', str(utils.linear_to_srgb(color[0])), str(utils.linear_to_srgb(color[1])), str(utils.linear_to_srgb(color[2]))]
             element.SelectField('color').SetStringData(argb_color)
         if mapping.get(self.scale_u, 0):
             element.SelectField('real').SetStringData(str(mapping.get(self.scale_u)))
@@ -255,7 +255,7 @@ class MaterialTag(ShaderTag):
         material_shader_name = ''
         parameter_names = []
         if self.reference_material_shader.Path:
-            material_shader_name = nwo_utils.os_sep_partition(self.reference_material_shader.Path.RelativePath, True)
+            material_shader_name = utils.os_sep_partition(self.reference_material_shader.Path.RelativePath, True)
             parameter_names = self._get_material_shader_parameter_names(self.reference_material_shader.Path)
         
         alpha_type = self._alpha_type(material_shader_name)

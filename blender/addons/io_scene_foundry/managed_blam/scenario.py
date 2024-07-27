@@ -24,9 +24,9 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.managed_blam import Tag
+from ..managed_blam import Tag
 import os
-from io_scene_foundry.utils import nwo_utils
+from .. import utils
 
 class ScenarioTag(Tag):
     tag_ext = 'scenario'
@@ -41,7 +41,7 @@ class ScenarioTag(Tag):
     def _get_bsp_from_name(self, bsp_name: str):
         for element in self.block_bsps.Elements:
             bsp_reference = element.SelectField('structure bsp').Path
-            full_bsp_name = nwo_utils.dot_partition(os.path.basename(bsp_reference.ToString()))
+            full_bsp_name = utils.dot_partition(os.path.basename(bsp_reference.ToString()))
             short_bsp_name = full_bsp_name.split(self.asset_name + '_')[1]
             if short_bsp_name == bsp_name:
                 return element
@@ -60,7 +60,7 @@ class ScenarioTag(Tag):
         # If we haven't yet found the name, just take the tag name
         sky_tag_path = element.SelectField('sky').Path
         if not sky_tag_path: return
-        return nwo_utils.dot_partition(os.path.basename(sky_tag_path.ToString()))
+        return utils.dot_partition(os.path.basename(sky_tag_path.ToString()))
     
     def get_skies_mapping(self) -> list:
         """Reads the scenario skies block and returns a list of skies"""
@@ -77,7 +77,7 @@ class ScenarioTag(Tag):
         new_sky_element = self.block_skies.AddElement()
         new_sky_element.SelectField('sky').Path = self._TagPath_from_string(path)
         new_object_name_element = self.block_object_names.AddElement()
-        sky_name = nwo_utils.dot_partition(os.path.basename(path))
+        sky_name = utils.dot_partition(os.path.basename(path))
         new_object_name_element.SelectField('name').SetStringData(sky_name)
         new_sky_element.SelectField('name').Value = new_object_name_element.ElementIndex
         self.tag_has_changes = True

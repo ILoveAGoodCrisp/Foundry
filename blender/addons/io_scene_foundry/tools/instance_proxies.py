@@ -28,9 +28,9 @@
 
 import bmesh
 import bpy
-from io_scene_foundry.tools.property_apply import apply_props_material
+from ..tools.property_apply import apply_props_material
 
-from io_scene_foundry.utils.nwo_utils import deselect_all_objects, get_foundry_storage_scene, is_corinth, layer_faces, set_active_object, set_object_mode, unlink
+from ..utils import deselect_all_objects, get_foundry_storage_scene, is_corinth, layer_faces, set_active_object, set_object_mode, unlink
 
 class NWO_ProxyInstanceEdit(bpy.types.Operator):
     bl_idname = "nwo.proxy_instance_edit"

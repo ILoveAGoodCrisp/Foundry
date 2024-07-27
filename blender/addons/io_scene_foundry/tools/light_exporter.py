@@ -27,10 +27,10 @@
 from math import degrees
 from pathlib import Path
 import bpy
-from io_scene_foundry.managed_blam.model import ModelTag
-from io_scene_foundry.managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
-from io_scene_foundry.utils.nwo_constants import WU_SCALAR
-from io_scene_foundry.utils import nwo_utils
+from ..managed_blam.model import ModelTag
+from ..managed_blam.scenario_structure_lighting_info import ScenarioStructureLightingInfoTag
+from ..constants import WU_SCALAR
+from .. import utils
 
 class BlamLightInstance:
     def __init__(self, ob, bsp=None, scale=None, rotation=None) -> None:
@@ -39,7 +39,7 @@ class BlamLightInstance:
         nwo = data.nwo
         self.data_name = ob.data.name
         self.bsp = bsp
-        matrix = nwo_utils.halo_transforms(ob, scale, rotation)
+        matrix = utils.halo_transforms(ob, scale, rotation)
         self.origin = [str(n) for n in matrix.translation]
         matrix_3x3 = matrix.to_3x3().normalized()
         self.forward = [str(n) for n in matrix_3x3.col[1]]
@@ -75,13 +75,13 @@ class BlamLightInstance:
         
 class BlamLightDefinition:
     def __init__(self, data):
-        if nwo_utils.is_corinth():
+        if utils.is_corinth():
             atten_scalar = 1
         else:
             atten_scalar = 100
         nwo = data.nwo
         self.data_name = data.name
-        self.id = nwo_utils.id_from_string(self.data_name)
+        self.id = utils.id_from_string(self.data_name)
         self.type = 0
         match data.type:
             case 'SPOT':
@@ -93,8 +93,8 @@ class BlamLightDefinition:
         if nwo.light_shape == '_connected_geometry_light_shape_circle':
             self.shape = 1
             
-        self.color = str(nwo_utils.linear_to_srgb(data.color[0])), str(nwo_utils.linear_to_srgb(data.color[1])), str(nwo_utils.linear_to_srgb(data.color[2]))
-        self.intensity = max(nwo_utils.calc_light_intensity(data, nwo_utils.get_export_scale(bpy.context) ** 2), 0.0001)
+        self.color = str(utils.linear_to_srgb(data.color[0])), str(utils.linear_to_srgb(data.color[1])), str(utils.linear_to_srgb(data.color[2]))
+        self.intensity = max(utils.calc_light_intensity(data, utils.get_export_scale(bpy.context) ** 2), 0.0001)
         self.hotspot_size = "0"
         self.hotspot_cutoff = "0"
         if data.type == 'SPOT':
@@ -154,7 +154,7 @@ class BlamLightDefinition:
 
 #     @classmethod
 #     def poll(cls, context):
-#         return nwo_utils.valid_nwo_asset(context)
+#         return utils.valid_nwo_asset(context)
     
 #     def execute(self, context):
 #         if self.cancel_sync:
@@ -172,7 +172,7 @@ class BlamLightDefinition:
 #             return self.cancel(context)
 #         if event.type == 'TIMER':
 #             for area in context.screen.areas:
-#                 if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and nwo_utils.mouse_in_object_editor_region(context, event.mouse_x, event.mouse_y):
+#                 if area.type in ('VIEW_3D', "PROPERTIES", "OUTLINER") and utils.mouse_in_object_editor_region(context, event.mouse_x, event.mouse_y):
 #                     # blam(export_lights_tasks())
 #                     return {'PASS_THROUGH'}
                 
@@ -190,7 +190,7 @@ class NWO_OT_ExportLights(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return nwo_utils.valid_nwo_asset(context)
+        return utils.valid_nwo_asset(context)
 
     def execute(self, context):
         export_lights()
@@ -201,10 +201,10 @@ def gather_lights(context):
 
 def export_lights():
     context = bpy.context
-    asset_path, asset_name = nwo_utils.get_asset_info()
+    asset_path, asset_name = utils.get_asset_info()
     asset_type = context.scene.nwo.asset_type
     light_objects = gather_lights(context)
-    lights = [BlamLightInstance(ob, nwo_utils.true_region(ob.nwo)) for ob in light_objects]
+    lights = [BlamLightInstance(ob, utils.true_region(ob.nwo)) for ob in light_objects]
     if asset_type == 'scenario':
         bsps = [r.name for r in context.scene.nwo.regions_table if r.name.lower() != 'shared']
         lighting_info_paths = [str(Path(asset_path, f'{asset_name}_{b}.scenario_structure_lighting_info')) for b in bsps]
@@ -212,7 +212,7 @@ def export_lights():
             b = bsps[idx]
             lights_list = [light for light in lights if light.bsp == b]
             if not lights_list:
-                if Path(nwo_utils.get_tags_path(), nwo_utils.relative_path(info_path)).exists():
+                if Path(utils.get_tags_path(), utils.relative_path(info_path)).exists():
                     with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()
             else:
                 light_instances = [light for light in lights_list]
@@ -220,7 +220,7 @@ def export_lights():
                 light_definitions = [BlamLightDefinition(data) for data in light_data]
                 with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.build_tag(light_instances, light_definitions)
     
-    elif nwo_utils.is_corinth(context) and asset_type in ('model', 'sky', 'prefab'):
+    elif utils.is_corinth(context) and asset_type in ('model', 'sky', 'prefab'):
         info_path = str(Path(asset_path, f'{asset_name}.scenario_structure_lighting_info'))
         if not lights:
             with ScenarioStructureLightingInfoTag(path=info_path) as tag: tag.clear_lights()

@@ -1,31 +1,3 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
-
-####################
 bl_info = {
     "name": "Halo Tag Export",
     "author": "Crisp",
@@ -49,14 +21,15 @@ import os
 import ctypes
 import traceback
 import logging
-from io_scene_foundry.icons import get_icon_id, get_icon_id_in_directory
-from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
-from io_scene_foundry.tools import NWO_ProjectChooserMenuDisallowNew
+
+from ..managed_blam import mb_init
+from ..icons import get_icon_id, get_icon_id_in_directory
+from ..tools import NWO_ProjectChooserMenuDisallowNew
 
 from .prepare_scene import PrepareScene
 from .process_scene import ProcessScene
 
-from io_scene_foundry.utils.nwo_utils import (
+from ..utils import (
     check_path,
     fbx_addon_installed,
     get_data_path,
@@ -66,12 +39,12 @@ from io_scene_foundry.utils.nwo_utils import (
     get_tool_path,
     human_time,
     is_corinth,
-    managed_blam_active,
     print_error,
     print_warning,
     update_debug_menu,
     validate_ek,
 )
+from .. import managed_blam
 
 # export keywords
 export = {}
@@ -219,7 +192,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         layout.use_property_split = True
         # PROJECT
         row = layout.row()
-        if managed_blam_active():
+        if managed_blam.mb_active():
             row.enabled = False
         projects = get_prefs().projects
         scene = context.scene
@@ -445,10 +418,6 @@ class NWO_Export(NWO_Export_Scene):
             scene_nwo_export.export_quick = False
             self.report({"WARNING"}, "Export aborted")
             return {"CANCELLED"}
-        
-        # Pretty much always need ManagedBlam now, so launch it at export
-        if not managed_blam_active():
-            bpy.ops.managed_blam.init()
         
         # toggle the console
         os.system("cls")

@@ -27,12 +27,12 @@
 import os
 from pathlib import Path
 import bpy
-from io_scene_foundry.tools.append_grid_materials import append_grid_materials
-from io_scene_foundry.tools.rigging.create_rig import add_rig
-from io_scene_foundry.tools.append_foundry_materials import add_special_materials
-from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.utils.nwo_asset_types import asset_type_items
-from io_scene_foundry.utils import nwo_utils, nwo_globals
+from ..tools.append_grid_materials import append_grid_materials
+from ..tools.rigging.create_rig import add_rig
+from ..tools.append_foundry_materials import add_special_materials
+from ..icons import get_icon_id
+from ..tools.asset_types import asset_type_items
+from .. import utils, globals
 
 class NWO_OT_NewAsset(bpy.types.Operator):
     bl_idname = "nwo.new_asset"
@@ -41,7 +41,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene and nwo_utils.get_prefs().projects
+        return context.scene and utils.get_prefs().projects
     
     filter_glob: bpy.props.StringProperty(
         default="",
@@ -76,14 +76,14 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     
     def update_file_directory(self, context: bpy.types.Context):
         if self.project:
-            project = nwo_utils.get_project(self.project)
+            project = utils.get_project(self.project)
             if project and context.area.type == 'FILE_BROWSER':
                 context.space_data.params.directory = bytes(project.data_directory, 'utf-8')
     
     def project_items(self, context):
         items = []
-        for i, p in enumerate(nwo_utils.get_prefs().projects):
-            items.append((p.name, p.name, '', nwo_utils.project_icon(context, p), i))
+        for i, p in enumerate(utils.get_prefs().projects):
+            items.append((p.name, p.name, '', utils.project_icon(context, p), i))
             
         return items
             
@@ -237,7 +237,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     )
 
     def execute(self, context):
-        project = nwo_utils.get_project(self.project)
+        project = utils.get_project(self.project)
         # Work out asset name / asset directory
         if self.filename:
             asset_name = self.filename
@@ -252,7 +252,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         # Check that asset location is valid
         if not asset_directory.is_relative_to(Path(project.data_directory)):
             # User may have selected wrong project for path, attempt to fix
-            for p in nwo_utils.get_prefs().projects:
+            for p in utils.get_prefs().projects:
                 if asset_directory.is_relative_to(p.data_directory):
                     asset_directory = Path(project.data_directory, Path(asset_directory).relative_to(p.data_directory))
                     break
@@ -315,7 +315,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         scene_settings.nwo.particle_uses_custom_points = self.particle_uses_custom_points
         # Scenario
         if self.asset_type == 'scenario' and len(scene_settings.nwo.regions_table) < 2:
-            nwo_utils.add_region('shared')
+            utils.add_region('shared')
         
         # Update blend data
         if self.selected_only:
@@ -339,10 +339,10 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         self.report({"INFO"}, f"Created new {self.asset_type.title()} asset for {self.project}. Asset Name = {asset_name}")
         
         # Restart Blender if the currently loaded Managedblam dll is incompatiable
-        mb_path = nwo_globals.mb_path
+        mb_path = globals.mb_path
         if mb_path:
             if not Path(mb_path).is_relative_to(Path(project.project_path)):
-                nwo_utils.restart_blender()
+                utils.restart_blender()
         
         return {"FINISHED"}
     
@@ -359,7 +359,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         col = flow.column()
         col.scale_y = 1.25
         col.prop(self, "project", text='')
-        project = nwo_utils.get_project(self.project)
+        project = utils.get_project(self.project)
         if not project: return
         col.separator()
         col.prop(self, "asset_type", text="")
@@ -485,7 +485,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         self.asset_type = context.scene.nwo.asset_type
             
         if self.project:
-            project = nwo_utils.get_project(self.project)
+            project = utils.get_project(self.project)
             if bpy.data.filepath and Path(bpy.data.filepath).is_relative_to(project.data_directory):
                 self.filepath = str(Path(bpy.data.filepath).parent) + os.sep
             else:

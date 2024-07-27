@@ -24,7 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.managed_blam import Tag
+from ..managed_blam import Tag
 
 class MaterialShaderTag(Tag):
     tag_ext = 'material_shader'

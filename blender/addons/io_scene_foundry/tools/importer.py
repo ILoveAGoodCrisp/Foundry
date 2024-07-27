@@ -34,16 +34,16 @@ import bmesh
 import bpy
 import addon_utils
 from mathutils import Color
-from io_scene_foundry.tools.mesh_to_marker import convert_to_marker
-from io_scene_foundry.managed_blam.bitmap import BitmapTag
-from io_scene_foundry.managed_blam.camera_track import CameraTrackTag
-from io_scene_foundry.managed_blam.collision_model import CollisionTag
-from io_scene_foundry.tools.clear_duplicate_materials import clear_duplicate_materials
-from io_scene_foundry.tools.property_apply import apply_props_material
-from io_scene_foundry.tools.shader_finder import find_shaders
-from io_scene_foundry.tools.shader_reader import tag_to_nodes
-from io_scene_foundry.utils.nwo_constants import VALID_MESHES
-from io_scene_foundry.utils.nwo_utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from ..tools.mesh_to_marker import convert_to_marker
+from ..managed_blam.bitmap import BitmapTag
+from ..managed_blam.camera_track import CameraTrackTag
+from ..managed_blam.collision_model import CollisionTag
+from ..tools.clear_duplicate_materials import clear_duplicate_materials
+from ..tools.property_apply import apply_props_material
+from ..tools.shader_finder import find_shaders
+from ..tools.shader_reader import tag_to_nodes
+from ..constants import VALID_MESHES
+from ..utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 legacy_model_formats = '.jms', '.ass'

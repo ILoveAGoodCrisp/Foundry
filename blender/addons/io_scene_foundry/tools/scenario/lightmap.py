@@ -1,17 +1,17 @@
 import datetime
 from pathlib import Path
 import bpy
-from io_scene_foundry.utils import nwo_utils
+from ... import utils
 import os
 
 def scenario_exists() -> bool:
-    asset_dir, asset_name = nwo_utils.get_asset_info()
-    scenario_path = Path(nwo_utils.get_tags_path(), asset_dir, asset_name).with_suffix('.scenario')
+    asset_dir, asset_name = utils.get_asset_info()
+    scenario_path = Path(utils.get_tags_path(), asset_dir, asset_name).with_suffix('.scenario')
     return scenario_path.exists()
 
 def model_exists() -> bool:
-    asset_dir, asset_name = nwo_utils.get_asset_info()
-    model_path = Path(nwo_utils.get_tags_path(), asset_dir, asset_name).with_suffix('.model')
+    asset_dir, asset_name = utils.get_asset_info()
+    model_path = Path(utils.get_tags_path(), asset_dir, asset_name).with_suffix('.model')
     return model_path.exists()
      
 
@@ -23,10 +23,10 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        if not nwo_utils.valid_nwo_asset(context):
+        if not utils.valid_nwo_asset(context):
             return False
         asset_type = context.scene.nwo.asset_type
-        if nwo_utils.is_corinth(context):
+        if utils.is_corinth(context):
             if asset_type == 'scenario':
                 return scenario_exists()
             elif asset_type in ('model', 'sky'):
@@ -38,9 +38,9 @@ class NWO_OT_Lightmap(bpy.types.Operator):
 
     def execute(self, context):
         asset_type = context.scene.nwo.asset_type
-        _, asset_name = nwo_utils.get_asset_info()
+        _, asset_name = utils.get_asset_info()
         scene_nwo_export = context.scene.nwo_export
-        is_corinth = nwo_utils.is_corinth(context)
+        is_corinth = utils.is_corinth(context)
         os.system("cls")
         if context.scene.nwo_export.show_output:
             bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -51,7 +51,7 @@ class NWO_OT_Lightmap(bpy.types.Operator):
         bsps = [region.name for region in context.scene.nwo.regions_table]
         valid_bsps = set()
         for ob in context.scene.objects:
-            region = nwo_utils.true_region(ob.nwo)
+            region = utils.true_region(ob.nwo)
             if region in bsps:
                 valid_bsps.add(region)
                 
@@ -124,7 +124,7 @@ class LightMapper:
         self.lightmap_message = "Lightmap Successful"
         self.lightmap_failed = False
         self.model_lightmap = model_lightmap
-        self.scenario = os.path.join(nwo_utils.get_asset_path(), self.asset_name)
+        self.scenario = os.path.join(utils.get_asset_path(), self.asset_name)
         self.bsp = self.bsp_to_lightmap(lightmap_all_bsps, lightmap_specific_bsp)
         self.quality = lightmap_quality_h4 if not_bungie_game else lightmap_quality
         self.light_group = self.get_light_group(lightmap_region, misc_halo_objects, not_bungie_game)
@@ -164,7 +164,7 @@ class LightMapper:
             os.makedirs(log_dir)
         with open(log_filename, "w") as log:
             return (
-                nwo_utils.run_tool(
+                utils.run_tool(
                     [
                         "faux_farm_" + stage,
                         self.blob_dir,
@@ -189,7 +189,7 @@ class LightMapper:
                 self.lightmap_failed = True
                 return False
 
-        nwo_utils.run_tool(
+        utils.run_tool(
             [
                 "faux_farm_" + stage + "_merge",
                 self.blob_dir,
@@ -210,14 +210,14 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        nwo_utils.run_tool(["faux_data_sync", self.scenario, self.bsp])
+        utils.run_tool(["faux_data_sync", self.scenario, self.bsp])
 
         print("\nFaux Farm")
         print(
             "-------------------------------------------------------------------------\n"
         )
         # self.print_exec_time()
-        nwo_utils.run_tool(
+        utils.run_tool(
             [
                 "faux_farm_begin",
                 self.scenario,
@@ -258,16 +258,16 @@ class LightMapper:
         print(
             "-------------------------------------------------------------------------\n"
         )
-        nwo_utils.run_tool(["faux_farm_finish", self.blob_dir])
+        utils.run_tool(["faux_farm_finish", self.blob_dir])
 
-        nwo_utils.run_tool(
+        utils.run_tool(
             [
                 "faux-reorganize-mesh-for-analytical-lights",
                 self.scenario,
                 self.bsp,
             ]
         )
-        nwo_utils.run_tool(
+        utils.run_tool(
             [
                 "faux-build-vmf-textures-from-quadratic",
                 self.scenario,
@@ -276,7 +276,7 @@ class LightMapper:
                 "true",
             ]
         )
-        self.lightmap_message = f"{nwo_utils.formalise_string(self.quality)} Quality lightmap complete"
+        self.lightmap_message = f"{utils.formalise_string(self.quality)} Quality lightmap complete"
         return self
 
     def lightmap_h4(self):
@@ -291,7 +291,7 @@ class LightMapper:
             "-------------------------------------------------------------------------\n"
         )
         if self.model_lightmap:
-            nwo_utils.run_tool(
+            utils.run_tool(
                 [
                     "faux_lightmap_model",
                     self.scenario,
@@ -303,7 +303,7 @@ class LightMapper:
             if self.bsp == "all":
                 for bsp in self.bsps:
                     if using_asset_settings:
-                        nwo_utils.run_tool(
+                        utils.run_tool(
                             [
                                 "faux_lightmap",
                                 self.scenario,
@@ -313,7 +313,7 @@ class LightMapper:
                             ]
                         )
                     else:
-                        nwo_utils.run_tool(
+                        utils.run_tool(
                             [
                                 "faux_lightmap_with_settings",
                                 self.scenario,
@@ -326,7 +326,7 @@ class LightMapper:
                     # self.suppress_dialog = "true"
             else:
                 if using_asset_settings:
-                    nwo_utils.run_tool(
+                    utils.run_tool(
                         [
                             "faux_lightmap",
                             self.scenario,
@@ -336,7 +336,7 @@ class LightMapper:
                         ]
                     )
                 else:
-                    nwo_utils.run_tool(
+                    utils.run_tool(
                         [
                             "faux_lightmap_with_settings",
                             self.scenario,

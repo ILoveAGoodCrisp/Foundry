@@ -26,7 +26,7 @@
 
 import bpy
 
-from io_scene_foundry.icons import get_icon_id
+from ...icons import get_icon_id
 
 class NWO_UL_AnimationCopies(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):

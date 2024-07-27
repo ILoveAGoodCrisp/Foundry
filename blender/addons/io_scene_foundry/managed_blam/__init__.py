@@ -1,33 +1,6 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 from pathlib import Path
-from io_scene_foundry.managed_blam.Tags import *
-from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.utils.nwo_utils import (
+from ..managed_blam.Tags import *
+from ..utils import (
     disable_prints,
     dot_partition,
     enable_prints,
@@ -35,29 +8,25 @@ from io_scene_foundry.utils.nwo_utils import (
     get_data_path,
     get_tags_path,
     linear_to_srgb,
-    managed_blam_active,
     is_corinth,
     print_warning,
     relative_path,
-    restart_blender,
 )
 import bpy
 import os
-from bpy.types import Context, Operator, OperatorProperties
-from io_scene_foundry.utils.nwo_utils import get_project_path
+from ..utils import get_project_path
 import sys
-import subprocess
-import ctypes
 import atexit
+import clr
 
 last_saved_tag = None
 
 Halo = None
 Tags = TagsNameSpace()
-soc = None
-host_process = None
 
-port = 25527
+mb_active = False
+mb_path = ""
+mb_operational = False
 
 class Tag():
     # Stuff classes that inherit from this one may overwrite
@@ -73,8 +42,8 @@ class Tag():
         self.hide_prints = hide_prints
         if hide_prints:
             disable_prints()
-        if not managed_blam_active():
-            bpy.ops.managed_blam.init()
+        if not mb_active:
+            mb_init()
             
         # Asset Info
         self.context = bpy.context
@@ -344,172 +313,51 @@ class Tag():
         return Halo.Game.GameColor.FromArgb(a, linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b))
 
 
-class ManagedBlam_Init(Operator):
-    """Initialises Managed Blam and locks the currently selected game"""
+def mb_init():
+    context = bpy.context
+    # append the blender python module path to the sys PATH
+    packages_path = Path(sys.exec_prefix, "lib", "site-packages")
+    sys.path.append(str(packages_path))
+    # Get the reference to ManagedBlam.dll
+    global mb_path
+    mb_path = Path(get_project_path(), "bin", "managedblam.dll")
 
-    bl_idname = "managed_blam.init"
-    bl_label = "Managed Blam"
-    bl_options = {"REGISTER"}
-    bl_description = "Initialises Managed Blam and locks the currently selected game"
+    # Check that a path to ManagedBlam actually exists
+    if not mb_path.exists():
+        print_warning("Could not find path to ManagedBlam.dll")
+        return
 
-    install_only : bpy.props.BoolProperty()
-
-    @classmethod
-    def description(cls, context: Context, properties: OperatorProperties) -> str:
-        if properties.install_only:
-            return "Installs pythonnet for Blender's python library. Pythonnet includes the clr module necessary for Foundry to be able to talk to the Halo tag API - Managedblam"
-
-    def execute(self, context):
-        # append the blender python module path to the sys PATH
-        packages_path = Path(sys.exec_prefix, "lib", "site-packages")
-        sys.path.append(str(packages_path))
-        # Get the reference to ManagedBlam.dll
-        mb_path = Path(get_project_path(), "bin", "managedblam.dll")
-
-        # Check that a path to ManagedBlam actually exists
-        if not mb_path.exists():
-            print_warning("Could not find path to ManagedBlam.dll")
-            return {"CANCELLED"}
-
-        # Logic for importing the clr module and importing Bungie/Corinth from ManagedBlam.dll
-        try:
-            import clr
-            nwo_globals.clr_installed = True
-            try:
-                clr.AddReference(str(mb_path.with_suffix("")))
-                if is_corinth(context):
-                    import Corinth as Bungie
-                else:
-                    import Bungie
-                    
-                nwo_globals.mb_operational = True
-
-            except:
-                print("Failed to add reference to ManagedBlam")
-                return {"CANCELLED"}
-        except:
-            if not self.install_only:
-                print("Couldn't find clr module, attempting pythonnet install")
-                install = ctypes.windll.user32.MessageBoxW(
-                    0,
-                    "Tag API requires the pythonnet module to be installed for Blender.\n\nInstall pythonnet now?",
-                    f"Tag API dependency required",
-                    4,
-                )
-                if install != 6:
-                    return {"CANCELLED"}
-            try:
-                py_exe = sys.executable
-                python_dir = Path(py_exe).parent.parent
-                site_packages = Path(python_dir, "lib", "site-packages")
-                test_file = Path(site_packages, "foundry_test.txt")
-                try:
-                    # check if folder writable
-                    with open(test_file, mode="w") as _: pass
-                    test_file.unlink(missing_ok=True)
-                except:
-                    shutdown = ctypes.windll.user32.MessageBoxW(
-                        0,
-                        "Blender does not have sufficient privilege to install new python modules. Launch Blender with admin priviledges and re-attempt install\n\nQuit Blender now?",
-                        f"Could not install tag API dependency",
-                        4,
-                    )
-                    if shutdown != 6:
-                        return {"CANCELLED"}
-                    
-                    bpy.ops.wm.quit_blender()
-                    return {"CANCELLED"}
-                
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", "pythonnet"])
-                
-                shutdown = ctypes.windll.user32.MessageBoxW(
-                    0,
-                    "Tag API dependency installed for Blender. Please restart Blender to use the Tag API.\n\nRestart Blender now?",
-                    f"Tag API dependency installed for Blender",
-                    4,
-                )
-                if shutdown != 6:
-                    return {"CANCELLED"}
-                
-                restart_blender()
-
-            except:
-                print("Failed to install pythonnet")
-                return {"CANCELLED"}
-            else:
-                if self.install_only:
-                    self.report({'INFO'}, "Tag API Setup Complete")
-                return {"FINISHED"}
-
+    # Logic for importing the clr module and importing Bungie/Corinth from ManagedBlam.dll
+    try:
+        clr.AddReference(str(mb_path.with_suffix("")))
+        if is_corinth(context):
+            import Corinth as Bungie # type: ignore
         else:
-            nwo_globals.clr_installed = True
-            if not self.install_only:
-                # Initialise ManagedBlam
-                # print("Initialising ManagedBlam...")
-                global Halo
-                Halo = Bungie
-                try:
-                    callback = Halo.ManagedBlamCrashCallback(lambda info: None)
-                    startup_parameters = Halo.ManagedBlamStartupParameters()
-                    startup_parameters.InitializationLevel = Halo.InitializationType.TagsOnly
-                    System = Halo.ManagedBlamSystem()
-                    System.Start(get_project_path(), callback, startup_parameters)
-                    global Tags
-                    Tags = Halo.Tags
-                    atexit.register(close_managed_blam)
-                    nwo_globals.mb_active = True
-                    nwo_globals.mb_path = mb_path
-                    
-                except:
-                    print("ManagedBlam already initialised Once. Skipping")
-                    return {"CANCELLED"}
+            import Bungie # type: ignore
+            
+        mb_operational = True
 
+    except:
+        print("Failed to add reference to ManagedBlam")
+        return {"CANCELLED"}
 
-            return {"FINISHED"}
+    else:
+        global Halo
+        Halo = Bungie
+        try:
+            callback = Halo.ManagedBlamCrashCallback(lambda info: None)
+            startup_parameters = Halo.ManagedBlamStartupParameters()
+            startup_parameters.InitializationLevel = Halo.InitializationType.TagsOnly
+            System = Halo.ManagedBlamSystem()
+            System.Start(get_project_path(), callback, startup_parameters)
+            global Tags
+            Tags = Halo.Tags
+            atexit.register(close_managed_blam)
+            global mb_active
+            mb_active = True
+            
+        except:
+            print("ManagedBlam already initialised Once. Skipping")
         
 def close_managed_blam():
     Halo.ManagedBlamSystem.Stop()
-    
-# class Task:
-#     def __init__(self, function: str, path: str, data: dict):
-#         self.function = function
-#         self.path = path
-#         self.data = data
-    
-# def blam(tasks: list[Task]):
-#     # Get FoundryBlam process socket
-#     try:
-#         proj_path = get_project_path()
-#         soc = nwo_globals.sockets.get(proj_path)
-#         if not soc:
-#             exe = get_foundry_blam_exe()
-#             global port
-#             nwo_globals.processes.append(subprocess.Popen([exe, proj_path, str(port)]))
-#             soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#             soc.connect(('localhost', port))
-#             port += 1
-#             nwo_globals.sockets[proj_path] = soc
-            
-#         json_tasks = []
-#         for task in tasks:
-#             json_tasks.append({"function": task.function, "path": task.path, "data": task.data})
-        
-#         json_dump = json.dumps(json_tasks) + "\n"
-#         soc.sendall(json_dump.encode('utf-8'))
-#     except:
-#         pass
-
-classeshalo = (
-    ManagedBlam_Init,
-)
-
-def register():
-    for clshalo in classeshalo:
-        bpy.utils.register_class(clshalo)
-
-def unregister():
-    for clshalo in classeshalo:
-        bpy.utils.unregister_class(clshalo)
-
-if __name__ == "__main__":
-    register()

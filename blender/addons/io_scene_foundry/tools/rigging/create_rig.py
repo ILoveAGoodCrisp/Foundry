@@ -1,5 +1,5 @@
 import bpy
-from io_scene_foundry.tools.rigging import HaloRig
+from ...tools.rigging import HaloRig
 
 class NWO_OT_AddRig(bpy.types.Operator):
     bl_idname = "nwo.add_rig"

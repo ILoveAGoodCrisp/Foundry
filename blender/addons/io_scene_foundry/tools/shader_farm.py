@@ -1,29 +1,3 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 import itertools
 import multiprocessing
 import os
@@ -31,12 +5,14 @@ from pathlib import Path
 import threading
 import time
 import bpy
-from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.managed_blam.bitmap import BitmapTag
-from io_scene_foundry.tools.export_bitmaps import save_image_as
-from io_scene_foundry.tools.shader_builder import build_shader
 
-from io_scene_foundry.utils.nwo_utils import ExportManager, asset_path_from_blend_location, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, managed_blam_active, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_filename, valid_image_name, valid_nwo_asset
+from ..managed_blam import mb_init
+from ..icons import get_icon_id
+from ..managed_blam.bitmap import BitmapTag
+from ..tools.export_bitmaps import save_image_as
+from ..tools.shader_builder import build_shader
+
+from ..utils import ExportManager, asset_path_from_blend_location, clean_tag_path, dot_partition, get_asset_path, get_data_path, get_shader_name, get_tags_path, is_corinth, print_warning, relative_path, run_tool, update_job, update_job_count, update_progress, valid_filename, valid_image_name, valid_nwo_asset
 
 BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg", ".jp2", ".j2c", ".tga", ".cin", ".dpx", ".exr", ".hdr", ".tif", ".tiff", ".webp")
 
@@ -98,11 +74,11 @@ class NWO_FarmShaders(bpy.types.Operator):
         self["default_material_shader"] = clean_tag_path(self["default_material_shader"]).strip('"')
         
     def get_default_material_shader(self):
-        from io_scene_foundry.tools.shader_builder import material_shader_path
+        from ..tools.shader_builder import material_shader_path
         return material_shader_path
             
     def set_default_material_shader(self, value):
-        from io_scene_foundry.tools import shader_builder
+        from ..tools import shader_builder
         shader_builder.material_shader_path = value
         self['default_material_shader'] = value
 
@@ -145,8 +121,6 @@ class NWO_FarmShaders(bpy.types.Operator):
             self.asset_path = get_asset_path()
             blend_asset_path = asset_path_from_blend_location()
             tag_type = 'Material' if self.corinth else 'Shader'
-            if not managed_blam_active():
-                bpy.ops.managed_blam.init()
             start = time.perf_counter()
             os.system("cls")
             if context.scene.nwo_export.show_output:

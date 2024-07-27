@@ -31,7 +31,7 @@ import os
 
 from mathutils import Vector
 
-from io_scene_foundry.utils import nwo_utils
+from .. import utils
 
 script_file = os.path.realpath(__file__)
 addon_dir = os.path.dirname(os.path.dirname(script_file))
@@ -82,39 +82,39 @@ def setup_grid_material(filepath):
     tex_node.image = image
     tree.links.new(input=bsdf.inputs[0], output=tex_node.outputs[0])
     
-    if nwo_utils.is_corinth():
+    if utils.is_corinth():
         shader_path = str(Path("shaders", "foundry", "materials", material_name + ".material"))
     else:
         shader_path = str(Path("shaders", "foundry", "shaders", material_name + ".shader"))
         
-    if not Path(nwo_utils.get_tags_path(), shader_path).exists():
+    if not Path(utils.get_tags_path(), shader_path).exists():
         copy_grid_shader(material_name)
         
     material.nwo.shader_path = shader_path
     
 def copy_grid_shader(name):
-    if nwo_utils.is_corinth():
+    if utils.is_corinth():
         source_shader_path = Path(addon_dir, "resources", "textures", "materials", name + ".material")
-        dest_shader_path = Path(nwo_utils.get_tags_path(), "shaders", "foundry", "materials", name + ".material")
+        dest_shader_path = Path(utils.get_tags_path(), "shaders", "foundry", "materials", name + ".material")
     else:
         source_shader_path = Path(addon_dir, "resources", "textures", "shaders", name + ".shader")
-        dest_shader_path = Path(nwo_utils.get_tags_path(), "shaders", "foundry", "shaders", name + ".shader")
+        dest_shader_path = Path(utils.get_tags_path(), "shaders", "foundry", "shaders", name + ".shader")
         
     print(source_shader_path)
         
     os.makedirs(dest_shader_path.parent, exist_ok=True)
         
     if source_shader_path.exists():
-        nwo_utils.copy_file(source_shader_path, dest_shader_path)
+        utils.copy_file(source_shader_path, dest_shader_path)
     elif resources_zip.exists():
         os.chdir(addon_dir)
-        if nwo_utils.is_corinth():
+        if utils.is_corinth():
             file_relative = f"textures/materials/{name}.material"
         else:
             file_relative = f"textures/shaders/{name}.shader"
         with zipfile.ZipFile(resources_zip, "r") as zip:
             filepath = zip.extract(file_relative)
-            nwo_utils.copy_file(filepath, dest_shader_path)
+            utils.copy_file(filepath, dest_shader_path)
 
         os.remove(filepath)
         os.rmdir(os.path.dirname(filepath))
@@ -122,17 +122,17 @@ def copy_grid_shader(name):
         print("Resources not found")
         
     source_bitmap_path = Path(addon_dir, "resources", "textures", "bitmaps", name + ".bitmap")
-    dest_bitmap_path = Path(nwo_utils.get_tags_path(), "shaders", "foundry", "bitmaps", name + ".bitmap")
+    dest_bitmap_path = Path(utils.get_tags_path(), "shaders", "foundry", "bitmaps", name + ".bitmap")
     os.makedirs(dest_bitmap_path.parent, exist_ok=True)
     
     if source_bitmap_path.exists():
-        nwo_utils.copy_file(source_bitmap_path, dest_bitmap_path)
+        utils.copy_file(source_bitmap_path, dest_bitmap_path)
     elif resources_zip.exists():
         os.chdir(addon_dir)
         file_relative = f"textures/bitmaps/{name}.bitmap"
         with zipfile.ZipFile(resources_zip, "r") as zip:
             filepath = zip.extract(file_relative)
-            nwo_utils.copy_file(filepath, dest_bitmap_path)
+            utils.copy_file(filepath, dest_bitmap_path)
             
         os.remove(filepath)
         os.rmdir(os.path.dirname(filepath))

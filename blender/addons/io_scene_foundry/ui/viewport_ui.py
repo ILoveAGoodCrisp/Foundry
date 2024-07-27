@@ -1,38 +1,11 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 import bpy
 from bpy.types import Context, OperatorProperties
 
-from io_scene_foundry.tools.property_apply import apply_prefix, apply_props_material
-from io_scene_foundry.utils.nwo_utils import calc_light_energy, closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, to_bounding_box, to_convex_hull, true_region
+from ..tools.property_apply import apply_prefix, apply_props_material
+from ..utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, to_bounding_box, to_convex_hull, true_region
 from .templates import NWO_Op
-from bpy_extras.object_utils import AddObjectHelper, object_data_add
 
-from io_scene_foundry.utils.nwo_constants import VALID_MESHES 
+from ..constants import VALID_MESHES 
 
 class NWO_MT_PIE_ApplyTypeMesh(bpy.types.Menu):
     bl_label = "Mesh Type"

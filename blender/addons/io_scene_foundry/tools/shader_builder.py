@@ -26,9 +26,9 @@
 from pathlib import Path
 import bpy
 import os
-from io_scene_foundry.managed_blam.shader import ShaderTag
-from io_scene_foundry.managed_blam.material import MaterialTag
-from io_scene_foundry.utils.nwo_utils import (
+from ..managed_blam.shader import ShaderTag
+from ..managed_blam.material import MaterialTag
+from ..utils import (
     dot_partition,
     get_asset_path,
     get_shader_name,

@@ -25,8 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
-from io_scene_foundry.utils import nwo_utils
-from io_scene_foundry.managed_blam.scenario import ScenarioTag
+from ...managed_blam.scenario import ScenarioTag
 
 class NWO_UL_ZoneSets(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):

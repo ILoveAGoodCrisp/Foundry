@@ -1,29 +1,3 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
-
 from pathlib import Path
 import bmesh
 import bpy
@@ -31,12 +5,12 @@ import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
-from io_scene_foundry.tools.light_exporter import BlamLightDefinition, BlamLightInstance
-from io_scene_foundry.managed_blam.render_model import RenderModelTag
-from io_scene_foundry.managed_blam.animation import AnimationTag
-from io_scene_foundry.utils.nwo_materials import special_materials
-from io_scene_foundry.utils.nwo_constants import VALID_MESHES, VALID_OBJECTS
-from io_scene_foundry.utils import nwo_utils
+from ..tools.light_exporter import BlamLightDefinition, BlamLightInstance
+from ..managed_blam.render_model import RenderModelTag
+from ..managed_blam.animation import AnimationTag
+from ..tools.materials import special_materials
+from ..constants import VALID_MESHES, VALID_OBJECTS
+from .. import utils
 
 render_mesh_types = {
     "_connected_geometry_mesh_type_poop",
@@ -89,8 +63,8 @@ class PrepareScene:
         self.game_version = 'corinth' if corinth else 'reach'
         self.scene_settings = scene_settings
         self.export_settings = export_settings
-        self.tags_dir = Path(nwo_utils.get_tags_path())
-        self.data_dir = Path(nwo_utils.get_data_path())
+        self.tags_dir = Path(utils.get_tags_path())
+        self.data_dir = Path(utils.get_data_path())
         self.warning_hit = False
         self.bsps_with_structure = set()
         self.pedestal = None
@@ -98,15 +72,15 @@ class PrepareScene:
         self.aim_yaw = None
         self.gun = None
         self.arm_name = ""
-        self.prefs = nwo_utils.get_prefs()
-        self.project = nwo_utils.get_project(scene_settings.scene_project)
+        self.prefs = utils.get_prefs()
+        self.project = utils.get_project(scene_settings.scene_project)
         self.verbose_warnings = False
         self.no_export_objects = False
         self.too_many_root_bones = False
         self.scale_factor = 1
         self.objects_selection = set()
         self.scene_collection = context.scene.collection.objects
-        self.area, self.area_region, self.area_space = nwo_utils.get_area_info(context)
+        self.area, self.area_region, self.area_space = utils.get_area_info(context)
         self.supports_regions_and_perms = asset_type in ('model', 'sky', 'scenario', 'prefab')
         self.validated_regions = set()
         self.validated_permutations = set()
@@ -171,29 +145,29 @@ class PrepareScene:
         print("\nPreparing Export Scene")
         print(f"{'-'*70}\n")
         # Exit local view. Must do this otherwise fbx export will fail.
-        nwo_utils.exit_local_view(self.context)
+        utils.exit_local_view(self.context)
         # Ensure context in object mode
         self.context.view_layer.update()
-        nwo_utils.set_object_mode(self.context)
+        utils.set_object_mode(self.context)
         # Save the currently selected objects. Used later to determine currently selected bsps/perms/layers
         self.objects_selection = self.context.selected_objects[:]
-        nwo_utils.deselect_all_objects()
-        nwo_utils.disable_excluded_collections(self.context)
+        utils.deselect_all_objects()
+        utils.disable_excluded_collections(self.context)
         # Unhide collections. Hidden collections will stop objects in the collection being exported. We only want this functionality if the collection is disabled
-        nwo_utils.unhide_collections(self.context)
+        utils.unhide_collections(self.context)
         
     def make_real(self):
         '''
         Makes linked data real so it can be processed
         '''
         # Disabling prints for this to hide blender output
-        nwo_utils.disable_prints()
+        utils.disable_prints()
         # Remove all marker instancing, we want to keep markers as empties
-        markers = {ob for ob in self.context.view_layer.objects if ob.type == 'EMTPY' and not nwo_utils.library_instanced_collection(ob)}
+        markers = {ob for ob in self.context.view_layer.objects if ob.type == 'EMTPY' and not utils.library_instanced_collection(ob)}
         for ob in markers: ob.instance_type = 'NONE'
         # Save a list of curve & font objects
         curves = {ob for ob in bpy.data.objects if ob.type in ('FONT', 'CURVE')}
-        instanced_objects = {ob for ob in bpy.data.objects if nwo_utils.library_instanced_collection(ob)}
+        instanced_objects = {ob for ob in bpy.data.objects if utils.library_instanced_collection(ob)}
         # Make instanced objects real
         if instanced_objects:
             with self.context.temp_override(selected_editable_objects=instanced_objects):
@@ -206,8 +180,8 @@ class PrepareScene:
             bpy.ops.object.make_local(type="ALL")
         # Purge orphaned objects
         # bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
-        nwo_utils.update_view_layer(self.context)
-        nwo_utils.enable_prints()
+        utils.update_view_layer(self.context)
+        utils.enable_prints()
         
     def clear_export_props(self):
         '''Clears custom properties beginning with bungie_'''
@@ -222,9 +196,9 @@ class PrepareScene:
         '''
         Finds the camera to be used for a camera track set export
         '''
-        self.camera = nwo_utils.get_camera_track_camera(self.context)
+        self.camera = utils.get_camera_track_camera(self.context)
         if not self.camera:
-            nwo_utils.print_warning('No Camera in scene, cannot export camera track')
+            utils.print_warning('No Camera in scene, cannot export camera track')
             raise RuntimeError
         
     def unlink_non_export_objects(self):
@@ -236,11 +210,11 @@ class PrepareScene:
             non_export_obs = {ob for ob in self.context.view_layer.objects if ob.type != "ARMATURE"}
         else:
             non_export_obs = {ob for ob in self.context.view_layer.objects if not ob.nwo.export_this or ob.type not in VALID_OBJECTS or (ob.type == 'EMTPY' and ob.empty_display_type == "IMAGE")}
-        for ob in non_export_obs: nwo_utils.unlink(ob)
-        nwo_utils.update_view_layer(self.context)
+        for ob in non_export_obs: utils.unlink(ob)
+        utils.update_view_layer(self.context)
         
     def setup_skeleton(self):
-        self.model_armature = nwo_utils.get_rig(self.context)
+        self.model_armature = utils.get_rig(self.context)
         if not self.model_armature: return
         if self.asset_type != "animation" and not self.model_armature.nwo.exportable:
             raise RuntimeError(f"Scene Armature [{self.model_armature.name}] is set to not export")
@@ -249,7 +223,7 @@ class PrepareScene:
             self._consolidate_rig()
 
         self.skeleton_bones = self._get_bone_list()
-        nwo_utils.remove_relative_parenting(self.model_armature)
+        utils.remove_relative_parenting(self.model_armature)
         self._fix_parenting()
         
         self.model_armature["bungie_frame_ID1"] = "8078"
@@ -271,7 +245,7 @@ class PrepareScene:
         Sets up copies of structure objects that have the instance flagged tickem
         These copies are setup as instances so that they are renderable and collidable
         '''
-        proxy_owners = {ob for ob in self.context.view_layer.objects if nwo_utils.is_mesh(ob) and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance}
+        proxy_owners = {ob for ob in self.context.view_layer.objects if utils.is_mesh(ob) and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance}
         proxy_owner_data = {ob.data for ob in proxy_owners}
         
         proxy_owner_data_copies = {}
@@ -288,7 +262,7 @@ class PrepareScene:
             for collection in ob.users_collection:
                 collection.objects.link(proxy_instance)
                 
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
                 
     def add_special_materials(self):
         '''
@@ -323,11 +297,11 @@ class PrepareScene:
         if self.default_mat is None:
             self.default_mat = materials.new("+default")
         
-        default_shader = nwo_utils.relative_path(self.project.default_material)
+        default_shader = utils.relative_path(self.project.default_material)
         if Path(self.tags_dir, default_shader).exists():
             self._set_shader_props(self.default_mat, default_shader)
         else:
-            nwo_utils.print_warning(f"Default shader/material tag does not exist: {default_shader}")
+            utils.print_warning(f"Default shader/material tag does not exist: {default_shader}")
             self._set_shader_props(self.default_mat, invalid_path)
         
         # Not avaliable to user, but creating this to ensure water renders
@@ -335,12 +309,12 @@ class PrepareScene:
         if self.water_surface_mat is None:
             self.water_surface_mat = materials.new("+water")
         
-        default_water_shader = nwo_utils.relative_path(self.project.default_water)
+        default_water_shader = utils.relative_path(self.project.default_water)
         if Path(self.tags_dir, default_water_shader).exists():
             self.water_surface_mat["bungie_shader_path"] = str(Path(default_water_shader).with_suffix(''))
             self._set_shader_props(self.water_surface_mat, default_water_shader)
         else:
-            nwo_utils.print_warning(f"Default water tag does not exist: {default_water_shader}")
+            utils.print_warning(f"Default water tag does not exist: {default_water_shader}")
             self._set_shader_props(self.water_surface_mat, invalid_path)
         
     def convert_area_lights(self):
@@ -350,12 +324,12 @@ class PrepareScene:
         area_lights = {ob for ob in self.context.view_layer.objects if ob.type == 'LIGHT' and ob.data.type == 'AREA'}
         for light_ob in area_lights:
             collections = light_ob.users_collection
-            plane_ob = nwo_utils.area_light_to_emissive(light_ob)
+            plane_ob = utils.area_light_to_emissive(light_ob)
             for collection in collections:
                 collection.objects.link(plane_ob)
-            nwo_utils.unlink(light_ob)
+            utils.unlink(light_ob)
         
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
         
     def setup_objects(self):
         '''
@@ -368,8 +342,8 @@ class PrepareScene:
         process = "--- Object Validation"
         export_obs = self.context.view_layer.objects
         len_export_obs = len(export_obs)
-        with nwo_utils.Spinner():
-            nwo_utils.update_job_count(process, "", 0, len_export_obs)
+        with utils.Spinner():
+            utils.update_job_count(process, "", 0, len_export_obs)
             scenario_or_prefab = self.asset_type in ("scenario", "prefab")
             for idx, ob in enumerate(export_obs):
                 nwo = ob.nwo
@@ -385,12 +359,12 @@ class PrepareScene:
                 if is_light:
                     if not self.corinth and self.asset_type == 'sky':
                         self.reach_sky_lights.add(ob)
-                        nwo_utils.unlink(ob)
+                        utils.unlink(ob)
                         continue
 
                 self._strip_prefix(ob)
                 
-                object_type = nwo_utils.get_object_type(ob)
+                object_type = utils.get_object_type(ob)
                 ob["bungie_object_type"] = object_type
 
                 if self.asset_type in ('model', 'sky', 'scenario', 'prefab'):
@@ -401,23 +375,23 @@ class PrepareScene:
                     if self.supports_regions_and_perms:
                         mesh_not_io = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance')
                         if is_light or scenario_or_prefab or mesh_not_io or nwo.marker_uses_regions:
-                            reg = nwo_utils.true_region(nwo)
+                            reg = utils.true_region(nwo)
                             if reg in self.regions:
                                 self.validated_regions.add(reg)
-                                nwo.region_name = nwo_utils.true_region(nwo)
+                                nwo.region_name = utils.true_region(nwo)
                             else:
                                 self.warning_hit = True
-                                nwo_utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                                utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not presented in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                                 nwo.permutation_name = self.default_permutation
                             
                             if is_light or scenario_or_prefab or mesh_not_io:
-                                perm = nwo_utils.true_permutation(nwo)
+                                perm = utils.true_permutation(nwo)
                                 if perm in self.permutations:
                                     self.validated_permutations.add(perm)
-                                    nwo.permutation_name = nwo_utils.true_permutation(nwo)
+                                    nwo.permutation_name = utils.true_permutation(nwo)
                                 else:
                                     self.warning_hit = True
-                                    nwo_utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
+                                    utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
                                     nwo.permutation_name = self.default_permutation
                                     
                             elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
@@ -428,7 +402,7 @@ class PrepareScene:
                                         self.validated_permutations.add(perm)
                                     else:
                                         self.warning_hit = True
-                                        nwo_utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not presented in the {self.perm_name}s table. Ignoring {self.perm_name}")
+                                        utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not presented in the {self.perm_name}s table. Ignoring {self.perm_name}")
                                     
                             else:
                                 nwo.permutation_name = 'default'
@@ -437,39 +411,39 @@ class PrepareScene:
                         nwo.permutation_name = 'default'
                 
                 if object_type == '_connected_geometry_object_type_none':
-                    nwo_utils.unlink(ob)
+                    utils.unlink(ob)
                     continue
                 
                 elif is_light:
                     self.lights.append(ob)
-                    nwo_utils.unlink(ob)
+                    utils.unlink(ob)
                 
                 elif object_type == '_connected_geometry_object_type_mesh':
                     if nwo.mesh_type_ui == '':
                         nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
-                    if nwo_utils.type_valid(nwo.mesh_type_ui, self.asset_type, self.game_version):
+                    if utils.type_valid(nwo.mesh_type_ui, self.asset_type, self.game_version):
                         if self._setup_mesh_properties(ob, scenario_or_prefab):
                             if self.export_settings.triangulate:
                                 add_triangle_mod(ob)
                         else:
-                            nwo_utils.unlink(ob)
+                            utils.unlink(ob)
                             continue
                         
                     else:
                         self.warning_hit = True
-                        nwo_utils.print_warning(f"{ob.name} has invalid mesh type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
-                        nwo_utils.unlink(ob)
+                        utils.print_warning(f"{ob.name} has invalid mesh type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
+                        utils.unlink(ob)
                         continue
                     
                 elif object_type == '_connected_geometry_object_type_marker':
                     if nwo.marker_type_ui == '':
                         nwo.marker_type_ui = '_connected_geometry_marker_type_model'
-                    if nwo_utils.type_valid(nwo.marker_type_ui, self.asset_type, self.game_version):
+                    if utils.type_valid(nwo.marker_type_ui, self.asset_type, self.game_version):
                         self._setup_marker_properties(ob)
                     else:
                         self.warning_hit = True
-                        nwo_utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
-                        nwo_utils.unlink(ob)
+                        utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type_ui}] for asset [{self.asset_type}]. Skipped")
+                        utils.unlink(ob)
                         continue
 
                 is_halo_render = is_mesh_loose and object_type == '_connected_geometry_object_type_mesh' and ob.get("bungie_mesh_type") in render_mesh_types
@@ -485,12 +459,12 @@ class PrepareScene:
                         does_not_support_sky = ob.get("bungie_mesh_type") != '_connected_geometry_mesh_type_default' or self.asset_type != 'scenario'
                         self._fix_materials(ob, is_halo_render, does_not_support_sky)
                 
-                nwo_utils.update_job_count(process, "", idx, len_export_obs)
+                utils.update_job_count(process, "", idx, len_export_obs)
 
-            nwo_utils.update_job_count(process, "", len_export_obs, len_export_obs)
+            utils.update_job_count(process, "", len_export_obs, len_export_obs)
     
     def write_lights_data(self):
-        asset_path = nwo_utils.get_asset_path()
+        asset_path = utils.get_asset_path()
         lights = [BlamLightInstance(ob, ob.nwo.region_name) for ob in self.lights]
         if self.asset_type == 'scenario':
             bsps = [r.name for r in bpy.context.scene.nwo.regions_table if r.name.lower() != 'shared']
@@ -499,7 +473,7 @@ class PrepareScene:
                 b = bsps[idx]
                 lights_list = [light for light in lights if light.bsp == b]
                 if not lights_list:
-                    if Path(self.tags_dir, nwo_utils.relative_path(info_path)).exists():
+                    if Path(self.tags_dir, utils.relative_path(info_path)).exists():
                         self.lighting_tasks.append([info_path])
                 else:
                     light_instances = [light for light in lights_list]
@@ -541,8 +515,8 @@ class PrepareScene:
         
         for mat in self.used_materials:
             mat_nwo = mat.nwo
-            if nwo_utils.has_shader_path(mat):
-                shader = nwo_utils.relative_path(mat_nwo.shader_path)
+            if utils.has_shader_path(mat):
+                shader = utils.relative_path(mat_nwo.shader_path)
                 if not mat_nwo.shader_path.strip():
                     self.null_path_materials.add(mat)
                     self.warning_hit = True
@@ -558,23 +532,23 @@ class PrepareScene:
                 
         if self.null_path_materials:
             if self.corinth:
-                nwo_utils.print_warning("\nFound blender materials with empty material tag paths:")
+                utils.print_warning("\nFound blender materials with empty material tag paths:")
             else:
-                nwo_utils.print_warning("\nFound blender materials with empty shader tag paths:")
+                utils.print_warning("\nFound blender materials with empty shader tag paths:")
                 
             for m in self.null_path_materials:
-                nwo_utils.print_warning(f'  {m.name}')
+                utils.print_warning(f'  {m.name}')
                 
             print("")
                 
         if self.invalid_path_materials:
             if self.corinth:
-                nwo_utils.print_warning("\nFound blender materials with invalid material tag paths:")
+                utils.print_warning("\nFound blender materials with invalid material tag paths:")
             else:
-                nwo_utils.print_warning("\nFound blender materials with invalid shader tag paths:")
+                utils.print_warning("\nFound blender materials with invalid shader tag paths:")
                 
             for m in self.invalid_path_materials:
-                nwo_utils.print_warning(f'  {m.name}')
+                utils.print_warning(f'  {m.name}')
                 
     def water_physics_from_surfaces(self):
         '''
@@ -583,7 +557,7 @@ class PrepareScene:
         water_surfaces = {ob for ob in self.context.view_layer.objects if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_water_surface'}
         for ob_surf in water_surfaces: self._setup_water_physics(ob_surf)
         
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
         
     def build_seams(self):
         '''
@@ -592,9 +566,9 @@ class PrepareScene:
         if not self.seams or len([r for r in self.regions if r.lower().strip() != 'shared']) < 2: return
         # if len(self.regions) < 2:
         #     self.warning_hit = True
-        #     nwo_utils.print_warning("Only single BSP in scene, seam objects ignored from export")
-        #     for seam in self.seams: nwo_utils.unlink(seam)
-        #     nwo_utils.update_view_layer(self.context)
+        #     utils.print_warning("Only single BSP in scene, seam objects ignored from export")
+        #     for seam in self.seams: utils.unlink(seam)
+        #     utils.update_view_layer(self.context)
         #     return
 
         skip_seams = set()
@@ -618,15 +592,15 @@ class PrepareScene:
             ):
                 # this attempts to fix a bad back facing bsp ref
                 self.warning_hit = True
-                nwo_utils.print_warning(
+                utils.print_warning(
                     f"{seam.name} has bad back facing bsp reference. Replacing with nearest adjacent bsp"
                 )
-                closest_bsp = nwo_utils.closest_bsp_object(self.context, seam, [ob for ob in self.context.view_layer.objects if ob in VALID_MESHES])
+                closest_bsp = utils.closest_bsp_object(self.context, seam, [ob for ob in self.context.view_layer.objects if ob in VALID_MESHES])
                 if closest_bsp is None:
-                    nwo_utils.print_warning(
+                    utils.print_warning(
                         f"Failed to automatically set back facing bsp reference for {seam.name}. Removing Seam from export"
                     )
-                    nwo_utils.unlink(seam)
+                    utils.unlink(seam)
                 else:
                     back_nwo.region_name = closest_bsp.nwo.region_name
             else:
@@ -636,7 +610,7 @@ class PrepareScene:
             back_seam["bungie_mesh_seam_associated_bsp"] = (f"{self.asset_name}_{back_nwo.region_name}")
             self.scene_collection.link(back_seam)
             
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
         
     def clean_poop_materials(self):
         '''
@@ -709,7 +683,7 @@ class PrepareScene:
                     to_cleanup.add(ob)
                     
         for ob in to_cleanup:
-            nwo_utils.clean_materials(ob)
+            utils.clean_materials(ob)
                 
     def process_face_properties_and_proxies(self):
         '''
@@ -732,8 +706,8 @@ class PrepareScene:
 
         process = "--- Processing Meshes"
         len_mesh_objects_dict = len(mesh_objects_dict)
-        with nwo_utils.Spinner():
-            nwo_utils.update_job_count(process, "", 0, len_mesh_objects_dict)
+        with utils.Spinner():
+            utils.update_job_count(process, "", 0, len_mesh_objects_dict)
             for idx, (data, objects_list) in enumerate(mesh_objects_dict.items()):
                 ob = objects_list[0]
                 # Running instance proxy stuff here
@@ -783,11 +757,11 @@ class PrepareScene:
                                             new_child.nwo.permutation_name = new_ob.nwo.permutation_name
                                             new_child.nwo.region_name = new_ob.nwo.region_name
                 
-                nwo_utils.update_job_count(process, "", idx, len_mesh_objects_dict)
+                utils.update_job_count(process, "", idx, len_mesh_objects_dict)
                 
-            nwo_utils.update_job_count(process, "", len_mesh_objects_dict, len_mesh_objects_dict)
+            utils.update_job_count(process, "", len_mesh_objects_dict, len_mesh_objects_dict)
         
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
         
     def scene_transformation(self):
         '''
@@ -796,14 +770,14 @@ class PrepareScene:
         Transforms the scene ready, setting the scene to match x forward and 3ds Max scale
         '''
         export_obs = self.context.view_layer.objects
-        nwo_utils.reset_to_basis(self.context)
+        utils.reset_to_basis(self.context)
         # Convert all mesh like objects to meshes and apply modifiers
         to_mesh(self.context, export_obs)
         # remove meshes with zero faces
-        [nwo_utils.unlink(ob) for ob in export_obs if ob.type == "MESH" and not ob.data.polygons]
+        [utils.unlink(ob) for ob in export_obs if ob.type == "MESH" and not ob.data.polygons]
         # Transform the scene if needed to Halo Scale and forward
         self.scale_factor = transform_export_scene(self.context, self.scene_settings)
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
         
     def fixup_uv_names(self):
         '''
@@ -829,14 +803,14 @@ class PrepareScene:
         if self.model_armature and self.model_armature.scale != good_scale:
             arm_scale = self.model_armature.scale
             if arm_scale.x < 0 or arm_scale.y < 0 or arm_scale.z < 0:
-                nwo_utils.print_warning("Armature has negative scale. Model & animations will look incorrect in game")
+                utils.print_warning("Armature has negative scale. Model & animations will look incorrect in game")
             elif not (arm_scale.x == arm_scale.y == arm_scale.z):
-                nwo_utils.print_warning("Armature has non-uniform scale. Model & animations will look incorrect in game")
+                utils.print_warning("Armature has non-uniform scale. Model & animations will look incorrect in game")
                 
-            nwo_utils.apply_armature_scale(self.context, self.model_armature)
+            utils.apply_armature_scale(self.context, self.model_armature)
             
         # Group objects by their meshes, spitting by instanced/non-instanced
-        mesh_objects = {ob for ob in self.context.view_layer.objects if nwo_utils.is_mesh(ob)}
+        mesh_objects = {ob for ob in self.context.view_layer.objects if utils.is_mesh(ob)}
         uniform_io_objects = {ob for ob in mesh_objects if ob.get("bungie_mesh_type") in ('_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_poop') and round(ob.scale.x, 4) == round(ob.scale.y, 4) == round(ob.scale.z, 4)}
         other_objects = {ob for ob in mesh_objects if ob not in uniform_io_objects}
         meshes = {ob.data for ob in mesh_objects}
@@ -900,7 +874,7 @@ class PrepareScene:
         self._halo_objects_init()
         self._halo_objects()
 
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
                 
     def animation_fixup(self):
         if self.export_settings.export_gr2_files and self.model_armature:
@@ -921,7 +895,7 @@ class PrepareScene:
             for r in null_regions:
                 if self.asset_type == 'scenario' and r.lower() == 'shared': continue
                 self.warning_hit = True
-                nwo_utils.print_warning(f'No export object has {self.reg_name}: {r}')
+                utils.print_warning(f'No export object has {self.reg_name}: {r}')
                 
             self.regions = [r for r in self.regions if r not in null_regions]
             
@@ -930,7 +904,7 @@ class PrepareScene:
             self.warning_hit = True
             print('')
             for p in null_permutations:
-                nwo_utils.print_warning(f'No export object has {self.perm_name}: {p}')
+                utils.print_warning(f'No export object has {self.perm_name}: {p}')
                 
             self.permutations = [p for p in self.permutations if p not in null_permutations]
             
@@ -967,12 +941,12 @@ class PrepareScene:
             nwo.permutation_name = default_bsp_part
             self.structure.add(structure)
             
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
     
     def add_null_render_if_needed(self):
         if self.render and self.scene_settings.render_model_from_blend: return
         self.render = {self._add_null_render()}
-        nwo_utils.update_view_layer(self.context)
+        utils.update_view_layer(self.context)
         
     def setup_skylights(self):
         if not self.reach_sky_lights: return
@@ -991,9 +965,9 @@ class PrepareScene:
                 sun = ob
             down = Vector((0, 0, -1))
             down.rotate(ob.rotation_euler)
-            lightGen_colors.append(nwo_utils.color_3p_str(ob.data.color))
-            lightGen_directions.append(f'{nwo_utils.jstr(down[0])} {nwo_utils.jstr(down[1])} {nwo_utils.jstr(down[2])}')
-            lightGen_solid_angles.append(nwo_utils.jstr(ob.data.energy * light_scale))
+            lightGen_colors.append(utils.color_3p_str(ob.data.color))
+            lightGen_directions.append(f'{utils.jstr(down[0])} {utils.jstr(down[1])} {utils.jstr(down[2])}')
+            lightGen_solid_angles.append(utils.jstr(ob.data.energy * light_scale))
             
         self.skylights['lightGen_colors'] = ' '.join(lightGen_colors)
         self.skylights['lightGen_directions'] = ' '.join(lightGen_directions)
@@ -1003,16 +977,16 @@ class PrepareScene:
         if sun is not None:
             if sun.data.color.v > 1:
                 sun.data.color.v = 1
-            self.skylights['sun_size'] = nwo_utils.jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
-            self.skylights['sun_intensity'] = nwo_utils.jstr(sun.data.energy * 10000 * light_scale)
-            self.skylights['sun_color'] = nwo_utils.color_3p_str(sun.data.color)
+            self.skylights['sun_size'] = utils.jstr((max(sun.scale.x, sun.scale.y, sun.scale.z) * sun_scale))
+            self.skylights['sun_intensity'] = utils.jstr(sun.data.energy * 10000 * light_scale)
+            self.skylights['sun_color'] = utils.color_3p_str(sun.data.color)
             
     def finalize(self):
         if self.warning_hit:
-            nwo_utils.print_warning(
+            utils.print_warning(
                 "\nScene has issues that should be resolved for subsequent exports"
             )
-            nwo_utils.print_warning("Please see above output for details")
+            utils.print_warning("Please see above output for details")
             
 ########################################################################################################################################
 # HELPER FUNCTIONS
@@ -1076,7 +1050,7 @@ class PrepareScene:
                     if not is_proxy:
                         for collection in ob.users_collection: collection.objects.link(split_ob)
 
-                    new_prop_faces_dict = {layer: nwo_utils.layer_face_indexes(split_bm, split_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
+                    new_prop_faces_dict = {layer: utils.layer_face_indexes(split_bm, split_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
                     split_objects.append(split_ob)
                     if split_me.polygons:
                         self._recursive_layer_split(split_ob, split_me, face_properties, new_prop_faces_dict, split_objects, split_bm, is_proxy, True)
@@ -1119,21 +1093,21 @@ class PrepareScene:
     def _coll_proxy_two_sided(self, ob, bm: bmesh.types.BMesh):
         for props in ob.data.nwo.face_props:
             if props.face_two_sided_override:
-                if nwo_utils.layer_face_count(bm, bm.faces.layers.int.get(props.layer_name)):
+                if utils.layer_face_count(bm, bm.faces.layers.int.get(props.layer_name)):
                     return True
             
         return False
 
     def _split_to_layers(self, ob: bpy.types.Object, ob_nwo, data, face_properties, bm, is_proxy):
         poly_count = len(bm.faces)
-        prop_faces_dict = {prop: nwo_utils.layer_face_indexes(bm, bm.faces.layers.int.get(prop.layer_name)) for prop in face_properties}
+        prop_faces_dict = {prop: utils.layer_face_indexes(bm, bm.faces.layers.int.get(prop.layer_name)) for prop in face_properties}
         face_sequences = prop_faces_dict.values()
         collision_ob = None
         justified = self._justify_face_split(prop_faces_dict.values(), poly_count)
         bm.to_mesh(data)
         if justified:
             # Create a custom data layer to store current loop normals
-            nwo_utils.save_loop_normals(bm, data)
+            utils.save_loop_normals(bm, data)
             
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
             is_poop = ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop"
@@ -1171,7 +1145,7 @@ class PrepareScene:
                     # Remove render only property faces from coll mesh
                     coll_bm = bmesh.new()
                     coll_bm.from_mesh(collision_ob.data)
-                    coll_layer_faces_dict = {layer: nwo_utils.layer_faces(coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
+                    coll_layer_faces_dict = {layer: utils.layer_faces(coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
                     poly_count = self._strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
 
                     coll_bm.to_mesh(collision_ob.data)
@@ -1204,9 +1178,9 @@ class PrepareScene:
             
             # Fix normals for split_objects
             for normal_ob in split_objects:
-                nwo_utils.apply_loop_normals(normal_ob.data)
+                utils.apply_loop_normals(normal_ob.data)
                 # Strip unused materials from object
-                nwo_utils.clean_materials(normal_ob)
+                utils.clean_materials(normal_ob)
 
             # Ensure existing proxies aren't parented to zero face mesh
             for s_ob in no_polys:
@@ -1220,7 +1194,7 @@ class PrepareScene:
                 obj_bm.from_mesh(split_ob.data)
                 obj_name_suffix = ""
                 for layer in split_ob.data.nwo.face_props:
-                    if nwo_utils.layer_face_count(
+                    if utils.layer_face_count(
                         obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)
                     ):
                         self._face_prop_to_mesh_prop(layer, split_ob)
@@ -1261,7 +1235,7 @@ class PrepareScene:
                 for split_ob in split_objects:
                     if split_ob.get("bungie_face_mode") == "_connected_geometry_face_mode_collision_only":
                         coll_only_objects.add(split_ob)
-                        nwo_utils.unlink(split_ob)
+                        utils.unlink(split_ob)
                         
                 # recreate split objects list
                 split_objects = {ob for ob in split_objects if ob not in coll_only_objects}
@@ -1332,7 +1306,7 @@ class PrepareScene:
                 ob.nwo.region_name = reg
             else:
                 self.warning_hit = True
-                nwo_utils.print_warning(f"Object [{ob.name}] has {self.reg_name} face property [{reg}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                utils.print_warning(f"Object [{ob.name}] has {self.reg_name} face property [{reg}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                 ob.nwo.region_name = self.default_region
 
         if face_props.face_global_material_override:
@@ -1365,38 +1339,38 @@ class PrepareScene:
         # lightmap props
         if face_props.lightmap_additive_transparency_override:
             ob["bungie_lightmap_transparency_override"] = "1"
-            ob["bungie_lightmap_additive_transparency"] = nwo_utils.color_4p_str(face_props.lightmap_additive_transparency_ui)
+            ob["bungie_lightmap_additive_transparency"] = utils.color_4p_str(face_props.lightmap_additive_transparency_ui)
 
         if face_props.lightmap_resolution_scale_override:
-            ob["bungie_lightmap_resolution_scale"] = nwo_utils.jstr(face_props.lightmap_resolution_scale_ui)
+            ob["bungie_lightmap_resolution_scale"] = utils.jstr(face_props.lightmap_resolution_scale_ui)
         if face_props.lightmap_type_override:
             ob["bungie_lightmap_type"] = face_props.lightmap_type_ui
             
         if face_props.lightmap_translucency_tint_color_override:
-            ob["bungie_lightmap_translucency_tint_color"] = nwo_utils.color_4p_str(face_props.lightmap_translucency_tint_color_ui)
+            ob["bungie_lightmap_translucency_tint_color"] = utils.color_4p_str(face_props.lightmap_translucency_tint_color_ui)
         if face_props.lightmap_lighting_from_both_sides_override:
             ob["bungie_lightmap_lighting_from_both_sides"] = "1"
             
         # emissive props
         if face_props.emissive_override:
             if self.corinth:
-                ob["bungie_lighting_emissive_power"] = nwo_utils.jstr(face_props.material_lighting_emissive_power_ui / 30)
+                ob["bungie_lighting_emissive_power"] = utils.jstr(face_props.material_lighting_emissive_power_ui / 30)
             else:
-                ob["bungie_lighting_emissive_power"] = nwo_utils.jstr(face_props.material_lighting_emissive_power_ui)
+                ob["bungie_lighting_emissive_power"] = utils.jstr(face_props.material_lighting_emissive_power_ui)
                 
             if face_props.material_lighting_attenuation_falloff_ui or face_props.material_lighting_attenuation_cutoff_ui:
                 ob["bungie_lighting_attenuation_enabled"] = "1"
-                ob["bungie_lighting_attenuation_falloff"] = nwo_utils.jstr(face_props.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor)
-                ob["bungie_lighting_attenuation_cutoff"] = nwo_utils.jstr(face_props.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor)
+                ob["bungie_lighting_attenuation_falloff"] = utils.jstr(face_props.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor)
+                ob["bungie_lighting_attenuation_cutoff"] = utils.jstr(face_props.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor)
             else:
                 ob["bungie_lighting_attenuation_enabled"] = "0"
 
-            ob["bungie_lighting_emissive_focus"] = nwo_utils.jstr(degrees(face_props.material_lighting_emissive_focus_ui) / 180)
-            ob["bungie_lighting_emissive_color"] = nwo_utils.color_4p_str(face_props.material_lighting_emissive_color_ui)
-            ob["bungie_lighting_emissive_per_unit"] =  nwo_utils.bool_str(face_props.material_lighting_emissive_per_unit_ui)
-            ob["material_lighting_emissive_quality"] =  nwo_utils.bool_str(face_props.material_lighting_emissive_quality_ui)
-            ob["material_lighting_use_shader_gel"] =  nwo_utils.bool_str(face_props.material_lighting_use_shader_gel_ui)
-            ob["bungie_lighting_bounce_ratio"] = nwo_utils.jstr(face_props.material_lighting_bounce_ratio_ui)
+            ob["bungie_lighting_emissive_focus"] = utils.jstr(degrees(face_props.material_lighting_emissive_focus_ui) / 180)
+            ob["bungie_lighting_emissive_color"] = utils.color_4p_str(face_props.material_lighting_emissive_color_ui)
+            ob["bungie_lighting_emissive_per_unit"] =  utils.bool_str(face_props.material_lighting_emissive_per_unit_ui)
+            ob["material_lighting_emissive_quality"] =  utils.bool_str(face_props.material_lighting_emissive_quality_ui)
+            ob["material_lighting_use_shader_gel"] =  utils.bool_str(face_props.material_lighting_use_shader_gel_ui)
+            ob["bungie_lighting_bounce_ratio"] = utils.jstr(face_props.material_lighting_bounce_ratio_ui)
 
         # added two sided property to avoid open edges if collision prop
         if not self.corinth:
@@ -1462,14 +1436,14 @@ class PrepareScene:
                 del ob_physics["mesh_tessellation_density"]
                 
             ob_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_water_physics_volume"
-            ob_physics["bungie_mesh_water_volume_depth"] = nwo_utils.jstr(nwo.water_volume_depth_ui)
-            ob_physics["bungie_mesh_water_volume_flow_direction"] = nwo_utils.jstr(degrees(nwo.water_volume_flow_direction_ui))
-            ob_physics["bungie_mesh_water_volume_flow_velocity"] = nwo_utils.jstr(nwo.water_volume_flow_velocity_ui)
-            ob_physics["bungie_mesh_water_volume_fog_murkiness"] = nwo_utils.jstr(nwo.water_volume_fog_murkiness_ui)
+            ob_physics["bungie_mesh_water_volume_depth"] = utils.jstr(nwo.water_volume_depth_ui)
+            ob_physics["bungie_mesh_water_volume_flow_direction"] = utils.jstr(degrees(nwo.water_volume_flow_direction_ui))
+            ob_physics["bungie_mesh_water_volume_flow_velocity"] = utils.jstr(nwo.water_volume_flow_velocity_ui)
+            ob_physics["bungie_mesh_water_volume_fog_murkiness"] = utils.jstr(nwo.water_volume_fog_murkiness_ui)
             if self.corinth:
-                ob_physics["bungie_mesh_water_volume_fog_color"] = nwo_utils.color_rgba_str(nwo.water_volume_fog_color_ui)
+                ob_physics["bungie_mesh_water_volume_fog_color"] = utils.color_rgba_str(nwo.water_volume_fog_color_ui)
             else:
-                ob_physics["bungie_mesh_water_volume_fog_color"] = nwo_utils.color_argb_str(nwo.water_volume_fog_color_ui)
+                ob_physics["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color_ui)
 
     def _setup_instance_proxies(self, data, linked_objects):
         if self.asset_type in ("scenario", "prefab"):
@@ -1500,14 +1474,14 @@ class PrepareScene:
                     # Physics gets split by parts
                     bpy.context.scene.collection.objects.link(proxy_physics)
                     proxy_physics.select_set(True)
-                    nwo_utils.set_active_object(proxy_physics)
+                    utils.set_active_object(proxy_physics)
                     bpy.ops.object.editmode_toggle()
                     for v in proxy_physics.data.vertices: v.select = True
                     bpy.ops.mesh.separate(type="LOOSE")
                     for v in proxy_physics.data.vertices: v.select = False
                     bpy.ops.object.editmode_toggle()
                     split_physics = bpy.context.selected_objects
-                    nwo_utils.deselect_all_objects()
+                    utils.deselect_all_objects()
 
             if coll:
                 proxy_collision["bungie_object_type"] = "_connected_geometry_object_type_mesh"
@@ -1602,9 +1576,9 @@ class PrepareScene:
             != "_connected_poop_instance_imposter_policy_never"
         ):
             if not nwo.poop_imposter_transition_distance_auto:
-                ob["bungie_mesh_poop_imposter_transition_distance"] = nwo_utils.jstr(nwo.poop_imposter_transition_distance_ui)
+                ob["bungie_mesh_poop_imposter_transition_distance"] = utils.jstr(nwo.poop_imposter_transition_distance_ui)
             if self.corinth:
-                nwo["bungie_mesh_poop_imposter_brightness"] = nwo_utils.jstr(nwo.poop_imposter_brightness_ui)
+                nwo["bungie_mesh_poop_imposter_brightness"] = utils.jstr(nwo.poop_imposter_brightness_ui)
         if nwo_data.render_only_ui:
             ob["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
             if self.corinth:
@@ -1633,8 +1607,8 @@ class PrepareScene:
         if self.corinth:
             ob["bungie_mesh_poop_lightmap_resolution_scale"] = str(nwo.poop_lightmap_resolution_scale_ui)
             ob["bungie_mesh_poop_streamingpriority"] = nwo.poop_streaming_priority_ui
-            ob["bungie_mesh_poop_cinema_only"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_only')
-            ob["bungie_mesh_poop_exclude_from_cinema"] = nwo_utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_exclude')
+            ob["bungie_mesh_poop_cinema_only"] = utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_only')
+            ob["bungie_mesh_poop_exclude_from_cinema"] = utils.bool_str(nwo.poop_cinematic_properties_ui == '_connected_geometry_poop_cinema_exclude')
             if nwo.poop_remove_from_shadow_geometry_ui:
                 ob["bungie_mesh_poop_remove_from_shadow_geometry"] = "1"
             if nwo.poop_disallow_lighting_samples_ui:
@@ -1671,27 +1645,27 @@ class PrepareScene:
             # ob["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
             # ob["bungie_havok_isshape"] = "1"
             if prim_type in ('_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'):
-                nwo_utils.set_origin_to_floor(ob)
+                utils.set_origin_to_floor(ob)
                 if prim_type == '_connected_geometry_primitive_type_box':
-                    ob["bungie_mesh_primitive_box_length"] = nwo_utils.jstr(ob.dimensions.y)
-                    ob["bungie_mesh_primitive_box_width"] =  nwo_utils.jstr(ob.dimensions.x)
-                    ob["bungie_mesh_primitive_box_height"] = nwo_utils.jstr(ob.dimensions.z)
+                    ob["bungie_mesh_primitive_box_length"] = utils.jstr(ob.dimensions.y)
+                    ob["bungie_mesh_primitive_box_width"] =  utils.jstr(ob.dimensions.x)
+                    ob["bungie_mesh_primitive_box_height"] = utils.jstr(ob.dimensions.z)
                 else:
-                    ob["bungie_mesh_primitive_pill_radius"] = nwo_utils.radius_str(ob, True)
-                    ob["bungie_mesh_primitive_pill_height"] = nwo_utils.jstr(ob.dimensions.z)
+                    ob["bungie_mesh_primitive_pill_radius"] = utils.radius_str(ob, True)
+                    ob["bungie_mesh_primitive_pill_height"] = utils.jstr(ob.dimensions.z)
             elif prim_type == '_connected_geometry_primitive_type_sphere':
-                nwo_utils.set_origin_to_centre(ob)
-                ob["bungie_mesh_primitive_sphere_radius"] = nwo_utils.radius_str(ob)
+                utils.set_origin_to_centre(ob)
+                ob["bungie_mesh_primitive_sphere_radius"] = utils.radius_str(ob)
                 
             elif self.corinth and nwo.mopp_physics:
                 ob["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
                 ob["bungie_havok_isshape"] = "1"
                 
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
-            ob["bungie_marker_all_regions"] = nwo_utils.bool_str(not nwo.marker_uses_regions)
+            ob["bungie_marker_all_regions"] = utils.bool_str(not nwo.marker_uses_regions)
             if nwo.marker_uses_regions:
                 ob["bungie_marker_region"] = ob.nwo.region_name
-                nwo.region_name = nwo_utils.true_region(nwo)
+                nwo.region_name = utils.true_region(nwo)
                 self.validated_regions.add(nwo.region_name)
                 m_perms = nwo.marker_permutations
                 if m_perms:
@@ -1730,36 +1704,36 @@ class PrepareScene:
             
         elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
             # ob["bungie_mesh_tessellation_density"] = nwo.mesh_tessellation_density_ui
-            ob["bungie_mesh_water_volume_depth"] = nwo_utils.jstr(nwo.water_volume_depth_ui)
-            ob["bungie_mesh_water_volume_flow_direction"] = nwo_utils.jstr(degrees(nwo.water_volume_flow_direction_ui))
-            ob["bungie_mesh_water_volume_flow_velocity"] = nwo_utils.jstr(nwo.water_volume_flow_velocity_ui)
-            ob["bungie_mesh_water_volume_fog_murkiness"] = nwo_utils.jstr(nwo.water_volume_fog_murkiness_ui)
+            ob["bungie_mesh_water_volume_depth"] = utils.jstr(nwo.water_volume_depth_ui)
+            ob["bungie_mesh_water_volume_flow_direction"] = utils.jstr(degrees(nwo.water_volume_flow_direction_ui))
+            ob["bungie_mesh_water_volume_flow_velocity"] = utils.jstr(nwo.water_volume_flow_velocity_ui)
+            ob["bungie_mesh_water_volume_fog_murkiness"] = utils.jstr(nwo.water_volume_fog_murkiness_ui)
             if self.corinth:
-                ob["bungie_mesh_water_volume_fog_color"] = nwo_utils.color_rgba_str(nwo.water_volume_fog_color_ui)
+                ob["bungie_mesh_water_volume_fog_color"] = utils.color_rgba_str(nwo.water_volume_fog_color_ui)
             else:
-                ob["bungie_mesh_water_volume_fog_color"] = nwo_utils.color_argb_str(nwo.water_volume_fog_color_ui)
+                ob["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color_ui)
             
         elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
             ob["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
             
         elif mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
-            ob["bungie_mesh_fog_appearance_tag"] = nwo_utils.relative_path(nwo.fog_appearance_tag_ui)
-            ob["bungie_mesh_fog_volume_depth"] = nwo_utils.jstr(nwo.fog_volume_depth_ui)
+            ob["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag_ui)
+            ob["bungie_mesh_fog_volume_depth"] = utils.jstr(nwo.fog_volume_depth_ui)
             
         elif mesh_type == "_connected_geometry_mesh_type_soft_ceiling":
             ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             ob["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_ceiling'
-            ob["bungie_mesh_boundary_surface_name"] = nwo_utils.dot_partition(self.name)
+            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(self.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_soft_kill":
             ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             ob["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_kill'
-            ob["bungie_mesh_boundary_surface_name"] = nwo_utils.dot_partition(self.name)
+            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(self.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_slip_surface":
             ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             ob["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_slip_surface'
-            ob["bungie_mesh_boundary_surface_name"] = nwo_utils.dot_partition(self.name)
+            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(self.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
             nwo.lightmap_resolution_scale_active = False
@@ -1868,34 +1842,34 @@ class PrepareScene:
                 if nwo_data.mesh_type_ui != "_connected_geometry_mesh_type_lightmap_only":
                     if nwo_data.lightmap_additive_transparency_active:
                         ob["bungie_lightmap_transparency_override"] = "1"
-                        ob["bungie_lightmap_additive_transparency"] = nwo_utils.color_4p_str(nwo_data.lightmap_additive_transparency_ui)
+                        ob["bungie_lightmap_additive_transparency"] = utils.color_4p_str(nwo_data.lightmap_additive_transparency_ui)
                     if nwo_data.lightmap_resolution_scale_active:
-                        ob["bungie_lightmap_resolution_scale"] = nwo_utils.jstr(nwo_data.lightmap_resolution_scale_ui)
+                        ob["bungie_lightmap_resolution_scale"] = utils.jstr(nwo_data.lightmap_resolution_scale_ui)
                     if nwo_data.lightmap_type_active:
                         ob["bungie_lightmap_type"] = nwo_data.lightmap_type_ui
                     if nwo_data.lightmap_translucency_tint_color_active:
-                        ob["bungie_lightmap_translucency_tint_color"] = nwo_utils.color_4p_str(nwo_data.lightmap_translucency_tint_color_ui)
+                        ob["bungie_lightmap_translucency_tint_color"] = utils.color_4p_str(nwo_data.lightmap_translucency_tint_color_ui)
                     if nwo_data.lightmap_lighting_from_both_sides_active and nwo_data.lightmap_lighting_from_both_sides_ui:
                         ob["bungie_lightmap_lighting_from_both_sides"] = "1"
                 if nwo_data.emissive_active:
                     if self.corinth:
-                        ob["bungie_lighting_emissive_power"] = nwo_utils.jstr(nwo_data.material_lighting_emissive_power_ui / 30)
+                        ob["bungie_lighting_emissive_power"] = utils.jstr(nwo_data.material_lighting_emissive_power_ui / 30)
                     else:
-                        ob["bungie_lighting_emissive_power"] = nwo_utils.jstr(nwo_data.material_lighting_emissive_power_ui)
+                        ob["bungie_lighting_emissive_power"] = utils.jstr(nwo_data.material_lighting_emissive_power_ui)
                         
                     if nwo_data.material_lighting_attenuation_falloff_ui or nwo_data.material_lighting_attenuation_cutoff_ui:
                         ob["bungie_lighting_attenuation_enabled"] = "1"
-                        ob["bungie_lighting_attenuation_falloff"] = nwo_utils.jstr(nwo_data.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor)
-                        ob["bungie_lighting_attenuation_cutoff"] = nwo_utils.jstr(nwo_data.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor)
+                        ob["bungie_lighting_attenuation_falloff"] = utils.jstr(nwo_data.material_lighting_attenuation_falloff_ui * 100 * 0.03048 * self.emissive_factor)
+                        ob["bungie_lighting_attenuation_cutoff"] = utils.jstr(nwo_data.material_lighting_attenuation_cutoff_ui * 100 * 0.03048 * self.emissive_factor)
                     else:
                         ob["bungie_lighting_attenuation_enabled"] = "0"
 
-                    ob["bungie_lighting_emissive_focus"] = nwo_utils.jstr(degrees(nwo_data.material_lighting_emissive_focus_ui) / 180)
-                    ob["bungie_lighting_emissive_color"] = nwo_utils.color_4p_str(nwo_data.material_lighting_emissive_color_ui)
-                    ob["bungie_lighting_emissive_per_unit"] =  nwo_utils.bool_str(nwo_data.material_lighting_emissive_per_unit_ui)
-                    ob["material_lighting_emissive_quality"] =  nwo_utils.bool_str(nwo_data.material_lighting_emissive_quality_ui)
-                    ob["material_lighting_use_shader_gel"] =  nwo_utils.bool_str(nwo_data.material_lighting_use_shader_gel_ui)
-                    ob["bungie_lighting_bounce_ratio"] = nwo_utils.jstr(nwo_data.material_lighting_bounce_ratio_ui)
+                    ob["bungie_lighting_emissive_focus"] = utils.jstr(degrees(nwo_data.material_lighting_emissive_focus_ui) / 180)
+                    ob["bungie_lighting_emissive_color"] = utils.color_4p_str(nwo_data.material_lighting_emissive_color_ui)
+                    ob["bungie_lighting_emissive_per_unit"] =  utils.bool_str(nwo_data.material_lighting_emissive_per_unit_ui)
+                    ob["material_lighting_emissive_quality"] =  utils.bool_str(nwo_data.material_lighting_emissive_quality_ui)
+                    ob["material_lighting_use_shader_gel"] =  utils.bool_str(nwo_data.material_lighting_use_shader_gel_ui)
+                    ob["bungie_lighting_bounce_ratio"] = utils.jstr(nwo_data.material_lighting_bounce_ratio_ui)
                     
         return True
 
@@ -1906,7 +1880,7 @@ class PrepareScene:
         ob["bungie_marker_type"] = marker_type
         ob["bungie_marker_model_group"] = nwo.marker_model_group
         if self.asset_type in ('model', 'sky'):
-            ob["bungie_marker_all_regions"] = nwo_utils.bool_str(not nwo.marker_uses_regions)
+            ob["bungie_marker_all_regions"] = utils.bool_str(not nwo.marker_uses_regions)
             if nwo.marker_uses_regions:
                 self.validated_regions.add(ob.nwo.region_name)
                 ob["bungie_marker_region"] = ob.nwo.region_name
@@ -1926,7 +1900,7 @@ class PrepareScene:
                 if self.corinth:
                     scale = ob.matrix_world.to_scale()
                     max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-                    ob["bungie_marker_hint_length"] = nwo_utils.jstr(ob.empty_display_size * 2 * max_abs_scale)
+                    ob["bungie_marker_hint_length"] = utils.jstr(ob.empty_display_size * 2 * max_abs_scale)
 
                 ob.name = "hint_"
                 if nwo.marker_hint_type == "bunker":
@@ -1955,9 +1929,9 @@ class PrepareScene:
                         
             elif marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
                 set_marker_sphere_size(ob, nwo)
-                ob["bungie_marker_pathfinding_sphere_vehicle_only"] = nwo_utils.bool_str(nwo.marker_pathfinding_sphere_vehicle_ui)
-                ob["bungie_marker_pathfinding_sphere_remains_when_open"] = nwo_utils.bool_str(nwo.pathfinding_sphere_remains_when_open_ui)
-                ob["bungie_marker_pathfinding_sphere_with_sectors"] = nwo_utils.bool_str(nwo.pathfinding_sphere_with_sectors_ui)
+                ob["bungie_marker_pathfinding_sphere_vehicle_only"] = utils.bool_str(nwo.marker_pathfinding_sphere_vehicle_ui)
+                ob["bungie_marker_pathfinding_sphere_remains_when_open"] = utils.bool_str(nwo.pathfinding_sphere_remains_when_open_ui)
+                ob["bungie_marker_pathfinding_sphere_with_sectors"] = utils.bool_str(nwo.pathfinding_sphere_with_sectors_ui)
                 
             elif marker_type == "_connected_geometry_marker_type_physics_constraint":
                 ob["bungie_marker_type"] = nwo.physics_constraint_type_ui
@@ -1989,19 +1963,19 @@ class PrepareScene:
                     ob["bungie_physics_constraint_child"] = str(
                         nwo.physics_constraint_child_ui.parent_bone
                     )
-                ob["bungie_physics_constraint_use_limits"] = nwo_utils.bool_str(
+                ob["bungie_physics_constraint_use_limits"] = utils.bool_str(
                     nwo.physics_constraint_uses_limits_ui
                 )
                 if nwo.physics_constraint_uses_limits_ui:
                     if marker_type == "_connected_geometry_marker_type_physics_hinge_constraint":
-                        ob["bungie_physics_constraint_hinge_min"] = nwo_utils.jstr(degrees(nwo.hinge_constraint_minimum_ui))
-                        ob["bungie_physics_constraint_hinge_max"] = nwo_utils.jstr(degrees(nwo.hinge_constraint_maximum_ui))
+                        ob["bungie_physics_constraint_hinge_min"] = utils.jstr(degrees(nwo.hinge_constraint_minimum_ui))
+                        ob["bungie_physics_constraint_hinge_max"] = utils.jstr(degrees(nwo.hinge_constraint_maximum_ui))
                     else:
-                        ob["bungie_physics_constraint_cone_angle"] = nwo_utils.jstr(degrees(nwo.cone_angle_ui))
-                        ob["bungie_physics_constraint_plane_min"] = nwo_utils.jstr(degrees(nwo.plane_constraint_minimum_ui))
-                        ob["bungie_physics_constraint_plane_max"] = nwo_utils.jstr(degrees(nwo.plane_constraint_maximum_ui))
-                        ob["bungie_physics_constraint_twist_start"] = nwo_utils.jstr(degrees(nwo.twist_constraint_start_ui))
-                        ob["bungie_physics_constraint_twist_end"] = nwo_utils.jstr(degrees(nwo.twist_constraint_end_ui))
+                        ob["bungie_physics_constraint_cone_angle"] = utils.jstr(degrees(nwo.cone_angle_ui))
+                        ob["bungie_physics_constraint_plane_min"] = utils.jstr(degrees(nwo.plane_constraint_minimum_ui))
+                        ob["bungie_physics_constraint_plane_max"] = utils.jstr(degrees(nwo.plane_constraint_maximum_ui))
+                        ob["bungie_physics_constraint_twist_start"] = utils.jstr(degrees(nwo.twist_constraint_start_ui))
+                        ob["bungie_physics_constraint_twist_end"] = utils.jstr(degrees(nwo.twist_constraint_end_ui))
                 
             elif marker_type == "_connected_geometry_marker_type_target":
                 set_marker_sphere_size(ob, nwo)
@@ -2014,7 +1988,7 @@ class PrepareScene:
             elif marker_type == "_connected_geometry_marker_type_garbage":
                 if not self.corinth:
                     ob["bungie_marker_type"] = "_connected_geometry_marker_type_model"
-                ob["bungie_marker_velocity"] = nwo_utils.vector_str(nwo.marker_velocity_ui)
+                ob["bungie_marker_velocity"] = utils.vector_str(nwo.marker_velocity_ui)
         
         elif self.asset_type in ("scenario", "prefab"):
             if marker_type == "_connected_geometry_marker_type_game_instance":
@@ -2034,9 +2008,9 @@ class PrepareScene:
                         ob["bungie_mesh_poop_imposter_policy"] = nwo.prefab_imposter_policy
                         if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
                             if nwo.prefab_imposter_brightness > 0:
-                                ob["bungie_mesh_poop_imposter_brightness"] = nwo_utils.jstr(nwo.prefab_imposter_brightness)
+                                ob["bungie_mesh_poop_imposter_brightness"] = utils.jstr(nwo.prefab_imposter_brightness)
                             if not nwo.prefab_imposter_transition_distance_auto:
-                                ob["bungie_mesh_poop_imposter_transition_distance"] = nwo_utils.jstr(nwo.prefab_imposter_transition_distance_auto)
+                                ob["bungie_mesh_poop_imposter_transition_distance"] = utils.jstr(nwo.prefab_imposter_transition_distance_auto)
                                 
                     if nwo.prefab_streaming_priority != "no_override":
                         ob["bungie_mesh_poop_streamingpriority"] = nwo.prefab_streaming_priority
@@ -2079,18 +2053,18 @@ class PrepareScene:
                 else:
                     ob["bungie_marker_game_instance_variant_name"] = nwo.marker_game_instance_tag_variant_name_ui
                     if self.corinth:
-                        ob["bungie_marker_always_run_scripts"] = nwo_utils.bool_str(nwo.marker_always_run_scripts_ui)
+                        ob["bungie_marker_always_run_scripts"] = utils.bool_str(nwo.marker_always_run_scripts_ui)
             
             elif marker_type == "_connected_geometry_marker_type_envfx":
                 ob["bungie_marker_looping_effect"] = nwo.marker_looping_effect_ui
                 
             elif marker_type == "_connected_geometry_marker_type_lightCone":
                 ob["bungie_marker_light_tag"] = nwo.marker_light_cone_tag_ui
-                ob["bungie_marker_light_color"] = nwo_utils.color_3p_str(nwo.marker_light_cone_color_ui)
-                ob["bungie_marker_light_cone_width"] = nwo_utils.jstr(nwo.marker_light_cone_alpha_ui)
-                ob["bungie_marker_light_cone_length"] = nwo_utils.jstr(nwo.marker_light_cone_width_ui)
-                ob["bungie_marker_light_color_alpha"] = nwo_utils.jstr(nwo.marker_light_cone_length_ui)
-                ob["bungie_marker_light_cone_intensity"] = nwo_utils.jstr(nwo.marker_light_cone_intensity_ui)
+                ob["bungie_marker_light_color"] = utils.color_3p_str(nwo.marker_light_cone_color_ui)
+                ob["bungie_marker_light_cone_width"] = utils.jstr(nwo.marker_light_cone_alpha_ui)
+                ob["bungie_marker_light_cone_length"] = utils.jstr(nwo.marker_light_cone_width_ui)
+                ob["bungie_marker_light_color_alpha"] = utils.jstr(nwo.marker_light_cone_length_ui)
+                ob["bungie_marker_light_cone_intensity"] = utils.jstr(nwo.marker_light_cone_intensity_ui)
                 ob["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve_ui
 
     def _strip_prefix(self, ob):
@@ -2127,7 +2101,7 @@ class PrepareScene:
 
     def _set_animation_overrides(self):
         for action in bpy.data.actions:
-            action.name = nwo_utils.dot_partition(action.name).lower().strip(" :_,-")
+            action.name = utils.dot_partition(action.name).lower().strip(" :_,-")
             nwo = action.nwo
             if not nwo.name_override: nwo.name_override = action.name
             if self.scene_settings.default_animation_compression != "Automatic" and nwo.compression == "Default":
@@ -2164,15 +2138,15 @@ class PrepareScene:
         valid_bone_names = {b.name for b in bones if b.use_deform}
         objects_in_scope = [ob for ob in self.context.view_layer.objects if ob.parent == self.model_armature]
         for ob in objects_in_scope:
-            marker = nwo_utils.is_marker(ob)
-            physics = nwo_utils.is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
-            io = nwo_utils.is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_object_instance"
+            marker = utils.is_marker(ob)
+            physics = utils.is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
+            io = utils.is_mesh(ob) and ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_object_instance"
             if ob.parent_type != "BONE":
                 if marker or physics or io:
                     world = ob.matrix_world.copy()
                     ob.parent_type = "BONE"
                     if ob.type == 'MESH':
-                        major_vertex_group = nwo_utils.get_major_vertex_group(ob)
+                        major_vertex_group = utils.get_major_vertex_group(ob)
                         if major_vertex_group in valid_bone_names:
                             ob.parent_bone = major_vertex_group
                         else:
@@ -2181,7 +2155,7 @@ class PrepareScene:
                         ob.parent_bone = self.root_bone_name
                     if not ob.parent_bone in valid_bone_names:
                         self.warning_hit = True
-                        nwo_utils.print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {self.root_bone_name}')
+                        utils.print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {self.root_bone_name}')
                         ob.parent_bone = self.root_bone_name
                     
                     ob.matrix_world = world
@@ -2204,7 +2178,7 @@ class PrepareScene:
                 if not ob.parent_bone in valid_bone_names:
                     world = ob.matrix_world.copy()
                     self.warning_hit = True
-                    nwo_utils.print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {self.root_bone_name}')
+                    utils.print_warning(f'{ob.name} is parented to bone {ob.parent_bone} but this bone is either non-deform or does not exist. Parenting object to {self.root_bone_name}')
                     ob.parent_bone = self.root_bone_name
                     ob.matrix_world = world
 
@@ -2228,7 +2202,7 @@ class PrepareScene:
         if len(bone_list) > 256:
             raise RuntimeError(f"Armature [{self.model_armature.name}] exceeds maximum deform bone count for exporting. {len(bone_list)} > 256")
         
-        root_bone = nwo_utils.rig_root_deform_bone(self.model_armature)
+        root_bone = utils.rig_root_deform_bone(self.model_armature)
         
         if not root_bone:
             raise RuntimeError(f"Armature [{self.model_armature.name}] does not have a root deform bone")
@@ -2263,9 +2237,9 @@ class PrepareScene:
                 bone_list = sorted(bone_list, key=sorting_key)
             else:
                 if node_order_source_is_model:
-                    nwo_utils.print_warning("Render Model path supplied but file does not exist")
+                    utils.print_warning("Render Model path supplied but file does not exist")
                 else:
-                    nwo_utils.print_warning("Model Animation Graph path supplied but file does not exist")  
+                    utils.print_warning("Model Animation Graph path supplied but file does not exist")  
                     
                 self.warning_hit = True
         
@@ -2277,7 +2251,7 @@ class PrepareScene:
                     # add a 1000 to each index to ensure gun bones sorted last
                     nodes_order_gun = {v: i + 1000 for i, v in enumerate(nodes)}
                 else:
-                    nwo_utils.print_warning("Gun Render Model supplied but tag path does not exist")
+                    utils.print_warning("Gun Render Model supplied but tag path does not exist")
                     self.warning_hit = True
             if fp_model:
                 if Path(self.tags_dir, fp_model).exists():
@@ -2285,7 +2259,7 @@ class PrepareScene:
                         nodes = render_model.get_nodes()
                     nodes_order_fp = {v: i for i, v in enumerate(nodes)}
                 else:
-                    nwo_utils.print_warning("FP Render Model supplied but tag path does not exist")
+                    utils.print_warning("FP Render Model supplied but tag path does not exist")
                     self.warning_hit = True
             
             if nodes is not None:
@@ -2364,7 +2338,7 @@ class PrepareScene:
         return node_props
 
     def _read_frame_id_list(self):
-        filepath = Path(nwo_utils.addon_root(), "export", "frameidlist.csv")
+        filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
         frameIDList = []
         with filepath.open(mode="r") as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=",")
@@ -2401,7 +2375,7 @@ class PrepareScene:
                 coll_mat.nwo.shader_path = tag_path
             else:
                 self.warning_hit = True
-                nwo_utils.print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {mesh_global_mat} prefixed with 'bsp_'")
+                utils.print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {mesh_global_mat} prefixed with 'bsp_'")
 
             data.materials.append(coll_mat)
             
@@ -2413,7 +2387,7 @@ class PrepareScene:
         for l in layers:
             if not l.face_global_material_ui or l.face_global_material_ui == data_nwo.face_global_material_ui:
                 continue
-            faces = nwo_utils.layer_faces(bm, bm.faces.layers.int.get(l.layer_name))
+            faces = utils.layer_faces(bm, bm.faces.layers.int.get(l.layer_name))
             if not faces:
                 continue
             new_mat_face_name = f"global_material_{l.face_global_material_ui}"
@@ -2432,22 +2406,22 @@ class PrepareScene:
 
             else:
                 self.warning_hit = True
-                nwo_utils.print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {l.face_global_material_ui} prefixed with 'bsp_'")
+                utils.print_warning(f"Couldn't find collision material shader in 'tags\\levels\\reference\\sound\\shaders'. Please ensure a shader tag exists for {l.face_global_material_ui} prefixed with 'bsp_'")
 
         bm.to_mesh(data)
         bm.free()
 
     def _loop_and_fix_slots(self, ob, data, nwo, does_not_support_sky, is_halo_render):
         is_true_mesh = ob.type == 'MESH'
-        slots = nwo_utils.clean_materials(ob)
+        slots = utils.clean_materials(ob)
         for slot in slots:
-            if slot.material.name in nwo_utils.special_material_names:
+            if slot.material.name in utils.special_material_names:
                 if self.corinth and slot.material.name not in (self.invisible_mat.name, self.invalid_mat.name):
                     if not slot.material.name.lower().startswith(self.sky_mat.name):
                         slot.material = self.invisible_mat
                 elif not self.corinth and slot.material.name.startswith(self.sky_mat.name) and does_not_support_sky:
                     slot.material = self.seamsealer_mat
-            elif slot.material.name in nwo_utils.convention_material_names:
+            elif slot.material.name in utils.convention_material_names:
                 slot.material = self.invisible_mat
             elif is_halo_render and not slot.material.get("bungie_shader_path"):
                 self.used_materials.add(slot.material)
@@ -2466,7 +2440,7 @@ class PrepareScene:
             if not sky_slots: return
             # If there's only one sky material can skip face split code below
             if len(sky_slots) == 1 or not is_true_mesh:
-                sky_index = nwo_utils.get_sky_perm(sky_slots[0].material)
+                sky_index = utils.get_sky_perm(sky_slots[0].material)
                 if sky_index > -1 and sky_index < 32:
                     nwo.sky_permutation_index = str(sky_index)
                 sky_slots[0].material = self.sky_mat
@@ -2476,7 +2450,7 @@ class PrepareScene:
             original_bm = bmesh.new()
             original_bm.from_mesh(data)
             for s in sky_slots:
-                sky_index = nwo_utils.get_sky_perm(s.material)
+                sky_index = utils.get_sky_perm(s.material)
                 if sky_index > -1 and sky_index < 32:
                     original_bm.faces.ensure_lookup_table()
                     mat_faces = [f for f in original_bm.faces if f.material_index == s.slot_index]
@@ -2499,8 +2473,8 @@ class PrepareScene:
                     new_sky_ob.data = new_sky_data
                     for collection in collections: collection.objects.link(new_sky_ob)
                     new_sky_ob.nwo.sky_permutation_index = str(sky_index)
-                    nwo_utils.clean_materials(ob)
-                    nwo_utils.clean_materials(new_sky_ob)
+                    utils.clean_materials(ob)
+                    utils.clean_materials(new_sky_ob)
                 
                 s.material = self.sky_mat
 
@@ -2634,7 +2608,7 @@ class PrepareScene:
                 elif object_type == "_connected_geometry_object_type_marker" or (object_type == '_connected_geometry_object_type_mesh' and mesh_type == "_connected_geometry_mesh_type_object_instance"):
                     self.markers.add(ob)
                 else:
-                    nwo_utils.unlink(ob)
+                    utils.unlink(ob)
 
             else:
                 if design:
@@ -2650,46 +2624,46 @@ class PrepareScene:
         context = self.context
         scene_nwo = context.scene.nwo
         if scene_nwo.support_armature_a and context.scene.objects.get(scene_nwo.support_armature_a.name):
-            child_bone = nwo_utils.rig_root_deform_bone(scene_nwo.support_armature_a, True)
+            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_a, True)
             if child_bone and scene_nwo.support_armature_a_parent_bone:
                 self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, child_bone)
             else:
-                nwo_utils.unlink(scene_nwo.support_armature_a)
+                utils.unlink(scene_nwo.support_armature_a)
                 if not scene_nwo.support_armature_a_parent_bone:
                     self.warning_hit = True
-                    nwo_utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
+                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
                     
                 if not child_bone:
                     self.warning_hit = True
-                    nwo_utils.print_warning(f"{scene_nwo.support_armature_a.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    utils.print_warning(f"{scene_nwo.support_armature_a.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
         if scene_nwo.support_armature_b and context.scene.objects.get(scene_nwo.support_armature_b.name):
-            child_bone = nwo_utils.rig_root_deform_bone(scene_nwo.support_armature_b, True)
+            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_b, True)
             if child_bone and scene_nwo.support_armature_b_parent_bone:
                 self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, child_bone)
             else:
-                nwo_utils.unlink(scene_nwo.support_armature_b)
+                utils.unlink(scene_nwo.support_armature_b)
                 if not scene_nwo.support_armature_b_parent_bone:
                     self.warning_hit = True
-                    nwo_utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
+                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
                     
                 if not child_bone:
                     self.warning_hit = True
-                    nwo_utils.print_warning(f"{scene_nwo.support_armature_b.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    utils.print_warning(f"{scene_nwo.support_armature_b.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
         if scene_nwo.support_armature_c and context.scene.objects.get(scene_nwo.support_armature_c.name):
-            child_bone = nwo_utils.rig_root_deform_bone(scene_nwo.support_armature_c, True)
+            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_c, True)
             if child_bone and scene_nwo.support_armature_c_parent_bone:
                 self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, child_bone)
             else:
-                nwo_utils.unlink(scene_nwo.support_armature_c)
+                utils.unlink(scene_nwo.support_armature_c)
                 if not scene_nwo.support_armature_c_parent_bone:
                     self.warning_hit = True
-                    nwo_utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
+                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
                     
                 if not child_bone:
                     self.warning_hit = True
-                    nwo_utils.print_warning(f"{scene_nwo.support_armature_c.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    utils.print_warning(f"{scene_nwo.support_armature_c.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
                     
     def _join_armatures(self, context: bpy.types.Context, parent, child, parent_bone, child_bone):
         with context.temp_override(selected_editable_objects=[parent, child], active_object=parent):
@@ -2703,7 +2677,7 @@ class PrepareScene:
             edit_child.parent = edit_parent
         else:
             self.warning_hit = True
-            nwo_utils.print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
+            utils.print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
             
         bpy.ops.object.editmode_toggle()
         
@@ -2750,7 +2724,7 @@ class PrepareScene:
 def set_marker_sphere_size(ob, nwo):
     scale = ob.matrix_world.to_scale()
     max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-    ob["bungie_mesh_primitive_sphere_radius"] = nwo_utils.jstr(ob.empty_display_size * max_abs_scale)
+    ob["bungie_mesh_primitive_sphere_radius"] = utils.jstr(ob.empty_display_size * max_abs_scale)
 
 def add_triangle_mod(ob: bpy.types.Object):
     mods = ob.modifiers
@@ -2763,7 +2737,7 @@ def add_triangle_mod(ob: bpy.types.Object):
     
 def transform_export_scene(context, scene_nwo) -> float:
     scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
-    rotation = nwo_utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
+    rotation = utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
     if scale_factor != 1 or rotation:
         job = "--- Transforming Scene"
         if scale_factor != 1:
@@ -2777,7 +2751,7 @@ def transform_export_scene(context, scene_nwo) -> float:
                 case "x-":
                     job += " [-X Forward -> X Forward]"
         print(job)
-        nwo_utils.transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
+        utils.transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
     return scale_factor
 
 class ArmatureMod:

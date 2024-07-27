@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from pathlib import Path
-from io_scene_foundry.managed_blam import Tag
+from ..managed_blam import Tag
 
 class ModelTag(Tag):
     tag_ext = 'model'

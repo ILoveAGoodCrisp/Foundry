@@ -1,28 +1,3 @@
-# ##### BEGIN MIT LICENSE BLOCK #####
-#
-# MIT License
-#
-# Copyright (c) 2024 Crisp
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-#
-# ##### END MIT LICENSE BLOCK #####
 from collections import Counter
 import itertools
 import json
@@ -45,18 +20,17 @@ import random
 import xml.etree.ElementTree as ET
 import numpy as np
 
-from io_scene_foundry.utils import nwo_globals
-from io_scene_foundry.utils.nwo_constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES
-from io_scene_foundry.utils.nwo_materials import special_materials, convention_materials
-from ..icons import get_icon_id, get_icon_id_in_directory
+from .constants import COLLISION_MESH_TYPES, PROTECTED_MATERIALS, VALID_MESHES
+from .tools.materials import special_materials, convention_materials
+from .icons import get_icon_id, get_icon_id_in_directory
 import requests
 
-from io_scene_foundry.utils.nwo_constants import object_asset_validation, object_game_validation
+from .constants import object_asset_validation, object_game_validation
 
 spinny = itertools.cycle(["|", "/", "—", "\\"])
 
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
-MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'blends', 'materials')
+MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'blends', 'materials')
 
 special_material_names = [m.name for m in special_materials]
 convention_material_names = [m.name for m in convention_materials]
@@ -68,6 +42,8 @@ legacy_lightmap_prefixes = 'lm:', 'lp:', 'hl:', 'ds:', 'ds:', 'pf:', 'lt:', 'to:
 ###########
 ##GLOBALS##
 ###########
+
+foundry_output_state = True
 
 hit_target = False
 
@@ -226,7 +202,7 @@ def get_data_path():
 
 
 def get_tool_type():
-    return bpy.context.preferences.addons["io_scene_foundry"].preferences.tool_type
+    return bpy.context.preferences.addons[__package__].preferences.tool_type
 
 def get_perm(
     ob,
@@ -657,11 +633,6 @@ def print_warning(string="Warning"):
 def print_error(string="Error"):
     print("\033[91m" + string + "\033[0m")
 
-
-def managed_blam_active():
-    return nwo_globals.mb_active
-
-
 def get_valid_shader_name(string):
     shader_name = get_valid_material_name(string)
     return cull_invalid_chars(shader_name)
@@ -1042,10 +1013,8 @@ def validate_ek() -> str | None:
         return f"Editing Kit data folder not found. Please ensure your {scene_project} directory has a 'data' folder"
     elif not Path(ek, "bin", "ManagedBlam.dll").exists():
         return f"ManagedBlam not found in your {scene_project} bin folder, please ensure this exists"
-    elif not nwo_globals.clr_installed:
-        return 'Tag API dependancy not installed. Please install this from Foundry preferences or use "Initialize ManagedBlam" in the Foundry Panel'
-    elif not nwo_globals.mb_operational:
-        return 'Failed to load Managedblam.dll. Please check that your Halo Editing Kit is installed correctly'
+    # elif not managed_blam.mb_operational:
+    #     return 'Failed to load Managedblam.dll. Please check that your Halo Editing Kit is installed correctly'
     else:
         prefs = get_prefs()
         projects = prefs.projects
@@ -1110,7 +1079,7 @@ def set_object_mode(context):
                 bpy.ops.curves.sculptmode_toggle()
 
 def get_prefs():
-    return bpy.context.preferences.addons["io_scene_foundry"].preferences
+    return bpy.context.preferences.addons[__package__].preferences
 
 def is_halo_mapping_node(node: bpy.types.Node) -> bool:
     """Given a Node and a list of valid inputs (each a string), checks if the given Node has exactly the inputs supplied"""
@@ -1339,7 +1308,7 @@ def update_tables_from_objects(context):
 #             setattr(ob.nwo, ob_prop_str, default_entry)
 
 def addon_root():
-    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    return os.path.dirname(os.path.realpath(__file__))
 
 def extract_from_resources(relative_file_path):
     p = PureWindowsPath(relative_file_path)
@@ -1580,8 +1549,6 @@ def get_project(project_name):
                 return p
         
         return projects[0]
-        
-    print("Failed to get project")
     
 def material_read_only(path):
     """Returns true if a material is read only aka in the project's protected list"""

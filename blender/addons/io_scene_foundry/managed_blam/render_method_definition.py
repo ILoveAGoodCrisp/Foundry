@@ -24,8 +24,8 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from io_scene_foundry.managed_blam import Tag
-from io_scene_foundry.managed_blam.render_method_option import RenderMethodOptionTag
+from ..managed_blam import Tag
+from ..managed_blam.render_method_option import RenderMethodOptionTag
 
 class RenderMethodDefinitionTag(Tag):
     tag_ext = 'render_method_definition'

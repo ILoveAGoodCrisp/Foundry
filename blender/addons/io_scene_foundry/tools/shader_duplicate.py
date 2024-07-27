@@ -25,7 +25,7 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
-from io_scene_foundry.utils import nwo_utils
+from .. import utils
 from pathlib import Path
 import shutil
 
@@ -37,14 +37,14 @@ class NWO_OT_ShaderDuplicate(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object and context.object.active_material and context.object.active_material.nwo.shader_path and nwo_utils.valid_nwo_asset() and Path(nwo_utils.get_tags_path(), nwo_utils.relative_path(context.object.active_material.nwo.shader_path)).exists()
+        return context.object and context.object.active_material and context.object.active_material.nwo.shader_path and utils.valid_nwo_asset() and Path(utils.get_tags_path(), utils.relative_path(context.object.active_material.nwo.shader_path)).exists()
 
     def execute(self, context):
-        tags_dir = nwo_utils.get_tags_path()
+        tags_dir = utils.get_tags_path()
         nwo = context.object.active_material.nwo
-        file = Path(tags_dir, nwo_utils.relative_path(nwo.shader_path))
-        asset_dir = nwo_utils.get_asset_path()
-        if nwo_utils.is_corinth():
+        file = Path(tags_dir, utils.relative_path(nwo.shader_path))
+        asset_dir = utils.get_asset_path()
+        if utils.is_corinth():
             dir = Path(tags_dir, asset_dir, "materials")
         else:
             dir = Path(tags_dir, asset_dir, "shaders")
@@ -65,6 +65,6 @@ class NWO_OT_ShaderDuplicate(bpy.types.Operator):
             self.report({"WARNING"}, "Failed to copy tag")
             return {'CANCELLED'}
         
-        nwo.shader_path = nwo_utils.relative_path(destination)
+        nwo.shader_path = utils.relative_path(destination)
         self.report({"INFO"}, f"Tag successfully duplicated")
         return {"FINISHED"}

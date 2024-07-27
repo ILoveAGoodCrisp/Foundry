@@ -28,9 +28,9 @@ from math import degrees
 from pathlib import Path
 import bpy
 
-from io_scene_foundry.ui.scene_properties import NWO_AnimationCompositesItems
-from io_scene_foundry.icons import get_icon_id
-from io_scene_foundry.utils import nwo_utils
+from ...ui.scene_properties import NWO_AnimationCompositesItems
+from ...icons import get_icon_id
+from ... import utils
 import xml.etree.cElementTree as ET
 import xml.dom.minidom
 
@@ -431,13 +431,13 @@ class CompositeXML:
         xml_string = dom.toprettyxml(indent="  ")
         part1, part2 = xml_string.split("?>")
         m_encoding = "utf-8"
-        asset_dir = nwo_utils.get_asset_path()
+        asset_dir = utils.get_asset_path()
         composites_dir = Path(asset_dir, "animations", "composites")
-        composites_dir_full_path = Path(nwo_utils.get_data_path(), composites_dir)
+        composites_dir_full_path = Path(utils.get_data_path(), composites_dir)
         if not composites_dir_full_path.exists():
             composites_dir_full_path.mkdir(parents=True, exist_ok=True)
         relative_path = Path(composites_dir, self.data.name.replace(" ", "_")).with_suffix(".composite.xml")
-        full_path = Path(nwo_utils.get_data_path(), relative_path)
+        full_path = Path(utils.get_data_path(), relative_path)
         with open(full_path, "w") as xfile:
             xfile.write(
                 part1

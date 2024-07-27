@@ -26,7 +26,7 @@
 
 import bpy
 
-from io_scene_foundry.utils.nwo_utils import any_partition
+from ..utils import any_partition
 
 class NWO_ApplyCollectionMenu(bpy.types.Menu):
     bl_label = "Halo Collection Menu"
