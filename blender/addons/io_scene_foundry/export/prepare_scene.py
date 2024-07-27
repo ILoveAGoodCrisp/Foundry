@@ -77,7 +77,7 @@ class PrepareScene:
         self.verbose_warnings = False
         self.no_export_objects = False
         self.too_many_root_bones = False
-        self.scale_factor = (1 / 0.03048) if context.scene.nwo.scale == 'blender' else 1
+        self.scale_factor = 1
         self.objects_selection = set()
         self.scene_collection = context.scene.collection.objects
         self.area, self.area_region, self.area_space = utils.get_area_info(context)
@@ -86,7 +86,7 @@ class PrepareScene:
         self.validated_permutations = set()
         self.lods = set()
         self.skylights = {}
-        
+        self.physics_prims = set()
         self.default_shader_type = 'material' if corinth else 'shader'
         
         if self.supports_regions_and_perms:
@@ -776,8 +776,9 @@ class PrepareScene:
         # remove meshes with zero faces
         [utils.unlink(ob) for ob in export_obs if ob.type == "MESH" and not ob.data.polygons]
         # Transform the scene if needed to Halo Scale and forward
-        transform_export_scene(self.context, self.scene_settings, self.scale_factor)
+        self.scale_factor = transform_export_scene(self.context, self.scene_settings)
         utils.update_view_layer(self.context)
+        update_physics_prims(self.physics_prims)
         
     def fixup_uv_names(self):
         '''
@@ -1642,19 +1643,8 @@ class PrepareScene:
         if mesh_type == "_connected_geometry_mesh_type_physics":
             prim_type = nwo.mesh_primitive_type_ui
             ob["bungie_mesh_primitive_type"] = prim_type
-            if prim_type in ('_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'):
-                utils.set_origin_to_floor(ob)
-                if prim_type == '_connected_geometry_primitive_type_box':
-                    ob["bungie_mesh_primitive_box_length"] = utils.jstr(ob.dimensions.y * self.scale_factor)
-                    ob["bungie_mesh_primitive_box_width"] =  utils.jstr(ob.dimensions.x * self.scale_factor)
-                    ob["bungie_mesh_primitive_box_height"] = utils.jstr(ob.dimensions.z * self.scale_factor)
-                else:
-                    ob["bungie_mesh_primitive_pill_radius"] = utils.radius_str(ob, True, self.scale_factor)
-                    ob["bungie_mesh_primitive_pill_height"] = utils.jstr(ob.dimensions.z * self.scale_factor)
-            elif prim_type == '_connected_geometry_primitive_type_sphere':
-                utils.set_origin_to_centre(ob)
-                ob["bungie_mesh_primitive_sphere_radius"] = utils.radius_str(ob, False, self.scale_factor)
-                
+            if prim_type != '_connected_geometry_primitive_type_none':
+                self.physics_prims.add(ob)
             elif self.corinth and nwo.mopp_physics:
                 ob["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
                 ob["bungie_havok_isshape"] = "1"
@@ -2733,7 +2723,8 @@ def add_triangle_mod(ob: bpy.types.Object):
     tri_mod.quad_method = 'FIXED'
     tri_mod.keep_custom_normals = True
     
-def transform_export_scene(context, scene_nwo, scale_factor) -> float:
+def transform_export_scene(context, scene_nwo) -> float:
+    scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
     rotation = utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
     if scale_factor != 1 or rotation:
         job = "--- Transforming Scene"
@@ -2749,6 +2740,23 @@ def transform_export_scene(context, scene_nwo, scale_factor) -> float:
                     job += " [-X Forward -> X Forward]"
         print(job)
         utils.transform_scene(context, scale_factor, rotation, scene_nwo.forward_direction, 'x')
+    return scale_factor
+
+def update_physics_prims(prims):
+    for ob in prims:
+        prim_type = ob['bungie_mesh_primitive_type']
+        if prim_type in ('_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'):
+            utils.set_origin_to_floor(ob)
+            if prim_type == '_connected_geometry_primitive_type_box':
+                ob["bungie_mesh_primitive_box_length"] = utils.jstr(ob.dimensions.y)
+                ob["bungie_mesh_primitive_box_width"] =  utils.jstr(ob.dimensions.x)
+                ob["bungie_mesh_primitive_box_height"] = utils.jstr(ob.dimensions.z)
+            else:
+                ob["bungie_mesh_primitive_pill_radius"] = utils.radius_str(ob, True)
+                ob["bungie_mesh_primitive_pill_height"] = utils.jstr(ob.dimensions.z)
+        else:
+            utils.set_origin_to_centre(ob)
+            ob["bungie_mesh_primitive_sphere_radius"] = utils.radius_str(ob)
 
 class ArmatureMod:
     object: bpy.types.Object
