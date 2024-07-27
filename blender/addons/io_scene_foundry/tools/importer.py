@@ -1032,19 +1032,20 @@ class NWOImporter:
             objects_with_halo_regions = [ob for ob in objects if ob.region_list]
             for ob in objects_with_halo_regions:
                 prefix = ob.name[0] if ob.name[0] in ('$', '@', '%', '~') else ''
+                if prefix: continue
                 if len(ob.region_list) == 1:
                     parts = ob.region_list[0].name.split(' ')
                     if len(parts) == 1:
                         region = parts[0]
-                        ob.name = f'{prefix}{region}'
+                        ob.name = f'{region}'
                     elif len(parts) == 2:
                         perm = parts[0]
                         region = parts[1]
-                        ob.name = f'{prefix}{region}:{perm}'
+                        ob.name = f'{region}:{perm}'
                     elif len(parts) > 2:
                         perm = parts[-2]
                         region = parts[-1]
-                        ob.name = f'{prefix}{region}:{perm}'
+                        ob.name = f'{region}:{perm}'
                 else:
                     bm = bmesh.new()
                     bm.from_mesh(ob.data)
