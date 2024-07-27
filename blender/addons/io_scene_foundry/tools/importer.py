@@ -34,6 +34,8 @@ import bmesh
 import bpy
 import addon_utils
 from mathutils import Color
+
+from ..managed_blam.model import ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
 from ..managed_blam.bitmap import BitmapTag
 from ..managed_blam.camera_track import CameraTrackTag
@@ -140,9 +142,9 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         return {'FINISHED'}
 
 class NWO_Import(bpy.types.Operator):
-    bl_label = "Import File(s)/Folder(s)"
+    bl_label = "Foundry Import"
     bl_idname = "nwo.import"
-    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tag, camera_track tag, collision_model tag"
+    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tags, camera_track tags, model tags (collision only)"
     
     @classmethod
     def poll(cls, context):
@@ -321,19 +323,19 @@ class NWO_Import(bpy.types.Operator):
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
                         
-                if 'collision_model' in importer.extensions:
-                    collision_model_files = importer.sorted_filepaths["collision_model"]
-                    imported_collision_objects = importer.import_collision_models(collision_model_files)
+                if 'model' in importer.extensions:
+                    model_files = importer.sorted_filepaths["model"]
+                    imported_model_objects = importer.import_models(model_files)
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_collision_objects, actions=[])
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
                         
                     # fix up object transforms
                     ob_infos = []
-                    for ob in imported_collision_objects:
+                    for ob in imported_model_objects:
                         ob_infos.append([ob, ob.parent, ob.parent_type, ob.parent_bone])
                         
-                    if imported_collision_objects:
-                        with context.temp_override(selected_editable_objects=imported_collision_objects, object=imported_collision_objects[0]):
+                    if imported_model_objects:
+                        with context.temp_override(selected_editable_objects=imported_model_objects, object=imported_model_objects[0]):
                             bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
                             
                     for info in ob_infos:
@@ -373,7 +375,7 @@ class NWO_Import(bpy.types.Operator):
         skip_fileselect = False
         if self.directory or self.files or self.filepath:
             skip_fileselect = True
-            self.filter_glob = "*.bitmap;*.camera_track;*.collision_mo*;"
+            self.filter_glob = "*.bitmap;*.camera_track;*.model*;"
         else:
             if 'bitmap' in self.scope:
                 self.directory = get_tags_path()
@@ -741,10 +743,13 @@ class NWOImporter:
     
     # Collision Model Import
     
-    def import_collision_models(self, paths):
+    def import_models(self, paths):
         imported_objects = []
         for file in paths:
-            imported_objects.extend(self.import_collision_model(file))
+            with TagImportMover(self.project.tags_directory, file) as mover:
+                with ModelTag(path=mover.tag_path) as model:
+                    
+                    imported_objects.extend(self.import_collision_model(file))
         
         return imported_objects
             
@@ -978,14 +983,15 @@ class NWOImporter:
     def import_jms_file(self, path, legacy_fix_rotations):
         # get all objects that exist prior to import
         pre_import_objects = bpy.data.objects[:]
-        file_name = Path(path).with_suffix("").name
-        ext = Path(path).suffix.strip('.').upper()
+        path = Path(path)
+        file_name = path.with_suffix("").name
+        ext = path.suffix.strip('.').upper()
         print(f"Importing {ext}: {file_name}")
         with MutePrints():
             if ext == 'JMS':
-                bpy.ops.import_scene.jms(filepath=path, fix_rotations=legacy_fix_rotations, reuse_armature=True, empty_markers=True)
+                bpy.ops.import_scene.jms(files=[{'name': path.name}], directory=str(path.parent), fix_rotations=legacy_fix_rotations, reuse_armature=True, empty_markers=True)
             else:
-                bpy.ops.import_scene.ass(filepath=path)
+                bpy.ops.import_scene.ass(files=[{'name': path.name}], directory=str(path.parent))
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         self.jms_file_marker_objects = []
