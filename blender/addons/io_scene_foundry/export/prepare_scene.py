@@ -776,7 +776,7 @@ class PrepareScene:
         # remove meshes with zero faces
         [utils.unlink(ob) for ob in export_obs if ob.type == "MESH" and not ob.data.polygons]
         # Transform the scene if needed to Halo Scale and forward
-        transform_export_scene(self.context, self.scene_settings)
+        transform_export_scene(self.context, self.scene_settings, self.scale_factor)
         utils.update_view_layer(self.context)
         
     def fixup_uv_names(self):
