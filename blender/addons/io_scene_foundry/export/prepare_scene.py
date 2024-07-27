@@ -1723,17 +1723,17 @@ class PrepareScene:
         elif mesh_type == "_connected_geometry_mesh_type_soft_ceiling":
             ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             ob["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_ceiling'
-            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(self.name)
+            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_soft_kill":
             ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             ob["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_kill'
-            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(self.name)
+            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_slip_surface":
             ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             ob["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_slip_surface'
-            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(self.name)
+            ob["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
             nwo.lightmap_resolution_scale_active = False

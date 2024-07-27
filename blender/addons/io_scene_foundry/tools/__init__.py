@@ -4711,7 +4711,7 @@ class NWO_HaloExportPropertiesGroup(PropertyGroup):
     def lightmap_quality_items(self, context: bpy.types.Context) -> list[bpy.types.EnumProperty]:
         items = []
         lightmapper_globals_tag_path = Path(get_tags_path(), r"globals\lightmapper_globals.lightmapper_globals")
-        if not lightmapper_globals_tag_path.exists() or not globals.mb_active:
+        if not lightmapper_globals_tag_path.exists() or not managed_blam.mb_active:
             return [("direct_only", "Direct Only", ""),
                     ("draft", "Draft", ""),
                     ("low", "Low", ""),
