@@ -657,6 +657,7 @@ class NWOImporter:
         self.prefix_setting = get_prefs().apply_prefix
         self.corinth = is_corinth(context)
         self.project = get_project(context.scene.nwo.scene_project)
+        self.arm = get_rig(context)
         if filepaths:
             self.sorted_filepaths = self.group_filetypes(scope)
         else:
@@ -994,6 +995,8 @@ class NWOImporter:
                 bpy.ops.import_scene.ass(files=[{'name': path.name}], directory=str(path.parent))
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
+        if self.arm and self.arm not in new_objects:
+            new_objects.append(self.arm)
         self.jms_file_marker_objects = []
         self.jms_file_mesh_objects = []
         self.process_jms_objects(new_objects, file_name, bool([ob for ob in new_objects if ob.type == 'ARMATURE']))

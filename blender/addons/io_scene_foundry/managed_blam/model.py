@@ -37,6 +37,9 @@ class ModelTag(Tag):
         self.reference_physics_model = self.tag.SelectField("Reference:physics_model")
         self.block_variants = self.tag.SelectField("Block:variants")
         
+    def get_model_paths(self):
+        pass
+        
     def set_model_overrides(self, render_model, collision_model, model_animation_graph, physics_model):
         if render_model and self._tag_exists(render_model):
             self.reference_render_model.Path = self._TagPath_from_string(render_model)
