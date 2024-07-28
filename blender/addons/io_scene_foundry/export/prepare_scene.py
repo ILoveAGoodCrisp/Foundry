@@ -1955,7 +1955,7 @@ class PrepareScene:
                     nwo.physics_constraint_uses_limits_ui
                 )
                 if nwo.physics_constraint_uses_limits_ui:
-                    if marker_type == "_connected_geometry_marker_type_physics_hinge_constraint":
+                    if nwo.physics_constraint_type_ui == "_connected_geometry_marker_type_physics_hinge_constraint":
                         ob["bungie_physics_constraint_hinge_min"] = utils.jstr(degrees(nwo.hinge_constraint_minimum_ui))
                         ob["bungie_physics_constraint_hinge_max"] = utils.jstr(degrees(nwo.hinge_constraint_maximum_ui))
                     else:
