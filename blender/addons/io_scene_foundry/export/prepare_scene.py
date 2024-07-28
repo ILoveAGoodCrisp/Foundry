@@ -2746,7 +2746,7 @@ def update_physics_prims(prims):
     for ob in prims:
         prim_type = ob['bungie_mesh_primitive_type']
         if prim_type in ('_connected_geometry_primitive_type_box', '_connected_geometry_primitive_type_pill'):
-            utils.set_origin_to_floor(ob)
+            # utils.set_origin_to_floor(ob)
             if prim_type == '_connected_geometry_primitive_type_box':
                 ob["bungie_mesh_primitive_box_length"] = utils.jstr(ob.dimensions.y)
                 ob["bungie_mesh_primitive_box_width"] =  utils.jstr(ob.dimensions.x)
@@ -2755,7 +2755,7 @@ def update_physics_prims(prims):
                 ob["bungie_mesh_primitive_pill_radius"] = utils.radius_str(ob, True)
                 ob["bungie_mesh_primitive_pill_height"] = utils.jstr(ob.dimensions.z)
         else:
-            utils.set_origin_to_centre(ob)
+            # utils.set_origin_to_centre(ob)
             ob["bungie_mesh_primitive_sphere_radius"] = utils.radius_str(ob)
 
 class ArmatureMod:
