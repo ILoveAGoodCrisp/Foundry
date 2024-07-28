@@ -55,7 +55,7 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "collision_model"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model"
 
 class NWO_OT_ConvertScene(bpy.types.Operator):
     bl_label = "Convert Scene"
@@ -146,7 +146,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
 class NWO_Import(bpy.types.Operator):
     bl_label = "Foundry Import"
     bl_idname = "nwo.import"
-    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tags, camera_track tags, model tags (collision only)"
+    bl_description = "Imports a variety of filetypes and sets them up for Foundry. Currently supports: AMF, JMA, JMS, ASS, bitmap tags, camera_track tags, model tags (collision & skeleton only)"
     
     @classmethod
     def poll(cls, context):
@@ -397,8 +397,8 @@ class NWO_Import(bpy.types.Operator):
                 self.filter_glob += "*.bitmap;"
             if (not self.scope or 'camera_track' in self.scope):
                 self.filter_glob += '*.camera_track;'
-            if (not self.scope or 'collision_model' in self.scope):
-                self.filter_glob += '*.collision_mo*;'
+            if (not self.scope or 'model' in self.scope):
+                self.filter_glob += '*.model*;'
                 
         if amf_addon_installed() and (not self.scope or 'amf' in self.scope):
             self.amf_okay = True
@@ -694,9 +694,9 @@ class NWOImporter:
             elif 'camera_track' in valid_exts and path.lower().endswith('.camera_track'):
                 self.extensions.add('camera_track')
                 filetype_dict["camera_track"].append(path)
-            elif 'collision_model' in valid_exts and path.lower().endswith('.collision_model'):
-                self.extensions.add('collision_model')
-                filetype_dict["collision_model"].append(path)
+            elif 'model' in valid_exts and path.lower().endswith('.model'):
+                self.extensions.add('model')
+                filetype_dict["model"].append(path)
                 
         return filetype_dict
         
@@ -744,7 +744,7 @@ class NWOImporter:
             
         return camera, action
     
-    # Collision Model Import
+    # Model Import
     
     def import_models(self, paths):
         imported_objects = []
@@ -752,8 +752,10 @@ class NWOImporter:
             with TagImportMover(self.project.tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path) as model:
                     render, collision, animation, physics = model.get_model_paths()
-                    imported_objects.extend(self.import_render_model(render))
-                    imported_objects.extend(self.import_collision_model(collision))
+                    if render:
+                        imported_objects.extend(self.import_render_model(render))
+                    if collision:
+                        imported_objects.extend(self.import_collision_model(collision))
                     # imported_objects.extend(self.import_physics_model(physics))
         
         return imported_objects
@@ -1876,7 +1878,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.collision_model;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
 
     @classmethod
     def poll_drop(cls, context):

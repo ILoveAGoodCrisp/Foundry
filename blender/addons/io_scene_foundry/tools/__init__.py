@@ -3074,7 +3074,7 @@ class NWO_FoundryPanelProps(Panel):
         amf_installed = amf_addon_installed()
         toolset_installed = blender_toolset_installed()
         if amf_installed or toolset_installed:
-            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,collision_model'
+            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model'
         if not toolset_installed:
             col.label(text="Halo Blender Toolset required for import of legacy model and animation files")
             col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET

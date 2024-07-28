@@ -24,19 +24,25 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
+
+from .. import utils
 from ..managed_blam import Tag
 import bpy
 
 class Node:
-    translation = []
-    rotation = []
+    translation: Vector
+    rotation: Quaternion
+    inverse_forward: Vector
+    inverse_left: Vector
+    inverse_up: Vector
+    inverse_position: Vector
+    inverse_scale: Vector
+    transform_matrix: Matrix
     parent = ""
+    bone: bpy.types.EditBone
     def __init__(self, name):
         self.name = name
-        
-    def to_bone(self):
-        pass
 
 class RenderArmature():
     def __init__(self, name):
@@ -46,8 +52,29 @@ class RenderArmature():
         
     def create_bone(self, node: Node):
         bone = self.data.edit_bones.new(node.name)
-        matrix = Matrix.LocRotScale(node.translation, node.rotation, Vector(3, 1))
-        bone.matrix = matrix
+        bone.length = 5
+        
+        loc = (node.inverse_position)
+        rot = Matrix((node.inverse_forward, node.inverse_left, node.inverse_up))
+        scale = Vector.Fill(3, node.inverse_scale)
+        transform_matrix = Matrix.LocRotScale(loc, rot, scale)
+        
+        try:
+            transform_matrix.invert()
+        except:
+            transform_matrix.identity()
+        
+        transform_matrix = Matrix.Translation(node.translation) @ node.rotation.to_matrix().to_4x4()
+        node.transform_matrix = transform_matrix
+        bone.matrix = transform_matrix
+        node.bone = bone
+        
+    def parent_bone(self, node: Node):
+        if node.parent:
+            parent = self.data.edit_bones[node.parent]
+            node.bone.parent = parent
+            transform_matrix = parent.matrix @ node.transform_matrix
+            node.bone.matrix = transform_matrix
 
 class RenderModelTag(Tag):
     tag_ext = 'render_model'
@@ -103,22 +130,47 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self):
-        pass
+    def to_blend_objects(self, collection):
+        objects = []
+        armature = self._create_armature(collection)
+        if armature:
+            objects.append(armature)
+        
+        return objects
     
-    def create_armature(self, name):
-        arm = RenderArmature(name)
+    def _create_armature(self, collection):
+        arm = RenderArmature(self.tag.Path.ShortName)
         nodes: list[Node] = []
         for element in self.block_nodes.Elements:
             node = Node(element.SelectField("name").GetStringData())
             translation = element.SelectField("default translation").GetStringData()
-            node.translation = [float(n) for n in translation]
+            node.translation = Vector([float(n) for n in translation]) * 100
             rotation = element.SelectField("default rotation").GetStringData()
-            node.rotation = float(rotation[3]), float(rotation[0]), float(rotation[1]), float(rotation[2])
+            node.rotation = Quaternion([float(rotation[3]), float(rotation[0]), float(rotation[1]), float(rotation[2])])
+            inverse_forward = element.SelectField("inverse forward").GetStringData()
+            node.inverse_forward = Vector([float(n) for n in inverse_forward])
+            inverse_left = element.SelectField("inverse left").GetStringData()
+            node.inverse_left = Vector([float(n) for n in inverse_left])
+            inverse_up = element.SelectField("inverse up").GetStringData()
+            node.inverse_up = Vector([float(n) for n in inverse_up])
+            inverse_position = element.SelectField("inverse position").GetStringData()
+            node.inverse_position = Vector([float(n) for n in inverse_position]) * 100
+            inverse_scale = element.SelectField("inverse scale").GetStringData()
+            node.inverse_scale = float(inverse_scale)
+            
             parent_index = element.SelectField("parent node").Value
             if parent_index > -1:
                 node.parent = self.block_nodes.Elements[parent_index].SelectField("name").GetStringData()
                 
-        for node in nodes:
-            arm.create_bone(node)
+            nodes.append(node)
+        
+        if arm.ob:
+            collection.objects.link(arm.ob)
+            arm.ob.select_set(True)
+            utils.set_active_object(arm.ob)
+            bpy.ops.object.editmode_toggle()
+            for node in nodes: arm.create_bone(node)
+            for node in nodes: arm.parent_bone(node)
+            bpy.ops.object.editmode_toggle()
+            return arm.ob
             
