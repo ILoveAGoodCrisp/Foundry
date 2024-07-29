@@ -288,25 +288,53 @@ class NWO_Import(bpy.types.Operator):
                     # Return to our scale
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
+                        
+                if 'model' in importer.extensions:
+                    model_files = importer.sorted_filepaths["model"]
+                    imported_model_objects = importer.import_models(model_files)
+                    if needs_scaling:
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
+                        
+                    # # fix up object transforms
+                    # ob_infos = []
+                    # for ob in imported_model_objects:
+                    #     ob_infos.append([ob, ob.parent, ob.parent_type, ob.parent_bone])
+                        
+                    # if imported_model_objects:
+                    #     with context.temp_override(selected_editable_objects=imported_model_objects, object=imported_model_objects[0]):
+                    #         bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+                            
+                    # for info in ob_infos:
+                    #     ob = info[0]
+                    #     mat = ob.matrix_world.copy()
+                    #     ob.parent = info[1]
+                    #     if info[2] == "BONE":
+                    #         ob.parent_type == "BONE"
+                    #         ob.parent_bone = info[3]
+                            
+                    #     ob.matrix_world = mat
+                        
+                    imported_objects.extend(imported_model_objects)
                 
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
                 if new_materials:
                     new_materials = clear_duplicate_materials(True, new_materials)
+                    
                 
-                if self.find_shader_paths and imported_objects:
+                if self.find_shader_paths and new_materials:
                     print('Updating shader tag paths for imported objects')
                     imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
                     if imported_meshes:
-                        if new_materials:
-                            find_shaders(new_materials)
-                            if self.build_blender_materials:
-                                print('Building materials from shader tags')
-                                with MutePrints():
-                                    for mat in new_materials:
-                                        shader_path = mat.nwo.shader_path
-                                        if shader_path:
-                                            tag_to_nodes(corinth, mat, shader_path)
+                        find_shaders(new_materials)
+                            
+                if self.build_blender_materials:
+                    print('Building materials from shader tags')
+                    with MutePrints():
+                        for mat in new_materials:
+                            shader_path = mat.nwo.shader_path
+                            if shader_path:
+                                tag_to_nodes(corinth, mat, shader_path)
                         
                 if 'bitmap' in importer.extensions:
                     bitmap_files = importer.sorted_filepaths["bitmap"]
@@ -324,31 +352,6 @@ class NWO_Import(bpy.types.Operator):
                     cameras, actions = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
-                        
-                if 'model' in importer.extensions:
-                    model_files = importer.sorted_filepaths["model"]
-                    imported_model_objects = importer.import_models(model_files)
-                    if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
-                        
-                    # fix up object transforms
-                    ob_infos = []
-                    for ob in imported_model_objects:
-                        ob_infos.append([ob, ob.parent, ob.parent_type, ob.parent_bone])
-                        
-                    if imported_model_objects:
-                        with context.temp_override(selected_editable_objects=imported_model_objects, object=imported_model_objects[0]):
-                            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-                            
-                    for info in ob_infos:
-                        ob = info[0]
-                        mat = ob.matrix_world.copy()
-                        ob.parent = info[1]
-                        if info[2] == "BONE":
-                            ob.parent_type == "BONE"
-                            ob.parent_bone = info[3]
-                            
-                        ob.matrix_world = mat
                         
                         
             except KeyboardInterrupt:
@@ -753,9 +756,11 @@ class NWOImporter:
                 with ModelTag(path=mover.tag_path) as model:
                     render, collision, animation, physics = model.get_model_paths()
                     if render:
-                        imported_objects.extend(self.import_render_model(render))
+                        render_objects, armature = self.import_render_model(render)
+                        imported_objects.extend([armature])
+                        imported_objects.extend(render_objects)
                     if collision:
-                        imported_objects.extend(self.import_collision_model(collision))
+                        imported_objects.extend(self.import_collision_model(collision, armature))
                     # imported_objects.extend(self.import_physics_model(physics))
         
         return imported_objects
@@ -765,16 +770,16 @@ class NWOImporter:
         self.context.scene.collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects = render_model.to_blend_objects(collection)
+                render_model_objects, armature = render_model.to_blend_objects(collection)
             
-        return render_model_objects
+        return render_model_objects, armature
     
-    def import_collision_model(self, file):
+    def import_collision_model(self, file, armature):
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         self.context.scene.collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
-                collision_model_objects = collision_model.to_blend_objects(collection)
+                collision_model_objects = collision_model.to_blend_objects(collection, armature)
             
         return collision_model_objects
     

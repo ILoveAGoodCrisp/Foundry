@@ -50,9 +50,10 @@ class CollisionTag(Tag):
         self.block_pathfinding_spheres = self.tag.SelectField("Block:pathfinding spheres")
         self.block_nodes = self.tag.SelectField("Block:nodes")
         
-    def to_blend_objects(self, collection: bpy.types.Collection):
+    def to_blend_objects(self, collection: bpy.types.Collection, armature=None):
         # Find Armature
-        armature = utils.get_rig()
+        if armature is None:
+            armature = utils.get_rig()
         armature_bones = []
         if armature:
             armature_bones = [b.name for b in armature.data.bones]
@@ -77,7 +78,7 @@ class CollisionTag(Tag):
                             if node in armature_bones:
                                 collision_object.parent_type = 'BONE'
                                 collision_object.parent_bone = node
-                                collision_object.matrix_parent_inverse = collision_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
+                                collision_object.matrix_basis = collision_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
                                 
                             else:
                                 utils.print_warning(f"Armature does not have bone [{node}] for {collision_object.name}")
@@ -108,7 +109,7 @@ class CollisionTag(Tag):
                 if node in armature_bones:
                     sphere_object.parent_type = 'BONE'
                     sphere_object.parent_bone = node
-                    sphere_object.matrix_parent_inverse = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
+                    sphere_object.matrix_basis = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
                 else:
                     utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
             
