@@ -215,16 +215,16 @@ class IndexBuffer:
         for part in mesh.parts:
             start = part.index_start
             count = part.index_count
-            indices = list(self._get_indices(start, count))
+            indices = self._get_indices(start, count)
             for i in indices:
                 faces.append(Face(indices=i, part=part, index=idx))
                 idx += 1
-                
+
         return faces
     
     def _get_indices(self, start: int, count: int):
         end = len(self.indices) if count < 0 else start + count
-        subset = (self.indices[i] for i in range(start, end))
+        subset = [self.indices[i:i+3] for i in range(start, end, 3)]
         if self.index_layout == IndexLayoutType.TRIANGLE_LIST:
             return subset
         elif self.index_layout == IndexLayoutType.TRIANGLE_STRIP:
