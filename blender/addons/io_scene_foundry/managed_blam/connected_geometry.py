@@ -219,14 +219,14 @@ class IndexBuffer:
             for i in indices:
                 faces.append(Face(indices=i, part=part, index=idx))
                 idx += 1
-
+        
         return faces
     
     def _get_indices(self, start: int, count: int):
         end = len(self.indices) if count < 0 else start + count
-        subset = [self.indices[i:i+3] for i in range(start, end, 3)]
+        subset = [self.indices[i] for i in range(start, end)]
         if self.index_layout == IndexLayoutType.TRIANGLE_LIST:
-            return subset
+            return [subset[n:n+3] for n in range(0, len(subset), 3)]
         elif self.index_layout == IndexLayoutType.TRIANGLE_STRIP:
             return self._unpack(subset)
         else:

@@ -107,8 +107,8 @@ class RenderModelTag(Tag):
         
         if render:
             objects.extend(self._create_render_geometry())
-        if markers:
-            objects.extend(self._create_markers())
+        # if markers:
+        #     objects.extend(self._create_markers())
         
         return objects, self.armature
     
