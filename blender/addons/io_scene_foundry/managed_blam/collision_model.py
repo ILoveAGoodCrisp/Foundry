@@ -101,7 +101,7 @@ class CollisionTag(Tag):
                 sphere_object.nwo.pathfinding_sphere_with_sectors_ui = flags.TestBit("with sectors")
                 location_coords_str = sphere_element.SelectField("center").GetStringData()
                 location_coords = [float(co) for co in location_coords_str]
-                sphere_object.location = Vector(location_coords) * 100
+                # sphere_object.location = Vector(location_coords) * 100
                 sphere_object.empty_display_size = float(sphere_element.SelectField("radius").GetStringData()) * 100
                 sphere_object.empty_display_type = "SPHERE"
                 sphere_object.nwo.marker_type_ui = "_connected_geometry_marker_type_pathfinding_sphere"
@@ -110,7 +110,8 @@ class CollisionTag(Tag):
                     if node in armature_bones:
                         sphere_object.parent_type = 'BONE'
                         sphere_object.parent_bone = node
-                        sphere_object.matrix_basis = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
+                        sphere_object.matrix_local = Matrix.Translation(Vector(location_coords) * 100)
+                        # sphere_object.matrix_basis = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
                     else:
                         utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
                 

@@ -463,7 +463,7 @@ class MarkerGroup:
             ob.parent = armature
             ob.parent_type = "BONE"
             ob.parent_bone = marker.bone
-            ob.matrix_local = Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, marker.scale))
+            ob.matrix_local = Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1))
             nwo = ob.nwo
             nwo.marker_type_ui = self.type.name
             objects.append(ob)
