@@ -25,6 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from pathlib import Path
+
+import bpy
 from ..managed_blam import Tag
 
 class ModelTag(Tag):

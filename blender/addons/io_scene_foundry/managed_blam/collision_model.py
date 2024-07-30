@@ -50,7 +50,7 @@ class CollisionTag(Tag):
         self.block_pathfinding_spheres = self.tag.SelectField("Block:pathfinding spheres")
         self.block_nodes = self.tag.SelectField("Block:nodes")
         
-    def to_blend_objects(self, collection: bpy.types.Collection, armature=None):
+    def to_blend_objects(self, collection: bpy.types.Collection, armature=None, markers=True):
         # Find Armature
         if armature is None:
             armature = utils.get_rig()
@@ -90,31 +90,32 @@ class CollisionTag(Tag):
                         objects.append(collision_object)
                         
         # Pathfinding Spheres
-        for sphere_element in self.block_pathfinding_spheres.Elements:
-            print(f"Adding pathfinding sphere")
-            node = self.block_nodes.Elements[sphere_element.Fields[0].Value].Fields[0].GetStringData()
-            sphere_object = bpy.data.objects.new("pathfinding_sphere", None)
-            flags = sphere_element.SelectField("flags")
-            sphere_object.nwo.pathfinding_sphere_remains_when_open_ui = flags.TestBit("remains when open")
-            sphere_object.nwo.marker_pathfinding_sphere_vehicle_ui = flags.TestBit("vehicle only")
-            sphere_object.nwo.pathfinding_sphere_with_sectors_ui = flags.TestBit("with sectors")
-            location_coords_str = sphere_element.SelectField("center").GetStringData()
-            location_coords = [float(co) for co in location_coords_str]
-            sphere_object.location = Vector(location_coords) * 100
-            sphere_object.empty_display_size = float(sphere_element.SelectField("radius").GetStringData()) * 100
-            sphere_object.empty_display_type = "SPHERE"
-            sphere_object.nwo.marker_type_ui = "_connected_geometry_marker_type_pathfinding_sphere"
-            if armature:
-                sphere_object.parent = armature
-                if node in armature_bones:
-                    sphere_object.parent_type = 'BONE'
-                    sphere_object.parent_bone = node
-                    sphere_object.matrix_basis = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
-                else:
-                    utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
-            
-            objects.append(sphere_object)
-            collection.objects.link(sphere_object)
+        if markers:
+            for sphere_element in self.block_pathfinding_spheres.Elements:
+                print(f"Adding pathfinding sphere")
+                node = self.block_nodes.Elements[sphere_element.Fields[0].Value].Fields[0].GetStringData()
+                sphere_object = bpy.data.objects.new("pathfinding_sphere", None)
+                flags = sphere_element.SelectField("flags")
+                sphere_object.nwo.pathfinding_sphere_remains_when_open_ui = flags.TestBit("remains when open")
+                sphere_object.nwo.marker_pathfinding_sphere_vehicle_ui = flags.TestBit("vehicle only")
+                sphere_object.nwo.pathfinding_sphere_with_sectors_ui = flags.TestBit("with sectors")
+                location_coords_str = sphere_element.SelectField("center").GetStringData()
+                location_coords = [float(co) for co in location_coords_str]
+                sphere_object.location = Vector(location_coords) * 100
+                sphere_object.empty_display_size = float(sphere_element.SelectField("radius").GetStringData()) * 100
+                sphere_object.empty_display_type = "SPHERE"
+                sphere_object.nwo.marker_type_ui = "_connected_geometry_marker_type_pathfinding_sphere"
+                if armature:
+                    sphere_object.parent = armature
+                    if node in armature_bones:
+                        sphere_object.parent_type = 'BONE'
+                        sphere_object.parent_bone = node
+                        sphere_object.matrix_basis = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
+                    else:
+                        utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
+                
+                objects.append(sphere_object)
+                collection.objects.link(sphere_object)
             
         return objects
             

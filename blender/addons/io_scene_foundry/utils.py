@@ -3401,3 +3401,7 @@ def to_bounding_box(ob: bpy.types.Object):
 def id_from_string(name) -> str:
     rand = random.Random(name)
     return str(rand.randint(-2147483647, 2147483647))
+
+def ijkw_to_wxyz(rot: list[float, float, float, float] | Vector) -> Vector:
+    i, j, k, w = rot
+    return Quaternion((w, i, j, k))
