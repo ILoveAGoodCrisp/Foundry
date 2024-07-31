@@ -210,7 +210,7 @@ class RenderModelTag(Tag):
     def _create_markers(self):
         # Model Markers
         objects = []
-        marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.05
+        marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.025
         for element in self.block_marker_groups.Elements:
             marker_group = MarkerGroup(element, self.nodes, self.regions)
             objects.extend(marker_group.to_blender(self.edit_armature, self.collection, marker_size_factor))

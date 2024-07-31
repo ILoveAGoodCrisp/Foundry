@@ -404,6 +404,7 @@ class Marker:
         self.rotation = []
         self.scale = 0.01
         self.direction = []
+        self.linked_to = []
         region_index = int(element.SelectField("region index").GetStringData())
         permutation_index = int(element.SelectField("permutation index").GetStringData())
         node_index = int(element.SelectField("node index").GetStringData())
@@ -418,7 +419,7 @@ class Marker:
         self.translation = [float(n) * 100 for n in element.SelectField("translation").GetStringData()]
         
         self.rotation = utils.ijkw_to_wxyz([float(n) for n in element.SelectField("rotation").GetStringData()])
-        self.scale = float(element.SelectField("scale").GetStringData()) * 100
+        self.scale = float(element.SelectField("scale").GetStringData())
         self.direction = ([float(n) for n in element.SelectField("direction").GetStringData()])
     
 class MarkerGroup:
@@ -438,6 +439,8 @@ class MarkerGroup:
             self.type = MarkerType._connected_geometry_marker_type_target
         elif self.name.startswith("garbage_"):
             self.type = MarkerType._connected_geometry_marker_type_garbage
+        elif self.name.startswith("hint_"):
+            self.type = MarkerType._connected_geometry_marker_type_hint
             
         self.markers = []
         for e in element.SelectField("markers").Elements:
@@ -451,7 +454,7 @@ class MarkerGroup:
             if marker in skip_markers: continue
             for marker2 in self.markers:
                 if marker2 == marker: continue
-                if marker.translation == marker2.translation and marker.rotation == marker2.translation:
+                if marker.region and marker.region == marker2.region and marker.translation == marker2.translation and marker.rotation == marker2.rotation:
                     marker.linked_to.append(marker2)
                     skip_markers.append(marker2)
                     
@@ -470,12 +473,27 @@ class MarkerGroup:
 
             nwo = ob.nwo
             nwo.marker_type_ui = self.type.name
+            if marker.region:
+                nwo.marker_uses_regions = True
+                utils.set_region(ob, marker.region.name)
+                # Check if there is a marker for every permutation
+                if marker.linked_to and len(marker.linked_to) + 1 != len(marker.region.permutations):
+                    # If not pick if this is include or exclude type depending on whichever means less permutation entries need to be added
+                    # If a tie prefer exclude
+                    include_permutations = [m.permutation.name for m in marker.linked_to if m.permutation]
+                    exclude_permutations = [p.name for p in marker.region.permutations if p.name not in include_permutations]
+                    if len(include_permutations) < len(exclude_permutations):
+                        nwo.marker_permutation_type = "include"
+                        utils.set_marker_permutations(ob, include_permutations)
+                    else:
+                        utils.set_marker_permutations(ob, exclude_permutations)
+                    
             
             ob.empty_display_type = "ARROWS"
-            # ob.empty_display_size *= size_factor
+            ob.empty_display_size *= size_factor
             
             if self.type == MarkerType._connected_geometry_marker_type_target:
-                # ob.empty_display_size *= marker.scale
+                ob.empty_display_size = marker.scale * 100
                 ob.empty_display_type = "SPHERE"
             elif self.type == MarkerType._connected_geometry_marker_type_garbage:
                 ob.nwo.marker_velocity_ui = marker.direction

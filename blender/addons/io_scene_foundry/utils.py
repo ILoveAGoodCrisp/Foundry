@@ -3064,7 +3064,7 @@ def set_permutation(ob, permutation):
         
     ob.nwo.permutation_name_ui = permutation
     
-def add_permutation(ob, permutation):
+def add_permutation(permutation):
     permutations_table = bpy.context.scene.nwo.permutations_table
     entry = permutations_table.get(permutation, 0)
     if not entry:
@@ -3072,6 +3072,14 @@ def add_permutation(ob, permutation):
         entry = permutations_table[-1]
         entry.old = permutation
         entry.name = permutation
+        
+    return entry.name
+        
+def set_marker_permutations(ob, permutations: list[str]):
+    for p in permutations:
+        name = add_permutation(p)
+        ob.nwo.marker_permutations.add().name = name
+        
     
 def new_face_prop(data, layer_name, display_name, override_prop, other_props={}) -> str:
     face_props = data.nwo.face_props
