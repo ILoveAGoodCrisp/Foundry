@@ -97,6 +97,7 @@ class RenderModelTag(Tag):
     def to_blend_objects(self, collection, render: bool, markers: bool):
         self.collection = collection
         objects = []
+        print("--- Creating Armature")
         self.edit_armature = self._create_armature()
         objects.append(self.edit_armature.ob)
         
@@ -112,8 +113,10 @@ class RenderModelTag(Tag):
             self.regions.append(Region(element))
         
         if render:
+            print("--- Creating Render Geometry")
             objects.extend(self._create_render_geometry())
         if markers:
+            print("--- Creating Markers")
             objects.extend(self._create_markers())
         
         return objects, self.edit_armature

@@ -344,7 +344,7 @@ class Mesh:
 
         objects = []
         
-        indices = [int(element.Fields[0].GetStringData()) for element in raw_indices.Elements]
+        indices = [utils.fix_tag_int(int(element.Fields[0].GetStringData())) for element in raw_indices.Elements]
         buffer = IndexBuffer(self.index_buffer_type, indices)
         self.tris = buffer.get_faces(self)
             
@@ -385,6 +385,8 @@ class Mesh:
                     
         mesh.from_pydata(vertices=positions, edges=[], faces=indices)
         mesh.transform(self.bounds.co_matrix)
+        
+        print(name)
         
         uvs = self._true_uvs(texcoords)
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)

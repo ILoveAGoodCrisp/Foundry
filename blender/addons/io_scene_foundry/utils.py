@@ -3418,3 +3418,8 @@ def id_from_string(name) -> str:
 def ijkw_to_wxyz(rot: list[float, float, float, float] | Vector) -> Vector:
     i, j, k, w = rot
     return Quaternion((w, i, j, k))
+
+def fix_tag_int(n: int) -> int:
+    if n < 0:
+        return 65536 + n
+    return n
