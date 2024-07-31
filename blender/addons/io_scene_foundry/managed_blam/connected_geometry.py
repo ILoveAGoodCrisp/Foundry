@@ -394,7 +394,7 @@ class Mesh:
         mesh.from_pydata(vertices=positions, edges=[], faces=indices)
         mesh.transform(self.bounds.co_matrix)
         
-        print(name)
+        print(f"--- {name}")
         
         uvs = self._true_uvs(texcoords)
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
@@ -567,6 +567,7 @@ class MarkerGroup:
         remaining_markers = [m for m in self.markers if m not in skip_markers]
         
         for marker in remaining_markers:
+            print(f"--- {self.name}")
             ob = bpy.data.objects.new(name=self.name, object_data=None)
             collection.objects.link(ob)
             ob.parent = edit_armature.ob

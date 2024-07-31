@@ -67,7 +67,7 @@ class CollisionTag(Tag):
         # Collision Mesh
         for region_element in self.block_regions.Elements:
             region = region_element.Fields[0].GetStringData()
-            print(f"Building meshes for region: {region}")
+            print(f"Building collision meshes for region: {region}")
             for permutation_element in region_element.Fields[1].Elements:
                 permutation = permutation_element.Fields[0].GetStringData()
                 for bsp_element in permutation_element.SelectField("bsps").Elements:
