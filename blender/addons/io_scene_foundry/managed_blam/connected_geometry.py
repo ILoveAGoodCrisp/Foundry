@@ -301,8 +301,9 @@ class Mesh:
     raw_normals: list
     raw_node_indices: list
     raw_node_weights: list
+    node_map: list[int]
     
-    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds, permutation: Permutation, materials: list[Material]):
+    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds, permutation: Permutation, materials: list[Material], block_node_map: TagFieldBlock):
         self.index = element.ElementIndex
         self.permutation = permutation
         self.rigid_node_index = int(element.SelectField("rigid node index").GetStringData())
@@ -321,6 +322,13 @@ class Mesh:
         self.raw_normals = []
         self.raw_node_indices = []
         self.raw_node_weights = []
+        
+        self.node_map = []
+        
+        if block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
+            map_element = block_node_map.Elements[self.index]
+            self.node_map = [int(e.Fields[0].GetStringData()) for e in map_element.Fields[0].Elements]
+                
             
     def _true_uvs(self, texcoords):
         return [self._interp_uv(tc) for tc in texcoords]
@@ -418,7 +426,8 @@ class Mesh:
                     
                     for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
                         for i, w in zip(ni, nw):
-                            if i < 0 or w <= 0: continue
+                            if i < 0 or i > 254 or w <= 0: continue
+                            if self.node_map: i = self.node_map[i]
                             group = vgroups.get(nodes[i].name)
                             if not group:
                                 group = vgroups.new(name=nodes[i].name)

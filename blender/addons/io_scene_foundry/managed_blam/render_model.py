@@ -125,7 +125,7 @@ class RenderModelTag(Tag):
         arm = RenderArmature(self.tag.Path.ShortName)
         self.nodes: list[Node] = []
         for element in self.block_nodes.Elements:
-            node = Node(element.SelectField("name").GetStringData())
+            node = Node(element.SelectField("name").GetStringData(), )
             node.index = element.ElementIndex
             translation = element.SelectField("default translation").GetStringData()
             node.translation = Vector([float(n) for n in translation]) * 100
@@ -171,12 +171,13 @@ class RenderModelTag(Tag):
         
         original_meshes: list[Mesh] = []
         clone_meshes: list[Mesh] = []
+        mesh_node_map = self.tag.SelectField("Struct:render geometry[0]/Block:per mesh node map")
         for region in self.regions:
             for permutation in region.permutations:
                 if permutation.mesh_index < 0: continue
                              
                 for i in range(permutation.mesh_count):
-                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials)
+                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials, mesh_node_map)
                     for part in mesh.parts:
                         part.material = materials[part.material_index]
                     
@@ -217,7 +218,7 @@ class RenderModelTag(Tag):
             utils.set_permutation(ob, permutation)
             
         if self.instances:
-            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials)
+            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map)
             ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob, self.instances)
             for ob in ios:
                 ob.data.nwo.mesh_type_ui = "_connected_geometry_mesh_type_object_instance"
