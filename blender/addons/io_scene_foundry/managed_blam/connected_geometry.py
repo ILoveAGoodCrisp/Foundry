@@ -138,17 +138,17 @@ class CompressionBounds:
         first = element.SelectField("position bounds 0").GetStringData()
         second = element.SelectField("position bounds 1").GetStringData()
         
-        x0 = float(first[0]) * 100
-        x1 = float(first[1]) * 100
-        y0 = float(first[2]) * 100
-        y1 = float(second[0]) * 100
-        z0 = float(second[1]) * 100
-        z1 = float(second[2]) * 100
+        self.x0 = float(first[0]) * 100
+        self.x1 = float(first[1]) * 100
+        self.y0 = float(first[2]) * 100
+        self.y1 = float(second[0]) * 100
+        self.z0 = float(second[1]) * 100
+        self.z1 = float(second[2]) * 100
         
         self.co_matrix = Matrix((
-            (x1-x0, 0, 0, x0),
-            (0, y1-y0, 0, y0),
-            (0, 0, z1-z0, z0),
+            (self.x1-self.x0, 0, 0, self.x0),
+            (0, self.y1-self.y0, 0, self.y0),
+            (0, 0, self.z1-self.z0, self.z0),
             (0, 0, 0, 1),
         ))
         
@@ -443,7 +443,7 @@ class MarkerGroup:
         for e in element.SelectField("markers").Elements:
             self.markers.append(Marker(e, nodes, regions))
             
-    def to_blender(self, armature: bpy.types.Object, collection: bpy.types.Collection):
+    def to_blender(self, edit_armature: utils.EditArmature, collection: bpy.types.Collection, size_factor: float):
         # Find duplicate markers
         objects = []
         skip_markers = []
@@ -460,12 +460,37 @@ class MarkerGroup:
         for marker in remaining_markers:
             ob = bpy.data.objects.new(name=self.name, object_data=None)
             collection.objects.link(ob)
-            ob.parent = armature
-            ob.parent_type = "BONE"
-            ob.parent_bone = marker.bone
-            ob.matrix_local = Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1))
+            ob.parent = edit_armature.ob
+            if marker.bone:
+                world = edit_armature.matrices[marker.bone]
+                ob.parent_type = "BONE"
+                ob.parent_bone = marker.bone
+                ob.matrix_world = world
+                ob.matrix_local = Matrix.Translation([0, edit_armature.lengths[marker.bone], 0]).inverted() @ Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1))
+
             nwo = ob.nwo
             nwo.marker_type_ui = self.type.name
+            
+            ob.empty_display_type = "ARROWS"
+            # ob.empty_display_size *= size_factor
+            
+            if self.type == MarkerType._connected_geometry_marker_type_target:
+                # ob.empty_display_size *= marker.scale
+                ob.empty_display_type = "SPHERE"
+            elif self.type == MarkerType._connected_geometry_marker_type_garbage:
+                ob.nwo.marker_velocity_ui = marker.direction
+            elif self.type == MarkerType._connected_geometry_marker_type_hint:
+                hint_parts = self.name.split('_')
+                if len(hint_parts) > 1:
+                    hint_type = hint_parts[1]
+                    nwo.marker_hint_type = hint_type
+                    if nwo.marker_hint_type != 'bunker' and len(hint_parts) > 2:
+                        hint_subtype = hint_parts[2]
+                        if hint_subtype in ('right', 'left'):
+                            nwo.marker_hint_side = hint_subtype
+                        elif hint_subtype in ('step', 'crouch', 'stand'):
+                            nwo.marker_hint_height = hint_subtype
+            
             objects.append(ob)
             
         return objects

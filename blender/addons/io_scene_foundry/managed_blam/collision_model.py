@@ -26,7 +26,7 @@
 
 from uuid import uuid4
 import bmesh
-from mathutils import Matrix, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 from ..managed_blam import Tag
 from .. import utils
 from ..tools.materials import collision
@@ -50,14 +50,17 @@ class CollisionTag(Tag):
         self.block_pathfinding_spheres = self.tag.SelectField("Block:pathfinding spheres")
         self.block_nodes = self.tag.SelectField("Block:nodes")
         
-    def to_blend_objects(self, collection: bpy.types.Collection, armature=None, markers=True):
+    def to_blend_objects(self, collection: bpy.types.Collection, edit_armature=None, markers=True):
         # Find Armature
+        armature = None
+        if edit_armature:
+            armature = edit_armature.ob
         if armature is None:
             armature = utils.get_rig()
+            edit_armature = utils.EditArmature(armature)
         armature_bones = []
         if armature:
             armature_bones = [b.name for b in armature.data.bones]
-            edit_armature = utils.EditArmature(armature)
         else:
             print("No Armature in Scene to parent collision mesh to")
         objects = []
@@ -76,9 +79,11 @@ class CollisionTag(Tag):
                         if armature:
                             collision_object.parent = armature
                             if node in armature_bones:
+                                world = edit_armature.matrices[node]
                                 collision_object.parent_type = 'BONE'
                                 collision_object.parent_bone = node
-                                collision_object.matrix_basis = collision_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
+                                collision_object.matrix_world = world
+                                collision_object.matrix_local = Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
                                 
                             else:
                                 utils.print_warning(f"Armature does not have bone [{node}] for {collision_object.name}")
@@ -108,10 +113,11 @@ class CollisionTag(Tag):
                 if armature:
                     sphere_object.parent = armature
                     if node in armature_bones:
+                        world = edit_armature.matrices[node]
                         sphere_object.parent_type = 'BONE'
                         sphere_object.parent_bone = node
-                        sphere_object.matrix_local = Matrix.Translation(Vector(location_coords) * 100)
-                        # sphere_object.matrix_basis = sphere_object.matrix_parent_inverse @ Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
+                        sphere_object.matrix_world = world
+                        sphere_object.matrix_local = Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted() @ Matrix.LocRotScale(Vector(location_coords) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
                     else:
                         utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
                 

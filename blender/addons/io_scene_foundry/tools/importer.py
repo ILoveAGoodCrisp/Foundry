@@ -775,11 +775,10 @@ class NWOImporter:
                 with ModelTag(path=mover.tag_path) as model:
                     render, collision, animation, physics = model.get_model_paths()
                     if render:
-                        render_objects, armature = self.import_render_model(render)
-                        imported_objects.extend([armature])
+                        render_objects, edit_armature = self.import_render_model(render)
                         imported_objects.extend(render_objects)
                     if collision and self.tag_collision:
-                        imported_objects.extend(self.import_collision_model(collision, armature))
+                        imported_objects.extend(self.import_collision_model(collision, edit_armature))
                     # imported_objects.extend(self.import_physics_model(physics))
         
         return imported_objects
@@ -789,9 +788,9 @@ class NWOImporter:
         self.context.scene.collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers)
+                render_model_objects, edit_armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers)
             
-        return render_model_objects, armature
+        return render_model_objects, edit_armature
     
     def import_collision_model(self, file, armature):
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")

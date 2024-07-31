@@ -3093,12 +3093,17 @@ def new_face_layer(bm, data, layer_name, display_name, override_prop, other_prop
         return bm.faces.layers.int.new(new_face_prop(data, layer_name, display_name, override_prop, other_props))
     
 class EditArmature:
+    ob: bpy.types.Object
+    head_vectors: dict
+    tail_vectors: dict
+    lengths: dict
+    matrices: dict[Matrix]
+    
     def __init__(self, arm):
-        self.arm = arm
+        self.ob = arm
         scene_coll = bpy.context.scene
         should_be_hidden = False
         should_be_unlinked = False
-        data: bpy.types.Armature = arm.data
         if arm.hide_get():
             arm.hide_set(False)
             should_be_hidden = True

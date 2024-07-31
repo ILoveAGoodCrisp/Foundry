@@ -97,20 +97,18 @@ class RenderModelTag(Tag):
     def to_blend_objects(self, collection, render: bool, markers: bool):
         self.collection = collection
         objects = []
-        self.armature = self._create_armature()
-        if self.armature:
-            objects.append(self.armature)
-            
+        self.edit_armature = self._create_armature()
+        objects.append(self.edit_armature.ob)
         self.regions: list[Region] = []
         for element in self.block_regions.Elements:
             self.regions.append(Region(element))
         
         if render:
             objects.extend(self._create_render_geometry())
-        # if markers:
-        #     objects.extend(self._create_markers())
+        if markers:
+            objects.extend(self._create_markers())
         
-        return objects, self.armature
+        return objects, self.edit_armature
     
     def _create_armature(self):
         arm = RenderArmature(self.tag.Path.ShortName)
@@ -139,15 +137,17 @@ class RenderModelTag(Tag):
                 
             self.nodes.append(node)
         
-        if arm.ob:
-            self.collection.objects.link(arm.ob)
-            arm.ob.select_set(True)
-            utils.set_active_object(arm.ob)
-            bpy.ops.object.editmode_toggle()
-            for node in self.nodes: arm.create_bone(node)
-            for node in self.nodes: arm.parent_bone(node)
-            bpy.ops.object.editmode_toggle()
-            return arm.ob
+        self.collection.objects.link(arm.ob)
+        arm.ob.select_set(True)
+        utils.set_active_object(arm.ob)
+        bpy.ops.object.editmode_toggle()
+        for node in self.nodes: arm.create_bone(node)
+        for node in self.nodes: arm.parent_bone(node)
+        bpy.ops.object.editmode_toggle()
+        
+        return utils.EditArmature(arm.ob)
+        
+        
         
         
     def _create_render_geometry(self):
@@ -173,7 +173,7 @@ class RenderModelTag(Tag):
                     if mesh.permutation.clone_name:
                         clone_meshes.append(mesh)
                     else:
-                        ob = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, f"{region.name}:{permutation.name}")
+                        ob = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob, f"{region.name}:{permutation.name}")
                         original_meshes.append(mesh)
                         self.collection.objects.link(ob)
                         objects.append(ob)
@@ -210,9 +210,10 @@ class RenderModelTag(Tag):
     def _create_markers(self):
         # Model Markers
         objects = []
+        marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.05
         for element in self.block_marker_groups.Elements:
             marker_group = MarkerGroup(element, self.nodes, self.regions)
-            objects.extend(marker_group.to_blender(self.armature, self.collection))
+            objects.extend(marker_group.to_blender(self.edit_armature, self.collection, marker_size_factor))
             
         return objects
             
