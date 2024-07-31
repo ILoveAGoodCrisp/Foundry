@@ -26,7 +26,7 @@
 
 from mathutils import Quaternion, Vector
 
-from .connected_geometry import CompressionBounds, Marker, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
+from .connected_geometry import CompressionBounds, InstancePlacement, Marker, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
 from .Tags import *
 
 from .. import utils
@@ -99,6 +99,14 @@ class RenderModelTag(Tag):
         objects = []
         self.edit_armature = self._create_armature()
         objects.append(self.edit_armature.ob)
+        
+        # Instances
+        self.instances = []
+        self.instance_mesh_index = self.tag.SelectField("LongBlockIndex:instance mesh index").Value
+        if self.instance_mesh_index > -1:
+            for element in self.tag.SelectField("Block:instance placements").Elements:
+                self.instances.append(InstancePlacement(element, self.nodes))
+        
         self.regions: list[Region] = []
         for element in self.block_regions.Elements:
             self.regions.append(Region(element))
@@ -147,9 +155,7 @@ class RenderModelTag(Tag):
         
         return utils.EditArmature(arm.ob)
         
-        
-        
-        
+
     def _create_render_geometry(self):
         objects = []
         if not self.block_compression_info.Elements.Count:
@@ -158,6 +164,7 @@ class RenderModelTag(Tag):
         render_model = self._GameRenderModel()
         
         materials = [Material(e) for e in self.block_materials.Elements]
+    
         
         original_meshes: list[Mesh] = []
         clone_meshes: list[Mesh] = []
@@ -166,17 +173,18 @@ class RenderModelTag(Tag):
                 if permutation.mesh_index < 0: continue
                              
                 for i in range(permutation.mesh_count):
-                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation)
+                    mesh = Mesh(self.block_meshes.Elements[permutation.mesh_index + i], self.bounds, permutation, materials)
                     for part in mesh.parts:
                         part.material = materials[part.material_index]
                     
                     if mesh.permutation.clone_name:
                         clone_meshes.append(mesh)
                     else:
-                        ob = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob, f"{region.name}:{permutation.name}")
+                        obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob)
                         original_meshes.append(mesh)
-                        self.collection.objects.link(ob)
-                        objects.append(ob)
+                        objects.extend(obs)
+                        for ob in obs:
+                            self.collection.objects.link(ob)
                         
         
         for clone in clone_meshes:
@@ -204,6 +212,41 @@ class RenderModelTag(Tag):
             region, permutation = utils.dot_partition(ob.name).split(":")
             utils.set_region(ob, region)
             utils.set_permutation(ob, permutation)
+            
+        if self.instances:
+            instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials)
+            ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob, self.instances)
+            for ob in ios:
+                ob.data.nwo.mesh_type_ui = "_connected_geometry_mesh_type_object_instance"
+                self.collection.objects.link(ob)
+                
+            for instance in self.instances:
+                i_permutations = []
+                ob = instance.ob
+                if not ob: continue
+                for region in self.regions:
+                    for perm in region.permutations:
+                        for instance_index in perm.instance_indexes:
+                            if instance_index == instance.index:
+                                if not ob.nwo.marker_uses_regions:
+                                    ob.nwo.marker_uses_regions = True
+                                    utils.set_region(ob, region.name)
+                                i_permutations.append(perm.name)
+                                break
+                    
+                    if ob.nwo.marker_uses_regions:
+                        if len(i_permutations) != len(region.permutations):
+                            # If not pick if this is include or exclude type depending on whichever means less permutation entries need to be added
+                            # If a tie prefer exclude
+                            exclude_permutations = [p.name for p in region.permutations if p.name not in i_permutations]
+                            if len(i_permutations) < len(exclude_permutations):
+                                ob.nwo.marker_permutation_type = "include"
+                                utils.set_marker_permutations(ob, i_permutations)
+                            else:
+                                utils.set_marker_permutations(ob, exclude_permutations)
+                        break
+                
+            objects.extend(ios)
         
         return objects
     

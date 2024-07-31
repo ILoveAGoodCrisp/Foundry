@@ -13,11 +13,11 @@ from .Tags import TagFieldBlock, TagFieldBlockElement
 class Face:
     index: int
     indices: list[int]
-    part: 'MeshPart'
+    subpart: 'MeshPart'
     
-    def __init__(self,indices: list[int], part: 'MeshPart', index: int):
+    def __init__(self,indices: list[int], subpart: 'MeshSubpart', index: int):
         self.indices = indices
-        self.part = part
+        self.subpart = subpart
         self.index = index
 
 class Node:
@@ -42,7 +42,7 @@ class Permutation:
     name: str
     mesh_index: int
     mesh_count: int
-    instances: list[int]
+    instance_indexes: list[int]
     clone_name: str
     
     def __init__(self, element: TagFieldBlockElement, region: 'Region'):
@@ -52,20 +52,21 @@ class Permutation:
         self.mesh_index = int(element.SelectField("mesh index").GetStringData())
         self.mesh_count = int(element.SelectField("mesh count").GetStringData())
         self.clone_name = ""
+        self.instance_indexes = []
         if utils.is_corinth():
             self.clone_name = element.SelectField("clone name").GetStringData()
         flags_1 = element.SelectField("instance mask 0-31")
         for i in range(31):
             if flags_1.TestBit(str(i)):
-                self.instances.append(i)
+                self.instance_indexes.append(i)
         flags_2 = element.SelectField("instance mask 32-63")
         for i in range(31):
             if flags_2.TestBit(str(i)):
-                self.instances.append(i)
+                self.instance_indexes.append(i + 32)
         flags_3 = element.SelectField("instance mask 64-95")
         for i in range(31):
             if flags_3.TestBit(str(i)):
-                self.instances.append(i)
+                self.instance_indexes.append(i + 64)
     
 class Region:
     index: int
@@ -80,20 +81,6 @@ class Region:
         self.permutations = []
         for element in self.permutations_block.Elements:
             self.permutations.append(Permutation(element, self))
-    
-class Instances:
-    index: int
-    name: str
-    node_index: int
-    scale: float
-    forward: list[float, float, float]
-    left: list[float, float, float]
-    up: list[float, float, float]
-    position: list[float, float, float]
-    
-    def __init__(self, element: TagFieldBlockElement):
-        self.index = element.ElementIndex
-        self.name = element.SelectField("name").GetStringData()
 
 class RenderArmature():
     def __init__(self, name):
@@ -212,12 +199,12 @@ class IndexBuffer:
     def get_faces(self, mesh: 'Mesh') -> list[Face]:
         faces = []
         idx = 0
-        for part in mesh.parts:
-            start = part.index_start
-            count = part.index_count
+        for subpart in mesh.subparts:
+            start = subpart.index_start
+            count = subpart.index_count
             indices = self._get_indices(start, count)
             for i in indices:
-                faces.append(Face(indices=i, part=part, index=idx))
+                faces.append(Face(indices=i, subpart=subpart, index=idx))
                 idx += 1
         
         return faces
@@ -226,7 +213,7 @@ class IndexBuffer:
         end = len(self.indices) if count < 0 else start + count
         subset = [self.indices[i] for i in range(start, end)]
         if self.index_layout == IndexLayoutType.TRIANGLE_LIST:
-            return [subset[n:n+3] for n in range(0, len(subset), 3)]
+            return [subset[n:n+3] for n in range(0, len(subset), 3)], 
         elif self.index_layout == IndexLayoutType.TRIANGLE_STRIP:
             return self._unpack(subset)
         else:
@@ -262,119 +249,227 @@ class MeshPart:
     draw_cull_close: bool
     tessellation: int
     
-    def __init__(self, element: TagFieldBlockElement):
+    def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
         self.index = element.ElementIndex
         self.material_index = element.SelectField("render method index").Value
         self.transparent = element.SelectField("transparent sorting index").Value > -1
         self.index_start = int(element.SelectField("index start").GetStringData())
         self.index_count = int(element.SelectField("index count").GetStringData())
         
+        self.material = next(m for m in materials if m.index == self.material_index)
+            
+class MeshSubpart:
+    index: int
+    index_start: int
+    index_count: int
+    part_index: int
+    part: MeshPart
+    
+    def __init__(self, element: TagFieldBlockElement, parts: list[MeshPart]):
+        self.index = element.ElementIndex
+        self.index_start = int(element.SelectField("index start").GetStringData())
+        self.index_count = int(element.SelectField("index count").GetStringData())
+        self.part_index = element.SelectField("part index").Value
+        self.part = next(p for p in parts if p.index == self.part_index)
+        
     def create(self, ob: bpy.types.Object, tris: Face):
         mesh = ob.data
         faces = mesh.polygons
-        blend_material = self.material.blender_material
+        blend_material = self.part.material.blender_material
         if not mesh.materials.get(blend_material.name):
             mesh.materials.append(blend_material)
         blend_material_index = ob.material_slots.find(blend_material.name)
         faces = mesh.polygons
-        for t in tris:
-            faces[t.index].material_index = blend_material_index
+        indexes = [t.index for t in tris if t.subpart == self]
+        for i in indexes:
+            faces[i].material_index = blend_material_index
+            
 
 class Mesh:
+    '''All new Halo 3 render geometry definitions!'''
     index: int
     permutation: Permutation
     parts: list[MeshPart]
+    subparts: list[MeshSubpart]
     rigid_node_index: int
     index_buffer_type: int
     bounds: CompressionBounds
     ob: bpy.types.Object
     tris: Iterable[Face]
+    raw_positions: list
+    raw_texcoords : list
+    raw_normals: list
+    raw_node_indices: list
+    raw_node_weights: list
     
-    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds, permutation: Permutation):
+    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds, permutation: Permutation, materials: list[Material]):
         self.index = element.ElementIndex
         self.permutation = permutation
         self.rigid_node_index = int(element.SelectField("rigid node index").GetStringData())
         self.index_buffer_type =  int(element.SelectField("index buffer type").Value)
         self.bounds = bounds
         self.parts = []
+        self.subparts = []
+        
         for part_element in element.SelectField("parts").Elements:
-            self.parts.append(MeshPart(part_element))
+            self.parts.append(MeshPart(part_element, materials))
+        for subpart_element in element.SelectField("subparts").Elements:
+            self.subparts.append(MeshSubpart(subpart_element, self.parts))
             
-    def _true_uvs(self, raw_texcoords):
-        raw_uvs = [raw_texcoords[n:n+2] for n in range(0, len(raw_texcoords), 2)]
-        return [self._interp_uv(raw_uv) for raw_uv in raw_uvs]
+        self.raw_positions = []
+        self.raw_texcoords = []
+        self.raw_normals = []
+        self.raw_node_indices = []
+        self.raw_node_weights = []
+            
+    def _true_uvs(self, texcoords):
+        return [self._interp_uv(tc) for tc in texcoords]
     
-    def _interp_uv(self, raw_uv):
-        u = np.interp(raw_uv[0], (0, 1), (self.bounds.u0, self.bounds.u1))
-        v = np.interp(raw_uv[1], (0, 1), (self.bounds.v0, self.bounds.v1))
+    def _interp_uv(self, texcoord):
+        u = np.interp(texcoord[0], (0, 1), (self.bounds.u0, self.bounds.u1))
+        v = np.interp(texcoord[1], (0, 1), (self.bounds.v0, self.bounds.v1))
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
-        
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes, armature: bpy.types.Object, name):
-        mesh = bpy.data.meshes.new(name)
-        ob = bpy.data.objects.new(mesh.name, mesh)
-        self.ob = ob
+    
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes, parent: bpy.types.Object | None, instances: list['InstancePlacement'] = []):
         temp_mesh = temp_meshes.Elements[self.index]
-        raw_vertices = temp_mesh.SelectField("raw vertices")
         raw_indices = temp_mesh.SelectField("raw indices")
         # Vertices & Faces
-        raw_positions = [n for n in render_model.GetPositionsFromMesh(temp_meshes, self.index)]
-        raw_coords = [raw_positions[n:n+3] for n in range(0, len(raw_positions), 3)]
+        self.raw_positions = [n for n in render_model.GetPositionsFromMesh(temp_meshes, self.index)]
+        self.raw_texcoords = [n for n in render_model.GetTexCoordsFromMesh(temp_meshes, self.index)]
+        self.raw_normals = [n for n in render_model.GetNormalsFromMesh(temp_meshes, self.index)]
+        if not instances and self.rigid_node_index == -1:
+            self.raw_node_indices = [n for n in render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index)]
+            self.raw_node_weights = [n for n in render_model.GetNodeWeightsFromMesh(temp_meshes, self.index)]
+
+        objects = []
+        
         indices = [int(element.Fields[0].GetStringData()) for element in raw_indices.Elements]
         buffer = IndexBuffer(self.index_buffer_type, indices)
         self.tris = buffer.get_faces(self)
-        mesh.from_pydata(vertices=raw_coords, edges=[], faces=[t.indices for t in self.tris])
+            
+        if instances:
+            for instance in instances:
+                subpart = self.subparts[instance.index]
+                ob = self._create_mesh(instance.name, parent, nodes, subpart, instance.bone, instance.matrix)
+                ob.scale = Vector.Fill(3, instance.scale)
+                instance.ob = ob
+                objects.append(ob)
+        else:
+            if self.permutation:
+                name = f"{self.permutation.region.name}:{self.permutation.name}"
+            else:
+                name = "blam"
+            objects.append(self._create_mesh(name, parent, nodes, None))
+            
+        return objects
+    
+    def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None):
+        if subpart is None:
+            indices = [t.indices for t in self.tris]
+        else:
+            indices = [t.indices for t in self.tris if t.subpart == subpart]
+            
+        vertex_indexes = sorted({idx for i in indices for idx in i})
+        
+        idx_start, idx_end = vertex_indexes[0], vertex_indexes[-1]
+            
+        mesh = bpy.data.meshes.new(name)
+        ob = bpy.data.objects.new(name, mesh)
+        
+        positions = [self.raw_positions[n:n+3] for idx, n in enumerate(range(0, len(self.raw_positions), 3)) if idx >= idx_start and idx <= idx_end]
+        texcoords = [self.raw_texcoords[n:n+2] for idx, n in enumerate(range(0, len(self.raw_texcoords), 2)) if idx >= idx_start and idx <= idx_end]
+        normals = [self.raw_normals[n:n+3] for idx, n in enumerate(range(0, len(self.raw_normals), 3)) if idx >= idx_start and idx <= idx_end]
+        if idx_start > 0:
+            indices = [[i - idx_start for i in tri] for tri in indices]
+                    
+        mesh.from_pydata(vertices=positions, edges=[], faces=indices)
         mesh.transform(self.bounds.co_matrix)
         
-        # UVs
-        raw_texcoords = [n for n in render_model.GetTexCoordsFromMesh(temp_meshes, self.index)]
-        uvs = self._true_uvs(raw_texcoords)
+        uvs = self._true_uvs(texcoords)
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
         for face in mesh.polygons:
             for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
                 uv_layer.data[loop_idx].uv = uvs[vert_idx]
                 
-        # Normals
-        raw_normals = [n for n in render_model.GetNormalsFromMesh(temp_meshes, self.index)]
-        raw_normal_coords = [Vector(raw_normals[n:n+3]).normalized() for n in range(0, len(raw_normals), 3)]
-        mesh.normals_split_custom_set_from_vertices(raw_normal_coords)
+        normalised_normals = [Vector(n).normalized() for n in normals]
+        mesh.normals_split_custom_set_from_vertices(normalised_normals)
         
-        # Object
-        if armature:
-            ob.parent = armature
-            
-        # Weights
-        if self.rigid_node_index > -1:
-            mat = ob.matrix_world.copy()
-            ob.parent_type = "BONE"
-            ob.parent_bone = nodes[self.rigid_node_index].name
-            ob.matrix_world = mat
-            
+        if parent:
+            ob.parent = parent
+            if parent.type == 'ARMATURE':
+                if self.rigid_node_index > -1:
+                    if local_matrix:
+                        ob.matrix_basis = local_matrix
+                    mat = ob.matrix_world.copy()
+                    ob.parent_type = "BONE"
+                    if parent_bone:
+                        ob.parent_bone = parent_bone
+                    else:
+                        ob.parent_bone = nodes[self.rigid_node_index].name
+                    ob.matrix_world = mat
+                else:
+                    node_indices = [self.raw_node_indices[n:n+4] for idx, n in enumerate(range(0, len(self.raw_node_indices), 4)) if idx >= idx_start and idx <= idx_end]
+                    node_weights = [self.raw_node_weights[n:n+4] for idx, n in enumerate(range(0, len(self.raw_node_weights), 4)) if idx >= idx_start and idx <= idx_end]
+                    
+                    vgroups = ob.vertex_groups
+                    
+                    for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
+                        for i, w in zip(ni, nw):
+                            if i < 0 or w <= 0: continue
+                            group = vgroups.get(nodes[i].name)
+                            if not group:
+                                group = vgroups.new(name=nodes[i].name)
+                                
+                            group.add([idx], w, 'REPLACE')
+                    
+                    ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
+        
+        if subpart:
+            ob.data.materials.append(subpart.part.material.blender_material)
         else:
-            raw_node_indices = [n for n in render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index)]
-            raw_node_weights = [n for n in render_model.GetNodeWeightsFromMesh(temp_meshes, self.index)]
-            node_indices = [raw_node_indices[n:n+4] for n in range(0, len(raw_node_indices), 4)]
-            node_weights = [raw_node_weights[n:n+4] for n in range(0, len(raw_node_weights), 4)]
-            
-            vgroups = ob.vertex_groups
-            
-            for idx, (indices, weights) in enumerate(zip(node_indices, node_weights)):
-                for i, w in zip(indices, weights):
-                    if i < 0 or w <= 0: continue
-                    group = vgroups.get(nodes[i].name)
-                    if not group:
-                        group = vgroups.new(name=nodes[i].name)
-                        
-                    group.add([idx], w, 'REPLACE')
-            
-            ob.modifiers.new(name="Armature", type="ARMATURE").object = armature
-            
-        # Materials
-        for part in self.parts:
-            relevant_tris = [t for t in self.tris if t.part == part]
-            part.create(ob, relevant_tris)
-        
+            for subpart in self.subparts:
+                subpart.create(ob, self.tris)
+                    
         return ob
+        
+class InstancePlacement:
+    index: int
+    name: str
+    node_index: int
+    bone: str
+    scale: float
+    forward: Vector
+    left: Vector
+    up: Vector
+    position: Vector
+    matrix: Matrix
+    ob: bpy.types.Object
+    
+    def __init__(self, element: TagFieldBlockElement, nodes: list[Node]):
+        self.index = element.ElementIndex
+        self.name = element.SelectField("name").GetStringData()
+        self.node_index = element.SelectField("node_index").Value
+        self.bone = ""
+        if self.node_index > -1:
+            self.bone = next(n.name for n in nodes if n.index == self.node_index)
+        
+        self.scale = float(element.SelectField("scale").GetStringData())
+        self.forward = Vector([float(n) for n in element.SelectField("forward").GetStringData()])
+        self.left = Vector([float(n) for n in element.SelectField("left").GetStringData()])
+        self.up = Vector([float(n) for n in element.SelectField("up").GetStringData()])
+        self.position = Vector([float(n) for n in element.SelectField("position").GetStringData()]) * 100
+        
+        self.matrix = Matrix((
+            (self.forward[0], self.forward[1], self.forward[2], self.position[0]),
+            (self.left[0], self.left[1], self.left[2], self.position[1]),
+            (self.up[0], self.up[1], self.up[2], self.position[2]),
+            (0, 0, 0, 1),
+        ))
+        
+        self.ob = None
+        
+        
     
 class MarkerType(Enum):
     _connected_geometry_marker_type_model = 0
