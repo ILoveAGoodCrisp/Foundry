@@ -2,6 +2,7 @@
 
 from enum import Enum
 from typing import Iterable
+import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 import numpy as np
@@ -441,7 +442,9 @@ class Mesh:
         else:
             for subpart in self.subparts:
                 subpart.create(ob, self.tris)
-                    
+        
+        utils.loop_normal_magic(mesh)
+          
         return ob
         
 class InstancePlacement:

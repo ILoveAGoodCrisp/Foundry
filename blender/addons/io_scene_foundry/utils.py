@@ -2955,6 +2955,26 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
     mesh.normals_split_custom_set(loop_normals)
     bm.free()
     
+def loop_normal_magic(mesh: bpy.types.Mesh):
+    '''Saves current normals, merges vertices, and then restores the normals as loop normals'''
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    save_loop_normals(bm, mesh)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
+    loop_normals = []
+    layers = set()
+    for face in bm.faces:
+        for i in range(len(face.verts)):
+            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            if layer:
+                loop_normals.append(face[layer].copy())
+                layers.add(layer)
+                
+    for layer in layers: bm.faces.layers.float_vector.remove(layer)
+    bm.to_mesh(mesh)
+    mesh.normals_split_custom_set(loop_normals)
+    bm.free()
+    
 def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
     materials = ob.data.materials
     slots = ob.material_slots
