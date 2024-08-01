@@ -213,7 +213,7 @@ class IndexBuffer:
         end = len(self.indices) if count < 0 else start + count
         subset = [self.indices[i] for i in range(start, end)]
         if self.index_layout == IndexLayoutType.TRIANGLE_LIST:
-            return [subset[n:n+3] for n in range(0, len(subset), 3)], 
+            return [subset[n:n+3] for n in range(0, len(subset), 3)]
         elif self.index_layout == IndexLayoutType.TRIANGLE_STRIP:
             return self._unpack(subset)
         else:
