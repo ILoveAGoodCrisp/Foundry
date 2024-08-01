@@ -2721,7 +2721,6 @@ def add_triangle_mod(ob: bpy.types.Object):
         
     tri_mod = mods.new('Triangulate', 'TRIANGULATE')
     tri_mod.quad_method = 'FIXED'
-    tri_mod.keep_custom_normals = True
     
 def transform_export_scene(context, scene_nwo) -> float:
     scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
