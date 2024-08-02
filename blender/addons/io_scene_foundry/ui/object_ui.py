@@ -315,15 +315,15 @@ class NWO_MeshPropAddMenu(Menu):
         layout = self.layout
         nwo = context.object.nwo
         if poll_ui(("scenario", "prefab")):
-            # if nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure":
+            # if nwo.mesh_type == "_connected_geometry_mesh_type_structure":
             #     layout.operator(
             #         "nwo.add_mesh_property", text="Sky"
             #     ).options = "_connected_geometry_face_type_sky"
-            # if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
+            # if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure"):
             #     layout.operator(
             #         "nwo.add_mesh_property", text="Seam Sealer"
             #     ).options = "_connected_geometry_face_type_seam_sealer"
-            if nwo.mesh_type_ui in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
+            if nwo.mesh_type in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_lightmap_only"):
                 layout.operator(
                     "nwo.add_mesh_property", text="Emissive"
                 ).options = "emissive"
@@ -458,7 +458,7 @@ class NWO_RegionList(NWO_Op):
     )
 
     def execute(self, context):
-        context.object.nwo.region_name_ui = self.region
+        context.object.nwo.region_name = self.region
         return {"FINISHED"}
 
 
@@ -468,7 +468,7 @@ class NWO_GlobalMaterialRegionList(NWO_RegionList):
     bl_description = "Applies a global material to the selected object"
 
     def execute(self, context):
-        context.object.data.nwo.face_global_material_ui = self.region
+        context.object.data.nwo.face_global_material = self.region
         return {"FINISHED"}
     
 class NWO_GlobalMaterialGlobals(NWO_RegionList):
@@ -500,9 +500,9 @@ class NWO_GlobalMaterialGlobals(NWO_RegionList):
     def execute(self, context):
         nwo = context.object.data.nwo
         if self.face_level:
-            nwo.face_props[nwo.face_props_index].face_global_material_ui = self.material
+            nwo.face_props[nwo.face_props_index].face_global_material = self.material
         else:
-            nwo.face_global_material_ui = self.material
+            nwo.face_global_material = self.material
         context.area.tag_redraw()
         return {"FINISHED"}
     
@@ -524,7 +524,7 @@ class NWO_GlobalMaterialList(NWO_Op):
         # get scene regions
         global_materials = ["default"]
         for ob in export_objects_mesh_only():
-            global_material = ob.data.nwo.face_global_material_ui
+            global_material = ob.data.nwo.face_global_material
             if (
                 global_material != ""
                 and global_material not in global_materials
@@ -535,11 +535,11 @@ class NWO_GlobalMaterialList(NWO_Op):
             if ob.type == "MESH":
                 for face_prop in ob.data.nwo.face_props:
                     if (
-                        face_prop.face_global_material_ui != ""
+                        face_prop.face_global_material != ""
                         and face_prop.face_global_material_override
-                        and face_prop.face_global_material_ui not in global_materials
+                        and face_prop.face_global_material not in global_materials
                     ):
-                        global_materials.append(face_prop.face_global_material_ui)
+                        global_materials.append(face_prop.face_global_material)
 
         global_materials = sort_alphanum(global_materials)
         items = []
@@ -554,7 +554,7 @@ class NWO_GlobalMaterialList(NWO_Op):
     )
 
     def execute(self, context):
-        context.object.data.nwo.face_global_material_ui = self.global_material
+        context.object.data.nwo.face_global_material = self.global_material
         return {"FINISHED"}
 
 class NWO_PermutationList(NWO_Op):
@@ -583,7 +583,7 @@ class NWO_PermutationList(NWO_Op):
     )
 
     def execute(self, context):
-        context.object.nwo.permutation_name_ui = self.permutation
+        context.object.nwo.permutation_name = self.permutation
         return {"FINISHED"}
 
 
@@ -642,7 +642,7 @@ class NWO_BSPListSeam(NWO_BSPList):
     )
 
     def execute(self, context):
-        context.object.nwo.seam_back_ui = self.bsp
+        context.object.nwo.seam_back = self.bsp
         return {"FINISHED"}
 
 

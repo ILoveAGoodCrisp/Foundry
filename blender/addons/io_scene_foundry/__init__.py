@@ -96,7 +96,7 @@ def load_handler(dummy):
         
     # prefs = get_prefs()
     # if prefs.poop_default:
-    #     scene_nwo.default_mesh_type_ui = '_connected_geometry_mesh_type_poop'
+    #     scene_nwo.default_mesh_type = '_connected_geometry_mesh_type_poop'
     
     if not bpy.app.background:
         # Set game version from file

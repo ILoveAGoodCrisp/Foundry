@@ -221,7 +221,7 @@ class RenderModelTag(Tag):
             instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map)
             ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob, self.instances)
             for ob in ios:
-                ob.data.nwo.mesh_type_ui = "_connected_geometry_mesh_type_object_instance"
+                ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
                 self.collection.objects.link(ob)
                 
             for instance in self.instances:

@@ -34,7 +34,7 @@ from ..tools.collection_manager import get_full_name
 from ..utils import is_corinth, is_frame, is_marker, is_mesh, poll_ui, true_permutation, true_region, update_tables_from_objects, valid_nwo_asset
 
 def has_region_or_perm(ob):
-    if is_mesh(ob) and (ob.nwo.mesh_type_ui != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
+    if is_mesh(ob) and (ob.nwo.mesh_type != '_connected_geometry_mesh_type_object_instance' or ob.nwo.marker_uses_regions):
         return True
     elif is_marker(ob) and ob.nwo.marker_uses_regions:
         return True
@@ -164,7 +164,7 @@ class TableEntryRemove(bpy.types.Operator):
         new_entry_name = table[0].name
         for ob in entry_objects:
             setattr(ob.nwo, self.ob_prop_str, new_entry_name)
-        if self.ob_prop_str == 'permutation_name_ui':
+        if self.ob_prop_str == 'permutation_name':
             for ob in scene_objects:
                 perms_list = ob.nwo.marker_permutations
                 perms_to_remove = []
@@ -181,11 +181,11 @@ class TableEntryRemove(bpy.types.Operator):
                     ob.nwo.marker_permutations_index = 0
                     
         for coll in bpy.data.collections:
-            if self.ob_prop_str == 'region_name_ui':
+            if self.ob_prop_str == 'region_name':
                 if coll.nwo.type == 'region' and coll.nwo.region == old_entry_name:
                     coll.nwo.region = new_entry_name
                     coll.name = get_full_name(coll.nwo.type, new_entry_name)
-            elif self.ob_prop_str == 'permutation_name_ui':
+            elif self.ob_prop_str == 'permutation_name':
                 if coll.nwo.type == 'permutation' and coll.nwo.permutation == old_entry_name:
                     coll.nwo.permutation = new_entry_name
                     coll.name = get_full_name(coll.nwo.type, new_entry_name)
@@ -234,8 +234,8 @@ class TableEntryAssignSingle(bpy.types.Operator):
         nwo = context.object.nwo
         old_name = getattr(nwo, self.ob_prop_str)
         setattr(nwo, self.ob_prop_str, self.name)
-        if self.ob_prop_str == "region_name_ui" and nwo.seam_back_ui == self.name:
-            nwo.seam_back_ui = old_name
+        if self.ob_prop_str == "region_name" and nwo.seam_back == self.name:
+            nwo.seam_back = old_name
         return {'FINISHED'}
     
 class TableEntryAssign(bpy.types.Operator):
@@ -250,8 +250,8 @@ class TableEntryAssign(bpy.types.Operator):
         for ob in sel_obs:
             old_name = getattr(ob.nwo, self.ob_prop_str)
             setattr(ob.nwo, self.ob_prop_str, self.name)
-            if self.ob_prop_str == "region_name_ui" and ob.nwo.seam_back_ui == self.name:
-                ob.nwo.seam_back_ui = old_name
+            if self.ob_prop_str == "region_name" and ob.nwo.seam_back == self.name:
+                ob.nwo.seam_back = old_name
         return {'FINISHED'}
     
 class TableEntrySelect(bpy.types.Operator):
@@ -306,9 +306,9 @@ class TableEntryRename(bpy.types.Operator):
         scene_objects = context.scene.objects
         entry_objects = [ob for ob in scene_objects if getattr(ob.nwo, self.ob_prop_str) == entry.old]
         entry_collections = []
-        if self.ob_prop_str == 'region_name_ui':
+        if self.ob_prop_str == 'region_name':
             entry_collections = [coll for coll in bpy.data.collections if coll.nwo.region == entry.old]
-        elif self.ob_prop_str == 'permutation_name_ui':
+        elif self.ob_prop_str == 'permutation_name':
             entry_collections = [coll for coll in bpy.data.collections if coll.nwo.permutation == entry.old]
         old_name = str(entry.old)
         entry.old = new_name
@@ -316,7 +316,7 @@ class TableEntryRename(bpy.types.Operator):
         for ob in entry_objects:
             setattr(ob.nwo, self.ob_prop_str, new_name)
             
-        if self.ob_prop_str == 'permutation_name_ui':
+        if self.ob_prop_str == 'permutation_name':
             for ob in scene_objects:
                 perms_list = ob.nwo.marker_permutations
                 for perm in perms_list:
@@ -324,9 +324,9 @@ class TableEntryRename(bpy.types.Operator):
                         perm.name = new_name
                     
         for coll in entry_collections:
-            if self.ob_prop_str == 'region_name_ui':
+            if self.ob_prop_str == 'region_name':
                 coll.nwo.region = new_name
-            elif self.ob_prop_str == 'permutation_name_ui':
+            elif self.ob_prop_str == 'permutation_name':
                 coll.nwo.permutation = new_name
                 
             coll.name = get_full_name(coll.nwo.type, new_name)
@@ -394,7 +394,7 @@ class NWO_RegionAdd(TableEntryAdd):
     def __init__(self):
         self.type_str = "Region"
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -437,7 +437,7 @@ class NWO_FaceRegionAdd(bpy.types.Operator):
             ob = context.object
             if ob and ob.type == 'MESH':
                 face_layer = ob.data.nwo.face_props[ob.data.nwo.face_props_index]
-                face_layer.region_name_ui = name
+                face_layer.region_name = name
             
 
         context.area.tag_redraw()
@@ -463,7 +463,7 @@ class NWO_RegionRemove(TableEntryRemove):
 
     def __init__(self):
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -504,7 +504,7 @@ class NWO_RegionAssignSingle(TableEntryAssignSingle):
 
     def __init__(self):
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -529,7 +529,7 @@ class NWO_FaceRegionAssignSingle(bpy.types.Operator):
         if not ob or ob.type != 'MESH':
             return {'CANCELLED'}
         face_layer = ob.data.nwo.face_props[ob.data.nwo.face_props_index]
-        face_layer.region_name_ui = self.name
+        face_layer.region_name = self.name
         lay_parts = face_layer.name.split('::')
         if lay_parts and len(lay_parts) == 2 and lay_parts[0] == 'region':
             face_layer.name = 'region::' + self.name
@@ -546,7 +546,7 @@ class NWO_RegionAssign(TableEntryAssign):
 
     def __init__(self):
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -567,7 +567,7 @@ class NWO_RegionSelect(TableEntrySelect):
 
     def __init__(self):
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -595,7 +595,7 @@ class NWO_RegionRename(TableEntryRename):
     def __init__(self):
         self.type_str = "Region"
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -616,7 +616,7 @@ class NWO_RegionHide(TableEntryHide):
 
     def __init__(self):
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -643,7 +643,7 @@ class NWO_RegionHideSelect(TableEntryHideSelect):
 
     def __init__(self):
         self.table_str = "regions_table"
-        self.ob_prop_str = "region_name_ui"
+        self.ob_prop_str = "region_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -668,7 +668,7 @@ class NWO_PermutationAdd(TableEntryAdd):
     def __init__(self):
         self.type_str = "Permutation"
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -689,7 +689,7 @@ class NWO_PermutationRemove(TableEntryRemove):
 
     def __init__(self):
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -730,7 +730,7 @@ class NWO_PermutationAssignSingle(TableEntryAssignSingle):
     
     def __init__(self):
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -751,7 +751,7 @@ class NWO_PermutationAssign(TableEntryAssign):
 
     def __init__(self):
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -772,7 +772,7 @@ class NWO_PermutationSelect(TableEntrySelect):
 
     def __init__(self):
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -800,7 +800,7 @@ class NWO_PermutationRename(TableEntryRename):
     def __init__(self):
         self.type_str = "Permutation"
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -821,7 +821,7 @@ class NWO_PermutationHide(TableEntryHide):
 
     def __init__(self):
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -848,7 +848,7 @@ class NWO_PermutationHideSelect(TableEntryHideSelect):
 
     def __init__(self):
         self.table_str = "permutations_table"
-        self.ob_prop_str = "permutation_name_ui"
+        self.ob_prop_str = "permutation_name"
 
     @classmethod
     def description(cls, context, properties) -> str:
@@ -876,7 +876,7 @@ class NWO_SeamAssignSingle(TableEntryAssignSingle):
 
     def __init__(self):
         self.table_str = "regions_table"
-        self.ob_prop_str = "seam_back_ui"
+        self.ob_prop_str = "seam_back"
 
 # HELPER FUNCTIONS
 
@@ -886,10 +886,10 @@ def get_entry(table, entry_name):
             return entry
         
 def true_table_entry(ob, ob_prop_str, entry_name) -> bool:
-    if ob_prop_str == "region_name_ui":
+    if ob_prop_str == "region_name":
         return true_region(ob.nwo) == entry_name
-    elif ob_prop_str == "permutation_name_ui":
-        if is_marker(ob) or ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_object_instance':
+    elif ob_prop_str == "permutation_name":
+        if is_marker(ob) or ob.nwo.mesh_type == '_connected_geometry_mesh_type_object_instance':
             perms = [perm.name for perm in ob.nwo.marker_permutations]
             if ob.nwo.marker_permutation_type == 'exclude':
                 return entry_name not in perms
@@ -1051,9 +1051,9 @@ def unhide_objects(objects, nwo):
             continue
         elif is_frame(ob) and not nwo.connected_geometry_object_type_frame_visible:
             continue
-        elif is_marker(ob) and not getattr(nwo, f"{ob.nwo.marker_type_ui[1:]}_visible"):
+        elif is_marker(ob) and not getattr(nwo, f"{ob.nwo.marker_type[1:]}_visible"):
             continue
-        elif is_mesh(ob) and not getattr(nwo, f"{ob.data.nwo.mesh_type_ui[1:]}_visible"):
+        elif is_mesh(ob) and not getattr(nwo, f"{ob.data.nwo.mesh_type[1:]}_visible"):
             continue
         
         ob.hide_set(False)
@@ -1088,8 +1088,8 @@ def objects_by_type(context: bpy.types.Context, object_type: str) -> list[bpy.ty
     elif object_type == '_connected_geometry_object_type_frame':
         return [ob for ob in context.view_layer.objects if is_frame(ob) and ob.nwo.exportable]
     elif object_type.startswith("_connected_geometry_marker_type"):
-        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type_ui == object_type and ob.nwo.exportable]
+        return [ob for ob in context.view_layer.objects if is_marker(ob) and ob.nwo.marker_type == object_type and ob.nwo.exportable]
     elif object_type.startswith("_connected_geometry_mesh_type"):
-        return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type_ui == object_type and ob.nwo.exportable]
+        return [ob for ob in context.view_layer.objects if is_mesh(ob) and ob.data.nwo.mesh_type == object_type and ob.nwo.exportable]
 
             

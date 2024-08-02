@@ -406,7 +406,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
         for ob in meshes:
             set_active_object(ob)
             ob.select_set(True)
-            ob.data.nwo.mesh_type_ui = mesh_type
+            ob.data.nwo.mesh_type = mesh_type
 
             if self.apply_prefix:
                 apply_prefix(ob, self.m_type, prefix_setting)
@@ -422,7 +422,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             if self.m_type == "seam":
                 closest_bsp = closest_bsp_object(context, ob)
                 if closest_bsp is not None:
-                    ob.nwo.seam_back_ui = true_region(closest_bsp.nwo)
+                    ob.nwo.seam_back = true_region(closest_bsp.nwo)
                     
             ob.select_set(False)
 
@@ -443,7 +443,7 @@ class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
         prefix_setting = get_prefs().apply_prefix
         mesh_type, material = self.mesh_and_material(context)
         ob = context.object
-        ob.data.nwo.mesh_type_ui = mesh_type
+        ob.data.nwo.mesh_type = mesh_type
 
         apply_prefix(ob, self.m_type, prefix_setting)
 
@@ -453,7 +453,7 @@ class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
         if self.m_type == "seam":
             closest_bsp = closest_bsp_object(context, ob)
             if closest_bsp is not None:
-                ob.nwo.seam_back_ui = true_region(closest_bsp.nwo)
+                ob.nwo.seam_back = true_region(closest_bsp.nwo)
 
         return {"FINISHED"}
 
@@ -611,7 +611,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
             set_active_object(ob)
             ob.select_set(True)
             nwo = ob.nwo
-            nwo.marker_type_ui = marker_type
+            nwo.marker_type = marker_type
             apply_prefix(ob, self.m_type, prefix_setting)
             ob.select_set(False)
 
@@ -632,7 +632,7 @@ class NWO_ApplyTypeMarkerSingle(NWO_ApplyTypeMarker):
         apply_display = get_prefs().apply_empty_display
         ob = context.object
         nwo = ob.nwo
-        nwo.marker_type_ui, display_type = self.get_marker_type()
+        nwo.marker_type, display_type = self.get_marker_type()
         if apply_display:
             ob.empty_display_type = display_type
         apply_prefix(ob, self.m_type, prefix_setting)

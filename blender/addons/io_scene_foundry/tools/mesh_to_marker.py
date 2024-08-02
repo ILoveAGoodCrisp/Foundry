@@ -213,38 +213,38 @@ class NWO_MeshToMarker(bpy.types.Operator):
         for ob in to_set:
             match self.marker_type:
                 case '_connected_geometry_marker_type_model':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_model'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_model'
                     ob.empty_display_type = 'ARROWS'
                 case '_connected_geometry_marker_type_effects':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_effects'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_effects'
                     ob.empty_display_type = 'ARROWS'
                     ob.name = 'fx_' + ob.name
                 case '_connected_geometry_marker_type_garbage':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_garbage'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_garbage'
                     ob.empty_display_type = 'ARROWS'
                 case '_connected_geometry_marker_type_hint':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_hint'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_hint'
                     ob.empty_display_type = 'ARROWS'
                 case '_connected_geometry_marker_type_pathfinding_sphere':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_pathfinding_sphere'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_pathfinding_sphere'
                     ob.empty_display_type = 'SPHERE'
                 case '_connected_geometry_marker_type_physics_constraint':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_physics_constraint'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_physics_constraint'
                     ob.empty_display_type = 'ARROWS'
                 case '_connected_geometry_marker_type_target':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_target'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_target'
                     ob.empty_display_type = 'SPHERE'
                 case '_connected_geometry_marker_type_airprobe':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_airprobe'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_airprobe'
                     ob.empty_display_type = 'SPHERE'
                 case '_connected_geometry_marker_type_game_instance':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_game_instance'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_game_instance'
                     ob.empty_display_type = 'ARROWS'
                 case '_connected_geometry_marker_type_envfx':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_envfx'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_envfx'
                     ob.empty_display_type = 'ARROWS'
                 case '_connected_geometry_marker_type_lightCone':
-                    ob.nwo.marker_type_ui = '_connected_geometry_marker_type_lightCone'
+                    ob.nwo.marker_type = '_connected_geometry_marker_type_lightCone'
                     ob.empty_display_type = 'ARROWS'
             if self.maintain_mesh and ob.instance_type == 'COLLECTION':
                 ob.empty_display_type = 'PLAIN_AXES'
@@ -287,8 +287,8 @@ def convert_to_marker(ob: bpy.types.Object, maintain_mesh=False) -> bpy.types.Ob
             marker.parent_bone = ob.parent_bone
 
     marker.matrix_world = ob.matrix_world
-    marker.nwo.region_name_ui = ob.nwo.region_name_ui
-    marker.nwo.permutation_name_ui = ob.nwo.permutation_name_ui
+    marker.nwo.region_name = ob.nwo.region_name
+    marker.nwo.permutation_name = ob.nwo.permutation_name
     marker.nwo.marker_uses_regions = ob.nwo.marker_uses_regions
     for perm in ob.nwo.marker_permutations:
         marker.nwo.marker_permutations.add().name = perm.name

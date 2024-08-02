@@ -352,7 +352,7 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
     
     user_removed_all_zone_set: BoolProperty()
 
-    def items_mesh_type_ui(self, context):
+    def items_mesh_type(self, context):
         """Function to handle context for mesh enum lists"""
         h4 = is_corinth()
         items = []
@@ -475,26 +475,26 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
 
         return items
 
-    default_mesh_type_ui: EnumProperty(
+    default_mesh_type: EnumProperty(
         name="Default Mesh Type",
         options=set(),
         description="Set the default Halo mesh type for new objects",
-        items=items_mesh_type_ui,
+        items=items_mesh_type,
     )
 
     def apply_props(self, context):
         for ob in context.scene.objects:
             ob_nwo = ob.data.nwo
 
-            if ob_nwo.mesh_type_ui == "":
+            if ob_nwo.mesh_type == "":
                 if self.asset_type == "decorator_set":
-                    ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_decorator"
+                    ob_nwo.mesh_type = "_connected_geometry_mesh_type_decorator"
                 elif self.asset_type == "scenario":
-                    ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_structure"
+                    ob_nwo.mesh_type = "_connected_geometry_mesh_type_structure"
                 elif self.asset_type == "prefab":
-                    ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_poop"
+                    ob_nwo.mesh_type = "_connected_geometry_mesh_type_poop"
                 else:
-                    ob_nwo.mesh_type_ui = "_connected_geometry_mesh_type_render"
+                    ob_nwo.mesh_type = "_connected_geometry_mesh_type_render"
     
     def update_asset_type(self, context):
         if self.asset_type == 'animation':

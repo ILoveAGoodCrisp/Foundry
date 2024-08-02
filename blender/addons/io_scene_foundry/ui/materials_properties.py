@@ -120,13 +120,13 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
             
     # def update_lighting_attenuation_falloff(self, context):
     #     if not context.scene.nwo.transforming:
-    #         if self.material_lighting_attenuation_falloff_ui > self.material_lighting_attenuation_cutoff_ui:
-    #             self.material_lighting_attenuation_cutoff_ui = self.material_lighting_attenuation_falloff_ui
+    #         if self.material_lighting_attenuation_falloff > self.material_lighting_attenuation_cutoff:
+    #             self.material_lighting_attenuation_cutoff = self.material_lighting_attenuation_falloff
             
     # def update_lighting_attenuation_cutoff(self, context):
     #     if not context.scene.nwo.transforming:
-    #         if self.material_lighting_attenuation_cutoff_ui < self.material_lighting_attenuation_falloff_ui:
-    #             self.material_lighting_attenuation_falloff_ui = self.material_lighting_attenuation_cutoff_ui
+    #         if self.material_lighting_attenuation_cutoff < self.material_lighting_attenuation_falloff:
+    #             self.material_lighting_attenuation_falloff = self.material_lighting_attenuation_cutoff
     
     # emissive_attenuation_cutoff_ui: bpy.props.FloatProperty(
     #     name="Light Cutoff",

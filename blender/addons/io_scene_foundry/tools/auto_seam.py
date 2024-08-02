@@ -49,16 +49,16 @@ class NWO_AutoSeam(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def auto_seam(self, context: bpy.types.Context):
-        old_selection = [ob for ob in context.selected_objects if ob.nwo.mesh_type_ui != '_connected_geometry_mesh_type_seam']
-        old_active = context.object if context.object and context.object.nwo.mesh_type_ui != '_connected_geometry_mesh_type_seam' else None
+        old_selection = [ob for ob in context.selected_objects if ob.nwo.mesh_type != '_connected_geometry_mesh_type_seam']
+        old_active = context.object if context.object and context.object.nwo.mesh_type != '_connected_geometry_mesh_type_seam' else None
         old_3d_cursor_mat = context.scene.cursor.matrix
         apply_materials = get_prefs().apply_materials
         export_obs = export_objects_mesh_only()
-        seam_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_seam"]
+        seam_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type == "_connected_geometry_mesh_type_seam"]
         if self.selected_only:
-            structure_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and ob in context.selected_objects]
+            structure_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type == "_connected_geometry_mesh_type_structure" and ob in context.selected_objects]
         else:
-            structure_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"]
+            structure_obs = [ob for ob in export_obs if ob.data.nwo.mesh_type == "_connected_geometry_mesh_type_structure"]
         
         deselect_all_objects()
         selected_regions = {true_region(structure.nwo) for structure in structure_obs}
@@ -155,10 +155,10 @@ class NWO_AutoSeam(bpy.types.Operator):
                         f"seam({facing_bsp}:{backfacing_bsp})", seam_data
                     )
                     seam_nwo = seam.nwo
-                    seam.data.nwo.mesh_type_ui = "_connected_geometry_mesh_type_seam"
-                    seam_nwo.permutation_name_ui = facing_perm
-                    seam_nwo.region_name_ui = facing_bsp
-                    seam_nwo.seam_back_ui = backfacing_bsp
+                    seam.data.nwo.mesh_type = "_connected_geometry_mesh_type_seam"
+                    seam_nwo.permutation_name = facing_perm
+                    seam_nwo.region_name = facing_bsp
+                    seam_nwo.seam_back = backfacing_bsp
                     context.scene.collection.objects.link(seam)
                     if apply_materials:
                         apply_props_material(seam, 'Seam')

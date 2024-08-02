@@ -1,4 +1,5 @@
 from collections import Counter
+from enum import Enum, auto
 import itertools
 import json
 from math import radians
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+from uuid import uuid4
 import winreg
 import zipfile
 import bmesh
@@ -340,16 +342,16 @@ def jstr(number):
     return format(round(number, 6), 'f')
 
 def true_region(halo):
-    if halo.region_name_locked_ui:
-        return halo.region_name_locked_ui.lower()
+    if halo.region_name_locked:
+        return halo.region_name_locked.lower()
     else:
-        return halo.region_name_ui.lower()
+        return halo.region_name.lower()
 
 def true_permutation(halo):
-    if halo.permutation_name_locked_ui:
-        return halo.permutation_name_locked_ui.lower()
+    if halo.permutation_name_locked:
+        return halo.permutation_name_locked.lower()
     else:
-        return halo.permutation_name_ui.lower()
+        return halo.permutation_name.lower()
 
 def clean_tag_path(path, file_ext=None):
     """Cleans a path and attempts to make it appropriate for reading by Tool. Can accept a file extension (without a period) to force the existing one if it exists to be replaced"""
@@ -777,7 +779,7 @@ def closest_bsp_object(context, ob, valid_targets=[]):
     for target_ob in valid_targets:
         if (
             ob != target_ob
-            and target_ob.data.nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure"
+            and target_ob.data.nwo.mesh_type == "_connected_geometry_mesh_type_structure"
             and true_region(target_ob.nwo) != true_region(ob.nwo)
         ):
             d = get_distance(ob, target_ob)
@@ -962,7 +964,7 @@ def has_mesh_props(ob) -> bool:
         ob
         and nwo.export_this
         and is_mesh(ob)
-        and nwo.mesh_type_ui in valid_mesh_types
+        and nwo.mesh_type in valid_mesh_types
     )
 
 
@@ -973,13 +975,13 @@ def has_face_props(ob) -> bool:
     ]
     if poll_ui('model'):
         valid_mesh_types.append('_connected_geometry_mesh_type_collision')
-    if is_corinth() and ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and poll_ui('scenario') and not ob.nwo.proxy_instance:
+    if is_corinth() and ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and poll_ui('scenario') and not ob.nwo.proxy_instance:
         return False
     return (
         ob
         and ob.nwo.export_this
         and ob.type == 'MESH'
-        and ob.nwo.mesh_type_ui in valid_mesh_types
+        and ob.nwo.mesh_type in valid_mesh_types
     )
 
 def has_shader_path(mat):
@@ -1283,21 +1285,21 @@ def update_tables_from_objects(context):
     for ob in scene_obs:
         ob_region = true_region(ob.nwo)
         if not ob_region:
-            ob.nwo.region_name_ui = region_names[0]
+            ob.nwo.region_name = region_names[0]
         elif ob_region not in region_names:
             new_region = regions_table.add()
             new_region.name = ob_region
             region_names.add(ob_region)
-            ob.nwo.region_name_ui = ob_region
+            ob.nwo.region_name = ob_region
 
         ob_permutation = true_permutation(ob.nwo)
         if not ob_permutation:
-            ob.nwo.permutation_name_ui = permutation_names[0]
+            ob.nwo.permutation_name = permutation_names[0]
         elif ob_permutation not in permutation_names:
             new_permutation = permutations_table.add()
             new_permutation.name = ob_permutation
             permutation_names.add(ob_permutation)
-            ob.nwo.permutation_name_ui = ob_permutation
+            ob.nwo.permutation_name = ob_permutation
 
 # def update_objects_from_tables(context, table_str, ob_prop_str):
 #     entry_names = [e.name for e in getattr(context.scene.nwo, table_str)]
@@ -1481,7 +1483,7 @@ def fbx_addon_installed():
     
 def has_collision_type(ob: bpy.types.Object) -> bool:
     nwo = ob.nwo
-    mesh_type = nwo.mesh_type_ui
+    mesh_type = nwo.mesh_type
     if not poll_ui(('scenario', 'prefab')) and mesh_type != '_connected_geometry_mesh_type_collision':
         return False
     if mesh_type in COLLISION_MESH_TYPES:
@@ -1502,7 +1504,7 @@ def get_sky_perm(mat: bpy.types.Material) -> int:
     return int(index)
         
 def is_instance_or_structure_proxy(ob) -> bool:
-    mesh_type = ob.nwo.mesh_type_ui
+    mesh_type = ob.nwo.mesh_type
     if not poll_ui(('scenario', 'prefab')):
         return False
     if mesh_type == '_connected_geometry_mesh_type_default':
@@ -2230,24 +2232,24 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
                 curve.use_radius = False
                 
             curve.transform(scale_matrix)
-            curve.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
-            curve.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+            curve.nwo.material_lighting_attenuation_falloff *= scale_factor
+            curve.nwo.material_lighting_attenuation_cutoff *= scale_factor
             
         for metaball in metaballs:
             metaball.transform(scale_matrix)
-            metaball.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
-            metaball.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+            metaball.nwo.material_lighting_attenuation_falloff *= scale_factor
+            metaball.nwo.material_lighting_attenuation_cutoff *= scale_factor
             
         # for lattice in lattices:
         #     lattice.transform(scale_matrix)
         
         for mesh in meshes:
             mesh.transform(scale_matrix)
-            mesh.nwo.material_lighting_attenuation_falloff_ui *= scale_factor
-            mesh.nwo.material_lighting_attenuation_cutoff_ui *= scale_factor
+            mesh.nwo.material_lighting_attenuation_falloff *= scale_factor
+            mesh.nwo.material_lighting_attenuation_cutoff *= scale_factor
             for prop in mesh.nwo.face_props:
-                prop.material_lighting_attenuation_cutoff_ui *= scale_factor
-                prop.material_lighting_attenuation_falloff_ui *= scale_factor
+                prop.material_lighting_attenuation_cutoff *= scale_factor
+                prop.material_lighting_attenuation_falloff *= scale_factor
             
         for camera in cameras:
             camera.display_size *= scale_factor
@@ -2835,20 +2837,20 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     plane_ob = bpy.data.objects.new(new_name, plane_data)
     plane_ob.matrix_world = light_ob.matrix_world
     plane_nwo = plane_data.nwo
-    plane_nwo.mesh_type_ui = "_connected_geometry_mesh_type_lightmap_only"
-    plane_ob.nwo.region_name_ui = true_region(light_ob.nwo)
-    plane_ob.nwo.permutation_name_ui = true_permutation(light_ob.nwo)
+    plane_nwo.mesh_type = "_connected_geometry_mesh_type_lightmap_only"
+    plane_ob.nwo.region_name = true_region(light_ob.nwo)
+    plane_ob.nwo.permutation_name = true_permutation(light_ob.nwo)
     plane_nwo.emissive_active = True
-    plane_nwo.no_shadow_ui = True
-    plane_nwo.material_lighting_attenuation_cutoff_ui = light_nwo.light_far_attenuation_end
-    plane_nwo.material_lighting_attenuation_falloff_ui = light_nwo.light_far_attenuation_start
-    plane_nwo.material_lighting_emissive_focus_ui = light_nwo.light_focus
-    plane_nwo.material_lighting_emissive_color_ui = light.color
-    plane_nwo.material_lighting_emissive_per_unit_ui = light_nwo.light_per_unit
-    plane_nwo.material_lighting_emissive_power_ui = calc_emissive_intensity(light.energy, 1 if bpy.context.scene.nwo.scale == 'max' else 0.03048)
-    plane_nwo.material_lighting_emissive_quality_ui = light_nwo.light_quality
-    plane_nwo.material_lighting_use_shader_gel_ui = light_nwo.light_use_shader_gel
-    plane_nwo.material_lighting_bounce_ratio_ui = light_nwo.light_bounce_ratio
+    plane_nwo.no_shadow = True
+    plane_nwo.material_lighting_attenuation_cutoff = light_nwo.light_far_attenuation_end
+    plane_nwo.material_lighting_attenuation_falloff = light_nwo.light_far_attenuation_start
+    plane_nwo.material_lighting_emissive_focus = light_nwo.light_focus
+    plane_nwo.material_lighting_emissive_color = light.color
+    plane_nwo.material_lighting_emissive_per_unit = light_nwo.light_per_unit
+    plane_nwo.material_lighting_emissive_power = calc_emissive_intensity(light.energy, 1 if bpy.context.scene.nwo.scale == 'max' else 0.03048)
+    plane_nwo.material_lighting_emissive_quality = light_nwo.light_quality
+    plane_nwo.material_lighting_use_shader_gel = light_nwo.light_use_shader_gel
+    plane_nwo.material_lighting_bounce_ratio = light_nwo.light_bounce_ratio
     
     return plane_ob
 
@@ -3062,7 +3064,7 @@ def set_region(ob, region):
         entry.old = region
         entry.name = region
         
-    ob.nwo.region_name_ui = region
+    ob.nwo.region_name = region
     
 def add_region(region):
     regions_table = bpy.context.scene.nwo.regions_table
@@ -3082,7 +3084,7 @@ def set_permutation(ob, permutation):
         entry.old = permutation
         entry.name = permutation
         
-    ob.nwo.permutation_name_ui = permutation
+    ob.nwo.permutation_name = permutation
     
 def add_permutation(permutation):
     permutations_table = bpy.context.scene.nwo.permutations_table
@@ -3119,6 +3121,19 @@ def new_face_layer(bm, data, layer_name, display_name, override_prop, other_prop
         return layer
     else:
         return bm.faces.layers.int.new(new_face_prop(data, layer_name, display_name, override_prop, other_props))
+    
+class FaceProp(Enum):
+    two_sided = auto()
+    
+def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: FaceProp, value: object) -> bmesh.types.BMLayerItem:
+    match prop.name:
+        case "two_sided":
+            layer_name = f"{prop.name}{str(uuid4())}"
+            display_name = "Two Sided"
+            override_prop = prop.name + "_override"
+            other_props = {prop.name, value}
+            
+    return new_face_layer(bm, mesh, layer_name, display_name, override_prop, other_props)
     
 class EditArmature:
     ob: bpy.types.Object

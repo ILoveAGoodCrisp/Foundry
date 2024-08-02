@@ -26,7 +26,9 @@
 
 from uuid import uuid4
 import bmesh
-from mathutils import Euler, Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Vector
+
+# from .connected_geometry import CollisionSurface
 from ..managed_blam import Tag
 from .. import utils
 from ..tools.materials import collision
@@ -101,15 +103,15 @@ class CollisionTag(Tag):
                 node = self.block_nodes.Elements[sphere_element.Fields[0].Value].Fields[0].GetStringData()
                 sphere_object = bpy.data.objects.new("pathfinding_sphere", None)
                 flags = sphere_element.SelectField("flags")
-                sphere_object.nwo.pathfinding_sphere_remains_when_open_ui = flags.TestBit("remains when open")
-                sphere_object.nwo.marker_pathfinding_sphere_vehicle_ui = flags.TestBit("vehicle only")
-                sphere_object.nwo.pathfinding_sphere_with_sectors_ui = flags.TestBit("with sectors")
+                sphere_object.nwo.pathfinding_sphere_remains_when_open = flags.TestBit("remains when open")
+                sphere_object.nwo.marker_pathfinding_sphere_vehicle = flags.TestBit("vehicle only")
+                sphere_object.nwo.pathfinding_sphere_with_sectors = flags.TestBit("with sectors")
                 location_coords_str = sphere_element.SelectField("center").GetStringData()
                 location_coords = [float(co) for co in location_coords_str]
                 # sphere_object.location = Vector(location_coords) * 100
                 sphere_object.empty_display_size = float(sphere_element.SelectField("radius").GetStringData()) * 100
                 sphere_object.empty_display_type = "SPHERE"
-                sphere_object.nwo.marker_type_ui = "_connected_geometry_marker_type_pathfinding_sphere"
+                sphere_object.nwo.marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
                 if armature:
                     sphere_object.parent = armature
                     if node in armature_bones:
@@ -175,7 +177,7 @@ class CollisionTag(Tag):
                 for material in {surface.material for surface in surfaces}:
                     if material == 'default': continue
                     layers[f"material:{material}"] = utils.new_face_layer(bm, mesh, material, material, f"face_global_material_override_{str(uuid4())}")
-                    mesh.nwo.face_props[-1].face_global_material_ui = material
+                    mesh.nwo.face_props[-1].face_global_material = material
                     
             if split_sides:
                 layers["flag:two_sided"] = utils.new_face_layer(bm, mesh, material, f"two_sided_{str(uuid4())}", "two_sided_override")
@@ -208,17 +210,17 @@ class CollisionTag(Tag):
                 
         if not split_materials:
             if surfaces[0].material != "default":
-                mesh.nwo.face_global_material_ui = surfaces[0].material
+                mesh.nwo.face_global_material = surfaces[0].material
         if not split_sides:
-            mesh.nwo.face_two_sided_ui = surfaces[0].two_sided
+            mesh.nwo.face_two_sided = surfaces[0].two_sided
         if not split_ladder:
-            mesh.nwo.ladder_ui = surfaces[0].ladder
+            mesh.nwo.ladder = surfaces[0].ladder
         if not split_breakable:
-            mesh.nwo.breakable_ui = surfaces[0].breakable
+            mesh.nwo.breakable = surfaces[0].breakable
         if not split_slip:
-            mesh.nwo.slip_surface_ui = surfaces[0].slip_surface
+            mesh.nwo.slip_surface = surfaces[0].slip_surface
         
-        mesh.nwo.mesh_type_ui = "_connected_geometry_mesh_type_collision"
+        mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
         
         mat = bpy.data.materials.get("+collision")
         if not mat:

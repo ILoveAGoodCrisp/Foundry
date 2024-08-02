@@ -734,7 +734,7 @@ class NWOImporter:
             entry.old = region
             entry.name = region
             
-        ob.nwo.region_name_ui = region
+        ob.nwo.region_name = region
 
     def set_permutation(self, ob, permutation):
         permutations_table = self.context.scene.nwo.permutations_table
@@ -746,7 +746,7 @@ class NWOImporter:
             entry.old = permutation
             entry.name = permutation
             
-        ob.nwo.permutation_name_ui = permutation
+        ob.nwo.permutation_name = permutation
         
     # Camera track import
     def import_camera_tracks(self, paths, animation_scale):
@@ -948,7 +948,7 @@ class NWOImporter:
             for region in self.context.scene.nwo.regions_table:
                 if region_part.startswith(region.name):
                     self.set_region(ob, region.name)
-                    ob.nwo.region_name_ui = region.name
+                    ob.nwo.region_name = region.name
                     ob.nwo.marker_uses_regions = True
                     solved_region = True
                     
@@ -957,7 +957,7 @@ class NWOImporter:
             for permutation in self.context.scene.nwo.permutations_table:
                 if permutation_part.startswith(permutation.name):
                     self.set_permutation(ob, permutation.name)
-                    ob.nwo.permutation_name_ui = permutation.name
+                    ob.nwo.permutation_name = permutation.name
                     ob.nwo.marker_permutations.add().name = permutation.name
                     ob.nwo.marker_permutation_type = 'include'
                     solved_permutation = True
@@ -972,7 +972,7 @@ class NWOImporter:
         name = dot_partition(ob.name)
         if is_model:
             if name.startswith('Instances:'):
-                ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_object_instance'
+                ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_object_instance'
                 self.amf_object_instances.append(ob)
             else:
                 parts = name.split(':')
@@ -982,7 +982,7 @@ class NWOImporter:
                     self.set_permutation(ob, dot_partition(permutation))
         else:
             if name.startswith('Clusters'):
-                ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_structure'
+                ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
             else:
                 self.amf_poops.append(ob)
                     
@@ -993,13 +993,13 @@ class NWOImporter:
         nwo = ob.nwo
         if is_model:
             if name.startswith('fx'):
-                nwo.marker_type_ui = '_connected_geometry_marker_type_effects'
+                nwo.marker_type = '_connected_geometry_marker_type_effects'
             elif name.startswith('target'):
-                nwo.marker_type_ui = '_connected_geometry_marker_type_target'
+                nwo.marker_type = '_connected_geometry_marker_type_target'
             elif name.startswith('garbage'):
-                nwo.marker_type_ui = '_connected_geometry_marker_type_garbage'
+                nwo.marker_type = '_connected_geometry_marker_type_garbage'
             elif name.startswith('hint'):
-                nwo.marker_type_ui = '_connected_geometry_marker_type_hint'
+                nwo.marker_type = '_connected_geometry_marker_type_hint'
                 hint_parts = name.split('_')
                 if len(hint_parts) > 1:
                     hint_type = hint_parts[1]
@@ -1216,7 +1216,7 @@ class NWOImporter:
                 region_entry = self.context.scene.nwo.regions_table.add()
                 region_entry.name = region
                 region_entry.old = region
-            marker.nwo.region_name_ui = region
+            marker.nwo.region_name = region
             marker.nwo.marker_uses_regions = True
             
             if is_model and perm is not None:
@@ -1228,37 +1228,37 @@ class NWOImporter:
                 marker.nwo.marker_permutation_type = 'include'
                 
         if constraint:
-            marker.nwo.marker_type_ui = '_connected_geometry_marker_type_physics_constraint'
-            marker.nwo.physics_constraint_parent_ui = marker.rigid_body_constraint.object1
-            marker.nwo.physics_constraint_child_ui = marker.rigid_body_constraint.object2
+            marker.nwo.marker_type = '_connected_geometry_marker_type_physics_constraint'
+            marker.nwo.physics_constraint_parent = marker.rigid_body_constraint.object1
+            marker.nwo.physics_constraint_child = marker.rigid_body_constraint.object2
             if marker.rigid_body_constraint.type == 'HINGE':
-                marker.nwo.physics_constraint_type_ui = '_connected_geometry_marker_type_physics_hinge_constraint'
+                marker.nwo.physics_constraint_type = '_connected_geometry_marker_type_physics_hinge_constraint'
                 if marker.rigid_body_constraint.use_limit_ang_z:
-                    marker.nwo.physics_constraint_uses_limits_ui = True
-                    marker.nwo.hinge_constraint_minimum_ui = marker.rigid_body_constraint.limit_ang_z_lower
-                    marker.nwo.hinge_constraint_maximum_ui = marker.rigid_body_constraint.limit_ang_z_upper
+                    marker.nwo.physics_constraint_uses_limits = True
+                    marker.nwo.hinge_constraint_minimum = marker.rigid_body_constraint.limit_ang_z_lower
+                    marker.nwo.hinge_constraint_maximum = marker.rigid_body_constraint.limit_ang_z_upper
             elif marker.rigid_body_constraint.type == 'GENERIC':
-                marker.nwo.physics_constraint_type_ui = '_connected_geometry_marker_type_physics_socket_constraint'
+                marker.nwo.physics_constraint_type = '_connected_geometry_marker_type_physics_socket_constraint'
                 if marker.rigid_body_constraint.use_limit_ang_x or marker.rigid_body_constraint.use_limit_ang_y or marker.rigid_body_constraint.use_limit_ang_z:
-                    marker.nwo.physics_constraint_uses_limits_ui = True
+                    marker.nwo.physics_constraint_uses_limits = True
                     if marker.rigid_body_constraint.use_limit_ang_x:
-                        marker.nwo.twist_constraint_start_ui = marker.rigid_body_constraint.limit_ang_x_lower
-                        marker.nwo.twist_constraint_end_ui = marker.rigid_body_constraint.limit_ang_x_upper
+                        marker.nwo.twist_constraint_start = marker.rigid_body_constraint.limit_ang_x_lower
+                        marker.nwo.twist_constraint_end = marker.rigid_body_constraint.limit_ang_x_upper
                     if marker.rigid_body_constraint.use_limit_ang_y:
-                        marker.nwo.cone_angle_ui = marker.rigid_body_constraint.limit_ang_y_upper
+                        marker.nwo.cone_angle = marker.rigid_body_constraint.limit_ang_y_upper
                     if marker.rigid_body_constraint.use_limit_ang_z:
-                        marker.nwo.plane_constraint_minimum_ui = marker.rigid_body_constraint.limit_ang_z_lower
-                        marker.nwo.plane_constraint_maximum_ui = marker.rigid_body_constraint.limit_ang_z_upper
+                        marker.nwo.plane_constraint_minimum = marker.rigid_body_constraint.limit_ang_z_lower
+                        marker.nwo.plane_constraint_maximum = marker.rigid_body_constraint.limit_ang_z_upper
                 
         elif name.startswith('fx'):
-            marker.nwo.marker_type_ui = '_connected_geometry_marker_type_effects'
+            marker.nwo.marker_type = '_connected_geometry_marker_type_effects'
         elif name.startswith('target'):
-            marker.nwo.marker_type_ui = '_connected_geometry_marker_type_target'
+            marker.nwo.marker_type = '_connected_geometry_marker_type_target'
             marker.empty_display_type = 'SPHERE'
         elif name.startswith('garbage'):
-            marker.nwo.marker_type_ui = '_connected_geometry_marker_type_garbage'
+            marker.nwo.marker_type = '_connected_geometry_marker_type_garbage'
         elif name.startswith('hint'):
-            marker.nwo.marker_type_ui = '_connected_geometry_marker_type_hint'
+            marker.nwo.marker_type = '_connected_geometry_marker_type_hint'
             hint_parts = name.split('_')
             if len(hint_parts) > 1:
                 hint_type = hint_parts[1]
@@ -1281,41 +1281,41 @@ class NWOImporter:
                 self.set_poop_policies(ob)
             if mesh_type_legacy:
                 mesh_type, material = self.mesh_and_material(mesh_type_legacy, is_model)
-                ob.data.nwo.mesh_type_ui = mesh_type
-                if ob.data.nwo.sphere_collision_only_ui:
-                    ob.data.nwo.poop_collision_type_ui = '_connected_geometry_poop_collision_type_invisible_wall'
+                ob.data.nwo.mesh_type = mesh_type
+                if ob.data.nwo.sphere_collision_only:
+                    ob.data.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_invisible_wall'
                     if self.corinth:
-                        ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_collision'
-                elif ob.data.nwo.collision_only_ui:
-                    ob.data.nwo.poop_collision_type_ui = '_connected_geometry_poop_collision_type_bullet_collision'
+                        ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
+                elif ob.data.nwo.collision_only:
+                    ob.data.nwo.poop_collision_type = '_connected_geometry_poop_collision_type_bullet_collision'
                     if self.corinth:
-                        ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_collision'
+                        ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_collision'
                         
-                if self.corinth and ob.data.nwo.render_only_ui:
-                    ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_poop'
+                if self.corinth and ob.data.nwo.render_only:
+                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_poop'
                     
-                if self.corinth and ob.data.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure' and ob.data.nwo.slip_surface_ui:
-                    ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
+                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure' and ob.data.nwo.slip_surface:
+                    ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                     ob.nwo.export_this = False
                     
-                if self.corinth and ob.data.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+                if self.corinth and ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_structure':
                     for prop in ob.data.nwo.face_props:
                         if prop.face_two_sided_override:
-                            ob.data.nwo.mesh_type_ui = '_connected_geometry_mesh_type_default'
+                            ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_default'
                             
-                if ob.data.nwo.mesh_type_ui == '_connected_geometry_mesh_type_lightmap_only':
+                if ob.data.nwo.mesh_type == '_connected_geometry_mesh_type_lightmap_only':
                     for prop in ob.data.nwo.face_props:
                         if prop.emissive_override:
                             ob.data.nwo.emissive_active = True
-                            ob.data.nwo.material_lighting_attenuation_cutoff_ui = prop.material_lighting_attenuation_cutoff_ui
-                            ob.data.nwo.material_lighting_attenuation_falloff_ui = prop.material_lighting_attenuation_falloff_ui
-                            ob.data.nwo.material_lighting_emissive_focus_ui = prop.material_lighting_emissive_focus_ui
-                            ob.data.nwo.material_lighting_emissive_color_ui = prop.material_lighting_emissive_color_ui
-                            ob.data.nwo.material_lighting_emissive_per_unit_ui = prop.material_lighting_emissive_per_unit_ui
-                            ob.data.nwo.material_lighting_emissive_power_ui = prop.material_lighting_emissive_power_ui
-                            ob.data.nwo.material_lighting_emissive_quality_ui = prop.material_lighting_emissive_quality_ui
-                            ob.data.nwo.material_lighting_use_shader_gel_ui = prop.material_lighting_use_shader_gel_ui
-                            ob.data.nwo.material_lighting_bounce_ratio_ui = prop.material_lighting_bounce_ratio_ui
+                            ob.data.nwo.material_lighting_attenuation_cutoff = prop.material_lighting_attenuation_cutoff
+                            ob.data.nwo.material_lighting_attenuation_falloff = prop.material_lighting_attenuation_falloff
+                            ob.data.nwo.material_lighting_emissive_focus = prop.material_lighting_emissive_focus
+                            ob.data.nwo.material_lighting_emissive_color = prop.material_lighting_emissive_color
+                            ob.data.nwo.material_lighting_emissive_per_unit = prop.material_lighting_emissive_per_unit
+                            ob.data.nwo.material_lighting_emissive_power = prop.material_lighting_emissive_power
+                            ob.data.nwo.material_lighting_emissive_quality = prop.material_lighting_emissive_quality
+                            ob.data.nwo.material_lighting_use_shader_gel = prop.material_lighting_use_shader_gel
+                            ob.data.nwo.material_lighting_bounce_ratio = prop.material_lighting_bounce_ratio
                             
 
                 if mesh_type_legacy in ('collision', 'physics') and is_model:
@@ -1323,13 +1323,13 @@ class NWOImporter:
                     if mesh_type_legacy == 'physics':
                         match ob.data.ass_jms.Object_Type:
                             case "CAPSULES":
-                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_pill"
+                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_pill"
                             case "SPHERE":
-                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_sphere"
+                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_sphere"
                             case "BOX":
-                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_box"
+                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_box"
                             case _:
-                                ob.nwo.mesh_primitive_type_ui = "_connected_geometry_primitive_type_none"
+                                ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_none"
                     
                 if self.apply_materials:
                     apply_props_material(ob, material)
@@ -1342,9 +1342,9 @@ class NWOImporter:
                     self.set_region(ob, region)
                     self.set_permutation(ob, permutation)
                     
-            if ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_structure':
+            if ob.nwo.mesh_type == '_connected_geometry_mesh_type_structure':
                 ob.nwo.proxy_instance = True
-            elif ob.nwo.mesh_type_ui == '_connected_geometry_mesh_type_seam':
+            elif ob.nwo.mesh_type == '_connected_geometry_mesh_type_seam':
                 ob.nwo.seam_back_manual = True
                 
             self.jms_file_mesh_objects.append(ob)
@@ -1353,25 +1353,25 @@ class NWOImporter:
         for char in ob.name[1:]:
             match char:
                 case '+':
-                    ob.nwo.poop_pathfinding_ui = '_connected_poop_instance_pathfinding_policy_static'
+                    ob.nwo.poop_pathfinding = '_connected_poop_instance_pathfinding_policy_static'
                 case '-':
-                    ob.nwo.poop_pathfinding_ui = '_connected_poop_instance_pathfinding_policy_none'
+                    ob.nwo.poop_pathfinding = '_connected_poop_instance_pathfinding_policy_none'
                 case '?':
-                    ob.nwo.poop_lighting_ui = '_connected_geometry_poop_lighting_per_vertex'
+                    ob.nwo.poop_lighting = '_connected_geometry_poop_lighting_per_vertex'
                 case '!':
-                    ob.nwo.poop_lighting_ui = '_connected_geometry_poop_lighting_per_pixel'
+                    ob.nwo.poop_lighting = '_connected_geometry_poop_lighting_per_pixel'
                 case '>':
-                    ob.nwo.poop_lighting_ui = '_connected_geometry_poop_lighting_single_probe'
+                    ob.nwo.poop_lighting = '_connected_geometry_poop_lighting_single_probe'
                 case '*':
-                    ob.data.nwo.render_only_ui = True
+                    ob.data.nwo.render_only = True
                 case '&':
-                    ob.nwo.poop_chops_portals_ui = True
+                    ob.nwo.poop_chops_portals = True
                 case '^':
-                    ob.nwo.poop_does_not_block_aoe_ui = True
+                    ob.nwo.poop_does_not_block_aoe = True
                 case '<':
-                    ob.nwo.poop_excluded_from_lightprobe_ui = True
+                    ob.nwo.poop_excluded_from_lightprobe = True
                 case '|':
-                    ob.data.nwo.decal_offset_ui = True
+                    ob.data.nwo.decal_offset = True
                 case _:
                     return
         
@@ -1395,43 +1395,43 @@ class NWOImporter:
             jms_mat = jms_materials[0]
             ob.nwo.mesh_type = jms_mat.mesh_type
             nwo = ob.data.nwo
-            nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
-            nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
-            nwo.render_only_ui = jms_mat.render_only
-            nwo.sphere_collision_only_ui = jms_mat.sphere_collision_only
-            nwo.collision_only_ui = jms_mat.collision_only
-            nwo.ladder_ui = jms_mat.ladder
-            nwo.breakable_ui = jms_mat.breakable
-            nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
-            nwo.no_shadow_ui = jms_mat.no_shadow
-            nwo.precise_position_ui = jms_mat.precise
+            nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
+            nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
+            nwo.render_only = jms_mat.render_only
+            nwo.sphere_collision_only = jms_mat.sphere_collision_only
+            nwo.collision_only = jms_mat.collision_only
+            nwo.ladder = jms_mat.ladder
+            nwo.breakable = jms_mat.breakable
+            nwo.portal_ai_deafening = jms_mat.ai_deafening
+            nwo.no_shadow = jms_mat.no_shadow
+            nwo.precise_position = jms_mat.precise
             if jms_mat.portal_one_way:
-                nwo.portal_type_ui = '_connected_geometry_portal_type_one_way'
-            nwo.portal_is_door_ui = jms_mat.portal_door
+                nwo.portal_type = '_connected_geometry_portal_type_one_way'
+            nwo.portal_is_door = jms_mat.portal_door
             if jms_mat.portal_vis_blocker:
-                nwo.portal_type_ui = '_connected_geometry_portal_type_no_way'
-            nwo.no_lightmap_ui = jms_mat.ignored_by_lightmaps
-            nwo.portal_blocks_sounds_ui = jms_mat.blocks_sound
-            nwo.decal_offset_ui = jms_mat.decal_offset
-            nwo.slip_surface_ui = jms_mat.slip_surface
+                nwo.portal_type = '_connected_geometry_portal_type_no_way'
+            nwo.no_lightmap = jms_mat.ignored_by_lightmaps
+            nwo.portal_blocks_sounds = jms_mat.blocks_sound
+            nwo.decal_offset = jms_mat.decal_offset
+            nwo.slip_surface = jms_mat.slip_surface
             
             if jms_mat.lightmap_additive_transparency:
                 nwo.lightmap_additive_transparency_active = True
-                nwo.lightmap_additive_transparency_ui = jms_mat.lightmap_additive_transparency
+                nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
             if jms_mat.lightmap_translucency_tint_color:
                 nwo.lightmap_translucency_tint_color_active = True
-                nwo.lightmap_translucency_tint_color_ui = jms_mat.lightmap_translucency_tint_color
+                nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
             # Emissive
             if jms_mat.emissive_power:
                 nwo.emissive_active = True
-                nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power
-                nwo.material_lighting_emissive_color_ui = jms_mat.emissive_color
-                nwo.material_lighting_emissive_quality_ui = jms_mat.emissive_quality
-                nwo.material_lighting_emissive_per_unit_ui = jms_mat.emissive_per_unit
-                nwo.material_lighting_use_shader_gel_ui = jms_mat.emissive_shader_gel
-                nwo.material_lighting_emissive_focus_ui = jms_mat.emissive_focus
-                nwo.material_lighting_attenuation_falloff_ui = jms_mat.emissive_attenuation_falloff
-                nwo.material_lighting_attenuation_cutoff_ui = jms_mat.emissive_attenuation_cutoff
+                nwo.material_lighting_emissive_power = jms_mat.emissive_power
+                nwo.material_lighting_emissive_color = jms_mat.emissive_color
+                nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
+                nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+                nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+                nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
+                nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+                nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
         
         mesh_types = list(set([m.mesh_type for m in jms_materials if m.mesh_type]))
         if len(mesh_types) == 1:
@@ -1484,46 +1484,46 @@ class NWOImporter:
                     jms_mat = jms_mats[0]
                     ob.nwo.mesh_type = jms_mat.mesh_type
                     nwo = ob.data.nwo
-                    nwo.face_two_sided_ui = jms_mat.two_sided or jms_mat.transparent_two_sided
-                    nwo.face_transparent_ui = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
-                    nwo.render_only_ui = jms_mat.render_only
-                    nwo.sphere_collision_only_ui = jms_mat.sphere_collision_only
-                    nwo.collision_only_ui = jms_mat.collision_only
-                    nwo.ladder_ui = jms_mat.ladder
-                    nwo.breakable_ui = jms_mat.breakable
-                    nwo.portal_ai_deafening_ui = jms_mat.ai_deafening
-                    nwo.no_shadow_ui = jms_mat.no_shadow
-                    nwo.precise_position_ui = jms_mat.precise
+                    nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
+                    nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
+                    nwo.render_only = jms_mat.render_only
+                    nwo.sphere_collision_only = jms_mat.sphere_collision_only
+                    nwo.collision_only = jms_mat.collision_only
+                    nwo.ladder = jms_mat.ladder
+                    nwo.breakable = jms_mat.breakable
+                    nwo.portal_ai_deafening = jms_mat.ai_deafening
+                    nwo.no_shadow = jms_mat.no_shadow
+                    nwo.precise_position = jms_mat.precise
                     if jms_mat.portal_one_way:
-                        nwo.portal_type_ui = '_connected_geometry_portal_type_one_way'
-                    nwo.portal_is_door_ui = jms_mat.portal_door
+                        nwo.portal_type = '_connected_geometry_portal_type_one_way'
+                    nwo.portal_is_door = jms_mat.portal_door
                     if jms_mat.portal_vis_blocker:
-                        nwo.portal_type_ui = '_connected_geometry_portal_type_no_way'
-                    nwo.no_lightmap_ui = jms_mat.ignored_by_lightmaps
-                    nwo.portal_blocks_sounds_ui = jms_mat.blocks_sound
-                    nwo.decal_offset_ui = jms_mat.decal_offset
-                    nwo.slip_surface_ui = jms_mat.slip_surface
+                        nwo.portal_type = '_connected_geometry_portal_type_no_way'
+                    nwo.no_lightmap = jms_mat.ignored_by_lightmaps
+                    nwo.portal_blocks_sounds = jms_mat.blocks_sound
+                    nwo.decal_offset = jms_mat.decal_offset
+                    nwo.slip_surface = jms_mat.slip_surface
                     # Lightmap
                     # if jms_mat.lightmap_resolution_scale:
                     #     nwo.lightmap_resolution_scale_active = True
-                    #     nwo.lightmap_resolution_scale_ui = jms_mat.lightmap_resolution_scale
+                    #     nwo.lightmap_resolution_scale = jms_mat.lightmap_resolution_scale
                     if jms_mat.lightmap_additive_transparency:
                         nwo.lightmap_additive_transparency_active = True
-                        nwo.lightmap_additive_transparency_ui = jms_mat.lightmap_additive_transparency
+                        nwo.lightmap_additive_transparency = jms_mat.lightmap_additive_transparency
                     if jms_mat.lightmap_translucency_tint_color:
                         nwo.lightmap_translucency_tint_color_active = True
-                        nwo.lightmap_translucency_tint_color_ui = jms_mat.lightmap_translucency_tint_color
+                        nwo.lightmap_translucency_tint_color = jms_mat.lightmap_translucency_tint_color
                     # Emissive
                     if jms_mat.emissive_power:
                         nwo.emissive_active = True
-                        nwo.material_lighting_emissive_power_ui = jms_mat.emissive_power
-                        nwo.material_lighting_emissive_color_ui = jms_mat.emissive_color
-                        nwo.material_lighting_emissive_quality_ui = jms_mat.emissive_quality
-                        nwo.material_lighting_emissive_per_unit_ui = jms_mat.emissive_per_unit
-                        nwo.material_lighting_use_shader_gel_ui = jms_mat.emissive_shader_gel
-                        nwo.material_lighting_emissive_focus_ui = jms_mat.emissive_focus
-                        nwo.material_lighting_attenuation_falloff_ui = jms_mat.emissive_attenuation_falloff
-                        nwo.material_lighting_attenuation_cutoff_ui = jms_mat.emissive_attenuation_cutoff
+                        nwo.material_lighting_emissive_power = jms_mat.emissive_power
+                        nwo.material_lighting_emissive_color = jms_mat.emissive_color
+                        nwo.material_lighting_emissive_quality = jms_mat.emissive_quality
+                        nwo.material_lighting_emissive_per_unit = jms_mat.emissive_per_unit
+                        nwo.material_lighting_use_shader_gel = jms_mat.emissive_shader_gel
+                        nwo.material_lighting_emissive_focus = jms_mat.emissive_focus
+                        nwo.material_lighting_attenuation_falloff = jms_mat.emissive_attenuation_falloff
+                        nwo.material_lighting_attenuation_cutoff = jms_mat.emissive_attenuation_cutoff
                     
             elif len(ob.data.materials) > 1:
                 bm = bmesh.new()
@@ -1625,21 +1625,21 @@ class NWOImporter:
                         #     if bm.faces.layers.int.get(l_name):
                         #         layers[idx].append(bm.faces.layers.int.get(l_name))
                         #     else:
-                        #         layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale_ui": jms_mat.lightmap_resolution_scale})))
+                        #         layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Resolution Scale", "lightmap_resolution_scale_override", {"lightmap_resolution_scale": jms_mat.lightmap_resolution_scale})))
                         
                         if jms_mat.lightmap_translucency_tint_color:
                             l_name = 'lightmap_translucency_tint_color'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color_ui": jms_mat.lightmap_translucency_tint_color})))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color": jms_mat.lightmap_translucency_tint_color})))
                         
                         if jms_mat.lightmap_additive_transparency:
                             l_name = 'lightmap_additive_transparency'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency_ui": jms_mat.lightmap_additive_transparency})))
+                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency": jms_mat.lightmap_additive_transparency})))
                         
                         # Emissive
                         if jms_mat.emissive_power:
@@ -1648,14 +1648,14 @@ class NWOImporter:
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
                                 emissive_props_dict = {
-                                    "material_lighting_emissive_power_ui": jms_mat.emissive_power,
-                                    "material_lighting_emissive_color_ui": jms_mat.emissive_color,
-                                    "material_lighting_emissive_quality_ui": jms_mat.emissive_quality,
-                                    "material_lighting_emissive_per_unit_ui": jms_mat.emissive_per_unit,
-                                    "material_lighting_use_shader_gel_ui": jms_mat.emissive_shader_gel,
-                                    "material_lighting_emissive_focus_ui": jms_mat.emissive_focus,
-                                    "material_lighting_attenuation_falloff_ui": jms_mat.emissive_attenuation_falloff,
-                                    "material_lighting_attenuation_cutoff_ui": jms_mat.emissive_attenuation_cutoff,
+                                    "material_lighting_emissive_power": jms_mat.emissive_power,
+                                    "material_lighting_emissive_color": jms_mat.emissive_color,
+                                    "material_lighting_emissive_quality": jms_mat.emissive_quality,
+                                    "material_lighting_emissive_per_unit": jms_mat.emissive_per_unit,
+                                    "material_lighting_use_shader_gel": jms_mat.emissive_shader_gel,
+                                    "material_lighting_emissive_focus": jms_mat.emissive_focus,
+                                    "material_lighting_attenuation_falloff": jms_mat.emissive_attenuation_falloff,
+                                    "material_lighting_attenuation_cutoff": jms_mat.emissive_attenuation_cutoff,
                                 }
                                 layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
                         
@@ -1691,7 +1691,7 @@ class NWOImporter:
             return
         if mesh_type_legacy == 'physics' or len(ob.material_slots) == 1:
             if ob.material_slots[0].material:
-                ob.data.nwo.face_global_material_ui = ob.material_slots[0].material.name
+                ob.data.nwo.face_global_material = ob.material_slots[0].material.name
                 
         elif mesh_type_legacy == 'collision':
             face_props = ob.data.nwo.face_props
@@ -1701,7 +1701,7 @@ class NWOImporter:
                 layer = face_props.add()
                 layer.name = slot.material.name
                 layer.layer_name = 'face_global_material'
-                layer.face_global_material_ui = slot.material.name
+                layer.face_global_material = slot.material.name
                 layer.face_global_material_override = True
                 material_index = slot.slot_index
                 layer.layer_name, layer.face_count = self.add_collision_face_layer(ob.data, material_index, layer.layer_name)

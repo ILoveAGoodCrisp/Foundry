@@ -192,7 +192,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
         layout.use_property_split = True
         # PROJECT
         row = layout.row()
-        if managed_blam.mb_active():
+        if managed_blam.mb_active:
             row.enabled = False
         projects = get_prefs().projects
         scene = context.scene

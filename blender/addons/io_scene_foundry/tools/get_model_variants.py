@@ -38,10 +38,10 @@ class NWO_GetModelVariants(bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        return context.object.nwo.marker_game_instance_tag_name_ui and Path(get_tags_path(), context.object.nwo.marker_game_instance_tag_name_ui).exists()
+        return context.object.nwo.marker_game_instance_tag_name and Path(get_tags_path(), context.object.nwo.marker_game_instance_tag_name).exists()
     
     def variant_items(self, context):
-        with ObjectTag(path=context.object.nwo.marker_game_instance_tag_name_ui) as object:
+        with ObjectTag(path=context.object.nwo.marker_game_instance_tag_name) as object:
             model_tag = object.get_model_tag_path()
         if not model_tag or not Path(get_tags_path(), model_tag).exists():
             return [("default", "default", "")]
@@ -62,8 +62,8 @@ class NWO_GetModelVariants(bpy.types.Operator):
     
     def execute(self, context):
         nwo = context.object.nwo
-        if str(Path(get_tags_path(), nwo.marker_game_instance_tag_name_ui)):
-            nwo.marker_game_instance_tag_variant_name_ui = self.variant
+        if str(Path(get_tags_path(), nwo.marker_game_instance_tag_name)):
+            nwo.marker_game_instance_tag_variant_name = self.variant
             return {'FINISHED'}
         
         self.report({'ERROR'}, "Tag does not exist or is not a valid type. Cannot find variants")

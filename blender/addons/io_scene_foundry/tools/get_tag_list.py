@@ -83,17 +83,17 @@ class NWO_GetTagsList(bpy.types.Operator):
     
 def extensions_from_type(list_type):
     match list_type:
-        case "marker_game_instance_tag_name_ui":
+        case "marker_game_instance_tag_name":
             return (".crate", ".scenery", ".effect_scenery", ".device_control", ".device_machine", ".device_terminal",
                         ".device_dispenser", ".biped", ".creature", ".giant", ".vehicle", ".weapon", ".equipment",
                         ".prefab", ".light", ".cheap_light", ".leaf", ".decorator_set")
-        case 'marker_looping_effect_ui':
+        case 'marker_looping_effect':
             return (".effect")
-        case 'marker_light_cone_tag_ui':
+        case 'marker_light_cone_tag':
             return (".light_cone")
-        case 'marker_light_cone_curve_ui':
+        case 'marker_light_cone_curve':
             return (".curve_scalar")
-        case 'fog_appearance_tag_ui':
+        case 'fog_appearance_tag':
             return (".planar_fog_parameters")
         case 'light_tag_override':
             return (".light")
@@ -215,15 +215,15 @@ class NWO_TagExplore(bpy.types.Operator):
     
 def get_glob_from_prop(prop):
     match prop:
-        case 'marker_game_instance_tag_name_ui':
+        case 'marker_game_instance_tag_name':
             return "*.biped;*.crate;*.creature;*.device_*;*.effect_sc*;*.equipment;*.giant;*.scenery;*.vehicle;*.weapon;*.prefab;*.cheap_light;*.light"
-        case 'fog_appearance_tag_ui':
+        case 'fog_appearance_tag':
             return "*.pl*parameters"
-        case 'marker_looping_effect_ui':
+        case 'marker_looping_effect':
             return "*.effect"
-        case 'marker_light_cone_tag_ui':
+        case 'marker_light_cone_tag':
             return "*.light_cone"
-        case 'marker_light_cone_curve_ui':
+        case 'marker_light_cone_curve':
             return "*.curve_scalar"
         case 'light_tag_override':
             return "*.light"

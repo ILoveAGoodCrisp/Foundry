@@ -32,30 +32,30 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
             layout.operator(self.op_prefix, text="Region").options = "region"
         # if (
         #     poll_ui("scenario")
-        #     and nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
+        #     and nwo.mesh_type == "_connected_geometry_mesh_type_default"
         # ):
         #     layout.operator(self.op_prefix, text="Seam").options = "seam"
         if (h4 and
-            (nwo.mesh_type_ui == "_connected_geometry_mesh_type_collision"
-            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_physics"
-            or nwo.mesh_type_ui == "_connected_geometry_mesh_type_default"
-            or (nwo.mesh_type_ui == "_connected_geometry_mesh_type_structure" and poll_ui(('scenario', 'prefab')))
-        ) or (not h4 and nwo.mesh_type_ui in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision"))):
+            (nwo.mesh_type == "_connected_geometry_mesh_type_collision"
+            or nwo.mesh_type == "_connected_geometry_mesh_type_physics"
+            or nwo.mesh_type == "_connected_geometry_mesh_type_default"
+            or (nwo.mesh_type == "_connected_geometry_mesh_type_structure" and poll_ui(('scenario', 'prefab')))
+        ) or (not h4 and nwo.mesh_type in ("_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_collision"))):
             layout.operator(
                 self.op_prefix, text="Collision Material"
             ).options = "face_global_material"
-        if nwo.mesh_type_ui in (
+        if nwo.mesh_type in (
             "_connected_geometry_mesh_type_default",
             "_connected_geometry_mesh_type_structure",
             "_connected_geometry_mesh_type_collision",
         ):
             layout.operator(self.op_prefix, text="Two Sided").options = "two_sided"
-            if nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+            if nwo.mesh_type != '_connected_geometry_mesh_type_collision':
                 layout.operator(self.op_prefix, text="Transparent").options = "transparent"
                 if context.scene.nwo.asset_type in ('model', 'sky'):
                     layout.operator(self.op_prefix, text="Draw Distance").options = "draw_distance"
         if poll_ui(("model", "scenario", "prefab")):
-            if nwo.mesh_type_ui in (
+            if nwo.mesh_type in (
                 "_connected_geometry_mesh_type_default",
                 "_connected_geometry_mesh_type_structure",
             ):
@@ -63,8 +63,8 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     self.op_prefix, text="Uncompressed"
                 ).options = "precise_position"
                 
-            if poll_ui(("scenario", "prefab")) and nwo.mesh_type_ui in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
-                if h4 and nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+            if poll_ui(("scenario", "prefab")) and nwo.mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_structure', '_connected_geometry_mesh_type_collision'):
+                if h4 and nwo.mesh_type != '_connected_geometry_mesh_type_collision':
                     layout.operator(
                         self.op_prefix, text="No Lightmap"
                     ).options = "no_lightmap"
@@ -81,7 +81,7 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                     layout.operator(
                         self.op_prefix, text="Breakable"
                     ).options = "breakable"
-                if nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+                if nwo.mesh_type != '_connected_geometry_mesh_type_collision':
                     layout.operator(
                         self.op_prefix, text="Decal Offset"
                     ).options = "decal_offset"
@@ -89,20 +89,20 @@ class NWO_FaceLayerAddMenu(bpy.types.Menu):
                         self.op_prefix, text="No Shadow"
                     ).options = "no_shadow"
             elif poll_ui(("model")):
-                if nwo.mesh_type_ui == '_connected_geometry_mesh_type_collision' and not h4:
+                if nwo.mesh_type == '_connected_geometry_mesh_type_collision' and not h4:
                     layout.operator(
                         self.op_prefix, text="Ladder"
                     ).options = "ladder"
                     layout.operator(
                         self.op_prefix, text="Slip Surface"
                     ).options = "slip_surface"
-                elif nwo.mesh_type_ui != '_connected_geometry_mesh_type_collision':
+                elif nwo.mesh_type != '_connected_geometry_mesh_type_collision':
                     layout.operator(
                         self.op_prefix, text="Decal Offset"
                     ).options = "decal_offset"
 
         if poll_ui(("scenario", "prefab")):
-            if nwo.mesh_type_ui == "_connected_geometry_mesh_type_default":
+            if nwo.mesh_type == "_connected_geometry_mesh_type_default":
                 layout.operator(
                     self.op_prefix, text="Render Only"
                 ).options = "render_only"
@@ -411,7 +411,7 @@ class NWO_FaceLayerAdd(bpy.types.Operator):
         if self.options == "region":
             region = context.scene.nwo.regions_table[0].name
             item.name = 'region' + '::' + region
-            item.region_name_ui = region
+            item.region_name = region
             
         context.area.tag_redraw()
         # gotta do this mess so undo states correctly register
@@ -877,7 +877,7 @@ class NWO_RegionListFace(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.object.data.nwo
-        nwo.face_props[nwo.face_props_index].region_name_ui = self.region
+        nwo.face_props[nwo.face_props_index].region_name = self.region
         return {"FINISHED"}
 
 
@@ -888,7 +888,7 @@ class NWO_GlobalMaterialRegionListFace(NWO_RegionListFace):
 
     def execute(self, context):
         nwo = context.object.data.nwo
-        nwo.face_props[nwo.face_props_index].face_global_material_ui = self.region
+        nwo.face_props[nwo.face_props_index].face_global_material = self.region
         return {"FINISHED"}
 
 

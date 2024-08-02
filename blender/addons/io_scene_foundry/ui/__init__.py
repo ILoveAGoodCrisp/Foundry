@@ -218,9 +218,9 @@ def object_context_apply_types(self, context):
         object_type = get_object_type(ob, True)
         if object_type in ('Mesh', 'Marker'):
             if object_type == 'Mesh':
-                type_name, type_icon = get_mesh_display(ob.nwo.mesh_type_ui)
+                type_name, type_icon = get_mesh_display(ob.nwo.mesh_type)
             elif object_type == 'Marker':
-                type_name, type_icon = get_marker_display(ob.nwo.marker_type_ui)
+                type_name, type_icon = get_marker_display(ob.nwo.marker_type)
             layout.label(text=f'Halo {object_type} ({type_name})', icon_value=type_icon)
         elif object_type == 'Frame':
             layout.label(text=f'Halo {object_type}', icon_value=get_icon_id('frame'))
@@ -254,7 +254,7 @@ def object_context_sets(self, context):
     nwo = ob.nwo
     if regions_valid:
         row = layout.row()
-        if nwo.region_name_locked_ui:
+        if nwo.region_name_locked:
             row.enabled = False
             row.label(text=f"{region_name}: " + true_region(nwo), icon_value=get_icon_id("collection_creator"))
         else:
@@ -262,7 +262,7 @@ def object_context_sets(self, context):
     
     if permutations_valid:
         row = layout.row()
-        if nwo.permutation_name_locked_ui:
+        if nwo.permutation_name_locked:
             row.enabled = False
             row.label(text=f"{permutation_name}: " + true_permutation(nwo), icon_value=get_icon_id("collection_creator"))
         else:

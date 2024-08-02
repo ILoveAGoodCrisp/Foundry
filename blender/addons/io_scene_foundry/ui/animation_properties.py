@@ -298,7 +298,7 @@ class NWO_Animation_ListItems(PropertyGroup):
     )
     
     def poll_ik_target_marker(self, object):
-        return is_marker(object) and object.nwo.marker_type_ui == '_connected_geometry_marker_type_model'
+        return is_marker(object) and object.nwo.marker_type == '_connected_geometry_marker_type_model'
     
     ik_target_marker: bpy.props.PointerProperty(
         name="Target Marker",

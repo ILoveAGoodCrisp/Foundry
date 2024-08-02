@@ -2,6 +2,7 @@
 
 from enum import Enum
 from typing import Iterable
+from uuid import uuid4
 import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
@@ -114,6 +115,166 @@ class RenderArmature():
             node.bone.parent = parent
             transform_matrix = parent.matrix @ node.transform_matrix
             node.bone.matrix = transform_matrix
+            
+class CollisionMaterial:
+    index: int
+    name: str
+    
+    def __init__(self, element: TagFieldBlockElement):
+        self.index = element.ElementIndex
+        self.name = element.Fields[0].Data
+        
+class CollisionVertex:
+    index: int
+    element: TagFieldBlockElement
+    point: tuple[float]
+    first_edge: 'CollisionEdge'
+    
+    def __init__(self, element: TagFieldBlockElement):
+        self.index = element.ElementIndex
+        self.element = element
+        self.point = element.Fields[0].Data
+        self.first_edge = element.Fields[1].Data
+        
+    def set_edge(self, edges: list['CollisionEdge']):
+        self.first_edge = edges[self.element.Fields[1].Data]
+        
+    @property
+    def position(self) -> Vector:
+        return Vector(self.point) * 100
+        
+class CollisionSurface:
+    element: TagFieldBlockElement
+    index: int
+    first_edge: int
+    material: CollisionMaterial
+    two_sided: bool
+    ladder: bool
+    breakable: bool
+    slip_surface: bool
+    
+    def __init__(self, element: TagFieldBlockElement, materials: list[CollisionMaterial]):
+        self.index = element.ElementIndex
+        self.material = next(m for m in materials if m.index == element.SelectField("material").Data)
+        flags = element.SelectField("flags")
+        self.two_sided = flags.TestBit("two sided")
+        self.ladder = flags.TestBit("climbable")
+        self.breakable = flags.TestBit("breakable")
+        self.slip_surface = flags.TestBit("slip")
+        
+    def set_edge(self, edges: list['CollisionEdge']):
+        self.first_edge = edges[self.element.Fields[1].Data]
+        
+class CollisionEdge:
+    element: TagFieldBlockElement
+    index: int
+    start_vertex: int
+    end_vertex: int
+    forward_edge: int
+    reverse_edge: int
+    left_surface: int
+    left_surface: int
+    
+    def __init__(self, element: TagFieldBlockElement, surfaces: list[CollisionSurface], vertices: list[CollisionVertex]):
+        self.element = element
+        self.index = element.ElementIndex
+        self.start_vertex = element.SelectField("start vertex").Data
+        self.end_vertex = element.SelectField("start vertex").Data
+        self.forward_edge = element.SelectField("forward edge").Data
+        self.reverse_edge = element.SelectField("reverse edge").Data
+        self.left_surface = element.SelectField("left surface").Data
+        self.left_surface = element.SelectField("right surface").Data
+        
+class BSP:
+    name: str
+    index: int
+    node_index: int
+    bone: str
+    surfaces: list[CollisionSurface]
+    edges: list[CollisionEdge]
+    vertices: list[CollisionVertex]
+    
+    def __init__(self, element: TagFieldBlockElement, name, nodes: list[Node] = None):
+        self.name = name
+        self.index = element.ElementIndex
+        self.node_index = element.Fields[0].Data
+        self.bone = ""
+        if nodes:
+            self.bone = nodes[self.node_index].name
+        
+        self.surfaces = [CollisionSurface(e) for e in element.SelectField("surfaces").Element]
+        self.vertices = [CollisionVertex(e) for e in element.SelectField("vertices").Element]
+        self.edges = [CollisionEdge(e) for e in element.SelectField("edges").Element]
+        
+    def to_object(self, materials: list[CollisionMaterial]) -> bpy.types.Object:
+        indices = []
+        # Traverse surfaces and build a face indices map
+        for surface in self.surfaces:
+            edge = self.edges[surface.first_edge]
+            polygon = []
+            while True:
+                if surface.first_edge.left_surface == surface.index:
+                    polygon.append(self.edges[surface.first_edge].start_vertex)
+                    if surface.first_edge.forward_edge == surface.first_edge: break
+                    edge = self.edges[edge.forward_edge]
+                else:
+                    polygon.append(self.edges[surface.first_edge].end_vertex)
+                    if edge.reverse_edge == surface.first_edge: break
+                    edge = self.edges[edge.reverse_edge]
+                    
+            
+            indices.append(polygon)
+            
+        # Create the bpy mesh
+        mesh = bpy.data.meshes.new(self.name)
+        mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=indices)
+        
+        # Check if we need to set any per face properties
+        map_material, map_two_sided, map_ladder, map_breakable, map_slip = [], [], [], [], []
+        for surface in self.surfaces:
+            map_material.append(surface.material.name)
+            map_two_sided.append(surface.two_sided)
+            map_ladder.append(surface.ladder)
+            map_breakable.append(surface.breakable)
+            map_slip.append(surface.slip_surface)
+            
+        split_material, split_two_sided, split_ladder, split_breakable, split_slip = len(set(map_material)) > 1, len(set(map_two_sided)) > 1, len(set(map_ladder)) > 1, len(set(map_breakable)) > 1, len(set(map_slip)) > 1
+            
+        if split_material or split_two_sided or split_ladder or split_breakable or split_slip:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            
+        if split_material:
+            for material in split_material:
+                layer = utils.new_face_layer(bm, mesh, f"face_global_material_{str(uuid4())}", "Collision Material", "face_global_material_override", {"face_global_material": material})
+                for face in bm.faces: face[layer] = 1
+        else:
+            if surface.material != "default":
+                mesh.nwo.face_global_material = surface.material.name
+                
+        if split_two_sided:
+            for material in split_material:
+                layer = utils.new_face_layer(bm, mesh, f"two_sided_{str(uuid4())}", "Collision Material", "face_global_material_override", {"face_global_material": material})
+                for face in bm.faces: face[layer] = 1
+        else:
+            mesh.nwo.face_two_sided = surface.two_sided
+            
+        if split_ladder:
+            pass
+        else:
+            mesh.nwo.ladder = surface.ladder
+            
+        if split_breakable:
+            pass
+        else:
+            mesh.nwo.breakable = surface.breakable
+            
+        if split_slip:
+            pass
+        else:
+            mesh.nwo.slip_surface = surface.slip_surface
+        
+        
             
 class CompressionBounds:
     co_matrix: Matrix
@@ -582,7 +743,7 @@ class MarkerGroup:
                 ob.matrix_local = Matrix.Translation([0, edit_armature.lengths[marker.bone], 0]).inverted() @ Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1))
 
             nwo = ob.nwo
-            nwo.marker_type_ui = self.type.name
+            nwo.marker_type = self.type.name
             if marker.region:
                 nwo.marker_uses_regions = True
                 utils.set_region(ob, marker.region.name)
@@ -606,7 +767,7 @@ class MarkerGroup:
                 ob.empty_display_size = marker.scale * 100
                 ob.empty_display_type = "SPHERE"
             elif self.type == MarkerType._connected_geometry_marker_type_garbage:
-                ob.nwo.marker_velocity_ui = marker.direction
+                ob.nwo.marker_velocity = marker.direction
             elif self.type == MarkerType._connected_geometry_marker_type_hint:
                 hint_parts = self.name.split('_')
                 if len(hint_parts) > 1:

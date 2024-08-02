@@ -93,66 +93,66 @@ class NWO_JoinHalo(NWO_Op):
         new_layer.face_type_ui = old_layer.face_type_ui
         new_layer.face_mode_ui = old_layer.face_mode_ui
         new_layer.face_sides_ui = old_layer.face_sides_ui
-        new_layer.face_two_sided_ui = old_layer.face_two_sided_ui
-        new_layer.face_draw_distance_ui = old_layer.face_draw_distance_ui
+        new_layer.face_two_sided = old_layer.face_two_sided
+        new_layer.face_draw_distance = old_layer.face_draw_distance
         new_layer.texcoord_usage_ui = old_layer.texcoord_usage_ui
-        new_layer.region_name_ui = old_layer.region_name_ui
-        new_layer.face_global_material_ui = old_layer.face_global_material_ui
+        new_layer.region_name = old_layer.region_name
+        new_layer.face_global_material = old_layer.face_global_material
         new_layer.sky_permutation_index_ui = old_layer.sky_permutation_index_ui
-        new_layer.ladder_ui = old_layer.ladder_ui
-        new_layer.slip_surface_ui = old_layer.slip_surface_ui
-        new_layer.decal_offset_ui = old_layer.decal_offset_ui
+        new_layer.ladder = old_layer.ladder
+        new_layer.slip_surface = old_layer.slip_surface
+        new_layer.decal_offset = old_layer.decal_offset
         new_layer.group_transparents_by_plane_ui = (
             old_layer.group_transparents_by_plane_ui
         )
-        new_layer.no_shadow_ui = old_layer.no_shadow_ui
-        new_layer.precise_position_ui = old_layer.precise_position_ui
-        new_layer.no_lightmap_ui = old_layer.no_lightmap_ui
-        new_layer.no_pvs_ui = old_layer.no_pvs_ui
-        new_layer.lightmap_additive_transparency_ui = (
-            old_layer.lightmap_additive_transparency_ui
+        new_layer.no_shadow = old_layer.no_shadow
+        new_layer.precise_position = old_layer.precise_position
+        new_layer.no_lightmap = old_layer.no_lightmap
+        new_layer.no_pvs = old_layer.no_pvs
+        new_layer.lightmap_additive_transparency = (
+            old_layer.lightmap_additive_transparency
         )
-        new_layer.lightmap_resolution_scale_ui = old_layer.lightmap_resolution_scale_ui
-        new_layer.lightmap_photon_fidelity_ui = old_layer.lightmap_photon_fidelity_ui
-        new_layer.lightmap_type_ui = old_layer.lightmap_type_ui
-        new_layer.lightmap_analytical_bounce_modifier_ui = (
-            old_layer.lightmap_analytical_bounce_modifier_ui
+        new_layer.lightmap_resolution_scale = old_layer.lightmap_resolution_scale
+        new_layer.lightmap_photon_fidelity = old_layer.lightmap_photon_fidelity
+        new_layer.lightmap_type = old_layer.lightmap_type
+        new_layer.lightmap_analytical_bounce_modifier = (
+            old_layer.lightmap_analytical_bounce_modifier
         )
-        new_layer.lightmap_general_bounce_modifier_ui = (
-            old_layer.lightmap_general_bounce_modifier_ui
+        new_layer.lightmap_general_bounce_modifier = (
+            old_layer.lightmap_general_bounce_modifier
         )
-        new_layer.lightmap_translucency_tint_color_ui = (
-            old_layer.lightmap_translucency_tint_color_ui
+        new_layer.lightmap_translucency_tint_color = (
+            old_layer.lightmap_translucency_tint_color
         )
-        new_layer.lightmap_lighting_from_both_sides_ui = (
-            old_layer.lightmap_lighting_from_both_sides_ui
+        new_layer.lightmap_lighting_from_both_sides = (
+            old_layer.lightmap_lighting_from_both_sides
         )
-        new_layer.material_lighting_attenuation_cutoff_ui = (
-            old_layer.material_lighting_attenuation_cutoff_ui
+        new_layer.material_lighting_attenuation_cutoff = (
+            old_layer.material_lighting_attenuation_cutoff
         )
-        new_layer.material_lighting_attenuation_falloff_ui = (
-            old_layer.material_lighting_attenuation_falloff_ui
+        new_layer.material_lighting_attenuation_falloff = (
+            old_layer.material_lighting_attenuation_falloff
         )
-        new_layer.material_lighting_emissive_focus_ui = (
-            old_layer.material_lighting_emissive_focus_ui
+        new_layer.material_lighting_emissive_focus = (
+            old_layer.material_lighting_emissive_focus
         )
-        new_layer.material_lighting_emissive_color_ui = (
-            old_layer.material_lighting_emissive_color_ui
+        new_layer.material_lighting_emissive_color = (
+            old_layer.material_lighting_emissive_color
         )
-        new_layer.material_lighting_emissive_per_unit_ui = (
-            old_layer.material_lighting_emissive_per_unit_ui
+        new_layer.material_lighting_emissive_per_unit = (
+            old_layer.material_lighting_emissive_per_unit
         )
-        new_layer.material_lighting_emissive_power_ui = (
-            old_layer.material_lighting_emissive_power_ui
+        new_layer.material_lighting_emissive_power = (
+            old_layer.material_lighting_emissive_power
         )
-        new_layer.material_lighting_emissive_quality_ui = (
-            old_layer.material_lighting_emissive_quality_ui
+        new_layer.material_lighting_emissive_quality = (
+            old_layer.material_lighting_emissive_quality
         )
-        new_layer.material_lighting_use_shader_gel_ui = (
-            old_layer.material_lighting_use_shader_gel_ui
+        new_layer.material_lighting_use_shader_gel = (
+            old_layer.material_lighting_use_shader_gel
         )
-        new_layer.material_lighting_bounce_ratio_ui = (
-            old_layer.material_lighting_bounce_ratio_ui
+        new_layer.material_lighting_bounce_ratio = (
+            old_layer.material_lighting_bounce_ratio
         )
 
     def execute(self, context):
