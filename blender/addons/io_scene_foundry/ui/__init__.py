@@ -1,517 +1,150 @@
-import os
 import bpy
-from ..tools.scenario.zone_sets import NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets, NWO_OT_ZoneSetMove
-from ..icons import get_icon_id
-from ..tools.collection_apply import NWO_ApplyCollectionMenu, NWO_ApplyCollectionType, NWO_PermutationListCollection, NWO_RegionListCollection
 
-from ..ui.collection_properties import NWO_CollectionPropertiesGroup
-from ..ui.nodes_ui import NWO_HaloMaterialNodes, NWO_HaloMaterialTilingNode, node_context_menu
-from ..utils import get_marker_display, get_mesh_display, get_object_type, is_marker, is_mesh, true_permutation, true_region
+from . import bar, node_editor, outliner, viewport, panel
+from .panel import animation, asset, help, material, object, scene, sets, setting, tools
 
-# from bpy.types import ASSET_OT_open_containing_blend_file as op_blend_file
-from .templates import NWO_Op
-from bpy.props import (
-    PointerProperty,
-)
-
-# import classes from other files
-
-from .face_ui import (
-    NWO_FaceLayerAddMenu,
-    NWO_FacePropAddMenu,
-    NWO_UL_FacePropList,
-    NWO_EditMode,
-    NWO_FaceLayerAdd,
-    NWO_FaceLayerRemove,
-    NWO_FaceLayerAssign,
-    NWO_FaceLayerSelect,
-    NWO_FaceLayerMove,
-    NWO_FaceLayerAddFaceMode,
-    NWO_FaceLayerAddLightmap,
-    NWO_FacePropRemove,
-    NWO_FacePropAdd,
-    NWO_FacePropAddFaceMode,
-    NWO_FacePropAddLightmap,
-    NWO_FaceLayerColorAll,
-    NWO_FaceLayerColor,
-    NWO_RegionListFace,
-    NWO_GlobalMaterialRegionListFace,
-    NWO_GlobalMaterialMenuFace,
-    NWO_UpdateLayersFaceCount,
-)
-
-from .face_properties import NWO_FaceProperties_ListItems
-
-from .object_properties import (
-    NWO_MarkerPermutationItems,
-    NWO_MeshPropertiesGroup,
-    NWO_ObjectPropertiesGroup,
-    NWO_LightPropertiesGroup,
-    NWO_BonePropertiesGroup,
-)
-
-from .object_ui import (
-    NWO_FaceRegionsMenu,
-    NWO_GlobalMaterialGlobals,
-    NWO_MarkerPermutationsMenu,
-    NWO_MarkerTypes,
-    NWO_MeshTypes,
-    NWO_PermutationsMenu,
-    NWO_PermutationsMenuSelection,
-    NWO_RegionsMenu,
-    NWO_RegionsMenuSelection,
-    NWO_SeamBackfaceMenu,
-    NWO_UL_MarkerPermutations,
-    NWO_List_Add_MarkerPermutation,
-    NWO_List_Remove_MarkerPermutation,
-    NWO_UL_FaceMapProps,
-    NWO_FaceDefaultsToggle,
-    NWO_MeshPropAddMenu,
-    NWO_MeshPropAdd,
-    NWO_MeshPropRemove,
-    NWO_MeshPropAddLightmap,
-    NWO_GlobalMaterialMenu,
-    NWO_RegionList,
-    NWO_GlobalMaterialRegionList,
-    NWO_GlobalMaterialList,
-    NWO_PermutationList,
-    NWO_BSPList,
-    NWO_BSPListSeam,
-    NWO_MasterInstance,
-    NWO_BoneProps,
-)
-
-from .materials_ui import NWO_MaterialOpenTag
-
-from .materials_properties import NWO_MaterialPropertiesGroup
-
-from .animation_properties import (
-    NWO_OT_AnimationEventMove,
-    NWO_UL_AnimProps_Events,
-    NWO_List_Add_Animation_Event,
-    NWO_List_Remove_Animation_Event,
-    NWO_Animation_ListItems,
-    NWO_AnimationRenamesItems,
-    NWO_ActionPropertiesGroup,
-    NWO_List_Remove_Animation_Event,
-    NWO_AnimationRenamesItems,
-)
-
-from .animation_ui import (
-    NWO_NewAnimation,
-    NWO_DeleteAnimation,
-    NWO_OT_AnimationEventSetFrame,
-    NWO_OT_AnimationFramesSyncToKeyFrames,
-    NWO_OT_AnimationRenameMove,
-    NWO_SetTimeline,
-    NWO_UL_AnimationList,
-    NWO_UnlinkAnimation,
-    NWO_List_Add_Animation_Rename,
-    NWO_UL_AnimationRename,
-    NWO_List_Remove_Animation_Rename,
-)
-
-from .scene_properties import NWO_AnimationBlendAxisItems, NWO_AnimationCompositesItems, NWO_AnimationCopiesItems, NWO_AnimationDeadZonesItems, NWO_AnimationLeavesItems, NWO_AnimationPhaseSetsItems, NWO_BSP_ListItems, NWO_ControlObjects, NWO_GlobalMaterial_ListItems, NWO_IKChain, NWO_Permutations_ListItems, NWO_Regions_ListItems, NWO_ScenePropertiesGroup, NWO_ZoneSets_ListItems
-
-from .scene_ui import NWO_AddIKChain, NWO_MoveIKChain, NWO_OT_BatchAddObjectControls, NWO_OT_BatchRemoveObjectControls, NWO_OT_ClearAsset, NWO_OT_RegisterIcons, NWO_OT_RemoveObjectControl, NWO_OT_SelectObjectControl, NWO_RemoveIKChain, NWO_UL_IKChain, NWO_UL_ObjectControls, NWO_UL_Permutations, NWO_UL_Regions
-
-from .viewport_ui import (
-    # NWO_AddHaloLight,
-    NWO_ApplyTypeMarkerSingle,
-    NWO_ApplyTypeMesh,
-    NWO_ApplyTypeMeshSingle,
-    NWO_MT_PIE_ApplyTypeMesh,
-    NWO_PIE_ApplyTypeMesh,
-    NWO_ApplyTypeMarker,
-    NWO_MT_PIE_ApplyTypeMarker,
-    NWO_PIE_ApplyTypeMarker,
-)
-
-from .image_properties import NWO_ImagePropertiesGroup
-
-def add_asset_open_in_foundry(self, context):
-    self.layout.operator(NWO_OpenAssetFoundry.bl_idname, text="Open in Foundry")
-
-class NWO_OpenAssetFoundry(NWO_Op):
-    bl_idname = "nwo.open_asset_foundry"
-    bl_label = "Open in Foundry"
-    bl_options = {"REGISTER"}
-
-    _process = None  # Optional[subprocess.Popen]
-
-    @classmethod
-    def poll(cls, context):
-        asset_file_handle = getattr(context, "asset_file_handle", None)
-        asset_library_ref = getattr(context, "asset_library_ref", None)
-
-        if not asset_library_ref:
-            cls.poll_message_set("No asset library selected")
-            return False
-        if not asset_file_handle:
-            cls.poll_message_set("No asset selected")
-            return False
-        if asset_file_handle.local_id:
-            cls.poll_message_set("Selected asset is contained in the current file")
-            return False
-        return True
-
-    def execute(self, context):
-        asset_file_handle = context.asset_file_handle
-
-        if asset_file_handle.local_id:
-            self.report({"WARNING"}, "This asset is stored in the current blend file")
-            return {"CANCELLED"}
-
-        asset_lib_path = bpy.types.AssetHandle.get_full_library_path(asset_file_handle)
-        self.open_in_new_blender(asset_lib_path)
-
-        wm = context.window_manager
-        self._timer = wm.event_timer_add(0.1, window=context.window)
-        wm.modal_handler_add(self)
-
-        return {"RUNNING_MODAL"}
-
-    def modal(self, context, event):
-        if event.type != "TIMER":
-            return {"PASS_THROUGH"}
-
-        if self._process is None:
-            self.report({"ERROR"}, "Unable to find any running process")
-            self.cancel(context)
-            return {"CANCELLED"}
-
-        returncode = self._process.poll()
-        if returncode is None:
-            # Process is still running.
-            return {"RUNNING_MODAL"}
-
-        if bpy.ops.asset.library_refresh.poll():
-            bpy.ops.asset.library_refresh()
-
-        self.cancel(context)
-        return {"FINISHED"}
-
-    def cancel(self, context):
-        wm = context.window_manager
-        wm.event_timer_remove(self._timer)
-
-    def open_in_new_blender(self, filepath):
-        import subprocess
-
-        filepath = filepath.replace(os.sep, os.sep * 2)
-        cli_args = f"""{bpy.app.binary_path} --python-expr 
-                    "import bpy; bpy.ops.wm.read_homefile(app_template='Foundry'); bpy.ops.wm.open_mainfile(filepath='{filepath}')\""""
-
-        self._process = subprocess.Popen(cli_args)
-
-
-
-def object_context_apply_types(self, context):
-    layout = self.layout
-    asset_type = context.scene.nwo.asset_type
-    layout.separator()
-    selection_count = len(context.selected_objects)
-    if selection_count > 1:
-        layout.label(text=f'{selection_count} Halo Objects Selected', icon_value=get_icon_id('category_object_properties_pinned'))
-    else:
-        ob = context.object
-        object_type = get_object_type(ob, True)
-        if object_type in ('Mesh', 'Marker'):
-            if object_type == 'Mesh':
-                type_name, type_icon = get_mesh_display(ob.nwo.mesh_type)
-            elif object_type == 'Marker':
-                type_name, type_icon = get_marker_display(ob.nwo.marker_type)
-            layout.label(text=f'Halo {object_type} ({type_name})', icon_value=type_icon)
-        elif object_type == 'Frame':
-            layout.label(text=f'Halo {object_type}', icon_value=get_icon_id('frame'))
-        elif object_type == 'Light':
-            layout.label(text=f'Halo {object_type}', icon='LIGHT')
-        else:
-            layout.label(text=f'Halo {object_type}')
-
-    markers_valid = any([is_marker(ob) for ob in context.selected_objects]) and asset_type in ('model', 'scenario', 'sky', 'prefab')
-    meshes_valid = any([is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('model', 'scenario', 'prefab', 'sky')
-    has_children = any([ob.children for ob in context.selected_objects])
-    if markers_valid or meshes_valid:
-        if meshes_valid:
-            layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Set Mesh Type", icon='MESH_CUBE')
-            if has_children:
-                layout.operator("nwo.mesh_to_marker", text="Convert to Frame", icon_value=get_icon_id('frame')).called_once = False
-            else:
-                layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
-        elif markers_valid:
-            layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
-            
-def object_context_sets(self, context):
-    asset_type = context.scene.nwo.asset_type
-    regions_valid = asset_type in ('model', 'sky', 'scenario')
-    permutations_valid =  asset_type in ('model', 'sky', 'scenario', 'prefab')
-    region_name = "BSP" if context.scene.nwo.asset_type == "scenario" else "Region" 
-    permutation_name = "Layer" if context.scene.nwo.asset_type in ("scenario", "prefab") else "Permutation"
-    layout = self.layout
-    layout.separator()
-    ob = context.object
-    nwo = ob.nwo
-    if regions_valid:
-        row = layout.row()
-        if nwo.region_name_locked:
-            row.enabled = False
-            row.label(text=f"{region_name}: " + true_region(nwo), icon_value=get_icon_id("collection_creator"))
-        else:
-            row.menu("NWO_MT_RegionsSelection", text=f"{region_name}: " + true_region(nwo), icon_value=get_icon_id("region"))
-    
-    if permutations_valid:
-        row = layout.row()
-        if nwo.permutation_name_locked:
-            row.enabled = False
-            row.label(text=f"{permutation_name}: " + true_permutation(nwo), icon_value=get_icon_id("collection_creator"))
-        else:
-            row.menu("NWO_MT_PermutationsSelection", text=f"{permutation_name}: " + true_permutation(nwo), icon_value=get_icon_id("permutation"))
-            
-    if ob.type == 'ARMATURE':
-        row = layout.row()
-        row.operator('nwo.convert_to_halo_rig', text='Convert to Halo Rig', icon='OUTLINER_OB_ARMATURE')
-        
-def collection_context(self, context):
-    layout = self.layout
-    coll = context.view_layer.active_layer_collection.collection
-    is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
-    if coll and coll.users:
-        layout.separator()
-        if coll.nwo.type == 'exclude':
-            layout.label(text='Exclude Collection')
-        elif coll.nwo.type == 'region':
-            first_part = 'BSP Collection : ' if is_scenario else 'Region Collection : '
-            layout.label(text=first_part + coll.nwo.region)
-        elif coll.nwo.type == 'permutation':
-            first_part = 'Layer Collection : ' if is_scenario else 'Permutation Collection : '
-            layout.label(text=first_part + coll.nwo.permutation)
-
-        layout.menu("NWO_MT_ApplyCollectionMenu", text="Set Halo Collection", icon_value=get_icon_id("collection"))
-
-classes_nwo = (
-    NWO_GlobalMaterialGlobals,
-    NWO_AnimationLeavesItems,
-    NWO_AnimationPhaseSetsItems,
-    NWO_AnimationDeadZonesItems,
-    NWO_AnimationBlendAxisItems,
-    NWO_AnimationCompositesItems,
-    NWO_AnimationCopiesItems,
-    NWO_ZoneSets_ListItems,
-    NWO_Permutations_ListItems,
-    NWO_UL_Regions,
-    NWO_UL_Permutations,
-    NWO_Regions_ListItems,
-    NWO_SeamBackfaceMenu,
-    NWO_RegionsMenuSelection,
-    NWO_RegionsMenu,
-    NWO_FaceRegionsMenu,
-    NWO_PermutationsMenuSelection,
-    NWO_PermutationsMenu,
-    NWO_MarkerPermutationsMenu,
-    NWO_BSP_ListItems,
-    NWO_GlobalMaterial_ListItems,
-    NWO_OpenAssetFoundry,
-    NWO_UL_MarkerPermutations,
-    NWO_List_Add_MarkerPermutation,
-    NWO_List_Remove_MarkerPermutation,
-    NWO_List_Add_Animation_Rename,
-    NWO_List_Remove_Animation_Rename,
-    NWO_OT_AnimationRenameMove,
-    NWO_SetTimeline,
-    NWO_NewAnimation,
-    NWO_DeleteAnimation,
-    NWO_UnlinkAnimation,
-    NWO_UL_AnimationRename,
-    NWO_IKChain,
-    NWO_ControlObjects,
-    NWO_UL_ObjectControls,
-    NWO_OT_BatchAddObjectControls,
-    NWO_OT_BatchRemoveObjectControls,
-    NWO_OT_SelectObjectControl,
-    NWO_OT_RemoveObjectControl,
-    NWO_ScenePropertiesGroup,
-    NWO_PermutationListCollection,
-    NWO_RegionListCollection,
-    NWO_ApplyCollectionType,
-    NWO_ApplyCollectionMenu,
-    NWO_GlobalMaterialRegionListFace,
-    NWO_RegionListFace,
-    NWO_GlobalMaterialMenuFace,
-    NWO_GlobalMaterialRegionList,
-    NWO_BSPListSeam,
-    NWO_RegionList,
-    NWO_PermutationList,
-    NWO_BSPList,
-    NWO_GlobalMaterialList,
-    NWO_GlobalMaterialMenu,
-    NWO_MaterialOpenTag,
-    NWO_UL_FaceMapProps,
-    NWO_MarkerPermutationItems,
-    NWO_FaceProperties_ListItems,
-    NWO_ObjectPropertiesGroup,
-    NWO_CollectionPropertiesGroup,
-    NWO_LightPropertiesGroup,
-    NWO_MaterialPropertiesGroup,
-    NWO_MeshPropertiesGroup,
-    NWO_ImagePropertiesGroup,
-    NWO_BoneProps,
-    NWO_BonePropertiesGroup,
-    NWO_UL_AnimProps_Events,
-    NWO_List_Add_Animation_Event,
-    NWO_List_Remove_Animation_Event,
-    NWO_OT_AnimationEventMove,
-    NWO_Animation_ListItems,
-    NWO_AnimationRenamesItems,
-    NWO_ActionPropertiesGroup,
-    NWO_MeshPropAddLightmap,
-    NWO_MeshPropAdd,
-    NWO_MeshPropRemove,
-    NWO_FacePropAddFaceMode,
-    NWO_FacePropAddLightmap,
-    NWO_FacePropAdd,
-    NWO_FacePropRemove,
-    NWO_FaceLayerRemove,
-    NWO_FaceLayerAssign,
-    NWO_FaceLayerSelect,
-    NWO_FaceLayerColor,
-    NWO_FaceLayerColorAll,
-    NWO_FaceLayerMove,
-    NWO_EditMode,
-    NWO_MasterInstance,
-    NWO_FaceDefaultsToggle,
-    NWO_UL_FacePropList,
-    NWO_FaceLayerAddFaceMode,
-    NWO_FaceLayerAddLightmap,
-    NWO_FaceLayerAdd,
-    NWO_MeshPropAddMenu,
-    NWO_FacePropAddMenu,
-    NWO_FaceLayerAddMenu,
-    NWO_MT_PIE_ApplyTypeMesh,
-    NWO_ApplyTypeMeshSingle,
-    NWO_ApplyTypeMesh,
-    NWO_PIE_ApplyTypeMesh,
-    NWO_MT_PIE_ApplyTypeMarker,
-    NWO_ApplyTypeMarkerSingle,
-    NWO_ApplyTypeMarker,
-    NWO_PIE_ApplyTypeMarker,
-    NWO_HaloMaterialNodes,
-    NWO_HaloMaterialTilingNode,
-    NWO_MeshTypes,
-    NWO_MarkerTypes,
-    # NWO_AddHaloLight,
-    NWO_UpdateLayersFaceCount,
-    NWO_UL_AnimationList,
-    NWO_UL_IKChain,
-    NWO_AddIKChain,
-    NWO_RemoveIKChain,
-    NWO_MoveIKChain,
-    NWO_OT_AnimationEventSetFrame,
-    NWO_OT_AnimationFramesSyncToKeyFrames,
-    NWO_OT_ClearAsset,
-    NWO_UL_ZoneSets,
-    NWO_OT_ZoneSetAdd,
-    NWO_OT_ZoneSetRemove,
-    NWO_OT_ZoneSetMove,
-    NWO_OT_RegisterIcons,
-)
+classes = [
+    bar.NWO_MT_ProjectChooserMenuDisallowNew,
+    bar.NWO_MT_ProjectChooserMenu,
+    bar.NWO_OT_ProjectChooser,
+    bar.NWO_HaloLauncherExplorerSettings,
+    bar.NWO_HaloLauncherGameSettings,
+    bar.NWO_HaloLauncherGamePruneSettings,
+    bar.NWO_HaloLauncherFoundationSettings,
+    bar.NWO_HaloExportSettings,
+    bar.NWO_HaloExportSettingsScope,
+    bar.NWO_HaloExportSettingsFlags,
+    bar.NWO_HaloExport,
+    bar.NWO_HaloExportPropertiesGroup,
+    node_editor.NWO_OT_HaloMaterialNodes,
+    node_editor.NWO_OT_HaloMaterialTilingNode,
+    viewport.NWO_MT_PIE_ApplyTypeMesh,
+    viewport.NWO_PIE_ApplyTypeMesh,
+    viewport.NWO_OT_ApplyTypeMeshSingle,
+    viewport.NWO_OT_ApplyTypeMesh,
+    viewport.NWO_MT_PIE_ApplyTypeMarker,
+    viewport.NWO_PIE_ApplyTypeMarker,
+    viewport.NWO_OT_ApplyTypeMarkerSingle,
+    viewport.NWO_OT_ApplyTypeMarker,
+    animation.NWO_UL_AnimProps_Events,
+    animation.NWO_OT_DeleteAnimation,
+    animation.NWO_OT_UnlinkAnimation,
+    animation.NWO_OT_SetTimeline,
+    animation.NWO_OT_List_Add_Animation_Rename,
+    animation.NWO_OT_List_Remove_Animation_Rename,
+    animation.NWO_OT_NewAnimation,
+    animation.NWO_OT_AnimationRenameMove,
+    animation.NWO_UL_AnimationRename,
+    animation.NWO_UL_AnimationList,
+    animation.NWO_OT_AnimationEventSetFrame,
+    animation.NWO_OT_AnimationFramesSyncToKeyFrames,
+    animation.NWO_OT_List_Add_Animation_Event,
+    animation.NWO_OT_List_Remove_Animation_Event,
+    animation.NWO_OT_AnimationEventMove,
+    asset.NWO_UL_IKChain,
+    asset.NWO_OT_AddIKChain,
+    asset.NWO_OT_RemoveIKChain,
+    asset.NWO_OT_MoveIKChain,
+    asset.NWO_UL_ObjectControls,
+    asset.NWO_OT_RemoveObjectControl,
+    asset.NWO_OT_BatchAddObjectControls,
+    asset.NWO_OT_BatchRemoveObjectControls,
+    asset.NWO_OT_SelectObjectControl,
+    asset.NWO_OT_ClearAsset,
+    asset.NWO_OT_RegisterIcons,
+    material.NWO_OT_MaterialOpenTag,
+    material.NWO_OpenImageEditor,
+    material.NWO_DuplicateMaterial,
+    object.NWO_MT_FaceLayerAddMenu,
+    object.NWO_MT_FacePropAddMenu,
+    object.NWO_UL_FacePropList,
+    object.NWO_OT_UpdateLayersFaceCount,
+    object.NWO_OT_EditMode,
+    object.NWO_OT_FacePropRemove,
+    object.NWO_OT_FacePropAdd,
+    object.NWO_OT_FacePropAddFaceMode,
+    object.NWO_OT_FacePropAddLightmap,
+    object.NWO_OT_FaceLayerAdd,
+    object.NWO_OT_FaceLayerRemove,
+    object.NWO_OT_FaceLayerAssign,
+    object.NWO_OT_FaceLayerSelect,
+    object.NWO_OT_FaceLayerMove,
+    object.NWO_OT_FaceLayerAddFaceMode,
+    object.NWO_OT_FaceLayerAddLightmap,
+    object.NWO_OT_FaceLayerColor,
+    object.NWO_OT_FaceLayerColorAll,
+    object.NWO_OT_RegionListFace,
+    object.NWO_OT_GlobalMaterialRegionListFace,
+    object.NWO_OT_GlobalMaterialMenuFace,
+    object.NWO_MT_RegionsMenuSelection,
+    object.NWO_MT_SeamBackfaceMenu,
+    object.NWO_MT_RegionsMenu,
+    object.NWO_MT_FaceRegionsMenu,
+    object.NWO_MT_PermutationsMenuSelection,
+    object.NWO_MT_PermutationsMenu,
+    object.NWO_MT_MarkerPermutationsMenu,
+    object.NWO_MT_MeshTypes,
+    object.NWO_MT_MarkerTypes,
+    object.NWO_UL_FaceMapProps,
+    object.NWO_OT_FaceDefaultsToggle,
+    object.NWO_MT_MeshPropAddMenu,
+    object.NWO_OT_MeshPropAdd,
+    object.NWO_OT_MeshPropRemove,
+    object.NWO_OT_MeshPropAddLightmap,
+    object.NWO_MT_GlobalMaterialMenu,
+    object.NWO_OT_GlobalMaterialGlobals,
+    object.NWO_OT_RegionList,
+    object.NWO_OT_GlobalMaterialRegionList,
+    object.NWO_OT_GlobalMaterialList,
+    object.NWO_OT_PermutationList,
+    object.NWO_OT_BSPListSeam,
+    object.NWO_OT_BSPList,
+    object.NWO_UL_MarkerPermutations,
+    object.NWO_OT_List_Add_MarkerPermutation,
+    object.NWO_OT_List_Remove_MarkerPermutation,
+    panel.NWO_FoundryPanelProps,
+    panel.NWO_FoundryPanelPopover,
+    panel.NWO_HotkeyDescription,
+    panel.NWO_OpenURL,
+    panel.NWO_OT_FoundryTip,
+    panel.NWO_OT_PanelUnpin,
+    panel.NWO_OT_PanelSet,
+    panel.NWO_OT_PanelExpand,
+    sets.NWO_RegionsContextMenu,
+    sets.NWO_PermutationsContextMenu,
+    sets.NWO_UL_Regions,
+    sets.NWO_UL_Permutations,
+]
 
 def register():
-    for cls_nwo in classes_nwo:
-        bpy.utils.register_class(cls_nwo)
-
-    # bpy.types.ASSETBROWSER_MT_context_menu.append(add_asset_open_in_foundry)
-    bpy.types.VIEW3D_MT_object_context_menu.append(object_context_apply_types)
-    bpy.types.VIEW3D_MT_object_context_menu.append(object_context_sets)
-    bpy.types.OUTLINER_MT_collection.append(collection_context)
-    bpy.types.NODE_MT_add.append(node_context_menu)
-    bpy.types.Scene.nwo = PointerProperty(
-        type=NWO_ScenePropertiesGroup,
-        name="NWO Scene Properties",
-        description="Set properties for your scene",
+    for cls in classes: bpy.utils.register_class(cls)
+    bpy.types.VIEW3D_MT_object_context_menu.append(viewport.object_context_apply_types)
+    bpy.types.VIEW3D_MT_object_context_menu.append(viewport.object_context_sets)
+    bpy.types.OUTLINER_MT_collection.append(viewport.collection_context)
+    bpy.types.NODE_MT_add.append(node_editor.node_context_menu)
+    bpy.types.VIEW3D_HT_tool_header.append(bar.draw_foundry_toolbar)
+    bpy.types.NODE_HT_header.append(bar.draw_foundry_nodes_toolbar)
+    bpy.types.VIEW3D_MT_mesh_add.append(viewport.add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_armature_add.append(viewport.add_halo_armature_buttons)
+    bpy.types.OUTLINER_HT_header.append(viewport.create_halo_collection)
+    bpy.types.VIEW3D_MT_object.append(viewport.add_halo_join)
+    bpy.types.TOPBAR_MT_file_import.append(bar.menu_func_import)
+    
+    bpy.types.Scene.nwo_export = bpy.props.PointerProperty(
+        type=bar.NWO_HaloExportPropertiesGroup, name="Halo Export", description=""
     )
-    bpy.types.Object.nwo = PointerProperty(
-        type=NWO_ObjectPropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Object Properties",
-    )
-    bpy.types.Collection.nwo = PointerProperty(
-        type=NWO_CollectionPropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Object Properties",
-    )
-    bpy.types.Light.nwo = PointerProperty(
-        type=NWO_LightPropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Object Properties",
-    )
-    bpy.types.Material.nwo = PointerProperty(
-        type=NWO_MaterialPropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Material Properties",
-    )
-    bpy.types.Bone.nwo = PointerProperty(
-        type=NWO_BonePropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Bone Properties",
-    )
-    bpy.types.Action.nwo = PointerProperty(
-        type=NWO_ActionPropertiesGroup,
-        name="Halo NWO Properties",
-        description="Set Halo Animation Properties",
-    )
-    bpy.types.Mesh.nwo = PointerProperty(
-        type=NWO_MeshPropertiesGroup,
-        name="Halo Mesh Properties",
-        description="Set Halo Properties",
-    )
-    bpy.types.TextCurve.nwo = PointerProperty(
-        type=NWO_MeshPropertiesGroup,
-        name="Halo Mesh Properties",
-        description="Set Halo Properties",
-    )
-    bpy.types.Curve.nwo = PointerProperty(
-        type=NWO_MeshPropertiesGroup,
-        name="Halo Mesh Properties",
-        description="Set Halo Properties",
-    )
-    bpy.types.SurfaceCurve.nwo = PointerProperty(
-        type=NWO_MeshPropertiesGroup,
-        name="Halo Mesh Properties",
-        description="Set Halo Properties",
-    )
-    bpy.types.MetaBall.nwo = PointerProperty(
-        type=NWO_MeshPropertiesGroup,
-        name="Halo Mesh Properties",
-        description="Set Halo Properties",
-    )
-    bpy.types.Image.nwo = PointerProperty(
-        type=NWO_ImagePropertiesGroup,
-        name="Halo Mesh Properties",
-        description="Set Halo Properties",
-    )
-
+    
 def unregister():
-    bpy.types.NODE_MT_add.remove(node_context_menu)
-    bpy.types.OUTLINER_MT_collection.remove(collection_context)
-    bpy.types.VIEW3D_MT_object_context_menu.remove(object_context_sets)
-    bpy.types.VIEW3D_MT_object_context_menu.remove(object_context_apply_types)
-    # bpy.types.ASSETBROWSER_MT_context_menu.remove(add_asset_open_in_foundry)
-    del bpy.types.Scene.nwo
-    del bpy.types.Object.nwo
-    del bpy.types.Light.nwo
-    del bpy.types.Material.nwo
-    del bpy.types.Bone.nwo
-    del bpy.types.Action.nwo
-    del bpy.types.Mesh.nwo
-    del bpy.types.TextCurve.nwo
-    del bpy.types.Curve.nwo
-    del bpy.types.SurfaceCurve.nwo
-    del bpy.types.MetaBall.nwo
-    del bpy.types.Image.nwo
-    for cls_nwo in classes_nwo:
-        bpy.utils.unregister_class(cls_nwo)
-
-
-if __name__ == "__main__":
-    register()
+    del bpy.types.Scene.nwo_export
+    bpy.types.TOPBAR_MT_file_import.remove(bar.menu_func_import)
+    bpy.types.VIEW3D_HT_tool_header.remove(bar.draw_foundry_toolbar)
+    bpy.types.NODE_HT_header.remove(bar.draw_foundry_nodes_toolbar)
+    bpy.types.VIEW3D_MT_mesh_add.remove(viewport.add_halo_scale_model_button)
+    bpy.types.VIEW3D_MT_armature_add.remove(viewport.add_halo_armature_buttons)
+    bpy.types.VIEW3D_MT_object.remove(viewport.add_halo_join)
+    bpy.types.OUTLINER_HT_header.remove(viewport.create_halo_collection)
+    bpy.types.NODE_MT_add.remove(node_editor.node_context_menu)
+    bpy.types.OUTLINER_MT_collection.remove(viewport.collection_context)
+    bpy.types.VIEW3D_MT_object_context_menu.remove(viewport.object_context_sets)
+    bpy.types.VIEW3D_MT_object_context_menu.remove(viewport.object_context_apply_types)
+    for cls in reversed(classes): bpy.utils.unregister_class(cls)

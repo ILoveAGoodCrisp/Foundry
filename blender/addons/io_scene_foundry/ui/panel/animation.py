@@ -1,56 +1,22 @@
+"""Animation sub-panel specific operators"""
+
 import math
-
-from bpy.types import Context
-from ..icons import get_icon_id
-
-from ..utils import is_corinth, poll_ui, reset_to_basis
-from .templates import NWO_Op, NWO_PropPanel
+import random
 import bpy
+from ... import utils
+from ...icons import get_icon_id
 
-
-# ACTION PROPERTIES
-class NWO_ActionProps(NWO_PropPanel):
-    bl_label = "Halo Animation Properties"
-    bl_idname = "NWO_PT_ActionDetailsPanel"
-    bl_space_type = "DOPESHEET_EDITOR"
-    bl_region_type = "UI"
-    bl_context = "Action"
-    bl_parent_id = "DOPESHEET_PT_action"
-
-    @classmethod
-    def poll(cls, context):
-        return context.object.animation_data.action
-
-    def draw_header(self, context):
-        action = context.active_object.animation_data.action
-        action_nwo = action.nwo
-        self.layout.prop(action_nwo, "export_this", text="")
-
-    def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        flow = layout.grid_flow(
-            row_major=True,
-            columns=0,
-            even_columns=True,
-            even_rows=False,
-            align=False,
-        )
-
-        action = context.object.animation_data.action
-        action_nwo = action.nwo
-
-        if not action_nwo.export_this:
-            layout.label(text="Animation is excluded from export")
-            layout.active = False
-
+class NWO_UL_AnimProps_Events(bpy.types.UIList):
+    def draw_item(
+        self, context, layout, data, item, icon, active_data, active_propname
+    ):
+        animation = item
+        if animation:
+            layout.prop(animation, "name", text="", emboss=False, icon_value=get_icon_id("animation_event"))
         else:
-            col = flow.column()
-            col.prop(action_nwo, "name_override")
-            col.prop(action_nwo, "animation_type")
+            layout.label(text="", translate=False, icon_value=icon)
 
-
-class NWO_DeleteAnimation(bpy.types.Operator):
+class NWO_OT_DeleteAnimation(bpy.types.Operator):
     bl_label = "Delete Animation"
     bl_idname = "nwo.delete_animation"
     bl_description = "Deletes a Halo Animation from the blend file"
@@ -67,7 +33,7 @@ class NWO_DeleteAnimation(bpy.types.Operator):
         if action:
             name = str(action.name)
             bpy.data.actions.remove(action)
-            reset_to_basis(context)
+            utils.reset_to_basis(context)
             self.report({"INFO"}, f"Deleted animation: {name}")
             
         new_action_index = len(bpy.data.actions) - 1 if current_action_index >= len(bpy.data.actions) else current_action_index
@@ -75,7 +41,7 @@ class NWO_DeleteAnimation(bpy.types.Operator):
         
         return {"FINISHED"}
     
-class NWO_UnlinkAnimation(bpy.types.Operator):
+class NWO_OT_UnlinkAnimation(bpy.types.Operator):
     bl_label = "Unlink Animation"
     bl_idname = "nwo.unlink_animation"
     bl_description = "Unlinks a Halo Animation"
@@ -88,11 +54,11 @@ class NWO_UnlinkAnimation(bpy.types.Operator):
     def execute(self, context):
         context.scene.tool_settings.use_keyframe_insert_auto = False
         context.scene.nwo.active_action_index = -1
-        reset_to_basis(context)
+        utils.reset_to_basis(context)
                     
         return {"FINISHED"}
     
-class NWO_SetTimeline(bpy.types.Operator):
+class NWO_OT_SetTimeline(bpy.types.Operator):
     bl_label = "Sync Timeline"
     bl_idname = "nwo.set_timeline"
     bl_description = "Sets the scene timeline to match the current animation's frame range"
@@ -141,10 +107,11 @@ class NWO_SetTimeline(bpy.types.Operator):
         layout.prop(self, 'exclude_first_frame', text="Exclude First Frame")
         layout.prop(self, 'exclude_last_frame', text="Exclude Last Frame")
 
-class NWO_NewAnimation(NWO_Op):
+class NWO_OT_NewAnimation(bpy.types.Operator):
     bl_label = "New Animation"
     bl_idname = "nwo.new_animation"
     bl_description = "Creates a new Halo Animation"
+    bl_options = {'REGISTER', "UNDO"}
 
     frame_start: bpy.props.IntProperty(name="First Frame", default=1)
     frame_end: bpy.props.IntProperty(name="Last Frame", default=30)
@@ -174,7 +141,7 @@ class NWO_NewAnimation(NWO_Op):
             ),
         ]
         
-        if is_corinth(context):
+        if utils.is_corinth(context):
             items.append(
             (
                 "world",
@@ -183,25 +150,12 @@ class NWO_NewAnimation(NWO_Op):
                 '',
                 3,
             ))
-            # NOTE Need to add support for composites
-            # items.append(
-            # (
-            #     "composite",
-            #     "Composite",
-            #     "",
-            # ))
-            # items.append(
-            # (
-            #     "composite_overlay",
-            #     "Composite Overlay",
-            #     "",
-            # ))
         
         return items
     
     def get_animation_type(self):
         max_int = 2
-        if is_corinth():
+        if utils.is_corinth():
             max_int = 3
         if self.animation_type_help > max_int:
             return 0
@@ -379,7 +333,7 @@ class NWO_NewAnimation(NWO_Op):
     )
 
     def __init__(self):
-        self.fp_animation = poll_ui("animation")
+        self.fp_animation = utils.poll_ui(("animation"))
         if self.fp_animation:
             self.mode = "first_person"
 
@@ -387,7 +341,7 @@ class NWO_NewAnimation(NWO_Op):
         full_name = self.create_name()
         # Create the animation
         if not self.keep_current_pose:
-            reset_to_basis(context)
+            utils.reset_to_basis(context)
         animation = bpy.data.actions.new(full_name)
         animation.use_frame_range = True
         animation.use_fake_user = True
@@ -562,7 +516,7 @@ class NWO_NewAnimation(NWO_Op):
         return full_name.lower().strip(bad_chars)
 
 
-class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
+class NWO_OT_List_Add_Animation_Rename(NWO_OT_NewAnimation):
     bl_label = "New Animation Rename"
     bl_idname = "nwo.animation_rename_add"
     bl_description = "Creates a new Halo Animation Rename"
@@ -622,12 +576,13 @@ class NWO_List_Add_Animation_Rename(NWO_NewAnimation):
         self.report({"INFO"}, f"Created rename: {full_name}")
         return {"FINISHED"}
 
-class NWO_List_Remove_Animation_Rename(NWO_Op):
+class NWO_OT_List_Remove_Animation_Rename(bpy.types.Operator):
     """Remove an Item from the UIList"""
 
     bl_idname = "nwo.animation_rename_remove"
     bl_label = "Remove"
     bl_description = "Remove an animation rename from the list"
+    bl_options = {'UNDO'}
 
     @classmethod
     def poll(cls, context):
@@ -723,33 +678,6 @@ class NWO_UL_AnimationList(bpy.types.UIList):
             anim_type_display += f'[{nwo.animation_space}]'
         row.label(text=anim_type_display)
         row.prop(item, 'use_frame_range', text="", icon='CHECKBOX_HLT' if item.use_frame_range else 'CHECKBOX_DEHLT', emboss=False)
-            
-
-    # # Called once to draw filtering/reordering options.
-    # def draw_filter(self, context, layout):
-    #     # Nothing much to say here, it's usual UI code...
-    #     pass
-
-    # # Called once to filter/reorder items.
-    # def filter_items(self, context, data, propname):
-    #     # This function gets the collection property (as the usual tuple (data, propname)), and must return two lists:
-    #     # * The first one is for filtering, it must contain 32bit integers were self.bitflag_filter_item marks the
-    #     #   matching item as filtered (i.e. to be shown), and 31 other bits are free for custom needs. Here we use the
-    #     #   first one to mark VGROUP_EMPTY.
-    #     # * The second one is for reordering, it must return a list containing the new indices of the items (which
-    #     #   gives us a mapping org_idx -> new_idx).
-    #     # Please note that the default UI_UL_list defines helper functions for common tasks (see its doc for more info).
-    #     # If you do not make filtering and/or ordering, return empty list(s) (this will be more efficient than
-    #     # returning full lists doing nothing!).
-
-    #     # Default return values.
-    #     flt_flags = []
-    #     flt_neworder = []
-
-    #     # Do filtering/reordering here...
-
-    #     return flt_flags, flt_neworder
-    
     
 class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
     bl_idname = "nwo.animation_event_set_frame"
@@ -760,7 +688,7 @@ class NWO_OT_AnimationEventSetFrame(bpy.types.Operator):
     prop_to_set: bpy.props.StringProperty(options={'SKIP_SAVE', 'HIDDEN'})
     
     @classmethod
-    def poll(cls, context: Context) -> bool:
+    def poll(cls, context) -> bool:
         return context.scene.nwo.active_action_index > -1
 
     def execute(self, context):
@@ -835,3 +763,71 @@ class NWO_OT_AnimationFramesSyncToKeyFrames(bpy.types.Operator):
         context.scene.nwo.keyframe_sync_active = False
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
+        
+class NWO_OT_List_Add_Animation_Event(bpy.types.Operator):
+    """Add an Item to the UIList"""
+
+    bl_idname = "animation_event.list_add"
+    bl_label = "Add"
+    bl_description = "Add a new animation event"
+    filename_ext = ""
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return bpy.data.actions and context.scene.nwo.active_action_index > -1
+
+    def execute(self, context):
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
+        nwo = action.nwo
+        event = nwo.animation_events.add()
+        nwo.animation_events_index = len(nwo.animation_events) - 1
+        event.frame_frame = context.scene.frame_current
+        event.event_id = random.randint(0, 2147483647)
+        event.name = f"event_{len(nwo.animation_events)}"
+
+        context.area.tag_redraw()
+
+        return {"FINISHED"}
+
+
+class NWO_OT_List_Remove_Animation_Event(bpy.types.Operator):
+    """Remove an Item from the UIList"""
+
+    bl_idname = "animation_event.list_remove"
+    bl_label = "Remove"
+    bl_description = "Remove an animation event from the list"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return bpy.data.actions and context.scene.nwo.active_action_index > -1 and len(bpy.data.actions[context.scene.nwo.active_action_index].nwo.animation_events) > 0
+
+    def execute(self, context):
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
+        action_nwo = action.nwo
+        index = action_nwo.animation_events_index
+        action_nwo.animation_events.remove(index)
+        if action_nwo.animation_events_index > len(action_nwo.animation_events) - 1:
+            action_nwo.animation_events_index += -1
+        context.area.tag_redraw()
+        return {"FINISHED"}
+    
+class NWO_OT_AnimationEventMove(bpy.types.Operator):
+    bl_label = ""
+    bl_idname = "nwo.animation_event_move"
+    bl_options = {'UNDO'}
+    
+    direction: bpy.props.StringProperty()
+
+    def execute(self, context):
+        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
+        action_nwo = action.nwo
+        table = action_nwo.animation_events
+        delta = {"down": 1, "up": -1,}[self.direction]
+        current_index = action_nwo.animation_events_index
+        to_index = (current_index + delta) % len(table)
+        table.move(current_index, to_index)
+        action_nwo.animation_events_index = to_index
+        context.area.tag_redraw()
+        return {'FINISHED'}

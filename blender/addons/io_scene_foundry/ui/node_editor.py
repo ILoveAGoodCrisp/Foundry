@@ -1,22 +1,24 @@
-import bpy
+"""UI that sits in the Blender node editor"""
+
 import os
-from ..utils import MATERIAL_RESOURCES, add_node_from_resources, dot_partition, get_tags_path, is_corinth
+from pathlib import Path
+import bpy
+from .. import utils
 
 all_material_shaders = []
 
 def node_context_menu(self, context):
-    
     layout = self.layout
     layout.separator()
     layout.operator('nwo.halo_material_tile_node', text='Halo Texture Tiling Node')
-    if is_corinth(context):
+    if utils.is_corinth(context):
         entry_name = 'Halo Material Shaders'
     else:
         entry_name = 'Halo Shaders'
         return # temp as Reach custom shaders not implemented
     layout.operator_menu_enum('nwo.halo_material_nodes', 'node', text=entry_name)
 
-class NWO_HaloMaterialTilingNode(bpy.types.Operator):
+class NWO_OT_HaloMaterialTilingNode(bpy.types.Operator):
     bl_idname = 'nwo.halo_material_tile_node'
     bl_label = ''
     bl_description = 'Adds a Halo texture tiling node. This node should plug into the vector input of an image texture node'
@@ -27,7 +29,7 @@ class NWO_HaloMaterialTilingNode(bpy.types.Operator):
 
     def execute(self, context):
         tiling_node = 'Texture Tiling'
-        add_node_from_resources(tiling_node)
+        utils.add_node_from_resources(tiling_node)
 
         if bpy.data.node_groups.get(tiling_node, 0):
             bpy.ops.node.add_node('INVOKE_DEFAULT', use_transform=True, settings=[{"name":"node_tree", "value":f"bpy.data.node_groups['{tiling_node}']"}], type="ShaderNodeGroup")
@@ -36,7 +38,7 @@ class NWO_HaloMaterialTilingNode(bpy.types.Operator):
             return {'CANCELLED'}
         return {'FINISHED'}
 
-class NWO_HaloMaterialNodes(bpy.types.Operator):
+class NWO_OT_HaloMaterialNodes(bpy.types.Operator):
     bl_idname = 'nwo.halo_material_nodes'
     bl_label = ''
     bl_description = 'Adds a Halo Material Node. This should plug into the Surface input of the Material Output node'
@@ -47,11 +49,11 @@ class NWO_HaloMaterialNodes(bpy.types.Operator):
 
     def nodes_items(self, context):
         items = []
-        h4 = is_corinth(context)
+        h4 = utils.is_corinth(context)
         if h4:
-            lib_blend = os.path.join(MATERIAL_RESOURCES, 'h4_nodes.blend')
+            lib_blend = Path(utils.MATERIAL_RESOURCES, 'h4_nodes.blend')
         else:
-            lib_blend = os.path.join(MATERIAL_RESOURCES, 'hr_nodes.blend')
+            lib_blend = Path(utils.MATERIAL_RESOURCES, 'hr_nodes.blend')
         
         with bpy.data.libraries.load(lib_blend, link=True) as (data_from, _):
             for n_group in data_from.node_groups:
@@ -60,12 +62,12 @@ class NWO_HaloMaterialNodes(bpy.types.Operator):
                 else:
                     global all_material_shaders
                     if not all_material_shaders:
-                        tags_dir = get_tags_path()
-                        material_shaders_dir = os.path.join(tags_dir, 'shaders')
+                        tags_dir = utils.get_tags_path()
+                        material_shaders_dir = Path(tags_dir, 'shaders')
                         for root, _, files in os.walk(material_shaders_dir):
                             for file in files:
                                 if file.endswith(".material_shader"):
-                                    all_material_shaders.append(dot_partition(file))
+                                    all_material_shaders.append(utils.dot_partition(file))
                     if n_group in all_material_shaders:
                         items.append((n_group, n_group, ''))
         return items    
@@ -79,10 +81,10 @@ class NWO_HaloMaterialNodes(bpy.types.Operator):
         if not self.node:
             return {'CANCELLED'}
         
-        if is_corinth(context):
-            lib_blend = os.path.join(MATERIAL_RESOURCES, 'h4_nodes.blend')
+        if utils.is_corinth(context):
+            lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'h4_nodes.blend')
         else:
-            lib_blend = os.path.join(MATERIAL_RESOURCES, 'hr_nodes.blend')
+            lib_blend = os.path.join(utils.MATERIAL_RESOURCES, 'hr_nodes.blend')
 
         # This bit links the selected node to the current blend
         with bpy.data.libraries.load(lib_blend, link=True) as (_, data_to):

@@ -1,5 +1,7 @@
 # MESH TYPE GROUPS
 # Mesh types which support render properties
+from enum import Enum, auto
+
 RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", '_connected_geometry_mesh_type_object_instance')
 COLLISION_MESH_TYPES = ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision")
 # Mesh types which support the two sided flag
@@ -9,6 +11,21 @@ TWO_SIDED_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_g
 VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
 # Object types that we export
 VALID_OBJECTS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE'}
+
+CG_PROP_PREFIX = "bungie_"
+
+class object_type(Enum):
+    _connected_geometry_object_type_none = auto()
+    _connected_geometry_object_type_frame = auto()
+    _connected_geometry_object_type_marker = auto()
+    _connected_geometry_object_type_mesh = auto()
+    _connected_geometry_object_type_light = auto()
+    _connected_geometry_object_type_animation_control = auto()
+    _connected_geometry_object_type_animation_camera = auto()
+    _connected_geometry_object_type_animation_event = auto()
+    _connected_geometry_object_type_debug = auto()
+    _connected_geometry_object_type_frame_pca = auto()
+    
 
 # MATERIALS
 

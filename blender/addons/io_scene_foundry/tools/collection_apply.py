@@ -116,7 +116,7 @@ class NWO_ApplyCollectionType(bpy.types.Operator):
 
         return {'FINISHED'}
     
-class NWO_PermutationListCollection(NWO_ApplyCollectionType):
+class NWO_OT_PermutationListCollection(NWO_ApplyCollectionType):
     bl_idname = "nwo.permutation_collection_list"
     bl_label = "Permutation List"
     bl_description = "Applies a permutation to the selected collection"
@@ -134,7 +134,7 @@ class NWO_PermutationListCollection(NWO_ApplyCollectionType):
         items=permutation_items,
     )
     
-class NWO_RegionListCollection(NWO_ApplyCollectionType):
+class NWO_OT_RegionListCollection(NWO_ApplyCollectionType):
     bl_idname = "nwo.region_collection_list"
     bl_label = "Region List"
     bl_description = "Applies a region to the selected collection"

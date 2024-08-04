@@ -24,15 +24,14 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
-
-from ..ui.templates import NWO_Op
 import bpy
 
 
-class NWO_JoinHalo(NWO_Op):
+class NWO_JoinHalo(bpy.types.Operator):
     bl_idname = "nwo.join_halo"
     bl_label = "Join two or more halo mesh objects"
     bl_description = "Joins objects and face layer properties"
+    bl_options = {'UNDO'}
 
     @classmethod
     def poll(cls, context):
@@ -171,9 +170,9 @@ class NWO_JoinHalo(NWO_Op):
         for old_layer in face_layers:
             bpy.ops.uilist.entry_add(
                 list_path="object.data.nwo.face_props",
-                active_index_path="object.data.nwo.face_props_index",
+                active_index_path="object.data.nwo.face_props_active_index",
             )
-            new_layer = active_face_props[active_nwo.face_props_index]
+            new_layer = active_face_props[active_nwo.face_props_active_index]
             self.update_layer_props(new_layer, old_layer)
 
         bpy.ops.object.join()

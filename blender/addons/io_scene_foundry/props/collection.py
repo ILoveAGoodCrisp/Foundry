@@ -1,7 +1,6 @@
 import bpy
 
 class NWO_CollectionPropertiesGroup(bpy.types.PropertyGroup):
-
     def type_items(self, context):
         items = []
         r_name = "Region"

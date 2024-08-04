@@ -32,7 +32,7 @@ from .constants import object_asset_validation, object_game_validation
 spinny = itertools.cycle(["|", "/", "—", "\\"])
 
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
-MATERIAL_RESOURCES = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'blends', 'materials')
+MATERIAL_RESOURCES = os.path.join((os.path.realpath(__file__)), 'blends', 'materials')
 
 special_material_names = [m.name for m in special_materials]
 convention_material_names = [m.name for m in convention_materials]
@@ -1377,7 +1377,7 @@ def get_mesh_display(mesh_type):
 def library_instanced_collection(ob):
     return ob.instance_type == 'COLLECTION' and ob.instance_collection and ob.instance_collection.library
 
-def get_marker_display(mesh_type):
+def get_marker_display(mesh_type, ob):
     match mesh_type:
         case '_connected_geometry_marker_type_effects':
             return 'Effects', get_icon_id('effects')
@@ -1392,7 +1392,65 @@ def get_marker_display(mesh_type):
         case '_connected_geometry_marker_type_target':
             return 'Target', get_icon_id('target')
         case '_connected_geometry_marker_type_game_instance':
-            return 'Game Object', get_icon_id('game_object')
+            match dot_partition(ob.nwo.marker_game_instance_tag_name).lower():
+                case "crate":
+                    name = "Crate Tag"
+                    icon = "crate"
+                case "scenery":
+                    name = "Scenery Tag"
+                    icon = "scenery"
+                case "effect_scenery":
+                    name = "Effect Scenery Tag"
+                    icon = "effect_scenery"
+                case "device_control":
+                    name = "Device Control Tag"
+                    icon = "device_control"
+                case "device_machine":
+                    name = "Device Machine Tag"
+                    icon = "device_machine"
+                case "device_terminal":
+                    name = "Device Terminal Tag"
+                    icon = "device_terminal"
+                case "device_dispenser":
+                    name = "Device Dispenser Tag"
+                    icon = "device_dispenser"
+                case "biped":
+                    name = "Biped Tag"
+                    icon = "biped"
+                case "creature":
+                    name = "Creature Tag"
+                    icon = "creature"
+                case "giant":
+                    name = "Giant Tag"
+                    icon = "giant"
+                case "vehicle":
+                    name = "Vehicle Tag"
+                    icon = "vehicle"
+                case "weapon":
+                    name = "Weapon Tag"
+                    icon = "weapon"
+                case "equipment":
+                    name = "Equipment Tag"
+                    icon = "equipment"
+                case "prefab":
+                    name = "Prefab Tag"
+                    icon = "prefab"
+                case "light":
+                    name = "Light Tag"
+                    icon = "light_cone"
+                case "cheap_light":
+                    name = "Cheap Light Tag"
+                    icon = "light_cone"
+                case "leaf":
+                    name = "Leaf Tag"
+                    icon = "decorator"
+                case "decorator_set":
+                    name = "Decorator Set Tag"
+                    icon = "decorator"
+                case _:
+                    name = "Game Object"
+                    icon = "game_object"
+            return name, get_icon_id(icon)
         case '_connected_geometry_marker_type_airprobe':
             return 'Airprobe', get_icon_id('airprobe')
         case '_connected_geometry_marker_type_envfx':

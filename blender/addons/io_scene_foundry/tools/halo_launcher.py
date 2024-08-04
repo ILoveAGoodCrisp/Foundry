@@ -27,6 +27,8 @@
 import os
 from pathlib import Path
 import bpy
+
+from ..ui.bar import draw_game_launcher_pruning, draw_game_launcher_settings
 from ..managed_blam.scenario import ScenarioTag
 from ..utils import (
     get_data_path,
@@ -550,3 +552,518 @@ def scenario_is_multiplayer(scenario_path):
 def scenario_is_firefight(scenario_path):
     with ScenarioTag(path=scenario_path) as scenario:
         return scenario.survival_mode()
+    
+class NWO_HaloLauncher_Foundation(bpy.types.Operator):
+    """Launches Foundation"""
+
+    bl_idname = "nwo.launch_foundation"
+    bl_label = "Foundation"
+
+    def execute(self, context):
+        from .halo_launcher import launch_foundation
+
+        return launch_foundation(context.scene.nwo_halo_launcher, context)
+
+
+class NWO_HaloLauncher_Data(bpy.types.Operator):
+    """Opens the Data Folder"""
+
+    bl_idname = "nwo.launch_data"
+    bl_label = "Data"
+
+    def execute(self, context):
+        scene = context.scene
+        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+
+        return open_file_explorer(
+            scene_nwo_halo_launcher.explorer_default,
+            False,
+            scene.nwo
+        )
+
+
+class NWO_HaloLauncher_Tags(bpy.types.Operator):
+    """Opens the Tags Folder"""
+
+    bl_idname = "nwo.launch_tags"
+    bl_label = "Tags"
+
+    def execute(self, context):
+        scene = context.scene
+        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+
+        return open_file_explorer(
+            scene_nwo_halo_launcher.explorer_default,
+            True,
+            scene.nwo
+        )
+
+
+class NWO_HaloLauncher_Sapien(bpy.types.Operator):
+    """Opens Sapien"""
+
+    bl_idname = "nwo.launch_sapien"
+    bl_label = "Sapien"
+
+    filter_glob: bpy.props.StringProperty(
+        default="*.scenario",
+        options={"HIDDEN"},
+    )
+
+    filepath: bpy.props.StringProperty(
+        name="filepath",
+        description="Set path for the scenario",
+        subtype="FILE_PATH",
+    )
+    
+    ignore_play: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+
+    def execute(self, context):
+        scene = context.scene
+        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        return launch_game(True, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo, self.ignore_play)
+
+    def invoke(self, context, event):
+        scene = context.scene
+        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        if (
+            scene_nwo_halo_launcher.game_default == "default"
+            or not scene.nwo.is_valid_asset
+            or scene.nwo.asset_type != "scenario"
+        ):
+            self.filepath = get_tags_path() + os.sep
+            context.window_manager.fileselect_add(self)
+            return {"RUNNING_MODAL"}
+        else:
+            self.filepath = ""
+            return self.execute(context)
+        
+    def draw(self, context):
+        layout = self.layout
+        scene_nwo_launcher = context.scene.nwo_halo_launcher
+        draw_game_launcher_settings(scene_nwo_launcher, layout)
+        box = layout.box()
+        box.label(text="Pruning")
+        draw_game_launcher_pruning(scene_nwo_launcher, box)
+        
+
+class NWO_HaloLauncher_TagTest(bpy.types.Operator):
+    """Opens Tag Test"""
+
+    bl_idname = "nwo.launch_tagtest"
+    bl_label = "Tag Test"
+
+    filter_glob: bpy.props.StringProperty(
+        default="*.scenario",
+        options={"HIDDEN"},
+    )
+
+    filepath: bpy.props.StringProperty(
+        name="filepath",
+        description="Set path for the scenario",
+        subtype="FILE_PATH",
+    )
+    
+    ignore_play: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+
+    def execute(self, context):
+        scene = context.scene
+        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        return launch_game(False, scene_nwo_halo_launcher, self.filepath.lower(), scene.nwo, self.ignore_play)
+
+    def invoke(self, context, event):
+        scene = context.scene
+        scene_nwo_halo_launcher = scene.nwo_halo_launcher
+        if (
+            scene_nwo_halo_launcher.game_default == "default"
+            or not scene.nwo.is_valid_asset
+            or scene.nwo.asset_type != "scenario"
+        ):
+            self.filepath = get_tags_path() + os.sep
+            context.window_manager.fileselect_add(self)
+            return {"RUNNING_MODAL"}
+        else:
+            self.filepath = ""
+            return self.execute(context)
+        
+    def draw(self, context):
+        layout = self.layout
+        scene_nwo_launcher = context.scene.nwo_halo_launcher
+        draw_game_launcher_settings(scene_nwo_launcher, layout)
+        box = layout.box()
+        box.label(text="Pruning")
+        draw_game_launcher_pruning(scene_nwo_launcher, box)
+
+
+class NWO_HaloLauncherPropertiesGroup(bpy.types.PropertyGroup):
+    explorer_default: bpy.props.EnumProperty(
+        name="Folder",
+        description="Select whether to open the root data / tags folder, the blend folder, or the one for your asset. When no asset is found, defaults to root",
+        default="asset",
+        options=set(),
+        items=[("default", "Root", ""), ("asset", "Asset", ""), ("blend", "Blend", "")],
+    )
+
+    foundation_default: bpy.props.EnumProperty(
+        name="Tags",
+        description="Select whether Foundation should open with the last opended windows, or open to the selected asset tags",
+        default="asset",
+        options=set(),
+        items=[
+            ("last", "Default", ""),
+            ("asset", "Asset", ""),
+        ],
+    )
+
+    game_default: bpy.props.EnumProperty(
+        name="Scenario",
+        description="Select whether to open Sapien / Tag Test and select a scenario, or open the current scenario asset if it exists",
+        default="asset",
+        options=set(),
+        items=[("default", "Browse", ""), ("asset", "Asset", "")],
+    )
+
+    open_model: bpy.props.BoolProperty(
+        name="Model",
+        default=True,
+        options=set(),
+    )
+
+    open_render_model: bpy.props.BoolProperty(options=set(), name="Render Model")
+
+    open_collision_model: bpy.props.BoolProperty(options=set(), name="Collision Model")
+
+    open_physics_model: bpy.props.BoolProperty(options=set(), name="Physics Model")
+
+    open_model_animation_graph: bpy.props.BoolProperty(
+        options=set(), name="Model Animation Graph"
+    )
+
+    open_frame_event_list: bpy.props.BoolProperty(options=set(), name="Frame Event List")
+
+    open_biped: bpy.props.BoolProperty(options=set(), name="Biped")
+
+    open_crate: bpy.props.BoolProperty(options=set(), name="Crate")
+
+    open_creature: bpy.props.BoolProperty(options=set(), name="Creature")
+
+    open_device_control: bpy.props.BoolProperty(options=set(), name="Device Control")
+
+    open_device_dispenser: bpy.props.BoolProperty(options=set(), name="Device Dispenser")
+
+    open_device_machine: bpy.props.BoolProperty(options=set(), name="Device Machine")
+
+    open_device_terminal: bpy.props.BoolProperty(options=set(), name="Device Terminal")
+
+    open_effect_scenery: bpy.props.BoolProperty(options=set(), name="Effect Scenery")
+
+    open_equipment: bpy.props.BoolProperty(options=set(), name="Equipment")
+
+    open_giant: bpy.props.BoolProperty(options=set(), name="Giant")
+
+    open_scenery: bpy.props.BoolProperty(options=set(), name="Scenery")
+
+    open_vehicle: bpy.props.BoolProperty(options=set(), name="Vehicle")
+
+    open_weapon: bpy.props.BoolProperty(options=set(), name="Weapon")
+
+    open_scenario: bpy.props.BoolProperty(options=set(), name="Scenario", default=True)
+
+    open_prefab: bpy.props.BoolProperty(options=set(), name="Prefab", default=True)
+
+    open_particle_model: bpy.props.BoolProperty(
+        options=set(), name="Particle Model", default=True
+    )
+
+    open_decorator_set: bpy.props.BoolProperty(options=set(), name="Decorator Set", default=True)
+    
+    def camera_track_items(self, context):
+        items = []
+        actions = [a for a in bpy.data.actions if a.use_frame_range]
+        for a in actions:
+            items.append((a.name, a.name, ''))
+            
+        return items
+    
+    camera_track_name: bpy.props.EnumProperty(
+        options=set(),
+        name="Camera Track",
+        description="The camera track tag to open",
+        items=camera_track_items, 
+    )
+    
+    def bsp_name_items(self, context):
+        items = []
+        bsps = [b.name for b in context.scene.nwo.regions_table]
+        for b in bsps:
+            items.append((b, b, ''))
+            
+        return items
+
+    bsp_name: bpy.props.EnumProperty(
+        options=set(),
+        name="BSP",
+        description="The BSP tag to open",
+        items=bsp_name_items,
+    )
+
+    open_scenario_structure_bsp: bpy.props.BoolProperty(
+        options=set(),
+        name="BSP",
+    )
+
+    open_scenario_lightmap_bsp_data: bpy.props.BoolProperty(
+        options=set(),
+        name="Lightmap Data",
+    )
+
+    open_scenario_structure_lighting_info: bpy.props.BoolProperty(
+        options=set(),
+        name="Lightmap Info",
+    )
+
+    ##### game launch #####
+
+    use_play : bpy.props.BoolProperty(
+        name="Use Play Variant",
+        description="Launches sapien_play / tag_play instead. These versions have less debug information and should load faster",
+    )
+
+    run_game_scripts: bpy.props.BoolProperty(
+        options=set(),
+        description="Runs all startup, dormant, and continuous scripts on map load",
+        name="TagTest Run Scripts",
+        default=True,
+    )
+    
+    forge: bpy.props.BoolProperty(
+        name="TagTest Load Forge",
+        description="Open the scenario with the Forge gametype loaded if the scenario type is set to multiplayer"
+    )
+    
+    megalo_variant: bpy.props.StringProperty(
+        name="Megalo Variant",
+        description="Name of the megalo variant to load",
+    )
+    
+    show_debugging: bpy.props.BoolProperty(
+        name="Show Debugging/Errors",
+        description="If disabled, will turn off debugging text spew and error geometry",
+        default=True,
+    )
+
+    prune_globals: bpy.props.BoolProperty(
+        options=set(),
+        description="Strips all player information, global materials, grenades and powerups from the globals tag, as well as interface global tags. Don't use this if you need the game to be playable",
+        name="Globals",
+    )
+
+    prune_globals_keep_playable: bpy.props.BoolProperty(
+        options=set(),
+        description="Strips player information (keeping one single player element), global materials, grenades and powerups. Keeps the game playable.",
+        name="Globals (Keep Playable)",
+    )
+
+    prune_globals_use_empty: bpy.props.BoolProperty(
+        options=set(),
+        description="Uses global_empty.globals instead of globals.globals",
+        name="Globals Use Empty",
+    )
+
+    prune_models_enable_alternate_render_models: bpy.props.BoolProperty(
+        options=set(),
+        description="Allows tag build to use alternative render models specified in the .model",
+        name="Allow Alternate Render Models",
+    )
+
+    prune_scenario_keep_scriptable_objects: bpy.props.BoolProperty(
+        options=set(),
+        description="Attempts to run scripts while pruning",
+        name="Keep Scriptable Objects",
+    )
+
+    prune_scenario_for_environment_editing: bpy.props.BoolProperty(
+        options=set(),
+        description="Removes everything but the environment: Weapons, vehicles, bipeds, equipment, cinematics, AI, etc",
+        name="Prune for Environment Editing",
+    )
+
+    prune_scenario_for_environment_editing_keep_cinematics: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of cutscene flags and cinematics",
+        name="Keep Cinematics",
+    )
+
+    prune_scenario_for_environment_editing_keep_scenery: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of scenery",
+        name="Keep Scenery",
+    )
+
+    prune_scenario_for_environment_editing_keep_decals: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of decals",
+        name="Keep Decals",
+    )
+
+    prune_scenario_for_environment_editing_keep_crates: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of crates",
+        name="Keep Crates",
+    )
+
+    prune_scenario_for_environment_editing_keep_creatures: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of creatures",
+        name="Keep Creatures",
+    )
+
+    prune_scenario_for_environment_editing_keep_pathfinding: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of pathfinding",
+        name="Keep Pathfinding",
+    )
+
+    prune_scenario_for_environment_editing_keep_new_decorator_block: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of decorators",
+        name="Keep Decorators",
+    )
+
+    prune_scenario_all_lightmaps: bpy.props.BoolProperty(
+        options=set(),
+        description="Loads the scenario without lightmaps",
+        name="Prune Lightmaps",
+    )
+
+    prune_all_materials_use_gray_shader: bpy.props.BoolProperty(
+        options=set(),
+        description="Replaces all shaders in the scene with a gray shader, allowing designers to load larger zone sets (the game looks gray, but without artifacts)",
+        name="Use Gray Shader",
+    )
+
+    prune_all_materials_use_default_textures: bpy.props.BoolProperty(
+        options=set(),
+        description="Replaces all material textures in the scene with the material shader's default, allowing designers to load larger zone sets",
+        name="Use Default Textures",
+    )
+
+    prune_all_materials_use_default_textures_fx_textures: bpy.props.BoolProperty(
+        options=set(),
+        description="Loads only material textures related to FX, all other material textures will show up as the shader's default",
+        name="Include FX materials",
+    )
+
+    prune_all_material_effects: bpy.props.BoolProperty(
+        options=set(),
+        description="Loads the scenario without material effects",
+        name="Prune Material Effects",
+    )
+
+    prune_all_dialog_sounds: bpy.props.BoolProperty(
+        options=set(),
+        description="Removes all dialog sounds referenced in the globals tag",
+        name="Prune Material Effects",
+    )
+
+    prune_all_error_geometry: bpy.props.BoolProperty(
+        options=set(),
+        description="If you're working on geometry and don't need to see the (40+ MB of) data that gets loaded in tags then you should enable this command",
+        name="Prune Error Geometry",
+    )
+
+    prune_facial_animations: bpy.props.BoolProperty(
+        options=set(),
+        description="Skips loading the PCA data for facial animations",
+        name="Prune Facial Animations",
+    )
+
+    prune_first_person_animations: bpy.props.BoolProperty(
+        options=set(),
+        description="Skips laoding the first-person animations",
+        name="Prune First Person Animations",
+    )
+
+    prune_low_quality_animations: bpy.props.BoolProperty(
+        options=set(),
+        description="Use low-quality animations if they are available",
+        name="Use Low Quality Animations",
+    )
+
+    prune_use_imposters: bpy.props.BoolProperty(
+        options=set(),
+        description="Uses imposters if they available",
+        name="Use Imposters only",
+    )
+
+    prune_cinematic_effects: bpy.props.BoolProperty(
+        options=set(),
+        description="Skips loading and player cinematic effects",
+        name="Prune Cinematic Effects",
+    )
+    # REACH Only prunes
+    prune_scenario_force_solo_mode: bpy.props.BoolProperty(
+        options=set(),
+        description="Forces the map to be loaded in solo mode even if it is a multiplayer map. The game will look for a solo map spawn point",
+        name="Force Solo Mode",
+    )
+
+    prune_scenario_for_environment_finishing: bpy.props.BoolProperty(
+        options=set(),
+        description="Supersedes prune_scenario_for_environment_editing, with the inclusion of decals, scenery, crates and decorators",
+        name="Prune Finishing",
+    )
+
+    prune_scenario_force_single_bsp_zone_set: bpy.props.BoolProperty(
+        options=set(),
+        description="Removes all but the first BSP from the initial zone set. Ensures that the initial zone set will not crash on load due to low memory",
+        name="Prune Zone Sets",
+    )
+
+    prune_scenario_force_single_bsp_zones: bpy.props.BoolProperty(
+        options=set(),
+        description="Add single bsp zone sets (for each BSP) to the debug menu",
+        name="Single BSP zone sets",
+    )
+
+    prune_keep_scripts: bpy.props.BoolProperty(
+        options=set(),
+        description="Attempts to run scripts while pruning",
+        name="Keep Scripts",
+    )
+    # Other
+    enable_firefight: bpy.props.BoolProperty(options=set(), name="Enable Spartan Ops")
+
+    firefight_mission: bpy.props.StringProperty(
+        options=set(),
+        name="Spartan Ops Mission",
+        description="Set the string that matches the spartan ops mission that should be loaded",
+        default="",
+    )
+
+    insertion_point_index: bpy.props.IntProperty(
+        options=set(),
+        name="Insertion Point",
+        default=-1,
+        min=-1,
+        soft_max=4,
+    )
+
+    initial_zone_set: bpy.props.StringProperty(
+        options=set(),
+        name="Zone Set",
+        description="Opens the scenario to the zone set specified. This should match a zone set defined in the .scenario tag",
+    )
+
+    initial_bsp: bpy.props.StringProperty(
+        options=set(),
+        name="BSP",
+        description="Opens the scenario to the bsp specified. This should match a bsp name in your blender scene",
+    )
+
+    custom_functions: bpy.props.StringProperty(
+        options=set(),
+        name="Custom",
+        description="Name of Blender blender text editor file to get custom init lines from. If no such text exists, instead looks in the root editing kit for an init.txt with this name. If this doesn't exist, then the actual text is used instead",
+        default="",
+    )

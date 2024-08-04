@@ -28,7 +28,7 @@ from math import degrees
 from pathlib import Path
 import bpy
 
-from ...ui.scene_properties import NWO_AnimationCompositesItems
+from ...props.scene import NWO_AnimationCompositesItems
 from ...icons import get_icon_id
 from ... import utils
 import xml.etree.cElementTree as ET

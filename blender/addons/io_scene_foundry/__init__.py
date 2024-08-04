@@ -10,10 +10,9 @@ old_x = None
 
 old_node_dict = {}
 
-from .utils import (
-    get_project_path,
-)
+from .utils import get_project_path
 
+from . import props
 from . import tools
 from . import ui
 from . import export
@@ -23,8 +22,9 @@ from . import preferences
 
 modules = [
     preferences,
-    tools,
+    props,
     ui,
+    tools,
     export,
     keymap,
     icons,
@@ -155,7 +155,6 @@ def register():
     bpy.app.handlers.load_post.append(load_handler)
     bpy.app.handlers.load_post.append(load_set_output_state)
     bpy.app.handlers.save_post.append(save_object_positions_to_tags)
-    # bpy.app.handlers.undo_post.append(get_temp_settings)
     for module in modules:
         module.register()
     icons.icons_activate()
@@ -164,6 +163,5 @@ def unregister():
     bpy.app.handlers.save_post.remove(save_object_positions_to_tags)
     bpy.app.handlers.load_post.remove(load_handler)
     bpy.app.handlers.load_post.remove(load_set_output_state)
-    # bpy.app.handlers.undo_post.remove(get_temp_settings)
     for module in reversed(modules):
         module.unregister()

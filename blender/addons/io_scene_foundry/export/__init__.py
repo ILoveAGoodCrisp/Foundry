@@ -22,9 +22,8 @@ import ctypes
 import traceback
 import logging
 
-from ..managed_blam import mb_init
 from ..icons import get_icon_id, get_icon_id_in_directory
-from ..tools import NWO_ProjectChooserMenuDisallowNew
+from ..ui.bar import NWO_MT_ProjectChooserMenuDisallowNew
 
 from .prepare_scene import PrepareScene
 from .process_scene import ProcessScene
@@ -211,11 +210,11 @@ class NWO_Export_Scene(Operator, ExportHelper):
                     icon_id = get_icon_id("halo_2amp")
                 else:
                     icon_id = get_icon_id("tag_test")
-                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text=scene_nwo.scene_project, icon_value=icon_id)
+                row.menu(NWO_MT_ProjectChooserMenuDisallowNew.bl_idname, text=scene_nwo.scene_project, icon_value=icon_id)
                 break
         else:
             if projects:
-                row.menu(NWO_ProjectChooserMenuDisallowNew.bl_idname, text="Choose Project", icon_value=get_icon_id("tag_test"))
+                row.menu(NWO_MT_ProjectChooserMenuDisallowNew.bl_idname, text="Choose Project", icon_value=get_icon_id("tag_test"))
         # SETTINGS #
         box = layout.box()
         box.label(text="Settings")

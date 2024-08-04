@@ -43,7 +43,7 @@ class NWO_ScaleScene(bpy.types.Operator):
         items = []
         items.append(('none', 'None', "Does not scale the scene", 'MATPLANE', 0))
         items.append(('blender', 'To Blender', "Scales the scene by a factor of roughly 32.8", 'BLENDER', 1))
-        items.append(('max', 'To Halo', "Scales the scene by a factor of roughly 0.03", utils.get_icon_id("halo_scale"), 2))
+        items.append(('max', 'To Halo', "Scales the scene by a factor of roughly 0.03", get_icon_id("halo_scale"), 2))
         items.append(('custom', 'Custom', "Scales the scene by the given factor", 'FULLSCREEN_ENTER', 3))
         return items
     

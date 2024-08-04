@@ -117,3 +117,71 @@ def get_full_name(coll_type, coll_name):
             duplicate += 1
 
     return full_name
+
+class NWO_CollectionManager_Create(bpy.types.Operator):
+    bl_idname = "nwo.collection_create"
+    bl_label = "New Halo Collection"
+    bl_options = {"REGISTER", "UNDO"}
+    bl_description = "Creates a Halo collection with the specified name and type"
+
+    def type_items(self, context):
+        items = []
+        r_name = "Region"
+        p_name = "Permutation"
+        if context.scene.nwo.asset_type == "scenario":
+            r_name = "BSP"
+            p_name = "Layer"
+
+        items.append(("region", r_name, ""))
+        items.append(("permutation", p_name, ""))
+        items.append(("exclude", "Exclude", ""))
+
+        return items
+
+    type: bpy.props.EnumProperty(
+        name="Collection Type",
+        items=type_items,
+        )
+    
+    name : bpy.props.StringProperty()
+
+    def execute(self, context):
+        from .collection_manager import create_collections
+
+        return create_collections(
+            context,
+            bpy.ops,
+            bpy.data,
+            self.type,
+            self.name,
+            False
+        )
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+    def draw(self, context):
+        layout = self.layout
+        row = layout.row()
+        row.prop(self, "type", text="Type", expand=True)
+        row = layout.row()
+        row.activate_init = True
+        row.prop(self, "name", text="Name")
+        
+class NWO_CollectionManager_CreateMove(NWO_CollectionManager_Create):
+    bl_idname = "nwo.collection_create_move"
+    bl_label = "Move to Halo Collection"
+    bl_description = "Creates a Halo collection with the specified name and type. Adds all currently selected objects to it"
+
+    def execute(self, context):
+        from .collection_manager import create_collections
+
+        return create_collections(
+            context,
+            bpy.ops,
+            bpy.data,
+            self.type,
+            self.name,
+            True,
+        )

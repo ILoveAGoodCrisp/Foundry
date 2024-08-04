@@ -2800,6 +2800,3 @@ def to_mesh(context, objects: list[bpy.types.Object]):
                 mod.use_multi_modifier = arm_mod.use_multi_modifier
                 mod.use_vertex_groups = arm_mod.use_vertex_groups
                 mod.use_bone_envelopes = arm_mod.use_bone_envelopes
-            
-
-            

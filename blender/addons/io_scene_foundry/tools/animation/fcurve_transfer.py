@@ -145,11 +145,6 @@ class NWO_OT_FcurveTransfer(bpy.types.Operator):
         description="The name of the channel to receive data. This can be empty",
         items=list_channels,
     )
-    
-
-    @classmethod
-    def poll(cls, context):
-        return True
 
     def execute(self, context):
         active_action_index = context.scene.nwo.active_action_index

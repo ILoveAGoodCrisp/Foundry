@@ -1,125 +1,23 @@
-from bpy.types import PropertyGroup, UIList, Operator
-from bpy.props import (
-    StringProperty,
-    BoolProperty,
-    EnumProperty,
-    CollectionProperty,
-    IntProperty,
-    FloatProperty,
-)
-import random
 import bpy
-
-from ..icons import get_icon_id
 from ..utils import is_marker
-
-
-class NWO_UL_AnimProps_Events(UIList):
-    def draw_item(
-        self, context, layout, data, item, icon, active_data, active_propname
-    ):
-        animation = item
-        if animation:
-            layout.prop(animation, "name", text="", emboss=False, icon_value=get_icon_id("animation_event"))
-        else:
-            layout.label(text="", translate=False, icon_value=icon)
-
-    # def draw_item(self, _context, layout, _data, item, icon, _active_data, _active_propname, _index):
-    #     if self.layout_type in {'DEFAULT', 'COMPACT'}:
-    #         layout.prop(item, "name", text="", emboss=False, icon='GROUP_UVS')
-    #         icon = 'RESTRICT_RENDER_OFF' if item.active_render else 'RESTRICT_RENDER_ON'
-    #         layout.prop(item, "active_render", text="", icon=icon, emboss=False)
-    #     elif self.layout_type == 'GRID':
-    #         layout.alignment = 'CENTER'
-    #         layout.label(text="", icon_value=icon)
 
 #############################################################
 # ANIMATION RENAMES
 #############################################################
 
 
-class NWO_AnimationRenamesItems(PropertyGroup):
-    name: StringProperty(name="Name")
+class NWO_AnimationRenamesItems(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="Name")
 
 
 #############################################################
 # ANIMATION EVENTS
 #############################################################
 
+class NWO_Animation_ListItems(bpy.types.PropertyGroup):
+    event_id: bpy.props.IntProperty()
 
-class NWO_List_Add_Animation_Event(Operator):
-    """Add an Item to the UIList"""
-
-    bl_idname = "animation_event.list_add"
-    bl_label = "Add"
-    bl_description = "Add a new animation event"
-    filename_ext = ""
-    bl_options = {"UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        return bpy.data.actions and context.scene.nwo.active_action_index > -1
-
-    def execute(self, context):
-        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
-        nwo = action.nwo
-        event = nwo.animation_events.add()
-        nwo.animation_events_index = len(nwo.animation_events) - 1
-        event.frame_frame = context.scene.frame_current
-        event.event_id = random.randint(0, 2147483647)
-        event.name = f"event_{len(nwo.animation_events)}"
-
-        context.area.tag_redraw()
-
-        return {"FINISHED"}
-
-
-class NWO_List_Remove_Animation_Event(Operator):
-    """Remove an Item from the UIList"""
-
-    bl_idname = "animation_event.list_remove"
-    bl_label = "Remove"
-    bl_description = "Remove an animation event from the list"
-    bl_options = {"UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        return bpy.data.actions and context.scene.nwo.active_action_index > -1 and len(bpy.data.actions[context.scene.nwo.active_action_index].nwo.animation_events) > 0
-
-    def execute(self, context):
-        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
-        action_nwo = action.nwo
-        index = action_nwo.animation_events_index
-        action_nwo.animation_events.remove(index)
-        if action_nwo.animation_events_index > len(action_nwo.animation_events) - 1:
-            action_nwo.animation_events_index += -1
-        context.area.tag_redraw()
-        return {"FINISHED"}
-    
-class NWO_OT_AnimationEventMove(bpy.types.Operator):
-    bl_label = ""
-    bl_idname = "nwo.animation_event_move"
-    bl_options = {'UNDO'}
-    
-    direction: bpy.props.StringProperty()
-
-    def execute(self, context):
-        action = bpy.data.actions[bpy.context.scene.nwo.active_action_index]
-        action_nwo = action.nwo
-        table = action_nwo.animation_events
-        delta = {"down": 1, "up": -1,}[self.direction]
-        current_index = action_nwo.animation_events_index
-        to_index = (current_index + delta) % len(table)
-        table.move(current_index, to_index)
-        action_nwo.animation_events_index = to_index
-        context.area.tag_redraw()
-        return {'FINISHED'}
-
-
-class NWO_Animation_ListItems(PropertyGroup):
-    event_id: IntProperty()
-
-    multi_frame: EnumProperty(
+    multi_frame: bpy.props.EnumProperty(
         name="Usage",
         description="Toggle whether this animation event should trigger on a single frame, or occur over a range",
         default="single",
@@ -131,19 +29,19 @@ class NWO_Animation_ListItems(PropertyGroup):
         if self.frame_range < self.frame_frame:
             self.frame_range = self.frame_frame
 
-    frame_range: IntProperty(
+    frame_range: bpy.props.IntProperty(
         name="Frame Range",
         description="Enter the number of frames this event should last",
         default=1,
         update=update_frame_range,
     )
 
-    name: StringProperty(
+    name: bpy.props.StringProperty(
         name="Event Name",
         default="new_event",
     )
     
-    event_type: EnumProperty(
+    event_type: bpy.props.EnumProperty(
         name="Type",
         options=set(),
         items=[
@@ -157,7 +55,7 @@ class NWO_Animation_ListItems(PropertyGroup):
         ]
     )
 
-    # event_type: EnumProperty(
+    # event_type: bpy.props.EnumProperty(
     #     name="Type",
     #     default="_connected_geometry_animation_event_type_frame",
     #     options=set(),
@@ -225,19 +123,19 @@ class NWO_Animation_ListItems(PropertyGroup):
     #                       'Sound Events':['left foot', 'right foot', 'body impact', 'both-feet shuffle'],
     #                       'Import Events':['Wrapped Left', 'Wrapped Right']}
 
-    frame_start: FloatProperty(
+    frame_start: bpy.props.FloatProperty(
         name="Frame Start",
         default=0,
         options=set(),
     )
 
-    frame_end: FloatProperty(
+    frame_end: bpy.props.FloatProperty(
         name="Frame End",
         default=0,
         options=set(),
     )
 
-    wrinkle_map_face_region: EnumProperty(
+    wrinkle_map_face_region: bpy.props.EnumProperty(
         name="Wrinkle Map Face Region",
         options=set(),
         items=[
@@ -252,19 +150,19 @@ class NWO_Animation_ListItems(PropertyGroup):
         ]
     )
 
-    wrinkle_map_effect: FloatProperty(
+    wrinkle_map_effect: bpy.props.FloatProperty(
         name="Wrinkle Map Effect",
         default=1,
         options=set(),
     )
 
-    footstep_type: StringProperty(
+    footstep_type: bpy.props.StringProperty(
         name="Footstep Type",
         default="",
         options=set(),
     )
 
-    footstep_effect: IntProperty(
+    footstep_effect: bpy.props.IntProperty(
         name="Footstep Effect",
         default=0,
         options=set(),
@@ -279,19 +177,19 @@ class NWO_Animation_ListItems(PropertyGroup):
             
         return items
 
-    ik_chain: EnumProperty(
+    ik_chain: bpy.props.EnumProperty(
         name="IK Chain",
         options=set(),
         items=ik_chain_items,
     )
 
-    ik_active_tag: StringProperty(
+    ik_active_tag: bpy.props.StringProperty(
         name="IK Active Tag",
         default="",
         options=set(),
     )
 
-    ik_target_tag: StringProperty(
+    ik_target_tag: bpy.props.StringProperty(
         name="IK Target Tag",
         default="",
         options=set(),
@@ -307,7 +205,7 @@ class NWO_Animation_ListItems(PropertyGroup):
         options=set(),
     )
 
-    ik_target_usage: EnumProperty(
+    ik_target_usage: bpy.props.EnumProperty(
         name="Target Usage",
         options=set(),
         items=[
@@ -320,7 +218,7 @@ class NWO_Animation_ListItems(PropertyGroup):
         ]
     )
     
-    ik_influence: FloatProperty(
+    ik_influence: bpy.props.FloatProperty(
         name="Influence",
         options=set(),
         default=1,
@@ -329,43 +227,43 @@ class NWO_Animation_ListItems(PropertyGroup):
         subtype='FACTOR',
     )
 
-    ik_proxy_target_id: IntProperty(
+    ik_proxy_target_id: bpy.props.IntProperty(
         name="IK Proxy Target ID",
         default=0,
         options=set(),
     )
 
-    ik_pole_vector_id: IntProperty(
+    ik_pole_vector_id: bpy.props.IntProperty(
         name="IK Pole Vector ID",
         default=0,
         options=set(),
     )
 
-    ik_effector_id: IntProperty(
+    ik_effector_id: bpy.props.IntProperty(
         name="IK Effector ID",
         default=0,
         options=set(),
     )
 
-    cinematic_effect_tag: StringProperty(
+    cinematic_effect_tag: bpy.props.StringProperty(
         name="Cinematic Effect Tag",
         default="",
         options=set(),
     )
 
-    cinematic_effect_effect: IntProperty(
+    cinematic_effect_effect: bpy.props.IntProperty(
         name="Cinematic Effect",
         default=0,
         options=set(),
     )
 
-    cinematic_effect_marker: StringProperty(
+    cinematic_effect_marker: bpy.props.StringProperty(
         name="Cinematic Effect Marker",
         default="",
         options=set(),
     )
 
-    object_function_name: EnumProperty(
+    object_function_name: bpy.props.EnumProperty(
         name="Object Function Name",
         options=set(),
         items=[
@@ -376,13 +274,13 @@ class NWO_Animation_ListItems(PropertyGroup):
         ]
     )
 
-    object_function_effect: FloatProperty(
+    object_function_effect: bpy.props.FloatProperty(
         name="Object Function Effect",
         default=1,
         options=set(),
     )
 
-    frame_frame: IntProperty(
+    frame_frame: bpy.props.IntProperty(
         name="Event Frame",
         description="The timeline frame this event should occur on",
         default=0,
@@ -390,7 +288,7 @@ class NWO_Animation_ListItems(PropertyGroup):
         update=update_frame_range,
     )
 
-    frame_name: EnumProperty(
+    frame_name: bpy.props.EnumProperty(
         name="Frame Name",
         default="primary keyframe",
         options=set(),
@@ -425,19 +323,19 @@ class NWO_Animation_ListItems(PropertyGroup):
         ],
     )
 
-    frame_trigger: BoolProperty(
+    frame_trigger: bpy.props.BoolProperty(
         name="Frame Trigger",
         default=False,
         options=set(),
     )
 
-    import_frame: IntProperty(
+    import_frame: bpy.props.IntProperty(
         name="Import Frame",
         default=0,
         options=set(),
     )
 
-    import_name: StringProperty(
+    import_name: bpy.props.StringProperty(
         name="Import Name",
         default="",
         options=set(),
@@ -446,14 +344,14 @@ class NWO_Animation_ListItems(PropertyGroup):
     # TODO
     # IMPORT NAMES: "Wrapped Left", "Wrapped Right"
 
-    text: StringProperty(
+    text: bpy.props.StringProperty(
         name="Text",
         default="",
         options=set(),
     )
 
 
-class NWO_ActionPropertiesGroup(PropertyGroup):
+class NWO_ActionPropertiesGroup(bpy.types.PropertyGroup):
     def update_name_override(self, context):
         if self.name_override.rpartition(".")[2] != self.animation_type:
             match self.name_override.rpartition(".")[2].upper():
@@ -476,21 +374,21 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
                 case _:
                     self.animation_type = "JMM"
 
-    name_override: StringProperty(
+    name_override: bpy.props.StringProperty(
         name="Name Override",
         # update=update_name_override,
         description="If this field is not empty, the exporter will use the animation given here instead of relying on the action name. Use this if the action name field is too short for your animation name",
         default="",
     )
 
-    export_this: BoolProperty(
+    export_this: bpy.props.BoolProperty(
         name="Export",
         default=True,
         description="Controls whether this animation is exported or not",
         options=set(),
     )
 
-    compression : EnumProperty(
+    compression : bpy.props.EnumProperty(
         name="Compression",
         description="Level of compression to apply to animations",
         items=[
@@ -562,9 +460,9 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
     def update_animation_type(self, context):
         self.animation_type_help = self["animation_type"]
         
-    animation_type_help: IntProperty()
+    animation_type_help: bpy.props.IntProperty()
             
-    animation_type: EnumProperty(
+    animation_type: bpy.props.EnumProperty(
         name="Type",
         description="Set the type of Halo animation you want this action to be",
         items=animation_type_items,
@@ -573,7 +471,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         update=update_animation_type,
     )
     
-    animation_movement_data: EnumProperty(
+    animation_movement_data: bpy.props.EnumProperty(
         name='Movement',
         description='Set how this animation moves the object in worldspace',
         default="none",
@@ -606,7 +504,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         ]
     )
     
-    animation_space: EnumProperty(
+    animation_space: bpy.props.EnumProperty(
         name="Space",
         description="Set whether the animation is in object or local space",
         items=[
@@ -615,33 +513,33 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         ]
     )
 
-    animation_is_pose: BoolProperty(
+    animation_is_pose: bpy.props.BoolProperty(
         name='Pose Overlay',
         description='Tells the exporter to compute aim node directions for this overlay. These allow animations to be affected by the aiming direction of the animated object. You must set the pedestal, pitch, and yaw usages in the Foundry armature properties to use this correctly\nExamples: aim_still_up, acc_up_down, vehicle steering'
     )
 
-    animation_events: CollectionProperty(
+    animation_events: bpy.props.CollectionProperty(
         type=NWO_Animation_ListItems,
     )
 
-    animation_events_index: IntProperty(
+    animation_events_index: bpy.props.IntProperty(
         name="Index for Animation Event",
         default=0,
         min=0,
     )
 
-    animation_renames: CollectionProperty(
+    animation_renames: bpy.props.CollectionProperty(
         type=NWO_AnimationRenamesItems,
     )
 
-    animation_renames_index: IntProperty(
+    animation_renames_index: bpy.props.IntProperty(
         name="Index for Animation Renames",
         default=0,
         min=0,
     )
 
     # NOT VISIBLE TO USER, USED FOR ANIMATION RENAMES
-    state_type: EnumProperty(
+    state_type: bpy.props.EnumProperty(
         name="State Type",
         items=[
             ("action", "Action / Overlay", ""),
@@ -651,7 +549,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         ],
     )
 
-    mode: StringProperty(
+    mode: bpy.props.StringProperty(
         name="Mode",
         description="""The mode the object must be in to use this animation. Use 'any' for all modes. Other valid
         inputs inlcude but are not limited to: 'crouch' when a unit is crouching, 
@@ -660,20 +558,20 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         information refer to existing model_animation_graph tags. Can be empty""",
     )
 
-    weapon_class: StringProperty(
+    weapon_class: bpy.props.StringProperty(
         name="Weapon Class",
         description="""The weapon class this unit must be holding to use this animation. Weapon class is defined
         per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
     )
-    weapon_type: StringProperty(
+    weapon_type: bpy.props.StringProperty(
         name="Weapon Name",
         description="""The weapon type this unit must be holding to use this animation.  Weapon name is defined
         per weapon in .weapon tags (under Group WEAPON > weapon labels). Can be empty""",
     )
-    set: StringProperty(
+    set: bpy.props.StringProperty(
         name="Set", description="The set this animtion is a part of. Can be empty"
     )
-    state: StringProperty(
+    state: bpy.props.StringProperty(
         name="State",
         description="""The state this animation plays in. States can refer to hardcoded properties or be entirely
         custom. You should refer to existing model_animation_graph tags for more information. Examples include: 'idle' for 
@@ -681,30 +579,30 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         an animation that should play when putting away a weapon. Must not be empty""",
     )
 
-    destination_mode: StringProperty(
+    destination_mode: bpy.props.StringProperty(
         name="Destination Mode",
         description="The mode to put this object in when it finishes this animation. Can be empty",
     )
-    destination_state: StringProperty(
+    destination_state: bpy.props.StringProperty(
         name="Destination State",
         description="The state to put this object in when it finishes this animation. Must not be empty",
     )
 
-    damage_power: EnumProperty(
+    damage_power: bpy.props.EnumProperty(
         name="Power",
         items=[
             ("hard", "Hard", ""),
             ("soft", "Soft", ""),
         ],
     )
-    damage_type: EnumProperty(
+    damage_type: bpy.props.EnumProperty(
         name="Type",
         items=[
             ("ping", "Ping", ""),
             ("kill", "Kill", ""),
         ],
     )
-    damage_direction: EnumProperty(
+    damage_direction: bpy.props.EnumProperty(
         name="Direction",
         items=[
             ("front", "Front", ""),
@@ -713,7 +611,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
             ("back", "Back", ""),
         ],
     )
-    damage_region: EnumProperty(
+    damage_region: bpy.props.EnumProperty(
         name="Region",
         items=[
             ("gut", "Gut", ""),
@@ -730,7 +628,7 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
         ],
     )
 
-    variant: IntProperty(
+    variant: bpy.props.IntProperty(
         min=0,
         soft_max=3,
         name="Variant",
@@ -739,6 +637,6 @@ class NWO_ActionPropertiesGroup(PropertyGroup):
                                     """,
     )
 
-    custom: StringProperty(name="Custom")
+    custom: bpy.props.StringProperty(name="Custom")
 
-    created_with_foundry: BoolProperty()
+    created_with_foundry: bpy.props.BoolProperty(options={'HIDDEN'})

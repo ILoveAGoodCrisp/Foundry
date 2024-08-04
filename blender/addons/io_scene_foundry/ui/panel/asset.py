@@ -1,67 +1,9 @@
-from ..icons import get_icon_id
-from ..utils import (
-    get_asset_info,
-    get_data_path,
-)
-from .templates import NWO_PropPanel, NWO_Op
+"""UI for the asset editor sub-panel"""
+
 import bpy
-from bpy.props import BoolProperty, StringProperty
-from bpy.types import Context, OperatorProperties, UIList, Menu
+from ... import utils
 
-class NWO_RegionsContextMenu(Menu):
-    bl_label = "Regions Context Menu"
-    bl_idname = "NWO_MT_RegionsContext"
-
-    @classmethod
-    def poll(self, context):
-        return context.scene.nwo.regions_table
-    
-    def draw(self, context):
-        pass
-
-class NWO_PermutationsContextMenu(Menu):
-    bl_label = "Permutations Context Menu"
-    bl_idname = "NWO_MT_PermutationsContext"
-
-    @classmethod
-    def poll(self, context):
-        return context.scene.nwo.permutations_table
-    
-    def draw(self, context):
-        pass
-
-class NWO_UL_Regions(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        if item:
-            row = layout.row()
-            row.alignment = 'LEFT'
-            # row.operator("nwo.region_rename", text=item.name, emboss=False, icon_value=get_icon_id("region"))
-            row.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("region"))
-            row = layout.row(align=True)
-            row.alignment = 'RIGHT'
-            row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
-            row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
-            if data.asset_type in ('model', 'sky'):
-                row.prop(item, "active", text="", icon='CHECKBOX_HLT' if item.active else 'CHECKBOX_DEHLT', emboss=False)
-        else:
-            layout.label(text="", translate=False, icon_value=icon)
-
-class NWO_UL_Permutations(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        if item:
-            row = layout.row()
-            row.alignment = 'LEFT'
-            # row.operator("nwo.permutation_rename", text=item.name, emboss=False, icon_value=get_icon_id("permutation"))
-            row.prop(item, 'name', text='', emboss=False, icon_value=get_icon_id("permutation"))
-            row = layout.row(align=True)
-            row.alignment = 'RIGHT'
-            row.prop(item, "hidden", text="", icon='HIDE_ON' if item.hidden else 'HIDE_OFF', emboss=False)
-            row.prop(item, "hide_select", text="", icon='RESTRICT_SELECT_ON' if item.hide_select else 'RESTRICT_SELECT_OFF', emboss=False)
-        else:
-            layout.label(text="", translate=False, icon_value=icon)
-
-
-class NWO_UL_SceneProps_SharedAssets(UIList):
+class NWO_UL_SceneProps_SharedAssets(bpy.types.UIList):
     use_name_reverse: bpy.props.BoolProperty(
         name="Reverse Name",
         default=False,
@@ -139,7 +81,7 @@ class NWO_UL_SceneProps_SharedAssets(UIList):
             layout.label(text="", icon_value=icon)
 
 
-class NWO_SceneProps_SharedAssets(NWO_PropPanel):
+class NWO_SceneProps_SharedAssets(bpy.types.Panel):
     bl_label = "Shared Assets"
     bl_idname = "NWO_PT_GameVersionPanel_SharedAssets"
     bl_space_type = "PROPERTIES"
@@ -181,7 +123,7 @@ class NWO_SceneProps_SharedAssets(NWO_PropPanel):
             row.prop(item, "shared_asset_type", text="Type")
 
 
-class NWO_List_Add_Shared_Asset(NWO_Op):
+class NWO_List_Add_Shared_Asset(bpy.types.Operator):
     """Add an Item to the UIList"""
 
     bl_idname = "nwo_shared_asset.list_add"
@@ -190,12 +132,12 @@ class NWO_List_Add_Shared_Asset(NWO_Op):
     filename_ext = ""
     bl_options = {"REGISTER", "UNDO"}
 
-    filter_glob: StringProperty(
+    filter_glob: bpy.props.StringProperty(
         default="*.xml",
         options={"HIDDEN"},
     )
 
-    filepath: StringProperty(
+    filepath: bpy.props.StringProperty(
         name="Sidecar",
         description="Set path for the Sidecar file",
         subtype="FILE_PATH",
@@ -211,7 +153,7 @@ class NWO_List_Add_Shared_Asset(NWO_Op):
         scene_nwo.shared_assets.add()
 
         path = self.filepath
-        path = path.replace(get_data_path(), "")
+        path = path.replace(utils.get_data_path(), "")
         scene_nwo.shared_assets[-1].shared_asset_path = path
         scene_nwo.shared_assets_index = len(scene_nwo.shared_assets) - 1
         context.area.tag_redraw()
@@ -223,7 +165,7 @@ class NWO_List_Add_Shared_Asset(NWO_Op):
         return {"RUNNING_MODAL"}
 
 
-class NWO_List_Remove_Shared_Asset(NWO_Op):
+class NWO_List_Remove_Shared_Asset(bpy.types.Operator):
     """Remove an Item from the UIList"""
 
     bl_idname = "nwo_shared_asset.list_remove"
@@ -256,7 +198,7 @@ class NWO_UL_IKChain(bpy.types.UIList):
         # row.prop_search(item, 'start_node', data.main_armature.data, 'bones', text='')
         # row.prop_search(item, 'effector_node', data.main_armature.data, 'bones', text='')
         
-class NWO_AddIKChain(bpy.types.Operator):
+class NWO_OT_AddIKChain(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     bl_idname = 'nwo.add_ik_chain'
     bl_label = "Add"
@@ -274,7 +216,7 @@ class NWO_AddIKChain(bpy.types.Operator):
         context.area.tag_redraw()
         return {'FINISHED'}
     
-class NWO_RemoveIKChain(bpy.types.Operator):
+class NWO_OT_RemoveIKChain(bpy.types.Operator):
     bl_idname = "nwo.remove_ik_chain"
     bl_label = "Remove"
     bl_description = "Remove an IK Chain from the list."
@@ -293,7 +235,7 @@ class NWO_RemoveIKChain(bpy.types.Operator):
         context.area.tag_redraw()
         return {"FINISHED"}
     
-class NWO_MoveIKChain(bpy.types.Operator):
+class NWO_OT_MoveIKChain(bpy.types.Operator):
     bl_idname = "nwo.move_ik_chain"
     bl_label = "Move"
     bl_description = "Moves the IK Chain up/down the list"
@@ -383,7 +325,7 @@ class NWO_OT_SelectObjectControl(bpy.types.Operator):
     bl_idname = "nwo.select_object_control"
     bl_label = "Select"
     
-    select: BoolProperty(default=True)
+    select: bpy.props.BoolProperty(default=True)
 
     def execute(self, context):
         scene_nwo = context.scene.nwo
@@ -397,7 +339,7 @@ class NWO_OT_SelectObjectControl(bpy.types.Operator):
         return {"FINISHED"}
     
     @classmethod
-    def description(cls, context: Context, properties: OperatorProperties) -> str:
+    def description(cls, context, properties) -> str:
         if properties.select:
             return 'Select highlighted control object'
         else:
@@ -415,7 +357,7 @@ class NWO_OT_ClearAsset(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.scene.nwo
-        _, asset_name = get_asset_info(nwo.sidecar_path)
+        _, asset_name = utils.get_asset_info(nwo.sidecar_path)
         nwo.sidecar_path = ""
         self.report({'INFO'}, f"Asset [{asset_name}] unlinked from file")
         return {"FINISHED"}
@@ -438,4 +380,3 @@ class NWO_OT_RegisterIcons(bpy.types.Operator):
             icons.icons_activate()
             
         return {"FINISHED"}
-

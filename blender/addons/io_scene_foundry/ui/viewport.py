@@ -1,9 +1,11 @@
+"""UI that exists in the 3d viewport"""
+
 import bpy
-from bpy.types import Context, OperatorProperties
+
+from ..icons import get_icon_id
 
 from ..tools.property_apply import apply_prefix, apply_props_material
-from ..utils import closest_bsp_object, get_prefs, is_corinth, nwo_enum, set_active_object, to_bounding_box, to_convex_hull, true_region
-from .templates import NWO_Op
+from .. import utils
 
 from ..constants import VALID_MESHES 
 
@@ -18,9 +20,10 @@ class NWO_MT_PIE_ApplyTypeMesh(bpy.types.Menu):
         pie.operator_enum("nwo.apply_type_mesh", "m_type")
 
 
-class NWO_PIE_ApplyTypeMesh(NWO_Op):
+class NWO_PIE_ApplyTypeMesh(bpy.types.Operator):
     bl_label = "Apply Mesh Type"
     bl_idname = "nwo.apply_types_mesh_pie"
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(self, context):
@@ -33,10 +36,11 @@ class NWO_PIE_ApplyTypeMesh(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_ApplyTypeMesh(NWO_Op):
+class NWO_OT_ApplyTypeMesh(bpy.types.Operator):
     bl_label = "Apply Mesh Type"
     bl_idname = "nwo.apply_type_mesh"
     bl_description = "Applies the specified mesh type to the selected objects"
+    bl_options = {"REGISTER", "UNDO"}
     
     convert_mesh: bpy.props.EnumProperty(
         options={'SKIP_SAVE'},
@@ -53,18 +57,18 @@ class NWO_ApplyTypeMesh(NWO_Op):
         items = []
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
-        h4 = is_corinth(context)
+        h4 = utils.is_corinth(context)
         index = 0
         if asset_type == 'model' or asset_type == 'resource':
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "render", "Render", "Render only geometry", "render_geometry", index
                 )
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "collision",
                     "Collision",
                     "Collision only geometry. Bullets always collide with this mesh. If this mesh is static (cannot move) and does not have a physics model, the collision model will also interact with physics objects such as the player. Must use bone parenting of have each vertex weighted to only a single vertex group if parented to an armature",
@@ -74,7 +78,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             ),
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "physics",
                     "Physics",
                     "Physics only geometry. Uses havok physics to interact with static and dynamic objects. Must be bone parented / weighted to only one vertex group if parented to an armature",
@@ -84,7 +88,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             ),
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "io",
                     "Instanced Object",
                     "Instanced render only geometry. Supports assignment to multiple permutations. Must be bone parented / weighted to only one vertex group if parented to an armature",
@@ -95,7 +99,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
         if asset_type == 'scenario' or asset_type == 'resource':
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "instance",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
@@ -109,11 +113,11 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 descrip = "Defines the bounds of the BSP. By default acts as render, collision and physics geometry"
             index += 1
             items.append(
-                nwo_enum("structure", "Structure", descrip, "structure", index)
+                utils.nwo_enum("structure", "Structure", descrip, "structure", index)
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "collision",
                     "Collision",
                     "Non rendered geometry which provides collision only",
@@ -123,7 +127,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             ),
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "seam",
                     "Seam",
                     "Allows visibility and traversal between two or more bsps. Requires zone sets to be set up in the scenario tag",
@@ -133,7 +137,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "portal",
                     "Portal",
                     "Planes that cut through structure geometry to define clusters. Used for defining visiblity between different clusters",
@@ -143,7 +147,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "lightmap_only",
                     "Lightmap Only",
                     "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
@@ -153,7 +157,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "water_surface",
                     "Water Surface",
                     "Plane which can cut through geometry to define a water surface, optionally with water physics if the depth is greater than 0. Water physics allows material effects to play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4)",
@@ -163,7 +167,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "water_physics",
                     "Water Physics Volume",
                     "Plane from which a water volume is generated based on depth value. Material effects will play when projectiles strike this mesh. Underwater fog atmosphere will be used when the player is inside the volume (this appears broken in H4+)",
@@ -173,7 +177,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "soft_ceiling",
                     "Soft Ceiling Volume",
                     "Soft barrier that blocks the player and player camera",
@@ -183,7 +187,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "soft_kill",
                     "Soft Kill Volume",
                     "Defines a region where the player will be killed... softly",
@@ -193,7 +197,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             )
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "slip_surface",
                     "Slip Surface Volume",
                     "Defines a region in which surfaces become slippery",
@@ -204,7 +208,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             if h4:
                 index += 1
                 items.append(
-                    nwo_enum(
+                    utils.nwo_enum(
                         "lightmap",
                         "Lightmap Exclusion Volume",
                         "Defines a region that should not be lightmapped",
@@ -215,12 +219,12 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 stream_des = """Defines the region in a zone set that should be used when generating a streamingzoneset tag. By default the full space inside a zone set will be used when generating the streaming zone set tag. This tag tells the game to only generate the tag within the bounds of this volume.\nThis is useful for performance if you have textures in areas of the map the player will not get close to"""
                 index += 1
                 items.append(
-                    nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", index)
+                    utils.nwo_enum("streaming", "Texture Streaming Volume", stream_des, "streaming", index)
                 )
             else:
                 index += 1
                 items.append(
-                    nwo_enum(
+                    utils.nwo_enum(
                         "rain_blocker",
                         "Rain Blocker Volume",
                         "Blocks rain from rendering in the region this volume occupies",
@@ -230,7 +234,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 )
                 index += 1
                 items.append(
-                    nwo_enum(
+                    utils.nwo_enum(
                         "rain_sheet",
                         "Rain Sheet",
                         "A plane which blocks all rain particles that hit it. Regions under this plane will not render rain",
@@ -240,7 +244,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 ),
                 index += 1
                 items.append(
-                    nwo_enum(
+                    utils.nwo_enum(
                         "cookie_cutter",
                         "Pathfinding Cutout Volume",
                         "Cuts out the region this volume defines from the ai navigation mesh. Helpful in cases that you have ai pathing issues in your map",
@@ -250,7 +254,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 )
                 index += 1
                 items.append(
-                    nwo_enum(
+                    utils.nwo_enum(
                         "fog",
                         "Fog",
                         "Defines an area in a cluster which renders fog defined in the scenario tag",
@@ -261,7 +265,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
         elif asset_type == 'prefab':
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "instance",
                     "Instance",
                     "Geometry capable of cutting through structure mesh. Can be instanced. Provides render, collision, and physics",
@@ -271,7 +275,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             ),
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "collision",
                     "Collision",
                     "Non rendered geometry which provides collision only",
@@ -281,7 +285,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             ),
             index += 1
             items.append(
-                nwo_enum(
+                utils.nwo_enum(
                     "lightmap_only",
                     "Lightmap Only",
                     "Non-collidable mesh that is used by the lightmapper to calculate lighting & shadows, but otherwise invisible",
@@ -309,7 +313,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
     )
     
     @classmethod
-    def description(cls, context: Context, properties: OperatorProperties) -> str:
+    def description(cls, context, properties) -> str:
         items = cls.m_type_items(cls, context)
         enum = items[properties['m_type']]
         return enum[2]
@@ -318,10 +322,10 @@ class NWO_ApplyTypeMesh(NWO_Op):
         self.layout.use_property_split = True
         self.layout.prop(self, "m_type", text="Mesh Type")
         self.layout.prop(self, "convert_mesh", text="Convert Mesh", expand=True)
-        if get_prefs().apply_materials:
+        if utils.get_prefs().apply_materials:
             self.layout.prop(self, "apply_material", text="Apply Material")
         
-        if get_prefs().apply_prefix != "none":
+        if utils.get_prefs().apply_prefix != "none":
             self.layout.prop(self, "apply_prefix", text="Apply Prefix")
         
     def mesh_and_material(self, context):
@@ -377,7 +381,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 mesh_type = "_connected_geometry_mesh_type_streaming"
                 material = "StreamingVolume"
             case "lightmap":
-                if is_corinth(context):
+                if utils.is_corinth(context):
                     mesh_type = "_connected_geometry_mesh_type_lightmap_exclude"
                     material = "LightmapExcludeVolume"
 
@@ -393,8 +397,8 @@ class NWO_ApplyTypeMesh(NWO_Op):
         return mesh_type, material
 
     def execute(self, context):
-        apply_materials = get_prefs().apply_materials
-        prefix_setting = get_prefs().apply_prefix
+        apply_materials = utils.get_prefs().apply_materials
+        prefix_setting = utils.get_prefs().apply_prefix
         original_selection = context.selected_objects
         original_active = context.object
         mesh_type, material = self.mesh_and_material(context)
@@ -404,7 +408,7 @@ class NWO_ApplyTypeMesh(NWO_Op):
             if ob.type in VALID_MESHES
         ]
         for ob in meshes:
-            set_active_object(ob)
+            utils.set_active_object(ob)
             ob.select_set(True)
             ob.data.nwo.mesh_type = mesh_type
 
@@ -415,14 +419,14 @@ class NWO_ApplyTypeMesh(NWO_Op):
                 apply_props_material(ob, material)
                 
             if self.convert_mesh == "convex_hull":
-                to_convex_hull(ob)
+                utils.to_convex_hull(ob)
             elif self.convert_mesh == "bounding_box":
-                to_bounding_box(ob)
+                utils.to_bounding_box(ob)
 
             if self.m_type == "seam":
-                closest_bsp = closest_bsp_object(context, ob)
+                closest_bsp = utils.closest_bsp_object(context, ob)
                 if closest_bsp is not None:
-                    ob.nwo.seam_back = true_region(closest_bsp.nwo)
+                    ob.nwo.seam_back = utils.true_region(closest_bsp.nwo)
                     
             ob.select_set(False)
 
@@ -430,17 +434,17 @@ class NWO_ApplyTypeMesh(NWO_Op):
             {"INFO"}, f"Applied Mesh Type [{self.m_type}] to {len(meshes)} objects"
         )
         [ob.select_set(True) for ob in original_selection]
-        set_active_object(original_active)
+        utils.set_active_object(original_active)
         return {"FINISHED"}
 
-class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
+class NWO_OT_ApplyTypeMeshSingle(NWO_OT_ApplyTypeMesh):
     bl_label = "Apply Mesh Type"
     bl_idname = "nwo.apply_type_mesh_single"
     bl_description = "Applies the specified mesh type to the active object"
     
     def execute(self, context):
-        apply_materials = get_prefs().apply_materials
-        prefix_setting = get_prefs().apply_prefix
+        apply_materials = utils.get_prefs().apply_materials
+        prefix_setting = utils.get_prefs().apply_prefix
         mesh_type, material = self.mesh_and_material(context)
         ob = context.object
         ob.data.nwo.mesh_type = mesh_type
@@ -451,9 +455,9 @@ class NWO_ApplyTypeMeshSingle(NWO_ApplyTypeMesh):
             apply_props_material(ob, material)
 
         if self.m_type == "seam":
-            closest_bsp = closest_bsp_object(context, ob)
+            closest_bsp = utils.closest_bsp_object(context, ob)
             if closest_bsp is not None:
-                ob.nwo.seam_back = true_region(closest_bsp.nwo)
+                ob.nwo.seam_back = utils.true_region(closest_bsp.nwo)
 
         return {"FINISHED"}
 
@@ -468,9 +472,10 @@ class NWO_MT_PIE_ApplyTypeMarker(bpy.types.Menu):
         pie.operator_enum("nwo.apply_type_marker", "m_type")
 
 
-class NWO_PIE_ApplyTypeMarker(NWO_Op):
+class NWO_PIE_ApplyTypeMarker(bpy.types.Operator):
     bl_label = "Apply Marker Type"
     bl_idname = "nwo.apply_types_marker_pie"
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(self, context):
@@ -483,31 +488,32 @@ class NWO_PIE_ApplyTypeMarker(NWO_Op):
         return {"FINISHED"}
 
 
-class NWO_ApplyTypeMarker(NWO_Op):
+class NWO_OT_ApplyTypeMarker(bpy.types.Operator):
     bl_label = "Apply Marker Type"
     bl_idname = "nwo.apply_type_marker"
     bl_description = "Applies the specified marker type to the selected objects"
+    bl_options = {"REGISTER", "UNDO"}
 
     def m_type_items(self, context):
         items = []
         nwo = context.scene.nwo
         asset_type = nwo.asset_type
-        reach = not is_corinth(context)
+        reach = not utils.is_corinth(context)
         index = 0
         if asset_type in ("model", "sky", 'resource'):
             index += 1
-            items.append(nwo_enum("model", "Model Marker", "", "marker", index)),
+            items.append(utils.nwo_enum("model", "Model Marker", "", "marker", index)),
             index += 1
-            items.append(nwo_enum("effects", "Effects", "", "effects", index)),
+            items.append(utils.nwo_enum("effects", "Effects", "", "effects", index)),
 
             if asset_type == "model" or asset_type == 'resource':
                 index += 1
-                items.append(nwo_enum("garbage", "Garbage", "", "garbage", index)),
+                items.append(utils.nwo_enum("garbage", "Garbage", "", "garbage", index)),
                 index += 1
-                items.append(nwo_enum("hint", "Hint", "", "hint", index)),
+                items.append(utils.nwo_enum("hint", "Hint", "", "hint", index)),
                 index += 1
                 items.append(
-                    nwo_enum(
+                    utils.nwo_enum(
                         "pathfinding_sphere",
                         "Pathfinding Sphere",
                         "",
@@ -517,7 +523,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
                 ),
                 index += 1
                 items.append(
-                    nwo_enum(
+                    utils.nwo_enum(
                         "physics_constraint",
                         "Physics Constaint",
                         "",
@@ -526,27 +532,27 @@ class NWO_ApplyTypeMarker(NWO_Op):
                     )
                 ),
                 index += 1
-                items.append(nwo_enum("target", "Target", "", "target", index)),
+                items.append(utils.nwo_enum("target", "Target", "", "target", index)),
                 if not reach:
                     index += 1
-                    items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", index)),
+                    items.append(utils.nwo_enum("airprobe", "Air Probe", "", "airprobe", index)),
 
         if asset_type in ("scenario", "prefab", 'resource'):
             index += 1
-            items.append(nwo_enum("model", "Structure Marker", "", "marker", index)),
+            items.append(utils.nwo_enum("model", "Structure Marker", "", "marker", index)),
             index += 1
             items.append(
-                nwo_enum("game_instance", "Game Object", "", "game_object", index)
+                utils.nwo_enum("game_instance", "Game Object", "", "game_object", index)
             ),
             if not reach:
                 index += 1
-                items.append(nwo_enum("airprobe", "Air Probe", "", "airprobe", index)),
+                items.append(utils.nwo_enum("airprobe", "Air Probe", "", "airprobe", index)),
                 index += 1
                 items.append(
-                    nwo_enum("envfx", "Environment Effect", "", "environment_effect", index)
+                    utils.nwo_enum("envfx", "Environment Effect", "", "environment_effect", index)
                 ),
                 index += 1
-                items.append(nwo_enum("lightcone", "Light Cone", "", "light_cone", index)),
+                items.append(utils.nwo_enum("lightcone", "Light Cone", "", "light_cone", index)),
 
         return items
 
@@ -555,7 +561,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
     )
     
     @classmethod
-    def description(cls, context: Context, properties: OperatorProperties) -> str:
+    def description(cls, context, properties) -> str:
         items = cls.m_type_items(cls, context)
         enum = items[properties['m_type']]
         return enum[2]
@@ -596,7 +602,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
         return marker_type, display
 
     def execute(self, context):
-        prefix_setting = get_prefs().apply_prefix
+        prefix_setting = utils.get_prefs().apply_prefix
         marker_type = ""
         original_selection = context.selected_objects
         original_active = context.object
@@ -608,7 +614,7 @@ class NWO_ApplyTypeMarker(NWO_Op):
         ]
 
         for ob in markers:
-            set_active_object(ob)
+            utils.set_active_object(ob)
             ob.select_set(True)
             nwo = ob.nwo
             nwo.marker_type = marker_type
@@ -619,17 +625,17 @@ class NWO_ApplyTypeMarker(NWO_Op):
             {"INFO"}, f"Applied Marker Type: [{self.m_type}] to {len(markers)} objects"
         )
         [ob.select_set(True) for ob in original_selection]
-        set_active_object(original_active)
+        utils.set_active_object(original_active)
         return {"FINISHED"}
     
-class NWO_ApplyTypeMarkerSingle(NWO_ApplyTypeMarker):
+class NWO_OT_ApplyTypeMarkerSingle(NWO_OT_ApplyTypeMarker):
     bl_label = "Apply Marker Type"
     bl_idname = "nwo.apply_type_marker_single"
     bl_description = "Applies the specified marker type to the active object"
     
     def execute(self, context):
-        prefix_setting = get_prefs().apply_prefix
-        apply_display = get_prefs().apply_empty_display
+        prefix_setting = utils.get_prefs().apply_prefix
+        apply_display = utils.get_prefs().apply_empty_display
         ob = context.object
         nwo = ob.nwo
         nwo.marker_type, display_type = self.get_marker_type()
@@ -637,42 +643,133 @@ class NWO_ApplyTypeMarkerSingle(NWO_ApplyTypeMarker):
             ob.empty_display_type = display_type
         apply_prefix(ob, self.m_type, prefix_setting)
         return {"FINISHED"}
+    
+def object_context_apply_types(self, context):
+    layout = self.layout
+    asset_type = context.scene.nwo.asset_type
+    layout.separator()
+    selection_count = len(context.selected_objects)
+    if selection_count > 1:
+        layout.label(text=f'{selection_count} Halo Objects Selected', icon_value=get_icon_id('category_object_properties_pinned'))
+    else:
+        ob = context.object
+        object_type = utils.get_object_type(ob, True)
+        if object_type in ('Mesh', 'Marker'):
+            if object_type == 'Mesh':
+                type_name, type_icon = utils.get_mesh_display(ob.nwo.mesh_type)
+            elif object_type == 'Marker':
+                type_name, type_icon = utils.get_marker_display(ob.nwo.marker_type , ob)
+            layout.label(text=f'Halo {object_type} ({type_name})', icon_value=type_icon)
+        elif object_type == 'Frame':
+            layout.label(text=f'Halo {object_type}', icon_value=get_icon_id('frame'))
+        elif object_type == 'Light':
+            layout.label(text=f'Halo {object_type}', icon='LIGHT')
+        else:
+            layout.label(text=f'Halo {object_type}')
 
-# class NWO_AddHaloLight(bpy.types.Operator, AddObjectHelper):
-#     bl_idname = "nwo.add_halo_light"
-#     bl_label = "Add Halo Light"
-#     bl_description = "Adds a light with power scaled to Halo's scale"
-#     bl_options = {"REGISTER", "UNDO"}
+    markers_valid = any([utils.is_marker(ob) for ob in context.selected_objects]) and asset_type in ('model', 'scenario', 'sky', 'prefab')
+    meshes_valid = any([utils.is_mesh(ob) for ob in context.selected_objects]) and asset_type in ('model', 'scenario', 'prefab', 'sky')
+    has_children = any([ob.children for ob in context.selected_objects])
+    if markers_valid or meshes_valid:
+        if meshes_valid:
+            layout.operator_menu_enum("nwo.apply_type_mesh", property="m_type", text="Set Mesh Type", icon='MESH_CUBE')
+            if has_children:
+                layout.operator("nwo.mesh_to_marker", text="Convert to Frame", icon_value=get_icon_id('frame')).called_once = False
+            else:
+                layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Convert to Marker", icon='EMPTY_AXIS').called_once = False
+        elif markers_valid:
+            layout.operator_menu_enum("nwo.mesh_to_marker", property="marker_type", text="Set Marker Type", icon='EMPTY_AXIS').called_once = False
+            
+def object_context_sets(self, context):
+    asset_type = context.scene.nwo.asset_type
+    regions_valid = asset_type in ('model', 'sky', 'scenario')
+    permutations_valid =  asset_type in ('model', 'sky', 'scenario', 'prefab')
+    region_name = "BSP" if context.scene.nwo.asset_type == "scenario" else "Region" 
+    permutation_name = "Layer" if context.scene.nwo.asset_type in ("scenario", "prefab") else "Permutation"
+    layout = self.layout
+    layout.separator()
+    ob = context.object
+    nwo = ob.nwo
+    if regions_valid:
+        row = layout.row()
+        if nwo.region_name_locked:
+            row.enabled = False
+            row.label(text=f"{region_name}: " + utils.true_region(nwo), icon_value=get_icon_id("collection_creator"))
+        else:
+            row.menu("NWO_MT_RegionsSelection", text=f"{region_name}: " + utils.true_region(nwo), icon_value=get_icon_id("region"))
     
-#     type: bpy.props.EnumProperty(
-#         name="Type",
-#         items=[
-#             ('POINT', 'Point', ""),
-#             ('SUN', 'Sun', ""),
-#             ('SPOT', 'Spot', ""),
-#         ]
-#     )
-    
-#     intensity: bpy.props.FloatProperty(min=0)
-    
-#     @classmethod
-#     def poll(cls, context):
-#         return context.mode == 'OBJECT'
-    
-#     def make_light(self, context):
-#         name = f'halo_{self.type.lower()}_light'
-#         data = bpy.data.lights.new(name, type=self.type)
-#         data.energy = calc_light_energy(data, self.intensity)
-#         return data
+    if permutations_valid:
+        row = layout.row()
+        if nwo.permutation_name_locked:
+            row.enabled = False
+            row.label(text=f"{permutation_name}: " + utils.true_permutation(nwo), icon_value=get_icon_id("collection_creator"))
+        else:
+            row.menu("NWO_MT_PermutationsSelection", text=f"{permutation_name}: " + utils.true_permutation(nwo), icon_value=get_icon_id("permutation"))
+            
+    if ob.type == 'ARMATURE':
+        row = layout.row()
+        row.operator('nwo.convert_to_halo_rig', text='Convert to Halo Rig', icon='OUTLINER_OB_ARMATURE')
+        
+def collection_context(self, context):
+    layout = self.layout
+    coll = context.view_layer.active_layer_collection.collection
+    is_scenario = context.scene.nwo.asset_type in ('scenario', 'prefab')
+    if coll and coll.users:
+        layout.separator()
+        if coll.nwo.type == 'exclude':
+            layout.label(text='Exclude Collection')
+        elif coll.nwo.type == 'region':
+            first_part = 'BSP Collection : ' if is_scenario else 'Region Collection : '
+            layout.label(text=first_part + coll.nwo.region)
+        elif coll.nwo.type == 'permutation':
+            first_part = 'Layer Collection : ' if is_scenario else 'Permutation Collection : '
+            layout.label(text=first_part + coll.nwo.permutation)
 
-#     def execute(self, context):
-#         if not self.intensity:
-#             if is_corinth(context):
-#                 self.intensity = 30
-#             else:
-#                 self.intensity = 1
+        layout.menu("NWO_MT_ApplyCollectionMenu", text="Set Halo Collection", icon_value=get_icon_id("collection"))
         
-#         data = self.make_light(context)
-#         object_data_add(context, data, operator=self)
-        
-#         return {"FINISHED"}
+class NWO_CollectionManager(bpy.types.Panel):
+    bl_label = "Collection Creator"
+    bl_idname = "NWO_PT_CollectionManager"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_parent_id = "NWO_PT_PropertiesManager"
+
+    def draw_header(self, context):
+        self.layout.label(text="", icon_value=get_icon_id("collection_creator"))
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        scene_nwo_collection_manager = scene.nwo_collection_manager
+
+        layout.use_property_split = True
+        flow = layout.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        col = flow.column()
+        col.prop(scene_nwo_collection_manager, "collection_name", text="Name")
+        col.prop(scene_nwo_collection_manager, "collection_type", text="Type")
+        col = col.row()
+        col.scale_y = 1.5
+        col.operator("nwo.collection_create")
+
+def add_halo_join(self, context):
+    self.layout.operator("nwo.join_halo", text="Halo Join")
+    
+def add_halo_scale_model_button(self, context):
+    self.layout.operator(
+        "nwo.add_scale_model",
+        text="Halo Scale Model",
+        icon_value=get_icon_id("biped"),
+    )
+
+def add_halo_armature_buttons(self, context):
+    self.layout.operator("nwo.add_rig", text="Halo Armature", icon_value=get_icon_id("rig_creator"))
+
+def create_halo_collection(self, context):
+    self.layout.operator("nwo.collection_create" , text="", icon_value=get_icon_id("collection_creator"))
