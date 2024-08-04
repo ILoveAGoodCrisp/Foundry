@@ -25,6 +25,8 @@
 # ##### END MIT LICENSE BLOCK #####
 
 import bpy
+
+from ..icons import get_icon_id
 from .. import utils
 
 class NWO_ScaleScene(bpy.types.Operator):
