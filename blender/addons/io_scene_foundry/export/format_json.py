@@ -60,7 +60,7 @@ class NWOJSON(dict):
             for ob in self.objects:
                 if (
                     global_material not in keep_list
-                    and ob.nwo.face_global_material == global_material
+                    and ob.get("bungie_face_global_material") == global_material
                 ):
                     keep_list.append(global_material)
 

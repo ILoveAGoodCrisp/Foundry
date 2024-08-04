@@ -3180,21 +3180,73 @@ def new_face_layer(bm, data, layer_name, display_name, override_prop, other_prop
     else:
         return bm.faces.layers.int.new(new_face_prop(data, layer_name, display_name, override_prop, other_props))
     
-class FaceProp(Enum):
-    two_sided = auto()
-    
-def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: FaceProp, value: object) -> bmesh.types.BMLayerItem:
+def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value: object) -> bmesh.types.BMLayerItem:
     match prop.name:
+        case "region":
+            layer_name = f"region{str(uuid4())}"
+            display_name = f"region::{value}"
+            override_prop = "region_name_override"
+            other_props = {"region_name", value}
         case "two_sided":
-            layer_name = f"{prop.name}{str(uuid4())}"
+            layer_name = f"face_two_sided{str(uuid4())}"
             display_name = "Two Sided"
-            override_prop = prop.name + "_override"
-            other_props = {prop.name, value}
-        case "two_sided":
-            layer_name = f"{prop.name}{str(uuid4())}"
-            display_name = "Two Sided"
-            override_prop = prop.name + "_override"
-            other_props = {prop.name, value}
+            override_prop = "face_two_sided_override"
+            other_props = {"face_two_sided", value}
+        case "transparent":
+            layer_name = f"transparent{str(uuid4())}"
+            display_name = "Transparent"
+            override_prop = "face_two_sided_override"
+            other_props = {"face_two_sided", value}
+        case "draw_distance":
+            layer_name = f"{str(uuid4())}"
+            display_name = "Draw Distance"
+            override_prop = "face_draw_distance_override"
+            other_props = {"face_draw_distance", value}
+        case "render_only":
+            layer_name = f"render_only{str(uuid4())}"
+            display_name = "Render Only"
+            override_prop = "render_only_override"
+            other_props = {"render_only", value}
+        case "collision_only":
+            layer_name = f"{str(uuid4())}"
+            display_name = "Collision Only"
+            override_prop = "collision_only_override"
+            other_props = {"collision_only", value}
+        case "":
+            layer_name = f"sphere_collision_only{str(uuid4())}"
+            display_name = "Sphere Collision Onlu"
+            override_prop = "sphere_collision_only_override"
+            other_props = {"sphere_collision_only", value}
+        case "":
+            layer_name = f"{str(uuid4())}"
+            display_name = ""
+            override_prop = ""
+            other_props = {"", value}
+        case "":
+            layer_name = f"{str(uuid4())}"
+            display_name = ""
+            override_prop = ""
+            other_props = {"", value}
+        case "":
+            layer_name = f"{str(uuid4())}"
+            display_name = ""
+            override_prop = ""
+            other_props = {"", value}
+        case "":
+            layer_name = f"{str(uuid4())}"
+            display_name = ""
+            override_prop = ""
+            other_props = {"", value}
+        case "":
+            layer_name = f"{str(uuid4())}"
+            display_name = ""
+            override_prop = ""
+            other_props = {"", value}
+        case "":
+            layer_name = f"{str(uuid4())}"
+            display_name = ""
+            override_prop = ""
+            other_props = {"", value}
             
     return new_face_layer(bm, mesh, layer_name, display_name, override_prop, other_props)
     
