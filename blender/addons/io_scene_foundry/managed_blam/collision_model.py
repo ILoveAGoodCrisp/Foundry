@@ -25,8 +25,9 @@
 # ##### END MIT LICENSE BLOCK #####
 
 from uuid import uuid4
-import bmesh
 from mathutils import Euler, Matrix, Vector
+
+from .connected_geometry import BSP, CollisionMaterial, Node
 
 # from .connected_geometry import CollisionSurface
 from ..managed_blam import Tag
@@ -60,13 +61,10 @@ class CollisionTag(Tag):
         if armature is None:
             armature = utils.get_rig()
             edit_armature = utils.EditArmature(armature)
-        armature_bones = []
-        if armature:
-            armature_bones = [b.name for b in armature.data.bones]
-        else:
-            print("No Armature in Scene to parent collision mesh to")
         objects = []
         # Collision Mesh
+        nodes = [e.Fields[0].Data for e in self.block_nodes.Elements]
+        materials = [CollisionMaterial(e) for e in self.block_materials.Elements]
         for region_element in self.block_regions.Elements:
             region = region_element.Fields[0].GetStringData()
             print(f"Building collision meshes for region: {region}")
@@ -74,167 +72,47 @@ class CollisionTag(Tag):
                 permutation = permutation_element.Fields[0].GetStringData()
                 for bsp_element in permutation_element.SelectField("bsps").Elements:
                     name = f"{region}:{permutation}:{bsp_element.ElementIndex}"
-                    mesh = self.to_mesh(bsp_element, name)
-                    if mesh:
-                        node = self.block_nodes.Elements[int(bsp_element.Fields[0].GetStringData())].Fields[0].GetStringData()
-                        collision_object = bpy.data.objects.new(name, mesh)
-                        if armature:
-                            collision_object.parent = armature
-                            if node in armature_bones:
-                                world = edit_armature.matrices[node]
-                                collision_object.parent_type = 'BONE'
-                                collision_object.parent_bone = node
-                                collision_object.matrix_world = world
-                                collision_object.matrix_local = Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted()
-                                
-                            else:
-                                utils.print_warning(f"Armature does not have bone [{node}] for {collision_object.name}")
-                                
-                        utils.set_region(collision_object, region)
-                        utils.set_permutation(collision_object, permutation)
-                        
-                        collection.objects.link(collision_object)
-                        objects.append(collision_object)
+                    bsp = BSP(bsp_element, name, materials, nodes)
+                    ob = bsp.to_object()
+                    ob.parent = armature
+                    world = edit_armature.matrices[bsp.bone]
+                    ob.parent_type = 'BONE'
+                    ob.parent_bone = bsp.bone
+                    ob.matrix_world = world
+                    ob.matrix_local = Matrix.Translation([0, edit_armature.lengths[bsp.bone], 0]).inverted()
+                    utils.set_region(ob, region)
+                    utils.set_permutation(ob, permutation)
+                    collection.objects.link(ob)
+                    objects.append(ob)
                         
         # Pathfinding Spheres
-        if markers:
-            for sphere_element in self.block_pathfinding_spheres.Elements:
-                print(f"Adding pathfinding sphere")
-                node = self.block_nodes.Elements[sphere_element.Fields[0].Value].Fields[0].GetStringData()
-                sphere_object = bpy.data.objects.new("pathfinding_sphere", None)
-                flags = sphere_element.SelectField("flags")
-                sphere_object.nwo.pathfinding_sphere_remains_when_open = flags.TestBit("remains when open")
-                sphere_object.nwo.marker_pathfinding_sphere_vehicle = flags.TestBit("vehicle only")
-                sphere_object.nwo.pathfinding_sphere_with_sectors = flags.TestBit("with sectors")
-                location_coords_str = sphere_element.SelectField("center").GetStringData()
-                location_coords = [float(co) for co in location_coords_str]
-                # sphere_object.location = Vector(location_coords) * 100
-                sphere_object.empty_display_size = float(sphere_element.SelectField("radius").GetStringData()) * 100
-                sphere_object.empty_display_type = "SPHERE"
-                sphere_object.nwo.marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
-                if armature:
-                    sphere_object.parent = armature
-                    if node in armature_bones:
-                        world = edit_armature.matrices[node]
-                        sphere_object.parent_type = 'BONE'
-                        sphere_object.parent_bone = node
-                        sphere_object.matrix_world = world
-                        sphere_object.matrix_local = Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted() @ Matrix.LocRotScale(Vector(location_coords) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
-                    else:
-                        utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
+        # if markers:
+        #     for sphere_element in self.block_pathfinding_spheres.Elements:
+        #         print(f"Adding pathfinding sphere")
+        #         node = self.block_nodes.Elements[sphere_element.Fields[0].Value].Fields[0].GetStringData()
+        #         sphere_object = bpy.data.objects.new("pathfinding_sphere", None)
+        #         flags = sphere_element.SelectField("flags")
+        #         sphere_object.nwo.pathfinding_sphere_remains_when_open = flags.TestBit("remains when open")
+        #         sphere_object.nwo.marker_pathfinding_sphere_vehicle = flags.TestBit("vehicle only")
+        #         sphere_object.nwo.pathfinding_sphere_with_sectors = flags.TestBit("with sectors")
+        #         location_coords_str = sphere_element.SelectField("center").GetStringData()
+        #         location_coords = [float(co) for co in location_coords_str]
+        #         # sphere_object.location = Vector(location_coords) * 100
+        #         sphere_object.empty_display_size = float(sphere_element.SelectField("radius").GetStringData()) * 100
+        #         sphere_object.empty_display_type = "SPHERE"
+        #         sphere_object.nwo.marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
+        #         if armature:
+        #             sphere_object.parent = armature
+        #             if node in armature_bones:
+        #                 world = edit_armature.matrices[node]
+        #                 sphere_object.parent_type = 'BONE'
+        #                 sphere_object.parent_bone = node
+        #                 sphere_object.matrix_world = world
+        #                 sphere_object.matrix_local = Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted() @ Matrix.LocRotScale(Vector(location_coords) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
+        #             else:
+        #                 utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
                 
-                objects.append(sphere_object)
-                collection.objects.link(sphere_object)
+        #         objects.append(sphere_object)
+        #         collection.objects.link(sphere_object)
             
         return objects
-            
-                    
-    def to_mesh(self, bsp_element, name="collision_mesh"):
-        block_edges = bsp_element.SelectField("Struct:bsp[0]/Block:edges")
-        block_surfaces = bsp_element.SelectField("Struct:bsp[0]/Block:surfaces")
-        block_vertices = bsp_element.SelectField("Struct:bsp[0]/Block:vertices")
-        surfaces = []
-        bm = bmesh.new()
-        for surface_element in block_surfaces.Elements:
-            edge_index = int(surface_element.SelectField("first edge").GetStringData())
-            surface_edges = []
-            face_vertices = []
-            while edge_index not in surface_edges:
-                surface_edges.append(edge_index)
-                edge_element = block_edges.Elements[edge_index]
-                if int(edge_element.SelectField("left surface").GetStringData()) == surface_element.ElementIndex:
-                    start_vertex_index = int(edge_element.SelectField("start vertex").GetStringData())
-                    vertex_coords_str = block_vertices.Elements[start_vertex_index].Fields[0].GetStringData()
-                    vertex_coords = [float(v) for v in vertex_coords_str]
-                    face_vertices.append(bm.verts.new(Vector(vertex_coords)* 100))
-                    edge_index = int(edge_element.SelectField("forward edge").GetStringData())
-                else:
-                    end_vertex_index = int(edge_element.SelectField("end vertex").GetStringData())
-                    vertex_coords_str = block_vertices.Elements[end_vertex_index].Fields[0].GetStringData()
-                    vertex_coords = [float(v) for v in vertex_coords_str]
-                    face_vertices.append(bm.verts.new(Vector(vertex_coords)* 100))
-                    edge_index = int(edge_element.SelectField("reverse edge").GetStringData())
-                    
-            bm.faces.new(face_vertices)
-            surfaces.append(CollisionSurface(surface_element, self.block_materials))
-        
-        bm.faces.ensure_lookup_table()
-        
-        if not bm.faces:
-            return
-        
-        mesh = bpy.data.meshes.new(name)
-        # Determine if we need to write bmesh layers
-        split_materials = len({surface.material for surface in surfaces}) > 1
-        split_sides = len({int(surface.two_sided) for surface in surfaces}) > 1
-        split_ladder = len({int(surface.ladder) for surface in surfaces}) > 1
-        split_breakable = len({int(surface.breakable) for surface in surfaces}) > 1
-        split_slip = len({int(surface.slip_surface) for surface in surfaces}) > 1
-        if split_materials or split_sides or split_ladder or split_breakable or split_slip:
-            layers = {}
-            face_props = mesh.nwo.face_props
-            if split_materials:
-                for material in {surface.material for surface in surfaces}:
-                    if material == 'default': continue
-                    layers[f"material:{material}"] = utils.new_face_layer(bm, mesh, material, material, f"face_global_material_override_{str(uuid4())}")
-                    mesh.nwo.face_props[-1].face_global_material = material
-                    
-            if split_sides:
-                layers["flag:two_sided"] = utils.new_face_layer(bm, mesh, material, f"two_sided_{str(uuid4())}", "two_sided_override")
-            if split_ladder:
-                layers["flag:ladder"] = utils.new_face_layer(bm, mesh, material, f"ladder_{str(uuid4())}", "ladder_override")
-            if split_breakable:
-                layers["flag:breakable"] = utils.new_face_layer(bm, mesh, material, f"breakable_{str(uuid4())}", "breakable_override")
-            if split_slip:
-                layers["flag:slip_surface"] = utils.new_face_layer(bm, mesh, material, f"slip_surface_{str(uuid4())}", "slip_surface_override")
-                    
-            for idx, face in enumerate(bm.faces):
-                surface = surfaces[idx]
-                for key, layer in layers.items():
-                    name = key.split(":")[1]
-                    if surface.material == name:
-                        face[layer] = 1
-                    if surface.two_sided and name == "two_sided":
-                        face[layer] = 1
-                    if surface.ladder and name == "ladder":
-                        face[layer] = 1
-                    if surface.breakable and name == "breakable":
-                        face[layer] = 1
-                    if surface.slip_surface and name == "slip_surface":
-                        face[layer] = 1
-                            
-            for layer in face_props:
-                layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
-                
-        bm.to_mesh(mesh)
-                
-        if not split_materials:
-            if surfaces[0].material != "default":
-                mesh.nwo.face_global_material = surfaces[0].material
-        if not split_sides:
-            mesh.nwo.face_two_sided = surfaces[0].two_sided
-        if not split_ladder:
-            mesh.nwo.ladder = surfaces[0].ladder
-        if not split_breakable:
-            mesh.nwo.breakable = surfaces[0].breakable
-        if not split_slip:
-            mesh.nwo.slip_surface = surfaces[0].slip_surface
-        
-        mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
-        
-        mat = bpy.data.materials.get("+collision")
-        if not mat:
-            mat = bpy.data.materials.new("+collision")
-            mat.use_fake_user = True
-            mat.diffuse_color = collision.color
-            mat.use_nodes = True
-            bsdf = mat.node_tree.nodes[0]
-            bsdf.inputs[0].default_value = collision.color
-            bsdf.inputs[4].default_value = collision.color[3]
-            mat.blend_method = 'BLEND'
-            mat.shadow_method = 'NONE'
-            
-        mesh.materials.append(mat)
-        
-        return mesh
-                

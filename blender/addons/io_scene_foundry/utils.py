@@ -802,7 +802,8 @@ def layer_face_count(bm, face_layer) -> int:
     """Returns the number of faces in a bmesh that have an face int custom_layer with a value greater than 0"""
     if face_layer:
         return len([face for face in bm.faces if face[face_layer]])
-
+    
+    return 0
 
 def layer_faces(bm, face_layer):
     """Returns the faces in a bmesh that have an face int custom_layer with a value greater than 0"""
@@ -3181,72 +3182,114 @@ def new_face_layer(bm, data, layer_name, display_name, override_prop, other_prop
         return bm.faces.layers.int.new(new_face_prop(data, layer_name, display_name, override_prop, other_props))
     
 def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value: object) -> bmesh.types.BMLayerItem:
-    match prop.name:
+    match prop:
         case "region":
             layer_name = f"region{str(uuid4())}"
             display_name = f"region::{value}"
             override_prop = "region_name_override"
-            other_props = {"region_name", value}
+            other_props = {"region_name": value}
         case "two_sided":
             layer_name = f"face_two_sided{str(uuid4())}"
             display_name = "Two Sided"
             override_prop = "face_two_sided_override"
-            other_props = {"face_two_sided", value}
+            other_props = {"face_two_sided": value}
         case "transparent":
             layer_name = f"transparent{str(uuid4())}"
             display_name = "Transparent"
             override_prop = "face_two_sided_override"
-            other_props = {"face_two_sided", value}
+            other_props = {"face_two_sided": value}
         case "draw_distance":
             layer_name = f"{str(uuid4())}"
             display_name = "Draw Distance"
             override_prop = "face_draw_distance_override"
-            other_props = {"face_draw_distance", value}
+            other_props = {"face_draw_distance": value}
         case "render_only":
             layer_name = f"render_only{str(uuid4())}"
             display_name = "Render Only"
             override_prop = "render_only_override"
-            other_props = {"render_only", value}
+            other_props = {"render_only": value}
         case "collision_only":
             layer_name = f"{str(uuid4())}"
             display_name = "Collision Only"
             override_prop = "collision_only_override"
-            other_props = {"collision_only", value}
-        case "":
+            other_props = {"collision_only": value}
+        case "sphere_collision_only":
             layer_name = f"sphere_collision_only{str(uuid4())}"
             display_name = "Sphere Collision Onlu"
             override_prop = "sphere_collision_only_override"
-            other_props = {"sphere_collision_only", value}
+            other_props = {"sphere_collision_only": value}
+        case "bullet_collision_only":
+            layer_name = f"bullet_collision_only{str(uuid4())}"
+            display_name = "Bullet Collision Only"
+            override_prop = "bullet_collision_only_override"
+            other_props = {"bullet_collision_only": value}
+        case "player_collision_only":
+            layer_name = f"player_collision_only{str(uuid4())}"
+            display_name = "Player Collision Only"
+            override_prop = "player_collision_only"
+            other_props = {"player_collision_only_override": value}
+        case "texcoord_usage":
+            layer_name = f"texcoord_usage{str(uuid4())}"
+            display_name = "Texcoord Usage"
+            override_prop = "texcoord_usage"
+            other_props = {"texcoord_usage_override": value}
+        case "face_global_material":
+            layer_name = f"face_global_material{str(uuid4())}"
+            display_name = f"material::{value}"
+            override_prop = "face_global_material_override"
+            other_props = {"face_global_material": value}
+        case "ladder":
+            layer_name = f"ladder{str(uuid4())}"
+            display_name = "Ladder"
+            override_prop = "ladder_override"
+            other_props = {"ladder": value}
+        case "slip_surface":
+            layer_name = f"slip_surface{str(uuid4())}"
+            display_name = "Slip Surface"
+            override_prop = "slip_surface_override"
+            other_props = {"slip_surface": value}
+        case "decal_offset":
+            layer_name = f"decal_offset{str(uuid4())}"
+            display_name = "Decal Override"
+            override_prop = "decal_offset_override"
+            other_props = {"decal_offset": value}
+        case "breakable":
+            layer_name = f"breakable{str(uuid4())}"
+            display_name = "Breakable"
+            override_prop = "breakable_override"
+            other_props = {"breakable": value}
+        case "no_shadow":
+            layer_name = f"no_shadow{str(uuid4())}"
+            display_name = "No Shadow"
+            override_prop = "no_shadow_override"
+            other_props = {"no_shadow": value}
+        case "precise_position":
+            layer_name = f"precise_position{str(uuid4())}"
+            display_name = "Uncompressed"
+            override_prop = "precise_position_override"
+            other_props = {"precise_position": value}
+        case "no_lightmap":
+            layer_name = f"no_lightmap{str(uuid4())}"
+            display_name = "No Lightmap"
+            override_prop = "no_lightmap_override"
+            other_props = {"no_lightmap": value}
+        case "no_pvs":
+            layer_name = f"no_pvs{str(uuid4())}"
+            display_name = "No PVS"
+            override_prop = "no_pvs_override"
+            other_props = {"no_pvs": value}
+        case "lightmap_additive_transparency":
+            layer_name = f"lightmap_additive_transparency{str(uuid4())}"
+            display_name = "Lightmap Additive Transparency"
+            override_prop = "lightmap_additive_transparency_override"
+            other_props = {"lightmap_additive_transparency": value}
         case "":
             layer_name = f"{str(uuid4())}"
             display_name = ""
             override_prop = ""
-            other_props = {"", value}
-        case "":
-            layer_name = f"{str(uuid4())}"
-            display_name = ""
-            override_prop = ""
-            other_props = {"", value}
-        case "":
-            layer_name = f"{str(uuid4())}"
-            display_name = ""
-            override_prop = ""
-            other_props = {"", value}
-        case "":
-            layer_name = f"{str(uuid4())}"
-            display_name = ""
-            override_prop = ""
-            other_props = {"", value}
-        case "":
-            layer_name = f"{str(uuid4())}"
-            display_name = ""
-            override_prop = ""
-            other_props = {"", value}
-        case "":
-            layer_name = f"{str(uuid4())}"
-            display_name = ""
-            override_prop = ""
-            other_props = {"", value}
+            other_props = {"": value}
+        case _:
+            return
             
     return new_face_layer(bm, mesh, layer_name, display_name, override_prop, other_props)
     
@@ -3256,6 +3299,7 @@ class EditArmature:
     tail_vectors: dict
     lengths: dict
     matrices: dict[Matrix]
+    bones: list[str]
     
     def __init__(self, arm):
         self.ob = arm
@@ -3279,6 +3323,7 @@ class EditArmature:
         self.tail_vectors = {b.name: b.tail for b in edit_bones}
         self.lengths = {b.name: b.length for b in edit_bones}
         self.matrices = {b.name: b.matrix for b in edit_bones}
+        self.bones = [b.name for b in edit_bones]
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         
         if should_be_hidden:
