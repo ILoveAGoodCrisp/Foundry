@@ -143,12 +143,22 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         )
 
         return items
+    
+    def update_mesh_primitive_type(self, context):
+        match self.mesh_primitive_type:
+            case "_connected_geometry_primitive_type_box":
+                utils.set_bounds_display(self.id_data, utils.BoundsDisplay.BOX)
+            case "_connected_geometry_primitive_type_pill":
+                utils.set_bounds_display(self.id_data, utils.BoundsDisplay.PILL)
+            case "_connected_geometry_primitive_type_sphere":
+                utils.set_bounds_display(self.id_data, utils.BoundsDisplay.SPHERE)
 
     mesh_primitive_type: bpy.props.EnumProperty(
         name="Mesh Primitive Type",
         options=set(),
         description="If this is not none then the in game physics shape will be simplified to the selected primitive, using the objects dimensions",
         items=mesh_primitive_type_items,
+        update=update_mesh_primitive_type,
     )
     
     mopp_physics: bpy.props.BoolProperty(

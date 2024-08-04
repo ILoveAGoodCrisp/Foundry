@@ -3521,3 +3521,20 @@ def fix_tag_int(n: int) -> int:
     if n < 0:
         return 65536 + n
     return n
+
+class BoundsDisplay(Enum):
+    BOX = auto()
+    PILL = auto()
+    SPHERE = auto()
+
+def set_bounds_display(ob: bpy.types.Object, display: BoundsDisplay):
+    match display:
+        case BoundsDisplay.BOX:
+            ob.show_bounds = True
+            ob.display_bounds_type = 'BOX'
+        case BoundsDisplay.PILL:
+            ob.show_bounds = True
+            ob.display_bounds_type = 'CAPSULE'
+        case BoundsDisplay.SPHERE:
+            ob.show_bounds = True
+            ob.display_bounds_type = 'SPHERE'
