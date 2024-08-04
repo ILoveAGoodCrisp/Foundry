@@ -480,6 +480,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         )
         col = flow.column()
         col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
+        col.prop(scene_nwo_export, 'slow_gr2')
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
@@ -581,6 +582,12 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     export_gr2_files: bpy.props.BoolProperty(
         name="Export GR2 Files",
         default=True,
+        options=set(),
+    )
+    slow_gr2: bpy.props.BoolProperty(
+        name="Slow GR2 Process",
+        description="Runs threads of the the FBX-to-GR2 conversion process one by one, instead of processing them concurrently",
+        default=False,
         options=set(),
     )
     # export_hidden: bpy.props.BoolProperty(

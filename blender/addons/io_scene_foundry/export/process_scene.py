@@ -74,6 +74,7 @@ class ProcessScene:
         if asset_type == 'camera_track_set':
             return build_camera_tracks(context, export_scene.camera, asset_path)
         if scene_nwo_export.export_gr2_files:
+            self.slow_gr2 = scene_nwo_export.slow_gr2
             # make necessary directories
             models_dir = os.path.join(asset_path, "models")
             export_dir = os.path.join(asset_path, "export", "models")
@@ -464,8 +465,6 @@ class ProcessScene:
                     not os.path.exists(gr2_file)
                     or os.stat(gr2_file).st_size == 0
                 ):
-                    #print(f"\n\nFailed to build GR2: {gr2_file}")
-                    #print(f"Retrying export...")
                     fbx_file = path_set[0]
                     json_file = path_set[1]
                     self.export_gr2_sync(fbx_file, json_file, gr2_file)
@@ -1068,6 +1067,11 @@ class ProcessScene:
         # clear existing gr2, so we can test if export failed
         if os.path.exists(gr2_path):
             os.remove(gr2_path)
+            
+            
+        if self.slow_gr2:
+            self.gr2_processes += 1
+            return self.export_gr2_sync(fbx_path, json_path, gr2_path)
 
         while self.running_check > self.thread_max * 2:
             time.sleep(0.1)
@@ -1077,8 +1081,8 @@ class ProcessScene:
         self.first_gr2 = False
 
     def gr2(self, fbx_path, json_path, gr2_path):
-        self.running_check += 1
         self.gr2_processes += 1
+        self.running_check += 1
         time.sleep(self.running_check / 10)
         run_tool(
             [
