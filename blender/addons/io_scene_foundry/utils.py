@@ -3190,6 +3190,11 @@ def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: FaceProp, 
             display_name = "Two Sided"
             override_prop = prop.name + "_override"
             other_props = {prop.name, value}
+        case "two_sided":
+            layer_name = f"{prop.name}{str(uuid4())}"
+            display_name = "Two Sided"
+            override_prop = prop.name + "_override"
+            other_props = {prop.name, value}
             
     return new_face_layer(bm, mesh, layer_name, display_name, override_prop, other_props)
     

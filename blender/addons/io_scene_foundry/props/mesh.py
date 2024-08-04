@@ -116,7 +116,6 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         if self.name.startswith("material::"):
             self.name = "material::" + self.face_global_material
 
-
     face_global_material: bpy.props.StringProperty(
         name="Collision Material",
         default="",
