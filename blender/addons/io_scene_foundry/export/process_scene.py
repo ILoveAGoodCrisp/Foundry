@@ -92,9 +92,11 @@ class ProcessScene:
                     # Handle swapping out armature
                     muted_armature_deforms = mute_armature_mods()
                     animated_objects = get_animated_objects(context)
+                    
                     for ob in animated_objects:
                         if ob.type == 'ARMATURE' and ob.data.pose_position == 'REST':
                             ob.data.pose_position = 'POSE'
+                            
                     for action in bpy.data.actions:
                         # make animation dirs
                         animations_dir = os.path.join(asset_path, "animations")

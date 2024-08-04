@@ -32,7 +32,7 @@ from .constants import object_asset_validation, object_game_validation
 spinny = itertools.cycle(["|", "/", "—", "\\"])
 
 HALO_SCALE_NODE = ['Scale Multiplier', 'Scale X', 'Scale Y']
-MATERIAL_RESOURCES = os.path.join((os.path.realpath(__file__)), 'blends', 'materials')
+MATERIAL_RESOURCES = os.path.join(os.path.dirname((os.path.realpath(__file__))), 'blends', 'materials')
 
 special_material_names = [m.name for m in special_materials]
 convention_material_names = [m.name for m in convention_materials]
