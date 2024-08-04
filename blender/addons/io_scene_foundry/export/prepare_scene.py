@@ -1040,7 +1040,9 @@ class PrepareScene:
         bm.to_mesh(data)
         if justified:
             # Create a custom data layer to store current loop normals
-            utils.save_loop_normals(bm, data)
+            save_normals = ob.get("bungie_mesh_type") in render_mesh_types
+            if save_normals:
+                utils.save_loop_normals(bm, data)
             
             # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
             is_poop = ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop"
@@ -1124,7 +1126,7 @@ class PrepareScene:
                 new.data = new_me
                 new_bm = bm.copy()
                 new_bm.faces.ensure_lookup_table()
-                keep_faces = [new_bm.faces[i] for i in indices]
+                keep_faces = {new_bm.faces[i] for i in indices}
                 bmesh.ops.delete(new_bm, geom=[f for f in new_bm.faces if f not in keep_faces], context='FACES')
                 new_bm.to_mesh(new.data)
                 new_bm.free()
@@ -1132,18 +1134,20 @@ class PrepareScene:
                 if not is_proxy:
                     for collection in ob.users_collection: collection.objects.link(new)
                 
-            keep_faces = [bm.faces[i] for i in indices_list[0]]
-            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in keep_faces], context='FACES')
+            bm.faces.ensure_lookup_table()
+            keep_faces = {bm.faces[i] for i in indices_list[0]}
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index not in keep_faces], context='FACES')
             bm.to_mesh(ob.data)
             bm.free()
     
             ori_ob_name = str(ob.name)
             
             # Fix normals for split_objects
-            for normal_ob in split_objects:
-                utils.apply_loop_normals(normal_ob.data)
+            for nrm_ob in split_objects:
+                if save_normals:
+                    utils.apply_loop_normals(nrm_ob.data)
                 # Strip unused materials from object
-                utils.clean_materials(normal_ob)
+                utils.clean_materials(nrm_ob)
             
             for split_ob in split_objects:
                 more_than_one_prop = False

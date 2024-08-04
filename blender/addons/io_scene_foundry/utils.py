@@ -3007,12 +3007,16 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
     loop_normals = []
     bm = bmesh.new()
     bm.from_mesh(mesh)
+    layers = set()
     for face in bm.faces:
         for i in range(len(face.verts)):
             layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
             if layer:
                 loop_normals.append(face[layer])
-                         
+                layers.add(layer)
+    
+    for layer in layers: bm.faces.layers.float_vector.remove(layer)     
+    bm.to_mesh(mesh)
     mesh.normals_split_custom_set(loop_normals)
     bm.free()
     

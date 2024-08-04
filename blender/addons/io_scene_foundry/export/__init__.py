@@ -534,8 +534,8 @@ class NWO_Export(NWO_Export_Scene):
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
 
-        # bpy.ops.ed.undo_push()
-        # bpy.ops.ed.undo()
+        bpy.ops.ed.undo_push()
+        bpy.ops.ed.undo()
         context.scene.nwo.export_in_progress = False
         return {"FINISHED"}
 
