@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pathlib import Path
 import bmesh
 import bpy
@@ -1021,75 +1022,6 @@ class PrepareScene:
                 
         return face_indexes
 
-    def _recursive_layer_split(self, ob, data, face_properties, prop_faces_dict, split_objects, bm: bmesh.types.BMesh, is_proxy, is_recursion):
-        self.bmeshes_to_clean_up.add(bm)
-        # faces_layer_dict = {faces: layer for layer, faces in layer_faces_dict.keys()}
-        # faces_layer_dict = {tuple(fs): prop for prop, fs in prop_faces_dict.items() if fs}
-        length_layer_dict = len(prop_faces_dict)
-        for idx, face_indexes in enumerate(prop_faces_dict.values()):
-            if face_indexes:
-                if not is_recursion and idx == length_layer_dict - 1:
-                    split_objects.append(ob)
-                else:
-                    # delete faces from new mesh
-                    split_bm = bm.copy()
-                    split_bm_delete = [f for f in split_bm.faces if f.index in face_indexes]
-                    bm_delete = [f for f in bm.faces if f.index not in face_indexes]
-                    # for i in bm_delete: bm.faces.remove(i)
-                    bmesh.ops.delete(bm, geom=bm_delete, context="FACES")
-                    split_ob = ob.copy()
-
-                    split_ob.data = data.copy()
-                    split_me = split_ob.data
-
-                    bm.to_mesh(data)
-                    # for i in split_bm_delete: split_bm.faces.remove(i)
-                    bmesh.ops.delete(split_bm, geom=split_bm_delete, context="FACES")
-                    
-                    split_bm.to_mesh(split_me)
-
-                    if not is_proxy:
-                        for collection in ob.users_collection: collection.objects.link(split_ob)
-
-                    new_prop_faces_dict = {layer: utils.layer_face_indexes(split_bm, split_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
-                    split_objects.append(split_ob)
-                    if split_me.polygons:
-                        self._recursive_layer_split(split_ob, split_me, face_properties, new_prop_faces_dict, split_objects, split_bm, is_proxy, True)
-
-        return split_objects
-    
-    # def needs_collision_proxy(self, ob):
-    #     for props in ob.data.nwo.face_props:
-    #         if props.face_global_material_override:
-    #             return True
-    #         if props.ladder_override:
-    #             return True
-    #         if props.slip_surface_override:
-    #             return True
-    #         if props.decal_offset_override:
-    #             return True
-    #         if props.no_shadow_override:
-    #             return True
-    #         if props.precise_position_override:
-    #             return True
-    #         if props.no_lightmap_override:
-    #             return True
-    #         if props.no_pvs_override:
-    #             return True
-    #         if props.lightmap_additive_transparency_override:
-    #             return True
-    #         if props.lightmap_resolution_scale_override:
-    #             return True
-    #         if props.lightmap_type_override:
-    #             return True
-    #         if props.lightmap_translucency_tint_color_override:
-    #             return True
-    #         if props.lightmap_lighting_from_both_sides_override:
-    #             return True
-    #         if props.emissive_override:
-    #             return True
-            
-    #     return False
     
     def _coll_proxy_two_sided(self, ob, bm: bmesh.types.BMesh):
         for props in ob.data.nwo.face_props:
@@ -1169,25 +1101,49 @@ class PrepareScene:
             prop_faces_dict["|~~no_face_props~~|"] = remaining_faces
             # Splits the mesh recursively until each new mesh only contains a single face layer
             self.bmeshes_to_clean_up = set()
-            split_objects_messy = self._recursive_layer_split(ob, data, face_properties, prop_faces_dict, [ob], bm, is_proxy, False)
-            for b in self.bmeshes_to_clean_up: b.free()
-            ori_ob_name = str(ob.name)
+            
+            ####
+            polygons = []
+            layers = [bm.faces.layers.int.get(prop.layer_name) for prop in face_properties]
+            for face in bm.faces:
+                polygons.append(tuple([face[l] for l in layers]))
+            
+            property_groups = defaultdict(list)
+            
+            for index, polygon in enumerate(polygons):
+                property_groups[polygon].append(index)
                 
-            # remove zero poly obs from split_objects_messy
-            split_objects = [s_ob for s_ob in split_objects_messy if s_ob.data.polygons]
-            no_polys = [s_ob for s_ob in split_objects_messy if s_ob not in split_objects]
+            property_groups = dict(property_groups)
+            
+            indices_list = list(property_groups.values())
+            
+            split_objects = [ob]
+            for indices in indices_list[1:]:
+                new = ob.copy()
+                new_me = ob.data.copy()
+                new.data = new_me
+                new_bm = bm.copy()
+                new_bm.faces.ensure_lookup_table()
+                keep_faces = [new_bm.faces[i] for i in indices]
+                bmesh.ops.delete(new_bm, geom=[f for f in new_bm.faces if f not in keep_faces], context='FACES')
+                new_bm.to_mesh(new.data)
+                new_bm.free()
+                split_objects.append(new)
+                if not is_proxy:
+                    for collection in ob.users_collection: collection.objects.link(new)
+                
+            keep_faces = [bm.faces[i] for i in indices_list[0]]
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in keep_faces], context='FACES')
+            bm.to_mesh(ob.data)
+            bm.free()
+    
+            ori_ob_name = str(ob.name)
             
             # Fix normals for split_objects
             for normal_ob in split_objects:
                 utils.apply_loop_normals(normal_ob.data)
                 # Strip unused materials from object
                 utils.clean_materials(normal_ob)
-
-            # Ensure existing proxies aren't parented to zero face mesh
-            for s_ob in no_polys:
-                if s_ob.children:
-                    for child in s_ob.children:
-                        child.parent = split_objects[0]
             
             for split_ob in split_objects:
                 more_than_one_prop = False
