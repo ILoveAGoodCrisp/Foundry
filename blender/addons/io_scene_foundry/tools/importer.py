@@ -1042,7 +1042,7 @@ class NWOImporter:
             if ext == 'JMS':
                 bpy.ops.import_scene.jms(files=[{'name': path.name}], directory=str(path.parent), fix_rotations=legacy_fix_rotations, reuse_armature=True, empty_markers=True)
             else:
-                bpy.ops.import_scene.ass(files=[{'name': path.name}], directory=str(path.parent))
+                bpy.ops.import_scene.ass(filepath=str(path))
                 
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         if self.arm and self.arm not in new_objects:
