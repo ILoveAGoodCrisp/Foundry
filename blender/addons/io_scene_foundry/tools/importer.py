@@ -1279,7 +1279,7 @@ class NWOImporter:
         new_objects = self.convert_material_props(original_ob)
         for ob in new_objects:
             mesh_type_legacy = self.get_mesh_type(ob, is_model)
-            ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
+            ob.nwo.mesh_type_temp = '_connected_geometry_mesh_type_default'
             if ob.name.startswith('%'):
                 self.set_poop_policies(ob)
             if mesh_type_legacy:
@@ -1383,7 +1383,7 @@ class NWOImporter:
             return [ob]
         
         if ob.data in self.processed_meshes:
-            ob.nwo.mesh_type = 'skip'
+            ob.nwo.mesh_type_temp = 'skip'
             return [ob]
 
         objects_to_setup = [ob]
@@ -1396,7 +1396,7 @@ class NWOImporter:
         
         if len(jms_materials) == 1:
             jms_mat = jms_materials[0]
-            ob.nwo.mesh_type = jms_mat.mesh_type
+            ob.nwo.mesh_type_temp = jms_mat.mesh_type
             nwo = ob.data.nwo
             nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
             nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
@@ -1438,7 +1438,7 @@ class NWOImporter:
         
         mesh_types = list(set([m.mesh_type for m in jms_materials if m.mesh_type]))
         if len(mesh_types) == 1:
-            ob.nwo.mesh_type = mesh_types[0]
+            ob.nwo.mesh_type_temp = mesh_types[0]
         elif len(mesh_types) > 1:
             linked_objects = [o for o in bpy.data.objects if o != ob and o.data == ob.data]
             bm_original = bmesh.new()
@@ -1461,7 +1461,7 @@ class NWOImporter:
                 apply_loop_normals(new_ob.data)
                 clean_materials(new_ob)
                     
-                new_ob.nwo.mesh_type = jms_mat.mesh_type
+                new_ob.nwo.mesh_type_temp = jms_mat.mesh_type
                 objects_to_setup.append(new_ob)
                 self.new_coll.objects.link(new_ob)
                 for obj in linked_objects:
@@ -1485,7 +1485,7 @@ class NWOImporter:
                 jms_mats = [mat for mat in jms_materials if mat.name == ob.data.materials[0].name]
                 if jms_mats:
                     jms_mat = jms_mats[0]
-                    ob.nwo.mesh_type = jms_mat.mesh_type
+                    ob.nwo.mesh_type_temp = jms_mat.mesh_type
                     nwo = ob.data.nwo
                     nwo.face_two_sided = jms_mat.two_sided or jms_mat.transparent_two_sided
                     nwo.face_transparent = jms_mat.transparent_one_sided or jms_mat.transparent_two_sided
@@ -1723,7 +1723,7 @@ class NWOImporter:
         return face_layer.name, layer_face_count(bm, face_layer)
         
     def get_mesh_type(self, ob: bpy.types.Object, is_model):
-        if ob.nwo.mesh_type == 'skip':
+        if ob.nwo.mesh_type_temp == 'skip':
             return ''
         name = ob.name
         if name.startswith('@'):
@@ -1735,13 +1735,13 @@ class NWOImporter:
         elif name.startswith('%'):
             if is_model:
                 return 'io'
-            elif ob.nwo.mesh_type and ob.nwo.mesh_type != 'default':
-                return ob.nwo.mesh_type
+            elif ob.nwo.mesh_type_temp and ob.nwo.mesh_type_temp != 'default':
+                return ob.nwo.mesh_type_temp
             else:
                 return 'instance'
             
-        elif ob.nwo.mesh_type:
-            return ob.nwo.mesh_type
+        elif ob.nwo.mesh_type_temp:
+            return ob.nwo.mesh_type_temp
         
         return 'default'
     

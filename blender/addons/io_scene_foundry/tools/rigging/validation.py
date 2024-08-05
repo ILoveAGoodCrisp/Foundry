@@ -449,7 +449,7 @@ class NWO_AddPoseBones(bpy.types.Operator):
             elif scene_nwo.main_armature == arm and not scene_nwo.node_usage_pose_blend_yaw and b.use_deform and b.parent == parent_bone and 'yaw' in b.name:
                 scene_nwo.node_usage_pose_blend_yaw = b.name
                 
-        rig = HaloRig(context, tail_scale, scene_nwo.forward_direction, False, True, self.add_control_bone, True)
+        rig = HaloRig(context, tail_scale, scene_nwo.forward_direction, False, True)
         rig.rig_ob = arm
         rig.rig_data = arm.data
         context.view_layer.objects.active = arm

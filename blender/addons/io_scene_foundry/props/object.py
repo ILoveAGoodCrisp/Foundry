@@ -61,6 +61,8 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options={'HIDDEN', 'SKIP_SAVE'},
         get=get_mesh_type,
     )
+    
+    mesh_type_temp: bpy.props.StringProperty(options={'HIDDEN'})
 
     #########################################################################################################################
     # MARKER TYPE UI ####################################################################################################
