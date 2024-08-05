@@ -27,22 +27,13 @@
 from uuid import uuid4
 from mathutils import Euler, Matrix, Vector
 
-from .connected_geometry import BSP, CollisionMaterial, Node, PathfindingSphere
+from .connected_geometry import BSP, CollisionMaterial, PathfindingSphere
 
-# from .connected_geometry import CollisionSurface
 from ..managed_blam import Tag
 from .. import utils
 from ..tools.materials import collision
 import bpy
 
-class CollisionSurface:
-    def __init__(self, surface_element, block_materials):
-        self.material = block_materials.Elements[int(surface_element.SelectField("material").GetStringData())].Fields[0].GetStringData()
-        flags = surface_element.SelectField("flags")
-        self.two_sided = flags.TestBit("two sided")
-        self.ladder = flags.TestBit("climbable")
-        self.breakable = flags.TestBit("breakable")
-        self.slip_surface = flags.TestBit("slip")
 
 class CollisionTag(Tag):
     tag_ext = 'collision_model'

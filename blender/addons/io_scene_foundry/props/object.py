@@ -908,7 +908,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             (
                 "_connected_geometry_marker_type_physics_socket_constraint",
                 "Socket",
-                "Constraint that enables rotation around this marker on any axis",
+                "Constraint that enables rotation around this marker on any axis. For ragdolls",
             ),
         ],
     )

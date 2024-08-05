@@ -36,6 +36,7 @@ import addon_utils
 from mathutils import Color
 
 from ..managed_blam.render_model import RenderModelTag
+from ..managed_blam.physics_model import PhysicsTag
 
 from ..managed_blam.model import ModelTag
 from ..tools.mesh_to_marker import convert_to_marker
@@ -779,6 +780,8 @@ class NWOImporter:
                         imported_objects.extend(render_objects)
                     if collision and self.tag_collision:
                         imported_objects.extend(self.import_collision_model(collision, edit_armature))
+                    if physics:
+                        imported_objects.extend(self.import_physics_model(collision, edit_armature))
                     # imported_objects.extend(self.import_physics_model(physics))
         
         return imported_objects
@@ -801,14 +804,14 @@ class NWOImporter:
             
         return collision_model_objects
     
-    # def import_physics_model(self, file):
-    #     collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
-    #     self.context.scene.collection.children.link(collection)
-    #     with TagImportMover(self.project.tags_directory, file) as mover:
-    #         with PhysicsTag(path=mover.tag_path) as physics_model:
-    #             physics_model_objects = physics_model.to_blend_objects(collection)
+    def import_physics_model(self, file, armature):
+        collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
+        self.context.scene.collection.children.link(collection)
+        with TagImportMover(self.project.tags_directory, file) as mover:
+            with PhysicsTag(path=mover.tag_path) as physics_model:
+                physics_model_objects = physics_model.to_blend_objects(collection, armature, self.tag_markers)
             
-    #     return physics_model_objects
+        return physics_model_objects
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
@@ -1276,7 +1279,7 @@ class NWOImporter:
         new_objects = self.convert_material_props(original_ob)
         for ob in new_objects:
             mesh_type_legacy = self.get_mesh_type(ob, is_model)
-            ob.nwo.mesh_type = ''
+            ob.nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if ob.name.startswith('%'):
                 self.set_poop_policies(ob)
             if mesh_type_legacy:

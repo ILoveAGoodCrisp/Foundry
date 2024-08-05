@@ -1,6 +1,7 @@
 """Classes to help with importing geometry from tags"""
 
 from enum import Enum
+import math
 from typing import Iterable
 from uuid import uuid4
 import bmesh
@@ -117,10 +118,357 @@ class RenderArmature():
             transform_matrix = parent.matrix @ node.transform_matrix
             node.bone.matrix = transform_matrix
             
+class ConstraintType(Enum):
+    hinge = 0
+    limited_hinge = 1
+    ragdoll = 2
+    stiff_spring = 3
+    ball_and_socket = 4
+    prismatic = 5
+    powered_chain = 6
+    
+class Hinge:
+    index: int
+    name: str
+    node_a_index: int
+    node_b_index: int
+    bone_parent: str
+    bone_child: str
+    matrix_a: Matrix
+    matrix_b: Matrix
+    
+    def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
+        self.constraint_body = element.SelectField("Struct:constraint bodies").Elements[0]
+        self.index = element.ElementIndex
+        self.name = self.constraint_body.Fields[0].Data
+        self.node_a_index = self.constraint_body.Fields[1].Value
+        self.node_b_index = self.constraint_body.Fields[2].Value
+        self.bone_parent = nodes[self.node_a_index]
+        self.bone_child = nodes[self.node_b_index]
+        
+        afi, afj, afk = self.constraint_body.SelectField("a forward").Data
+        ali, alj, alk = self.constraint_body.SelectField("a left").Data
+        aui, auj, auk = self.constraint_body.SelectField("a up").Data
+        api, apj, apk = self.constraint_body.SelectField("a position").Data
+        
+        bfi, bfj, bfk = self.constraint_body.SelectField("b forward").Data
+        bli, blj, blk = self.constraint_body.SelectField("b left").Data
+        bui, buj, buk = self.constraint_body.SelectField("b up").Data
+        bpi, bpj, bpk = self.constraint_body.SelectField("b position").Data
+        
+        # self.matrix_a = Matrix((
+        #     (afi, afj, afk, 0.0),
+        #     (ali, alj, alk, 0.0),
+        #     (aui, auj, auk, 0.0),
+        #     (api, apj, apk, 1.0),
+        # ))
+        self.matrix_b = Matrix((
+            (bfi, bfj, bfk, 0.0),
+            (bli, blj, blk, 0.0),
+            (bui, buj, buk, 0.0),
+            (bpi, bpj, bpk, 1.0),
+        ))
+        
+        self.matrix_a = Matrix((
+            (afi, afj, afk, api * 100),
+            (ali, alj, alk, apj * 100),
+            (aui, auj, auk, apk * 100),
+            (0, 0, 0, 1),
+        ))
+        
+    def to_object(self) -> bpy.types.Object:
+        ob = bpy.data.objects.new(self.name, None)
+        ob.empty_display_type = 'ARROWS'
+        nwo = ob.nwo
+        nwo.marker_type = "_connected_geometry_marker_type_physics_constraint"
+        self._set_constraint_props(nwo)
+        
+        return ob
+    
+    def _set_constraint_props(self, nwo):
+        nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_hinge_constraint"
+    
+    
+class LimitedHinge(Hinge):
+    limit_min_angle: float
+    limit_max_angle: float
+    
+    def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
+        super().__init__(element, nodes)
+        self.limit_min_angle = element.SelectField("limit min angle").Data
+        self.limit_max_angle = element.SelectField("limit max angle").Data
+        
+    def _set_constraint_props(self, nwo):
+        nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_hinge_constraint"
+        nwo.physics_constraint_uses_limits = True
+        nwo.hinge_constraint_minimum = self.limit_min_angle
+        nwo.hinge_constraint_maximum = self.limit_max_angle
+
+class Ragdoll(Hinge):
+    min_twist: float
+    max_twist: float
+    cone: float
+    min_plane: float
+    max_plane: float
+    
+    def __init__(self, element: TagFieldBlockElement, nodes: list[str]):
+        super().__init__(element, nodes)
+        self.min_twist = element.SelectField("min twist").Data
+        self.max_twist = element.SelectField("max twist").Data
+        self.cone = element.SelectField("max cone").Data
+        self.min_plane = element.SelectField("min plane").Data
+        self.max_plane = element.SelectField("max plane").Data
+            
+    def _set_constraint_props(self, nwo):
+        nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_socket_constraint"
+        nwo.physics_constraint_uses_limits = True
+        nwo.cone_angle = self.cone
+        nwo.plane_constraint_minimum = self.min_plane
+        nwo.plane_constraint_maximum = self.max_plane
+        nwo.twist_constraint_start = self.min_twist
+        nwo.twist_constraint_end = self.max_twist
+            
+class Constraint:
+    type: ConstraintType
+    index: int
+    constaint_index: int
+    constraint_data: Hinge | LimitedHinge | Ragdoll
+    
+    def to_object(self) -> bpy.types.Object:
+        pass
+    
+class NodeEdge:
+    index: int
+    node_parent: str
+    node_child: str
+    constraints: Constraint
+    
+class ShapeType(Enum):
+    sphere = 0
+    pill = 1
+    box = 2
+    triangle = 3
+    polyhedron = 4
+    multi_sphere = 5
+    unused_0 = 6
+    unused_1 = 7
+    unused_2 = 8
+    unused_3 = 9
+    unused_4 = 10
+    unused_5 = 11
+    unused_6 = 12
+    unused_7 = 13
+    _list = 14
+    mopp = 15
+    
+class Shape:
+    name: str
+    material_index: int
+    material: str
+    
+    def __init__(self, element: TagFieldBlockElement, materials: list[str]):
+        base = element.SelectField("Struct:base").Elements[0]
+        self.name = base.SelectField("name").Data
+        self.material_index = base.SelectField("material").Value
+        self.material = materials[self.material_index]
+    
+    
+class Sphere(Shape):
+    radius: float
+    translation: Vector
+    
+    def __init__(self, element: TagFieldBlockElement, materials):
+        super().__init__(element, materials)
+        self.radius = element.SelectField("Struct:translate shape[0]/Struct:convex[0]/Real:radius").Data * 100
+        self.translation = Vector([n for n in element.SelectField("Struct:translate shape[0]/RealVector3d:translation").Data]) * 100
+        
+    def to_object(self) -> bpy.types.Object:
+        mesh = bpy.data.meshes.new(self.name)
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=32, radius=self.radius)
+        bm.to_mesh(mesh)
+        bm.free()
+        ob = bpy.data.objects.new(self.name, mesh)
+        ob.matrix_local = Matrix.Translation(self.translation)
+        return ob
+
+class Pill(Shape):
+    radius: float
+    bottom: Vector
+    top: Vector
+    rotation: Quaternion
+    translation: Vector
+    height: float
+    
+    def __init__(self, element: TagFieldBlockElement, materials):
+        super().__init__(element, materials)
+        self.radius = element.SelectField("Struct:capsule shape[0]/Real:radius").Data * 100
+        self.bottom = Vector([n for n in element.SelectField("bottom").Data]) * 100 
+        self.top = Vector([n for n in element.SelectField("top").Data]) * 100
+        
+    def to_object(self) -> bpy.types.Object:
+        mesh = bpy.data.meshes.new(self.name)
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=32, radius1=self.radius, radius2=self.radius, depth=self.height.length)
+        bmesh.ops.translate(bm, vec=(0, 0, self.height.length / 2), verts=bm.verts)
+        bm.to_mesh(mesh)
+        bm.free()
+        ob = bpy.data.objects.new(self.name, mesh)
+        
+        return ob
+    
+    @staticmethod
+    def quaternion_from_vector(vector: Vector):
+        vector.normalize()
+        up = Vector((0, 0, -1))
+        c = vector.dot(up)
+        if abs(c + 1.0) < 1e-5:
+            return Quaternion((1, 0, 0, 0))
+        elif abs(c - 1.0) < 1e-5:
+            return Quaternion((1, math.pi, 0, 0))
+        else:
+            new_vec = Vector().normalized()
+            axis: Vector = new_vec.cross(up)
+            angle = math.acos(c)
+            w = math.cos(angle / 2.0)
+            sin = math.sin(angle / 2.0)
+            return Quaternion((w, axis.x * sin, axis.y * sin, axis.z * sin))
+
+class Box(Shape):
+    translation: Vector
+    rotation: Vector
+    width: float
+    length: float
+    height: float
+    
+    def __init__(self, element: TagFieldBlockElement, materials):
+        super().__init__(element, materials)
+        
+class PolyhedronFourVectors:
+    def __init__(self, element: TagFieldBlockElement):
+        a = element.SelectField("four vectors x").Data
+        b = element.SelectField("four vectors y").Data
+        c = element.SelectField("four vectors z").Data
+        d = element.SelectField("havok w four vectors x").Data, element.SelectField("havok w four vectors y").Data, element.SelectField("havok w four vectors z").Data
+        
+        self.xi, self.yi, self.zi = a[0], b[0], c[0]
+        self.xj, self.yj, self.zj = a[1], b[1], c[1]
+        self.xk, self.yk, self.zk = a[2], b[2], c[2]
+        self.xw, self.yw, self.zw = element.SelectField("havok w four vectors x").Data, element.SelectField("havok w four vectors y").Data, element.SelectField("havok w four vectors z").Data
+        
+    def to_vectors(self) -> list[Vector]:
+        vectors = []
+        vectors.append(Vector((self.xi, self.yi, self.zi)) * 100)
+        vectors.append(Vector((self.xj, self.yj, self.zj)) * 100)
+        vectors.append(Vector((self.xk, self.yk, self.zk)) * 100)
+        vectors.append(Vector((self.xw, self.yw, self.zw)) * 100)
+        
+        return vectors
+        
+class Polyhedron(Shape):
+    four_vectors: PolyhedronFourVectors
+    four_vectors_size: int
+    vertices: list[Vector]
+    offset: int
+    
+    def __init__(self, element: TagFieldBlockElement, materials, vectors_block: TagFieldBlockElement, vectors_offset: int):
+        super().__init__(element, materials)
+        four_vectors_size = element.SelectField("four vectors size").Data
+        self.vertices = []
+        self.offset = vectors_offset + four_vectors_size
+        print("offset: ", vectors_offset)
+        for i in range(vectors_offset, self.offset):
+            four_vectors = PolyhedronFourVectors(vectors_block.Elements[i])
+            self.vertices.extend(four_vectors.to_vectors())
+            
+    def to_object(self) -> bpy.types.Object:
+        mesh = bpy.data.meshes.new(self.name)
+        mesh.from_pydata(vertices=self.vertices, edges=[], faces=[])
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bmesh.ops.convex_hull(bm, input=bm.verts)
+        bm.to_mesh(mesh)
+        bm.free()
+        ob = bpy.data.objects.new(self.name, mesh)
+        return ob
+        
+class Mopp:
+    pass
+
+class ListShape:
+    pass
+    
+    
+class RigidBody:
+    index: int
+    node_index: int
+    region: str
+    shape_type: ShapeType
+    shapes: list[Sphere | Pill | Box | Polyhedron]
+    four_vectors_offset: int
+    
+    def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_offset, tag):
+        self.index = element.ElementIndex
+        self.node_index = element.SelectField("node").Value
+        self.region = region
+        self.permuation = permutation
+        shape_element = element.SelectField("Struct:shape reference").Elements[0]
+        self.shape_type = ShapeType(shape_element.SelectField("shape type").Value)
+        self.shapes = []
+        shape_index = shape_element.SelectField("shape").Value
+        self.four_vectors_offset = four_vectors_offset
+        match self.shape_type:
+            case ShapeType.sphere:
+                self.shapes.append(Sphere(tag.block_spheres.Elements[shape_index], materials))
+            case ShapeType.pill:
+                self.shapes.append(Pill(tag.block_pills.Elements[shape_index], materials))
+            # case ShapeType.box:
+            #     self.shapes.append(Box(tag.block_boxes.Elements[shape_index], materials))
+            case ShapeType.polyhedron:
+                self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[shape_index], materials, tag.block_polyhedron_four_vectors, self.four_vectors_offset))
+                self.four_vectors_offset = self.shapes[-1].offset
+            case ShapeType.mopp:
+                mopp = tag.block_mopps.Elements[shape_index]
+                list_element = tag.block_list_shapes.Elements[mopp.SelectField("list").Value]
+                list_shapes_count = list_element.SelectField("num child shapes").Data
+                for i in range(list_shapes_count):
+                    l_element = tag.block_list_shapes.Elements[i]
+                    list_shape_ref = l_element.SelectField("Struct:shape reference").Elements[0]
+                    list_shape_index = list_shape_ref.SelectField("shape").Value
+                    match ShapeType(list_shape_ref.SelectField("shape type").Value):
+                        case ShapeType.sphere:
+                            self.shapes.append(Sphere(Sphere(tag.block_spheres.Elements[list_shape_index], materials)))
+                        case ShapeType.pill:
+                            self.shapes.append(Pill(tag.block_pills.Elements[list_shape_index], materials))
+                        case ShapeType.box:
+                            self.shapes.append(Box(tag.block_boxes.Elements[list_shape_index], materials))
+                        case ShapeType.polyhedron:
+                            self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[list_shape_index], materials, tag.block_polyhedron_four_vectors, self.four_vectors_offset))
+                            self.four_vectors_offset = self.shapes[-1].offset
+                        case _:
+                            print(f"Unsupported physics shape type: {self.shape_type.name}")
+            case _:
+                print(f"Unsupported physics shape type: {self.shape_type.name}")
+                
+    def to_objects(self) -> bpy.types.Object:
+        objects = []
+        for shape in self.shapes:
+            ob = shape.to_object()
+            if shape.material != "default":
+                ob.data.nwo.face_global_material = shape.material.name
+            objects.append(ob)
+            
+        return objects
+        
+            
 class CollisionMaterial:
     index: int
     name: str
-    
+    region: str
+    permutation: str
+
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.name = element.Fields[0].Data
@@ -296,7 +644,7 @@ class BSP:
             bsdf = render_mat.node_tree.nodes[0]
             bsdf.inputs[0].default_value = collision.color
             bsdf.inputs[4].default_value = collision.color[3]
-            render_mat.surface_render_method = 'DITHERED'
+            render_mat.surface_render_method = 'BLENDED'
             
         mesh.materials.append(render_mat)
         mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"

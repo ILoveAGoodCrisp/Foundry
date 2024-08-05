@@ -112,12 +112,12 @@ class RenderModelTag(Tag):
         for element in self.block_regions.Elements:
             self.regions.append(Region(element))
         
-        if render:
-            print("Creating Render Geometry")
-            objects.extend(self._create_render_geometry())
-        if markers:
-            print("Creating Markers")
-            objects.extend(self._create_markers())
+        # if render:
+        #     print("Creating Render Geometry")
+        #     objects.extend(self._create_render_geometry())
+        # if markers:
+        #     print("Creating Markers")
+        #     objects.extend(self._create_markers())
         
         return objects, self.edit_armature
     
