@@ -303,6 +303,47 @@ class BSP:
         
         ob = bpy.data.objects.new(self.name, mesh)
         return ob
+    
+class PathfindingSphere:
+    bone: str
+    index: int
+    node_index: int
+    when_open: bool
+    vehicle: bool
+    sectors: bool
+    center: float
+    radius: float
+    
+    def __init__(self, element: TagFieldBlockElement, nodes: list[str] = None):
+        self.index = element.ElementIndex
+        self.node_index = element.Fields[0].Value
+        self.bone = ""
+        if nodes:
+            self.bone = nodes[self.node_index]
+            
+        flags = element.SelectField("flags")
+        self.when_open = flags.TestBit("remains when open")
+        self.vehicle = flags.TestBit("vehicle only")
+        self.sectors = flags.TestBit("with sectors")
+        self.center = element.SelectField("center").Data
+        self.radius = element.SelectField("radius").Data
+        
+    def to_object(self):
+        name = "pathfinding_sphere"
+        if self.when_open:
+            name += "::remains_when_open"
+        if self.vehicle:
+            name += "::vehicle"
+        if self.sectors:
+            name += "::sectors"
+            
+        ob = bpy.data.objects.new(name, None)
+        ob.empty_display_size = self.radius * 100
+        ob.empty_display_type = 'SPHERE'
+        ob.nwo.marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
+        
+        return ob
+        
             
 class CompressionBounds:
     co_matrix: Matrix

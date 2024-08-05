@@ -27,7 +27,7 @@
 from uuid import uuid4
 from mathutils import Euler, Matrix, Vector
 
-from .connected_geometry import BSP, CollisionMaterial, Node
+from .connected_geometry import BSP, CollisionMaterial, Node, PathfindingSphere
 
 # from .connected_geometry import CollisionSurface
 from ..managed_blam import Tag
@@ -65,9 +65,9 @@ class CollisionTag(Tag):
         # Collision Mesh
         nodes = [e.Fields[0].Data for e in self.block_nodes.Elements]
         materials = [CollisionMaterial(e) for e in self.block_materials.Elements]
+        print(f"Building collision meshes")
         for region_element in self.block_regions.Elements:
             region = region_element.Fields[0].GetStringData()
-            print(f"Building collision meshes for region: {region}")
             for permutation_element in region_element.Fields[1].Elements:
                 permutation = permutation_element.Fields[0].GetStringData()
                 for bsp_element in permutation_element.SelectField("bsps").Elements:
@@ -86,33 +86,18 @@ class CollisionTag(Tag):
                     objects.append(ob)
                         
         # Pathfinding Spheres
-        # if markers:
-        #     for sphere_element in self.block_pathfinding_spheres.Elements:
-        #         print(f"Adding pathfinding sphere")
-        #         node = self.block_nodes.Elements[sphere_element.Fields[0].Value].Fields[0].GetStringData()
-        #         sphere_object = bpy.data.objects.new("pathfinding_sphere", None)
-        #         flags = sphere_element.SelectField("flags")
-        #         sphere_object.nwo.pathfinding_sphere_remains_when_open = flags.TestBit("remains when open")
-        #         sphere_object.nwo.marker_pathfinding_sphere_vehicle = flags.TestBit("vehicle only")
-        #         sphere_object.nwo.pathfinding_sphere_with_sectors = flags.TestBit("with sectors")
-        #         location_coords_str = sphere_element.SelectField("center").GetStringData()
-        #         location_coords = [float(co) for co in location_coords_str]
-        #         # sphere_object.location = Vector(location_coords) * 100
-        #         sphere_object.empty_display_size = float(sphere_element.SelectField("radius").GetStringData()) * 100
-        #         sphere_object.empty_display_type = "SPHERE"
-        #         sphere_object.nwo.marker_type = "_connected_geometry_marker_type_pathfinding_sphere"
-        #         if armature:
-        #             sphere_object.parent = armature
-        #             if node in armature_bones:
-        #                 world = edit_armature.matrices[node]
-        #                 sphere_object.parent_type = 'BONE'
-        #                 sphere_object.parent_bone = node
-        #                 sphere_object.matrix_world = world
-        #                 sphere_object.matrix_local = Matrix.Translation([0, edit_armature.lengths[node], 0]).inverted() @ Matrix.LocRotScale(Vector(location_coords) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
-        #             else:
-        #                 utils.print_warning(f"Armature does not have bone [{node}] for {sphere_object.name}")
-                
-        #         objects.append(sphere_object)
-        #         collection.objects.link(sphere_object)
+        if markers:
+            print(f"Adding pathfinding spheres")
+            for sphere_element in self.block_pathfinding_spheres.Elements:
+                sphere = PathfindingSphere(sphere_element, nodes)
+                ob = sphere.to_object()
+                ob.parent = armature
+                world = edit_armature.matrices[sphere.bone]
+                ob.parent_type = 'BONE'
+                ob.parent_bone = sphere.bone
+                ob.matrix_world = world
+                ob.matrix_local = Matrix.Translation([0, edit_armature.lengths[sphere.bone], 0]).inverted() @ Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
+                collection.objects.link(ob)
+                objects.append(ob)
             
         return objects
