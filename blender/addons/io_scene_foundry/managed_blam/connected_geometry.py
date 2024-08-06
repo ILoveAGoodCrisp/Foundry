@@ -161,12 +161,12 @@ class Hinge:
         #     (aui, auj, auk, 0.0),
         #     (api, apj, apk, 1.0),
         # ))
-        self.matrix_b = Matrix((
-            (bfi, bfj, bfk, 0.0),
-            (bli, blj, blk, 0.0),
-            (bui, buj, buk, 0.0),
-            (bpi, bpj, bpk, 1.0),
-        ))
+        # self.matrix_b = Matrix((
+        #     (bfi, bfj, bfk, 0.0),
+        #     (bli, blj, blk, 0.0),
+        #     (bui, buj, buk, 0.0),
+        #     (bpi, bpj, bpk, 1.0),
+        # ))
         
         self.matrix_a = Matrix((
             (afi, afj, afk, api * 100),
@@ -174,6 +174,19 @@ class Hinge:
             (aui, auj, auk, apk * 100),
             (0, 0, 0, 1),
         ))
+        self.matrix_b = Matrix((
+            (bfi, bfj, bfk, bpi * 100),
+            (bli, blj, blk, bpj * 100),
+            (bui, buj, buk, bpk * 100),
+            (0, 0, 0, 1),
+        ))
+        
+        rot_a = self.matrix_a.to_quaternion()
+        rot_b = self.matrix_b.to_quaternion()
+        pos_a = self.matrix_a.to_translation()
+        pos_b = self.matrix_b.to_translation()
+        
+        self.matrix = Matrix.LocRotScale(pos_a, rot_a, Vector.Fill(3, 1))
         
     def to_object(self, armature) -> bpy.types.Object:
         ob = bpy.data.objects.new(self.name, None)
