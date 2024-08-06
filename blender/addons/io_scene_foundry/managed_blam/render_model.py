@@ -98,8 +98,8 @@ class RenderModelTag(Tag):
         self.collection = collection
         objects = []
         print("Creating Armature")
-        self.edit_armature = self._create_armature()
-        objects.append(self.edit_armature.ob)
+        self.armature = self._create_armature()
+        objects.append(self.armature)
         
         # Instances
         self.instances = []
@@ -112,14 +112,14 @@ class RenderModelTag(Tag):
         for element in self.block_regions.Elements:
             self.regions.append(Region(element))
         
-        # if render:
-        #     print("Creating Render Geometry")
-        #     objects.extend(self._create_render_geometry())
-        # if markers:
-        #     print("Creating Markers")
-        #     objects.extend(self._create_markers())
+        if render:
+            print("Creating Render Geometry")
+            objects.extend(self._create_render_geometry())
+        if markers:
+            print("Creating Markers")
+            objects.extend(self._create_markers())
         
-        return objects, self.edit_armature
+        return objects, self.armature
     
     def _create_armature(self):
         arm = RenderArmature(self.tag.Path.ShortName)
@@ -156,7 +156,7 @@ class RenderModelTag(Tag):
         for node in self.nodes: arm.parent_bone(node)
         bpy.ops.object.editmode_toggle()
         
-        return utils.EditArmature(arm.ob)
+        return arm.ob
         
 
     def _create_render_geometry(self):
@@ -184,7 +184,7 @@ class RenderModelTag(Tag):
                     if mesh.permutation.clone_name:
                         clone_meshes.append(mesh)
                     else:
-                        obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob)
+                        obs = mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature)
                         original_meshes.append(mesh)
                         objects.extend(obs)
                         for ob in obs:
@@ -219,7 +219,7 @@ class RenderModelTag(Tag):
             
         if self.instances:
             instance_mesh = Mesh(self.block_meshes.Elements[self.instance_mesh_index], self.bounds, None, materials, mesh_node_map)
-            ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.edit_armature.ob, self.instances)
+            ios = instance_mesh.create(render_model, self.block_per_mesh_temporary, self.nodes, self.armature, self.instances)
             for ob in ios:
                 ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_object_instance"
                 self.collection.objects.link(ob)
@@ -252,6 +252,13 @@ class RenderModelTag(Tag):
                 
             objects.extend(ios)
         
+        bpy.context.view_layer.update()
+        for ob in objects:
+            mesh = ob.data
+            for att in mesh.attributes:
+                if att.name.startswith("ln"):
+                    mesh.attributes.remove(att)
+        
         return objects
     
     def _create_markers(self):
@@ -260,7 +267,7 @@ class RenderModelTag(Tag):
         marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.025
         for element in self.block_marker_groups.Elements:
             marker_group = MarkerGroup(element, self.nodes, self.regions)
-            objects.extend(marker_group.to_blender(self.edit_armature, self.collection, marker_size_factor))
+            objects.extend(marker_group.to_blender(self.armature, self.collection, marker_size_factor))
             
         return objects
             

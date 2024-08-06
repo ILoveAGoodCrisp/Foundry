@@ -9,6 +9,7 @@ from ..utils import (
     get_tags_path,
     linear_to_srgb,
     is_corinth,
+    print_error,
     print_warning,
     relative_path,
 )
@@ -60,25 +61,27 @@ class Tag():
         self.path = path
         self.tag_is_new = False
         self._find_tag()
-        
-        if os.path.exists(self.system_path):
-            self.tag.Load(self.tag_path)
-        elif self.tag_must_exist:
-            raise RuntimeError(f"No file exists for {self.path}, but this {self.__class__} has been told one must exist")
-        else:
-            self.tag.New(self.tag_path)
-            self.tag_is_new = True
-        
-        if not self.tag_path:
-            raise RuntimeError(f"Failed to load Tag: {str(self.path)}")
-        
-        elif not self.tag_path.IsTagFileAccessible():
-            raise RuntimeError(f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}")
+        try:
+            if os.path.exists(self.system_path):
+                self.tag.Load(self.tag_path)
+            elif self.tag_must_exist:
+                raise RuntimeError(f"No file exists for {self.path}, but this {self.__class__} has been told one must exist")
+            else:
+                self.tag.New(self.tag_path)
+                self.tag_is_new = True
             
-        self._read_fields()
-        if self.tag_is_new:
-            self._initialize_tag()
-            self.tag_has_changes = True # Must always save new tags
+            if not self.tag_path:
+                raise RuntimeError(f"Failed to load Tag: {str(self.path)}")
+            
+            elif not self.tag_path.IsTagFileAccessible():
+                raise RuntimeError(f"TagFile not accessible: {self.tag_path.RelativePathWithExtension}")
+                
+            self._read_fields()
+            if self.tag_is_new:
+                self._initialize_tag()
+                self.tag_has_changes = True # Must always save new tags
+        except:
+            print_error(f"Failed to Load Tag: {Path(self.path).name}")
         
     def _read_fields(self):
         """Read in some useful fields for this tag type"""

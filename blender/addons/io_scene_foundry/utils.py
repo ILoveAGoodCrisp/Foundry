@@ -1571,36 +1571,31 @@ def is_instance_or_structure_proxy(ob) -> bool:
     if is_corinth() and mesh_type == '_connected_geometry_mesh_type_structure' and ob.nwo.proxy_instance:
         return True
     return False
-
-def set_origin_to_floor(ob: bpy.types.Object):
-    bbox = ob.bound_box
-    world_coords = []
-    min_z = None
-    for co in bbox:
-        world_co = ob.matrix_world @ Vector((co[0], co[1], co[2]))
-        if min_z is None:
-            min_z = world_co.z
-        else:
-            min_z = min(min_z, world_co.z)
-        world_coords.append(world_co)
     
-    floor_corners = []
-    for vec in world_coords:
-        if round(vec.z, 4) == round(min_z, 4):
-            floor_corners.append(vec)
-    floor_corners_count = len(floor_corners)
-    # Calc center point
-    avg_x = sum(v.x for v in floor_corners) / floor_corners_count
-    avg_y = sum(v.y for v in floor_corners) / floor_corners_count
-    center_point = Vector((avg_x, avg_y, min_z))
-    loc, rot, sca = ob.matrix_world.decompose()
-    transform_matrix = Matrix.Translation(loc - center_point)
-    ob.matrix_world = Matrix.LocRotScale(center_point, rot, sca)
-    ob.data.transform(transform_matrix)
+def set_origin_to_floor(ob):
+    bounding_box_corners = [Vector(corner) for corner in ob.bound_box]
+    min_z = min([corner.z for corner in bounding_box_corners])
+    translation = Vector((0, 0, -min_z))
+    for vert in ob.data.vertices:
+        vert.co += translation
+        
+    ob.matrix_world = ob.matrix_world @ Matrix.Translation(-translation)
     
 def set_origin_to_centre(ob):
     with bpy.context.temp_override(object=ob, selected_editable_objects=[ob]):
         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+        
+    centroid = Vector((0, 0, 0))
+    for vert in ob.data.vertices:
+        centroid += vert.co
+    centroid /= len(ob.data.vertices)
+    
+    translation = -centroid
+    
+    for vert in ob.data.vertices:
+        vert.co += translation
+        
+    ob.matrix_world = ob.matrix_world @ Matrix.Translation(-translation)
 
 def get_project(project_name):
     projects = get_prefs().projects
@@ -3003,19 +2998,11 @@ def save_loop_normals(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh):
             layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
             face[layer] = mesh.loops[mesh.polygons[idx].loop_indices[i]].normal
             
-def apply_loop_normals(mesh: bpy.types.Mesh):
-    loop_normals = []
+def apply_loop_normals(mesh: bpy.types.Mesh):        
     bm = bmesh.new()
     bm.from_mesh(mesh)
-    layers = set()
-    for face in bm.faces:
-        for i in range(len(face.verts)):
-            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
-            if layer:
-                loop_normals.append(face[layer])
-                layers.add(layer)
-    
-    for layer in layers: bm.faces.layers.float_vector.remove(layer)     
+    loop_normals = yield_loop_normals(bm)
+        
     bm.to_mesh(mesh)
     mesh.normals_split_custom_set(loop_normals)
     bm.free()
@@ -3026,19 +3013,17 @@ def loop_normal_magic(mesh: bpy.types.Mesh):
     bm.from_mesh(mesh)
     save_loop_normals(bm, mesh)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
-    loop_normals = []
-    layers = set()
+    loop_normals = yield_loop_normals(bm)
+    bm.to_mesh(mesh)
+    mesh.normals_split_custom_set(list(loop_normals))
+    bm.free()
+    
+def yield_loop_normals(bm):
     for face in bm.faces:
         for i in range(len(face.verts)):
             layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
             if layer:
-                loop_normals.append(face[layer].copy())
-                layers.add(layer)
-                
-    for layer in layers: bm.faces.layers.float_vector.remove(layer)
-    bm.to_mesh(mesh)
-    mesh.normals_split_custom_set(loop_normals)
-    bm.free()
+                yield face[layer].copy()
     
 def clean_materials(ob: bpy.types.Object) -> list[bpy.types.MaterialSlot]:
     materials = ob.data.materials
@@ -3500,6 +3485,7 @@ class TagImportMover():
         name = self.source_file.with_suffix("").name
         self.temp_file = Path(tags_dir, "_temp", name + self.source_file.suffix)
         if not self.source_file.is_relative_to(Path(tags_dir)):
+            print_warning(f"Tag [{self.source_file.name}] is from different project and may fail to open")
             self.needs_to_move = True
             self.tag_path = str(Path("_temp", name + self.source_file.suffix))
             if not self.temp_file.parent.exists():

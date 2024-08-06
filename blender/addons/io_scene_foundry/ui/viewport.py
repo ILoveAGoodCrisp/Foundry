@@ -689,6 +689,7 @@ def object_context_sets(self, context):
     layout = self.layout
     layout.separator()
     ob = context.object
+    if not ob: return
     nwo = ob.nwo
     if regions_valid:
         row = layout.row()

@@ -1,14 +1,12 @@
 """Classes to help with importing geometry from tags"""
 
 from enum import Enum
-import math
 from typing import Iterable
-from uuid import uuid4
 import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 import numpy as np
-from ..tools.materials import collision
+from ..tools import materials as special_materials
 
 from .. import utils
 from .Tags import TagFieldBlock, TagFieldBlockElement
@@ -276,11 +274,13 @@ class Shape:
 class Sphere(Shape):
     radius: float
     translation: Vector
+    matrix: Matrix
     
     def __init__(self, element: TagFieldBlockElement, materials):
         super().__init__(element, materials)
         self.radius = element.SelectField("Struct:translate shape[0]/Struct:convex[0]/Real:radius").Data * 100
         self.translation = Vector([n for n in element.SelectField("Struct:translate shape[0]/RealVector3d:translation").Data]) * 100
+        self.matrix = Matrix.Translation(self.translation)
         
     def to_object(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(self.name)
@@ -289,9 +289,7 @@ class Sphere(Shape):
         bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=32, radius=self.radius)
         bm.to_mesh(mesh)
         bm.free()
-        ob = bpy.data.objects.new(self.name, mesh)
-        ob.matrix_local = Matrix.Translation(self.translation)
-        return ob
+        self.ob = bpy.data.objects.new(self.name, mesh)
 
 class Pill(Shape):
     radius: float
@@ -300,41 +298,32 @@ class Pill(Shape):
     rotation: Quaternion
     translation: Vector
     height: float
+    matrix: Matrix
     
     def __init__(self, element: TagFieldBlockElement, materials):
         super().__init__(element, materials)
-        self.radius = element.SelectField("Struct:capsule shape[0]/Real:radius").Data * 100
-        self.bottom = Vector([n for n in element.SelectField("bottom").Data]) * 100 
-        self.top = Vector([n for n in element.SelectField("top").Data]) * 100
+        radius = element.SelectField("Struct:capsule shape[0]/Real:radius").Data
+        bottom = Vector([n for n in element.SelectField("bottom").Data])
+        top = Vector([n for n in element.SelectField("top").Data])
+        self.radius = radius * 100
+        self.bottom = bottom * 100
+        self.top = top * 100
+        difference_vector = top - bottom
+        self.rotation = difference_vector.normalized().to_track_quat('Z', 'X')
+        height = difference_vector.length * 100
+        inverse = (self.bottom - self.top).normalized() * self.radius
+        self.translation = self.bottom + inverse
+        self.matrix = Matrix.LocRotScale(self.translation, self.rotation, Vector((self.radius, self.radius, (self.radius + (height / 2)))))
         
     def to_object(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(self.name)
         bm = bmesh.new()
         bm.from_mesh(mesh)
-        bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=32, radius1=self.radius, radius2=self.radius, depth=self.height.length)
-        bmesh.ops.translate(bm, vec=(0, 0, self.height.length / 2), verts=bm.verts)
+        bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=32, radius1=1, radius2=1, depth=2)
+        bm.transform(Matrix.Translation((0, 0, 1)))
         bm.to_mesh(mesh)
         bm.free()
-        ob = bpy.data.objects.new(self.name, mesh)
-        
-        return ob
-    
-    @staticmethod
-    def quaternion_from_vector(vector: Vector):
-        vector.normalize()
-        up = Vector((0, 0, -1))
-        c = vector.dot(up)
-        if abs(c + 1.0) < 1e-5:
-            return Quaternion((1, 0, 0, 0))
-        elif abs(c - 1.0) < 1e-5:
-            return Quaternion((1, math.pi, 0, 0))
-        else:
-            new_vec = Vector().normalized()
-            axis: Vector = new_vec.cross(up)
-            angle = math.acos(c)
-            w = math.cos(angle / 2.0)
-            sin = math.sin(angle / 2.0)
-            return Quaternion((w, axis.x * sin, axis.y * sin, axis.z * sin))
+        self.ob = bpy.data.objects.new(self.name, mesh)
 
 class Box(Shape):
     translation: Vector
@@ -342,9 +331,34 @@ class Box(Shape):
     width: float
     length: float
     height: float
+    matrix: Matrix
+    ob: bpy.types.Object
     
     def __init__(self, element: TagFieldBlockElement, materials):
         super().__init__(element, materials)
+        self.translation = Vector([n for n in element.SelectField("Struct:convex transform shape[0]/RealVector3d:translation").Data]) * 100
+        self.width, self.length, self.height = (n * 2 * 100 for n in element.SelectField("RealVector3d:half extents").Data)
+        ii, ij, ik = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation i").Data
+        ji, jj, jk = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation j").Data
+        ki, kj, kk = element.SelectField("Struct:convex transform shape[0]/RealVector3d:rotation k").Data
+        rotation_matrix = Matrix((
+            (ii, ij, ik, self.translation[0]),
+            (ji, jj, jk, self.translation[1]),
+            (ki, kj, kk, self.translation[2]),
+            (0, 0, 0, 1)
+        ))
+        
+        rotation = rotation_matrix.to_quaternion()
+        self.matrix = Matrix.LocRotScale(self.translation, rotation, Vector((self.width, self.length, self.height)))
+        
+    def to_object(self):
+        mesh = bpy.data.meshes.new(self.name)
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bmesh.ops.create_cube(bm, size=1)
+        bm.to_mesh(mesh)
+        bm.free()
+        self.ob = bpy.data.objects.new(self.name, mesh)
         
 class PolyhedronFourVectors:
     def __init__(self, element: TagFieldBlockElement):
@@ -372,16 +386,18 @@ class Polyhedron(Shape):
     four_vectors_size: int
     vertices: list[Vector]
     offset: int
+    matrix: Matrix
     
-    def __init__(self, element: TagFieldBlockElement, materials, vectors_block: TagFieldBlockElement, vectors_offset: int):
+    def __init__(self, element: TagFieldBlockElement, materials, vectors_block: TagFieldBlockElement, four_vectors_map: list):
         super().__init__(element, materials)
         four_vectors_size = element.SelectField("four vectors size").Data
         self.vertices = []
-        self.offset = vectors_offset + four_vectors_size
-        print("offset: ", vectors_offset)
-        for i in range(vectors_offset, self.offset):
+        self.offset = four_vectors_map[element.ElementIndex] - four_vectors_size
+        for i in range(self.offset, self.offset + four_vectors_size):
             four_vectors = PolyhedronFourVectors(vectors_block.Elements[i])
             self.vertices.extend(four_vectors.to_vectors())
+            
+        self.matrix = Matrix.Identity(4)
             
     def to_object(self) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(self.name)
@@ -391,15 +407,7 @@ class Polyhedron(Shape):
         bmesh.ops.convex_hull(bm, input=bm.verts)
         bm.to_mesh(mesh)
         bm.free()
-        ob = bpy.data.objects.new(self.name, mesh)
-        return ob
-        
-class Mopp:
-    pass
-
-class ListShape:
-    pass
-    
+        self.ob = bpy.data.objects.new(self.name, mesh)
     
 class RigidBody:
     index: int
@@ -408,9 +416,13 @@ class RigidBody:
     shape_type: ShapeType
     shapes: list[Sphere | Pill | Box | Polyhedron]
     four_vectors_offset: int
+    valid: bool
     
-    def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_offset, tag):
+    def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag):
+        self.valid = False
         self.index = element.ElementIndex
+        if tag.corinth and element.SelectField("ShortBlockIndex:serialized shapes").Value > -1:
+            return print(f"Serialized Shapes are not supported. Skipping Rigid body {self.index}")
         self.node_index = element.SelectField("node").Value
         self.region = region
         self.permuation = permutation
@@ -418,20 +430,24 @@ class RigidBody:
         self.shape_type = ShapeType(shape_element.SelectField("shape type").Value)
         self.shapes = []
         shape_index = shape_element.SelectField("shape").Value
-        self.four_vectors_offset = four_vectors_offset
+        polyhedron_bones = []
         match self.shape_type:
             case ShapeType.sphere:
                 self.shapes.append(Sphere(tag.block_spheres.Elements[shape_index], materials))
             case ShapeType.pill:
                 self.shapes.append(Pill(tag.block_pills.Elements[shape_index], materials))
-            # case ShapeType.box:
-            #     self.shapes.append(Box(tag.block_boxes.Elements[shape_index], materials))
+            case ShapeType.box:
+                self.shapes.append(Box(tag.block_boxes.Elements[shape_index], materials))
             case ShapeType.polyhedron:
-                self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[shape_index], materials, tag.block_polyhedron_four_vectors, self.four_vectors_offset))
+                self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[shape_index], materials, tag.block_polyhedron_four_vectors, four_vectors_map))
                 self.four_vectors_offset = self.shapes[-1].offset
-            case ShapeType.mopp:
-                mopp = tag.block_mopps.Elements[shape_index]
-                list_element = tag.block_list_shapes.Elements[mopp.SelectField("list").Value]
+            case ShapeType.mopp | ShapeType._list:
+                if self.shape_type == ShapeType.mopp:
+                    mopp = tag.block_mopps.Elements[shape_index]
+                    list_element = tag.block_list_shapes.Elements[mopp.SelectField("list").Value]
+                else:
+                    list_element = tag.block_list_shapes.Elements[shape_index]
+                    
                 list_shapes_count = list_element.SelectField("num child shapes").Data
                 for i in range(list_shapes_count):
                     l_element = tag.block_list_shapes.Elements[i]
@@ -445,22 +461,34 @@ class RigidBody:
                         case ShapeType.box:
                             self.shapes.append(Box(tag.block_boxes.Elements[list_shape_index], materials))
                         case ShapeType.polyhedron:
-                            self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[list_shape_index], materials, tag.block_polyhedron_four_vectors, self.four_vectors_offset))
+                            self.shapes.append(Polyhedron(tag.block_polyhedra.Elements[list_shape_index], materials, tag.block_polyhedron_four_vectors, four_vectors_map))
                             self.four_vectors_offset = self.shapes[-1].offset
                         case _:
                             print(f"Unsupported physics shape type: {self.shape_type.name}")
             case _:
                 print(f"Unsupported physics shape type: {self.shape_type.name}")
                 
+        self.valid = True
+                
     def to_objects(self) -> bpy.types.Object:
-        objects = []
         for shape in self.shapes:
-            ob = shape.to_object()
-            if shape.material != "default":
-                ob.data.nwo.face_global_material = shape.material.name
-            objects.append(ob)
+            shape.to_object()
             
-        return objects
+            render_mat = bpy.data.materials.get("Physics")
+            if not render_mat:
+                render_mat = bpy.data.materials.new("Physics")
+                render_mat.use_fake_user = True
+                render_mat.diffuse_color = special_materials.Physics.color
+                render_mat.use_nodes = True
+                bsdf = render_mat.node_tree.nodes[0]
+                bsdf.inputs[0].default_value = special_materials.Physics.color
+                bsdf.inputs[4].default_value = special_materials.Physics.color[3]
+                render_mat.surface_render_method = 'BLENDED'
+                
+            shape.ob.data.materials.append(render_mat)
+            shape.ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_physics"
+            if shape.material.name != "default":
+                shape.ob.data.nwo.face_global_material = shape.material.name
         
             
 class CollisionMaterial:
@@ -635,15 +663,15 @@ class BSP:
             bm.to_mesh(mesh)
             bm.free()
                     
-        render_mat = bpy.data.materials.get("+collision")
+        render_mat = bpy.data.materials.get("Collision")
         if not render_mat:
-            render_mat = bpy.data.materials.new("+collision")
+            render_mat = bpy.data.materials.new("Collision")
             render_mat.use_fake_user = True
-            render_mat.diffuse_color = collision.color
+            render_mat.diffuse_color = special_materials.Collision.color
             render_mat.use_nodes = True
             bsdf = render_mat.node_tree.nodes[0]
-            bsdf.inputs[0].default_value = collision.color
-            bsdf.inputs[4].default_value = collision.color[3]
+            bsdf.inputs[0].default_value = special_materials.Collision.color
+            bsdf.inputs[4].default_value = special_materials.Collision.color[3]
             render_mat.surface_render_method = 'BLENDED'
             
         mesh.materials.append(render_mat)
@@ -776,46 +804,38 @@ class IndexBuffer:
         self.indices = indices
 
     def get_faces(self, mesh: 'Mesh') -> list[Face]:
-        faces = []
         idx = 0
         for subpart in mesh.subparts:
             start = subpart.index_start
             count = subpart.index_count
-            indices = self._get_indices(start, count)
+            list_indices = list(self._get_indices(start, count))
+            indices = (list_indices[n:n+3] for n in range(0, len(list_indices), 3))
             for i in indices:
-                faces.append(Face(indices=i, subpart=subpart, index=idx))
-                idx += 1
-        
-        return faces
+                yield Face(indices=i, subpart=subpart, index=idx)
     
     def _get_indices(self, start: int, count: int):
         end = len(self.indices) if count < 0 else start + count
-        subset = [self.indices[i] for i in range(start, end)]
+        subset = (self.indices[i] for i in range(start, end))
         if self.index_layout == IndexLayoutType.TRIANGLE_LIST:
-            return [subset[n:n+3] for n in range(0, len(subset), 3)]
+            return subset
         elif self.index_layout == IndexLayoutType.TRIANGLE_STRIP:
             return self._unpack(subset)
         else:
             raise (f"Unsupported Index Layout Type {self.index_layout}")
 
     def _unpack(self, indices: list[int]) -> list[int]:
-        faces = []
         i0, i1, i2 = 0, 0, 0
         for pos, idx in enumerate(indices):
             tri = []
             i0, i1, i2 = i1, i2, idx
             if pos < 2 or i0 == i1 or i0 == i2 or i1 == i2: continue
-            tri.append(i0)
+            yield i0
             if pos % 2 == 0:
-                tri.append(i1)
-                tri.append(i2)
+                yield i1
+                yield i2
             else:
-                tri.append(i2)
-                tri.append(i1)
-                
-            faces.append(tri)
-            
-        return faces
+                yield i2
+                yield i1
 
 class MeshPart:
     index: int
@@ -920,11 +940,15 @@ class Mesh:
     
     def create(self, render_model, temp_meshes: TagFieldBlock, nodes, parent: bpy.types.Object | None, instances: list['InstancePlacement'] = []):
         temp_mesh = temp_meshes.Elements[self.index]
+        raw_vertices = temp_mesh.SelectField("raw vertices")
         raw_indices = temp_mesh.SelectField("raw indices")
+        if raw_indices.Elements.Count == 0:
+            raw_indices = temp_mesh.SelectField("raw indices32")
         # Vertices & Faces
         self.raw_positions = [n for n in render_model.GetPositionsFromMesh(temp_meshes, self.index)]
         self.raw_texcoords = [n for n in render_model.GetTexCoordsFromMesh(temp_meshes, self.index)]
         self.raw_normals = [n for n in render_model.GetNormalsFromMesh(temp_meshes, self.index)]
+        self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
         if not instances and self.rigid_node_index == -1:
             self.raw_node_indices = [n for n in render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index)]
             self.raw_node_weights = [n for n in render_model.GetNodeWeightsFromMesh(temp_meshes, self.index)]
@@ -952,6 +976,13 @@ class Mesh:
         return objects
     
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None):
+        if local_matrix:
+            matrix = local_matrix
+        elif parent:
+            matrix = parent.matrix_world
+        else:
+            matrix = Matrix.Identity(4)
+            
         if subpart is None:
             indices = [t.indices for t in self.tris]
         else:
@@ -967,6 +998,7 @@ class Mesh:
         positions = [self.raw_positions[n:n+3] for idx, n in enumerate(range(0, len(self.raw_positions), 3)) if idx >= idx_start and idx <= idx_end]
         texcoords = [self.raw_texcoords[n:n+2] for idx, n in enumerate(range(0, len(self.raw_texcoords), 2)) if idx >= idx_start and idx <= idx_end]
         normals = [self.raw_normals[n:n+3] for idx, n in enumerate(range(0, len(self.raw_normals), 3)) if idx >= idx_start and idx <= idx_end]
+        vertex_colors = [[float(v) for v in self.raw_vertex_colors[n]] for idx, n in enumerate(range(len(self.raw_normals))) if idx >= idx_start and idx <= idx_end]
         if idx_start > 0:
             indices = [[i - idx_start for i in tri] for tri in indices]
                     
@@ -984,19 +1016,26 @@ class Mesh:
         normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normalised_normals)
         
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        layer = bm.verts.layers.float_color.new("Color")
+        for idx, v in enumerate(bm.verts):
+            v[layer] = vertex_colors[idx] + [1.0]
+            
+        bm.to_mesh(mesh)
+        bm.free()
+        
         if parent:
             ob.parent = parent
             if parent.type == 'ARMATURE':
                 if self.rigid_node_index > -1:
-                    if local_matrix:
-                        ob.matrix_basis = local_matrix
-                    mat = ob.matrix_world.copy()
                     ob.parent_type = "BONE"
                     if parent_bone:
                         ob.parent_bone = parent_bone
                     else:
                         ob.parent_bone = nodes[self.rigid_node_index].name
-                    ob.matrix_world = mat
+                    ob.matrix_world = matrix
+                    
                 else:
                     node_indices = [self.raw_node_indices[n:n+4] for idx, n in enumerate(range(0, len(self.raw_node_indices), 4)) if idx >= idx_start and idx <= idx_end]
                     node_weights = [self.raw_node_weights[n:n+4] for idx, n in enumerate(range(0, len(self.raw_node_weights), 4)) if idx >= idx_start and idx <= idx_end]
@@ -1133,7 +1172,7 @@ class MarkerGroup:
         for e in element.SelectField("markers").Elements:
             self.markers.append(Marker(e, nodes, regions))
             
-    def to_blender(self, edit_armature: utils.EditArmature, collection: bpy.types.Collection, size_factor: float):
+    def to_blender(self, armature: bpy.types.Object, collection: bpy.types.Collection, size_factor: float):
         # Find duplicate markers
         objects = []
         skip_markers = []
@@ -1148,16 +1187,14 @@ class MarkerGroup:
         remaining_markers = [m for m in self.markers if m not in skip_markers]
         
         for marker in remaining_markers:
-            print(f"--- {self.name}")
+            # print(f"--- {self.name}")
             ob = bpy.data.objects.new(name=self.name, object_data=None)
             collection.objects.link(ob)
-            ob.parent = edit_armature.ob
+            ob.parent = armature
             if marker.bone:
-                world = edit_armature.matrices[marker.bone]
                 ob.parent_type = "BONE"
                 ob.parent_bone = marker.bone
-                ob.matrix_world = world
-                ob.matrix_local = Matrix.Translation([0, edit_armature.lengths[marker.bone], 0]).inverted() @ Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1))
+                ob.matrix_world = armature.pose.bones[marker.bone].matrix @ Matrix.LocRotScale(marker.translation, marker.rotation, Vector.Fill(3, 1))
 
             nwo = ob.nwo
             nwo.marker_type = self.type.name

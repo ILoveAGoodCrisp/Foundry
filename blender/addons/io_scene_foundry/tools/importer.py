@@ -772,30 +772,33 @@ class NWOImporter:
     def import_models(self, paths):
         imported_objects = []
         for file in paths:
+            print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
             with TagImportMover(self.project.tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path) as model:
                     render, collision, animation, physics = model.get_model_paths()
                     if render:
-                        render_objects, edit_armature = self.import_render_model(render)
+                        render_objects, armature = self.import_render_model(render)
                         imported_objects.extend(render_objects)
                     if collision and self.tag_collision:
-                        imported_objects.extend(self.import_collision_model(collision, edit_armature))
+                        imported_objects.extend(self.import_collision_model(collision, armature))
                     if physics:
-                        imported_objects.extend(self.import_physics_model(collision, edit_armature))
+                        imported_objects.extend(self.import_physics_model(physics, armature))
                     # imported_objects.extend(self.import_physics_model(physics))
         
         return imported_objects
             
     def import_render_model(self, file):
+        print("Importing Render Model")
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         self.context.scene.collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, edit_armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers)
             
-        return render_model_objects, edit_armature
+        return render_model_objects, armature
     
     def import_collision_model(self, file, armature):
+        print("Importing Collision Model")
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         self.context.scene.collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
@@ -805,6 +808,7 @@ class NWOImporter:
         return collision_model_objects
     
     def import_physics_model(self, file, armature):
+        print("Importing Physics Model")
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         self.context.scene.collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:

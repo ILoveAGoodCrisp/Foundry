@@ -44,14 +44,10 @@ class CollisionTag(Tag):
         self.block_pathfinding_spheres = self.tag.SelectField("Block:pathfinding spheres")
         self.block_nodes = self.tag.SelectField("Block:nodes")
         
-    def to_blend_objects(self, collection: bpy.types.Collection, edit_armature=None, markers=True):
+    def to_blend_objects(self, collection: bpy.types.Collection, armature=None, markers=True):
         # Find Armature
-        armature = None
-        if edit_armature:
-            armature = edit_armature.ob
         if armature is None:
             armature = utils.get_rig()
-            edit_armature = utils.EditArmature(armature)
         objects = []
         # Collision Mesh
         nodes = [e.Fields[0].Data for e in self.block_nodes.Elements]
@@ -66,11 +62,9 @@ class CollisionTag(Tag):
                     bsp = BSP(bsp_element, name, materials, nodes)
                     ob = bsp.to_object()
                     ob.parent = armature
-                    world = edit_armature.matrices[bsp.bone]
                     ob.parent_type = 'BONE'
                     ob.parent_bone = bsp.bone
-                    ob.matrix_world = world
-                    ob.matrix_local = Matrix.Translation([0, edit_armature.lengths[bsp.bone], 0]).inverted()
+                    ob.matrix_world = armature.pose.bones[bsp.bone].matrix
                     utils.set_region(ob, region)
                     utils.set_permutation(ob, permutation)
                     collection.objects.link(ob)
@@ -83,11 +77,9 @@ class CollisionTag(Tag):
                 sphere = PathfindingSphere(sphere_element, nodes)
                 ob = sphere.to_object()
                 ob.parent = armature
-                world = edit_armature.matrices[sphere.bone]
                 ob.parent_type = 'BONE'
                 ob.parent_bone = sphere.bone
-                ob.matrix_world = world
-                ob.matrix_local = Matrix.Translation([0, edit_armature.lengths[sphere.bone], 0]).inverted() @ Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
+                ob.matrix_world = armature.pose.bones[sphere.bone].matrix @ Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
                 collection.objects.link(ob)
                 objects.append(ob)
             
