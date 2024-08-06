@@ -28,7 +28,6 @@ import os
 from pathlib import Path
 
 from ..utils import (
-    get_data_path,
     get_tags_path,
     is_corinth,
     print_warning,
@@ -38,7 +37,7 @@ from ..utils import (
 )
 
 def set_template(scene_nwo, tags_dir, new_tag_path_name, tag_type):
-    if tag_type == 'model' or getattr(scene_nwo, 'output_' + tag_type):
+    if tag_type.endswith('model') or tag_type == 'model_animation_graph' or getattr(scene_nwo, 'output_' + tag_type):
         relative_path = getattr(scene_nwo, 'template_' + tag_type)
         expected_asset_path = new_tag_path_name + tag_type
         if relative_path and not os.path.exists(expected_asset_path):
@@ -55,6 +54,10 @@ def set_template(scene_nwo, tags_dir, new_tag_path_name, tag_type):
 def setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth):
     new_tag_path_name = tag_path + '.'
     set_template(scene_nwo, tags_dir, new_tag_path_name, 'model')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'render_model')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'collision_model')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'physics_model')
+    set_template(scene_nwo, tags_dir, new_tag_path_name, 'model_animation_graph')
     set_template(scene_nwo, tags_dir, new_tag_path_name, 'biped')
     set_template(scene_nwo, tags_dir, new_tag_path_name, 'crate')
     set_template(scene_nwo, tags_dir, new_tag_path_name, 'creature')
@@ -88,9 +91,7 @@ def restore_lighting_infos(lighting_infos):
 
 def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_export, scene_nwo, selected_bsps, bsps):
     tags_dir = get_tags_path()
-    data_dir = get_data_path()
-    tag_folder_path = asset_path.replace(data_dir, tags_dir)
-    tag_path = os.path.join(tag_folder_path, asset_name)
+    tag_path = os.path.join(tags_dir, relative_path(asset_path), asset_name)
     if asset_type == 'model':
         setup_template_tags(scene_nwo, tags_dir, tag_path, is_corinth())
     lighting_infos = []

@@ -44,7 +44,7 @@ class CollisionTag(Tag):
         self.block_pathfinding_spheres = self.tag.SelectField("Block:pathfinding spheres")
         self.block_nodes = self.tag.SelectField("Block:nodes")
         
-    def to_blend_objects(self, collection: bpy.types.Collection, armature=None, markers=True):
+    def to_blend_objects(self, collection: bpy.types.Collection, armature=None):
         # Find Armature
         if armature is None:
             armature = utils.get_rig()
@@ -71,16 +71,15 @@ class CollisionTag(Tag):
                     objects.append(ob)
                         
         # Pathfinding Spheres
-        if markers:
-            print(f"Adding pathfinding spheres")
-            for sphere_element in self.block_pathfinding_spheres.Elements:
-                sphere = PathfindingSphere(sphere_element, nodes)
-                ob = sphere.to_object()
-                ob.parent = armature
-                ob.parent_type = 'BONE'
-                ob.parent_bone = sphere.bone
-                ob.matrix_world = armature.pose.bones[sphere.bone].matrix @ Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
-                collection.objects.link(ob)
-                objects.append(ob)
+        print(f"Adding pathfinding spheres")
+        for sphere_element in self.block_pathfinding_spheres.Elements:
+            sphere = PathfindingSphere(sphere_element, nodes)
+            ob = sphere.to_object()
+            ob.parent = armature
+            ob.parent_type = 'BONE'
+            ob.parent_bone = sphere.bone
+            ob.matrix_world = armature.pose.bones[sphere.bone].matrix @ Matrix.LocRotScale(Vector(sphere.center) * 100, Euler((0,0,0)), Vector.Fill(3, 1))
+            collection.objects.link(ob)
+            objects.append(ob)
             
         return objects

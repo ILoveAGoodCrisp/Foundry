@@ -34,11 +34,11 @@ class NWO_OT_LoadTemplate(bpy.types.Operator):
             os.makedirs(full_asset_dir_path, exist_ok=True) 
         tag_path = str(Path(asset_dir, asset_name).with_suffix(tag_ext))
         full_path = Path(utils.get_tags_path(), tag_path)
-        utils.copy_file(template_full_path, full_path)
+        utils.copy_file(template_full_path, full_path) 
         if self.tag_type == 'model':
             with ModelTag(path=tag_path) as model:
                 model.set_asset_paths()
-                model.set_model_overrides(context.scene.nwo.render_model_path, context.scene.nwo.collision_model_path, context.scene.nwo.animation_graph_path, context.scene.nwo.physics_model_path)
+                model.set_model_overrides(context.scene.nwo.template_render_model, context.scene.nwo.template_collision_model, context.scene.nwo.template_model_animation_graph, context.scene.nwo.template_physics_model)
         else:
             with ObjectTag(path=tag_path) as tag:
                 tag.set_model_tag_path(str(Path(asset_dir, asset_name).with_suffix(".model")))

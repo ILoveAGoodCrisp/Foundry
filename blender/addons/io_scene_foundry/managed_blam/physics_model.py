@@ -28,7 +28,7 @@ class PhysicsTag(Tag):
         self.block_mopps = self.tag.SelectField("Block:mopps")
         self.block_list_shapes = self.tag.SelectField("Block:list shapes")
         
-    def to_blend_objects(self, collection: bpy.types.Collection, armature=None, markers=True):
+    def to_blend_objects(self, collection: bpy.types.Collection, armature=None):
         if armature is None:
             armature = utils.get_rig()
         objects = []
@@ -43,7 +43,7 @@ class PhysicsTag(Tag):
         #     data = el.Fields[3].GetData()
         #     b = bytes([b for b in data])
         #     print(b.hex())
-        if self.block_polyhedra.Elements.Count > 1:
+        if self.block_polyhedra.Elements.Count > 0:
             for element in self.block_polyhedra.Elements:
                 size = element.SelectField("LongInteger:four vectors size").Data
                 if element.ElementIndex == 0:
@@ -77,21 +77,21 @@ class PhysicsTag(Tag):
         # Constraints
         for element in self.block_hinge_constraints.Elements:
             hinge = Hinge(element, nodes)
-            ob = hinge.to_object()
+            ob = hinge.to_object(armature)
             self._parent_constraint(hinge, ob, armature)
             collection.objects.link(ob)
             objects.append(ob)
             
         for element in self.block_limited_hinge_constraints.Elements:
             limited_hinge = LimitedHinge(element, nodes)
-            ob = limited_hinge.to_object()
+            ob = limited_hinge.to_object(armature)
             self._parent_constraint(limited_hinge, ob, armature)
             collection.objects.link(ob)
             objects.append(ob)
             
         for element in self.block_ragdoll_constraints.Elements:
             ragdoll = Ragdoll(element, nodes)
-            ob = ragdoll.to_object()
+            ob = ragdoll.to_object(armature)
             self._parent_constraint(ragdoll, ob, armature)
             collection.objects.link(ob)
             objects.append(ob)

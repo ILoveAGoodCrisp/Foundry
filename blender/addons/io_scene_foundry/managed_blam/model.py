@@ -27,6 +27,8 @@
 from pathlib import Path
 
 import bpy
+
+from .. import utils
 from ..managed_blam import Tag
 
 class ModelTag(Tag):
@@ -62,20 +64,28 @@ class ModelTag(Tag):
             physics = physics_path.Filename
             
         return render, collision, animation, physics
-        
+                
     def set_model_overrides(self, render_model, collision_model, model_animation_graph, physics_model):
-        if render_model and self._tag_exists(render_model):
-            self.reference_render_model.Path = self._TagPath_from_string(render_model)
-            self.tag_has_changes = True
-        if collision_model and self._tag_exists(collision_model):
-            self.reference_collision_model.Path = self._TagPath_from_string(collision_model)
-            self.tag_has_changes = True
-        if model_animation_graph and self._tag_exists(model_animation_graph):
-            self.reference_animation.Path = self._TagPath_from_string(model_animation_graph)
-            self.tag_has_changes = True
-        if physics_model and self._tag_exists(physics_model):
-            self.reference_physics_model.Path = self._TagPath_from_string(physics_model)
-            self.tag_has_changes = True
+        if len(render_model) > 1 and self._tag_exists(render_model):
+            tagpath_render_model = self._TagPath_from_string(Path(self.asset_dir, self.asset_name + ".render_model"))
+            if self.reference_render_model.Path != tagpath_render_model:
+                self.reference_render_model.Path = tagpath_render_model
+                self.tag_has_changes = True
+        if len(collision_model) > 1 and self._tag_exists(collision_model):
+            tagpath_collision_model = self._TagPath_from_string(Path(self.asset_dir, self.asset_name + ".collision_model"))
+            if self.reference_collision_model.Path != tagpath_collision_model:
+                self.reference_collision_model.Path = tagpath_collision_model
+                self.tag_has_changes = True
+        if len(model_animation_graph) > 1 and self._tag_exists(model_animation_graph):
+            tagpath_animation = self._TagPath_from_string(Path(self.asset_dir, self.asset_name + ".model_animation_graph"))
+            if self.reference_animation != tagpath_animation:
+                self.reference_animation.Path = tagpath_animation
+                self.tag_has_changes = True
+        if len(physics_model) > 1 and self._tag_exists(physics_model):
+            tagpath_physics_model = self._TagPath_from_string(Path(self.asset_dir, self.asset_name + ".physics_model"))
+            if self.reference_physics_model != tagpath_physics_model:
+                self.reference_physics_model.Path = tagpath_physics_model
+                self.tag_has_changes = True
             
     def get_model_variants(self):
         return [v.SelectField("name").GetStringData() for v in self.block_variants.Elements]

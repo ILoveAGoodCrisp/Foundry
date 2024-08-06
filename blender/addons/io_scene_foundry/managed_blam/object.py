@@ -35,20 +35,6 @@ class ObjectTag(Tag):
         else:
             object_struct = first_struct.Elements[0].Fields[0]
         self.reference_model = self.tag.SelectField(f"{object_struct.FieldPath}/Reference:model")
-        
-    def set_model_overrides(self, render_model, collision_model, model_animation_graph, physics_model):
-        if render_model and self._tag_exists(render_model):
-            self.reference_render_model.Path = self.TagPath_from_string(render_model)
-            self.tag_has_changes = True
-        if collision_model and self._tag_exists(collision_model):
-            self.reference_collision_model.Path = self.TagPath_from_string(collision_model)
-            self.tag_has_changes = True
-        if model_animation_graph and self._tag_exists(model_animation_graph):
-            self.reference_animation.Path = self.TagPath_from_string(model_animation_graph)
-            self.tag_has_changes = True
-        if physics_model and self._tag_exists(physics_model):
-            self.reference_physics_model.Path = self.TagPath_from_string(physics_model)
-            self.tag_has_changes = True
             
     def get_model_tag_path(self):
         model_path = self.reference_model.Path

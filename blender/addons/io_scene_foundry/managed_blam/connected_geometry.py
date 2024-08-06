@@ -1,6 +1,7 @@
 """Classes to help with importing geometry from tags"""
 
 from enum import Enum
+from math import radians
 from typing import Iterable
 import bmesh
 import bpy
@@ -174,11 +175,15 @@ class Hinge:
             (0, 0, 0, 1),
         ))
         
-    def to_object(self) -> bpy.types.Object:
+    def to_object(self, armature) -> bpy.types.Object:
         ob = bpy.data.objects.new(self.name, None)
         ob.empty_display_type = 'ARROWS'
         nwo = ob.nwo
         nwo.marker_type = "_connected_geometry_marker_type_physics_constraint"
+        nwo.physics_constraint_parent = armature
+        nwo.physics_constraint_parent_bone = self.bone_parent
+        nwo.physics_constraint_child = armature
+        nwo.physics_constraint_child_bone = self.bone_child
         self._set_constraint_props(nwo)
         
         return ob
@@ -199,8 +204,8 @@ class LimitedHinge(Hinge):
     def _set_constraint_props(self, nwo):
         nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_hinge_constraint"
         nwo.physics_constraint_uses_limits = True
-        nwo.hinge_constraint_minimum = self.limit_min_angle
-        nwo.hinge_constraint_maximum = self.limit_max_angle
+        nwo.hinge_constraint_minimum = radians(self.limit_min_angle)
+        nwo.hinge_constraint_maximum = radians(self.limit_max_angle)
 
 class Ragdoll(Hinge):
     min_twist: float
@@ -221,10 +226,10 @@ class Ragdoll(Hinge):
         nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_socket_constraint"
         nwo.physics_constraint_uses_limits = True
         nwo.cone_angle = self.cone
-        nwo.plane_constraint_minimum = self.min_plane
-        nwo.plane_constraint_maximum = self.max_plane
-        nwo.twist_constraint_start = self.min_twist
-        nwo.twist_constraint_end = self.max_twist
+        nwo.plane_constraint_minimum = radians(self.min_plane)
+        nwo.plane_constraint_maximum = radians(self.max_plane)
+        nwo.twist_constraint_start = radians(self.min_twist)
+        nwo.twist_constraint_end = radians(self.max_twist)
             
 class Constraint:
     type: ConstraintType
@@ -422,7 +427,7 @@ class RigidBody:
         self.valid = False
         self.index = element.ElementIndex
         if tag.corinth and element.SelectField("ShortBlockIndex:serialized shapes").Value > -1:
-            return print(f"Serialized Shapes are not supported. Skipping Rigid body {self.index}")
+            return utils.print_warning(f"Serialized Shapes are not supported. Skipping Rigid body {self.index}")
         self.node_index = element.SelectField("node").Value
         self.region = region
         self.permuation = permutation
@@ -805,13 +810,17 @@ class IndexBuffer:
 
     def get_faces(self, mesh: 'Mesh') -> list[Face]:
         idx = 0
+        faces = []
         for subpart in mesh.subparts:
             start = subpart.index_start
             count = subpart.index_count
             list_indices = list(self._get_indices(start, count))
             indices = (list_indices[n:n+3] for n in range(0, len(list_indices), 3))
             for i in indices:
-                yield Face(indices=i, subpart=subpart, index=idx)
+                faces.append(Face(indices=i, subpart=subpart, index=idx))
+                idx += 1
+                
+        return faces
     
     def _get_indices(self, start: int, count: int):
         end = len(self.indices) if count < 0 else start + count

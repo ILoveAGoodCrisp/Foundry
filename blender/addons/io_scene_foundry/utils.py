@@ -280,8 +280,7 @@ def vector_str(velocity):
     x = velocity.x
     y = velocity.y
     z = velocity.z
-    return f"{jstr(x)} {jstr(y)} {jstr(z)}"
-
+    return f"1 {jstr(x)} {jstr(y)} {jstr(z)}"
 
 def color_3p_str(color):
     red = linear_to_srgb(color.r)
@@ -2909,7 +2908,7 @@ def area_light_to_emissive(light_ob: bpy.types.Object):
     return plane_ob
 
 def get_asset_animation_graph(full=False):
-    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.animation_graph_from_blend:
+    if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
         tag_path = Path(asset_dir, asset_name).with_suffix(".model_animation_graph")
         full_path = Path(get_tags_path(), tag_path)
@@ -2920,7 +2919,7 @@ def get_asset_animation_graph(full=False):
                 return str(tag_path)
             
 def get_asset_render_model(full=False):
-    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.render_model_from_blend:
+    if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
         tag_path = Path(asset_dir, asset_name).with_suffix(".render_model")
         full_path = Path(get_tags_path(), tag_path)
@@ -2931,7 +2930,7 @@ def get_asset_render_model(full=False):
                 return str(tag_path)
             
 def get_asset_collision_model(full=False):
-    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.collision_model_from_blend:
+    if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
         tag_path = Path(asset_dir, asset_name).with_suffix(".collision_model")
         full_path = Path(get_tags_path(), tag_path)
@@ -2942,7 +2941,7 @@ def get_asset_collision_model(full=False):
                 return str(tag_path)
             
 def get_asset_physics_model(full=False):
-    if valid_nwo_asset(bpy.context) and bpy.context.scene.nwo.physics_model_from_blend:
+    if valid_nwo_asset(bpy.context):
         asset_dir, asset_name = get_asset_info()
         tag_path = Path(asset_dir, asset_name).with_suffix(".physics_model")
         full_path = Path(get_tags_path(), tag_path)
@@ -3485,7 +3484,7 @@ class TagImportMover():
         name = self.source_file.with_suffix("").name
         self.temp_file = Path(tags_dir, "_temp", name + self.source_file.suffix)
         if not self.source_file.is_relative_to(Path(tags_dir)):
-            print_warning(f"Tag [{self.source_file.name}] is from different project and may fail to open")
+            print_warning(f"Tag [{self.source_file.name}] is from a different project and may fail to load")
             self.needs_to_move = True
             self.tag_path = str(Path("_temp", name + self.source_file.suffix))
             if not self.temp_file.parent.exists():

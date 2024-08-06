@@ -541,104 +541,97 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
     
     def draw_render_model(self, box: bpy.types.UILayout, nwo):
         col = box.column()
-        col.prop(nwo, "render_model_from_blend")
-        if nwo.render_model_from_blend:
-            tag_path = utils.get_asset_render_model()
-            if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Render Model Tag").tag_path = tag_path
-        else:
-            row = col.row(align=True)
-            row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+        row = col.row(align=True)
+        row.prop(nwo, "template_render_model", text="Template", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_render_model"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_render_model'
+        tag_path = utils.get_asset_render_model()
+        if tag_path:
+            col.separator()
+            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Render Model Tag").tag_path = tag_path
     
     def draw_collision_model(self, box: bpy.types.UILayout, nwo):
         col = box.column()
-        col.prop(nwo, "collision_model_from_blend")
-        if nwo.collision_model_from_blend:
-            tag_path = utils.get_asset_collision_model()
-            if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Collision Model Tag").tag_path = tag_path
-        else:
-            row = col.row(align=True)
-            row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "collision_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'collision_model_path'
+        row = col.row(align=True)
+        row.prop(nwo, "template_collision_model", text="Template", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_collision_model"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_collision_model'
+        tag_path = utils.get_asset_collision_model()
+        if tag_path:
+            col.separator()
+            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Collision Model Tag").tag_path = tag_path
     
     def draw_animation_graph(self, box: bpy.types.UILayout, nwo):
         col = box.column()
-        col.prop(nwo, "animation_graph_from_blend")
-        if nwo.animation_graph_from_blend:
-            row = col.row(align=True)
-            row.use_property_split = True
-            row.prop(nwo, "parent_animation_graph", text="Parent Animation Graph")
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "parent_animation_graph"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'parent_animation_graph'
-            row = col.row()
-            row.use_property_split = True
-            row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
-            tag_path = utils.get_asset_animation_graph()
-            if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Animation Graph Tag").tag_path = tag_path
-            frame_events_tag_path = utils.get_asset_tag(".frame_events_list")
-            if frame_events_tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
-            self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
-            self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
-            self.draw_expandable_box(box.box(), nwo, 'animation_copies')
-            if self.h4:
-                self.draw_expandable_box(box.box(), nwo, 'animation_composites')
-        else:
-            row = col.row(align=True)
-            row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_graph_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_graph_path'
+        row = col.row(align=True)
+        row.prop(nwo, "template_model_animation_graph", text="Template", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_model_animation_graph"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_model_animation_graph'
+        col.separator()
+        row = col.row(align=True)
+        row.use_property_split = True
+        row.prop(nwo, "parent_animation_graph", text="Parent Animation Graph")
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "parent_animation_graph"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'parent_animation_graph'
+        row = col.row()
+        row.use_property_split = True
+        row.prop(nwo, "default_animation_compression", text="Default Animation Compression")
+        tag_path = utils.get_asset_animation_graph()
+        if tag_path:
+            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Animation Graph Tag").tag_path = tag_path
+        frame_events_tag_path = utils.get_asset_tag(".frame_events_list")
+        if frame_events_tag_path:
+            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Frame Events List Tag").tag_path = frame_events_tag_path
+        self.draw_expandable_box(box.box(), nwo, 'rig_usages', 'Node Usages')
+        self.draw_expandable_box(box.box(), nwo, 'ik_chains', panel_display_name='IK Chains')
+        self.draw_expandable_box(box.box(), nwo, 'animation_copies')
+        if self.h4:
+            self.draw_expandable_box(box.box(), nwo, 'animation_composites')
+
     
     def draw_physics_model(self, box: bpy.types.UILayout, nwo):
         col = box.column()
-        col.prop(nwo, "physics_model_from_blend")
-        if nwo.physics_model_from_blend:
-            tag_path = utils.get_asset_physics_model()
-            if tag_path:
-                col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Physics Model Tag").tag_path = tag_path
-        else:
-            row = col.row(align=True)
-            row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
-            row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
-            row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
+        row = col.row(align=True)
+        row.prop(nwo, "template_physics_model", text="Template", icon_value=get_icon_id("tags"))
+        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "template_physics_model"
+        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'template_physics_model'
+        tag_path = utils.get_asset_physics_model()
+        if tag_path:
+            col.separator()
+            col.operator('nwo.open_foundation_tag', icon_value=get_icon_id('foundation'), text="Open Physics Model Tag").tag_path = tag_path
     
-    def draw_model_overrides(self, box: bpy.types.UILayout, nwo):
-        asset_dir, asset_name = utils.get_asset_info()
-        self_path = str(Path(asset_dir, asset_name))
-        everything_overidden = nwo.render_model_path and nwo.collision_model_path and nwo.animation_graph_path and nwo.physics_model_path
-        if everything_overidden:
-            box.alert = True
-        col = box.column()
-        row = col.row(align=True)
-        if nwo.render_model_path and utils.dot_partition(nwo.render_model_path) == self_path:
-            row.alert = True
-            row.label(icon='ERROR')
+    # def draw_model_overrides(self, box: bpy.types.UILayout, nwo):
+    #     asset_dir, asset_name = utils.get_asset_info()
+    #     self_path = str(Path(asset_dir, asset_name))
+    #     everything_overidden = nwo.template_render_model and nwo.template_collision_model and nwo.template_model_animation_graph and nwo.template_physics_model
+    #     if everything_overidden:
+    #         box.alert = True
+    #     col = box.column()
+    #     row = col.row(align=True)
+    #     if nwo.render_model_path and utils.dot_partition(nwo.render_model_path) == self_path:
+    #         row.alert = True
+    #         row.label(icon='ERROR')
             
-        row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
-        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
-        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
-        row = col.row(align=True)
-        row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
-        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "collision_model_path"
-        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'collision_model_path'
-        row = col.row(align=True)
-        row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
-        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_graph_path"
-        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_graph_path'
-        row = col.row(align=True)
-        row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
-        row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
-        row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
-        if everything_overidden:
-            row = col.row(align=True)
-            row.label(text='All overrides specified', icon='ERROR')
-            row = col.row(align=True)
-            row.label(text='Everything exported from this scene will be overwritten')
+    #     row.prop(nwo, "render_model_path", text="Render", icon_value=get_icon_id("tags"))
+    #     row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
+    #     row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+    #     row = col.row(align=True)
+    #     row.prop(nwo, "collision_model_path", text="Collision", icon_value=get_icon_id("tags"))
+    #     row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "collision_model_path"
+    #     row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'collision_model_path'
+    #     row = col.row(align=True)
+    #     row.prop(nwo, "animation_graph_path", text="Animation", icon_value=get_icon_id("tags"))
+    #     row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "animation_graph_path"
+    #     row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'animation_graph_path'
+    #     row = col.row(align=True)
+    #     row.prop(nwo, "physics_model_path", text="Physics", icon_value=get_icon_id("tags"))
+    #     row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "physics_model_path"
+    #     row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'physics_model_path'
+    #     if everything_overidden:
+    #         row = col.row(align=True)
+    #         row.label(text='All overrides specified', icon='ERROR')
+    #         row = col.row(align=True)
+    #         row.label(text='Everything exported from this scene will be overwritten')
             
     def draw_model_rig(self, box: bpy.types.UILayout, nwo):
         col = box.column()

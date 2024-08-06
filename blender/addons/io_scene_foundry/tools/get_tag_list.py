@@ -30,7 +30,7 @@ import os
 from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
 global_items = {}
-scene_props = ('render_model_path', 'collision_model_path', 'physics_model_path', 'animation_graph_path', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'template_model',
+scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'template_model',
                'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
                'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon')
 
@@ -103,15 +103,15 @@ def extensions_from_type(list_type):
             return (".bitmap")
         case 'light_lens_flare_reference':
             return (".lens_flare")
-        case 'render_model_path':
+        case 'template_render_model':
             return (".render_model")
-        case 'collision_model_path':
+        case 'template_collision_model':
             return (".collision_model")
-        case 'animation_graph_path':
+        case 'template_model_animation_graph':
             return (".model_animation_graph")
         case 'parent_animation_graph':
             return (".model_animation_graph")
-        case 'physics_model_path':
+        case 'template_physics_model':
             return (".physics_model")
         case 'fp_model_path':
             return (".render_model")
@@ -233,15 +233,15 @@ def get_glob_from_prop(prop):
             return "*.bitmap"
         case 'light_lens_flare_reference':
             return "*.lens_flare"
-        case 'render_model_path':
+        case 'template_render_model':
             return "*.render_model"
-        case 'collision_model_path':
+        case 'template_collision_model':
             return "*.collision_mo*"
-        case 'animation_graph_path':
+        case 'template_model_animation_graph':
             return "*.model_*_graph"
         case 'parent_animation_graph':
             return "*.model_*_graph"
-        case 'physics_model_path':
+        case 'template_physics_model':
             return "*.physics_model"
         case 'fp_model_path':
             return "*.render_model"

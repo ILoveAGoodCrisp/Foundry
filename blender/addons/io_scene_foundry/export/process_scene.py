@@ -80,7 +80,7 @@ class ProcessScene:
             export_dir = os.path.join(asset_path, "export", "models")
             os.makedirs(models_dir, exist_ok=True)
             os.makedirs(export_dir, exist_ok=True)
-            if asset_type in ("model", "animation") and scene_nwo.animation_graph_from_blend:
+            if asset_type in ("model", "animation"):
                 if export_scene.model_armature and bpy.data.actions:
                     if scene_nwo_export.export_animations != "NONE":
                         timeline = context.scene
@@ -226,7 +226,7 @@ class ProcessScene:
                     scene_nwo_export.export_render,
                 )
                 if asset_type == "model":
-                    if scene_nwo.collision_model_from_blend and export_scene.collision:
+                    if export_scene.collision:
                         self.export_model(
                             context,
                             asset_path,
@@ -241,7 +241,7 @@ class ProcessScene:
                             scene_nwo_export.export_collision,
                         )
 
-                    if scene_nwo.physics_model_from_blend and export_scene.physics:
+                    if export_scene.physics:
                         self.export_model(
                             context,
                             asset_path,
@@ -256,7 +256,7 @@ class ProcessScene:
                             scene_nwo_export.export_physics,
                         )
 
-                    if scene_nwo.render_model_from_blend and export_scene.markers:
+                    if export_scene.markers:
                         self.export_model(
                             context,
                             asset_path,
@@ -825,10 +825,10 @@ class ProcessScene:
         scenario = asset_type == 'scenario'
         # h4_model_lighting = (export_scene.lighting and is_corinth(context) and model_sky)
         model_override = (
-            (not nwo.render_model_from_blend and nwo.render_model_path and model)
-            or (not nwo.collision_model_from_blend and nwo.collision_model_path and model)
-            or (not nwo.physics_model_from_blend and nwo.physics_model_path and model)
-            or (not nwo.animation_graph_from_blend and nwo.animation_graph_path and model)
+            (nwo.template_render_model and model)
+            or (nwo.template_collision_model and model)
+            or (nwo.template_physics_model and model)
+            or (nwo.template_model_animation_graph and model)
         )
         # print("\n--- Foundry Tags Post-Process")
         # If this model has lighting, add a reference to the structure_meta tag in the render_model
@@ -840,8 +840,8 @@ class ProcessScene:
 
         # Apply model overrides if any
         if model and model_override:
-            with ModelTag(hide_prints=True) as model:
-                model.set_model_overrides(nwo.render_model_path, nwo.collision_model_path, nwo.animation_graph_path, nwo.physics_model_path)
+            with ModelTag(hide_prints=False) as model:
+                model.set_model_overrides(nwo.template_render_model, nwo.template_collision_model, nwo.template_model_animation_graph, nwo.template_physics_model)
             # print("--- Applied Model Overrides")
             
         if reach_world_animations or pose_overlays:

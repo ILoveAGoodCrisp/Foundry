@@ -57,6 +57,8 @@ class Tag():
         self.corinth = is_corinth(self.context) # bool to check whether the game is H4+
         self.unit_scale = self.context.scene.unit_settings.scale_length
         
+        self.failed_to_load = False
+        
         # Tag Info
         self.path = path
         self.tag_is_new = False
@@ -82,6 +84,7 @@ class Tag():
                 self.tag_has_changes = True # Must always save new tags
         except:
             print_error(f"Failed to Load Tag: {Path(self.path).name}")
+            self.failed_to_load = True
         
     def _read_fields(self):
         """Read in some useful fields for this tag type"""

@@ -764,6 +764,7 @@ class PrepareScene:
         
         utils.update_view_layer(self.context)
         for ob in self.context.view_layer.objects:
+            if ob.type != 'MESH': continue
             mesh = ob.data
             for att in mesh.attributes:
                 if att.name.startswith("ln"):
@@ -951,7 +952,7 @@ class PrepareScene:
         utils.update_view_layer(self.context)
     
     def add_null_render_if_needed(self):
-        if self.render and self.scene_settings.render_model_from_blend: return
+        if self.render: return
         self.render = {self._add_null_render()}
         utils.update_view_layer(self.context)
         
@@ -1141,7 +1142,7 @@ class PrepareScene:
                 
             bm.faces.ensure_lookup_table()
             keep_faces = {bm.faces[i] for i in indices_list[0]}
-            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index not in keep_faces], context='FACES')
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in keep_faces], context='FACES')
             bm.to_mesh(ob.data)
             bm.free()
     
@@ -1179,32 +1180,33 @@ class PrepareScene:
                     split_ob.name = ori_ob_name
 
             #parent poop coll
-            parent_ob = None
-            if collision_ob is not None:
-                for split_ob in reversed(split_objects):
-                    if not split_ob.get("bungie_face_mode") in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only", "_connected_geometry_face_mode_breakable"):
-                        parent_ob = split_ob
-                        break
-                else:
-                    # only way to make invisible collision...
-                    if collision_ob is not None:
-                        collision_ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
-                        collision_ob["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
+            if is_poop:
+                parent_ob = None
+                if collision_ob is not None:
+                    for split_ob in reversed(split_objects):
+                        if not split_ob.get("bungie_face_mode") in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only", "_connected_geometry_face_mode_breakable"):
+                            parent_ob = split_ob
+                            break
+                    else:
+                        # only way to make invisible collision...
+                        if collision_ob is not None:
+                            collision_ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
+                            collision_ob["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
 
-                if parent_ob is not None:
-                    if collision_ob is not None:
-                        collision_ob.parent = parent_ob
-                        collision_ob.matrix_world = ori_matrix
-                        
-                # remove coll only split objects, as this is already covered by the coll mesh
-                coll_only_objects = set()
-                for split_ob in split_objects:
-                    if split_ob.get("bungie_face_mode") == "_connected_geometry_face_mode_collision_only":
-                        coll_only_objects.add(split_ob)
-                        utils.unlink(split_ob)
-                        
-                # recreate split objects list
-                split_objects = {ob for ob in split_objects if ob not in coll_only_objects}
+                    if parent_ob is not None:
+                        if collision_ob is not None:
+                            collision_ob.parent = parent_ob
+                            collision_ob.matrix_world = ori_matrix
+                            
+                    # remove coll only split objects, as this is already covered by the coll mesh
+                    coll_only_objects = set()
+                    for split_ob in split_objects:
+                        if split_ob.get("bungie_face_mode") == "_connected_geometry_face_mode_collision_only":
+                            coll_only_objects.add(split_ob)
+                            utils.unlink(split_ob)
+                            
+                    # recreate split objects list
+                    split_objects = {ob for ob in split_objects if ob not in coll_only_objects}
 
             return split_objects
 
@@ -2168,11 +2170,11 @@ class PrepareScene:
         def sorting_key(value):
             return nodes_order.get(value.name, len(nodes))
         
-        if self.scene_settings.render_model_path:
-            node_order_source = self.scene_settings.render_model_path
+        if self.scene_settings.template_render_model:
+            node_order_source = self.scene_settings.template_render_model
             node_order_source_is_model = True
         else:
-            node_order_source = self.scene_settings.animation_graph_path
+            node_order_source = self.scene_settings.template_model_animation_graph
             node_order_source_is_model = False
             
         fp_model = self.scene_settings.fp_model_path
