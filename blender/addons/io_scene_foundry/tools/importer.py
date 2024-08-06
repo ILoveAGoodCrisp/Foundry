@@ -1279,7 +1279,7 @@ class NWOImporter:
         new_objects = self.convert_material_props(original_ob)
         for ob in new_objects:
             mesh_type_legacy = self.get_mesh_type(ob, is_model)
-            ob.nwo.mesh_type_temp = '_connected_geometry_mesh_type_default'
+            ob.nwo.mesh_type_temp = ''
             if ob.name.startswith('%'):
                 self.set_poop_policies(ob)
             if mesh_type_legacy:
