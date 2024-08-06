@@ -51,7 +51,8 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
 - [Alexis Jonsson | WyvernZu](https://github.com/AlexisJonsson) - UI/UX/Icon Design
-- [General Heed](https://github.com/Generalkidd) - Scale models
+- [General Heed](https://github.com/Generalkidd) - Early Foundry work
+- [Krevil](https://github.com/Krevil) - Guidance on editing GR2 files and for firguring out Cubemap checksum calculation
 
 
 ## Special Thanks

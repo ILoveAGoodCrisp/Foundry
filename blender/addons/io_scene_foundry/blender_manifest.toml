@@ -1,0 +1,36 @@
+schema_version = "1.0.0"
+
+id = "io_scene_foundry"
+version = "1.0.0"
+name = "Foundry"
+tagline = "Halo Blender Creation Kit for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
+maintainer = "Crisp"
+type = "add-on"
+
+permissions = ["files", "clipboard"]
+
+website = "https://c20.reclaimers.net/general/community-tools/foundry/"
+
+tags = ["Import-Export", "Pipeline"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-2.0-or-later"
+]
+
+platforms = ["windows-amd64", "windows-x64"]
+
+wheels = [
+  "./wheels/cffi-1.16.0-cp311-cp311-win_amd64.whl",
+  "./wheels/clr_loader-0.2.6-py3-none-any.whl",
+  "./wheels/pycparser-2.22-py3-none-any.whl",
+  "./wheels/pymem-1.13.1-py3-none-any.whl",
+  "./wheels/pythonnet-3.0.3-py3-none-any.whl"
+]
+
+[build]
+paths_exclude_pattern = [
+  "/.git/",
+  "__pycache__/"
+]
