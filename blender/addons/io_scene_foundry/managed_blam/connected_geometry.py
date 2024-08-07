@@ -232,7 +232,7 @@ class Ragdoll(Hinge):
     def _set_constraint_props(self, nwo):
         nwo.physics_constraint_type = "_connected_geometry_marker_type_physics_socket_constraint"
         nwo.physics_constraint_uses_limits = True
-        nwo.cone_angle = self.cone
+        nwo.cone_angle = radians(self.cone)
         nwo.plane_constraint_minimum = radians(self.min_plane)
         nwo.plane_constraint_maximum = radians(self.max_plane)
         nwo.twist_constraint_start = radians(self.min_twist)
