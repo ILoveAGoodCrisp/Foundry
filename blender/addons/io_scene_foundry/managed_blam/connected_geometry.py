@@ -2,6 +2,7 @@
 
 from enum import Enum
 from math import radians
+from statistics import mean
 from typing import Iterable
 import bmesh
 import bpy
@@ -631,9 +632,10 @@ class BSP:
             
         if split_material:
             for material in set(map_material):
-                layer_materials[material] = utils.add_face_layer(bm, mesh, "face_global_material", material)
+                if material != 'default':
+                    layer_materials[material] = utils.add_face_layer(bm, mesh, "face_global_material", material)
         else:
-            if surface.material != "default":
+            if surface.material.name != "default":
                 mesh.nwo.face_global_material = surface.material.name
                 
         if split_two_sided:
@@ -1076,9 +1078,61 @@ class Mesh:
             for subpart in self.subparts:
                 subpart.create(ob, self.tris)
         
+        self._set_two_sided(mesh)
         utils.loop_normal_magic(mesh)
-          
+        if mean(ob.dimensions.to_tuple()) < 20:
+            # Assume this mesh was uncompressed
+            mesh.nwo.precise_position = True
+        
         return ob
+    
+    def _set_two_sided(self, mesh):
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.faces.ensure_lookup_table()
+        
+        face_dict = {}
+        for face in bm.faces:
+            vert_set = frozenset(v.co.to_tuple() for v in face.verts)
+            if vert_set in face_dict:
+                face_dict[vert_set].append(face)
+            else:
+                face_dict[vert_set] = [face]
+        
+        to_remove = set()
+        two_sided = set()
+        for vert_set, faces in face_dict.items():
+            if len(faces) > 1:
+                for i, f1 in enumerate(faces):
+                    for f2 in faces[i+1:]:
+                        if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)}:
+                            to_remove.add(f2.index)
+                            two_sided.add(f1.index)
+                            break
+        
+        if not to_remove:
+            bm.free()
+            return
+        
+        if len(bm.faces) == len(to_remove):
+            mesh.nwo.face_two_sided = True
+        else:
+            layer = utils.add_face_layer(bm, mesh, "two_sided", True)
+            for face in bm.faces:
+                if face.index in two_sided:
+                    face[layer] = 1
+                    
+        bm.faces.ensure_lookup_table()
+        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
+        bm.faces.ensure_lookup_table()
+        
+        for face_layer in mesh.nwo.face_props:
+            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+        
+        bm.to_mesh(mesh)
+        bm.free()
+        
+            
         
 class InstancePlacement:
     index: int

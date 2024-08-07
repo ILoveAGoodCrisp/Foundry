@@ -351,7 +351,10 @@ class NWO_Import(bpy.types.Operator):
                         find_shaders(new_materials)
                             
                 if self.build_blender_materials:
-                    print('Building materials from shader tags')
+                    if is_corinth(context):
+                        print('Building Blender materials from material tags')
+                    else:
+                        print('Building Blender materials from shader tags')
                     with MutePrints():
                         for mat in new_materials:
                             shader_path = mat.nwo.shader_path

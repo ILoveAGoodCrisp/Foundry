@@ -3003,7 +3003,7 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
     loop_normals = yield_loop_normals(bm)
         
     bm.to_mesh(mesh)
-    mesh.normals_split_custom_set(loop_normals)
+    mesh.normals_split_custom_set(list(loop_normals))
     bm.free()
     
 def loop_normal_magic(mesh: bpy.types.Mesh):
