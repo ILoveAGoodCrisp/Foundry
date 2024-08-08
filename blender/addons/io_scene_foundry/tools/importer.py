@@ -35,6 +35,8 @@ import bpy
 import addon_utils
 from mathutils import Color
 
+from ..managed_blam.animation import AnimationTag
+
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.physics_model import PhysicsTag
 
@@ -780,6 +782,7 @@ class NWOImporter:
     
     def import_models(self, paths):
         imported_objects = []
+        imported_animations = []
         for file in paths:
             print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
             with TagImportMover(self.project.tags_directory, file) as mover:
@@ -793,6 +796,8 @@ class NWOImporter:
                         imported_objects.extend(self.import_collision_model(collision, armature))
                     if physics and self.tag_physics:
                         imported_objects.extend(self.import_physics_model(physics, armature))
+                    # if animation:
+                    #     imported_animations.extend(self.import_animation_graph(animation, armature, render))
         
         return imported_objects
             
@@ -825,6 +830,14 @@ class NWOImporter:
                 physics_model_objects = physics_model.to_blend_objects(collection, armature)
             
         return physics_model_objects
+    
+    def import_animation_graph(self, file, armature, render):
+        print("Importing Animations")
+        with TagImportMover(self.project.tags_directory, file) as mover:
+            with AnimationTag(path=mover.tag_path) as graph:
+                actions = graph.to_blender(render, armature)
+            
+        return actions
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):

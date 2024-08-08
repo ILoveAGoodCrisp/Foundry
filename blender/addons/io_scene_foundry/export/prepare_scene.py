@@ -1039,183 +1039,131 @@ class PrepareScene:
 
     def _split_to_layers(self, ob: bpy.types.Object, ob_nwo, data, face_properties, bm, is_proxy):
         poly_count = len(bm.faces)
-        prop_faces_dict = {prop: utils.layer_face_indexes(bm, bm.faces.layers.int.get(prop.layer_name)) for prop in face_properties}
-        face_sequences = prop_faces_dict.values()
+        face_layers = bm.faces.layers.int
+        prop_faces_dict = {prop: utils.layer_face_indexes(bm, face_layers.get(prop.layer_name)) for prop in face_properties}
+        face_sequences = list(prop_faces_dict.values())
         collision_ob = None
-        justified = self._justify_face_split(prop_faces_dict.values(), poly_count)
+        justified = self._justify_face_split(face_sequences, poly_count)
         bm.to_mesh(data)
+
         if justified:
-            # Create a custom data layer to store current loop normals
             save_normals = ob.get("bungie_mesh_type") in render_mesh_types
             if save_normals:
                 utils.save_loop_normals(bm, data)
-            
-            # if instance geometry, we need to fix the collision model (provided the user has not already defined one)
+
             is_poop = ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop"
-            if (
-                is_poop and not self.corinth
-            ):  # don't do this for h4+ as collision can be open
-                # check for custom collision / physics
-                
-                # Set this globally for the poop we're about to split
-                # We do this because a custom collison mesh is being built
-                # and without the render_only property, the mesh will still
-                # report open edges in game
+            if is_poop and not self.corinth:
                 ob["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
-
-                has_coll_child = False
-
-                # Check if the poop already has child collision/physics
-                # We can skip building this from face properties if so
-                for child in ob.children:
-                    if child["bungie_mesh_type"] == '_connected_geometry_mesh_type_poop_collision':
-                        has_coll_child = True
+                has_coll_child = any(child["bungie_mesh_type"] == '_connected_geometry_mesh_type_poop_collision' for child in ob.children)
 
                 if not has_coll_child:
-                    # get collision only faces
                     collision_face_indexes = self._get_collision_only_face_indexes(prop_faces_dict)
                     if len(collision_face_indexes) == len(ob.data.polygons):
                         ob["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
                         return [ob]
+
                     collision_ob = ob.copy()
-                    if collision_ob.get("bungie_face_mode"):
-                        del collision_ob["bungie_face_mode"]
+                    collision_ob.pop("bungie_face_mode", None)
                     collision_ob.data = data.copy()
                     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index in collision_face_indexes], context='FACES')
-                    for collection in ob.users_collection: collection.objects.link(collision_ob)
-                    # Remove render only property faces from coll mesh
+                    for collection in ob.users_collection:
+                        collection.objects.link(collision_ob)
+
                     coll_bm = bmesh.new()
                     coll_bm.from_mesh(collision_ob.data)
-                    coll_layer_faces_dict = {layer: utils.layer_faces(coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
-                    poly_count = self._strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
+                    coll_layer_faces_dict = {layer: utils.layer_faces(coll_bm, face_layers.get(layer.layer_name)) for layer in face_properties}
+                    self._strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
 
                     coll_bm.to_mesh(collision_ob.data)
-
                     collision_ob.name = f"{ob.name}(collision)"
                     if self._coll_proxy_two_sided(collision_ob, coll_bm):
                         collision_ob["bungie_face_sides"] = "_connected_geometry_face_sides_two_sided"
                     coll_bm.free()
-                    ori_matrix = ob.matrix_world.copy()
                     collision_ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_collision"
+                    collision_ob.matrix_world = ob.matrix_world.copy()
 
-            # create new face layer for remaining faces
-            remaining_faces = set()
-            for f in bm.faces:
-                for fseq in face_sequences:
-                    if f.index in fseq: break
-                else:
-                    remaining_faces.add(f.index)
-
+            remaining_faces = {f.index for f in bm.faces if all(f.index not in fseq for fseq in face_sequences)}
             prop_faces_dict["|~~no_face_props~~|"] = remaining_faces
-            # Splits the mesh recursively until each new mesh only contains a single face layer
-            self.bmeshes_to_clean_up = set()
-            
-            ####
-            polygons = []
-            layers = [bm.faces.layers.int.get(prop.layer_name) for prop in face_properties]
-            for face in bm.faces:
-                polygons.append(tuple([face[l] for l in layers]))
+
+            layers = [face_layers.get(prop.layer_name) for prop in face_properties]
+            polygons = [tuple(face[l] for l in layers) for face in bm.faces]
             
             property_groups = defaultdict(list)
-            
             for index, polygon in enumerate(polygons):
                 property_groups[polygon].append(index)
-                
-            property_groups = dict(property_groups)
-            
+
             indices_list = list(property_groups.values())
-            
             split_objects = [ob]
+
             for indices in indices_list[1:]:
-                new = ob.copy()
+                new_ob = ob.copy()
                 new_me = ob.data.copy()
-                new.data = new_me
+                new_ob.data = new_me
                 new_bm = bm.copy()
                 new_bm.faces.ensure_lookup_table()
                 keep_faces = {new_bm.faces[i] for i in indices}
                 bmesh.ops.delete(new_bm, geom=[f for f in new_bm.faces if f not in keep_faces], context='FACES')
-                new_bm.to_mesh(new.data)
+                new_bm.to_mesh(new_ob.data)
                 new_bm.free()
-                split_objects.append(new)
+                split_objects.append(new_ob)
                 if not is_proxy:
-                    for collection in ob.users_collection: collection.objects.link(new)
-                
+                    for collection in ob.users_collection:
+                        collection.objects.link(new_ob)
+
             bm.faces.ensure_lookup_table()
             keep_faces = {bm.faces[i] for i in indices_list[0]}
             bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in keep_faces], context='FACES')
             bm.to_mesh(ob.data)
             bm.free()
-    
+
             ori_ob_name = str(ob.name)
-            
-            # Fix normals for split_objects
             for nrm_ob in split_objects:
                 if save_normals:
                     utils.apply_loop_normals(nrm_ob.data)
-                # Strip unused materials from object
                 utils.clean_materials(nrm_ob)
-            
+
             for split_ob in split_objects:
-                more_than_one_prop = False
                 obj_bm = bmesh.new()
                 obj_bm.from_mesh(split_ob.data)
                 obj_name_suffix = ""
+                more_than_one_prop = False
                 for layer in split_ob.data.nwo.face_props:
-                    if utils.layer_face_count(
-                        obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)
-                    ):
+                    if utils.layer_face_count(obj_bm, face_layers.get(layer.layer_name)):
                         self._face_prop_to_mesh_prop(layer, split_ob)
                         if more_than_one_prop:
                             obj_name_suffix += ", "
                         else:
                             more_than_one_prop = True
-
                         obj_name_suffix += layer.name
-                        
                 obj_bm.free()
+                split_ob.name = f"{ori_ob_name}({obj_name_suffix})" if obj_name_suffix else ori_ob_name
 
-                if obj_name_suffix:
-                    split_ob.name = f"{ori_ob_name}({obj_name_suffix})"
-                else:
-                    split_ob.name = ori_ob_name
-
-            #parent poop coll
             if is_poop:
                 parent_ob = None
-                if collision_ob is not None:
+                if collision_ob:
                     for split_ob in reversed(split_objects):
-                        if not split_ob.get("bungie_face_mode") in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only", "_connected_geometry_face_mode_breakable"):
+                        if split_ob.get("bungie_face_mode") not in ("_connected_geometry_face_mode_collision_only", "_connected_geometry_face_mode_sphere_collision_only", "_connected_geometry_face_mode_breakable"):
                             parent_ob = split_ob
                             break
                     else:
-                        # only way to make invisible collision...
-                        if collision_ob is not None:
-                            collision_ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
-                            collision_ob["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
+                        collision_ob["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
+                        collision_ob["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
 
-                    if parent_ob is not None:
-                        if collision_ob is not None:
-                            collision_ob.parent = parent_ob
-                            collision_ob.matrix_world = ori_matrix
-                            
-                    # remove coll only split objects, as this is already covered by the coll mesh
-                    coll_only_objects = set()
-                    for split_ob in split_objects:
-                        if split_ob.get("bungie_face_mode") == "_connected_geometry_face_mode_collision_only":
-                            coll_only_objects.add(split_ob)
-                            utils.unlink(split_ob)
-                            
-                    # recreate split objects list
-                    split_objects = {ob for ob in split_objects if ob not in coll_only_objects}
+                    if parent_ob:
+                        collision_ob.parent = parent_ob
+                        collision_ob.matrix_world = ob.matrix_world.copy()
+
+                    coll_only_objects = {split_ob for split_ob in split_objects if split_ob.get("bungie_face_mode") == "_connected_geometry_face_mode_collision_only"}
+                    for coll_obj in coll_only_objects:
+                        utils.unlink(coll_obj)
+                    split_objects = [obj for obj in split_objects if obj not in coll_only_objects]
 
             return split_objects
-
         else:
             for face_props in face_properties:
                 self._face_prop_to_mesh_prop(face_props, ob)
-
             return [ob]
-    
+        
             
     def _face_prop_to_mesh_prop(self, face_props, ob):
         if face_props.render_only_override:

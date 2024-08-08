@@ -299,10 +299,11 @@ class Sphere(Shape):
         mesh = bpy.data.meshes.new(self.name)
         bm = bmesh.new()
         bm.from_mesh(mesh)
-        bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=32, radius=self.radius)
+        bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=16, radius=self.radius)
         bm.to_mesh(mesh)
         bm.free()
         self.ob = bpy.data.objects.new(self.name, mesh)
+        self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_sphere"
 
 class Pill(Shape):
     radius: float
@@ -337,6 +338,7 @@ class Pill(Shape):
         bm.to_mesh(mesh)
         bm.free()
         self.ob = bpy.data.objects.new(self.name, mesh)
+        self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_pill"
 
 class Box(Shape):
     translation: Vector
@@ -372,6 +374,7 @@ class Box(Shape):
         bm.to_mesh(mesh)
         bm.free()
         self.ob = bpy.data.objects.new(self.name, mesh)
+        self.ob.nwo.mesh_primitive_type = "_connected_geometry_primitive_type_box"
         
 class PolyhedronFourVectors:
     def __init__(self, element: TagFieldBlockElement):
@@ -430,9 +433,11 @@ class RigidBody:
     shapes: list[Sphere | Pill | Box | Polyhedron]
     four_vectors_offset: int
     valid: bool
+    list_shapes_offset: int
     
-    def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag):
+    def __init__(self, element: TagFieldBlockElement, region, permutation, materials, four_vectors_map, tag, list_shapes_offset):
         self.valid = False
+        self.list_shapes_offset = list_shapes_offset
         self.index = element.ElementIndex
         if tag.corinth and element.SelectField("ShortBlockIndex:serialized shapes").Value > -1:
             return utils.print_warning(f"Serialized Shapes are not supported. Skipping Rigid body {self.index}")
@@ -462,7 +467,8 @@ class RigidBody:
                     list_element = tag.block_list_shapes.Elements[shape_index]
                     
                 list_shapes_count = list_element.SelectField("num child shapes").Data
-                for i in range(list_shapes_count):
+                self.list_shapes_offset += list_shapes_count
+                for i in range(list_shapes_offset, list_shapes_offset + list_shapes_count):
                     l_element = tag.block_list_shapes.Elements[i]
                     list_shape_ref = l_element.SelectField("Struct:shape reference").Elements[0]
                     list_shape_index = list_shape_ref.SelectField("shape").Value

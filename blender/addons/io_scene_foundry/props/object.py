@@ -160,7 +160,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         options=set(),
         description="If this is not none then the in game physics shape will be simplified to the selected primitive, using the objects dimensions",
         items=mesh_primitive_type_items,
-        update=update_mesh_primitive_type,
+        # update=update_mesh_primitive_type,
     )
     
     mopp_physics: bpy.props.BoolProperty(

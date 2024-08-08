@@ -24,21 +24,28 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import radians
 from pathlib import Path
 import bpy
-from ..utils import relative_path
+from mathutils import Euler, Matrix, Quaternion, Vector
+
+from .Tags import TagFieldBlock, TagFieldElement
+
+from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam import Tag
+from .. import utils
 
 class AnimationTag(Tag):
     tag_ext = 'model_animation_graph'
 
     def _read_fields(self):
-        self.block_animations = self.tag.SelectField("definitions[0]/Block:animations")
+        self.block_animations = self.tag.SelectField("Struct:definitions[0]/Block:animations")
         self.block_skeleton_nodes = self.tag.SelectField("definitions[0]/Block:skeleton nodes")
         self.block_node_usages = self.tag.SelectField("definitions[0]/Block:node usage")
         self.block_modes = self.tag.SelectField("Struct:content[0]/Block:modes")
         self.block_ik_chains = self.tag.SelectField('Struct:definitions[0]/Block:ik chains')
         self.block_blend_screens = self.tag.SelectField('Struct:definitions[0]/Block:NEW blend screens')
+        self.block_additional_node_dat = self.tag.SelectField("Block:additional node data")
         
     def _initialize_tag(self):
         self.tag.SelectField('Struct:definitions[0]/ShortInteger:animation codec pack').SetStringData('6')
@@ -218,7 +225,7 @@ class AnimationTag(Tag):
             parent_field.Path = None
             self.tag_has_changes = True
             return
-        parent_path = str(Path(relative_path(parent_graph_path)).with_suffix(".model_animation_graph"))
+        parent_path = str(Path(utils.relative_path(parent_graph_path)).with_suffix(".model_animation_graph"))
         full_path = Path(self.tags_dir, parent_path)
         if not full_path.exists():
             print(f"Parent graph does not exist: {full_path}")
@@ -317,3 +324,82 @@ class AnimationTag(Tag):
                     flags.SetBit("allow parent adjustment", True)
                 
                 self.tag_has_changes = True
+                
+    def to_blender(self, render_model: str, armature):
+        # Prepare exporter
+        print()
+        actions = []
+        if self.block_animations.Elements.Count < 1: 
+            return print("No animations found in graph")
+        
+        animation_nodes = None
+        
+        with RenderModelTag(path=render_model) as model:
+            exporter = self._AnimationExporter()
+            # exporter.LoadTags(self.tag_path, model.tag_path)
+            ready = exporter.UseTags(self.tag, model.tag)
+            if not ready:
+                return print(f"Failed to use tags: {self.tag_path.RelativePath} & {render_model.tag_path.RelativePath}")
+            
+            nodes_count = exporter.GetGraphNodeCount()
+            import clr
+            clr.AddReference('System')
+            from System import Array
+            animation_nodes = [self._GameAnimationNode() for _ in range(nodes_count)]
+            animation_nodes = Array[self._GameAnimationNodeType()](animation_nodes)
+            first_node = animation_nodes[0]
+            animation_count = exporter.GetAnimationCount()
+            if not armature.animation_data:
+                armature.animation_data_create()
+            
+            for element in self.block_animations.Elements:
+                name = element.SelectField("name").Data
+                index = element.ElementIndex
+                shared_data = element.SelectField("Block:shared animation data")
+                overlay = shared_data.Elements[0].SelectField("animation type").Value > 1
+                frame_count = exporter.GetAnimationFrameCount(index)
+                action = bpy.data.actions.new(name.replace(":", " "))
+                action.use_fake_user = True
+                action.use_frame_range = True
+                armature.animation_data.action = action
+                print(f"--- {action.name}")
+                self.jma_data = []
+                for frame in range(frame_count):
+                    self.jma_bit = []
+                    # result = exporter.GetRenderModelBasePose(animation_nodes, nodes_count)
+                    result = exporter.GetAnimationFrame(index, frame, animation_nodes, nodes_count)
+                    actions.append(self._apply_frames(animation_nodes, armature, frame, action, overlay))
+                    self.jma_data.append(self.jma_bit)
+                
+                action.frame_end = frame_count
+                #export(frame_count, animation_nodes, self.jma_data)
+                #break
+                    
+        
+        return actions
+
+    def _apply_frames(self, animation_nodes, armature, frame, action: bpy.types.Action, overlay: bool):
+        nodes_bones = {bone: node for bone in armature.pose.bones for node in animation_nodes if bone.name == node.Name}
+        for idx, (bone, node) in enumerate(nodes_bones.items()):
+            default_rotation = utils.ijkw_to_wxyz(self.block_additional_node_dat.Elements[idx].SelectField("default rotation").Data)
+            default_translation = Vector([n for n in self.block_additional_node_dat.Elements[idx].SelectField("default translation").Data])
+            default_scale = self.block_additional_node_dat.Elements[idx].SelectField("default scale").Data
+            translation = Vector((node.Translation.X, node.Translation.Y, node.Translation.Z)) * 100
+            rotation = Quaternion((node.Rotation.W, node.Rotation.V.X, node.Rotation.V.Y, node.Rotation.V.Z))
+            scale = node.Scale * default_scale
+            # print(node.Name, bone.name, armature.animation_data.action.name, frame, translation, rotation)
+            default_matrix = Matrix.LocRotScale(default_translation, default_rotation, Vector.Fill(3, default_scale))
+            matrix = Matrix.LocRotScale(translation, rotation, Vector.Fill(3, scale))
+            final_matrix = default_matrix @ matrix
+            bone: bpy.types.PoseBone
+            bone.location = translation
+            bone.rotation_quaternion = rotation
+            bone.scale = Vector.Fill(3, scale)
+            print(frame, node.Translation.ToString())
+            # bone.matrix_basis = default_matrix @ matrix
+            translation *= 100
+
+        for bone in nodes_bones.keys():
+            bone.keyframe_insert(data_path='location', frame=frame)
+            bone.keyframe_insert(data_path='rotation_quaternion', frame=frame)
+            bone.keyframe_insert(data_path='scale', frame=frame) 

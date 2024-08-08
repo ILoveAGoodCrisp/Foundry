@@ -24,6 +24,7 @@ last_saved_tag = None
 
 Halo = None
 Tags = TagsNameSpace()
+Animation = GameAnimation()
 
 mb_active = False
 mb_path = ""
@@ -145,6 +146,9 @@ class Tag():
             tag_path = Tags.TagPath.FromPathAndExtension(*self._get_path_and_ext(self.path))
             
         return tag, tag_path
+    
+    def _Tag(self) -> TagFile:
+        return Tags.TagFile()
 
     def _get_path_and_ext(self, user_path):
         """Splits a file path into path and extension"""
@@ -248,6 +252,15 @@ class Tag():
     def _TagPath(self) -> TagPath:
         """Returns a new TagPath instance"""
         return Tags.TagPath()
+    
+    def _AnimationExporter(self) -> AnimationExporter:
+        return Animation.AnimationExporter()
+    
+    def _GameAnimationNode(self) -> GameAnimationNode:
+        return Animation.GameAnimationNode()
+    
+    def _GameAnimationNodeType(self) -> GameAnimationNode:
+        return Animation.GameAnimationNode
     
     def _GameRenderGeometry(self) -> GameRenderGeometry:
         """Returns a new GameRenderGeometry instance"""
@@ -358,6 +371,8 @@ def mb_init():
             System.Start(get_project_path(), callback, startup_parameters)
             global Tags
             Tags = Halo.Tags
+            global Animation
+            Animation = Halo.Game.Animation
             atexit.register(close_managed_blam)
             global mb_active
             mb_active = True

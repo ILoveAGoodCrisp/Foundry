@@ -3599,7 +3599,7 @@ def id_from_string(name) -> str:
     rand = random.Random(name)
     return str(rand.randint(-2147483647, 2147483647))
 
-def ijkw_to_wxyz(rot: list[float, float, float, float] | Vector) -> Vector:
+def ijkw_to_wxyz(rot: list[float, float, float, float] | Vector | Quaternion) -> Quaternion:
     i, j, k, w = rot
     return Quaternion((w, i, j, k))
 

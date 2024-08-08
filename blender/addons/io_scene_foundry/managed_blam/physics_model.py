@@ -37,6 +37,7 @@ class PhysicsTag(Tag):
         # Meshes
         four_vectors_map = []
         size = 0
+        list_shapes_offset = 0
         # cereal = self.tag.SelectField("Block:RigidBody Serialized Shapes[0]/Block:Mopp Serialized Havok Data")
         # if cereal.Elements.Count > 0:
         #     el = cereal.Elements[0]
@@ -58,7 +59,8 @@ class PhysicsTag(Tag):
                 for rigid_element in permutation_element.SelectField("rigid bodies").Elements:
                     body_index = rigid_element.Fields[0].Value
                     if body_index > -1 and self.block_rigid_bodies.Elements.Count > body_index:
-                        body = RigidBody(self.block_rigid_bodies.Elements[body_index], region, permutation, materials, four_vectors_map, self)
+                        body = RigidBody(self.block_rigid_bodies.Elements[body_index], region, permutation, materials, four_vectors_map, self, list_shapes_offset)
+                        list_shapes_offset = body.list_shapes_offset
                         if body.valid:
                             body.to_objects()
                             for shape in body.shapes:

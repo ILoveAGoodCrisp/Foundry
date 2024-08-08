@@ -38,6 +38,86 @@ class StringBuilder: pass
 class e_tag_field: pass
 class s_string_list_definition: pass
 
+# Game Maths
+
+class GamePoint3d:
+    Z: float
+    def __init__(self):
+        pass
+    def __init__(self, x: float, y: float, z: float):
+        pass
+    def Set(self, x: float, y: float, z: float) -> None:
+        """Sets the xyz"""
+    def ToString(self) -> str:
+        """Returns the GamePoint3d as a string"""
+        
+class GameQuaternion:
+    V: float
+    W: float
+    def __init__(self):
+        pass
+    def __init__(self, w: float, x: float, y: float, z: float):
+        pass
+    def Set(self, w: float, x: float, y: float, z: float) -> None:
+        """Sets the wxyz"""
+    def ToString(self) -> str:
+        """Returns the GameQuaternion as a string"""
+
+class GameMatrix4x3:
+    Forward: GamePoint3d
+    Left: GamePoint3d
+    Position: GamePoint3d
+    RawArray: list[float]
+    Scale: float
+    Up: GamePoint3d
+    def __init__(self):
+        pass
+    def Inverse(self, matrix: 'GameMatrix4x3', result: 'GameMatrix4x3'):
+        """Inverses the given matrix and places the result in the second"""
+    def MatrixFromOrientation(self, quaternion: GameQuaternion, translation: GamePoint3d, scale: float, result: 'GameMatrix4x3'):
+        """Creates a matrix from the given parameters and places the result in the supplied Matrix"""
+    def Multiply(self, a: 'GameMatrix4x3', b: 'GameMatrix4x3', result: 'GameMatrix4x3'):
+        """Multiplies the first matrix by the second and places the result in the final supplied Matrix"""
+
+# Game Animation
+class AnimationExporter():
+    def __init__(self):
+        pass
+    def ClearTags(self) -> None:
+        """Clears loaded tag data"""
+    def GetAnimationCount(self) -> int:
+        """Returns the number of animations in the graph"""
+    def GetAnimationFrame(self, animation_index: int, frame_index: int, orientation_list: list['GameAnimationNode'], list_size: int) -> bool:
+        """Loads animation frame data into the supplied GameAnimationNodes. Outputs true if this was successful"""
+    def GetAnimationFrameCount(self, animation_index: int) -> int:
+        """Returns the number frames in an animation"""
+    def GetAnimationIndexByName(self, animation_name: str) -> int:
+        """Gets the index of an animation by its name"""
+    def GetGraphNodeCount(self) -> int:
+        """Returns the number of nodes in this graph"""
+    def GetRenderModelBasePose(self, orientation_list: list['GameAnimationNode'], list_size: int) -> int:
+        """Loads animation frame data into the supplied GameAnimationNodes for the base pose of the model. Outputs true if this was sucessful"""
+    def IsValid(self) -> bool:
+        """Checks that the exporter is valid i.e. has a valid graph and rende model tag associated with it"""
+    def LoadTags(self, graph_tag_path: 'TagPath', model_tag_path: 'TagPath') -> bool:
+        """Loads the given graph and render model TagPaths"""
+    def UseTags(self, graph_tag_file: 'TagFile', model_tag_file: 'TagFile') -> bool:
+        """Selects the given TagFiles for use with the exporter"""
+    
+class GameAnimationNode():
+    FrameID1: int
+    FrameID2: int
+    Matrix: GameMatrix4x3
+    Name: str
+    ParentIndex: int
+    Rotation: GameQuaternion
+    Scale: float
+    Translation: GamePoint3d
+    def __init__(self):
+        pass
+    def Reset(self) -> None:
+        """Clears class instance properties"""
+
 # Enum Classes
 class FunctionEditorColorGraphType(Enum):
     Scalar = 0
@@ -1617,6 +1697,10 @@ class VectorHudData:
         """"""
     def WriteViewbox(self, animation_type: VectorHudAnimatedPropertyType) -> int:
         """"""
+        
+class GameAnimation:
+    AnimationExporter = AnimationExporter
+    GameAnimationNode = GameAnimationNode
 
 class TagsNameSpace:
     CacheFile = CacheFile
