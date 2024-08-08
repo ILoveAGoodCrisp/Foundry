@@ -50,7 +50,7 @@ from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
 from ..constants import VALID_MESHES
-from ..utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from ..utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, nwo_asset_type, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 legacy_model_formats = '.jms', '.ass'
@@ -1075,7 +1075,7 @@ class NWOImporter:
             new_objects.append(self.arm)
         self.jms_file_marker_objects = []
         self.jms_file_mesh_objects = []
-        self.process_jms_objects(new_objects, file_name, bool([ob for ob in new_objects if ob.type == 'ARMATURE']))
+        self.process_jms_objects(new_objects, file_name, nwo_asset_type() not in ("scenario", "prefab") and bool([ob for ob in new_objects if ob.type == 'ARMATURE']))
         
         self.jms_marker_objects.extend(self.jms_file_marker_objects)
         self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
