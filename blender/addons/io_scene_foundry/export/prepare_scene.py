@@ -1128,7 +1128,7 @@ class PrepareScene:
                 obj_name_suffix = ""
                 more_than_one_prop = False
                 for layer in split_ob.data.nwo.face_props:
-                    if utils.layer_face_count(obj_bm, face_layers.get(layer.layer_name)):
+                    if utils.layer_face_count(obj_bm, obj_bm.faces.layers.int.get(layer.layer_name)):
                         self._face_prop_to_mesh_prop(layer, split_ob)
                         if more_than_one_prop:
                             obj_name_suffix += ", "
