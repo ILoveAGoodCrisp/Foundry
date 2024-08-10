@@ -76,10 +76,10 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
 
     marker_type_help: bpy.props.IntProperty(options=set())
     
-    frame_override: bpy.props.BoolProperty(
-        name="Frame Override",
-        description="Sets this empty as a frame regardless of whether it has children",
-    )
+    # frame_override: bpy.props.BoolProperty(
+    #     name="Frame Override",
+    #     description="Sets this empty as a frame regardless of whether it has children",
+    # )
 
     export_this: bpy.props.BoolProperty(
         name="Export",

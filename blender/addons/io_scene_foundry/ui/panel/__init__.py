@@ -1485,7 +1485,10 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 "_connected_geometry_mesh_type_structure",
             ) and utils.poll_ui(('scenario', 'prefab')):
                 if h4 and nwo.mesh_type == "_connected_geometry_mesh_type_structure" and utils.poll_ui(('scenario',)):
-                    col.prop(nwo, "proxy_instance")
+                    row = col.row()
+                    row.use_property_split = False
+                    picon = 'CHECKBOX_HLT' if nwo.proxy_instance else 'CHECKBOX_DEHLT'
+                    row.prop(nwo, "proxy_instance", text="Instanced Structure", icon=picon)
                 if nwo.mesh_type == "_connected_geometry_mesh_type_default" or (
                     nwo.mesh_type == "_connected_geometry_mesh_type_structure"
                     and h4
@@ -1592,7 +1595,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             flow.use_property_split = False
             col = flow.column()
             
-            col.prop(nwo, "frame_override")
+            #col.prop(nwo, "frame_override")
 
             if utils.poll_ui("scenario"):
                 col.use_property_split = True
@@ -1869,8 +1872,8 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             ("model", "scenario", "sky")):
             col = box.column()
             col.label(text='Frame', icon_value=get_icon_id('frame'))
-            if not ob.children:
-                col.prop(nwo, "frame_override")
+            # if not ob.children:
+            #     col.prop(nwo, "frame_override")
             # TODO Add button that selects child objects
             return
                 

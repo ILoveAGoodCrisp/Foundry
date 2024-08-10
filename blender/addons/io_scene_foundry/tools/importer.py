@@ -786,8 +786,8 @@ class NWOImporter:
         for file in paths:
             print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
             with TagImportMover(self.project.tags_directory, file) as mover:
-                with ModelTag(path=mover.tag_path) as model:
-                    if model.failed_to_load: continue
+                with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
+                    if not model.valid: continue
                     render, collision, animation, physics = model.get_model_paths()
                     if render:
                         render_objects, armature = self.import_render_model(render)
@@ -1200,7 +1200,7 @@ class NWOImporter:
                 data.nwo.light_far_attenuation_end = data.halo_light.far_atten_end
                 
     def setup_jms_frame(self, ob):
-        ob.nwo.frame_override = True
+        # ob.nwo.frame_override = True
         if ob.type == 'MESH':
             marker = convert_to_marker(ob)
             if self.existing_scene:

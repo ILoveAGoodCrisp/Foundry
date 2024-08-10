@@ -37,8 +37,10 @@ class Tag():
     # Stuff that other classes may change while executing
     tag_has_changes = False # This needs to be marked false when changes are made, so that the tag can be saved
     
-    def __init__(self, path="", hide_prints=False, tag_must_exist=False):
+    def __init__(self, path="", hide_prints=False, tag_must_exist=False, raise_on_error=True):
         self.tag_must_exist = tag_must_exist
+        self.valid = False
+        self.tag = None
         if self.needs_explicit_path and not path:
             raise ValueError("Class needs explicit path declared but none given")
         self.hide_prints = hide_prints
@@ -58,7 +60,7 @@ class Tag():
         self.corinth = is_corinth(self.context) # bool to check whether the game is H4+
         self.unit_scale = self.context.scene.unit_settings.scale_length
         
-        self.failed_to_load = False
+        
         
         # Tag Info
         self.path = path
@@ -83,9 +85,14 @@ class Tag():
             if self.tag_is_new:
                 self._initialize_tag()
                 self.tag_has_changes = True # Must always save new tags
+                
+            self.valid = True
+            
         except:
-            print_error(f"Failed to Load Tag: {Path(self.path).name}")
-            self.failed_to_load = True
+            err_message = f"Failed to Load Tag: {Path(self.path).name}"
+            print_error(err_message)
+            if raise_on_error:
+                raise RuntimeError(err_message)
         
     def _read_fields(self):
         """Read in some useful fields for this tag type"""
