@@ -448,7 +448,6 @@ class RigidBody:
         self.shape_type = ShapeType(shape_element.SelectField("shape type").Value)
         self.shapes = []
         shape_index = shape_element.SelectField("shape").Value
-        polyhedron_bones = []
         match self.shape_type:
             case ShapeType.sphere:
                 self.shapes.append(Sphere(tag.block_spheres.Elements[shape_index], materials))
@@ -474,7 +473,7 @@ class RigidBody:
                     list_shape_index = list_shape_ref.SelectField("shape").Value
                     match ShapeType(list_shape_ref.SelectField("shape type").Value):
                         case ShapeType.sphere:
-                            self.shapes.append(Sphere(Sphere(tag.block_spheres.Elements[list_shape_index], materials)))
+                            self.shapes.append(Sphere(tag.block_spheres.Elements[list_shape_index], materials))
                         case ShapeType.pill:
                             self.shapes.append(Pill(tag.block_pills.Elements[list_shape_index], materials))
                         case ShapeType.box:
