@@ -763,12 +763,6 @@ class PrepareScene:
             utils.update_job_count(process, "", len_mesh_objects_dict, len_mesh_objects_dict)
         
         utils.update_view_layer(self.context)
-        for ob in self.context.view_layer.objects:
-            if ob.type != 'MESH': continue
-            mesh = ob.data
-            for att in mesh.attributes:
-                if att.name.startswith("ln"):
-                    mesh.attributes.remove(att)
         
     def scene_transformation(self):
         '''

@@ -972,7 +972,11 @@ class Mesh:
         self.raw_positions = [n for n in render_model.GetPositionsFromMesh(temp_meshes, self.index)]
         self.raw_texcoords = [n for n in render_model.GetTexCoordsFromMesh(temp_meshes, self.index)]
         self.raw_normals = [n for n in render_model.GetNormalsFromMesh(temp_meshes, self.index)]
+        self.raw_lightmap_texcoords = [e.Fields[5].Data for e in raw_vertices.Elements]
         self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
+        self.raw_texcoords1 = []
+        if utils.is_corinth():
+            self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements]
         if not instances and self.rigid_node_index == -1:
             self.raw_node_indices = [n for n in render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index)]
             self.raw_node_weights = [n for n in render_model.GetNodeWeightsFromMesh(temp_meshes, self.index)]
@@ -1022,7 +1026,11 @@ class Mesh:
         positions = [self.raw_positions[n:n+3] for idx, n in enumerate(range(0, len(self.raw_positions), 3)) if idx >= idx_start and idx <= idx_end]
         texcoords = [self.raw_texcoords[n:n+2] for idx, n in enumerate(range(0, len(self.raw_texcoords), 2)) if idx >= idx_start and idx <= idx_end]
         normals = [self.raw_normals[n:n+3] for idx, n in enumerate(range(0, len(self.raw_normals), 3)) if idx >= idx_start and idx <= idx_end]
-        vertex_colors = [[float(v) for v in self.raw_vertex_colors[n]] for idx, n in enumerate(range(len(self.raw_normals))) if idx >= idx_start and idx <= idx_end]
+        lighting_texcoords = [[float(v) for v in self.raw_lightmap_texcoords[n]] for idx, n in enumerate(range(len(self.raw_lightmap_texcoords))) if idx >= idx_start and idx <= idx_end]
+        vertex_colors = [[float(v) for v in self.raw_vertex_colors[n]] for idx, n in enumerate(range(len(self.raw_vertex_colors))) if idx >= idx_start and idx <= idx_end]
+        texcoords1 = []
+        if self.raw_texcoords1:
+            texcoords1 = [[float(v) for v in self.raw_texcoords1[n]] for idx, n in enumerate(range(len(self.raw_texcoords1))) if idx >= idx_start and idx <= idx_end]
         if idx_start > 0:
             indices = [[i - idx_start for i in tri] for tri in indices]
                     
@@ -1031,23 +1039,61 @@ class Mesh:
         
         print(f"--- {name}")
         
+        has_vertex_colors = True
+        has_lighting_texcoords = True
+        has_texcoords1 = True if texcoords1 else False
+        
+        set_vertex_colors = set()
+        for li in vertex_colors:
+            set_vertex_colors.update(li)
+        set_lighting_texcoords = set()
+        for li in lighting_texcoords:
+            set_lighting_texcoords.update(li)
+        set_texcoords1 = set()
+        if has_texcoords1:
+            for li in texcoords1:
+                set_texcoords1.update(li)
+        
+        if len(set_vertex_colors) == 1 and list(set_vertex_colors)[0] == 0:
+            has_vertex_colors = False
+        if len(set_lighting_texcoords) == 1 and list(set_lighting_texcoords)[0] == 0:
+            has_lighting_texcoords = False
+        if has_texcoords1:
+            if len(set_texcoords1) == 1 and list(set_texcoords1)[0] == 0:
+                has_texcoords1 = False
+        
         uvs = self._true_uvs(texcoords)
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
+        lighting_uv_layer = None
+        uvs1_layer = None
+        if has_lighting_texcoords:
+            lighting_uvs = self._true_uvs(lighting_texcoords)
+            # lighting_uvs = [Vector((u, 1-v)) for (u, v) in texcoords1]
+            lighting_uv_layer = mesh.uv_layers.new(name="lighting", do_init=False)
+        if has_texcoords1:
+            uvs1 = self._true_uvs(texcoords1)
+            # uvs1 = [Vector((u, 1-v)) for (u, v) in texcoords1]
+            uvs1_layer = mesh.uv_layers.new(name="UVMap1", do_init=False)
         for face in mesh.polygons:
             for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
                 uv_layer.data[loop_idx].uv = uvs[vert_idx]
+                if uvs1_layer is not None:
+                    uvs1_layer.data[loop_idx].uv = uvs1[vert_idx]
+                if lighting_uv_layer is not None:
+                    lighting_uv_layer.data[loop_idx].uv = lighting_uvs[vert_idx]
                 
         normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normalised_normals)
         
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        layer = bm.verts.layers.float_color.new("Color")
-        for idx, v in enumerate(bm.verts):
-            v[layer] = vertex_colors[idx] + [1.0]
-            
-        bm.to_mesh(mesh)
-        bm.free()
+        if has_vertex_colors:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            layer = bm.verts.layers.float_color.new("Color")
+            for idx, v in enumerate(bm.verts):
+                v[layer] = vertex_colors[idx] + [1.0]
+                
+            bm.to_mesh(mesh)
+            bm.free()
         
         if parent:
             ob.parent = parent

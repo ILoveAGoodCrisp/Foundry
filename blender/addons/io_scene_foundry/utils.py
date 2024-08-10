@@ -2992,42 +2992,60 @@ def get_asset_tags(extension= "", full=False):
     return []
             
 def save_loop_normals(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh):
-    for face in bm.faces:
-        for i in range(len(face.verts)):
-            if not bm.faces.layers.float_vector.get(f"ln{str(i)}"):
-                bm.faces.layers.float_vector.new(f"ln{str(i)}")
-    
+    layer_names = [f"ln{i}" for i in range(max(len(face.verts) for face in bm.faces))]
+    layers = {}
+
+    for name in layer_names:
+        if not bm.faces.layers.float_vector.get(name):
+            layers[name] = bm.faces.layers.float_vector.new(name)
+        else:
+            layers[name] = bm.faces.layers.float_vector.get(name)
+
     bm.faces.ensure_lookup_table()
-    
+
     for idx, face in enumerate(bm.faces):
         for i in range(len(face.verts)):
-            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            layer = layers[f"ln{i}"]
             face[layer] = mesh.loops[mesh.polygons[idx].loop_indices[i]].normal
+            
+def remove_face_layers(bm: bmesh.types.BMesh, layer_prefix="ln"):
+    layers_to_remove = [layer for layer in bm.faces.layers.float_vector.keys() if layer.startswith(layer_prefix)]
+    
+    for layer_name in layers_to_remove:
+        layer = bm.faces.layers.float_vector[layer_name]
+        bm.faces.layers.float_vector.remove(layer)
             
 def apply_loop_normals(mesh: bpy.types.Mesh):        
     bm = bmesh.new()
-    bm.from_mesh(mesh)
-    loop_normals = yield_loop_normals(bm)
-        
-    bm.to_mesh(mesh)
-    mesh.normals_split_custom_set(list(loop_normals))
-    bm.free()
+    try:
+        bm.from_mesh(mesh)
+        loop_normals = list(yield_loop_normals(bm))
+        remove_face_layers(bm)
+        bm.to_mesh(mesh)
+        mesh.normals_split_custom_set(loop_normals)
+    finally:
+        bm.free()
     
 def loop_normal_magic(mesh: bpy.types.Mesh):
     '''Saves current normals, merges vertices, and then restores the normals as loop normals'''
     bm = bmesh.new()
-    bm.from_mesh(mesh)
-    save_loop_normals(bm, mesh)
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
-    loop_normals = yield_loop_normals(bm)
-    bm.to_mesh(mesh)
-    mesh.normals_split_custom_set(list(loop_normals))
-    bm.free()
+    try:
+        bm.from_mesh(mesh)
+        save_loop_normals(bm, mesh)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
+        loop_normals = list(yield_loop_normals(bm))
+        remove_face_layers(bm)
+        bm.to_mesh(mesh)
+        mesh.normals_split_custom_set(loop_normals)
+    finally:
+        bm.free()
     
 def yield_loop_normals(bm):
+    max_verts = max(len(face.verts) for face in bm.faces)
+    layers = {i: bm.faces.layers.float_vector.get(f"ln{i}") for i in range(max_verts)}
     for face in bm.faces:
         for i in range(len(face.verts)):
-            layer = bm.faces.layers.float_vector.get(f"ln{str(i)}")
+            layer = layers.get(i)
             if layer:
                 yield face[layer].copy()
     

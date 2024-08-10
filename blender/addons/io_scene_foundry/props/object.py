@@ -382,7 +382,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
     )
 
     poop_disallow_lighting_samples: bpy.props.BoolProperty(  # H4+
-        name="",
+        name="Disallow Lighting Samples",
         options=set(),
         description="",
         default=False,

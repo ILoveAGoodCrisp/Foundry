@@ -68,8 +68,7 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
                     if box.confirmed:
                         nwo.scene_project = self.project_name
                         bpy.ops.wm.save_mainfile('INVOKE_DEFAULT')
-                        if bpy.data.filepath:
-                            utils.restart_blender()
+                        utils.restart_blender()
                     
                     self.report({"WARNING"}, "Project cannot be changed until Blender restart")
                     return {'CANCELLED'}

@@ -252,13 +252,6 @@ class RenderModelTag(Tag):
                 
             objects.extend(ios)
         
-        bpy.context.view_layer.update()
-        for ob in objects:
-            mesh = ob.data
-            for att in mesh.attributes:
-                if att.name.startswith("ln"):
-                    mesh.attributes.remove(att)
-        
         return objects
     
     def _create_markers(self):
