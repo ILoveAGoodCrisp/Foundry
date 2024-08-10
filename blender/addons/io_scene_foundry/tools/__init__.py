@@ -38,7 +38,7 @@ from .animation.fcurve_transfer import NWO_OT_FcurveTransfer
 from .animation.composites import NWO_OT_AnimationBlendAxisAdd, NWO_OT_AnimationBlendAxisMove, NWO_OT_AnimationBlendAxisRemove, NWO_OT_AnimationCompositeAdd, NWO_OT_AnimationCompositeMove, NWO_OT_AnimationCompositeRemove, NWO_OT_AnimationDeadZoneAdd, NWO_OT_AnimationDeadZoneMove, NWO_OT_AnimationDeadZoneRemove, NWO_OT_AnimationLeafAdd, NWO_OT_AnimationLeafMove, NWO_OT_AnimationLeafRemove, NWO_OT_AnimationPhaseSetAdd, NWO_OT_AnimationPhaseSetMove, NWO_OT_AnimationPhaseSetRemove, NWO_UL_AnimationBlendAxis, NWO_UL_AnimationComposites, NWO_UL_AnimationDeadZone, NWO_UL_AnimationLeaf, NWO_UL_AnimationPhaseSet
 from .animation.copy import NWO_OT_AnimationCopyAdd, NWO_OT_AnimationCopyMove, NWO_OT_AnimationCopyRemove, NWO_UL_AnimationCopies
 from .scenario.lightmap import NWO_OT_Lightmap
-from .scenario.zone_sets import NWO_OT_RemoveExistingZoneSets
+from .scenario.zone_sets import NWO_OT_RemoveExistingZoneSets, NWO_OT_ZoneSetAdd, NWO_OT_ZoneSetMove, NWO_OT_ZoneSetRemove, NWO_UL_ZoneSets
 from .tag_templates import NWO_OT_LoadTemplate
 from .cubemap import NWO_OT_Cubemap
 from .scale_models import NWO_OT_AddScaleModel
@@ -166,6 +166,10 @@ classeshalo = (
     NWO_OT_Cubemap,
     NWO_OT_LoadTemplate,
     NWO_OT_RemoveExistingZoneSets,
+    NWO_OT_ZoneSetMove,
+    NWO_OT_ZoneSetRemove,
+    NWO_OT_ZoneSetAdd,
+    NWO_UL_ZoneSets,
     NWO_OT_Lightmap,
     NWO_UL_AnimationCopies,
     NWO_OT_AnimationCopyAdd,
