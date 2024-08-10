@@ -26,7 +26,7 @@
 
 from mathutils import Quaternion, Vector
 
-from .connected_geometry import CompressionBounds, InstancePlacement, Marker, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
+from .connected_geometry import CompressionBounds, InstancePlacement, MarkerGroup, Material, Mesh, Node, Region, RenderArmature
 from .Tags import *
 
 from .. import utils

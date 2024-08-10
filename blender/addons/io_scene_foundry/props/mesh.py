@@ -32,6 +32,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     precise_position_override: bpy.props.BoolProperty()
     no_lightmap_override: bpy.props.BoolProperty()
     no_pvs_override: bpy.props.BoolProperty()
+    mesh_tessellation_density_override: bpy.props.BoolProperty()
     # lightmap
     lightmap_additive_transparency_override: bpy.props.BoolProperty()
     lightmap_resolution_scale_override: bpy.props.BoolProperty()
@@ -102,11 +103,17 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         update=update_region_name,
     )
     
+    def update_face_draw_distance(self, context):
+        if self.name.startswith("Draw Distance::"):
+            self.name = "Draw Distance::" + self.mesh_tessellation_density.rpartition("_")[2]
+    
     face_draw_distance: bpy.props.EnumProperty(
         name="Draw Distance",
+        update=update_face_draw_distance,
         options=set(),
         description="Controls the distance at which the assigned faces will stop rendering",
         items=[
+            ('_connected_geometry_face_draw_distance_normal', 'Default', ''),
             ('_connected_geometry_face_draw_distance_detail_mid', 'Medium', ''),
             ('_connected_geometry_face_draw_distance_detail_close', 'Close', ''),
         ]
@@ -170,6 +177,36 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description="",
         default=True,
+    )
+    
+    def update_mesh_tessellation_density(self, context):
+        if self.name.startswith("Tesselation::"):
+            self.name = "Tesselation::" + self.mesh_tessellation_density.rpartition("_")[2]
+    
+    mesh_tessellation_density: bpy.props.EnumProperty(
+        name="Mesh Tessellation Density",
+        update=update_mesh_tessellation_density,
+        options=set(),
+        description="Let's tesselate",
+        default="_connected_geometry_mesh_tessellation_density_none",
+        items=[
+            ("_connected_geometry_mesh_tessellation_density_none", "None", ""),
+            (
+                "_connected_geometry_mesh_tessellation_density_4x",
+                "4x",
+                "4 times",
+            ),
+            (
+                "_connected_geometry_mesh_tessellation_density_9x",
+                "9x",
+                "9 times",
+            ),
+            (
+                "_connected_geometry_mesh_tessellation_density_36x",
+                "36x",
+                "36 times",
+            ),
+        ],
     )
 
     #########
@@ -526,6 +563,31 @@ class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
         name="Invisible To PVS",
         options=set(),
         description="Mesh is unaffected by Potential Visbility Sets - the games render culling system",
+    )
+    
+    mesh_tessellation_density: bpy.props.EnumProperty(
+        name="Mesh Tessellation Density",
+        options=set(),
+        description="Let's tesselate",
+        default="_connected_geometry_mesh_tessellation_density_none",
+        items=[
+            ("_connected_geometry_mesh_tessellation_density_none", "None", ""),
+            (
+                "_connected_geometry_mesh_tessellation_density_4x",
+                "4x",
+                "4 times",
+            ),
+            (
+                "_connected_geometry_mesh_tessellation_density_9x",
+                "9x",
+                "9 times",
+            ),
+            (
+                "_connected_geometry_mesh_tessellation_density_36x",
+                "36x",
+                "36 times",
+            ),
+        ],
     )
     
     def update_lightmap_additive_transparency(self, context):

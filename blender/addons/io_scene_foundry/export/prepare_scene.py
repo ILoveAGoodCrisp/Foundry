@@ -1189,6 +1189,9 @@ class PrepareScene:
             
         if self.asset_type in ('model', 'sky') and ob["bungie_mesh_type"] in render_mesh_types and face_props.face_draw_distance_override:
             ob["bungie_face_draw_distance"] = face_props.face_draw_distance
+            
+        if face_props.mesh_tessellation_density_override and face_props.mesh_tessellation_density != "_connected_geometry_mesh_tessellation_density_none":
+                ob["bungie_mesh_tessellation_density"] = face_props.mesh_tessellation_density
 
         # Handle face sides, game wants an enum but Foundry uses flags
         face_sides_value = "_connected_geometry_face_sides_"
@@ -1596,8 +1599,6 @@ class PrepareScene:
             if nwo.portal_is_door:
                 ob["bungie_mesh_portal_is_door"] = "1"
                 
-        elif mesh_type == "_connected_geometry_mesh_type_water_surface":
-            ob["bungie_mesh_tessellation_density"] = nwo.mesh_tessellation_density
             
         elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
             # ob["bungie_mesh_tessellation_density"] = nwo.mesh_tessellation_density
@@ -1688,6 +1689,7 @@ class PrepareScene:
             "_connected_geometry_mesh_type_object_instance",
             "_connected_geometry_mesh_type_poop",
             "_connected_geometry_mesh_type_poop_collision",
+            "_connected_geometry_mesh_type_water_surface",
         ):
             if self.asset_type in ("scenario", "prefab") or current_mesh_type in (
                 "_connected_geometry_mesh_type_collision",
@@ -1728,6 +1730,8 @@ class PrepareScene:
                     ob["bungie_mesh_additional_compression"] = "_connected_geometry_mesh_additional_compression_force_off"
                 if nwo_data.decal_offset:
                     ob["bungie_decal_offset"] = "1"
+                if nwo_data.mesh_tessellation_density != "_connected_geometry_mesh_tessellation_density_none":
+                    ob["bungie_mesh_tessellation_density"] = nwo_data.mesh_tessellation_density
             if self.asset_type in ("scenario", "prefab"):   
                 if nwo_data.no_shadow:
                     ob["bungie_no_shadow"] = "1"

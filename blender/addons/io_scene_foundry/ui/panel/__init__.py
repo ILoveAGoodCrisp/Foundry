@@ -1453,7 +1453,6 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             elif (
                 nwo.mesh_type == "_connected_geometry_mesh_type_water_surface"
             ):
-                col.prop(nwo, "mesh_tessellation_density", text="Tessellation Density")
                 col.prop(
                     nwo,
                     "water_volume_depth",
@@ -2039,6 +2038,9 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 if item.face_draw_distance_override:
                     row = col.row()
                     row.prop(item, "face_draw_distance")
+                if item.mesh_tessellation_density_override:
+                    row = col.row()
+                    row.prop(item, "mesh_tessellation_density")
                 if item.face_global_material_override:
                     row = col.row()
                     row.prop(item, "face_global_material")
@@ -2242,10 +2244,14 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.use_property_split = True
                 row.prop(mesh_nwo, "face_two_sided_type", text="Backside Normals")
                 
-        if nwo.mesh_type in constants.RENDER_MESH_TYPES and not self.asset_type in ('scenario', 'prefab'):
+        if nwo.mesh_type in constants.RENDER_MESH_TYPES:
             row = box.row()
             row.use_property_split = True
-            row.prop(mesh_nwo, "face_draw_distance")
+            row.prop(mesh_nwo, "mesh_tessellation_density", text="Tessellation Density")
+            if not self.asset_type in ('scenario', 'prefab'):
+                row = box.row()
+                row.use_property_split = True
+                row.prop(mesh_nwo, "face_draw_distance")
                 
         if utils.poll_ui(("model", "scenario", "prefab")):
             if has_collision and utils.poll_ui(("scenario", "prefab")) and not (mesh_nwo.render_only and utils.is_instance_or_structure_proxy(ob)):

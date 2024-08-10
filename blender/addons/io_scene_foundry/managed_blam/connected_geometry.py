@@ -859,6 +859,17 @@ class IndexBuffer:
             else:
                 yield i2
                 yield i1
+                
+class Tessellation(Enum):
+    _connected_geometry_mesh_tessellation_density_none = 0
+    _connected_geometry_mesh_tessellation_density_4x = 1
+    _connected_geometry_mesh_tessellation_density_9x = 2
+    _connected_geometry_mesh_tessellation_density_36x = 3
+    
+class DrawDistance(Enum):
+    _connected_geometry_face_draw_distance_normal = 0
+    _connected_geometry_face_draw_distance_detail_mid = 1
+    _connected_geometry_face_draw_distance_detail_close = 2
 
 class MeshPart:
     index: int
@@ -867,9 +878,8 @@ class MeshPart:
     transparent: bool
     index_start: int
     index_count: int
-    draw_cull_medium: bool
-    draw_cull_close: bool
-    tessellation: int
+    draw_distance: bool
+    tessellation: Tessellation
     
     def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
         self.index = element.ElementIndex
@@ -878,6 +888,14 @@ class MeshPart:
         self.index_start = int(element.SelectField("index start").GetStringData())
         self.index_count = int(element.SelectField("index count").GetStringData())
         
+        self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_normal
+        flags = element.SelectField("part flags")
+        if flags.TestBit("draw cull distance close"):
+            self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_detail_close
+        elif flags.TestBit("draw cull distance medium"):
+            self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_detail_mid
+            
+        self.tessellation = Tessellation(element.SelectField("tessellation").Value)
         self.material = next(m for m in materials if m.index == self.material_index)
             
 class MeshSubpart:
@@ -894,17 +912,55 @@ class MeshSubpart:
         self.part_index = element.SelectField("part index").Value
         self.part = next(p for p in parts if p.index == self.part_index)
         
-    def create(self, ob: bpy.types.Object, tris: Face):
+    def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool):
         mesh = ob.data
-        faces = mesh.polygons
         blend_material = self.part.material.blender_material
-        if not mesh.materials.get(blend_material.name):
+
+        if blend_material.name not in mesh.materials:
             mesh.materials.append(blend_material)
         blend_material_index = ob.material_slots.find(blend_material.name)
-        faces = mesh.polygons
-        indexes = [t.index for t in tris if t.subpart == self]
+
+        indexes = {t.index for t in tris if t.subpart == self}
+
         for i in indexes:
-            faces[i].material_index = blend_material_index
+            mesh.polygons[i].material_index = blend_material_index
+
+        if not (face_transparent or face_draw_distance or face_tesselation):
+            return
+
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        layer_map = {}
+        if face_transparent and self.part.transparent:
+            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.face_transparent_override), None)
+            if existing_layer is None:
+                layer_map["face_transparent"] = utils.add_face_layer(bm, mesh, "transparent", True)
+            else:
+                layer_map["face_transparent"] = bm.faces.layers.int.get(existing_layer)
+        if face_draw_distance and self.part.draw_distance.value > 0:
+            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.face_draw_distance_override), None)
+            if existing_layer is None:
+                layer_map["face_draw_distance"] = utils.add_face_layer(bm, mesh, "draw_distance", self.part.draw_distance.name)
+            else:
+                layer_map["face_draw_distance"] = bm.faces.layers.int.get(existing_layer)
+        if face_tesselation and self.part.tessellation.value > 0:
+            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.mesh_tessellation_density_override), None)
+            if existing_layer is None:
+                layer_map["mesh_tessellation_density"] = utils.add_face_layer(bm, mesh, "tessellation", self.part.tessellation.name)
+            else:
+                layer_map["mesh_tessellation_density"] = bm.faces.layers.int.get(existing_layer)
+
+        bm.faces.ensure_lookup_table()
+        
+        for i in indexes:
+            for layer in layer_map.values():
+                bm.faces[i][layer] = 1
+                
+        for face_layer in mesh.nwo.face_props:
+            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+
+        bm.to_mesh(mesh)
+        bm.free()
             
 
 class Mesh:
@@ -924,6 +980,9 @@ class Mesh:
     raw_node_indices: list
     raw_node_weights: list
     node_map: list[int]
+    face_transparent: bool
+    face_tesselation: bool
+    face_draw_distance: bool
     
     def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds, permutation: Permutation, materials: list[Material], block_node_map: TagFieldBlock):
         self.index = element.ElementIndex
@@ -938,6 +997,10 @@ class Mesh:
             self.parts.append(MeshPart(part_element, materials))
         for subpart_element in element.SelectField("subparts").Elements:
             self.subparts.append(MeshSubpart(subpart_element, self.parts))
+            
+        self.face_transparent = len({p.transparent for p in self.parts}) > 1
+        self.face_tesselation = len({p.tessellation for p in self.parts}) > 1
+        self.face_draw_distance = len({p.draw_distance for p in self.parts}) > 1
             
         self.raw_positions = []
         self.raw_texcoords = []
@@ -1122,12 +1185,19 @@ class Mesh:
                             group.add([idx], w, 'REPLACE')
                     
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
+                    
+        if not self.face_transparent:
+            ob.data.nwo.face_transparent = self.parts[0].transparent
+        if not self.face_draw_distance:
+            ob.data.nwo.face_draw_distance = self.parts[0].draw_distance.name
+        if not self.face_tesselation:
+            ob.data.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
         
         if subpart:
             ob.data.materials.append(subpart.part.material.blender_material)
         else:
             for subpart in self.subparts:
-                subpart.create(ob, self.tris)
+                subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation)
         
         self._set_two_sided(mesh)
         utils.loop_normal_magic(mesh)
@@ -1181,9 +1251,7 @@ class Mesh:
             face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
         
         bm.to_mesh(mesh)
-        bm.free()
-        
-            
+        bm.free() 
         
 class InstancePlacement:
     index: int

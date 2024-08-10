@@ -962,6 +962,7 @@ def has_mesh_props(ob) -> bool:
         "_connected_geometry_mesh_type_structure",
         "_connected_geometry_mesh_type_lightmap_only",
         "_connected_geometry_mesh_type_object_instance",
+        "_connected_geometry_mesh_type_water_surface",
     )
     nwo = ob.nwo
     return (
@@ -3209,8 +3210,8 @@ def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value
         case "transparent":
             layer_name = f"transparent{str(uuid4())}"
             display_name = "Transparent"
-            override_prop = "face_two_sided_override"
-            other_props = {"face_two_sided": value}
+            override_prop = "face_transparent_override"
+            other_props = {"face_transparent": value}
         case "draw_distance":
             layer_name = f"{str(uuid4())}"
             display_name = "Draw Distance"
@@ -3291,6 +3292,11 @@ def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value
             display_name = "No PVS"
             override_prop = "no_pvs_override"
             other_props = {"no_pvs": value}
+        case "tessellation":
+            layer_name = f"tessellation{str(uuid4())}"
+            display_name = "Tessellation Density"
+            override_prop = "mesh_tessellation_density_override"
+            other_props = {"mesh_tessellation_density": value}
         case "lightmap_additive_transparency":
             layer_name = f"lightmap_additive_transparency{str(uuid4())}"
             display_name = "Lightmap Additive Transparency"

@@ -169,31 +169,6 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Tells the game to generate a physics representation of this mesh without converting it to a convex hull",
     )
 
-    mesh_tessellation_density: bpy.props.EnumProperty(
-        name="Mesh Tessellation Density",
-        options=set(),
-        description="Select the tesselation density you want applied to this mesh",
-        default="_connected_geometry_mesh_tessellation_density_none",
-        items=[
-            ("_connected_geometry_mesh_tessellation_density_none", "None", ""),
-            (
-                "_connected_geometry_mesh_tessellation_density_4x",
-                "4x",
-                "4 times",
-            ),
-            (
-                "_connected_geometry_mesh_tessellation_density_9x",
-                "9x",
-                "9 times",
-            ),
-            (
-                "_connected_geometry_mesh_tessellation_density_36x",
-                "36x",
-                "36 times",
-            ),
-        ],
-    )
-
     poop_lighting_items = [
         (
             "_connected_geometry_poop_lighting_per_pixel",

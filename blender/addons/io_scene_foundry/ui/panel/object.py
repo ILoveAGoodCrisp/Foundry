@@ -53,6 +53,7 @@ class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):
             if nwo.mesh_type != '_connected_geometry_mesh_type_collision':
                 layout.operator(self.op_prefix, text="Transparent").options = "transparent"
                 if context.scene.nwo.asset_type in ('model', 'sky'):
+                    layout.operator(self.op_prefix, text="Tessellation Density").options = "mesh_tessellation_density"
                     layout.operator(self.op_prefix, text="Draw Distance").options = "draw_distance"
         if utils.poll_ui(("model", "scenario", "prefab")):
             if nwo.mesh_type in (
@@ -199,6 +200,8 @@ def toggle_override(option, bool_var, item):
             item.face_transparent_override = bool_var
         case "draw_distance":
             item.face_draw_distance_override = bool_var
+        case "mesh_tessellation_density":
+            item.mesh_tessellation_density_override = bool_var
         case "render_only":
             item.render_only_override = bool_var
         case "collision_only":
@@ -298,6 +301,7 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
             ("two_sided", "Two Sided", ""),
             ("transparent", "Transparent", ""),
             ("draw_distance", "Draw Distance", ""),
+            ("mesh_tessellation_density", "Tessellation Density", ""),
             ("render_only", "Render Only", ""),
             ("collision_only", "Collision Only", ""),
             ("sphere_collision_only", "Sphere Collision Only", ""),
@@ -351,6 +355,8 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
                 self.fm_name = "Transparent"
             case "draw_distance":
                 self.fm_name = "Draw Distance"
+            case "mesh_tessellation_density":
+                self.fm_name = "Tesselation Density"
             case "ladder":
                 self.fm_name = "Ladder"
             case "slip_surface":
@@ -643,6 +649,7 @@ class NWO_OT_FacePropRemove(bpy.types.Operator):
             ("two_sided", "", ""),
             ("transparent", "", ""),
             ("draw_distance", "", ""),
+            ("mesh_tessellation_density", "", ""),
             ("texcoord_usage", "", ""),
             ("ladder", "Ladder", ""),
             ("slip_surface", "", ""),
