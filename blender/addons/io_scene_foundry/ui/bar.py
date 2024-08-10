@@ -46,7 +46,7 @@ class NWO_MT_ProjectChooserMenuDisallowNew(NWO_MT_ProjectChooserMenu):
 class NWO_OT_ProjectChooser(bpy.types.Operator):
     bl_label = "Select Project"
     bl_idname = "nwo.project_select"
-    bl_description = "Select the project to use for this asset"
+    bl_description = "Select the project this asset is rooted under"
     bl_property = "project_name"
     bl_options = set()
 
@@ -59,8 +59,26 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
 
     def execute(self, context):
         nwo = context.scene.nwo
+        if managed_blam.mb_active:
+            mb_path = managed_blam.mb_path
+            if mb_path:
+                if not str(mb_path).startswith(str(utils.get_project_path(self.project_name))):
+                    box = utils.MessageBox(utils.MessageBoxType.YESNO, "Restart Required", "Blender needs to restart in order to load a different project. Save and restart now?")
+                    box.show()
+                    if box.confirmed:
+                        nwo.scene_project = self.project_name
+                        bpy.ops.wm.save_mainfile('INVOKE_DEFAULT')
+                        if bpy.data.filepath:
+                            utils.restart_blender()
+                    
+                    self.report({"WARNING"}, "Project cannot be changed until Blender restart")
+                    return {'CANCELLED'}
+                        
         nwo.scene_project = self.project_name
         return {'FINISHED'}
+    
+    def draw(self, context):
+        self.layout.label("Blender needs to restart in order to load a different project. Save and restart now?")
     
 class NWO_HaloLauncherExplorerSettings(bpy.types.Panel):
     bl_label = "Explorer Settings"
@@ -960,10 +978,8 @@ def draw_foundry_nodes_toolbar(self, context):
     foundry_nodes_toolbar(self.layout, context)
 
 def foundry_nodes_toolbar(layout, context):
-    #layout.label(text=" ")
     row = layout.row()
     export_scene = context.scene.nwo
-    icons_only = context.preferences.addons[__package__].preferences.toolbar_icons_only
     row.scale_x = 1
     box = row.box()
     box.scale_x = 0.3
@@ -1001,8 +1017,6 @@ def foundry_toolbar(layout, context):
         sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if export_scene.toolbar_expanded:
         sub_project = row.row(align=True)
-        if managed_blam.mb_active:
-            sub_project.enabled = False
         sub_project.menu("NWO_MT_ProjectChooser", text="", icon_value=utils.project_icon(context))
         error = utils.validate_ek()
         if error is not None:

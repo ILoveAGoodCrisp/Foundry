@@ -1,4 +1,5 @@
 from collections import Counter
+import ctypes
 from enum import Enum, auto
 import itertools
 import json
@@ -177,8 +178,11 @@ BLENDER_IMAGE_FORMATS = (".bmp", ".sgi", ".rgb", ".bw", ".png", ".jpg", ".jpeg",
 def is_linked(ob):
     return ob.data.users > 1
 
-def get_project_path():
-    project = get_project(bpy.context.scene.nwo.scene_project)
+def get_project_path(project_name=None):
+    if project_name is None:
+        project = get_project(bpy.context.scene.nwo.scene_project)
+    else:
+        project = get_project(project_name)
     if not project:
         return ""
     return project.project_path
@@ -2786,6 +2790,9 @@ def restart_blender():
         subprocess.Popen([bpy.app.binary_path])
     bpy.ops.wm.quit_blender()
     
+def save_blender():
+    bpy.ops.wm.save_mainfile()
+    
 def human_time(time: float | int, decimal_seconds=False) -> str:
     '''Returns a string of hours, minutes and seconds using the given time input (in seconds)'''
     hours, minutes_remainder = divmod(time, 3600)
@@ -3624,3 +3631,25 @@ def set_bounds_display(ob: bpy.types.Object, display: BoundsDisplay):
         case BoundsDisplay.SPHERE:
             ob.show_bounds = True
             ob.display_bounds_type = 'SPHERE'
+            
+class MessageBoxType(Enum):
+    OK = 0
+    OKCXL = 1
+    YESNOCXL = 3
+    YESNO = 4
+
+class MessageBox:
+    mtype: MessageBoxType
+    title: str
+    message: str
+    confirmed: bool
+    def __init__(self, mtype: MessageBoxType, title: str, message: str):
+        self.mtype = mtype
+        self.title = title
+        self.message = message
+        self.confirmed = False
+    
+    def show(self):
+        result = ctypes.windll.user32.MessageBoxW(0, self.message, self.title, self.mtype.value)
+        if (self.mtype == MessageBoxType.YESNO or self.mtype == MessageBoxType.YESNOCXL) and result == 6:
+            self.confirmed = True
