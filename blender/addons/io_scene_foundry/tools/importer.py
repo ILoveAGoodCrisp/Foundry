@@ -50,7 +50,7 @@ from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
 from ..constants import VALID_MESHES
-from ..utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, nwo_asset_type, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from ..utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, has_shader_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, nwo_asset_type, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 legacy_model_formats = '.jms', '.ass'
@@ -339,15 +339,25 @@ class NWO_Import(bpy.types.Operator):
                     #     ob.matrix_world = mat
                         
                     imported_objects.extend(imported_model_objects)
+                    
+                # if len(importer.extensions) == 1 and list(importer.extensions) == 'model':
+                #     self.find_shader_paths = False
                 
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
+                missing_some_shader_paths = False
                 if new_materials:
                     new_materials = clear_duplicate_materials(True, new_materials)
-                    
+                    for m in new_materials:
+                        if not m.nwo.shader_path and has_shader_path(m):
+                            missing_some_shader_paths = True
+                            break
                 
-                if self.find_shader_paths and new_materials:
-                    print('Updating shader tag paths for imported objects')
+                if self.find_shader_paths and missing_some_shader_paths:
+                    if is_corinth():
+                        print('Updating material tag paths for imported objects')
+                    else:
+                        print('Updating shader tag paths for imported objects')
                     imported_meshes: list[bpy.types.Mesh] = set([ob.data for ob in imported_objects if ob.type in VALID_MESHES])
                     if imported_meshes:
                         find_shaders(new_materials)
@@ -789,42 +799,44 @@ class NWOImporter:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
                     render, collision, animation, physics = model.get_model_paths()
+                    model_collection = bpy.data.collections.new(model.tag_path.ShortName)
+                    self.context.scene.collection.children.link(model_collection)
                     if render:
-                        render_objects, armature = self.import_render_model(render)
+                        render_objects, armature = self.import_render_model(render, model_collection)
                         imported_objects.extend(render_objects)
                     if collision and self.tag_collision:
-                        imported_objects.extend(self.import_collision_model(collision, armature))
+                        imported_objects.extend(self.import_collision_model(collision, armature, model_collection))
                     if physics and self.tag_physics:
-                        imported_objects.extend(self.import_physics_model(physics, armature))
+                        imported_objects.extend(self.import_physics_model(physics, armature, model_collection))
                     # if animation:
                     #     imported_animations.extend(self.import_animation_graph(animation, armature, render))
         
         return imported_objects
             
-    def import_render_model(self, file):
+    def import_render_model(self, file, model_collection):
         print("Importing Render Model")
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
-        self.context.scene.collection.children.link(collection)
+        model_collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection)
             
         return render_model_objects, armature
     
-    def import_collision_model(self, file, armature):
+    def import_collision_model(self, file, armature, model_collection):
         print("Importing Collision Model")
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
-        self.context.scene.collection.children.link(collection)
+        model_collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
                 collision_model_objects = collision_model.to_blend_objects(collection, armature)
             
         return collision_model_objects
     
-    def import_physics_model(self, file, armature):
+    def import_physics_model(self, file, armature, model_collection):
         print("Importing Physics Model")
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
-        self.context.scene.collection.children.link(collection)
+        model_collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with PhysicsTag(path=mover.tag_path) as physics_model:
                 physics_model_objects = physics_model.to_blend_objects(collection, armature)

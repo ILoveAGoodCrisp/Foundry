@@ -94,10 +94,10 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self, collection, render: bool, markers: bool):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection):
         self.collection = collection
+        self.model_collection = model_collection
         objects = []
-        print("Creating Armature")
         self.armature = self._create_armature()
         objects.append(self.armature)
         
@@ -122,7 +122,8 @@ class RenderModelTag(Tag):
         return objects, self.armature
     
     def _create_armature(self):
-        arm = RenderArmature(self.tag.Path.ShortName)
+        print("Creating Armature")
+        arm = RenderArmature(f"{self.tag.Path.ShortName}_world")
         self.nodes: list[Node] = []
         for element in self.block_nodes.Elements:
             node = Node(element.SelectField("name").GetStringData(), )
@@ -148,7 +149,7 @@ class RenderModelTag(Tag):
                 
             self.nodes.append(node)
         
-        self.collection.objects.link(arm.ob)
+        self.model_collection.objects.link(arm.ob)
         arm.ob.select_set(True)
         utils.set_active_object(arm.ob)
         bpy.ops.object.editmode_toggle()
@@ -257,10 +258,12 @@ class RenderModelTag(Tag):
     def _create_markers(self):
         # Model Markers
         objects = []
+        markers_collection = bpy.data.collections.new(f"{self.tag_path.ShortName}_markers")
+        self.collection.children.link(markers_collection)
         marker_size_factor = max(self.bounds.x1 - self.bounds.x0, self.bounds.y1 - self.bounds.y0, self.bounds.z1 - self.bounds.z0) * 0.025
         for element in self.block_marker_groups.Elements:
             marker_group = MarkerGroup(element, self.nodes, self.regions)
-            objects.extend(marker_group.to_blender(self.armature, self.collection, marker_size_factor))
+            objects.extend(marker_group.to_blender(self.armature, markers_collection, marker_size_factor))
             
         return objects
             
