@@ -13,6 +13,104 @@ from ..tools import materials as special_materials
 from .. import utils
 from .Tags import TagFieldBlock, TagFieldBlockElement
 
+class Portal:
+    index: int
+    vertices: list[Vector]
+    
+class BSPMarkerType(Enum):
+    none = 0
+    cheap_light = 1
+    falling_leaf_generator = 2
+    light = 3
+    sky = 4
+    model = 5
+    
+class PathfindingPolicy(Enum):
+    _connected_poop_instance_pathfinding_policy_cutout = 0
+    _connected_poop_instance_pathfinding_policy_static = 1
+    _connected_poop_instance_pathfinding_policy_none = 2
+    
+class LightmappingPolicy(Enum):
+    _connected_geometry_poop_lighting_per_pixel = 0
+    _connected_geometry_poop_lighting_per_vertex = 1
+    _connected_geometry_poop_lighting_single_probe = 2
+    
+class ImposterPolicy(Enum):
+    pass
+
+class CinemaType(Enum):
+    _connected_geometry_poop_cinema_default = 0
+    _connected_geometry_poop_cinema_only = 1
+    _connected_geometry_poop_cinema_exclude = 2
+    
+class StreamingPriority(Enum):
+    _connected_geometry_poop_streamingpriority_default = 0
+    _connected_geometry_poop_streamingpriority_higher = 1
+    _connected_geometry_poop_streamingpriority_highest = 2
+    
+class InstanceDefinition:
+    index: int
+    collision_surfaces: list['CollisionSurface']
+    collision_edges: list['CollisionEdge']
+    collision_vertices: list['CollisionVertex']
+    cookie_surfaces: list['CollisionSurface']
+    cookie_edges: list['CollisionEdge']
+    cookie_vertices: list['CollisionVertex']
+    polyhedra: list['Polyhedron']
+    four_vectors: list['PolyhedronFourVectors']
+    mesh_index: int
+    mesh: 'Mesh'
+    compression_index: int
+    compression: 'CompressionBounds'
+    
+class Instance:
+    index: int
+    forward: Vector
+    left: Vector
+    up: Vector
+    position: Vector
+    matrix: Matrix
+    not_in_lightprobes: bool
+    render_only: bool
+    not_block_aoe: bool
+    decal: bool
+    remove_from_shadow: bool
+    cinema_type: CinemaType
+    mesh_index: int
+    mesh: 'Mesh'
+    compression_index: int
+    compression: 'CompressionBounds'
+    pathfinding: PathfindingPolicy
+    lightmapping: LightmappingPolicy
+    imposter: ImposterPolicy
+    streaming: StreamingPriority
+    lightmap_res: int
+    name: str
+    imposter_brightness: float
+    imposter_transition: float
+    definition: InstanceDefinition
+
+class BSPMarker:
+    index: int
+    type: BSPMarkerType
+    parameter: str
+    rotation: Quaternion
+    position: Vector
+
+class EnvironmentObjectPalette:
+    definition: str
+    model: str
+    index: str
+    
+class EnvironmentObject:
+    index: int
+    palette_index: int
+    palette: EnvironmentObjectPalette
+    name: str
+    rotation: Quaternion
+    translation: Vector
+    scale: float
+    variant: str
 
 class Face:
     index: int

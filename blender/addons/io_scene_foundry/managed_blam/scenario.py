@@ -131,3 +131,6 @@ class ScenarioTag(Tag):
     
     def survival_mode(self) -> bool:
         return self.read_scenario_type() == 0 and self.tag.SelectField('flags').TestBit('survival')
+    
+    def to_blender(self):
+        pass

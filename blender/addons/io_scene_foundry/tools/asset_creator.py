@@ -40,6 +40,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
     bl_idname = "nwo.new_asset"
     bl_label = "New Asset"
     bl_description = "Creates a new asset. Allows exporting the asset to the game"
+    bl_options =set()
 
     @classmethod
     def poll(cls, context):

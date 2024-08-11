@@ -216,30 +216,23 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         min=1,
         max=7,
     )
-
-    poop_pathfinding_items = [
-        (
-            "_connected_poop_instance_pathfinding_policy_cutout",
-            "Cutout",
-            "AI will be able to pathfind around this instance, but not on it",
-        ),
-        (
-            "_connected_poop_instance_pathfinding_policy_none",
-            "None",
-            "This instance will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there",
-        ),
-        (
-            "_connected_poop_instance_pathfinding_policy_static",
-            "Static",
-            "AI will be able to pathfind around and on this instance",
-        ),
-    ]
+    
+    def poop_pathfinding_items(self, context):
+        items = []
+        if utils.is_corinth(context):
+            items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Walkable", "AI will be able to pathfind around and on this mesh"))
+            items.append(("_connected_poop_instance_pathfinding_policy_static", "Force Walkable", "AI will be able to pathfind around and on this mesh"))
+        else:
+            items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Cut-Out", "AI will be able to pathfind around this instance, but not on it"))
+            items.append(("_connected_poop_instance_pathfinding_policy_static", "Walkable", "AI will be able to pathfind around and on this mesh"))
+        items.append(("_connected_poop_instance_pathfinding_policy_cutout", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
+        
+        return items
 
     poop_pathfinding: bpy.props.EnumProperty(
         name="Instanced Geometry Pathfinding",
         options=set(),
         description="How this instanced is assessed when the game builds a pathfinding representation of the map",
-        default="_connected_poop_instance_pathfinding_policy_cutout",
         items=poop_pathfinding_items,
     )
 
@@ -663,34 +656,19 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Per vertex lighting gets ambient occlusion only",
     )
 
-    prefab_pathfinding_items = [
-        (
-            "no_override",
-            "No Override",
-            "Does not override the pathfinding policy for this prefab instance",
-        ),
-        (
-            "_connected_poop_instance_pathfinding_policy_cutout",
-            "Cutout",
-            "Sets the pathfinding policy to cutout. AI will be able to pathfind around this mesh, but not on it.",
-        ),
-        (
-            "_connected_poop_instance_pathfinding_policy_none",
-            "None",
-            "Sets the pathfinding policy to none. This mesh will be ignored during pathfinding generation",
-        ),
-        (
-            "_connected_poop_instance_pathfinding_policy_static",
-            "Static",
-            "Sets the pathfinding policy to static. AI will be able to pathfind around and on this mesh",
-        ),
-    ]
+    def prefab_pathfinding_items(self, context):
+        items = []
+        items.append(("no_override", "No Override", "Does not override the pathfinding policy for this prefab instance"))
+        items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Walkable", "AI will be able to pathfind around and on this mesh"))
+        items.append(("_connected_poop_instance_pathfinding_policy_static", "Force Walkable", "AI will be able to pathfind around and on this mesh"))
+        items.append(("_connected_poop_instance_pathfinding_policy_cutout", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
+        
+        return items
 
     prefab_pathfinding: bpy.props.EnumProperty(
         name="Pathfinding Policy",
         options=set(),
         description="Sets the pathfinding policy for this prefab instance",
-        default="no_override",
         items=prefab_pathfinding_items,
     )
 
