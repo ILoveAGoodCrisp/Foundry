@@ -229,6 +229,11 @@ class NWO_Import(bpy.types.Operator):
         options={"HIDDEN", "SKIP_SAVE"}
     )
     
+    reuse_armature: bpy.props.BoolProperty(
+        name="Reuse Scene Armature",
+        description="Will reuse the main blend scene armature for this model instead of importing a new one",
+        default=False,
+    )
     tag_render: bpy.props.BoolProperty(
         name="Import Render Geometry",
         default=True,
@@ -238,11 +243,11 @@ class NWO_Import(bpy.types.Operator):
         default=True,
     )
     tag_collision: bpy.props.BoolProperty(
-        name="Include Collision",
+        name="Import Collision",
         default=True,
     )
     tag_physics: bpy.props.BoolProperty(
-        name="Include Physics",
+        name="Import Physics",
         default=True,
     )
     
@@ -315,7 +320,13 @@ class NWO_Import(bpy.types.Operator):
                     importer.tag_collision = self.tag_collision
                     importer.tag_physics = self.tag_physics
                     model_files = importer.sorted_filepaths["model"]
-                    imported_model_objects = importer.import_models(model_files)
+                    existing_armature = None
+                    if self.reuse_armature:
+                        existing_armature = get_rig(context)
+                        if needs_scaling:
+                            transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            
+                    imported_model_objects = importer.import_models(model_files, existing_armature)
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
                         
@@ -459,13 +470,23 @@ class NWO_Import(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.scale_y = 1.25
-        if not self.scope or ('amf' in self.scope or 'jms' in self.scope):
+        
+        if not self.scope or ('amf' in self.scope or 'jms' in self.scope or 'model' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
             tag_type = 'material' if is_corinth(context) else 'shader'
             box.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
             if self.find_shader_paths:
                 box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
+                
+        if not self.scope or ('model' in self.scope):
+            box = layout.box()
+            box.label(text='Model Tag Settings')
+            box.prop(self, 'reuse_armature')
+            box.prop(self, 'tag_render')
+            box.prop(self, 'tag_markers')
+            box.prop(self, 'tag_collision')
+            box.prop(self, 'tag_physics')
         
         if not self.scope or ('jma' in self.scope or 'jms' in self.scope):
             box = layout.box()
@@ -790,7 +811,7 @@ class NWOImporter:
     
     # Model Import
     
-    def import_models(self, paths):
+    def import_models(self, paths, existing_armature):
         imported_objects = []
         imported_animations = []
         for file in paths:
@@ -802,7 +823,7 @@ class NWOImporter:
                     model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                     self.context.scene.collection.children.link(model_collection)
                     if render:
-                        render_objects, armature = self.import_render_model(render, model_collection)
+                        render_objects, armature = self.import_render_model(render, model_collection, existing_armature)
                         imported_objects.extend(render_objects)
                     if collision and self.tag_collision:
                         imported_objects.extend(self.import_collision_model(collision, armature, model_collection))
@@ -813,13 +834,13 @@ class NWOImporter:
         
         return imported_objects
             
-    def import_render_model(self, file, model_collection):
+    def import_render_model(self, file, model_collection, existing_armature):
         print("Importing Render Model")
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
-                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection)
+                render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature)
             
         return render_model_objects, armature
     

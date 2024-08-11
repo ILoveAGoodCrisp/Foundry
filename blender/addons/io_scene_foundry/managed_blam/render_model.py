@@ -94,11 +94,11 @@ class RenderModelTag(Tag):
         print("#"*50 + '\n')
         print([i for i in tex_coords])
         
-    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection):
+    def to_blend_objects(self, collection, render: bool, markers: bool, model_collection: bpy.types.Collection, existing_armature=None):
         self.collection = collection
         self.model_collection = model_collection
         objects = []
-        self.armature = self._create_armature()
+        self.armature = self._create_armature(existing_armature)
         objects.append(self.armature)
         
         # Instances
@@ -121,9 +121,9 @@ class RenderModelTag(Tag):
         
         return objects, self.armature
     
-    def _create_armature(self):
+    def _create_armature(self, existing_armature=None):
         print("Creating Armature")
-        arm = RenderArmature(f"{self.tag.Path.ShortName}_world")
+        arm = RenderArmature(f"{self.tag.Path.ShortName}_world", existing_armature)
         self.nodes: list[Node] = []
         for element in self.block_nodes.Elements:
             node = Node(element.SelectField("name").GetStringData(), )
@@ -149,13 +149,17 @@ class RenderModelTag(Tag):
                 
             self.nodes.append(node)
         
-        self.model_collection.objects.link(arm.ob)
-        arm.ob.select_set(True)
-        utils.set_active_object(arm.ob)
-        bpy.ops.object.editmode_toggle()
-        for node in self.nodes: arm.create_bone(node)
-        for node in self.nodes: arm.parent_bone(node)
-        bpy.ops.object.editmode_toggle()
+        if existing_armature is None:
+            self.model_collection.objects.link(arm.ob)
+            arm.ob.select_set(True)
+            utils.set_active_object(arm.ob)
+            bpy.ops.object.editmode_toggle()
+            for node in self.nodes: arm.create_bone(node)
+            for node in self.nodes: arm.parent_bone(node)
+            bpy.ops.object.editmode_toggle()
+        else:
+            for node in self.nodes:
+                node.bone = next((b for b in arm.ob.data.bones if b.name == node.name), None)
         
         return arm.ob
         

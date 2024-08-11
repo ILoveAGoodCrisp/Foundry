@@ -87,9 +87,13 @@ class Region:
             self.permutations.append(Permutation(element, self))
 
 class RenderArmature():
-    def __init__(self, name):
-        self.data = bpy.data.armatures.new(name)
-        self.ob = bpy.data.objects.new(name, self.data)
+    def __init__(self, name, existing_armature=None):
+        if existing_armature is None:
+            self.data = bpy.data.armatures.new(name)
+            self.ob = bpy.data.objects.new(name, self.data)
+        else:
+            self.ob = existing_armature
+            self.data = existing_armature.data
         self.bones: Node = []
         
     def create_bone(self, node: Node):
@@ -117,6 +121,7 @@ class RenderArmature():
             node.bone.parent = parent
             transform_matrix = parent.matrix @ node.transform_matrix
             node.bone.matrix = transform_matrix
+            
             
 class ConstraintType(Enum):
     hinge = 0
@@ -1272,7 +1277,7 @@ class InstancePlacement:
         self.node_index = element.SelectField("node_index").Value
         self.bone = ""
         if self.node_index > -1:
-            self.bone = next(n.name for n in nodes if n.index == self.node_index)
+            self.bone = next((n.name for n in nodes if n.index == self.node_index), None)
         
         self.scale = float(element.SelectField("scale").GetStringData())
         self.forward = Vector([float(n) for n in element.SelectField("forward").GetStringData()])
@@ -1329,7 +1334,7 @@ class Marker:
                 self.permutation = next(p for p in self.region.permutations if p.index == permutation_index)
                 
         if node_index > -1:
-            self.bone = next(n.name for n in nodes if n.index == node_index)
+            self.bone = next((n.name for n in nodes if n.index == node_index), None)
         
         self.translation = [float(n) * 100 for n in element.SelectField("translation").GetStringData()]
         
