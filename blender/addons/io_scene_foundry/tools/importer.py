@@ -35,6 +35,12 @@ import bpy
 import addon_utils
 from mathutils import Color
 
+from ..managed_blam.structure_seams import StructureSeamsTag
+
+from ..managed_blam.scenario_structure_bsp import ScenarioStructureBspTag
+
+from ..managed_blam.scenario import ScenarioTag
+
 from ..managed_blam.animation import AnimationTag
 
 from ..managed_blam.render_model import RenderModelTag
@@ -58,7 +64,7 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "scenario"
 
 class NWO_OT_ConvertScene(bpy.types.Operator):
     bl_label = "Convert Scene"
@@ -330,29 +336,16 @@ class NWO_Import(bpy.types.Operator):
                     if needs_scaling:
                         transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
                         
-                    # # fix up object transforms
-                    # ob_infos = []
-                    # for ob in imported_model_objects:
-                    #     ob_infos.append([ob, ob.parent, ob.parent_type, ob.parent_bone])
-                        
-                    # if imported_model_objects:
-                    #     with context.temp_override(selected_editable_objects=imported_model_objects, object=imported_model_objects[0]):
-                    #         bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-                            
-                    # for info in ob_infos:
-                    #     ob = info[0]
-                    #     mat = ob.matrix_world.copy()
-                    #     ob.parent = info[1]
-                    #     if info[2] == "BONE":
-                    #         ob.parent_type == "BONE"
-                    #         ob.parent_bone = info[3]
-                            
-                    #     ob.matrix_world = mat
-                        
                     imported_objects.extend(imported_model_objects)
                     
-                # if len(importer.extensions) == 1 and list(importer.extensions) == 'model':
-                #     self.find_shader_paths = False
+                if 'scenario' in importer.extensions:
+                    scenario_files = importer.sorted_filepaths["scenario"]
+                    imported_scenario_objects = importer.import_scenarios(scenario_files)
+                    if needs_scaling:
+                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_scenario_objects, actions=[])
+                        
+                    imported_objects.extend(imported_scenario_objects)
+
                 
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
@@ -762,6 +755,9 @@ class NWOImporter:
             elif 'model' in valid_exts and path.lower().endswith('.model'):
                 self.extensions.add('model')
                 filetype_dict["model"].append(path)
+            elif 'scenario' in valid_exts and path.lower().endswith('.scenario'):
+                self.extensions.add('scenario')
+                filetype_dict["scenario"].append(path)
                 
         return filetype_dict
         
@@ -836,6 +832,8 @@ class NWOImporter:
             
     def import_render_model(self, file, model_collection, existing_armature):
         print("Importing Render Model")
+        render_model_objects = []
+        armature = None
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
@@ -846,6 +844,7 @@ class NWOImporter:
     
     def import_collision_model(self, file, armature, model_collection):
         print("Importing Collision Model")
+        collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         model_collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
@@ -856,6 +855,7 @@ class NWOImporter:
     
     def import_physics_model(self, file, armature, model_collection):
         print("Importing Physics Model")
+        physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         model_collection.children.link(collection)
         with TagImportMover(self.project.tags_directory, file) as mover:
@@ -866,11 +866,53 @@ class NWOImporter:
     
     def import_animation_graph(self, file, armature, render):
         print("Importing Animations")
+        actions = []
         with TagImportMover(self.project.tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 actions = graph.to_blender(render, armature)
             
         return actions
+    
+    def import_scenarios(self, paths):
+        imported_objects = []
+        for file in paths:
+            print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
+            with TagImportMover(self.project.tags_directory, file) as mover:
+                with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
+                    if not scenario.valid: continue
+                    bsps = scenario.get_bsp_paths()
+                    scenario_name = scenario.tag_path.ShortName
+                    scenario_collection = bpy.data.collections.new(scenario.tag_path.ShortName)
+                    self.context.scene.collection.children.link(scenario_collection)
+                    for bsp in bsps:
+                        imported_objects.extend(self.import_bsp(bsp, scenario_collection, scenario_name))
+                        
+                    # imported_objects.extend(self.import_seams(bsp, scenario_collection, scenario_name))
+        
+        return imported_objects
+    
+    def import_bsp(self, file, scenario_collection, scenario_name):
+        name = Path(file).with_suffix("").name[len(scenario_name) + 1:]
+        if not name:
+            name = "default"
+        print(f"Importing BSP {name}")
+        bsp_objects = []
+        collection = bpy.data.collections.new(name)
+        scenario_collection.children.link(collection)
+        with TagImportMover(self.project.tags_directory, file) as mover:
+            with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
+                bsp_objects = bsp.to_blend_objects(collection)
+            
+        return bsp_objects
+    
+    def import_seams(self, file, scenario_collection, scenario_name):
+        print(f"Importing Scenario Seams")
+        seam_objects = []
+        collection = bpy.data.collections.new(scenario_name + "_seams")
+        scenario_collection.children.link(collection)
+        with TagImportMover(self.project.tags_directory, file) as mover:
+            with StructureSeamsTag(path=mover.tag_path) as seams:
+                seam_objects = seams.to_blend_objects(collection)
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
@@ -1963,7 +2005,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.scenario;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
 
     @classmethod
     def poll_drop(cls, context):

@@ -1,5 +1,6 @@
 import multiprocessing
 from pathlib import Path
+import tempfile
 import bpy
 
 from ..tools.halo_export import export_quick, export
@@ -67,7 +68,10 @@ class NWO_OT_ProjectChooser(bpy.types.Operator):
                     box.show()
                     if box.confirmed:
                         nwo.scene_project = self.project_name
-                        bpy.ops.wm.save_mainfile('INVOKE_DEFAULT')
+                        blend_path = bpy.data.filepath
+                        if not blend_path:
+                            blend_path = str(Path(tempfile.gettempdir(), "temp"))
+                        bpy.ops.wm.save_mainfile(filepath=blend_path, check_existing=False)
                         utils.restart_blender()
                     
                     self.report({"WARNING"}, "Project cannot be changed until Blender restart")

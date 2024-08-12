@@ -41,7 +41,7 @@ class NWO_ClearShaderPaths(bpy.types.Operator):
 class NWO_StompMaterials(bpy.types.Operator):
     bl_idname = "nwo.stomp_materials"
     bl_label = "Clear Duplicate Materials"
-    bl_description = "Clears duplicate materials from the scene, assigning the original material to material slots. Duplicate materials are"
+    bl_description = "Clears duplicate materials from the scene, assigning the original material to material slots."
     bl_options = {"REGISTER", 'UNDO'}
     
     strip_legacy_halo_naming: bpy.props.BoolProperty(

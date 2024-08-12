@@ -2,20 +2,70 @@
 
 from enum import Enum
 from math import radians
+from pathlib import Path
 from statistics import mean
 from typing import Iterable
 import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 import numpy as np
+
+from ..tools.append_foundry_materials import add_special_materials
+
+from ..tools.property_apply import apply_props_material
+
+from .material import MaterialTag
+from .shader import ShaderTag
 from ..tools import materials as special_materials
 
 from .. import utils
-from .Tags import TagFieldBlock, TagFieldBlockElement
+from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
+
+class PortalType(Enum):
+    _connected_geometry_portal_type_no_way = 0
+    _connected_geometry_portal_type_one_way = 1
+    _connected_geometry_portal_type_two_way = 2
+    
 
 class Portal:
     index: int
     vertices: list[Vector]
+    type: PortalType
+    ai_deafening: bool
+    blocks_sounds: bool
+    is_door: bool
+    
+    def __init__(self, element: TagFieldBlockElement):
+        self.index = element.ElementIndex
+        self.type = PortalType._connected_geometry_portal_type_two_way
+        flags = element.SelectField("flags")
+        if flags.TestBit("one-way") or flags.TestBit("one-way-reversed"):
+            self.type = PortalType._connected_geometry_portal_type_one_way
+        elif flags.TestBit("no-way"):
+            self.type = PortalType._connected_geometry_portal_type_no_way
+            
+        self.ai_deafening = flags.TestBit("ai can't hear through this shit")
+        self.blocks_sounds = flags.TestBit("no one can hear through this")
+        self.is_door = flags.TestBit("door")
+            
+        vertices_block = element.SelectField("Block:vertices")
+        self.vertices = []
+        for e in vertices_block.Elements:
+            self.vertices.append(Vector(n for n in e.Fields[0].Data) * 100)
+            
+    def create(self) -> bpy.types.Object:
+        mesh = bpy.data.meshes.new(f"portal:{self.index}")
+        mesh.from_pydata(vertices=self.vertices, edges=[], faces=[list(range(len(self.vertices)))])
+        mesh.nwo.mesh_type = "_connected_geometry_mesh_type_portal"
+        ob = bpy.data.objects.new(mesh.name, mesh)
+        apply_props_material(ob, "Portal")
+        nwo = ob.nwo
+        
+        nwo.portal_ai_deafening = self.ai_deafening
+        nwo.portal_blocks_sounds = self.blocks_sounds
+        nwo.portal_is_door = self.is_door
+        
+        return ob
     
 class BSPMarkerType(Enum):
     none = 0
@@ -34,9 +84,17 @@ class LightmappingPolicy(Enum):
     _connected_geometry_poop_lighting_per_pixel = 0
     _connected_geometry_poop_lighting_per_vertex = 1
     _connected_geometry_poop_lighting_single_probe = 2
+    _connected_geometry_poop_lighting_exclude = 3
+    _connected_geometry_poop_lighting_per_pixel_ao = 4
+    _connected_geometry_poop_lighting_per_vertex_ao = 5
     
 class ImposterPolicy(Enum):
-    pass
+    _connected_poop_instance_imposter_policy_polygon_default = 0
+    _connected_poop_instance_imposter_policy_polygon_high = 1
+    _connected_poop_instance_imposter_policy_card_default = 2
+    _connected_poop_instance_imposter_policy_card_high = 3
+    _connected_poop_instance_imposter_policy_none = 4
+    _connected_poop_instance_imposter_policy_never = 5
 
 class CinemaType(Enum):
     _connected_geometry_poop_cinema_default = 0
@@ -48,47 +106,190 @@ class StreamingPriority(Enum):
     _connected_geometry_poop_streamingpriority_higher = 1
     _connected_geometry_poop_streamingpriority_highest = 2
     
+class Cluster:
+    index: int
+    mesh_index: int
+    mesh: 'Mesh'
+    
+    def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, render_materials: list['Material']):
+        self.index = element.ElementIndex
+        self.mesh_index = element.SelectField("mesh index").Data
+        self.mesh = Mesh(mesh_block.Elements[self.mesh_index], materials=render_materials)
+        
+    def create(self, render_model, temp_meshes) -> bpy.types.Object:
+        return self.mesh.create(render_model, temp_meshes, name=f"cluster:{self.index}")[0]
+    
 class InstanceDefinition:
     index: int
-    collision_surfaces: list['CollisionSurface']
-    collision_edges: list['CollisionEdge']
-    collision_vertices: list['CollisionVertex']
-    cookie_surfaces: list['CollisionSurface']
-    cookie_edges: list['CollisionEdge']
-    cookie_vertices: list['CollisionVertex']
+    collision_info: 'InstanceCollision'
+    cookie_info: 'InstanceCollision'
+    # cookie_surfaces: list['CollisionSurface']
+    # cookie_edges: list['CollisionEdge']
+    # cookie_vertices: list['CollisionVertex']
     polyhedra: list['Polyhedron']
     four_vectors: list['PolyhedronFourVectors']
     mesh_index: int
     mesh: 'Mesh'
     compression_index: int
     compression: 'CompressionBounds'
+    blender_render: bpy.types.Object
+    blender_collision: bpy.types.Object
+    blender_cookie: bpy.types.Object
+    blender_physics: bpy.types.Object
+    
+    def __init__(self, element: TagFieldBlockElement, mesh_block: TagFieldBlock, compression_bounds: list['CompressionBounds'], render_materials: list['Material'], collision_materials: list['BSPCollisionMaterial']):
+        self.index = element.ElementIndex
+        self.mesh_index = element.SelectField("mesh index").Data
+        self.compression_index = element.SelectField("compression index").Data
+        self.compression = compression_bounds[self.compression_index]
+        self.mesh = Mesh(mesh_block.Elements[self.mesh_index], self.compression, materials=render_materials)
+        self.has_collision = False
+        self.collision_info = None
+        self.cookie_info = None
+        self.blender_collision = None
+        self.blender_cookie = None
+        self.blender_render = None
+        if not utils.is_corinth():
+            self.has_collision = element.SelectField("Struct:collision info[0]/Block:surfaces").Elements.Count > 0
+            if self.has_collision:
+                self.collision_info = InstanceCollision(element.SelectField("Struct:collision info").Elements[0], f"instance_collision:{self.index}", collision_materials)
+            # self.cookie_info = InstanceCollision(element.SelectField("Struct:poopie cutter collision").Elements[0], collision_materials)
+    
+    def create(self, render_model, temp_meshes) -> list[bpy.types.Object]:
+        objects = []
+        self.blender_render = self.mesh.create(render_model, temp_meshes, name=f"instance_definition:{self.index}")[0]
+        if not utils.is_corinth():
+            if self.has_collision:
+                self.blender_collision = self.collision_info.to_object()
+                if self.blender_render.type == 'MESH':
+                    self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
+                    self.blender_collision.nwo.proxy_parent = self.blender_render.data
+                    self.blender_collision.nwo.proxy_type = "collision"
+                    self.blender_render.data.nwo.proxy_collision = self.blender_collision
+                else:
+                    self.blender_collision.data.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
+            elif self.blender_render.data:
+                self.blender_render.data.nwo.render_only = True
+            
+        if self.blender_render:
+            objects.append(self.blender_render)
+        if self.blender_collision:
+            objects.append(self.blender_collision)
+            
+        return objects
+            
     
 class Instance:
     index: int
-    forward: Vector
-    left: Vector
-    up: Vector
-    position: Vector
     matrix: Matrix
     not_in_lightprobes: bool
     render_only: bool
     not_block_aoe: bool
     decal: bool
     remove_from_shadow: bool
+    disallow_lighting_samples: bool
     cinema_type: CinemaType
     mesh_index: int
-    mesh: 'Mesh'
-    compression_index: int
-    compression: 'CompressionBounds'
     pathfinding: PathfindingPolicy
     lightmapping: LightmappingPolicy
     imposter: ImposterPolicy
     streaming: StreamingPriority
-    lightmap_res: int
+    lightmap_res: float
     name: str
     imposter_brightness: float
     imposter_transition: float
     definition: InstanceDefinition
+    
+    def __init__(self, element: TagFieldBlockElement, definitions: list[InstanceDefinition]):
+        self.index = element.ElementIndex
+        self.mesh_index = element.SelectField("ShortInteger:mesh_index").Data
+        self.definition = definitions[self.mesh_index]
+        self.scale = element.SelectField("scale").Data
+        forward = element.SelectField("forward").Data
+        left = element.SelectField("left").Data
+        up = element.SelectField("up").Data
+        position = element.SelectField("position").Data
+        
+        # Negative scaling on the diagonal gets the correct facing direction
+        self.matrix = Matrix((
+            (-forward[0], forward[1], forward[2], position[0] * 100),
+            (left[0], -left[1], left[2], position[1] * 100),
+            (up[0], up[1], -up[2], position[2] * 100),
+            (0, 0, 0, 1),
+        ))
+        
+        flags = element.SelectField("flags")
+        self.not_in_lightprobes = flags.TestBit("not in lightprobes")
+        self.render_only = flags.TestBit("render only")
+        self.not_block_aoe = flags.TestBit("does not block aoe damage")
+        self.decal = flags.TestBit("decal spacing")
+                
+        self.imposter_transition = element.SelectField("imposter transition complete distance").Data
+        
+        self.pathfinding = PathfindingPolicy(element.SelectField("pathfinding policy").Value)
+        self.lightmapping = LightmappingPolicy(element.SelectField("lightmapping policy").Value)
+        self.imposter = ImposterPolicy(element.SelectField("imposter policy").Value)
+        
+        self.lightmap_res = element.SelectField("lightmap resolution scale").Data
+        
+        self.name = element.SelectField("name").Data
+        
+        self.remove_from_shadow = False
+        self.cinema_type = CinemaType._connected_geometry_poop_cinema_default
+        self.imposter_brightness = 0
+        self.disallow_lighting_samples = False
+        self.streaming = StreamingPriority._connected_geometry_poop_streamingpriority_default
+        if utils.is_corinth():
+            self.imposter_brightness = element.SelectField("imposter brightness").Data
+            self.streaming = StreamingPriority(element.SelectField("streaming priority").Value)
+            self.remove_from_shadow = flags.TestBit("remove from shadow geometry")
+            self.disallow_lighting_samples = flags.TestBit("disallow object lighting samples")
+            if flags.TestBit("cinema only"):
+                self.cinema_type = CinemaType._connected_geometry_poop_cinema_only
+            elif flags.TestBit("exclude from cinema"):
+                self.cinema_type = CinemaType._connected_geometry_poop_cinema_exclude
+        
+        
+    def create(self) -> list[bpy.types.Object]:
+        if self.definition.blender_render.type == 'EMPTY' and self.definition.blender_collision:
+            ob = self.definition.blender_collision.copy()
+        else:
+            ob = self.definition.blender_render.copy()
+        ob.name = self.name
+        ob.matrix_world = self.matrix
+        ob.scale = Vector.Fill(3, self.scale)
+        nwo = ob.nwo
+        nwo.poop_excluded_from_lightprobe = self.not_in_lightprobes
+        nwo.poop_render_only = self.render_only
+        nwo.poop_does_not_block_aoe = self.not_block_aoe
+        nwo.poop_decal_spacing = self.decal
+        nwo.poop_remove_from_shadow_geometry = self.remove_from_shadow
+        nwo.poop_disallow_lighting_samples = self.disallow_lighting_samples
+        nwo.poop_cinematic_properties = self.cinema_type.name
+        if self.lightmapping.value > 2:
+            if self.lightmapping == LightmappingPolicy._connected_geometry_poop_lighting_per_pixel_ao:
+                nwo.poop_ao = True
+                nwo.poop_lighting = "_connected_geometry_poop_lighting_per_pixel"
+            elif self.lightmapping == LightmappingPolicy._connected_geometry_poop_lighting_per_vertex_ao:
+                nwo.poop_ao = True
+                nwo.poop_lighting = "_connected_geometry_poop_lighting_per_vertex"
+        else:
+            nwo.poop_lighting = self.lightmapping.name
+            
+        nwo.poop_pathfinding = self.pathfinding.name
+        if self.imposter == ImposterPolicy._connected_poop_instance_imposter_policy_none:
+            nwo.poop_imposter_policy = "_connected_poop_instance_imposter_policy_never"
+        else:
+            nwo.poop_imposter_policy = self.imposter.name
+        nwo.poop_streaming_priority = self.streaming.name
+        nwo.poop_imposter_brightness = self.imposter_brightness
+        nwo.poop_imposter_transition_distance = self.imposter_transition
+        nwo.poop_imposter_transition_distance_auto = self.imposter_transition <= 0
+        
+        nwo.poop_lightmap_resolution_scale = min(max(int(self.lightmap_res), 1), 7)
+        
+        return ob
+        
 
 class BSPMarker:
     index: int
@@ -621,6 +822,40 @@ class CollisionMaterial:
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
         self.name = element.Fields[0].Data
+
+class BSPCollisionMaterial:
+    index: int
+    render_method: str
+    blender_material: bpy.types.Material
+    global_material: str
+    tag_shader: TagPath
+    name: str
+    
+    def __init__(self, element: TagFieldBlockElement):
+        self.index = element.ElementIndex
+        self.render_method = ""
+        self.tag_shader = None
+        render = element.SelectField("Reference:render method").Path
+        if render:
+            self.render_method = render.RelativePathWithExtension
+            self.tag_shader = render
+            self.name = render.ShortName
+        
+        self.global_material = ""
+        if utils.is_corinth():
+            override = element.SelectField("override material name").Data
+            if override:
+                self.global_material = override
+                
+        if not self.global_material and render and Path(render.Filename).exists():
+            if utils.is_corinth():
+                with MaterialTag(path=self.render_method) as shader:
+                    self.global_material = shader.tag.SelectField("physics material name").Data
+            else:
+                with ShaderTag(path=self.render_method) as shader:
+                    self.global_material = shader.tag.SelectField("material name").Data
+                    
+        self.blender_material = get_blender_material(self.name, self.render_method)
         
 class CollisionVertex:
     index: int
@@ -648,10 +883,14 @@ class CollisionSurface:
     breakable: bool
     slip_surface: bool
     
-    def __init__(self, element: TagFieldBlockElement, materials: list[CollisionMaterial]):
+    def __init__(self, element: TagFieldBlockElement, materials: list[CollisionMaterial] | list[BSPCollisionMaterial]):
         self.index = element.ElementIndex
         self.first_edge = element.SelectField("first edge").Data
-        self.material = next(m for m in materials if m.index == element.SelectField("material").Data)
+        material_index = element.SelectField("material").Data
+        if material_index < 0 or material_index >= len(materials):
+            self.material = None
+        else:
+            self.material = materials[material_index]
         flags = element.SelectField("flags")
         self.two_sided = flags.TestBit("two sided")
         self.ladder = flags.TestBit("climbable")
@@ -686,34 +925,36 @@ class BSP:
     surfaces: list[CollisionSurface]
     edges: list[CollisionEdge]
     vertices: list[CollisionVertex]
+    uses_materials: bool
     
-    def __init__(self, element: TagFieldBlockElement, name, materials: list[CollisionMaterial], nodes: list[str] = None):
+    def __init__(self, element: TagFieldBlockElement, name, materials: list[CollisionMaterial]):
         self.name = name
         self.index = element.ElementIndex
-        self.node_index = element.Fields[0].Data
-        self.bone = ""
-        if nodes:
-            self.bone = nodes[self.node_index]
-        
-        self.surfaces = [CollisionSurface(e, materials) for e in element.SelectField("Struct:bsp[0]/Block:surfaces").Elements]
-        self.vertices = [CollisionVertex(e) for e in element.SelectField("Struct:bsp[0]/Block:vertices").Elements]
-        self.edges = [CollisionEdge(e) for e in element.SelectField("Struct:bsp[0]/Block:edges").Elements]
+        self.uses_materials = False
+        self.surfaces = [CollisionSurface(e, materials) for e in element.SelectField("Block:surfaces").Elements]
+        self.vertices = [CollisionVertex(e) for e in element.SelectField("Block:vertices").Elements]
+        self.edges = [CollisionEdge(e) for e in element.SelectField("Block:edges").Elements]
         
     def to_object(self) -> bpy.types.Object:
         indices = []
         # Traverse surfaces and build a face indices map
         for surface in self.surfaces:
-            edge = self.edges[surface.first_edge]
+            first_edge = self.edges[surface.first_edge]
+            edge = first_edge
             polygon = []
+            
             while True:
                 if edge.left_surface == surface.index:
                     polygon.append(edge.start_vertex)
-                    if edge.forward_edge == surface.first_edge: break
-                    edge = self.edges[edge.forward_edge]
+                    next_edge_index = edge.forward_edge
                 else:
                     polygon.append(edge.end_vertex)
-                    if edge.reverse_edge == surface.first_edge: break
-                    edge = self.edges[edge.reverse_edge]
+                    next_edge_index = edge.reverse_edge
+                
+                if next_edge_index == surface.first_edge:
+                    break
+                
+                edge = self.edges[next_edge_index]
             
             indices.append(polygon)
             
@@ -724,27 +965,44 @@ class BSP:
         # Check if we need to set any per face properties
         map_material, map_two_sided, map_ladder, map_breakable, map_slip = [], [], [], [], []
         for surface in self.surfaces:
-            map_material.append(surface.material.name)
+            map_material.append(surface.material)
             map_two_sided.append(surface.two_sided)
             map_ladder.append(surface.ladder)
             map_breakable.append(surface.breakable)
             map_slip.append(surface.slip_surface)
             
         split_material, split_two_sided, split_ladder, split_breakable, split_slip = len(set(map_material)) > 1, len(set(map_two_sided)) > 1, len(set(map_ladder)) > 1, len(set(map_breakable)) > 1, len(set(map_slip)) > 1
-        
+        blender_materials_map = {}
         layer_materials, layer_two_sided, layer_ladder, layer_breakable, layer_slip = {}, None, None, None, None
         using_layers = split_material or split_two_sided or split_ladder or split_breakable or split_slip
-        if using_layers:
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            
-        if split_material:
-            for material in set(map_material):
-                if material != 'default':
-                    layer_materials[material] = utils.add_face_layer(bm, mesh, "face_global_material", material)
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        
+        if self.uses_materials:
+            if split_material:
+                for idx, mat in enumerate(set(map_material)):
+                    if mat is None:
+                        if isinstance(self, StructureCollision):
+                            bmat = get_blender_material("+sky")
+                        else:
+                            bmat = get_blender_material("+seamsealer")
+                            
+                        mesh.materials.append(bmat)
+                        blender_materials_map[mat] = idx
+                    else:
+                        mesh.materials.append(mat.blender_material)
+                        blender_materials_map[mat] = idx
+            elif surface.material:
+                mesh.materials.append(surface.material.blender_material)
         else:
-            if surface.material.name != "default":
-                mesh.nwo.face_global_material = surface.material.name
+            if split_material:
+                for material in set(map_material):
+                    if material and material.name != 'default':
+                        layer_materials[material] = utils.add_face_layer(bm, mesh, "face_global_material", material.name)
+            else:
+                if surface.material and surface.material.name != "default":
+                    mesh.nwo.face_global_material = surface.material.name
+                    
                 
         if split_two_sided:
             layer_two_sided = utils.add_face_layer(bm, mesh, "two_sided", True)
@@ -768,8 +1026,11 @@ class BSP:
         
         if using_layers:
             for idx, face in enumerate(bm.faces):
-                for mat, layer in layer_materials.items():
-                    face[layer] =  int(map_material[idx] == mat)
+                if self.uses_materials:
+                    face.material_index = blender_materials_map[map_material[idx]]
+                else:
+                    for mat, layer in layer_materials.items():
+                        face[layer] =  int(map_material[idx] == mat)
                 if layer_two_sided:
                     face[layer_two_sided] = map_two_sided[idx]
                 if layer_ladder:
@@ -781,26 +1042,35 @@ class BSP:
                     
             for face_layer in mesh.nwo.face_props:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-                    
-            bm.to_mesh(mesh)
-            bm.free()
-                    
-        render_mat = bpy.data.materials.get("Collision")
-        if not render_mat:
-            render_mat = bpy.data.materials.new("Collision")
-            render_mat.use_fake_user = True
-            render_mat.diffuse_color = special_materials.Collision.color
-            render_mat.use_nodes = True
-            bsdf = render_mat.node_tree.nodes[0]
-            bsdf.inputs[0].default_value = special_materials.Collision.color
-            bsdf.inputs[4].default_value = special_materials.Collision.color[3]
-            render_mat.surface_render_method = 'BLENDED'
-            
-        mesh.materials.append(render_mat)
+        
+        # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
+        bm.to_mesh(mesh)
+        bm.free()
+                                
         mesh.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
         
         ob = bpy.data.objects.new(self.name, mesh)
+        if not self.uses_materials:
+            apply_props_material(ob, 'Collision')
         return ob
+    
+class ModelCollision(BSP):
+    def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial], nodes: list[str] = None):
+        super().__init__(element, name, collision_materials)
+        self.node_index = element.Fields[0].Data
+        self.bone = ""
+        if nodes:
+            self.bone = nodes[self.node_index]
+    
+class InstanceCollision(BSP):
+    def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial]):
+        super().__init__(element, name, collision_materials)
+        self.uses_materials = True
+        
+class StructureCollision(BSP):
+    def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial]):
+        super().__init__(element, name, collision_materials)
+        self.uses_materials = True
     
 class PathfindingSphere:
     bone: str
@@ -886,26 +1156,23 @@ class Material:
     lm_transparency: list[float]
     lm_translucency: list[float]
     lm_both_sides: bool
+    breakable_surface_index: int
     blender_material: bpy.types.Material
     
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
-        self.new = False
         render_method_path = element.SelectField("render method").Path
         self.name = render_method_path.ShortName
+        self.new = not bool(bpy.data.materials.get(self.name, 0))
         self.shader_path = render_method_path.RelativePathWithExtension
         self.emissive_index = int(element.SelectField("imported material index").GetStringData())
         self.lm_res = int(element.SelectField("imported material index").GetStringData())
-        self.blender_material = self._get_blender_material()
-        
-    def _get_blender_material(self):
-        mat = bpy.data.materials.get(self.name)
-        if not mat:
-            mat = bpy.data.materials.new(self.name)
-            mat.nwo.shader_path = self.shader_path
-            self.new = True
-            
-        return mat
+        self.lm_transparency = element.SelectField("lightmap additive transparency color").Data
+        self.lm_translucency = element.SelectField("lightmap traslucency tint color").Data
+        flags = element.SelectField("lightmap flags")
+        self.lm_both_sides = flags.TestBit("lighting from both sides")
+        self.breakable_surface_index = element.SelectField("breakable surface index").Data
+        self.blender_material = get_blender_material(self.name, self.shader_path)
     
 class IndexLayoutType(Enum):
     DEFAULT = 0
@@ -983,6 +1250,7 @@ class MeshPart:
     index_count: int
     draw_distance: bool
     tessellation: Tessellation
+    water_surface: bool
     
     def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
         self.index = element.ElementIndex
@@ -997,6 +1265,10 @@ class MeshPart:
             self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_detail_close
         elif flags.TestBit("draw cull distance medium"):
             self.draw_distance = DrawDistance._connected_geometry_face_draw_distance_detail_mid
+        
+        self.water_surface = False
+        if flags.TestBit("is water surface"):
+            self.water_surface = True
             
         self.tessellation = Tessellation(element.SelectField("tessellation").Value)
         self.material = next(m for m in materials if m.index == self.material_index)
@@ -1015,7 +1287,7 @@ class MeshSubpart:
         self.part_index = element.SelectField("part index").Value
         self.part = next(p for p in parts if p.index == self.part_index)
         
-    def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool):
+    def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool, water_surface_parts: list[MeshPart]):
         mesh = ob.data
         blend_material = self.part.material.blender_material
 
@@ -1028,7 +1300,7 @@ class MeshSubpart:
         for i in indexes:
             mesh.polygons[i].material_index = blend_material_index
 
-        if not (face_transparent or face_draw_distance or face_tesselation):
+        if not (face_transparent or face_draw_distance or face_tesselation or water_surface_parts):
             return
 
         bm = bmesh.new()
@@ -1052,9 +1324,11 @@ class MeshSubpart:
                 layer_map["mesh_tessellation_density"] = utils.add_face_layer(bm, mesh, "tessellation", self.part.tessellation.name)
             else:
                 layer_map["mesh_tessellation_density"] = bm.faces.layers.int.get(existing_layer)
+                
+        if self.part in water_surface_parts:
+            layer_map["water_surface"] = bm.faces.layers.int.new("water_surface")
 
         bm.faces.ensure_lookup_table()
-        
         for i in indexes:
             for layer in layer_map.values():
                 bm.faces[i][layer] = 1
@@ -1086,8 +1360,9 @@ class Mesh:
     face_transparent: bool
     face_tesselation: bool
     face_draw_distance: bool
+    valid: bool
     
-    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds, permutation: Permutation, materials: list[Material], block_node_map: TagFieldBlock):
+    def __init__(self, element: TagFieldBlockElement, bounds: CompressionBounds = None, permutation=None, materials=[], block_node_map=None):
         self.index = element.ElementIndex
         self.permutation = permutation
         self.rigid_node_index = int(element.SelectField("rigid node index").GetStringData())
@@ -1101,6 +1376,8 @@ class Mesh:
         for subpart_element in element.SelectField("subparts").Elements:
             self.subparts.append(MeshSubpart(subpart_element, self.parts))
             
+        self.valid = bool(self.parts) and bool(self.subparts)
+            
         self.face_transparent = len({p.transparent for p in self.parts}) > 1
         self.face_tesselation = len({p.tessellation for p in self.parts}) > 1
         self.face_draw_distance = len({p.draw_distance for p in self.parts}) > 1
@@ -1112,8 +1389,7 @@ class Mesh:
         self.raw_node_weights = []
         
         self.node_map = []
-        
-        if block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
+        if block_node_map is not None and block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
             map_element = block_node_map.Elements[self.index]
             self.node_map = [int(e.Fields[0].GetStringData()) for e in map_element.Fields[0].Elements]
                 
@@ -1127,7 +1403,11 @@ class Mesh:
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
     
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes, parent: bpy.types.Object | None, instances: list['InstancePlacement'] = []):
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes = [], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam"):
+        if not self.valid:
+            ob = bpy.data.objects.new(name, None)
+            return [ob]
+        
         temp_mesh = temp_meshes.Elements[self.index]
         raw_vertices = temp_mesh.SelectField("raw vertices")
         raw_indices = temp_mesh.SelectField("raw indices")
@@ -1162,8 +1442,6 @@ class Mesh:
         else:
             if self.permutation:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
-            else:
-                name = "blam"
             objects.append(self._create_mesh(name, parent, nodes, None))
             
         return objects
@@ -1182,7 +1460,6 @@ class Mesh:
             indices = [t.indices for t in self.tris if t.subpart == subpart]
             
         vertex_indexes = sorted({idx for i in indices for idx in i})
-        
         idx_start, idx_end = vertex_indexes[0], vertex_indexes[-1]
             
         mesh = bpy.data.meshes.new(name)
@@ -1200,7 +1477,10 @@ class Mesh:
             indices = [[i - idx_start for i in tri] for tri in indices]
                     
         mesh.from_pydata(vertices=positions, edges=[], faces=indices)
-        mesh.transform(self.bounds.co_matrix)
+        if self.bounds is None:
+            mesh.transform(Matrix.Scale(100, 4))
+        else:
+            mesh.transform(self.bounds.co_matrix)
         
         print(f"--- {name}")
         
@@ -1227,18 +1507,26 @@ class Mesh:
             if len(set_texcoords1) == 1 and list(set_texcoords1)[0] == 0:
                 has_texcoords1 = False
         
-        uvs = self._true_uvs(texcoords)
+        if self.bounds is None:
+            uvs = [Vector((u, 1-v)) for (u, v) in texcoords]
+        else:
+            uvs = self._true_uvs(texcoords)
+            
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
         lighting_uv_layer = None
         uvs1_layer = None
         if has_lighting_texcoords:
             lighting_uvs = self._true_uvs(lighting_texcoords)
-            # lighting_uvs = [Vector((u, 1-v)) for (u, v) in texcoords1]
-            lighting_uv_layer = mesh.uv_layers.new(name="lighting", do_init=False)
+            if self.bounds is None:
+                lighting_uvs = [Vector((u, 1-v)) for (u, v) in lighting_texcoords]
+            else:
+                lighting_uv_layer = mesh.uv_layers.new(name="lighting", do_init=False)
         if has_texcoords1:
             uvs1 = self._true_uvs(texcoords1)
-            # uvs1 = [Vector((u, 1-v)) for (u, v) in texcoords1]
-            uvs1_layer = mesh.uv_layers.new(name="UVMap1", do_init=False)
+            if self.bounds is None:
+                uvs1 = [Vector((u, 1-v)) for (u, v) in texcoords1]
+            else:
+                uvs1_layer = mesh.uv_layers.new(name="UVMap1", do_init=False)
         for face in mesh.polygons:
             for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
                 uv_layer.data[loop_idx].uv = uvs[vert_idx]
@@ -1290,17 +1578,19 @@ class Mesh:
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
                     
         if not self.face_transparent:
-            ob.data.nwo.face_transparent = self.parts[0].transparent
+            mesh.nwo.face_transparent = self.parts[0].transparent
         if not self.face_draw_distance:
-            ob.data.nwo.face_draw_distance = self.parts[0].draw_distance.name
+            mesh.nwo.face_draw_distance = self.parts[0].draw_distance.name
         if not self.face_tesselation:
-            ob.data.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
+            mesh.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
+            
+        water_surface_parts = {p for p in self.parts if p.water_surface}
         
         if subpart:
-            ob.data.materials.append(subpart.part.material.blender_material)
+            mesh.materials.append(subpart.part.material.blender_material)
         else:
             for subpart in self.subparts:
-                subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation)
+                subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, water_surface_parts)
         
         self._set_two_sided(mesh)
         utils.loop_normal_magic(mesh)
@@ -1529,3 +1819,15 @@ class MarkerGroup:
             objects.append(ob)
             
         return objects
+    
+def get_blender_material(name, shader_path=""):
+    mat = bpy.data.materials.get(name)
+    if not mat:
+        if name == '+sky' or name == '+seamsealer':
+            add_special_materials('h4' if utils.is_corinth() else 'reach', 'scenario')
+            mat = bpy.data.materials.get(name)
+        else:
+            mat = bpy.data.materials.new(name)
+            mat.nwo.shader_path = shader_path
+        
+    return mat

@@ -225,7 +225,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         else:
             items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Cut-Out", "AI will be able to pathfind around this instance, but not on it"))
             items.append(("_connected_poop_instance_pathfinding_policy_static", "Walkable", "AI will be able to pathfind around and on this mesh"))
-        items.append(("_connected_poop_instance_pathfinding_policy_cutout", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
+        items.append(("_connected_poop_instance_pathfinding_policy_none", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
         
         return items
 
@@ -661,7 +661,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         items.append(("no_override", "No Override", "Does not override the pathfinding policy for this prefab instance"))
         items.append(("_connected_poop_instance_pathfinding_policy_cutout", "Walkable", "AI will be able to pathfind around and on this mesh"))
         items.append(("_connected_poop_instance_pathfinding_policy_static", "Force Walkable", "AI will be able to pathfind around and on this mesh"))
-        items.append(("_connected_poop_instance_pathfinding_policy_cutout", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
+        items.append(("_connected_poop_instance_pathfinding_policy_none", "None", "This mesh will be ignored during pathfinding generation. AI will attempt to walk though it as if it is not there"))
         
         return items
 

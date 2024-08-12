@@ -3009,6 +3009,12 @@ def save_loop_normals(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh):
             layer = layers[f"ln{i}"]
             face[layer] = mesh.loops[mesh.polygons[idx].loop_indices[i]].normal
             
+def save_loop_normals_mesh(mesh: bpy.types.Mesh):
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    save_loop_normals(bm, mesh)
+    bm.free()
+            
 def remove_face_layers(bm: bmesh.types.BMesh, layer_prefix="ln"):
     layers_to_remove = [layer for layer in bm.faces.layers.float_vector.keys() if layer.startswith(layer_prefix)]
     
@@ -3023,20 +3029,26 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
         loop_normals = list(yield_loop_normals(bm))
         remove_face_layers(bm)
         bm.to_mesh(mesh)
+        if len(mesh.loops) > len(loop_normals):
+            diff = len(mesh.loops) - len(loop_normals)
+            loop_normals.extend([[0.0,0.0,0.0]]*diff)
         mesh.normals_split_custom_set(loop_normals)
     finally:
         bm.free()
     
-def loop_normal_magic(mesh: bpy.types.Mesh):
+def loop_normal_magic(mesh: bpy.types.Mesh, distance=0.01):
     '''Saves current normals, merges vertices, and then restores the normals as loop normals'''
     bm = bmesh.new()
     try:
         bm.from_mesh(mesh)
         save_loop_normals(bm, mesh)
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=distance)
         loop_normals = list(yield_loop_normals(bm))
         remove_face_layers(bm)
         bm.to_mesh(mesh)
+        if len(mesh.loops) > len(loop_normals):
+            diff = len(mesh.loops) - len(loop_normals)
+            loop_normals.extend([0,0,0]*diff)
         mesh.normals_split_custom_set(loop_normals)
     finally:
         bm.free()

@@ -1065,7 +1065,7 @@ class PrepareScene:
 
                     coll_bm = bmesh.new()
                     coll_bm.from_mesh(collision_ob.data)
-                    coll_layer_faces_dict = {layer: utils.layer_faces(coll_bm, face_layers.get(layer.layer_name)) for layer in face_properties}
+                    coll_layer_faces_dict = {layer: utils.layer_faces(coll_bm, coll_bm.faces.layers.int.get(layer.layer_name)) for layer in face_properties}
                     self._strip_nocoll_only_faces(coll_layer_faces_dict, coll_bm)
 
                     coll_bm.to_mesh(collision_ob.data)
@@ -1380,9 +1380,9 @@ class PrepareScene:
                     proxy_physics["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_play_collision"
                     split_physics = self._proxy_face_split(proxy_physics)
                 else:
-                    proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_physics"
-                    if proxy_physics.data.nwo.face_global_material or proxy_physics.data.nwo.face_props:
-                        self._set_reach_coll_materials(proxy_physics.data)
+                    # proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_physics"
+                    # if proxy_physics.data.nwo.face_global_material or proxy_physics.data.nwo.face_props:
+                    #     self._set_reach_coll_materials(proxy_physics.data)
                         
                     # Physics gets split by parts
                     bpy.context.scene.collection.objects.link(proxy_physics)
@@ -1410,8 +1410,8 @@ class PrepareScene:
                         proxy_collision["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_default"
 
                     split_collision = self._proxy_face_split(proxy_collision)
-                elif proxy_collision.data.nwo.face_global_material or proxy_collision.data.nwo.face_props:
-                    self._set_reach_coll_materials(proxy_collision.data)
+                # elif proxy_collision.data.nwo.face_global_material or proxy_collision.data.nwo.face_props:
+                #     self._set_reach_coll_materials(proxy_collision.data)
 
             
             if cookie:
@@ -2253,12 +2253,13 @@ class PrepareScene:
         nwo = ob.nwo
         data = ob.data
         data_nwo = data.nwo
-        if data_nwo.face_global_material and nwo.reach_poop_collision:
-            self._set_reach_coll_materials(data, True)
-        else:
-            self._loop_and_fix_slots(ob, data, nwo, does_not_support_sky, is_halo_render)
+        # if data_nwo.face_global_material and nwo.reach_poop_collision:
+        #     self._set_reach_coll_materials(data, True)
+        # else:
+        self._loop_and_fix_slots(ob, data, nwo, does_not_support_sky, is_halo_render)
 
     def _set_reach_coll_materials(self, data, mesh_level=False):
+        # UNUSED
         # handle reach poop collision material assignment
         data_nwo = data.nwo
         mesh_global_mat = data_nwo.face_global_material.strip()

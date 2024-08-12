@@ -27,7 +27,7 @@
 from uuid import uuid4
 from mathutils import Euler, Matrix, Vector
 
-from .connected_geometry import BSP, CollisionMaterial, PathfindingSphere
+from .connected_geometry import CollisionMaterial, ModelCollision, PathfindingSphere
 
 from ..managed_blam import Tag
 from .. import utils
@@ -59,7 +59,7 @@ class CollisionTag(Tag):
                 permutation = permutation_element.Fields[0].GetStringData()
                 for bsp_element in permutation_element.SelectField("bsps").Elements:
                     name = f"{region}:{permutation}:{bsp_element.ElementIndex}"
-                    bsp = BSP(bsp_element, name, materials, nodes)
+                    bsp = ModelCollision(bsp_element.Elements[0], name, materials, nodes)
                     ob = bsp.to_object()
                     ob.parent = armature
                     ob.parent_type = 'BONE'

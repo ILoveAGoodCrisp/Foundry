@@ -246,9 +246,12 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         proxy_scene.collection.objects.link(ob)
         setattr(self.parent.data.nwo, f"proxy_{proxy_type}", ob)
         if proxy_type == "collision":
-            apply_props_material(ob, "Collision")
+            ob.nwo.data.mesh_type = "_connected_geometry_mesh_type_collision"
+            if self.parent.data.materials:
+                ob.data.materials.append(self.parent.data.materials[0])
         elif proxy_type == "physics":
-            apply_props_material(ob, "Physics")
+            pass
+            # apply_props_material(ob, "Physics")
         else:
             apply_props_material(ob, "CookieCutter")
 

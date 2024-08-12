@@ -62,20 +62,21 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             box = layout.box()
             ob = context.object
             if ob:
-                row = box.row()
-                row.label(text=f"Editing: {ob.name}")
-                row = box.row()
-                row.use_property_split = True
-                row.prop(
-                    ob.data.nwo,
-                    "face_global_material",
-                    text="Collision Material",
-                )
-                row.operator(
-                    "nwo.global_material_globals",
-                    text="",
-                    icon="VIEWZOOM",
-                )
+                box.label(text=f"Editing: {ob.name}")
+                box2 = box.box()
+                box2.label(text="Mesh Properties")
+                self.draw_mesh_properties(box2, ob)
+                # row.use_property_split = True
+                # row.prop(
+                #     ob.data.nwo,
+                #     "face_global_material",
+                #     text="Collision Material",
+                # )
+                # row.operator(
+                #     "nwo.global_material_globals",
+                #     text="",
+                #     icon="VIEWZOOM",
+                # )
                 # proxy face props
                 self.draw_expandable_box(box.box(), context.scene.nwo, "face_properties", ob=ob)
 
@@ -1941,10 +1942,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
             col = row.column(align=True)
             edit_mode = context.mode == 'EDIT_MESH'
             if edit_mode:
-                if context.scene.nwo.instance_proxy_running or (ob.nwo.mesh_type == "_connected_geometry_mesh_type_collision" and utils.poll_ui(('scenario', 'prefab'))):
-                    col.operator("nwo.face_layer_add", text="", icon="ADD").options = "face_global_material"
-                else:
-                    col.menu("NWO_MT_FacePropAdd", text="", icon="ADD")
+                col.menu("NWO_MT_FacePropAdd", text="", icon="ADD")
                 
             col.operator("nwo.face_layer_remove", icon="REMOVE", text="")
             col.separator()
@@ -2942,7 +2940,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         amf_installed = utils.amf_addon_installed()
         toolset_installed = utils.blender_toolset_installed()
         if amf_installed or toolset_installed:
-            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model'
+            col.operator('nwo.import', text="Import Models & Animations", icon='IMPORT').scope = 'amf,jma,jms,model,scenario'
         if not toolset_installed:
             col.label(text="Halo Blender Toolset required for import of legacy model and animation files")
             col.operator("nwo.open_url", text="Download", icon="BLENDER").url = BLENDER_TOOLSET
