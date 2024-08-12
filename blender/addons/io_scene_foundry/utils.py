@@ -3151,7 +3151,7 @@ def set_region(ob, region):
         
     ob.nwo.region_name = region
     
-def add_region(region):
+def add_region(region) -> str:
     regions_table = bpy.context.scene.nwo.regions_table
     entry = regions_table.get(region, 0)
     if not entry:
@@ -3159,6 +3159,8 @@ def add_region(region):
         entry = regions_table[-1]
         entry.old = region
         entry.name = region
+        
+    return entry.name
 
 def set_permutation(ob, permutation):
     permutations_table = bpy.context.scene.nwo.permutations_table
@@ -3171,7 +3173,7 @@ def set_permutation(ob, permutation):
         
     ob.nwo.permutation_name = permutation
     
-def add_permutation(permutation):
+def add_permutation(permutation) -> str:
     permutations_table = bpy.context.scene.nwo.permutations_table
     entry = permutations_table.get(permutation, 0)
     if not entry:
@@ -3646,7 +3648,7 @@ def ijkw_to_wxyz(rot: list[float, float, float, float] | Vector | Quaternion) ->
     i, j, k, w = rot
     return Quaternion((w, i, j, k))
 
-def fix_tag_int(n: int) -> int:
+def unsigned_int16(n: int) -> int:
     if n < 0:
         return 65536 + n
     return n

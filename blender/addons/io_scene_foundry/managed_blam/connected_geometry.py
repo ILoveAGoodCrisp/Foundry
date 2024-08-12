@@ -1,5 +1,6 @@
 """Classes to help with importing geometry from tags"""
 
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from math import radians
 from pathlib import Path
@@ -835,6 +836,7 @@ class BSPCollisionMaterial:
         self.index = element.ElementIndex
         self.render_method = ""
         self.tag_shader = None
+        self.name = ""
         render = element.SelectField("Reference:render method").Path
         if render:
             self.render_method = render.RelativePathWithExtension
@@ -854,8 +856,11 @@ class BSPCollisionMaterial:
             else:
                 with ShaderTag(path=self.render_method) as shader:
                     self.global_material = shader.tag.SelectField("material name").Data
-                    
-        self.blender_material = get_blender_material(self.name, self.render_method)
+        
+        if self.name:
+            self.blender_material = get_blender_material(self.name, self.render_method)
+        else:
+            self.blender_material = None
         
 class CollisionVertex:
     index: int
@@ -867,7 +872,7 @@ class CollisionVertex:
         self.index = element.ElementIndex
         self.element = element
         self.point = element.Fields[0].Data
-        self.first_edge = element.Fields[1].Data
+        self.first_edge = utils.unsigned_int16(element.Fields[1].Data)
         
     @property
     def position(self) -> Vector:
@@ -885,7 +890,7 @@ class CollisionSurface:
     
     def __init__(self, element: TagFieldBlockElement, materials: list[CollisionMaterial] | list[BSPCollisionMaterial]):
         self.index = element.ElementIndex
-        self.first_edge = element.SelectField("first edge").Data
+        self.first_edge = utils.unsigned_int16(element.SelectField("first edge").Data)
         material_index = element.SelectField("material").Data
         if material_index < 0 or material_index >= len(materials):
             self.material = None
@@ -910,12 +915,12 @@ class CollisionEdge:
     def __init__(self, element: TagFieldBlockElement):
         self.element = element
         self.index = element.ElementIndex
-        self.start_vertex = element.SelectField("start vertex").Data
-        self.end_vertex = element.SelectField("end vertex").Data
-        self.forward_edge = element.SelectField("forward edge").Data
-        self.reverse_edge = element.SelectField("reverse edge").Data
-        self.left_surface = element.SelectField("left surface").Data
-        self.right_surface = element.SelectField("right surface").Data
+        self.start_vertex = utils.unsigned_int16(element.SelectField("start vertex").Data)
+        self.end_vertex = utils.unsigned_int16(element.SelectField("end vertex").Data)
+        self.forward_edge = utils.unsigned_int16(element.SelectField("forward edge").Data)
+        self.reverse_edge = utils.unsigned_int16(element.SelectField("reverse edge").Data)
+        self.left_surface = utils.unsigned_int16(element.SelectField("left surface").Data)
+        self.right_surface = utils.unsigned_int16(element.SelectField("right surface").Data)
         
 class BSP:
     name: str
@@ -934,44 +939,63 @@ class BSP:
         self.surfaces = [CollisionSurface(e, materials) for e in element.SelectField("Block:surfaces").Elements]
         self.vertices = [CollisionVertex(e) for e in element.SelectField("Block:vertices").Elements]
         self.edges = [CollisionEdge(e) for e in element.SelectField("Block:edges").Elements]
+
         
     def to_object(self) -> bpy.types.Object:
-        indices = []
-        # Traverse surfaces and build a face indices map
-        for surface in self.surfaces:
-            first_edge = self.edges[surface.first_edge]
-            edge = first_edge
-            polygon = []
-            
-            while True:
-                if edge.left_surface == surface.index:
-                    polygon.append(edge.start_vertex)
-                    next_edge_index = edge.forward_edge
-                else:
-                    polygon.append(edge.end_vertex)
-                    next_edge_index = edge.reverse_edge
+        def yield_indices():
+            for surface in self.surfaces:
+                first_edge = self.edges[surface.first_edge]
+                edge = first_edge
+                polygon = []
                 
-                if next_edge_index == surface.first_edge:
-                    break
+                while True:
+                    if edge.left_surface == surface.index:
+                        polygon.append(edge.start_vertex)
+                        next_edge_index = edge.forward_edge
+                    else:
+                        polygon.append(edge.end_vertex)
+                        next_edge_index = edge.reverse_edge
+                    
+                    if next_edge_index == surface.first_edge:
+                        break
+                    
+                    edge = self.edges[next_edge_index]
                 
-                edge = self.edges[next_edge_index]
-            
-            indices.append(polygon)
-            
+                yield polygon
+                
+        indices = yield_indices()
         # Create the bpy mesh
         mesh = bpy.data.meshes.new(self.name)
-        mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=indices)
+        mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=list(indices))
         
         # Check if we need to set any per face properties
         map_material, map_two_sided, map_ladder, map_breakable, map_slip = [], [], [], [], []
         for surface in self.surfaces:
-            map_material.append(surface.material)
-            map_two_sided.append(surface.two_sided)
-            map_ladder.append(surface.ladder)
-            map_breakable.append(surface.breakable)
-            map_slip.append(surface.slip_surface)
+            material = surface.material
+            two_sided = surface.two_sided
+            ladder = surface.ladder
+            breakable = surface.breakable
+            slip = surface.slip_surface
             
-        split_material, split_two_sided, split_ladder, split_breakable, split_slip = len(set(map_material)) > 1, len(set(map_two_sided)) > 1, len(set(map_ladder)) > 1, len(set(map_breakable)) > 1, len(set(map_slip)) > 1
+            map_material.append(material)
+            map_two_sided.append(two_sided)
+            map_ladder.append(ladder)
+            map_breakable.append(breakable)
+            map_slip.append(slip)
+
+            
+        materials_set = set(map_material)
+        two_sided_set = set(map_two_sided)
+        ladder_set = set(map_ladder)
+        breakable_set = set(map_breakable)
+        slip_set = set(map_slip)
+
+        split_material = len(materials_set) > 1
+        split_two_sided = len(two_sided_set) > 1
+        split_ladder = len(ladder_set) > 1
+        split_breakable = len(breakable_set) > 1
+        split_slip = len(slip_set) > 1
+
         blender_materials_map = {}
         layer_materials, layer_two_sided, layer_ladder, layer_breakable, layer_slip = {}, None, None, None, None
         using_layers = split_material or split_two_sided or split_ladder or split_breakable or split_slip
@@ -1025,12 +1049,11 @@ class BSP:
             mesh.nwo.slip_surface = surface.slip_surface
         
         if using_layers:
+            if split_material:
+                material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
-                if self.uses_materials:
-                    face.material_index = blender_materials_map[map_material[idx]]
-                else:
-                    for mat, layer in layer_materials.items():
-                        face[layer] =  int(map_material[idx] == mat)
+                if split_material:
+                    face.material_index = material_indices[idx] if self.uses_materials else face.material_index
                 if layer_two_sided:
                     face[layer_two_sided] = map_two_sided[idx]
                 if layer_ladder:
@@ -1039,6 +1062,7 @@ class BSP:
                     face[layer_breakable] = map_breakable[idx]
                 if layer_slip:
                     face[layer_slip] = map_slip[idx]
+
                     
             for face_layer in mesh.nwo.face_props:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
@@ -1332,9 +1356,6 @@ class MeshSubpart:
         for i in indexes:
             for layer in layer_map.values():
                 bm.faces[i][layer] = 1
-                
-        for face_layer in mesh.nwo.face_props:
-            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
 
         bm.to_mesh(mesh)
         bm.free()
@@ -1403,35 +1424,33 @@ class Mesh:
         
         return Vector((u, 1-v)) # 1-v to correct UV for Blender
     
-    def create(self, render_model, temp_meshes: TagFieldBlock, nodes = [], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam"):
+    def create(self, render_model, temp_meshes: TagFieldBlock, nodes=[], parent: bpy.types.Object | None = None, instances: list['InstancePlacement'] = [], name="blam"):
         if not self.valid:
-            ob = bpy.data.objects.new(name, None)
-            return [ob]
-        
+            return [bpy.data.objects.new(name, None)]
+
         temp_mesh = temp_meshes.Elements[self.index]
         raw_vertices = temp_mesh.SelectField("raw vertices")
         raw_indices = temp_mesh.SelectField("raw indices")
         if raw_indices.Elements.Count == 0:
             raw_indices = temp_mesh.SelectField("raw indices32")
-        # Vertices & Faces
-        self.raw_positions = [n for n in render_model.GetPositionsFromMesh(temp_meshes, self.index)]
-        self.raw_texcoords = [n for n in render_model.GetTexCoordsFromMesh(temp_meshes, self.index)]
-        self.raw_normals = [n for n in render_model.GetNormalsFromMesh(temp_meshes, self.index)]
+
+        self.raw_positions = list(render_model.GetPositionsFromMesh(temp_meshes, self.index))
+        self.raw_texcoords = list(render_model.GetTexCoordsFromMesh(temp_meshes, self.index))
+        self.raw_normals = list(render_model.GetNormalsFromMesh(temp_meshes, self.index))
         self.raw_lightmap_texcoords = [e.Fields[5].Data for e in raw_vertices.Elements]
         self.raw_vertex_colors = [e.Fields[8].Data for e in raw_vertices.Elements]
-        self.raw_texcoords1 = []
-        if utils.is_corinth():
-            self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements]
-        if not instances and self.rigid_node_index == -1:
-            self.raw_node_indices = [n for n in render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index)]
-            self.raw_node_weights = [n for n in render_model.GetNodeWeightsFromMesh(temp_meshes, self.index)]
+        self.raw_texcoords1 = [e.Fields[9].Data for e in raw_vertices.Elements] if utils.is_corinth() else []
 
-        objects = []
-        
-        indices = [utils.fix_tag_int(int(element.Fields[0].GetStringData())) for element in raw_indices.Elements]
+        if not instances and self.rigid_node_index == -1:
+            self.raw_node_indices = list(render_model.GetNodeIndiciesFromMesh(temp_meshes, self.index))
+            self.raw_node_weights = list(render_model.GetNodeWeightsFromMesh(temp_meshes, self.index))
+
+        indices = [utils.unsigned_int16(int(element.Fields[0].GetStringData())) for element in raw_indices.Elements]
         buffer = IndexBuffer(self.index_buffer_type, indices)
         self.tris = buffer.get_faces(self)
-            
+
+        objects = []
+
         if instances:
             for instance in instances:
                 subpart = self.subparts[instance.index]
@@ -1443,208 +1462,151 @@ class Mesh:
             if self.permutation:
                 name = f"{self.permutation.region.name}:{self.permutation.name}"
             objects.append(self._create_mesh(name, parent, nodes, None))
-            
+
         return objects
-    
+
     def _create_mesh(self, name, parent, nodes, subpart: MeshSubpart | None, parent_bone=None, local_matrix=None):
-        if local_matrix:
-            matrix = local_matrix
-        elif parent:
-            matrix = parent.matrix_world
-        else:
-            matrix = Matrix.Identity(4)
-            
-        if subpart is None:
-            indices = [t.indices for t in self.tris]
-        else:
-            indices = [t.indices for t in self.tris if t.subpart == subpart]
-            
-        vertex_indexes = sorted({idx for i in indices for idx in i})
+        matrix = local_matrix or (parent.matrix_world if parent else Matrix.Identity(4))
+
+        indices = [t.indices for t in self.tris if not subpart or t.subpart == subpart]
+
+        vertex_indexes = sorted({idx for tri in indices for idx in tri})
         idx_start, idx_end = vertex_indexes[0], vertex_indexes[-1]
-            
+
         mesh = bpy.data.meshes.new(name)
         ob = bpy.data.objects.new(name, mesh)
-        
-        positions = [self.raw_positions[n:n+3] for idx, n in enumerate(range(0, len(self.raw_positions), 3)) if idx >= idx_start and idx <= idx_end]
-        texcoords = [self.raw_texcoords[n:n+2] for idx, n in enumerate(range(0, len(self.raw_texcoords), 2)) if idx >= idx_start and idx <= idx_end]
-        normals = [self.raw_normals[n:n+3] for idx, n in enumerate(range(0, len(self.raw_normals), 3)) if idx >= idx_start and idx <= idx_end]
-        lighting_texcoords = [[float(v) for v in self.raw_lightmap_texcoords[n]] for idx, n in enumerate(range(len(self.raw_lightmap_texcoords))) if idx >= idx_start and idx <= idx_end]
-        vertex_colors = [[float(v) for v in self.raw_vertex_colors[n]] for idx, n in enumerate(range(len(self.raw_vertex_colors))) if idx >= idx_start and idx <= idx_end]
-        texcoords1 = []
-        if self.raw_texcoords1:
-            texcoords1 = [[float(v) for v in self.raw_texcoords1[n]] for idx, n in enumerate(range(len(self.raw_texcoords1))) if idx >= idx_start and idx <= idx_end]
+
+        positions = [self.raw_positions[i:i+3] for i in range(idx_start * 3, (idx_end + 1) * 3, 3)]
+        texcoords = [self.raw_texcoords[i:i+2] for i in range(idx_start * 2, (idx_end + 1) * 2, 2)]
+        normals = [self.raw_normals[i:i+3] for i in range(idx_start * 3, (idx_end + 1) * 3, 3)]
+        lighting_texcoords = [[float(v) for v in self.raw_lightmap_texcoords[n]] for n in range(idx_start, idx_end+1)]
+        vertex_colors = [[float(v) for v in self.raw_vertex_colors[n]] for n in range(idx_start, idx_end+1)]
+        texcoords1 = [[float(v) for v in self.raw_texcoords1[n]] for n in range(idx_start, idx_end+1)] if self.raw_texcoords1 else []
+
         if idx_start > 0:
             indices = [[i - idx_start for i in tri] for tri in indices]
-                    
-        mesh.from_pydata(vertices=positions, edges=[], faces=indices)
-        if self.bounds is None:
-            mesh.transform(Matrix.Scale(100, 4))
-        else:
-            mesh.transform(self.bounds.co_matrix)
-        
+
+        mesh.from_pydata(positions, [], indices)
+
+        transform_matrix = self.bounds.co_matrix if self.bounds else Matrix.Scale(100, 4)
+        mesh.transform(transform_matrix)
+
         print(f"--- {name}")
-        
-        has_vertex_colors = True
-        has_lighting_texcoords = True
-        has_texcoords1 = True if texcoords1 else False
-        
-        set_vertex_colors = set()
-        for li in vertex_colors:
-            set_vertex_colors.update(li)
-        set_lighting_texcoords = set()
-        for li in lighting_texcoords:
-            set_lighting_texcoords.update(li)
-        set_texcoords1 = set()
-        if has_texcoords1:
-            for li in texcoords1:
-                set_texcoords1.update(li)
-        
-        if len(set_vertex_colors) == 1 and list(set_vertex_colors)[0] == 0:
-            has_vertex_colors = False
-        if len(set_lighting_texcoords) == 1 and list(set_lighting_texcoords)[0] == 0:
-            has_lighting_texcoords = False
-        if has_texcoords1:
-            if len(set_texcoords1) == 1 and list(set_texcoords1)[0] == 0:
-                has_texcoords1 = False
-        
-        if self.bounds is None:
-            uvs = [Vector((u, 1-v)) for (u, v) in texcoords]
-        else:
-            uvs = self._true_uvs(texcoords)
-            
+
+        has_vertex_colors = any(any(v) for v in vertex_colors)
+        has_lighting_texcoords = any(any(v) for v in lighting_texcoords)
+        has_texcoords1 = bool(texcoords1) and any(any(v) for v in texcoords1)
+
+        uvs = self._true_uvs(texcoords) if self.bounds else [Vector((u, 1-v)) for (u, v) in texcoords]
         uv_layer = mesh.uv_layers.new(name="UVMap0", do_init=False)
-        lighting_uv_layer = None
-        uvs1_layer = None
-        if has_lighting_texcoords:
-            lighting_uvs = self._true_uvs(lighting_texcoords)
-            if self.bounds is None:
-                lighting_uvs = [Vector((u, 1-v)) for (u, v) in lighting_texcoords]
-            else:
-                lighting_uv_layer = mesh.uv_layers.new(name="lighting", do_init=False)
-        if has_texcoords1:
-            uvs1 = self._true_uvs(texcoords1)
-            if self.bounds is None:
-                uvs1 = [Vector((u, 1-v)) for (u, v) in texcoords1]
-            else:
-                uvs1_layer = mesh.uv_layers.new(name="UVMap1", do_init=False)
-        for face in mesh.polygons:
-            for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
-                uv_layer.data[loop_idx].uv = uvs[vert_idx]
-                if uvs1_layer is not None:
-                    uvs1_layer.data[loop_idx].uv = uvs1[vert_idx]
-                if lighting_uv_layer is not None:
-                    lighting_uv_layer.data[loop_idx].uv = lighting_uvs[vert_idx]
-                
+        lighting_uv_layer = mesh.uv_layers.new(name="lighting", do_init=False) if has_lighting_texcoords else None
+        uvs1_layer = mesh.uv_layers.new(name="UVMap1", do_init=False) if has_texcoords1 else None
+
+        if uv_layer:
+            for face in mesh.polygons:
+                for vert_idx, loop_idx in zip(face.vertices, face.loop_indices):
+                    uv_layer.data[loop_idx].uv = uvs[vert_idx]
+                    if uvs1_layer:
+                        uvs1_layer.data[loop_idx].uv = texcoords1[vert_idx]
+                    if lighting_uv_layer:
+                        lighting_uv_layer.data[loop_idx].uv = lighting_texcoords[vert_idx]
+
         normalised_normals = [Vector(n).normalized() for n in normals]
         mesh.normals_split_custom_set_from_vertices(normalised_normals)
-        
+
         if has_vertex_colors:
             bm = bmesh.new()
             bm.from_mesh(mesh)
             layer = bm.verts.layers.float_color.new("Color")
             for idx, v in enumerate(bm.verts):
                 v[layer] = vertex_colors[idx] + [1.0]
-                
             bm.to_mesh(mesh)
             bm.free()
-        
+
         if parent:
             ob.parent = parent
             if parent.type == 'ARMATURE':
                 if self.rigid_node_index > -1:
                     ob.parent_type = "BONE"
-                    if parent_bone:
-                        ob.parent_bone = parent_bone
-                    else:
-                        ob.parent_bone = nodes[self.rigid_node_index].name
+                    ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
                     ob.matrix_world = matrix
-                    
                 else:
-                    node_indices = [self.raw_node_indices[n:n+4] for idx, n in enumerate(range(0, len(self.raw_node_indices), 4)) if idx >= idx_start and idx <= idx_end]
-                    node_weights = [self.raw_node_weights[n:n+4] for idx, n in enumerate(range(0, len(self.raw_node_weights), 4)) if idx >= idx_start and idx <= idx_end]
-                    
+                    node_indices = self.raw_node_indices[idx_start*4:idx_end*4+4]
+                    node_weights = self.raw_node_weights[idx_start*4:idx_end*4+4]
                     vgroups = ob.vertex_groups
-                    
                     for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
                         for i, w in zip(ni, nw):
-                            if i < 0 or i > 254 or w <= 0: continue
-                            if self.node_map: i = self.node_map[i]
-                            group = vgroups.get(nodes[i].name)
-                            if not group:
-                                group = vgroups.new(name=nodes[i].name)
-                                
-                            group.add([idx], w, 'REPLACE')
-                    
+                            if 0 <= i <= 254 and w > 0:
+                                if self.node_map:
+                                    i = self.node_map[i]
+                                group = vgroups.get(nodes[i].name) or vgroups.new(name=nodes[i].name)
+                                group.add([idx], w, 'REPLACE')
                     ob.modifiers.new(name="Armature", type="ARMATURE").object = parent
-                    
+
         if not self.face_transparent:
             mesh.nwo.face_transparent = self.parts[0].transparent
         if not self.face_draw_distance:
             mesh.nwo.face_draw_distance = self.parts[0].draw_distance.name
         if not self.face_tesselation:
             mesh.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
-            
+
         water_surface_parts = {p for p in self.parts if p.water_surface}
-        
+
         if subpart:
             mesh.materials.append(subpart.part.material.blender_material)
         else:
             for subpart in self.subparts:
                 subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, water_surface_parts)
-        
+
         self._set_two_sided(mesh)
         utils.loop_normal_magic(mesh)
-        if mean(ob.dimensions.to_tuple()) < 20:
-            # Assume this mesh was uncompressed
-            mesh.nwo.precise_position = True
         
+        if mesh.nwo.face_props:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            for face_layer in mesh.nwo.face_props:
+                face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+            bm.free()
+
+        if mean(ob.dimensions.to_tuple()) < 20:
+            mesh.nwo.precise_position = True
+
         return ob
-    
+
     def _set_two_sided(self, mesh):
         bm = bmesh.new()
         bm.from_mesh(mesh)
         bm.faces.ensure_lookup_table()
-        
+
         face_dict = {}
         for face in bm.faces:
             vert_set = frozenset(v.co.to_tuple() for v in face.verts)
-            if vert_set in face_dict:
-                face_dict[vert_set].append(face)
-            else:
-                face_dict[vert_set] = [face]
-        
+            face_dict.setdefault(vert_set, []).append(face)
+
         to_remove = set()
         two_sided = set()
-        for vert_set, faces in face_dict.items():
-            if len(faces) > 1:
-                for i, f1 in enumerate(faces):
-                    for f2 in faces[i+1:]:
-                        if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)}:
-                            to_remove.add(f2.index)
-                            two_sided.add(f1.index)
-                            break
-        
-        if not to_remove:
-            bm.free()
-            return
-        
-        if len(bm.faces) == len(to_remove):
-            mesh.nwo.face_two_sided = True
-        else:
-            layer = utils.add_face_layer(bm, mesh, "two_sided", True)
-            for face in bm.faces:
-                if face.index in two_sided:
-                    face[layer] = 1
-                    
-        bm.faces.ensure_lookup_table()
-        bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
-        bm.faces.ensure_lookup_table()
-        
-        for face_layer in mesh.nwo.face_props:
-            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-        
+        for faces in face_dict.values():
+            for i, f1 in enumerate(faces):
+                for f2 in faces[i+1:]:
+                    if {v.co.to_tuple() for v in f1.verts} == {v.co.to_tuple() for v in reversed(f2.verts)}:
+                        to_remove.add(f2.index)
+                        two_sided.add(f1.index)
+                        break
+
+        if to_remove:
+            if len(bm.faces) == len(to_remove):
+                mesh.nwo.face_two_sided = True
+            else:
+                layer = utils.add_face_layer(bm, mesh, "two_sided", True)
+                for face in bm.faces:
+                    if face.index in two_sided:
+                        face[layer] = 1
+
+            bmesh.ops.delete(bm, geom=[bm.faces[i] for i in to_remove], context='FACES')
+            
         bm.to_mesh(mesh)
-        bm.free() 
+        bm.free()
+
         
 class InstancePlacement:
     index: int

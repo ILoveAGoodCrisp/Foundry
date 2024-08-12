@@ -56,7 +56,7 @@ from ..tools.property_apply import apply_props_material
 from ..tools.shader_finder import find_shaders
 from ..tools.shader_reader import tag_to_nodes
 from ..constants import VALID_MESHES
-from ..utils import ExportManager, MutePrints, TagImportMover, add_to_collection, amf_addon_installed, apply_loop_normals, blender_toolset_installed, color_3p_str, dot_partition, get_prefs, get_project, get_rig, get_tags_path, has_shader_path, human_time, is_corinth, jstr, layer_face_count, mute_armature_mods, new_face_prop, nwo_asset_type, print_warning, random_color, rotation_diff_from_forward, save_loop_normals, set_active_object, stomp_scale_multi_user, transform_scene, true_region, unlink, unmute_armature_mods, update_progress, legacy_lightmap_prefixes, clean_materials
+from .. import utils
 
 pose_hints = 'aim', 'look', 'acc', 'steer', 'pain'
 legacy_model_formats = '.jms', '.ass'
@@ -111,7 +111,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
         else:
             objects_in_scope = bpy.data.objects
             
-        with ExportManager():
+        with utils.ExportManager():
             os.system("cls")
             start = time.perf_counter()
             user_cancelled = False
@@ -135,7 +135,7 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
                         converter.process_jms_objects(objects_in_scope, "", self.jms_type == 'model')
                 
             except KeyboardInterrupt:
-                print_warning("\nCANCELLED BY USER")
+                utils.print_warning("\nCANCELLED BY USER")
                 user_cancelled = True
                 
         end = time.perf_counter()
@@ -259,10 +259,10 @@ class NWO_Import(bpy.types.Operator):
     
     def execute(self, context):
         filepaths = [self.directory + f.name for f in self.files]
-        corinth = is_corinth(context)
+        corinth = utils.is_corinth(context)
         scale_factor = 0.03048 if context.scene.nwo.scale == 'blender' else 1
-        to_x_rot = rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
-        from_x_rot = rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
+        to_x_rot = utils.rotation_diff_from_forward(context.scene.nwo.forward_direction, 'x')
+        from_x_rot = utils.rotation_diff_from_forward('x', context.scene.nwo.forward_direction)
         needs_scaling = scale_factor != 1 or to_x_rot
         start = time.perf_counter()
         imported_objects = []
@@ -270,7 +270,7 @@ class NWO_Import(bpy.types.Operator):
         starting_materials = bpy.data.materials[:]
         self.nothing_imported = False
         self.user_cancelled = False
-        with ExportManager():
+        with utils.ExportManager():
             os.system("cls")
             if context.scene.nwo_export.show_output:
                 bpy.ops.wm.console_toggle()  # toggle the console so users can see progress of export
@@ -283,7 +283,7 @@ class NWO_Import(bpy.types.Operator):
                     scope_list = self.scope.split(',')
                 importer = NWOImporter(context, self.report, filepaths, scope_list)
                 if 'amf' in importer.extensions and self.amf_okay:
-                    amf_module_name = amf_addon_installed()
+                    amf_module_name = utils.amf_addon_installed()
                     amf_addon_enabled = addon_utils.check(amf_module_name)[0]
                     if not amf_addon_enabled:
                         addon_utils.enable(amf_module_name)
@@ -295,7 +295,7 @@ class NWO_Import(bpy.types.Operator):
                         imported_objects.extend(imported_amf_objects)
                     
                     if to_x_rot:
-                        transform_scene(context, 1, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
+                        utils.transform_scene(context, 1, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_amf_objects, actions=[])
                         
                 if self.legacy_okay and any([ext in ('jms', 'jma') for ext in importer.extensions]):
                     toolset_addon_enabled = addon_utils.check('io_scene_halo')[0]
@@ -305,7 +305,7 @@ class NWO_Import(bpy.types.Operator):
                     jma_files = importer.sorted_filepaths["jma"]
                     # Transform Scene so it's ready for JMA/JMS files
                     if needs_scaling:
-                        transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
+                        utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x')
                         
                     imported_jms_objects = importer.import_jms_files(jms_files, self.legacy_fix_rotations)
                     imported_jma_animations = importer.import_jma_files(jma_files, self.legacy_fix_rotations)
@@ -318,7 +318,7 @@ class NWO_Import(bpy.types.Operator):
                         
                     # Return to our scale
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction)
                         
                 if 'model' in importer.extensions:
                     importer.tag_render = self.tag_render
@@ -328,13 +328,13 @@ class NWO_Import(bpy.types.Operator):
                     model_files = importer.sorted_filepaths["model"]
                     existing_armature = None
                     if self.reuse_armature:
-                        existing_armature = get_rig(context)
+                        existing_armature = utils.get_rig(context)
                         if needs_scaling:
-                            transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
+                            utils.transform_scene(context, (1 / scale_factor), to_x_rot, context.scene.nwo.forward_direction, 'x', objects=[existing_armature], actions=[])
                             
                     imported_model_objects = importer.import_models(model_files, existing_armature)
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_model_objects, actions=[])
                         
                     imported_objects.extend(imported_model_objects)
                     
@@ -342,7 +342,7 @@ class NWO_Import(bpy.types.Operator):
                     scenario_files = importer.sorted_filepaths["scenario"]
                     imported_scenario_objects = importer.import_scenarios(scenario_files)
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_scenario_objects, actions=[])
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_scenario_objects, actions=[])
                         
                     imported_objects.extend(imported_scenario_objects)
 
@@ -353,12 +353,12 @@ class NWO_Import(bpy.types.Operator):
                 if new_materials:
                     new_materials = clear_duplicate_materials(True, new_materials)
                     for m in new_materials:
-                        if not m.nwo.shader_path and has_shader_path(m):
+                        if not m.nwo.shader_path and utils.has_shader_path(m):
                             missing_some_shader_paths = True
                             break
                 
                 if self.find_shader_paths and missing_some_shader_paths:
-                    if is_corinth():
+                    if utils.is_corinth(context):
                         print('Updating material tag paths for imported objects')
                     else:
                         print('Updating shader tag paths for imported objects')
@@ -367,11 +367,11 @@ class NWO_Import(bpy.types.Operator):
                         find_shaders(new_materials)
                             
                 if self.build_blender_materials:
-                    if is_corinth(context):
+                    if utils.is_corinth(context):
                         print('Building Blender materials from material tags')
                     else:
                         print('Building Blender materials from shader tags')
-                    with MutePrints():
+                    with utils.MutePrints():
                         for mat in new_materials:
                             shader_path = mat.nwo.shader_path
                             if shader_path:
@@ -392,11 +392,11 @@ class NWO_Import(bpy.types.Operator):
                     camera_track_files = importer.sorted_filepaths["camera_track"]
                     cameras, actions = importer.import_camera_tracks(camera_track_files, self.camera_track_animation_scale)
                     if needs_scaling:
-                        transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=cameras, actions=actions)
                         
                         
             except KeyboardInterrupt:
-                print_warning("\nIMPORT CANCELLED BY USER")
+                utils.print_warning("\nIMPORT CANCELLED BY USER")
                 self.user_cancelled = True
         
         end = time.perf_counter()
@@ -409,7 +409,7 @@ class NWO_Import(bpy.types.Operator):
             print(
                 "\n-----------------------------------------------------------------------"
             )
-            print(f"Import Completed in {human_time(end - start)}")
+            print(f"Import Completed in {utils.human_time(end - start)}")
 
             print(
                 "-----------------------------------------------------------------------\n"
@@ -424,33 +424,33 @@ class NWO_Import(bpy.types.Operator):
             self.filter_glob = "*.bitmap;*.camera_track;*.model*;"
         else:
             if 'bitmap' in self.scope:
-                self.directory = get_tags_path()
+                self.directory = utils.get_tags_path()
             elif 'camera_track' in self.scope:
-                cameras_dir = Path(get_tags_path(), 'camera')
+                cameras_dir = Path(utils.get_tags_path(), 'camera')
                 if cameras_dir.exists():
                     self.directory = str(cameras_dir)
                 else:
-                    self.directory = get_tags_path()
+                    self.directory = utils.get_tags_path()
             else:
                 self.directory = ''
                 self.filepath = ''
                 
             self.filename = ''
             if (not self.scope or 'bitmap' in self.scope):
-                self.directory = get_tags_path()
+                self.directory = utils.get_tags_path()
                 self.filter_glob += "*.bitmap;"
             if (not self.scope or 'camera_track' in self.scope):
                 self.filter_glob += '*.camera_track;'
             if (not self.scope or 'model' in self.scope):
                 self.filter_glob += '*.model*;'
                 
-        if amf_addon_installed() and (not self.scope or 'amf' in self.scope):
+        if utils.amf_addon_installed() and (not self.scope or 'amf' in self.scope):
             self.amf_okay = True
             self.filter_glob += "*.amf;"
-        if blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
+        if utils.blender_toolset_installed() and (not self.scope or 'jms' in self.scope):
             self.legacy_okay = True
             self.filter_glob += '*.jms;*.ass;'
-        if blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
+        if utils.blender_toolset_installed() and (not self.scope or 'jma' in self.scope):
             self.legacy_okay = True
             self.filter_glob += '*.jmm;*.jma;*.jmt;*.jmz;*.jmv;*.jmw;*.jmo;*.jmr;*.jmrx;'
             
@@ -467,7 +467,7 @@ class NWO_Import(bpy.types.Operator):
         if not self.scope or ('amf' in self.scope or 'jms' in self.scope or 'model' in self.scope):
             box = layout.box()
             box.label(text="Model Settings")
-            tag_type = 'material' if is_corinth(context) else 'shader'
+            tag_type = 'material' if utils.is_corinth(context) else 'shader'
             box.prop(self, 'find_shader_paths', text=f"Find {tag_type.capitalize()} Tag Paths")
             if self.find_shader_paths:
                 box.prop(self, 'build_blender_materials', text=f"Blender Materials from {tag_type.capitalize()} Tags")
@@ -623,8 +623,8 @@ class JMSMaterialSlot:
         self.lightmap_additive_transparency = None
         
         parts = name.split()
-        if len(parts) > 1 and (parts[0].startswith(legacy_lightmap_prefixes) or parts[-1].startswith(legacy_lightmap_prefixes)):
-            pattern = r'(' + '|'.join(legacy_lightmap_prefixes) + r')(\d+\.?\d*)'
+        if len(parts) > 1 and (parts[0].startswith(utils.legacy_lightmap_prefixes) or parts[-1].startswith(utils.legacy_lightmap_prefixes)):
+            pattern = r'(' + '|'.join(utils.legacy_lightmap_prefixes) + r')(\d+\.?\d*)'
             matches = re.findall(pattern, name)
             for match_groups in matches:
                 if len(match_groups) <= 1:
@@ -709,11 +709,11 @@ class NWOImporter:
         self.marker_objects = []
         self.extensions = set()
         self.existing_scene = existing_scene
-        self.apply_materials = get_prefs().apply_materials
-        self.prefix_setting = get_prefs().apply_prefix
-        self.corinth = is_corinth(context)
-        self.project = get_project(context.scene.nwo.scene_project)
-        self.arm = get_rig(context)
+        self.apply_materials = utils.get_prefs().apply_materials
+        self.prefix_setting = utils.get_prefs().apply_prefix
+        self.corinth = utils.is_corinth(context)
+        self.project = utils.get_project(context.scene.nwo.scene_project)
+        self.arm = utils.get_rig(context)
         self.tag_render = False
         self.tag_markers = False
         self.tag_collision = False
@@ -799,7 +799,7 @@ class NWOImporter:
         return cameras, actions
             
     def import_camera_track(self, file, animation_scale):
-        with TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with CameraTrackTag(path=mover.tag_path) as camera_track:
                 camera, action = camera_track.to_blender_animation(self.context, animation_scale)
             
@@ -812,7 +812,7 @@ class NWOImporter:
         imported_animations = []
         for file in paths:
             print(f'Importing Model Tag: {Path(file).with_suffix("").name} ')
-            with TagImportMover(self.project.tags_directory, file) as mover:
+            with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
                     render, collision, animation, physics = model.get_model_paths()
@@ -836,7 +836,7 @@ class NWOImporter:
         armature = None
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
-        with TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature)
             
@@ -847,7 +847,7 @@ class NWOImporter:
         collision_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_collision")
         model_collection.children.link(collection)
-        with TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with CollisionTag(path=mover.tag_path) as collision_model:
                 collision_model_objects = collision_model.to_blend_objects(collection, armature)
             
@@ -858,7 +858,7 @@ class NWOImporter:
         physics_model_objects = []
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_physics")
         model_collection.children.link(collection)
-        with TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with PhysicsTag(path=mover.tag_path) as physics_model:
                 physics_model_objects = physics_model.to_blend_objects(collection, armature)
             
@@ -867,7 +867,7 @@ class NWOImporter:
     def import_animation_graph(self, file, armature, render):
         print("Importing Animations")
         actions = []
-        with TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with AnimationTag(path=mover.tag_path) as graph:
                 actions = graph.to_blender(render, armature)
             
@@ -877,7 +877,7 @@ class NWOImporter:
         imported_objects = []
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
-            with TagImportMover(self.project.tags_directory, file) as mover:
+            with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
                     bsps = scenario.get_bsp_paths()
@@ -899,10 +899,15 @@ class NWOImporter:
         bsp_objects = []
         collection = bpy.data.collections.new(name)
         scenario_collection.children.link(collection)
-        with TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects = bsp.to_blend_objects(collection)
-            
+        
+        bsp_name = utils.add_region(name)
+        collection.name = "bsp::" + bsp_name
+        collection.nwo.type = "region"
+        collection.nwo.region = bsp_name
+        
         return bsp_objects
     
     def import_seams(self, file, scenario_collection, scenario_name):
@@ -910,7 +915,7 @@ class NWOImporter:
         seam_objects = []
         collection = bpy.data.collections.new(scenario_name + "_seams")
         scenario_collection.children.link(collection)
-        with TagImportMover(self.project.tags_directory, file) as mover:
+        with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with StructureSeamsTag(path=mover.tag_path) as seams:
                 seam_objects = seams.to_blend_objects(collection)
         
@@ -924,10 +929,10 @@ class NWOImporter:
         job = "Progress"
         bitmap_count = len(bitmap_files)
         for idx, fp in enumerate(bitmap_files):
-            update_progress(job, idx / bitmap_count)
-            bitmap_name = dot_partition(os.path.basename(fp))
+            utils.update_progress(job, idx / bitmap_count)
+            bitmap_name = utils.dot_partition(os.path.basename(fp))
             if 'lp_array' in bitmap_name or 'global_render_texture' in bitmap_name: continue # Filter out the bitmaps that crash ManagedBlam
-            with TagImportMover(self.project.tags_directory, fp) as mover:
+            with utils.TagImportMover(self.project.tags_directory, fp) as mover:
                 with BitmapTag(path=mover.tag_path) as bitmap:
                     if not bitmap.has_bitmap_data(): continue
                     is_non_color = bitmap.is_linear()
@@ -935,7 +940,7 @@ class NWOImporter:
                     if image_path:
                         # print(f"--- Extracted {os.path.basename(fp)} to {relative_path(image_path)}")
                         extracted_bitmaps[image_path] = is_non_color
-        update_progress(job, 1)
+        utils.update_progress(job, 1)
         print(f"\nExtracted {len(extracted_bitmaps)} bitmaps")
         
         return extracted_bitmaps
@@ -949,7 +954,7 @@ class NWOImporter:
         job = "Progress"
         image_paths_count = len(image_paths)
         for idx, (path, is_non_color) in enumerate(image_paths.items()):
-            update_progress(job, idx / image_paths_count)
+            utils.update_progress(job, idx / image_paths_count)
             image = bpy.data.images.load(filepath=path, check_existing=True)
             images.append(image)
             image.use_fake_user = fake_user
@@ -958,7 +963,7 @@ class NWOImporter:
             else:
                 image.alpha_mode = 'CHANNEL_PACKED'
             
-        update_progress(job, 1)
+        utils.update_progress(job, 1)
         
         return images
     
@@ -978,9 +983,9 @@ class NWOImporter:
         # get all objects that exist prior to import
         path = Path(path)
         pre_import_objects = bpy.data.objects[:]
-        file_name = dot_partition(os.path.basename(path))
+        file_name = utils.dot_partition(os.path.basename(path))
         print(f"Importing AMF: {file_name}")
-        with MutePrints():
+        with utils.MutePrints():
             bpy.ops.import_scene.amf(files=[{'name': path.name}], directory=str(path.parent), import_units=import_size, marker_prefix='')
         new_objects = [ob for ob in bpy.data.objects if ob not in pre_import_objects]
         self.process_amf_objects(new_objects, file_name)
@@ -1015,7 +1020,7 @@ class NWOImporter:
         self.amf_file_marker_objects = []
         for ob in objects:
             if file_name:
-                unlink(ob)
+                utils.unlink(ob)
                 new_coll.objects.link(ob)
             if ob.type == 'MESH':
                 self.setup_amf_mesh(ob, is_model)
@@ -1026,18 +1031,18 @@ class NWOImporter:
                 
         if self.amf_poops:
             print("Fixing scale")
-            stomp_scale_multi_user(self.amf_poops)
+            utils.stomp_scale_multi_user(self.amf_poops)
         
         if self.amf_object_instances:
             unsolved_instances = self.solve_amf_object_instances()
             if unsolved_instances:
-                print_warning("\nUnable to determine object instance regions and/or permutations for:")
-                [print_warning(f"- {ob.name}") for ob in unsolved_instances]
+                utils.print_warning("\nUnable to determine object instance regions and/or permutations for:")
+                [utils.print_warning(f"- {ob.name}") for ob in unsolved_instances]
                 print("Review the source render_model tag (if available) to determine correct region/permutations\n")
         
         if not self.existing_scene:
-            add_to_collection(self.amf_file_marker_objects, True, new_coll, name="markers")
-            add_to_collection(self.amf_file_mesh_objects, True, new_coll, name="meshes")
+            utils.add_to_collection(self.amf_file_marker_objects, True, new_coll, name="markers")
+            utils.add_to_collection(self.amf_file_mesh_objects, True, new_coll, name="meshes")
             
         self.amf_marker_objects.extend(self.amf_file_marker_objects)
         self.amf_mesh_objects.extend(self.amf_file_mesh_objects)
@@ -1073,7 +1078,7 @@ class NWOImporter:
                     
     
     def setup_amf_mesh(self, ob, is_model):
-        name = dot_partition(ob.name)
+        name = utils.dot_partition(ob.name)
         if is_model:
             if name.startswith('Instances:'):
                 ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_object_instance'
@@ -1082,8 +1087,8 @@ class NWOImporter:
                 parts = name.split(':')
                 if len(parts) > 1:
                     region, permutation = parts[0], parts[1]
-                    self.set_region(ob, dot_partition(region))
-                    self.set_permutation(ob, dot_partition(permutation))
+                    self.set_region(ob, utils.dot_partition(region))
+                    self.set_permutation(ob, utils.dot_partition(permutation))
         else:
             if name.startswith('Clusters'):
                 ob.data.nwo.mesh_type = '_connected_geometry_mesh_type_structure'
@@ -1093,7 +1098,7 @@ class NWOImporter:
         self.amf_file_mesh_objects.append(ob)
         
     def setup_amf_marker(self, ob, is_model):
-        name = dot_partition(ob.name)
+        name = utils.dot_partition(ob.name)
         nwo = ob.nwo
         if is_model:
             if name.startswith('fx'):
@@ -1139,7 +1144,7 @@ class NWOImporter:
         file_name = path.with_suffix("").name
         ext = path.suffix.strip('.').upper()
         print(f"Importing {ext}: {file_name}")
-        with MutePrints():
+        with utils.MutePrints():
             if ext == 'JMS':
                 bpy.ops.import_scene.jms(files=[{'name': path.name}], directory=str(path.parent), fix_rotations=legacy_fix_rotations, reuse_armature=True, empty_markers=True)
             else:
@@ -1150,7 +1155,7 @@ class NWOImporter:
             new_objects.append(self.arm)
         self.jms_file_marker_objects = []
         self.jms_file_mesh_objects = []
-        self.process_jms_objects(new_objects, file_name, nwo_asset_type() not in ("scenario", "prefab") and bool([ob for ob in new_objects if ob.type == 'ARMATURE']))
+        self.process_jms_objects(new_objects, file_name, utils.nwo_asset_type() not in ("scenario", "prefab") and bool([ob for ob in new_objects if ob.type == 'ARMATURE']))
         
         self.jms_marker_objects.extend(self.jms_file_marker_objects)
         self.jms_mesh_objects.extend(self.jms_file_mesh_objects)
@@ -1200,7 +1205,7 @@ class NWOImporter:
                 else:
                     bm = bmesh.new()
                     bm.from_mesh(ob.data)
-                    save_loop_normals(bm, ob.data)
+                    utils.save_loop_normals(bm, ob.data)
                     for idx, perm_region in enumerate(ob.region_list):
                         parts = perm_region.name.split(' ')
                         if len(parts) == 1:
@@ -1223,8 +1228,8 @@ class NWOImporter:
                         region_layer = bm.faces.layers.int.get("Region Assignment")
                         bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[region_layer] != idx + 1], context='FACES')
                         bm.to_mesh(new_ob.data)
-                        apply_loop_normals(new_ob.data)
-                        clean_materials(new_ob)
+                        utils.apply_loop_normals(new_ob.data)
+                        utils.clean_materials(new_ob)
                         objects.append(new_ob)
 
                     bm.free()
@@ -1239,7 +1244,7 @@ class NWOImporter:
             
         for ob in objects:
             if file_name:
-                unlink(ob)
+                utils.unlink(ob)
                 new_coll.objects.link(ob)
             if ob.name.lower().startswith(legacy_frame_prefixes) or ob.type == 'ARMATURE':
                 self.setup_jms_frame(ob)
@@ -1252,8 +1257,8 @@ class NWOImporter:
                 self.jms_other_objects.append(ob)
         
         if not self.existing_scene:
-            add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
-            add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
+            utils.add_to_collection(self.jms_file_marker_objects, True, new_coll, name="markers")
+            utils.add_to_collection(self.jms_file_mesh_objects, True, new_coll, name="meshes")
             
         for data in self.light_data:
             data.energy = data.energy * (0.03048 ** -2) * 10
@@ -1440,9 +1445,9 @@ class NWOImporter:
                 
             if is_model:
                 if ':' not in ob.name:
-                    self.set_region(ob, dot_partition(ob.name).strip('@$~%'))
+                    self.set_region(ob, utils.dot_partition(ob.name).strip('@$~%'))
                 else:
-                    region, permutation = dot_partition(ob.name).strip('@$~%').split(':')
+                    region, permutation = utils.dot_partition(ob.name).strip('@$~%').split(':')
                     self.set_region(ob, region)
                     self.set_permutation(ob, permutation)
                     
@@ -1544,7 +1549,7 @@ class NWOImporter:
             linked_objects = [o for o in bpy.data.objects if o != ob and o.data == ob.data]
             bm_original = bmesh.new()
             bm_original.from_mesh(ob.data)
-            save_loop_normals(bm_original, ob.data)
+            utils.save_loop_normals(bm_original, ob.data)
             for jms_mat in jms_materials:
                 if jms_mat.mesh_type == 'default':
                     continue
@@ -1559,8 +1564,8 @@ class NWOImporter:
                 bmesh.ops.delete(bm_original, geom=faces_to_remove_original, context='FACES')
                 bm.to_mesh(new_ob.data)
                 bm.free()
-                apply_loop_normals(new_ob.data)
-                clean_materials(new_ob)
+                utils.apply_loop_normals(new_ob.data)
+                utils.clean_materials(new_ob)
                     
                 new_ob.nwo.mesh_type_temp = jms_mat.mesh_type
                 objects_to_setup.append(new_ob)
@@ -1578,8 +1583,8 @@ class NWOImporter:
                 objects_to_setup.remove(ob)
                 bpy.data.objects.remove(ob)
             else:
-                apply_loop_normals(ob.data)
-                clean_materials(ob)
+                utils.apply_loop_normals(ob.data)
+                utils.clean_materials(ob)
             
         for ob in objects_to_setup:
             if len(ob.data.materials) == 1 or self.matching_material_properties(ob.data.materials, jms_materials):
@@ -1644,84 +1649,84 @@ class NWOImporter:
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Two Sided", "face_two_sided_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Two Sided", "face_two_sided_override")))
                                 
                         if jms_mat.transparent_one_sided or jms_mat.transparent_two_sided:
                             l_name = 'transparent'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Transparent", "face_transparent_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Transparent", "face_transparent_override")))
                                 
                         if jms_mat.render_only:
                             l_name = 'render_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Render Only", "render_only_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Render Only", "render_only_override")))
                                 
                         if jms_mat.collision_only:
                             l_name = 'collision_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Collision Only", "collision_only_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Collision Only", "collision_only_override")))
                                 
                         if jms_mat.sphere_collision_only:
                             l_name = 'sphere_collision_only'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Sphere Collision Only", "sphere_collision_only_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Sphere Collision Only", "sphere_collision_only_override")))
                                 
                         if jms_mat.ladder:
                             l_name = 'ladder'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Ladder", "ladder_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Ladder", "ladder_override")))
                                 
                         if jms_mat.breakable:
                             l_name = 'breakable'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Breakable", "breakable_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Breakable", "breakable_override")))
                                 
                         if jms_mat.no_shadow:
                             l_name = 'no_shadow'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "No Shadow", "no_shadow_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "No Shadow", "no_shadow_override")))
                                 
                         if jms_mat.precise:
                             l_name = 'uncompressed'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Uncompressed", "precise_position_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Uncompressed", "precise_position_override")))
                                 
                         if jms_mat.ignored_by_lightmaps:
                             l_name = 'no_lightmap'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "No Lightmap", "no_lightmap_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "No Lightmap", "no_lightmap_override")))
                                 
                         if jms_mat.decal_offset:
                             l_name = 'decal_offset'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Decal Offset", "decal_offset_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Decal Offset", "decal_offset_override")))
                                 
                         if jms_mat.slip_surface:
                             l_name = 'slip_surface'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Slip Surface", "slip_surface_override")))
                         
                         # Lightmap
                         # if jms_mat.lightmap_resolution_scale:
@@ -1736,18 +1741,18 @@ class NWOImporter:
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color": jms_mat.lightmap_translucency_tint_color})))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Translucency Tint Color", "lightmap_translucency_tint_color_override", {"lightmap_translucency_tint_color": jms_mat.lightmap_translucency_tint_color})))
                         
                         if jms_mat.lightmap_additive_transparency:
                             l_name = 'lightmap_additive_transparency'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency": jms_mat.lightmap_additive_transparency})))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Lightmap Additive Transparency", "lightmap_additive_transparency_override", {"lightmap_additive_transparency": jms_mat.lightmap_additive_transparency})))
                         
                         # Emissive
                         if jms_mat.emissive_power:
-                            l_name = f'emissive{jstr(jms_mat.emissive_power).replace(".", "")}_{color_3p_str(jms_mat.emissive_color).replace(".", "").replace(" ", "")}'
+                            l_name = f'emissive{utils.jstr(jms_mat.emissive_power).replace(".", "")}_{utils.color_3p_str(jms_mat.emissive_color).replace(".", "").replace(" ", "")}'
                             if bm.faces.layers.int.get(l_name):
                                 layers[idx].append(bm.faces.layers.int.get(l_name))
                             else:
@@ -1761,7 +1766,7 @@ class NWOImporter:
                                     "material_lighting_attenuation_falloff": jms_mat.emissive_attenuation_falloff,
                                     "material_lighting_attenuation_cutoff": jms_mat.emissive_attenuation_cutoff,
                                 }
-                                layers[idx].append(bm.faces.layers.int.new(new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
+                                layers[idx].append(bm.faces.layers.int.new(utils.new_face_prop(ob.data, l_name, "Emissive", "emissive_override", emissive_props_dict)))
                         
                 for face in bm.faces:
                     for idx, face_layer_list in layers.items():
@@ -1770,7 +1775,7 @@ class NWOImporter:
                                 face[face_layer] = 1
                  
                 for layer in face_props:
-                    layer.face_count = layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
+                    layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(layer.layer_name))
                                 
                 bm.to_mesh(ob.data)
                 bm.free()
@@ -1809,7 +1814,7 @@ class NWOImporter:
                 layer.face_global_material_override = True
                 material_index = slot.slot_index
                 layer.layer_name, layer.face_count = self.add_collision_face_layer(ob.data, material_index, layer.layer_name)
-                layer.layer_color = random_color()
+                layer.layer_color = utils.random_color()
                 
     def add_collision_face_layer(self, mesh, material_index, prefix):
         bm = bmesh.new()
@@ -1821,7 +1826,7 @@ class NWOImporter:
         
         bm.to_mesh(mesh)
                 
-        return face_layer.name, layer_face_count(bm, face_layer)
+        return face_layer.name, utils.layer_face_count(bm, face_layer)
         
     def get_mesh_type(self, ob: bpy.types.Object, is_model):
         if ob.nwo.mesh_type_temp == 'skip':
@@ -1900,7 +1905,7 @@ class NWOImporter:
                 mesh_type = "_connected_geometry_mesh_type_streaming"
                 material = "StreamingVolume"
             case "lightmap":
-                if is_corinth(self.context):
+                if utils.is_corinth(self.context):
                     mesh_type = "_connected_geometry_mesh_type_lightmap_exclude"
                     material = "LightmapExcludeVolume"
 
@@ -1929,7 +1934,7 @@ class NWOImporter:
         if scene_nwo.main_armature:
             arm = scene_nwo.main_armature
         else:
-            arm = get_rig(self.context)
+            arm = utils.get_rig(self.context)
             if not arm:
                 arm_data = bpy.data.armatures.new('Armature')
                 arm = bpy.data.objects.new('Armature', arm_data)
@@ -1937,8 +1942,8 @@ class NWOImporter:
             
         arm.hide_set(False)
         arm.hide_select = False
-        set_active_object(arm)
-        muted_armature_deforms = mute_armature_mods()
+        utils.set_active_object(arm)
+        muted_armature_deforms = utils.mute_armature_mods()
         if jma_files:
             print("Importing Animations")
             print(
@@ -1947,20 +1952,20 @@ class NWOImporter:
             for path in jma_files:
                 self.import_legacy_animation(path, legacy_fix_rotations)
             
-            unmute_armature_mods(muted_armature_deforms)
+            utils.unmute_armature_mods(muted_armature_deforms)
             
             return self.animations
             
         
     def import_legacy_animation(self, path, legacy_fix_rotations):
         existing_animations = bpy.data.actions[:]
-        print(f"--- {dot_partition(os.path.basename(path))}")
-        with MutePrints():
+        print(f"--- {utils.dot_partition(os.path.basename(path))}")
+        with utils.MutePrints():
             bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
         if bpy.data.actions:
             new_animations = [a for a in bpy.data.actions if a not in existing_animations]
             if not new_animations:
-                return print_warning(f"Failed to import animation: {path}")
+                return utils.print_warning(f"Failed to import animation: {path}")
                 
             anim = new_animations[0]
             self.animations.append(anim)

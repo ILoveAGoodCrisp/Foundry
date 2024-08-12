@@ -49,19 +49,6 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     sphere_collision_only_override: bpy.props.BoolProperty()
     player_collision_only_override: bpy.props.BoolProperty()
     bullet_collision_only_override: bpy.props.BoolProperty()
-
-    def scene_bsps(self, context):
-        bsp_list = []
-        for ob in context.scene.objects:
-            bsp = utils.true_region(ob.nwo)
-            if bsp not in bsp_list and bsp != utils.true_region(context.object.nwo):
-                bsp_list.append(bsp)
-
-        items = []
-        for index, bsp in enumerate(bsp_list):
-            items.append(utils.bpy_enum_seam(bsp, index))
-
-        return items
     
     render_only: bpy.props.BoolProperty()
     collision_only: bpy.props.BoolProperty()

@@ -183,7 +183,7 @@ class ScenarioStructureBspTag(Tag):
             objects.extend(definition.create(render_model, temp_meshes))
             instance_definitions.append(definition)
             
-        # # Create instanced geometries
+        # # # Create instanced geometries
         print("Creating Instanced Objects")
         for element in self.block_instances.Elements:
             io = Instance(element, instance_definitions)
@@ -203,56 +203,65 @@ class ScenarioStructureBspTag(Tag):
         # Merge structure
         if structure_objects:
             print("Merging Structure")
+            utils.deselect_all_objects()
             bm = bmesh.new()
             for ob in structure_objects:
-                ob.select_set(True)
-                    
-            utils.set_active_object(structure_objects[0])
-            bpy.ops.nwo.join_halo()
+                if ob.type == "MESH":
+                    ob.select_set(True)
             
-            joined_structure = utils.get_active_object()
-            structure_mesh = joined_structure.data
-            joined_structure.name = self.collection.name + "_structure"
-            
-            utils.deselect_all_objects()
-            
-            bm = bmesh.new()
-            bm.from_mesh(structure_mesh)
-            
-            water_layer = bm.faces.layers.int.get("water_surface")
-            if water_layer:
-                water_mesh = structure_mesh.copy()
-                water_mesh.name = "water_surface"
-                bmw = bm.copy()
-                bmw_water_layer = bmw.faces.layers.int.get("water_surface")
-                bmesh.ops.delete(bmw, geom=[f for f in bmw.faces if not f[bmw_water_layer]], context='FACES')
-                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[water_layer]], context='FACES')
-                bmw.faces.layers.int.remove(bmw_water_layer)
-                bm.faces.layers.int.remove(water_layer)
-                bmw.to_mesh(water_mesh)
-                if water_mesh.polygons:
-                    water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
-                    self.collection.objects.link(water_ob)
-                    utils.apply_loop_normals(water_mesh)
-                    water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
-                    water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
-                    utils.loop_normal_magic(water_ob.data)
-                    water_ob.select_set(True)
-                    utils.set_active_object(water_ob)
-                    bpy.ops.object.editmode_toggle()
-                    bpy.ops.mesh.separate(type="LOOSE")
-                    bpy.ops.object.editmode_toggle()
-                    for ob in bpy.context.selected_objects:
-                        objects.append(ob)
-                    utils.deselect_all_objects()
+            if bpy.context.selected_objects:
+                utils.set_active_object(bpy.context.selected_objects[0])
+                bpy.ops.nwo.join_halo()
+                
+                joined_structure = utils.get_active_object()
+                structure_mesh = joined_structure.data
+                joined_structure.name = self.collection.name + "_structure"
+                
+                utils.deselect_all_objects()
+                
+                bm = bmesh.new()
+                bm.from_mesh(structure_mesh)
+                
+                water_layer = bm.faces.layers.int.get("water_surface")
+                if water_layer:
+                    water_mesh = structure_mesh.copy()
+                    water_mesh.name = "water_surface"
+                    bmw = bm.copy()
+                    bmw_water_layer = bmw.faces.layers.int.get("water_surface")
+                    bmesh.ops.delete(bmw, geom=[f for f in bmw.faces if not f[bmw_water_layer]], context='FACES')
+                    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[water_layer]], context='FACES')
+                    bmw.faces.layers.int.remove(bmw_water_layer)
+                    bm.faces.layers.int.remove(water_layer)
+                    bmw.to_mesh(water_mesh)
+                    if water_mesh.polygons:
+                        water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
+                        self.collection.objects.link(water_ob)
+                        utils.apply_loop_normals(water_mesh)
+                        water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
+                        water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
+                        utils.loop_normal_magic(water_ob.data)
+                        water_ob.select_set(True)
+                        utils.set_active_object(water_ob)
+                        bpy.ops.object.editmode_toggle()
+                        bpy.ops.mesh.separate(type="LOOSE")
+                        bpy.ops.object.editmode_toggle()
+                        for ob in bpy.context.selected_objects:
+                            objects.append(ob)
+                        utils.deselect_all_objects()
 
-            bm.to_mesh(structure_mesh)
-            bm.free()
-            if structure_mesh.polygons:
-                utils.loop_normal_magic(structure_mesh)
-                structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                objects.append(joined_structure)
-                structure_mesh.nwo.render_only = True
+                bm.to_mesh(structure_mesh)
+                bm.free()
+                if structure_mesh.polygons:
+                    utils.loop_normal_magic(structure_mesh)
+                    structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+                    objects.append(joined_structure)
+                    structure_mesh.nwo.render_only = True
+                    if structure_mesh.nwo.face_props:
+                        bm = bmesh.new()
+                        bm.from_mesh(structure_mesh)
+                        for face_layer in structure_mesh.nwo.face_props:
+                            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+                        bm.free()
             
         # Create Structure Collision
         if not self.corinth:
