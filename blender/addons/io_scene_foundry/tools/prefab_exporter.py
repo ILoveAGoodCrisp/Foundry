@@ -38,11 +38,19 @@ class BlamPrefab:
         self.scale = str(max(ob.scale[0], ob.scale[1], ob.scale[2]))
         matrix = utils.halo_transforms(ob, scale, rotation, True)
         matrix_3x3 = matrix.to_3x3().normalized()
-        forward = -matrix_3x3.col[1]
+        # forward = -matrix_3x3.col[1]
+        # self.forward = [str(n) for n in forward]
+        # left_matrix = matrix_3x3.col[0]
+        # self.left = [str(n) for n in left_matrix]
+        # self.up = [str(n) for n in matrix_3x3.col[2]]
+        # self.position = [str(n) for n in matrix.translation]
+        # self.props = nwo
+        forward = matrix_3x3.col[0]
+        left_matrix = matrix_3x3.col[1]
+        up_matrix = matrix_3x3.col[2]
         self.forward = [str(n) for n in forward]
-        left_matrix = matrix_3x3.col[0]
         self.left = [str(n) for n in left_matrix]
-        self.up = [str(n) for n in matrix_3x3.col[2]]
+        self.up = [str(n) for n in up_matrix]
         self.position = [str(n) for n in matrix.translation]
         self.props = nwo
     

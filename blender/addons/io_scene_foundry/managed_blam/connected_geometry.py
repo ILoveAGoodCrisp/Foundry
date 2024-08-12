@@ -211,11 +211,10 @@ class Instance:
         up = element.SelectField("up").Data
         position = element.SelectField("position").Data
         
-        # Negative scaling on the diagonal gets the correct facing direction
         self.matrix = Matrix((
-            (-forward[0], forward[1], forward[2], position[0] * 100),
-            (left[0], -left[1], left[2], position[1] * 100),
-            (up[0], up[1], -up[2], position[2] * 100),
+            (forward[0], left[0], up[0], position[0] * 100),
+            (forward[1], left[1], up[1], position[1] * 100),
+            (forward[2], left[2], up[2], position[2] * 100),
             (0, 0, 0, 1),
         ))
         
@@ -1063,11 +1062,24 @@ class BSP:
                 if layer_slip:
                     face[layer_slip] = map_slip[idx]
 
-                    
-            for face_layer in mesh.nwo.face_props:
-                face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
         
-        # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.01)
+        # This deletes duplicate faces resulting from the two-sided prop
+        if mesh.nwo.face_two_sided or split_two_sided:
+            face_map = {}
+            duplicates = []
+            for face in bm.faces:
+                key = tuple(sorted(v.index for v in face.verts))
+                if key in face_map:
+                    duplicates.append(face)
+                else:
+                    face_map[key] = face
+        
+            bmesh.ops.delete(bm, geom=duplicates, context='FACES')
+            bm.faces.ensure_lookup_table()
+            
+        for face_layer in mesh.nwo.face_props:
+            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+            
         bm.to_mesh(mesh)
         bm.free()
                                 
@@ -1635,10 +1647,17 @@ class InstancePlacement:
         self.up = Vector([float(n) for n in element.SelectField("up").GetStringData()])
         self.position = Vector([float(n) for n in element.SelectField("position").GetStringData()]) * 100
         
+        # self.matrix = Matrix((
+        #     (self.forward[0], self.forward[1], self.forward[2], self.position[0]),
+        #     (self.left[0], self.left[1], self.left[2], self.position[1]),
+        #     (self.up[0], self.up[1], self.up[2], self.position[2]),
+        #     (0, 0, 0, 1),
+        # ))
+        
         self.matrix = Matrix((
-            (self.forward[0], self.forward[1], self.forward[2], self.position[0]),
-            (self.left[0], self.left[1], self.left[2], self.position[1]),
-            (self.up[0], self.up[1], self.up[2], self.position[2]),
+            (self.forward[0], self.left[0], self.up[0], self.position[0]),
+            (self.forward[1], self.left[1], self.up[1], self.position[1]),
+            (self.forward[2], self.left[2], self.up[2], self.position[2]),
             (0, 0, 0, 1),
         ))
         

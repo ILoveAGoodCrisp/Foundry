@@ -345,7 +345,16 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_scenario_objects, actions=[])
                         
                     imported_objects.extend(imported_scenario_objects)
-
+                    
+                elif 'scenario_structure_bsp' in importer.extensions:
+                    bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
+                    imported_bsp_objects = []
+                    for bsp in bsp_files:
+                        imported_bsp_objects.extend(importer.import_bsp(bsp))
+                    if needs_scaling:
+                        utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
+                        
+                    imported_objects.extend(imported_bsp_objects)
                 
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
@@ -421,7 +430,7 @@ class NWO_Import(bpy.types.Operator):
         skip_fileselect = False
         if self.directory or self.files or self.filepath:
             skip_fileselect = True
-            self.filter_glob = "*.bitmap;*.camera_track;*.model*;"
+            self.filter_glob = "*.bitmap;*.camera_track;*.model;*.scenario;*.scen*_bsp"
         else:
             if 'bitmap' in self.scope:
                 self.directory = utils.get_tags_path()
@@ -442,7 +451,11 @@ class NWO_Import(bpy.types.Operator):
             if (not self.scope or 'camera_track' in self.scope):
                 self.filter_glob += '*.camera_track;'
             if (not self.scope or 'model' in self.scope):
-                self.filter_glob += '*.model*;'
+                self.filter_glob += '*.model;'
+            if (not self.scope or 'scenario' in self.scope):
+                self.filter_glob += '*.scenario;'
+            if (not self.scope or 'scenario_structure_bsp' in self.scope):
+                self.filter_glob += '*.scen*_bsp;'
                 
         if utils.amf_addon_installed() and (not self.scope or 'amf' in self.scope):
             self.amf_okay = True
@@ -758,6 +771,9 @@ class NWOImporter:
             elif 'scenario' in valid_exts and path.lower().endswith('.scenario'):
                 self.extensions.add('scenario')
                 filetype_dict["scenario"].append(path)
+            elif 'scenario_structure_bsp' in valid_exts and path.lower().endswith('.scenario_structure_bsp'):
+                self.extensions.add('scenario_structure_bsp')
+                filetype_dict["scenario_structure_bsp"].append(path)
                 
         return filetype_dict
         
@@ -891,14 +907,20 @@ class NWOImporter:
         
         return imported_objects
     
-    def import_bsp(self, file, scenario_collection, scenario_name):
-        name = Path(file).with_suffix("").name[len(scenario_name) + 1:]
+    def import_bsp(self, file, scenario_collection=None, scenario_name=None):
+        if scenario_name is None:
+            name = Path(file).with_suffix("").name
+        else:
+            name = Path(file).with_suffix("").name[len(scenario_name) + 1:]
         if not name:
             name = "default"
         print(f"Importing BSP {name}")
         bsp_objects = []
         collection = bpy.data.collections.new(name)
-        scenario_collection.children.link(collection)
+        if scenario_collection is None:
+            self.context.scene.collection.children.link(collection)
+        else:
+            scenario_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects = bsp.to_blend_objects(collection)
@@ -2010,7 +2032,7 @@ class NWO_FH_Import(bpy.types.FileHandler):
     bl_idname = "NWO_FH_Import"
     bl_label = "File handler Foundry Importer"
     bl_import_operator = "nwo.import"
-    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.scenario;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
+    bl_file_extensions = ".jms;.amf;.ass;.bitmap;.model;.scenario;.scenario_structure_bsp;.jmm;.jma;.jmt;.jmz;.jmv;.jmw;.jmo;.jmr;.jmrx;.camera_track"
 
     @classmethod
     def poll_drop(cls, context):
