@@ -1465,7 +1465,7 @@ class PrepareScene:
     def _set_proxy_collision_props(self, ob):
         mesh = ob.data
         # Not supporting proxy face props currently, so just shove them into mesh props
-        for prop in mesh.face_props:
+        for prop in mesh.nwo.face_props:
             if prop.face_two_sided:
                 mesh.nwo.face_two_sided = True
             if prop.sphere_collision_only:
