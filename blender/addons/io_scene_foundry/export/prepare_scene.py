@@ -1396,7 +1396,7 @@ class PrepareScene:
 
                     # split_collision = self._proxy_face_split(proxy_collision)
                 else:
-                    self._set_proxy_collision_props()
+                    self._set_proxy_collision_props(proxy_collision)
 
             
             if cookie:
