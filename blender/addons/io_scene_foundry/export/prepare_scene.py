@@ -779,6 +779,16 @@ class PrepareScene:
         # Transform the scene if needed to Halo Scale and forward
         self.scale_factor = transform_export_scene(self.context, self.scene_settings)
         utils.update_view_layer(self.context)
+        # for ob in export_obs:
+        #     if ob.type == 'MESH':
+        #         # utils.set_origin_to_floor(ob) TODO Consider
+        #         if ob.get("bungie_mesh_type") in ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision"):
+        #             while len(ob.data.polygons > 10000):
+        #                 bm = bmesh.new()
+        #                 bm.from_mesh(ob.data)
+        #                 # TODO
+                        
+                
         update_physics_prims(self.physics_prims)
         
     def fixup_uv_names(self):
@@ -1297,28 +1307,6 @@ class PrepareScene:
                     del ob["bungie_slip_surface"]
                 special_ob["bungie_face_sides"] = "_connected_geometry_face_sides_two_sided"
                 special_ob["bungie_face_mode"] = "_connected_geometry_face_mode_sphere_collision_only"
-
-
-    def _proxy_face_split(self, ob, context, scene_coll, h4):
-        me = ob.data
-        me_nwo = me.nwo
-        ob_nwo = ob.nwo
-
-        face_layers = me_nwo.face_props
-
-        if face_layers:
-            bm = bmesh.new()
-            bm.from_mesh(me)
-
-            # must ensure all faces are visible
-            for face in bm.faces:
-                face.hide_set(False)
-
-            return self.split_to_layers(
-                ob, ob_nwo, me, face_layers, scene_coll, h4, bm, True
-            )
-
-        return [ob]
     
     def _set_shader_props(self, material, shader="", ext=""):
         '''
@@ -1370,21 +1358,18 @@ class PrepareScene:
             
             if phys:
                 proxy_physics["bungie_object_type"] = "_connected_geometry_object_type_mesh"
-                glob_mat_phys = proxy_physics.data.nwo.face_global_material.strip().replace(" ", "_")
-                if glob_mat_phys:
-                    self._set_global_material_prop(proxy_physics, global_material=glob_mat_phys)
-                    self.global_materials.add(glob_mat_phys)
+                # glob_mat_phys = proxy_physics.data.nwo.face_global_material.strip().replace(" ", "_")
+                # if glob_mat_phys:
+                #     self._set_global_material_prop(proxy_physics, global_material=glob_mat_phys)
+                #     self.global_materials.add(glob_mat_phys)
 
                 if self.corinth:
                     proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_collision"
                     proxy_physics["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_play_collision"
                     split_physics = self._proxy_face_split(proxy_physics)
                 else:
-                    # proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_physics"
-                    # if proxy_physics.data.nwo.face_global_material or proxy_physics.data.nwo.face_props:
-                    #     self._set_reach_coll_materials(proxy_physics.data)
-                        
                     # Physics gets split by parts
+                    proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_physics"
                     bpy.context.scene.collection.objects.link(proxy_physics)
                     proxy_physics.select_set(True)
                     utils.set_active_object(proxy_physics)
@@ -1409,9 +1394,9 @@ class PrepareScene:
                     else:
                         proxy_collision["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_default"
 
-                    split_collision = self._proxy_face_split(proxy_collision)
-                # elif proxy_collision.data.nwo.face_global_material or proxy_collision.data.nwo.face_props:
-                #     self._set_reach_coll_materials(proxy_collision.data)
+                    # split_collision = self._proxy_face_split(proxy_collision)
+                else:
+                    self._set_proxy_collision_props()
 
             
             if cookie:
@@ -1423,13 +1408,12 @@ class PrepareScene:
                 for ig in poops:
                     if coll:
                         if self.corinth:
-                            for s_ob in split_collision:
-                                o_collision = s_ob.copy()
-                                for collection in ig.users_collection: collection.objects.link(o_collision)
-                                o_collision.parent = ig
-                                o_collision.matrix_world = ig.matrix_world
-                                o_collision.nwo.region_name = ig.nwo.region_name
-                                o_collision.nwo.permutation_name = ig.nwo.permutation_name
+                            o_collision = proxy_collision.copy()
+                            for collection in ig.users_collection: collection.objects.link(o_collision)
+                            o_collision.parent = ig
+                            o_collision.matrix_world = ig.matrix_world
+                            o_collision.nwo.region_name = ig.nwo.region_name
+                            o_collision.nwo.permutation_name = ig.nwo.permutation_name
                         else:
                             ig["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
                             o_collision = proxy_collision.copy()
@@ -1477,6 +1461,31 @@ class PrepareScene:
                     
                 animation.frame_start = 0
                 animation.frame_end -= frames_from_zero
+                
+    def _set_proxy_collision_props(self, ob):
+        mesh = ob.data
+        # Not supporting proxy face props currently, so just shove them into mesh props
+        for prop in mesh.face_props:
+            if prop.face_two_sided:
+                mesh.nwo.face_two_sided = True
+            if prop.sphere_collision_only:
+                mesh.nwo.sphere_collision_only = True
+            if prop.ladder:
+                mesh.nwo.ladder = True
+            if prop.slip_surface:
+                mesh.nwo.slip_surface = True
+                
+        if mesh.nwo.face_two_sided:
+            ob["bungie_face_sides"] = "_connected_geometry_face_sides_two_sided"
+            
+        if mesh.nwo.sphere_collision_only:
+            ob["bungie_face_mode"] = "_connected_geometry_face_mode_sphere_collision_only"
+            
+        if mesh.nwo.ladder:
+            ob["bungie_ladder"] = "1"
+            
+        if mesh.nwo.slip_surface:
+            ob["bungie_slip_surface"] = "1"
             
     def _setup_poop_props(self, ob):
         nwo = ob.nwo
