@@ -615,6 +615,7 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         export_scene.scene_transformation()
         export_scene.fixup_uv_names()
         export_scene.validate_scale()
+        # export_scene.split_complex_meshes() TODO
         # need to get object props AFTER scale
         export_scene.categorise_objects()
         if asset_type in ('model', 'animation'):

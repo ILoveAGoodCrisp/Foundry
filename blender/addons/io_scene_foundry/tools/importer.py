@@ -64,7 +64,7 @@ legacy_animation_formats = '.jmm', '.jma', '.jmt', '.jmz', '.jmv', '.jmw', '.jmo
 legacy_poop_prefixes = '%', '+', '-', '?', '!', '>', '*', '&', '^', '<', '|',
 legacy_frame_prefixes = "frame_", "frame ", "bip_", "bip ", "b_", "b "
 
-formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "scenario"
+formats = "amf", "jms", "jma", "bitmap", "camera_track", "model", "scenario", "scenario_structure_bsp"
 
 class NWO_OT_ConvertScene(bpy.types.Operator):
     bl_label = "Convert Scene"
@@ -217,7 +217,6 @@ class NWO_Import(bpy.types.Operator):
             ("png", "PNG", ""),
             ("jped", "JPEG", ""),
             ("bmp", "BMP", ""),
-            
         ]
     )
     
@@ -430,7 +429,7 @@ class NWO_Import(bpy.types.Operator):
         skip_fileselect = False
         if self.directory or self.files or self.filepath:
             skip_fileselect = True
-            self.filter_glob = "*.bitmap;*.camera_track;*.model;*.scenario;*.scen*_bsp"
+            self.filter_glob = "*.bitmap;*.camera_track;*.model;*.scenario;*.scen*_bsp;"
         else:
             if 'bitmap' in self.scope:
                 self.directory = utils.get_tags_path()
