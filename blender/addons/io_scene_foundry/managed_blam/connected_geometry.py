@@ -1077,6 +1077,9 @@ class BSP:
             bmesh.ops.delete(bm, geom=duplicates, context='FACES')
             bm.faces.ensure_lookup_table()
             
+        # Remove any degenerate faces
+        bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
+            
         for face_layer in mesh.nwo.face_props:
             face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             
