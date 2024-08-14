@@ -1078,8 +1078,14 @@ class BSP:
             bm.faces.ensure_lookup_table()
             
         # Remove any degenerate faces
-        bmesh.ops.dissolve_degenerate(bm, dist=0.01, edges=bm.edges)
-            
+        # bmesh.ops.dissolve_degenerate(bm, dist=0.2, edges=bm.edges)
+        # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.2)
+        # edges_to_dissolve = set()
+        # for edge in bm.edges:
+        #     if edge.length < 0.1:
+        #         edges_to_dissolve.add(edge)
+                
+        # bmesh.ops.dissolve_edges(bm, edges=list(edges_to_dissolve), use_face_split=True, use_verts=True)
         for face_layer in mesh.nwo.face_props:
             face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             

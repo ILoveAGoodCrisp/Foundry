@@ -202,26 +202,32 @@ class ScenarioStructureBspTag(Tag):
             
         # Merge structure
         if structure_objects:
-            print("Merging Structure")
+            # print("Merging Structure")
             utils.deselect_all_objects()
-            bm = bmesh.new()
-            for ob in structure_objects:
-                if ob.type == "MESH":
-                    ob.select_set(True)
+            # bm = bmesh.new()
+            # for ob in structure_objects:
+            #     if ob.type == "MESH":
+            #         ob.select_set(True)
             
-            if bpy.context.selected_objects:
-                utils.set_active_object(bpy.context.selected_objects[0])
-                bpy.ops.nwo.join_halo()
+            # if bpy.context.selected_objects:
+            #     utils.set_active_object(bpy.context.selected_objects[0])
+            #     bpy.ops.nwo.join_halo()
                 
-                joined_structure = utils.get_active_object()
-                structure_mesh = joined_structure.data
-                joined_structure.name = self.collection.name + "_structure"
+            #     joined_structure = utils.get_active_object()
+            #     structure_mesh = joined_structure.data
+            #     joined_structure.name = self.collection.name + "_structure"
                 
-                utils.deselect_all_objects()
-                
+            utils.deselect_all_objects()
+            
+            # bm = bmesh.new()
+            # bm.from_mesh(structure_mesh)
+            for ob in structure_objects:
+                objects.append(ob)
+                structure_mesh = ob.data
+                structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+                ob.nwo.proxy_instance = True
                 bm = bmesh.new()
                 bm.from_mesh(structure_mesh)
-                
                 water_layer = bm.faces.layers.int.get("water_surface")
                 if water_layer:
                     water_mesh = structure_mesh.copy()
@@ -249,41 +255,44 @@ class ScenarioStructureBspTag(Tag):
                             objects.append(ob)
                         utils.deselect_all_objects()
 
-                bm.to_mesh(structure_mesh)
+                    # bm.to_mesh(structure_mesh)
                 bm.free()
-                if structure_mesh.polygons:
-                    utils.loop_normal_magic(structure_mesh)
-                    structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                    objects.append(joined_structure)
-                    structure_mesh.nwo.render_only = True
-                    if structure_mesh.nwo.face_props:
-                        bm = bmesh.new()
-                        bm.from_mesh(structure_mesh)
-                        for face_layer in structure_mesh.nwo.face_props:
-                            face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-                        bm.free()
+            # if structure_mesh.polygons:
+            #     utils.loop_normal_magic(structure_mesh)
+            #     structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+            #     joined_structure.nwo.proxy_instance = True
+            #     objects.append(joined_structure)
+            #     structure_mesh.nwo.render_only = True
+            #     if structure_mesh.nwo.face_props:
+            #         bm = bmesh.new()
+            #         bm.from_mesh(structure_mesh)
+            #         for face_layer in structure_mesh.nwo.face_props:
+            #             face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+            #         bm.free()
             
         # Create Structure Collision
-        if not self.corinth:
+        if self.corinth:
+            print("Creating Structure Sky")
+        else:
             print("Creating Structure Collision")
-            raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
-            if raw_resources.Elements.Count > 0:
-                collision = None
-                collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
-                large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
-                if collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials)
-                elif large_collision_bsp.Elements.Count > 0:
-                    collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
-                
-                if collision is not None:
-                    ob = collision.to_object()
-                    ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                    ob.data.nwo.collision_only = True
-                    objects.append(ob)
-                    self.collection.objects.link(ob)
-                    ob.hide_set(True)
-                    ob.data.nwo.collision_only = True
+        raw_resources = self.tag.SelectField("Struct:resource interface[0]/Block:raw_resources")
+        if raw_resources.Elements.Count > 0:
+            collision = None
+            collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:collision bsp")
+            large_collision_bsp = raw_resources.Elements[0].SelectField("Struct:raw_items[0]/Block:large collision bsp")
+            if collision_bsp.Elements.Count > 0:
+                collision = StructureCollision(collision_bsp.Elements[0], "structure_collision", collision_materials)
+            elif large_collision_bsp.Elements.Count > 0:
+                collision = StructureCollision(large_collision_bsp.Elements[0], "structure_collision", collision_materials)
+            
+            if collision is not None:
+                ob = collision.to_object()
+                ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+                ob.data.nwo.collision_only = True
+                objects.append(ob)
+                self.collection.objects.link(ob)
+                ob.hide_set(True)
+                ob.data.nwo.collision_only = True
         
         # Create Portals
         print("Creating Portals")
