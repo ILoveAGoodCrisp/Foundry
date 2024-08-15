@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 id = "io_scene_foundry"
 version = "1.0.0"
 name = "Foundry"
-tagline = "Halo Blender Creation Kit for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
+tagline = "An import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer"
 maintainer = "Crisp"
 type = "add-on"
 
@@ -16,7 +16,7 @@ tags = ["Import-Export", "Pipeline"]
 blender_version_min = "4.2.0"
 
 license = [
-  "SPDX:GPL-2.0-or-later"
+  "SPDX:GPL-3.0-or-later"
 ]
 
 platforms = ["windows-amd64", "windows-x64"]

@@ -60,7 +60,8 @@ def build_release_zip(name: str):
     Path("bin", "Release").mkdir(exist_ok=True)
 
     # create zip name from git hash/version
-    zip_name = f"{name}-{version_string}.zip"
+    # zip_name = f"{name}-{version_string}.zip"
+    zip_name = f"{name}.zip"
 
     print(f"zip name: {zip_name}")
 
@@ -70,7 +71,7 @@ def build_release_zip(name: str):
         zip.write(path_fs, os.path.join("io_scene_foundry", path_zip))
 
     # Add files to zip
-    zip: ZipFile = ZipFile(os.path.join("bin", output_folder, zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
+    zip: ZipFile = ZipFile(os.path.join("site", zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
     write_file(zip, "LICENSE")
     write_file(zip, "README.md")
     os.chdir(Path("blender/addons"))
@@ -93,5 +94,5 @@ def build_release_zip(name: str):
     zip.printdir()
     zip.close()
 
-build_release_zip(name="foundry")
+build_release_zip(name="io_scene_foundry")
 print("done!")

@@ -1052,7 +1052,7 @@ class BSP:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
                 if split_material and self.uses_materials:
-                    face.material_index = material_indices[idx] if self.uses_materials else face.material_index
+                    face.material_index = material_indices[idx]
                 if layer_two_sided:
                     face[layer_two_sided] = map_two_sided[idx]
                 if layer_ladder:
