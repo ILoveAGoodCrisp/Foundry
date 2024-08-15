@@ -59,7 +59,7 @@ class CollisionTag(Tag):
                 permutation = permutation_element.Fields[0].GetStringData()
                 for bsp_element in permutation_element.SelectField("bsps").Elements:
                     name = f"{region}:{permutation}:{bsp_element.ElementIndex}"
-                    bsp = ModelCollision(bsp_element.Elements[0], name, materials, nodes)
+                    bsp = ModelCollision(bsp_element, name, materials, nodes)
                     ob = bsp.to_object()
                     ob.parent = armature
                     ob.parent_type = 'BONE'

@@ -1048,10 +1048,10 @@ class BSP:
             mesh.nwo.slip_surface = surface.slip_surface
         
         if using_layers:
-            if split_material:
+            if split_material and self.uses_materials:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
-                if split_material:
+                if split_material and self.uses_materials:
                     face.material_index = material_indices[idx] if self.uses_materials else face.material_index
                 if layer_two_sided:
                     face[layer_two_sided] = map_two_sided[idx]
@@ -1101,7 +1101,7 @@ class BSP:
     
 class ModelCollision(BSP):
     def __init__(self, element: TagFieldBlockElement, name, collision_materials: list[CollisionMaterial], nodes: list[str] = None):
-        super().__init__(element, name, collision_materials)
+        super().__init__(element.SelectField("Struct:bsp").Elements[0], name, collision_materials)
         self.node_index = element.Fields[0].Data
         self.bone = ""
         if nodes:
@@ -1552,8 +1552,8 @@ class Mesh:
                     ob.parent_bone = parent_bone or nodes[self.rigid_node_index].name
                     ob.matrix_world = matrix
                 else:
-                    node_indices = self.raw_node_indices[idx_start*4:idx_end*4+4]
-                    node_weights = self.raw_node_weights[idx_start*4:idx_end*4+4]
+                    node_indices = [self.raw_node_indices[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
+                    node_weights = [self.raw_node_weights[i:i+4] for i in range(idx_start * 4, (idx_end + 1) * 4, 4)]
                     vgroups = ob.vertex_groups
                     for idx, (ni, nw) in enumerate(zip(node_indices, node_weights)):
                         for i, w in zip(ni, nw):
