@@ -79,17 +79,15 @@ def build_release_zip(name: str):
         if dir.startswith(os.path.join("io_scene_foundry", "resources")):
             continue
         for file in files:
-            main_dir_ignore = ['resources.zip', '__init__.py']
+            main_dir_ignore = ['resources.zip', 'blender_manifest.toml']
             if file.endswith(".pyc") or (dir == 'io_scene_foundry' and file in main_dir_ignore):
                 continue
             fs_path = os.path.join(dir, file)
             zip.write(fs_path)
     os.chdir(project_path)
-    blend_addon_version = version.replace(".",", ")
-    init_file = Path('blender/addons/io_scene_foundry/__init__.py').read_text()
-    init_file = init_file.replace('(343, 7, 343)', f"({blend_addon_version})")
-    init_file = init_file.replace('BUILD_VERSION_STR', version_string)
-    zip.writestr('io_scene_foundry/__init__.py', init_file)
+    init_file = Path('blender/addons/io_scene_foundry/blender_manifest.toml').read_text()
+    # init_file = init_file.replace('version = "1.0.0"', f'version = {git_version}')
+    zip.writestr('io_scene_foundry/blender_manifest.toml', init_file)
     zip.writestr('io_scene_foundry/resources.zip', resources.getbuffer())
     zip.printdir()
     zip.close()
