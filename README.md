@@ -19,7 +19,7 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 
 - The standalone zip can be downloaded [here](https://iloveagoodcrisp.github.io/Foundry/api/v1/extensions/io_scene_foundry.zip)
 
-- Open Blender and navigate to Edit > Preferences. Switch to the Extensions tab and click the downwards facing arrow in the top right, and then select "Install From Disk".
+- Locate the file you downloaded named `io_scene_foundry.zip` and then open Blender. Drag and drop the zip file into Blender and press **Ok** on the dialog box that appears
 
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
