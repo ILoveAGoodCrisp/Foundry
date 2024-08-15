@@ -16,6 +16,7 @@ classes = [
     bar.NWO_HaloExportSettingsFlags,
     bar.NWO_HaloExport,
     bar.NWO_HaloExportPropertiesGroup,
+    bar.NWO_OT_StartFoundry,
     node_editor.NWO_OT_HaloMaterialNodes,
     node_editor.NWO_OT_HaloMaterialTilingNode,
     outliner.NWO_OT_PermutationListCollection,

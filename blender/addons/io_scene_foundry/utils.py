@@ -3691,3 +3691,11 @@ class MessageBox:
         result = ctypes.windll.user32.MessageBoxW(0, self.message, self.title, self.mtype.value)
         if (self.mtype == MessageBoxType.YESNO or self.mtype == MessageBoxType.YESNOCXL) and result == 6:
             self.confirmed = True
+            
+def set_foundry_panel_active():
+    '''Sets Foundry as the active panel'''
+    area = next((area for area in bpy.context.screen.areas if area.type == 'VIEW_3D'), None)
+    if area is not None:
+        tool_region = next((region for region in area.regions if region.type == 'UI'), None)
+        if tool_region is not None:
+            tool_region.active_panel_category = "Foundry"

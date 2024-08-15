@@ -9,6 +9,68 @@ from .. import managed_blam
 
 from .. import utils
 from ..icons import get_icon_id, get_icon_id_in_directory
+from .. import startup
+
+import blf
+
+def display_fading_text(text, position=(200, 200), size=150, fade_in_start=1, fade_in_end=100, display_start=51, fade_out_start=150, fade_out_end=249):
+    def smooth_step(t):
+        import math
+        return 0.5 - 0.5 * math.cos(t * math.pi)
+
+    def calculate_alpha(frame):
+        if fade_in_start <= frame <= fade_in_end:
+            return smooth_step((frame - fade_in_start) / (fade_in_end - fade_in_start))
+        elif display_start <= frame < fade_out_start:
+            return 1.0
+        elif fade_out_start <= frame <= fade_out_end:
+            return smooth_step(1.0 - (frame - fade_out_start) / (fade_out_end - fade_out_start))
+        else:
+            return 0.0
+
+    def draw_callback():
+        font_id = 0
+        current_frame = bpy.context.scene.frame_current
+        alpha = calculate_alpha(current_frame)
+        text_color = (1.0, 1.0, 1.0, alpha)
+        
+        if current_frame > fade_out_end:
+            bpy.types.SpaceView3D.draw_handler_remove(draw_callback_handle, 'WINDOW')
+            return bpy.ops.screen.animation_cancel()
+            
+
+        blf.size(font_id, size)
+        blf.position(font_id, position[0], position[1], 0)
+        blf.color(font_id, *text_color)
+        blf.draw(font_id, text)
+
+        bpy.context.area.tag_redraw()
+
+    if not hasattr(bpy.types.SpaceView3D, "draw_handler_custom"):
+        draw_callback_handle = bpy.types.SpaceView3D.draw_handler_custom = bpy.types.SpaceView3D.draw_handler_add(draw_callback, (), 'WINDOW', 'POST_PIXEL')
+
+    bpy.context.area.tag_redraw()
+    bpy.ops.screen.animation_play()
+
+class NWO_OT_StartFoundry(bpy.types.Operator):
+    bl_idname = "nwo.launch_foundry"
+    bl_label = "Launch Foundry"
+    bl_description = "Loads the Foundry UI for the first time. Only has to be done once post install"
+    bl_options = {"UNDO"}
+    
+    @classmethod
+    def poll(cls, context):
+        return True
+    
+    def execute(self, context):
+        startup.load_handler(context)
+        startup.load_set_output_state(context)
+        startup.save_object_positions_to_tags(context)
+        context.space_data.show_region_ui = True
+        bpy.app.timers.register(utils.set_foundry_panel_active, first_interval=0.01)
+        # self.report({'INFO'}, "Welcome to Foundry!")
+        display_fading_text("Welcome to Foundry")
+        return {"FINISHED"}
 
 class NWO_MT_ProjectChooserMenu(bpy.types.Menu):
     bl_label = "Choose Project"
@@ -991,13 +1053,13 @@ def foundry_nodes_toolbar(layout, context):
         sub_foundry = row.row(align=True)
         sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
     if export_scene.toolbar_expanded:
-        error = utils.validate_ek()
-        if error is not None:
-            sub_error = row.row()
-            sub_error.label(text=error, icon="ERROR")
-            sub_foundry = row.row(align=True)
-            sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
-            return
+            error = utils.validate_ek()
+            if error is not None:
+                sub_error = row.row()
+                sub_error.label(text=error, icon="ERROR")
+                sub_foundry = row.row(align=True)
+                sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
+                return
 
 def draw_foundry_toolbar(self, context):
     #if context.region.alignment == 'RIGHT':
@@ -1015,6 +1077,10 @@ def foundry_toolbar(layout, context):
     box = row.box()
     box.scale_x = 0.3
     box.label(text="")
+    if not startup.load_handler_complete:
+        sub = row.row()
+        sub.operator("nwo.launch_foundry")
+        return
     if not export_scene.toolbar_expanded:
         sub_foundry = row.row(align=True)
         sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
@@ -1026,8 +1092,6 @@ def foundry_toolbar(layout, context):
             sub_error = row.row()
             sub_error.label(text=error, icon="ERROR")
             sub_foundry = row.row(align=True)
-            if error.startswith("Tag API"):
-                sub_foundry.operator("managed_blam.init", text="Install Tag API")
             sub_foundry.prop(export_scene, "toolbar_expanded", text="", icon_value=get_icon_id("foundry"))
             return
         

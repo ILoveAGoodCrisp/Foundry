@@ -71,7 +71,7 @@ def build_release_zip(name: str):
         zip.write(path_fs, os.path.join("io_scene_foundry", path_zip))
 
     # Add files to zip
-    zip: ZipFile = ZipFile(os.path.join("site", zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
+    zip: ZipFile = ZipFile(os.path.join("site", "api", "v1", "extensions", zip_name), mode='w', compression=ZIP_DEFLATED, compresslevel=9)
     write_file(zip, "LICENSE")
     write_file(zip, "README.md")
     os.chdir(Path("blender/addons"))
