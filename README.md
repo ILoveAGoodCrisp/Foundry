@@ -1,58 +1,32 @@
 <div align="center"> <img src="img/readme_banner.png"> </div>
 
-# [Download](https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/releases/download/0.9.3/foundry-v0.9.3@c6fe933.zip)
+# [Download](https://iloveagoodcrisp.github.io/Foundry/api/v1/extensions/io_scene_foundry.zip)
 
-**Foundry** is a Blender addon that facilitates a complete 3D asset import pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer.
-By integrating with the Halo Editing Kits, Foundry allows you to easily transform your Blender creations into game-ready Halo assets.
-
-Foundry can:
-- Export Blender scenes and build tags in a single click. No intermediary steps required
-- Create Halo Models, Animations, Scenarios, Skies, Decorators, Particle Models, & Prefabs
-- Lightmap Halo Scenarios and Models
-- Integrate with the Halo tag editing API "ManagedBlam" to allow tag editing and creation directly from Blender
+**Foundry** is a Blender extension that facilitates a complete asset import & export pipeline for Halo Reach, Halo 4, and Halo 2 Anniversary Multiplayer.
 
 ## Requirements
-- Blender 3.6.1 or above
+- Blender 4.2 or above
 - One or more of the following Halo Editing Kits: [HREK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/),
 [H4EK](https://store.steampowered.com/app/1695792/Halo_4_Mod_Tools__MCC/),
 [H2AMPEK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/)
 
-To install the afformentioned editing kits, you must own the respective MCC title on Steam. Links to these titles are shown [below](#supported-titles).
+To install the afformentioned editing kits, you must own the respective MCC title on Steam.
 
-## Supported Titles
-| Games | Version | Editing Kit | Platform |
-| --- | --- | --- | --- |
-| [Halo Reach](https://store.steampowered.com/app/1064220/Halo_Reach/) | MCC | [HREK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/) | PC |
-| [Halo 4](https://store.steampowered.com/app/1064273/Halo_4/) | MCC | [H4EK](https://store.steampowered.com/app/1695792/Halo_4_Mod_Tools__MCC/) | PC |
-| [Halo 2: Anniversary (Multiplayer)](https://store.steampowered.com/app/1064270/Halo_2_Anniversary/) | MCC | [H2AMPEK](https://store.steampowered.com/app/1695790/Halo_2_Anniversary_MP_Mod_Tools__MCC/) | PC |
+> [!CAUTION]
+> Remove any previous installations of Foundry before following the installation guide. The legacy addon version may conflict with the extension.
 
+## Standalone Installation
 
-## Installation
-- Go to the [releases page](https://github.com/ILoveAGoodCrisp/Foundry-Halo-Blender-Creation-Kit/releases) and download the latest release's zip file
+- The standalone zip can be downloaded [here](https://iloveagoodcrisp.github.io/Foundry/api/v1/extensions/io_scene_foundry.zip)
 
-- Open Blender and navigate to Edit > Preferences. Switch to the Add-ons tab and click Install in the top right. Select the Foundry Addon zip file using the file browser dialog
-
-- Activate the addon and follow the [guide](#quick-start-guide) below to get started with using Foundry
-
-## Quick Start Guide
-- Open Foundry Preferences and input the paths to your Editing Kits. You can either paste the paths or use the folder icon to open a folder browser dialog
-
-![](img/preferences.png)
-
-- If you see a asterisk next to *Save Preferences*, click this button before proceeding
-- Click *Install ManagedBlam Dependancy* to install the the python module necessary to allow Foundry to communicate with the Halo tag API.
-- Restart Blender
-- Navigate to the right hand side of the 3D View. If you cannot see the Foundry Panel, click the small arrow facing away from the outliner or press *N*. Now select *Foundry* from the Tools Panels
-
-![](img/foundry_panel.png)
-
-- To create your first Halo asset click the *New Asset* button inside of the Asset Editor sub-panel. This will prompt a file dialog to specify a location and type for your new asset. Once your Blender scene is ready to export, use the *Tag Export* option in the Foundry Toolbar to export your asset to your preferred Halo Editing Kit
+- Open Blender and navigate to Edit > Preferences. Switch to the Extensions tab and click the downwards facing arrow in the top right, and then select "Install From Disk".
 
 ## Credits
 - [Crisp](https://github.com/ILoveAGoodCrisp) - Addon Developer
 - [Alexis Jonsson | WyvernZu](https://github.com/AlexisJonsson) - UI/UX/Icon Design
 - [General Heed](https://github.com/Generalkidd) - Early Foundry work
-- [Krevil](https://github.com/Krevil) - Guidance on editing GR2 files and for firguring out Cubemap checksum calculation
+- [Krevil](https://github.com/Krevil) - Guidance on editing GR2 files and for research into Cubemap checksum calculation
+- [Gravemind2401](https://github.com/Gravemind2401) - Advice on tag extraction
 
 
 ## Special Thanks
