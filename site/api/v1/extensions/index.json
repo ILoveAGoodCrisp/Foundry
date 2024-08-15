@@ -34,7 +34,7 @@
         "./wheels/pymem-1.13.1-py3-none-any.whl",
         "./wheels/pythonnet-3.0.3-py3-none-any.whl"
       ],
-      "archive_url": "./io_scene_foundry.zip",
+      "archive_url": "https://iloveagoodcrisp.github.io/Foundry/api/v1/extensions/io_scene_foundry.zip",
       "archive_size": 3727375,
       "archive_hash": "sha256:dcf54a5c9c5546d85bcff3b071ab312869e6991edfe9ad0b72ed445a6aa41df8"
     }
