@@ -70,6 +70,9 @@ class NWO_MT_FaceLayerAddMenu(bpy.types.Menu):
                         self.op_prefix, text="No Lightmap"
                     ).options = "no_lightmap"
                     layout.operator(
+                        self.op_prefix, text="Lightmap Only"
+                    ).options = "lightmap_only"
+                    layout.operator(
                         self.op_prefix, text="No Visibility Culling"
                     ).options = "no_pvs"
                 elif not h4:
@@ -230,6 +233,8 @@ def toggle_override(option, bool_var, item):
             item.precise_position_override = bool_var
         case "no_lightmap":
             item.no_lightmap_override = bool_var
+        case "lightmap_only":
+            item.lightmap_only_override = bool_var
         case "no_pvs":
             item.no_pvs_override = bool_var
         # instances
@@ -313,6 +318,7 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
             ("slip_surface", "Slip Surface", ""),
             ("breakable", "Breakable", ""),
             ("no_lightmap", "No Lightmap", ""),
+            ("lightmap_only", "Lightmap Only", ""),
             ("no_pvs", "No Visibility Culling", ""),
         ],
     )
@@ -369,6 +375,8 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
                 self.fm_name = "No Shadow"
             case "no_lightmap":
                 self.fm_name = "No Lightmap"
+            case "lightmap_only":
+                self.fm_name = "Lightmap Only"
             case "no_pvs":
                 self.fm_name = "No PVS"
             # lightmap
@@ -658,6 +666,7 @@ class NWO_OT_FacePropRemove(bpy.types.Operator):
             ("no_shadow", "", ""),
             ("precise_position", "", ""),
             ("no_lightmap", "", ""),
+            ("lightmap_only", "", ""),
             ("no_pvs", "", ""),
             ("lightmap_additive_transparency", "", ""),
             ("lightmap_resolution_scale", " ", ""),
@@ -1155,6 +1164,8 @@ def toggle_active(context, option, bool_var):
             ob_nwo.precise_position_active = bool_var
         case "no_lightmap":
             ob_nwo.no_lightmap_active = bool_var
+        case "lightmap_only":
+            ob_nwo.lightmap_only_active = bool_var
         case "no_pvs":
             ob_nwo.no_pvs_active = bool_var
         # lightmap
@@ -1252,6 +1263,7 @@ class NWO_OT_MeshPropRemove(bpy.types.Operator):
             ("no_shadow", "No Shadow", ""),
             ("precise_position", "Precise Position", ""),
             ("no_lightmap", "No Lightmap", ""),
+            ("lightmap_only", "Lightmap Only", ""),
             ("no_pvs", "No PVS", ""),
             ("lightmap_additive_transparency", "Transparency", ""),
             ("lightmap_resolution_scale", "Resolution Scale", ""),

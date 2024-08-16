@@ -349,7 +349,8 @@ class NWO_Import(bpy.types.Operator):
                     bsp_files = importer.sorted_filepaths["scenario_structure_bsp"]
                     imported_bsp_objects = []
                     for bsp in bsp_files:
-                        imported_bsp_objects.extend(importer.import_bsp(bsp))
+                        bsp_objects, _, _ = importer.import_bsp(bsp)
+                        imported_bsp_objects.extend(bsp_objects)
                     if needs_scaling:
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
                         
@@ -830,7 +831,12 @@ class NWOImporter:
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ModelTag(path=mover.tag_path, raise_on_error=False) as model:
                     if not model.valid: continue
-                    render, collision, animation, physics = model.get_model_paths()
+                    if mover.needs_to_move:
+                        source_tag_root = mover.potential_source_tag_dir
+                    else:
+                        source_tag_root = self.project.tags_directory
+                        
+                    render, collision, animation, physics = model.get_model_paths(optional_tag_root=source_tag_root)
                     model_collection = bpy.data.collections.new(model.tag_path.ShortName)
                     self.context.scene.collection.children.link(model_collection)
                     if render:
@@ -852,6 +858,7 @@ class NWOImporter:
         collection = bpy.data.collections.new(str(Path(file).with_suffix("").name) + "_render")
         model_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
+            print(mover.tag_path, mover.temp_file)
             with RenderModelTag(path=mover.tag_path) as render_model:
                 render_model_objects, armature = render_model.to_blend_objects(collection, self.tag_render, self.tag_markers, model_collection, existing_armature)
             
@@ -892,6 +899,8 @@ class NWOImporter:
         imported_objects = []
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
+            seam_map = {}
+            seams_tag = None
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
@@ -900,9 +909,20 @@ class NWOImporter:
                     scenario_collection = bpy.data.collections.new(scenario.tag_path.ShortName)
                     self.context.scene.collection.children.link(scenario_collection)
                     for bsp in bsps:
-                        imported_objects.extend(self.import_bsp(bsp, scenario_collection, scenario_name))
+                        bsp_objects, seams, name = self.import_bsp(bsp, scenario_collection, scenario_name)
+                        imported_objects.extend(bsp_objects)
+                        for s in seams:
+                            seam_map[s] = name
+                    
+                    if seam_map:
+                        seams_tag = scenario.get_seams_path()
                         
-                    # imported_objects.extend(self.import_seams(bsp, scenario_collection, scenario_name))
+            if seams_tag is not None:
+                seams_collection = bpy.data.collections.new(f"seams_{scenario_name}")
+                scenario_collection.children.link(seams_collection)
+                with utils.TagImportMover(self.project.tags_directory, seams_tag) as mover:
+                    with StructureSeamsTag(path=mover.tag_path, raise_on_error=False) as structure_seams:
+                        imported_objects.extend(structure_seams.to_blend_objects(seam_map, seams_collection))
         
         return imported_objects
     
@@ -923,13 +943,14 @@ class NWOImporter:
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
                 bsp_objects = bsp.to_blend_objects(collection)
+                seams = bsp.get_seam_ids()
         
         bsp_name = utils.add_region(name)
         collection.name = "bsp::" + bsp_name
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
         
-        return bsp_objects
+        return bsp_objects, seams, name
     
     def import_seams(self, file, scenario_collection, scenario_name):
         print(f"Importing Scenario Seams")

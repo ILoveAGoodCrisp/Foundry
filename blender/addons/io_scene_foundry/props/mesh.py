@@ -31,6 +31,7 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
     no_shadow_override: bpy.props.BoolProperty()
     precise_position_override: bpy.props.BoolProperty()
     no_lightmap_override: bpy.props.BoolProperty()
+    lightmap_only_override: bpy.props.BoolProperty()
     no_pvs_override: bpy.props.BoolProperty()
     mesh_tessellation_density_override: bpy.props.BoolProperty()
     # lightmap
@@ -157,6 +158,12 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
         options=set(),
         description="",
         default=True,
+    )
+    
+    lightmap_only: bpy.props.BoolProperty(
+        name="Lightmap Only",
+        options=set(),
+        description="Mesh does not render but is considered by the lightmapper",
     )
 
     no_pvs: bpy.props.BoolProperty(

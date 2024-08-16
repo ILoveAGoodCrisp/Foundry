@@ -3301,6 +3301,11 @@ def add_face_layer(bm: bmesh.types.BMesh, mesh: bpy.types.Mesh, prop: str, value
             display_name = "No Lightmap"
             override_prop = "no_lightmap_override"
             other_props = {"no_lightmap": value}
+        case "lightmap_only":
+            layer_name = f"lightmap_only{str(uuid4())}"
+            display_name = "Lightmap Only"
+            override_prop = "lightmap_only_override"
+            other_props = {"lightmap_only": value}
         case "no_pvs":
             layer_name = f"no_pvs{str(uuid4())}"
             display_name = "No PVS"
@@ -3530,6 +3535,7 @@ class TagImportMover():
         self.temp_file = Path(tags_dir, "_temp", name + self.source_file.suffix)
         if not self.source_file.is_relative_to(Path(tags_dir)):
             print_warning(f"Tag [{self.source_file.name}] is from a different project and may fail to load")
+            self.potential_source_tag_dir = Path(any_partition(str(self.source_file), f'{os.sep}tags{os.sep}'), "tags")
             self.needs_to_move = True
             self.tag_path = str(Path("_temp", name + self.source_file.suffix))
             if not self.temp_file.parent.exists():
@@ -3543,7 +3549,8 @@ class TagImportMover():
         
     def __exit__(self, exc_type, exc_value, traceback):
         if self.needs_to_move and self.temp_file.exists():
-            self.temp_file.unlink()
+            pass
+            # self.temp_file.unlink()
                 
 def get_foundry_blam_exe():
     bin_dir = Path(get_project_path(), "bin")

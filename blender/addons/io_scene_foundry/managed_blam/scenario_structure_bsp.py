@@ -177,19 +177,19 @@ class ScenarioStructureBspTag(Tag):
         meshes = self.tag.SelectField("Struct:render geometry[0]/Block:meshes")
         # Get all instance definitions
         instance_definitions = []
-        print("Creating Instance Definitions")
-        for element in self.block_instance_definitions.Elements:
-            definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials)
-            objects.extend(definition.create(render_model, temp_meshes))
-            instance_definitions.append(definition)
+        # print("Creating Instance Definitions")
+        # for element in self.block_instance_definitions.Elements:
+        #     definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials)
+        #     objects.extend(definition.create(render_model, temp_meshes))
+        #     instance_definitions.append(definition)
             
-        # # # Create instanced geometries
-        print("Creating Instanced Objects")
-        for element in self.block_instances.Elements:
-            io = Instance(element, instance_definitions)
-            ob = io.create()
-            objects.append(ob)
-            self.collection.objects.link(ob)
+        # # # # Create instanced geometries
+        # print("Creating Instanced Objects")
+        # for element in self.block_instances.Elements:
+        #     io = Instance(element, instance_definitions)
+        #     ob = io.create()
+        #     objects.append(ob)
+        #     self.collection.objects.link(ob)
             
         # Create structure
         structure_objects = []
@@ -223,6 +223,7 @@ class ScenarioStructureBspTag(Tag):
             # bm.from_mesh(structure_mesh)
             for ob in structure_objects:
                 objects.append(ob)
+                if ob.type != 'MESH' or ob.data.nwo != "_connected_geometry_mesh_type_structure": continue
                 structure_mesh = ob.data
                 structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
                 ob.nwo.proxy_instance = True
@@ -301,9 +302,16 @@ class ScenarioStructureBspTag(Tag):
             ob = portal.create()
             objects.append(ob)
             self.collection.objects.link(ob)
-                
             
         return objects
+    
+    def get_seam_ids(self):
+        seam_ids = []
+        for element in self.tag.SelectField("Block:seam identifiers").Elements:
+            id = element.SelectField("Struct:seams identifier[0]/LongInteger:seam_id0").Data
+            seam_ids.append(id)
+            
+        return seam_ids
     
 def are_faces_overlapping(face1, face2):
     # Check if faces are coplanar (i.e., their normals are parallel)

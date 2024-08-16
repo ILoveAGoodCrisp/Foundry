@@ -121,3 +121,10 @@ class ScenarioTag(Tag):
     def to_blend(self):
         # Import Seams
         print("Importing Seams")
+        
+    def get_seams_path(self):
+        reference = self.tag.SelectField("Reference:structure seams")
+        if reference.Path:
+            full_path = reference.Path.Filename
+            if Path(full_path).exists:
+                return full_path

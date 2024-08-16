@@ -41,27 +41,39 @@ class ModelTag(Tag):
         self.reference_physics_model = self.tag.SelectField("Reference:physics_model")
         self.block_variants = self.tag.SelectField("Block:variants")
         
-    def get_model_paths(self) -> tuple[str]:
-        """Returns full string paths from model tag dependencies: render, collision, animation, physics"""
+    def get_model_paths(self, optional_tag_root=None) -> tuple[str]:
+        """Returns string paths from model tag dependencies: render, collision, animation, physics"""
         render = ""
         collision = ""
         animation  = ""
         physics = ""
         render_path = self.reference_render_model.Path
         if render_path:
-            render = render_path.Filename
+            if optional_tag_root:
+                render = str(Path(optional_tag_root, render_path.RelativePathWithExtension))
+            else:
+                render = render_path.Filename
             
         collision_path = self.reference_collision_model.Path
         if collision_path:
-            collision = collision_path.Filename
+            if optional_tag_root:
+                collision = str(Path(optional_tag_root, collision_path.RelativePathWithExtension))
+            else:
+                render = collision_path.Filename
             
         animation_path = self.reference_animation.Path
         if animation_path:
-            animation = animation_path.Filename
+            if optional_tag_root:
+                animation = str(Path(optional_tag_root, animation_path.RelativePathWithExtension))
+            else:
+                render = animation_path.Filename
             
         physics_path = self.reference_physics_model.Path
         if physics_path:
-            physics = physics_path.Filename
+            if optional_tag_root:
+                physics = str(Path(optional_tag_root, physics_path.RelativePathWithExtension))
+            else:
+                render = physics_path.Filename
             
         return render, collision, animation, physics
                 

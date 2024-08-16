@@ -26,7 +26,6 @@ class PortalType(Enum):
     _connected_geometry_portal_type_no_way = 0
     _connected_geometry_portal_type_one_way = 1
     _connected_geometry_portal_type_two_way = 2
-    
 
 class Portal:
     index: int
@@ -1296,6 +1295,8 @@ class MeshPart:
     draw_distance: bool
     tessellation: Tessellation
     water_surface: bool
+    no_shadow: bool
+    lightmap_only: bool
     
     def __init__(self, element: TagFieldBlockElement, materials: list[Material]):
         self.index = element.ElementIndex
@@ -1315,6 +1316,14 @@ class MeshPart:
         if flags.TestBit("is water surface"):
             self.water_surface = True
             
+        self.no_shadow = False
+        self.lightmap_only = False
+        match element.SelectField("part type").Data:
+            case 3:
+                self.no_shadow = True
+            case 5:
+                self.lightmap_only = True
+            
         self.tessellation = Tessellation(element.SelectField("tessellation").Value)
         self.material = next(m for m in materials if m.index == self.material_index)
             
@@ -1332,7 +1341,7 @@ class MeshSubpart:
         self.part_index = element.SelectField("part index").Value
         self.part = next(p for p in parts if p.index == self.part_index)
         
-    def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool, water_surface_parts: list[MeshPart]):
+    def create(self, ob: bpy.types.Object, tris: Face, face_transparent: bool, face_draw_distance: bool, face_tesselation: bool, face_no_shadow: bool, face_lightmap_only: bool, water_surface_parts: list[MeshPart]):
         mesh = ob.data
         blend_material = self.part.material.blender_material
 
@@ -1345,7 +1354,7 @@ class MeshSubpart:
         for i in indexes:
             mesh.polygons[i].material_index = blend_material_index
 
-        if not (face_transparent or face_draw_distance or face_tesselation or water_surface_parts):
+        if not (face_transparent or face_draw_distance or face_tesselation or face_no_shadow or face_lightmap_only or water_surface_parts):
             return
 
         bm = bmesh.new()
@@ -1357,6 +1366,18 @@ class MeshSubpart:
                 layer_map["face_transparent"] = utils.add_face_layer(bm, mesh, "transparent", True)
             else:
                 layer_map["face_transparent"] = bm.faces.layers.int.get(existing_layer)
+        if face_no_shadow and self.part.no_shadow:
+            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.no_shadow_override), None)
+            if existing_layer is None:
+                layer_map["face_no_shadow"] = utils.add_face_layer(bm, mesh, "no_shadow", True)
+            else:
+                layer_map["face_no_shadow"] = bm.faces.layers.int.get(existing_layer)
+        if face_lightmap_only and self.part.lightmap_only:
+            existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.lightmap_only_override), None)
+            if existing_layer is None:
+                layer_map["face_lightmap_only"] = utils.add_face_layer(bm, mesh, "lightmap_only", True)
+            else:
+                layer_map["face_lightmap_only"] = bm.faces.layers.int.get(existing_layer)
         if face_draw_distance and self.part.draw_distance.value > 0:
             existing_layer = next((prop.layer_name for prop in mesh.nwo.face_props if prop.face_draw_distance_override), None)
             if existing_layer is None:
@@ -1371,7 +1392,11 @@ class MeshSubpart:
                 layer_map["mesh_tessellation_density"] = bm.faces.layers.int.get(existing_layer)
                 
         if self.part in water_surface_parts:
-            layer_map["water_surface"] = bm.faces.layers.int.new("water_surface")
+            existing_layer = bm.faces.layers.int.get("water_surface", None)
+            if existing_layer is None:
+                layer_map["water_surface"] = bm.faces.layers.int.new("water_surface")
+            else:
+                layer_map["water_surface"] = existing_layer
 
         bm.faces.ensure_lookup_table()
         for i in indexes:
@@ -1423,6 +1448,8 @@ class Mesh:
         self.face_transparent = len({p.transparent for p in self.parts}) > 1
         self.face_tesselation = len({p.tessellation for p in self.parts}) > 1
         self.face_draw_distance = len({p.draw_distance for p in self.parts}) > 1
+        self.face_no_shadow = len({p.no_shadow for p in self.parts}) > 1
+        self.face_lightmap_only = len({p.lightmap_only for p in self.parts}) > 1
             
         self.raw_positions = []
         self.raw_texcoords = []
@@ -1434,7 +1461,6 @@ class Mesh:
         if block_node_map is not None and block_node_map.Elements.Count and self.index < block_node_map.Elements.Count:
             map_element = block_node_map.Elements[self.index]
             self.node_map = [int(e.Fields[0].GetStringData()) for e in map_element.Fields[0].Elements]
-                
             
     def _true_uvs(self, texcoords):
         return [self._interp_uv(tc) for tc in texcoords]
@@ -1570,6 +1596,10 @@ class Mesh:
             mesh.nwo.face_draw_distance = self.parts[0].draw_distance.name
         if not self.face_tesselation:
             mesh.nwo.mesh_tessellation_density = self.parts[0].tessellation.name
+        if not self.face_no_shadow:
+            mesh.nwo.no_shadow = self.parts[0].no_shadow
+        if not self.face_lightmap_only and self.parts[0].lightmap_only:
+            mesh.nwo.mesh_type = "_connected_geometry_mesh_type_lightmap_only"
 
         water_surface_parts = {p for p in self.parts if p.water_surface}
 
@@ -1577,7 +1607,7 @@ class Mesh:
             mesh.materials.append(subpart.part.material.blender_material)
         else:
             for subpart in self.subparts:
-                subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, water_surface_parts)
+                subpart.create(ob, self.tris, self.face_transparent, self.face_draw_distance, self.face_tesselation, self.face_no_shadow, self.face_lightmap_only, water_surface_parts)
 
         self._set_two_sided(mesh)
         utils.loop_normal_magic(mesh)
