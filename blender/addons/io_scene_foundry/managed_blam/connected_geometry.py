@@ -22,6 +22,25 @@ from ..tools import materials as special_materials
 from .. import utils
 from .Tags import TagFieldBlock, TagFieldBlockElement, TagPath
 
+class BSPSeam:
+    index: int
+    edge_indexes: set[int]
+    origin = Vector
+    
+    def __init__(self, element: TagFieldBlockElement):
+        self.index = element.ElementIndex
+        self.bsps = []
+        self.origin = Vector()
+                
+    def update(self, element: TagFieldBlockElement, bsp):
+        clusters = element.SelectField("Block:cluster mapping")
+        for cluster_element in clusters.Elements:
+            if cluster_element.Fields[0].Data > -1:
+                if not self.bsps:
+                    self.origin = Vector((p for p in cluster_element.Fields[1].Data))
+                self.bsps.append(bsp)
+                break
+
 class PortalType(Enum):
     _connected_geometry_portal_type_no_way = 0
     _connected_geometry_portal_type_one_way = 1
@@ -829,6 +848,7 @@ class BSPCollisionMaterial:
     global_material: str
     tag_shader: TagPath
     name: str
+    is_seam: bool
     
     def __init__(self, element: TagFieldBlockElement):
         self.index = element.ElementIndex
@@ -859,6 +879,9 @@ class BSPCollisionMaterial:
             self.blender_material = get_blender_material(self.name, self.render_method)
         else:
             self.blender_material = None
+            
+        seam_flag = element.SelectField("WordFlags:flags")
+        self.is_seam = seam_flag.TestBit("is seam")
         
 class CollisionVertex:
     index: int
@@ -885,6 +908,7 @@ class CollisionSurface:
     ladder: bool
     breakable: bool
     slip_surface: bool
+    negated: bool
     
     def __init__(self, element: TagFieldBlockElement, materials: list[CollisionMaterial] | list[BSPCollisionMaterial]):
         self.index = element.ElementIndex
@@ -895,7 +919,10 @@ class CollisionSurface:
         else:
             self.material = materials[material_index]
         flags = element.SelectField("flags")
-        self.two_sided = flags.TestBit("two sided")
+        # self.two_sided = flags.TestBit("two sided")
+        self.two_sided = flags.TestBit("plane negated")
+        #self.negated = flags.TestBit("plane negated")
+        self.negated = False
         self.ladder = flags.TestBit("climbable")
         self.breakable = flags.TestBit("breakable")
         self.slip_surface = flags.TestBit("slip")
@@ -967,19 +994,21 @@ class BSP:
         mesh.from_pydata(vertices=[v.position for v in self.vertices], edges=[], faces=list(indices))
         
         # Check if we need to set any per face properties
-        map_material, map_two_sided, map_ladder, map_breakable, map_slip = [], [], [], [], []
+        map_material, map_two_sided, map_ladder, map_breakable, map_slip, map_negated = [], [], [], [], [], []
         for surface in self.surfaces:
             material = surface.material
             two_sided = surface.two_sided
             ladder = surface.ladder
             breakable = surface.breakable
             slip = surface.slip_surface
+            negated = surface.negated
             
             map_material.append(material)
             map_two_sided.append(two_sided)
             map_ladder.append(ladder)
             map_breakable.append(breakable)
             map_slip.append(slip)
+            map_negated.append(negated)
 
             
         materials_set = set(map_material)
@@ -987,16 +1016,18 @@ class BSP:
         ladder_set = set(map_ladder)
         breakable_set = set(map_breakable)
         slip_set = set(map_slip)
+        negated_set = set(map_negated)
 
         split_material = len(materials_set) > 1
         split_two_sided = len(two_sided_set) > 1
         split_ladder = len(ladder_set) > 1
         split_breakable = len(breakable_set) > 1
         split_slip = len(slip_set) > 1
+        split_negated = len(negated_set) > 1
 
         blender_materials_map = {}
         layer_materials, layer_two_sided, layer_ladder, layer_breakable, layer_slip = {}, None, None, None, None
-        using_layers = split_material or split_two_sided or split_ladder or split_breakable or split_slip
+        using_layers = split_material or split_two_sided or split_ladder or split_breakable or split_slip or split_negated
         bm = bmesh.new()
         bm.from_mesh(mesh)
         
@@ -1046,10 +1077,14 @@ class BSP:
         else:
             mesh.nwo.slip_surface = surface.slip_surface
         
+        to_remove = []
         if using_layers:
             if split_material and self.uses_materials:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
+                if split_negated and map_negated[idx]:
+                    to_remove.append(face)
+                    continue
                 if split_material and self.uses_materials:
                     face.material_index = material_indices[idx]
                 if layer_two_sided:
@@ -1060,7 +1095,10 @@ class BSP:
                     face[layer_breakable] = map_breakable[idx]
                 if layer_slip:
                     face[layer_slip] = map_slip[idx]
-
+                    
+        if to_remove:
+            bmesh.ops.delete(bm, geom=to_remove, context='FACES')
+            bm.faces.ensure_lookup_table()
         
         # This deletes duplicate faces resulting from the two-sided prop
         if mesh.nwo.face_two_sided or split_two_sided:

@@ -1586,9 +1586,6 @@ def set_origin_to_floor(ob):
     ob.matrix_world = ob.matrix_world @ Matrix.Translation(-translation)
     
 def set_origin_to_centre(ob):
-    with bpy.context.temp_override(object=ob, selected_editable_objects=[ob]):
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-        
     centroid = Vector((0, 0, 0))
     for vert in ob.data.vertices:
         centroid += vert.co
@@ -1600,6 +1597,11 @@ def set_origin_to_centre(ob):
         vert.co += translation
         
     ob.matrix_world = ob.matrix_world @ Matrix.Translation(-translation)
+    
+def set_origin_to_point(ob: bpy.types.Object, point: Vector):
+    translation_matrix = Matrix.Translation(point - ob.location)
+    ob.data.transform(translation_matrix)
+    ob.matrix_world = ob.matrix_world @ translation_matrix.inverted()
 
 def get_project(project_name):
     projects = get_prefs().projects
@@ -3706,3 +3708,17 @@ def set_foundry_panel_active():
         tool_region = next((region for region in area.regions if region.type == 'UI'), None)
         if tool_region is not None:
             tool_region.active_panel_category = "Foundry"
+            
+def cut_out_mesh(ob: bpy.types.Object, cutter: bpy.types.Object):
+    '''Cuts out mesh from the first object using the second'''
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    cutter_coords = {v.co for v in cutter.data.vertices}
+    for v in bm.verts:
+        v.select = False
+        if v.co in cutter_coords:
+            v.select = True
+            
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.select], context='FACES')
+    bm.to_mesh(ob.data)
+    bm.free()

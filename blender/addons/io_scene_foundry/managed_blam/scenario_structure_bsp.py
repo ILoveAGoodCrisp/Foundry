@@ -26,9 +26,10 @@
 
 import bmesh
 import bpy
-from mathutils import Vector
 
-from .connected_geometry import BSPCollisionMaterial, Cluster, CompressionBounds, Instance, InstanceDefinition, Material, Mesh, Portal, StructureCollision
+from ..tools.property_apply import apply_props_material
+
+from .connected_geometry import BSPCollisionMaterial, BSPSeam, Cluster, CompressionBounds, Instance, InstanceDefinition, Material, Mesh, Portal, StructureCollision
 from ..utils import jstr
 from ..managed_blam import Tag
 from .. import utils
@@ -151,7 +152,7 @@ class ScenarioStructureBspTag(Tag):
             
         self.tag_has_changes = True
         
-    def to_blend_objects(self, collection: bpy.types.Collection):
+    def to_blend_objects(self, collection: bpy.types.Collection, for_scenario: bool):
         objects = []
         self.collection = collection
         # Get all collision materials
@@ -177,19 +178,19 @@ class ScenarioStructureBspTag(Tag):
         meshes = self.tag.SelectField("Struct:render geometry[0]/Block:meshes")
         # Get all instance definitions
         instance_definitions = []
-        # print("Creating Instance Definitions")
-        # for element in self.block_instance_definitions.Elements:
-        #     definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials)
-        #     objects.extend(definition.create(render_model, temp_meshes))
-        #     instance_definitions.append(definition)
+        print("Creating Instance Definitions")
+        for element in self.block_instance_definitions.Elements:
+            definition = InstanceDefinition(element, meshes, bounds, render_materials, collision_materials)
+            objects.extend(definition.create(render_model, temp_meshes))
+            instance_definitions.append(definition)
             
-        # # # # Create instanced geometries
-        # print("Creating Instanced Objects")
-        # for element in self.block_instances.Elements:
-        #     io = Instance(element, instance_definitions)
-        #     ob = io.create()
-        #     objects.append(ob)
-        #     self.collection.objects.link(ob)
+        # Create instanced geometries
+        print("Creating Instanced Objects")
+        for element in self.block_instances.Elements:
+            io = Instance(element, instance_definitions)
+            ob = io.create()
+            objects.append(ob)
+            self.collection.objects.link(ob)
             
         # Create structure
         structure_objects = []
@@ -202,76 +203,70 @@ class ScenarioStructureBspTag(Tag):
             
         # Merge structure
         if structure_objects:
-            # print("Merging Structure")
+            print("Merging Structure")
             utils.deselect_all_objects()
-            # bm = bmesh.new()
-            # for ob in structure_objects:
-            #     if ob.type == "MESH":
-            #         ob.select_set(True)
-            
-            # if bpy.context.selected_objects:
-            #     utils.set_active_object(bpy.context.selected_objects[0])
-            #     bpy.ops.nwo.join_halo()
-                
-            #     joined_structure = utils.get_active_object()
-            #     structure_mesh = joined_structure.data
-            #     joined_structure.name = self.collection.name + "_structure"
-                
-            utils.deselect_all_objects()
-            
-            # bm = bmesh.new()
-            # bm.from_mesh(structure_mesh)
+            bm = bmesh.new()
             for ob in structure_objects:
-                objects.append(ob)
-                if ob.type != 'MESH' or ob.data.nwo != "_connected_geometry_mesh_type_structure": continue
-                structure_mesh = ob.data
-                structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-                ob.nwo.proxy_instance = True
-                bm = bmesh.new()
-                bm.from_mesh(structure_mesh)
-                water_layer = bm.faces.layers.int.get("water_surface")
-                if water_layer:
-                    water_mesh = structure_mesh.copy()
-                    water_mesh.name = "water_surface"
-                    bmw = bm.copy()
-                    bmw_water_layer = bmw.faces.layers.int.get("water_surface")
-                    bmesh.ops.delete(bmw, geom=[f for f in bmw.faces if not f[bmw_water_layer]], context='FACES')
-                    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[water_layer]], context='FACES')
-                    bmw.faces.layers.int.remove(bmw_water_layer)
-                    bm.faces.layers.int.remove(water_layer)
-                    bmw.to_mesh(water_mesh)
-                    if water_mesh.polygons:
-                        water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
-                        self.collection.objects.link(water_ob)
-                        utils.apply_loop_normals(water_mesh)
-                        water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
-                        water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
-                        utils.loop_normal_magic(water_ob.data)
-                        water_ob.select_set(True)
-                        utils.set_active_object(water_ob)
-                        bpy.ops.object.editmode_toggle()
-                        bpy.ops.mesh.separate(type="LOOSE")
-                        bpy.ops.object.editmode_toggle()
-                        for ob in bpy.context.selected_objects:
-                            objects.append(ob)
-                        utils.deselect_all_objects()
+                if ob.type == "MESH":
+                    ob.select_set(True)
+            
+            if bpy.context.selected_objects:
+                utils.set_active_object(bpy.context.selected_objects[0])
+                bpy.ops.nwo.join_halo()
+                
+                joined_structure = utils.get_active_object()
+                structure_mesh = joined_structure.data
+                joined_structure.name = self.collection.name + "_structure"
+                
+            utils.deselect_all_objects()
+            
+            bm = bmesh.new()
+            bm.from_mesh(structure_mesh)
+            water_layer = bm.faces.layers.int.get("water_surface")
+            if water_layer:
+                water_mesh = structure_mesh.copy()
+                water_mesh.name = "water_surface"
+                bmw = bm.copy()
+                bmw_water_layer = bmw.faces.layers.int.get("water_surface")
+                bmesh.ops.delete(bmw, geom=[f for f in bmw.faces if not f[bmw_water_layer]], context='FACES')
+                bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[water_layer]], context='FACES')
+                bmw.faces.layers.int.remove(bmw_water_layer)
+                bm.faces.layers.int.remove(water_layer)
+                bmw.to_mesh(water_mesh)
+                if water_mesh.polygons:
+                    water_ob = bpy.data.objects.new(water_mesh.name, water_mesh)
+                    self.collection.objects.link(water_ob)
+                    utils.apply_loop_normals(water_mesh)
+                    water_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_water_surface"
+                    water_ob.nwo.water_volume_depth = 0 # depth to be handled by structure design
+                    utils.loop_normal_magic(water_ob.data)
+                    water_ob.select_set(True)
+                    utils.set_active_object(water_ob)
+                    bpy.ops.object.editmode_toggle()
+                    bpy.ops.mesh.separate(type="LOOSE")
+                    bpy.ops.object.editmode_toggle()
+                    for ob in bpy.context.selected_objects:
+                        objects.append(ob)
+                    utils.deselect_all_objects()
 
-                    # bm.to_mesh(structure_mesh)
+                bm.to_mesh(structure_mesh)
                 bm.free()
-            # if structure_mesh.polygons:
-            #     utils.loop_normal_magic(structure_mesh)
-            #     structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
-            #     joined_structure.nwo.proxy_instance = True
-            #     objects.append(joined_structure)
-            #     structure_mesh.nwo.render_only = True
-            #     if structure_mesh.nwo.face_props:
-            #         bm = bmesh.new()
-            #         bm.from_mesh(structure_mesh)
-            #         for face_layer in structure_mesh.nwo.face_props:
-            #             face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
-            #         bm.free()
+                
+            if structure_mesh.polygons:
+                utils.loop_normal_magic(structure_mesh)
+                structure_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_structure"
+                joined_structure.nwo.proxy_instance = True
+                objects.append(joined_structure)
+                structure_mesh.nwo.render_only = True
+                if structure_mesh.nwo.face_props:
+                    bm = bmesh.new()
+                    bm.from_mesh(structure_mesh)
+                    for face_layer in structure_mesh.nwo.face_props:
+                        face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
+                    bm.free()
             
         # Create Structure Collision
+        self.structure_collision = None
         if self.corinth:
             print("Creating Structure Sky")
         else:
@@ -294,7 +289,37 @@ class ScenarioStructureBspTag(Tag):
                 self.collection.objects.link(ob)
                 ob.hide_set(True)
                 ob.data.nwo.collision_only = True
-        
+                self.structure_collision = ob
+                
+                if for_scenario:
+                    print("Creating Seams")
+                    seams_mesh = ob.data.copy()
+                    # Remove seam faces
+                    bm = bmesh.new()
+                    seam_bm = bmesh.new()
+                    bm.from_mesh(ob.data)
+                    seam_bm.from_mesh(seams_mesh)
+                    seam_material_indexes = set()
+                    for idx, material in enumerate(ob.data.materials):
+                        seam_collision_mat = next((cm for cm in collision_materials if cm.blender_material == material and cm.is_seam), None)
+                        if seam_collision_mat:
+                            seam_material_indexes.add(idx)
+                            
+                    bmesh.ops.delete(seam_bm, geom=[f for f in seam_bm.faces if f.material_index not in seam_material_indexes], context='FACES')
+                    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in seam_material_indexes], context='FACES')
+                    seam_bm.to_mesh(seams_mesh)
+                    seam_bm.free()
+                    bm.to_mesh(ob.data)
+                    bm.free()
+                    seam_ob = ob.copy()
+                    seam_ob.data = seams_mesh
+                    seam_ob.name = "seams"
+                    seams_mesh.nwo.mesh_type = "_connected_geometry_mesh_type_seam"
+                    seam_ob.nwo.seam_back_manual = True
+                    apply_props_material(seam_ob, "Seam")
+                    objects.append(seam_ob)
+                    collection.objects.link(seam_ob)
+                    
         # Create Portals
         print("Creating Portals")
         for element in self.tag.SelectField("Block:cluster portals").Elements:
@@ -305,13 +330,20 @@ class ScenarioStructureBspTag(Tag):
             
         return objects
     
-    def get_seam_ids(self):
-        seam_ids = []
+    def get_seams(self, name, existing_seams: list[BSPSeam]=[]):
+        seams = []
         for element in self.tag.SelectField("Block:seam identifiers").Elements:
-            id = element.SelectField("Struct:seams identifier[0]/LongInteger:seam_id0").Data
-            seam_ids.append(id)
-            
-        return seam_ids
+            if existing_seams:
+                existing_seams[element.ElementIndex].update(element, name)
+            else:
+                seam = BSPSeam(element)
+                seam.update(element, name)
+                seams.append(seam)
+                
+        if existing_seams:
+            return existing_seams
+
+        return seams
     
 def are_faces_overlapping(face1, face2):
     # Check if faces are coplanar (i.e., their normals are parallel)

@@ -899,8 +899,9 @@ class NWOImporter:
         imported_objects = []
         for file in paths:
             print(f'Importing Scenario Tag: {Path(file).with_suffix("").name} ')
-            seam_map = {}
             seams_tag = None
+            seams = []
+            structure_collision = []
             with utils.TagImportMover(self.project.tags_directory, file) as mover:
                 with ScenarioTag(path=mover.tag_path, raise_on_error=False) as scenario:
                     if not scenario.valid: continue
@@ -909,24 +910,22 @@ class NWOImporter:
                     scenario_collection = bpy.data.collections.new(scenario.tag_path.ShortName)
                     self.context.scene.collection.children.link(scenario_collection)
                     for bsp in bsps:
-                        bsp_objects, seams, name = self.import_bsp(bsp, scenario_collection, scenario_name)
+                        bsp_objects, seams, collision = self.import_bsp(bsp, scenario_collection, scenario_name, seams)
                         imported_objects.extend(bsp_objects)
-                        for s in seams:
-                            seam_map[s] = name
                     
-                    if seam_map:
+                    if seams:
                         seams_tag = scenario.get_seams_path()
                         
-            if seams_tag is not None:
-                seams_collection = bpy.data.collections.new(f"seams_{scenario_name}")
-                scenario_collection.children.link(seams_collection)
-                with utils.TagImportMover(self.project.tags_directory, seams_tag) as mover:
-                    with StructureSeamsTag(path=mover.tag_path, raise_on_error=False) as structure_seams:
-                        imported_objects.extend(structure_seams.to_blend_objects(seam_map, seams_collection))
+            # if seams_tag is not None:
+            #     seams_collection = bpy.data.collections.new(f"seams_{scenario_name}")
+            #     scenario_collection.children.link(seams_collection)
+            #     with utils.TagImportMover(self.project.tags_directory, seams_tag) as mover:
+            #         with StructureSeamsTag(path=mover.tag_path, raise_on_error=False) as structure_seams:
+            #             imported_objects.extend(structure_seams.to_blend_objects(seams, seams_collection))
         
         return imported_objects
     
-    def import_bsp(self, file, scenario_collection=None, scenario_name=None):
+    def import_bsp(self, file, scenario_collection=None, scenario_name=None, seams=[]):
         if scenario_name is None:
             name = Path(file).with_suffix("").name
         else:
@@ -942,24 +941,15 @@ class NWOImporter:
             scenario_collection.children.link(collection)
         with utils.TagImportMover(self.project.tags_directory, file) as mover:
             with ScenarioStructureBspTag(path=mover.tag_path) as bsp:
-                bsp_objects = bsp.to_blend_objects(collection)
-                seams = bsp.get_seam_ids()
+                bsp_objects = bsp.to_blend_objects(collection, scenario_collection is not None)
+                seams = bsp.get_seams(name, seams)
         
         bsp_name = utils.add_region(name)
         collection.name = "bsp::" + bsp_name
         collection.nwo.type = "region"
         collection.nwo.region = bsp_name
         
-        return bsp_objects, seams, name
-    
-    def import_seams(self, file, scenario_collection, scenario_name):
-        print(f"Importing Scenario Seams")
-        seam_objects = []
-        collection = bpy.data.collections.new(scenario_name + "_seams")
-        scenario_collection.children.link(collection)
-        with utils.TagImportMover(self.project.tags_directory, file) as mover:
-            with StructureSeamsTag(path=mover.tag_path) as seams:
-                seam_objects = seams.to_blend_objects(collection)
+        return bsp_objects, seams, bsp.structure_collision
         
     # Bitmap Import
     def extract_bitmaps(self, bitmap_files, image_format):
