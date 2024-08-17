@@ -167,3 +167,7 @@ object_game_validation = {
     }
 
 WU_SCALAR = 0.328084
+
+class GameVersion(Enum):
+    REACH = 0
+    CORINTH = 1

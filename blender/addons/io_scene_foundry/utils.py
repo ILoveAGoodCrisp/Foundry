@@ -206,7 +206,6 @@ def get_data_path():
         return ""
     return project.data_directory
 
-
 def get_tool_type():
     return bpy.context.preferences.addons[__package__].preferences.tool_type
 
@@ -3375,16 +3374,22 @@ class EditArmature:
                 for coll in original_collections:
                     coll.objects.link(arm)
                     
-def disable_excluded_collections(context):
+def disable_excluded_collections(context) -> set[bpy.types.Collection]:
     child_coll = context.view_layer.layer_collection.children
+    hidden_colls = set()
     for layer in child_coll:
-        hide_excluded_recursively(layer)
+        hidden_colls = hide_excluded_recursively(layer, hidden_colls)
+        
+    return hidden_colls
 
-def hide_excluded_recursively(layer):
+def hide_excluded_recursively(layer, hidden_colls: set[bpy.types.Collection]):
     if layer.collection.nwo.type == 'exclude' and layer.is_visible:
         layer.exclude = True
+        hidden_colls.add(layer)
     for child_layer in layer.children:
-        hide_excluded_recursively(child_layer)
+        hidden_colls = hide_excluded_recursively(child_layer, hidden_colls)
+        
+    return hidden_colls
         
 def unhide_collections(context):
     layer_collection = context.view_layer.layer_collection

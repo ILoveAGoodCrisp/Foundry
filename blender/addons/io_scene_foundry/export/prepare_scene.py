@@ -1,5 +1,10 @@
 from collections import defaultdict
+from datetime import date
+import datetime
+import getpass
 from pathlib import Path
+import socket
+import time
 import bmesh
 import bpy
 import csv
@@ -1170,6 +1175,7 @@ class PrepareScene:
         
             
     def _face_prop_to_mesh_prop(self, face_props, ob):
+        is_poop = ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop"
         if face_props.render_only_override:
             if self.corinth:
                 ob["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_none"
@@ -1245,13 +1251,17 @@ class PrepareScene:
 
         if face_props.decal_offset_override:
             ob["bungie_decal_offset"] = "1"
+            if is_poop:
+                ob["bungie_mesh_poop_decal_spacing"] = "1"
 
         if face_props.no_shadow_override:
             ob["bungie_no_shadow"] = "1"
 
         if face_props.precise_position_override:
             ob["bungie_precise_position"] = "1"
-            ob["bungie_mesh_additional_compression"] = "_connected_geometry_mesh_additional_compression_force_off"
+            # ob["bungie_mesh_additional_compression"] = "_connected_geometry_mesh_additional_compression_force_off"
+            if is_poop:
+                ob["bungie_mesh_poop_precise_geometry"] = "1"
 
         if face_props.no_lightmap_override:
             ob["bungie_no_lightmap"] = "1"
@@ -1523,8 +1533,11 @@ class PrepareScene:
             ob["bungie_mesh_poop_does_not_block_aoe"] = "1"
         if nwo.poop_excluded_from_lightprobe:
             ob["bungie_mesh_poop_excluded_from_lightprobe"] = "1"
-        if nwo.poop_decal_spacing:
-            ob["bungie_mesh_poop_decal_spacing"] = "1"
+            
+        if nwo_data.decal_offset:
+            ob["bungie_mesh_poop_decal_spacing"] = "1" 
+        if nwo_data.precise_position:
+            ob["bungie_mesh_poop_precise_geometry"] = "1"
 
         if self.corinth:
             ob["bungie_mesh_poop_lightmap_resolution_scale"] = str(nwo.poop_lightmap_resolution_scale)
@@ -1736,7 +1749,7 @@ class PrepareScene:
             if current_mesh_type in ('_connected_geometry_mesh_type_default', '_connected_geometry_mesh_type_poop'):
                 if nwo_data.precise_position and not (self.asset_type == 'scenario' and current_mesh_type == '_connected_geometry_mesh_type_default'):
                     ob["bungie_precise_position"] = "1"
-                    ob["bungie_mesh_additional_compression"] = "_connected_geometry_mesh_additional_compression_force_off"
+                    #ob["bungie_mesh_additional_compression"] = "_connected_geometry_mesh_additional_compression_force_off"
                 if nwo_data.decal_offset:
                     ob["bungie_decal_offset"] = "1"
                 if nwo_data.mesh_tessellation_density != "_connected_geometry_mesh_tessellation_density_none":
@@ -2627,6 +2640,17 @@ class PrepareScene:
                 ob["bungie_mesh_poop_collision_override_global_material"] = "1"
             else:
                 ob["bungie_face_global_material"] = global_material
+                
+                
+    def write_bungie_export_info(self):
+        node = bpy.data.objects.new("BungieExportInfo", None)
+        node["bungie_export_user"] = getpass.getuser()
+        node["bungie_export_machine"] = socket.gethostname()
+        node["bungie_export_toolset"] = "Foundry"
+        node["bungie_export_date"] = datetime.today().strftime("%Y-%m-%d")
+        node["bungie_export_time"] = datetime.today().strftime("%H:%M:%S")
+        node["e_connected_geometry_object_type_enum_names"] = "'_connected_geometry_object_type_none','_connected_geometry_object_type_frame','_connected_geometry_object_type_marker','_connected_geometry_object_type_mesh'"
+        
 
 #####################################################################################
 #####################################################################################

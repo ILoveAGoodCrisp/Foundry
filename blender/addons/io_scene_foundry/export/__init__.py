@@ -22,6 +22,8 @@ import ctypes
 import traceback
 import logging
 
+from .prepare_scene_granny import ExportScene
+
 from ..icons import get_icon_id, get_icon_id_in_directory
 from ..ui.bar import NWO_MT_ProjectChooserMenuDisallowNew
 
@@ -290,6 +292,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             sub = box.column(heading="Export Flags")
             sub.prop(scene_nwo_export, 'triangulate', text="Triangulate")
             sub.prop(scene_nwo_export, 'slow_gr2')
+            sub.prop(scene_nwo_export, 'granny_export')
             # if scene_nwo.asset_type in (('model', 'sky', 'animation')):
             #     # col.prop(scene_nwo_export, "fix_bone_rotations", text="Fix Bone Rotations") # NOTE To restore when this works correctly
             #     col.prop(scene_nwo_export, "fast_animation_export", text="Fast Animation Export")
@@ -447,8 +450,12 @@ class NWO_Export(NWO_Export_Scene):
         
         try:
             try:
-                if fbx_installed:
-                    prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                process_results = None
+                if scene_nwo_export.granny_export:
+                    export_asset_granny(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                else:
+                    if fbx_installed:
+                        prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
             
             except Exception as e:
                 if type(e) == RuntimeError:
@@ -483,7 +490,7 @@ class NWO_Export(NWO_Export_Scene):
             elif self.fail_explanation:
                     print_warning("\nEXPORT CANCELLED")
                     print(self.fail_explanation)
-            elif process_results.gr2_fail:
+            elif process_results and process_results.gr2_fail:
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
@@ -494,7 +501,7 @@ class NWO_Export(NWO_Export_Scene):
                     "-----------------------------------------------------------------------\n"
                 )
 
-            elif process_results.sidecar_import_failed:
+            elif process_results and process_results.sidecar_import_failed:
                 print(
                     "\n-----------------------------------------------------------------------"
                 )
@@ -508,7 +515,7 @@ class NWO_Export(NWO_Export_Scene):
                 print(
                     "-----------------------------------------------------------------------\n"
                 )
-            elif process_results.lightmap_failed:
+            elif process_results and process_results.lightmap_failed:
                 
                 print(
                     "\n-----------------------------------------------------------------------"
@@ -637,3 +644,8 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         export_process.process_scene(context, sidecar_path, sidecar_path_full, asset_name, asset_path, asset_type, export_scene, export_settings, scene_settings)
         
     return export_scene, export_process
+
+def export_asset_granny(context, sidecar_path_full, asset_name, asset_path, scene_settings, export_settings, corinth):
+    asset_type = scene_settings.asset_type
+    export_scene = ExportScene(context, asset_type, asset_name, corinth)
+    export_scene.ready_scene()

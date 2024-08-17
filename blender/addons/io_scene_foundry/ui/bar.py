@@ -564,6 +564,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
         col = flow.column()
         col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
         col.prop(scene_nwo_export, 'slow_gr2')
+        col.prop(scene_nwo_export, 'granny_export')
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
@@ -654,6 +655,11 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         name="Triangulate",
         description="Applies a triangulation modifier to all objects at export if they do not already have one",
         default=False,
+        options=set(),
+    )
+    granny_export: bpy.props.BoolProperty(
+        name="GR2 DEBUG",
+        description="Enables WIP GR2 exporting",
         options=set(),
     )
     # fast_animation_export : bpy.props.BoolProperty(

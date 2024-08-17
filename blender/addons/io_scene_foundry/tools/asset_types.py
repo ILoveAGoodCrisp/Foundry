@@ -1,3 +1,4 @@
+from enum import Enum
 from .. import icons
 from .. import utils
 
@@ -44,3 +45,14 @@ def asset_type_items(self, context):
         items.append((a.internal_name, a.display_name, a.description, a.icon, i))
     
     return items
+
+class AssetType(Enum):
+    MODEL = 0
+    SCENARIO = 1
+    SKY = 2
+    DECORATOR_SET = 3
+    PARTICLE_MODEL = 4
+    ANIMATION = 5
+    CAMERA_TRACK_SET = 6
+    RESOURCE = 7
+    PREFAB = 8
