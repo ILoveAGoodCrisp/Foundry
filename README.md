@@ -27,6 +27,7 @@ To install the afformentioned editing kits, you must own the respective MCC titl
 - [General Heed](https://github.com/Generalkidd) - Early Foundry work
 - [Krevil](https://github.com/Krevil) - Guidance on editing GR2 files and for research into Cubemap checksum calculation
 - [Gravemind2401](https://github.com/Gravemind2401) - Advice on tag extraction
+- [Matthew](https://github.com/matty45) - GR2 Research
 
 
 ## Special Thanks

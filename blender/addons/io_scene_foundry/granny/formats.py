@@ -172,7 +172,7 @@ class GrannyMaterial(Structure):
     """ material data """
     _pack_ = 1
     _fields_ = [
-                ('name', c_char_p),
+                ('name',c_char_p),
                 ('map_count',c_int),
                 ('maps',POINTER(GrannyMaterialMap)),
                 ('texture',POINTER(GrannyTextureImage)),
@@ -469,7 +469,7 @@ class GrannyFileInfo(Structure):
                 ('material_count',c_int),
                 ('materials',POINTER(POINTER(GrannyMaterial))),
                 ('skeleton_count',c_int),
-                ('skeletons', POINTER(POINTER(GrannySkeleton))),
+                ('skeletons',POINTER(POINTER(GrannySkeleton))),
                 ('vertex_data_count',c_int),
                 ('vertex_datas',POINTER(POINTER(GrannyVertexData))),
                 ('tri_topology_count',c_int),
@@ -500,9 +500,164 @@ class GrannyGRNSection(Structure):
                 ('pointer_fixup_array_count',c_uint),
                 ('mixed_marshalling_fixup_array_offset',c_uint),
                 ('mixed_marshalling_fixup_array_count',c_uint)]
+
 class GrannyLogCallback(Structure):
     """ granny file section """
     _pack_ = 1
     _fields_ = [
                 ('function',CFUNCTYPE(None, c_int,c_int,c_char_p,c_int,c_char_p,c_void_p)),
                 ('user_data',c_void_p)]
+
+class GrannyStringTreeEntry(Structure):
+    """ granny string stuff """
+    _pack_ = 1
+    pass
+
+GrannyStringTreeEntry._fields_ = [
+                ('string',c_char_p),
+                ('left',POINTER(GrannyStringTreeEntry)),
+                ('right',POINTER(GrannyStringTreeEntry))]
+
+class GrannyStringTree(Structure):
+    """ granny string stuff """
+    _pack_ = 1
+    _fields_ = [
+                ('unused',POINTER(GrannyStringTreeEntry)),
+                ('first',POINTER(GrannyStringTreeEntry)),
+                ('last',POINTER(GrannyStringTreeEntry)),
+                ('root',POINTER(GrannyStringTreeEntry)),
+                ('container_buffers_member',c_void_p)]
+
+class GrannyMemoryArena(Structure):
+    """ granny memory stuff """
+    _pack_ = 1
+    pass
+
+GrannyMemoryArena._fields_ = [
+                ('data_start',c_ulonglong),
+                ('next',POINTER(GrannyMemoryArena))]
+
+class GrannyStringTableBlock(Structure):
+    """ granny string stuff """
+    _pack_ = 1
+    pass
+
+GrannyStringTableBlock._fields_ = [
+                ('data_start',c_char_p),
+                ('one_past_last_data',c_char_p),
+                ('last',POINTER(GrannyStringTableBlock))]
+
+class GrannyStringTable(Structure):
+    """ granny string stuff """
+    _pack_ = 1
+    _fields_ = [
+                ('tree',GrannyStringTree),
+                ('block_size',c_int),
+                ('last_block',POINTER(GrannyStringTableBlock)),
+                ('arena',POINTER(GrannyMemoryArena))]
+
+class GrannyVariantMemberBuilder(Structure):
+    """ granny variant stuff """
+    _pack_ = 1
+    pass
+
+GrannyVariantMemberBuilder._fields_ = [
+                ('type',GrannyDataTypeDefinition),
+                ('data',c_void_p),
+                ('next',POINTER(GrannyVariantMemberBuilder))]
+
+class GrannyVariantBuilder(Structure):
+    """ granny variant stuff """
+    _pack_ = 1
+    _fields_ = [
+                ('strings',POINTER(GrannyStringTable)),
+                ('member_count',c_int),
+                ('total_object_size',c_int),
+                ('first_member',POINTER(GrannyVariantMemberBuilder)),
+                ('last_member',POINTER(GrannyVariantMemberBuilder))]
+
+class GrannyWrittenType(Structure):
+    """ granny memory stuff """
+    _pack_ = 1
+    pass
+
+GrannyWrittenType._fields_ = [
+        ('signature',c_uint),
+        ('type',POINTER(GrannyDataTypeDefinition)),
+        ('left',POINTER(GrannyWrittenType)),
+        ('right',POINTER(GrannyWrittenType)),
+        ('next',POINTER(GrannyWrittenType)),
+        ('previous',POINTER(GrannyWrittenType))]
+
+class GrannyWrittenTypeRegistry(Structure):
+    """ granny memory stuff """
+    _pack_ = 1
+    _fields_ = [
+        ('unused',POINTER(GrannyWrittenType)),
+        ('first',POINTER(GrannyWrittenType)),
+        ('last',POINTER(GrannyWrittenType)),
+        ('root',POINTER(GrannyWrittenType)),
+        ('container_buffers_member',c_void_p),]
+
+class GrannyHashEntry(Structure):
+    """ granny memory stuff """
+    _pack_ = 1
+    pass
+
+GrannyHashEntry._fields_ = [
+        ('key',c_void_p),
+        ('data',c_void_p),
+        ('left',POINTER(GrannyHashEntry)),
+        ('right',POINTER(GrannyHashEntry))]
+
+class GrannyPointerHash(Structure):
+    """ granny memory stuff """
+    _pack_ = 1
+    _fields_ = [
+        ('unused',POINTER(GrannyHashEntry)),
+        ('first',POINTER(GrannyHashEntry)),
+        ('last',POINTER(GrannyHashEntry)),
+        ('root',POINTER(GrannyHashEntry)),
+        ('container_buffers_member',c_void_p),]
+
+class GrannyAllocatedBlock(Structure):
+    """ granny memory stuff """
+    _pack_ = 1
+    pass
+
+GrannyAllocatedBlock._fields_ = [
+        ('used_unit_count',c_int),
+        ('base',POINTER(c_ubyte)),
+        ('first_index',c_int),
+        ('previous',POINTER(GrannyAllocatedBlock))]
+
+class GrannyStackAllocator(Structure):
+    """ granny memory stuff """
+    _pack_ = 1
+    _fields_ = [
+        ('unit_size',c_int),
+        ('units_per_block',c_int),
+        ('total_used_unit_count',c_int),
+        ('last_block',POINTER(GrannyAllocatedBlock)),
+        ('max_units',c_int),
+        ('active_blocks',c_int),
+        ('max_active_blocks',c_int),
+        ('block_directory',POINTER(POINTER(GrannyAllocatedBlock)))]
+
+class GrannyFileDataTreeWriter(Structure):
+    """ granny file data stuff """
+    _pack_ = 1
+    _fields_ = [
+        ('root_object_type_definition',POINTER(GrannyDataTypeDefinition)),
+        ('root_object',c_void_p),
+        ('traversal_number',c_int),
+        ('flags',c_uint),
+        ('default_type_section_index',c_int),
+        ('default_object_section_index',c_int),
+        ('object_blocks',GrannyStackAllocator),
+        ('block_hash',POINTER(GrannyPointerHash)),
+        ('string_callback',CFUNCTYPE(c_uint,c_void_p,c_char_p)),
+        ('string_callback_data',c_void_p),
+        ('written_type_registry',GrannyWrittenTypeRegistry),
+        ('source_file_for_sectioning',POINTER(GrannyFile)),
+        ('source_file_for_formats',POINTER(GrannyFile))]

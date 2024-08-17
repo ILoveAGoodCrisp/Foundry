@@ -47,6 +47,13 @@ GrannyCallbackType = CFUNCTYPE(
     c_void_p
 )
 
+class MaterialExtendedData(Structure):
+    _pack_ = 1
+    _fields_ = [
+                ('bungie_shader_path',c_char_p),
+                ('bungie_shader_type',c_char_p)
+                ]
+
 class Granny:
     dll: CDLL
     def __init__(self, granny_dll_path: str | Path, filepath: Path):
@@ -66,17 +73,26 @@ class Granny:
             if self._write_data_tree_to_file(data_tree_writer):
                 self._end_file_data_tree_writing(data_tree_writer)
                 
-    def create_materials(self):
-        materials = [GrannyMaterial() for _ in range(len(bpy.data.materials))]
-        Array = POINTER(GrannyMaterial) * len(materials)
-        granny_materials = Array()
+    def create_materials(self, materials: list[bpy.types.Material]):
+        length = len(materials)
+        granny_materials = [GrannyMaterial() for _ in range(length)]
+        Array = POINTER(GrannyMaterial) * length
+        array = Array()
         
-        for i, (gmat, bmat) in enumerate(zip(materials, bpy.data.materials)):
-            granny_materials[i] = pointer(gmat)
+        ExtendedDataType = (GrannyDataTypeDefinition * 3)()
+        ExtendedDataType[0] = GrannyDataTypeDefinition(member_type=8, name=b"bungie_shader_path")
+        ExtendedDataType[1] = GrannyDataTypeDefinition(member_type=8, name=b"bungie_shader_type")
+        ExtendedDataType[2] = GrannyDataTypeDefinition(member_type=0)
+        
+        for i, (gmat, bmat) in enumerate(zip(granny_materials, materials)):
+            array[i] = pointer(gmat)
             gmat.name = bmat.name.encode('utf-8')
+            item = MaterialExtendedData(bungie_shader_path=bmat.nwo.shader_path.encode(), bungie_shader_type=b"shader")
+            gmat.extended_data.object = cast(pointer(item), c_void_p)
+            gmat.extended_data.type = ExtendedDataType
             
-        self.file_info.material_count = len(materials)
-        self.file_info.materials = granny_materials
+        self.file_info.material_count = length
+        self.file_info.materials = array
         
     def create_skeletons(self):
         skeletons = [GrannySkeleton() for _ in range(2)]
@@ -108,7 +124,7 @@ class Granny:
         return result
     
     def _write_data_tree_to_file(self, writer):
-        file_name_bytes = self.file_name.encode()
+        file_name_bytes = self.filename.encode()
         self.dll.GrannyWriteDataTreeToFile.argtypes=[c_void_p, c_uint32, POINTER(GrannyFileMagic), c_char_p, c_int32]
         self.dll.GrannyWriteDataTreeToFile.restype=c_bool
         result = self.dll.GrannyWriteDataTreeToFile(writer, 0x80000037, self.magic_value, file_name_bytes, 1)
@@ -122,12 +138,12 @@ class Granny:
         new_callback = self.old_callback
         new_callback.function = GrannyCallbackType(new_callback_function)
         new_callback.user_data = None
-        self.set_log_callback(new_callback)
+        self._set_log_callback(new_callback)
         
     def _create_file_info(self):
         self.file_info = GrannyFileInfo()
-        self.file_info.art_tool_info = pointer(self.create_art_tool_info())
-        self.file_info.exporter_info = pointer(self.create_basic_exporter_tool_info())
+        self.file_info.art_tool_info = pointer(self._create_art_tool_info())
+        self.file_info.exporter_info = pointer(self._create_basic_exporter_tool_info())
         self.file_info.file_name = self.filename.encode()
         self.file_info.texture_count = 0
         self.file_info.textures = None

@@ -22,6 +22,8 @@ import ctypes
 import traceback
 import logging
 
+from .process_scene_granny import ProcessSceneGR2
+
 from .prepare_scene_granny import ExportScene
 
 from ..icons import get_icon_id, get_icon_id_in_directory
@@ -451,11 +453,11 @@ class NWO_Export(NWO_Export_Scene):
         try:
             try:
                 process_results = None
-                if scene_nwo_export.granny_export:
-                    export_asset_granny(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
-                else:
-                    if fbx_installed:
-                        prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                # if scene_nwo_export.granny_export:
+                #     export_asset_granny(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                # else:
+                if fbx_installed:
+                    prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
             
             except Exception as e:
                 if type(e) == RuntimeError:
@@ -640,7 +642,11 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         export_scene.finalize()
     
     if not export_scene.too_many_root_bones and not export_scene.no_export_objects:
-        export_process = ProcessScene()
+        if export_settings.granny_export:
+            export_process = ProcessSceneGR2()
+        else:
+            export_process = ProcessScene()
+            
         export_process.process_scene(context, sidecar_path, sidecar_path_full, asset_name, asset_path, asset_type, export_scene, export_settings, scene_settings)
         
     return export_scene, export_process

@@ -127,11 +127,16 @@ class ExportScene:
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
         
-    def get_export_objects(self):
+    def get_initial_export_objects(self):
         if self.AssetType == AssetType.ANIMATION:
             self.export_objects = {ExportObject(ob) for ob in self.context.view_layer.objects if ob.type == "ARMATURE"}
         else:
             self.export_objects = {ExportObject(ob) for ob in self.context.view_layer.objects if ob.nwo.export_this or ob.type in VALID_OBJECTS}
+            
+    def setup_skeleton(self):
+        self.armature = utils.get_rig(self.context, scope=self.export_objects)
+    
+    
             
             
     def process(self):
