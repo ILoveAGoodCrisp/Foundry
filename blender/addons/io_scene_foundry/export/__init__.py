@@ -460,9 +460,9 @@ class NWO_Export(NWO_Export_Scene):
                     prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
             
             except Exception as e:
-                if type(e) == RuntimeError:
+                if isinstance(e, RuntimeError):
                     # logging.error(traceback.format_exc())
-                    self.fail_explanation = str(e)
+                    self.fail_explanation = traceback.format_exc()
                 else:
                     print_error("\n\nException hit. Please include in report\n")
                     logging.error(traceback.format_exc())

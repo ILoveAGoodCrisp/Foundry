@@ -842,7 +842,7 @@ class ProcessSceneGR2:
         granny = Granny(Path(self.project_root, "granny2_x64.dll"), gr2_path)
         granny.from_objects(export_objects)
         granny.create_materials()
-        granny.create_skeletons()
+        granny.create_skeletons(export_info=None)
         # granny.create_vertex_data()
         # granny.create_triangles()
         # granny.create_meshes()

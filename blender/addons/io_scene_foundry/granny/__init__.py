@@ -122,6 +122,11 @@ class Granny:
             for j, (granny_bone, export_bone) in enumerate(zip(bone_array, export_skeleton.bones)):
                 granny_bone.name = export_bone.name
                 granny_bone.parent_index = export_bone.parent_index
+                if export_bone.local_transform:
+                    granny_bone.local_transform = export_bone.local_transform
+                    granny_bone.inverse_world_4x4 = export_bone.inverse_transform
+                
+                export_bone.create_properties(granny_bone)
             
             granny_skeleton.bone_count = length_bones
             granny_skeleton.bones = cast(bone_array, POINTER(GrannyBone))

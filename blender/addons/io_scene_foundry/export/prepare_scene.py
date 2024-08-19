@@ -2218,6 +2218,7 @@ class PrepareScene:
                         b.nwo.object_space_node,
                         b.nwo.replacement_correction_node,
                         b.nwo.fik_anchor_node,
+                        b,
                     )
                 }
             )
@@ -2244,21 +2245,28 @@ class PrepareScene:
         object_space_node,
         replacement_correction_node,
         fik_anchor_node,
+        bone,
     ):
         node_props = {}
-
+        bone["bungie_object_type"] = '_connected_geometry_object_type_frame'
+        bone["bungie_frame_ID1"] = FrameID1
+        bone["bungie_frame_ID2"] = FrameID2
         node_props["bungie_object_type"] = '_connected_geometry_object_type_frame'
         node_props["bungie_frame_ID1"] = FrameID1
         node_props["bungie_frame_ID2"] = FrameID2
 
         if object_space_node:
             node_props["bungie_is_object_space_offset_node"] = "1"
+            bone["bungie_is_object_space_offset_node"] = "1"
         if replacement_correction_node:
             node_props["bungie_is_replacement_correction_node"] = "1"
+            bone["bungie_is_replacement_correction_node"] = "1"
         if fik_anchor_node:
             node_props["bungie_is_fik_anchor_node"] = "1"
+            bone["bungie_is_fik_anchor_node"] = "1"
 
         node_props["bungie_object_animates"] = '1'
+        bone["bungie_object_animates"] = "1"
 
         return node_props
 
