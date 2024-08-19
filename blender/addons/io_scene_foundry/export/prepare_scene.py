@@ -723,6 +723,8 @@ class PrepareScene:
                 if ob.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop' and not ob_nwo.reach_poop_collision and not data_nwo.render_only:
                     self._setup_instance_proxies(data, objects_list)
 
+                if self.export_settings.granny_export: continue # Skip this if we're debugging granny exports
+                
                 face_properties = data_nwo.face_props
 
                 if face_properties:

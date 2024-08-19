@@ -2,6 +2,9 @@ from ctypes import CDLL, c_uint32, cast, cdll, create_string_buffer, pointer
 from pathlib import Path
 
 import bpy
+from mathutils import Matrix
+
+from .export_classes import *
 from .formats import *
 
 dll = None
@@ -47,15 +50,17 @@ GrannyCallbackType = CFUNCTYPE(
     c_void_p
 )
 
-class MaterialExtendedData(Structure):
-    _pack_ = 1
-    _fields_ = [
-                ('bungie_shader_path',c_char_p),
-                ('bungie_shader_type',c_char_p)
-                ]
-
 class Granny:
     dll: CDLL
+    export_materials: list[Material]
+    export_skeletons: list[Skeleton]
+    export_vertex_datas: list[VertexData]
+    export_triangles: list[Indices]
+    export_meshes: list[Mesh]
+    export_models: list[Model]
+    export_track_groups: list[TrackGroup]
+    export_animations: list[Animation]
+    
     def __init__(self, granny_dll_path: str | Path, filepath: Path):
         self.dll = cdll.LoadLibrary(str(granny_dll_path))
         global dll
@@ -67,45 +72,62 @@ class Granny:
         self._create_callback()
         self._create_file_info()
         
+    def from_objects(self, objects: list[bpy.types.Object]):
+        """Creates granny representations of blender objects"""
+        materials = set()
+        skeletons = set()
+        for ob in objects:
+            if not ob.parent:
+                skeletons.add(ob)
+            if ob.type != 'MESH': continue
+            for mat in ob.data.materials:
+                materials.add(mat)
+                    
+        self.export_materials = [Material(i) for i in materials]
+        self.export_skeletons = [Skeleton(i) for i in skeletons]
+        
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
         if data_tree_writer:
             if self._write_data_tree_to_file(data_tree_writer):
                 self._end_file_data_tree_writing(data_tree_writer)
                 
-    def create_materials(self, materials: list[bpy.types.Material]):
-        length = len(materials)
+    def create_materials(self):
+        length = len(self.export_materials)
         granny_materials = [GrannyMaterial() for _ in range(length)]
-        Array = POINTER(GrannyMaterial) * length
-        array = Array()
+        array = (POINTER(GrannyMaterial) * length)()
+        # array = Array()
         
-        ExtendedDataType = (GrannyDataTypeDefinition * 3)()
-        ExtendedDataType[0] = GrannyDataTypeDefinition(member_type=8, name=b"bungie_shader_path")
-        ExtendedDataType[1] = GrannyDataTypeDefinition(member_type=8, name=b"bungie_shader_type")
-        ExtendedDataType[2] = GrannyDataTypeDefinition(member_type=0)
-        
-        for i, (gmat, bmat) in enumerate(zip(granny_materials, materials)):
-            array[i] = pointer(gmat)
-            gmat.name = bmat.name.encode('utf-8')
-            item = MaterialExtendedData(bungie_shader_path=bmat.nwo.shader_path.encode(), bungie_shader_type=b"shader")
-            gmat.extended_data.object = cast(pointer(item), c_void_p)
-            gmat.extended_data.type = ExtendedDataType
+        for i, (granny_material, export_material) in enumerate(zip(granny_materials, self.export_materials)):
+            array[i] = pointer(granny_material)
+            granny_material.name = export_material.name
+            export_material.create_properties(granny_material)
             
         self.file_info.material_count = length
         self.file_info.materials = array
         
-    def create_skeletons(self):
-        skeletons = [GrannySkeleton() for _ in range(2)]
-        Array = POINTER(GrannySkeleton) * len(skeletons)
-        granny_skeletons = Array()
+    def create_skeletons(self, export_info):
+        length = len(self.export_skeletons)
+        skeletons = [GrannySkeleton() for _ in range(length)]
+        array = (POINTER(GrannySkeleton) * length)()
         
-        for i, (gskel, bskel) in enumerate(zip(skeletons, range(2))):
-            granny_skeletons[i] = pointer(gskel)
-            gskel.name = "spooky_skeleton".encode('utf-8')
-            gskel.lod_type = 4
+        for i, (granny_skeleton, export_skeleton) in enumerate(zip(skeletons, self.export_skeletons)):
+            array[i] = pointer(granny_skeleton)
+            granny_skeleton.name = export_skeleton.name
+            granny_skeleton.lod_type = export_skeleton.lod
+            length_bones = len(export_skeleton.bones)
+            bones = [GrannyBone() for _ in range(length_bones)]
+            bone_array = (GrannyBone * length_bones)(*bones)
             
-        self.file_info.skeleton_count = len(skeletons)
-        self.file_info.skeletons = granny_skeletons
+            for j, (granny_bone, export_bone) in enumerate(zip(bone_array, export_skeleton.bones)):
+                granny_bone.name = export_bone.name
+                granny_bone.parent_index = export_bone.parent_index
+            
+            granny_skeleton.bone_count = length_bones
+            granny_skeleton.bones = cast(bone_array, POINTER(GrannyBone))
+        
+        self.file_info.skeleton_count = length
+        self.file_info.skeletons = array
 
     def get_version_string(self) -> str:
         """Returns the granny dll version as a string"""

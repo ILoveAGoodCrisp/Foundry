@@ -2090,12 +2090,12 @@ def halo_transforms(ob, scale=None, rotation=None, marker=False):
         
     rot.rotate(rotation_matrix)
     
-    if marker and not bpy.context.scene.nwo.maintain_marker_axis:
+    if marker and bpy.context.scene.nwo.maintain_marker_axis:
         if isinstance(rot, Quaternion):
             rot = rot.to_euler()
         
         rot: Euler
-        rot.rotate_axis('Z', rotation)
+        rot.rotate_axis('Z', -rotation)
     
     new_matrix = Matrix.LocRotScale(loc, rot, sca)
     
@@ -3727,3 +3727,10 @@ def cut_out_mesh(ob: bpy.types.Object, cutter: bpy.types.Object):
     bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.select], context='FACES')
     bm.to_mesh(ob.data)
     bm.free()
+    
+def get_halo_props_for_granny(id) -> dict:
+    halo_props = {k: v.encode() for k, v in id.items() if type(k) == str and k.startswith('bungie_')}
+    if isinstance(id, bpy.types.Object):
+        halo_props["bungie_object_ID"] = id.nwo.ObjectID.encode()
+        
+    return halo_props

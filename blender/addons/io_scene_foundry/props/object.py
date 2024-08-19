@@ -556,6 +556,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
         description="Override the lightmap resolution of this prefab instance. 0 for no override. The default lightmap resolution meshes used is 3. Determines how much texel space the faces will be given on the lightmap. 1 means less space for the faces, while 7 means more space for the faces. The relationships can be tweaked in the .scenario tag under the bsp tag block",
         min=0,
         max=7,
+        options=set(),
     )
     
     prefab_render_only: bpy.props.BoolProperty(

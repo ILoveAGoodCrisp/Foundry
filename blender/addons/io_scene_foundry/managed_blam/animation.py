@@ -344,7 +344,7 @@ class AnimationTag(Tag):
             nodes_count = exporter.GetGraphNodeCount()
             import clr
             clr.AddReference('System')
-            from System import Array
+            from System import Array # type: ignore
             animation_nodes = [self._GameAnimationNode() for _ in range(nodes_count)]
             animation_nodes = Array[self._GameAnimationNodeType()](animation_nodes)
             first_node = animation_nodes[0]
@@ -395,7 +395,7 @@ class AnimationTag(Tag):
             bone.location = translation
             bone.rotation_quaternion = rotation
             bone.scale = Vector.Fill(3, scale)
-            print(frame, node.Translation.ToString())
+            # print(frame, node.Translation.ToString())
             # bone.matrix_basis = default_matrix @ matrix
             translation *= 100
 

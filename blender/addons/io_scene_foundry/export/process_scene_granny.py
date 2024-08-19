@@ -249,9 +249,10 @@ class ProcessSceneGR2:
 
                 if export_scene.model_armature and scene_nwo_export.export_skeleton:
                     export_obs = [export_scene.model_armature]
-
+                    print(gr2_path)
+                    # update_job(job, 0)
                     self.export_gr2(gr2_path, export_obs)
-                    update_job(job, 1)
+                    # update_job(job, 1)
 
                 if "skeleton" in self.sidecar_paths.keys():
                     self.sidecar_paths["skeleton"].append(
@@ -387,12 +388,12 @@ class ProcessSceneGR2:
             sidecar.build(context, sidecar_path, sidecar_path_full, export_scene, self.sidecar_paths, self.sidecar_paths_design, scene_nwo)
 
             reports.append(sidecar.message)
-            print("\n\nCreating Intermediary Files")
-            print(
-                "-----------------------------------------------------------------------\n"
-            )
+            # print("\n\nCreating Intermediary Files")
+            # print(
+            #     "-----------------------------------------------------------------------\n"
+            # )
 
-            reports.append("Exported " + str(gr2_count) + " GR2 Files")
+            # reports.append("Exported " + str(gr2_count) + " GR2 Files")
             relative_asset_path = relative_path(asset_path)
             tag_folder_path = str(Path(get_tags_path(), relative_asset_path))
             scenery_path = str(Path(tag_folder_path, f"{asset}.scenery"))
@@ -512,10 +513,10 @@ class ProcessSceneGR2:
                         print(
                             "-----------------------------------------------------------------------\n"
                         )
-                        job = f"--- {print_text}"
-                        update_job(job, 0)
-                        self.export_gr2(gr2_path, export_obs)
-                        update_job(job, 1)
+                    job = f"--- {print_text} {gr2_path}"
+                    update_job(job, 0)
+                    self.export_gr2(gr2_path, export_obs)
+                    update_job(job, 1)
 
     def export_bsp(
         self,
@@ -558,43 +559,15 @@ class ProcessSceneGR2:
                             print(
                                 "-----------------------------------------------------------------------\n"
                             )
-                        override = context.copy()
-                        area = [
-                            area for area in context.screen.areas if area.type == "VIEW_3D"
-                        ][0]
-                        override["area"] = area
-                        override["region"] = area.regions[-1]
-                        override["space_data"] = area.spaces.active
-                        override["selected_objects"] = export_obs
-
-                        with context.temp_override(**override):
-                            if perm == "default":
-                                print_text = f"{bsp} {type_name}"
-                            else:
-                                print_text = f"{bsp} {perm} {type_name}"
-
-                            job = f"--- {print_text}"
-                            update_job(job, 0)
-                            if self.export_fbx(
-                                False,
-                                fbx_path,
-                            ):
-                                if self.export_json(
-                                    json_path,
-                                    export_obs,
-                                    asset_type,
-                                    asset,
-                                    export_scene,
-                                ):
-                                    self.export_gr2(fbx_path, json_path, gr2_path)
-                                else:
-                                    return f"Failed to export {perm} {type_name} model JSON: {json_path}"
-                            else:
-                                return (
-                                    f"Failed to export {perm} {type_name} model FBX: {fbx_path}"
-                                )
-
-                            update_job(job, 1)
+                        if perm == "default":
+                            print_text = f"{bsp} {type_name}"
+                        else:
+                            print_text = f"{bsp} {perm} {type_name}"
+                        job = f"--- {print_text} {gr2_path}"
+                        update_job(job, 0)
+                        print(gr2_path)
+                        self.export_gr2(gr2_path, export_obs)
+                        update_job(job, 1)
 
     def get_path(self, asset_path, asset_name, tag_type, perm="", bsp="", animation=""):
         """Gets an appropriate new path for the exported fbx file"""
@@ -860,91 +833,22 @@ class ProcessSceneGR2:
                 
         return animation_events
 
-    #####################################################################################
-    #####################################################################################
-    # FBX
-
-    def export_fbx(
-        self,
-        export_anim,
-        fbx_filepath,
-    ):  
-        
-        disable_prints()
-
-        bpy.ops.export_scene.fbx(
-            filepath=fbx_filepath,
-            check_existing=False,
-            use_selection=True,
-            use_visible=True,
-            apply_scale_options="FBX_SCALE_UNITS",
-            use_mesh_modifiers=True,
-            mesh_smooth_type="OFF",
-            use_triangles=False,
-            add_leaf_bones=False,
-            use_armature_deform_only=True,
-            bake_anim_use_all_bones=False,
-            bake_anim_use_nla_strips=False,
-            bake_anim_use_all_actions=False,
-            bake_anim_force_startend_keying=False,
-            bake_anim_simplify_factor=0,
-            axis_forward="X",
-            axis_up="Z",
-            bake_anim=export_anim,
-            use_custom_props=True,
-        )
-
-        enable_prints()
-        return os.path.exists(fbx_filepath)
-
-    #####################################################################################
-    #####################################################################################
-    # JSON
-
-    def export_json(self, json_path, export_obs, asset_type, asset_name, export_scene):
-        """Exports a json file by passing the currently selected objects to the NWOJSON class, and then writing the resulting dictionary to a .json file"""
-        json_props = NWOJSON(
-            export_obs,
-            asset_type,
-            export_scene.model_armature,
-            None,
-            asset_name,
-            export_scene.skeleton_bones,
-            export_scene.validated_regions,
-            export_scene.validated_permutations,
-            export_scene.global_materials_dict,
-            export_scene.skylights,
-        )
-        with open(json_path, "w") as j:
-            json.dump(json_props.json_dict, j, indent=4)
-
-        return os.path.exists(json_path)
 
     #####################################################################################
     #####################################################################################
     # GR2
 
     def export_gr2(self, gr2_path: str, export_objects: list[bpy.types.Object]):
-        materials = export_parts(export_objects)
         granny = Granny(Path(self.project_root, "granny2_x64.dll"), gr2_path)
-        granny.create_materials(materials)
-        # granny.create_skeletons(skeletons)
+        granny.from_objects(export_objects)
+        granny.create_materials()
+        granny.create_skeletons()
         # granny.create_vertex_data()
         # granny.create_triangles()
         # granny.create_meshes()
         # granny.create_track_groups()
         # granny.create_animations()
         granny.save()
-
-
-def export_parts(export_objects) -> tuple[list[bpy.types.Material], list[bpy.types.Object], list[bpy.types.Object]]:
-    materials = set()
-    for ob in export_objects:
-        if ob.type == 'MESH':
-            for mat in ob.data.materials:
-                materials.add(mat)
-                
-    return materials
         
         
 def clear_constraints():
