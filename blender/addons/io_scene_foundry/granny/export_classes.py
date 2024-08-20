@@ -1,4 +1,4 @@
-from ctypes import Structure, c_char_p, c_float, c_void_p, cast, pointer
+from ctypes import Structure, c_char_p, c_float, c_ubyte, c_uint8, c_void_p, cast, pointer
 from enum import Enum
 from typing import Literal
 import bpy
@@ -9,9 +9,9 @@ from .formats import GrannyDataTypeDefinition, GrannyTransform
 from .. import utils
     
 class Properties:
-    properties: dict
-    def __init__(self, id):
-        self.properties = utils.get_halo_props_for_granny(id)
+    properties = {}
+    def __init__(self, id=None):
+        if id: self.properties = utils.get_halo_props_for_granny(id)
         
     def create_properties(self, granny):
         
@@ -26,7 +26,6 @@ class Properties:
             )
         
         ExtendedDataType[-1] = GrannyDataTypeDefinition(member_type=0)
-        print(self.properties)
         data = self._extended_data_create()
 
         granny.extended_data.object = cast(pointer(data), c_void_p)
@@ -152,19 +151,45 @@ class Color:
     blue: float
     
 class Vertex:
-    position: Vector
-    bone_weights: tuple[float, float, float, float]
-    bone_indices: tuple[int, int, int, int]
-    normal: Vector
-    uvs: tuple[Vector]
-    lighting_uv: Vector
-    vertex_color: Color
-    blend_shape: None
-    vertex_id1: int
-    vertex_id2: int
+    position = (c_float * 3)(0,0,0)
+    bone_weights = (c_ubyte * 4)(0,0,0,0)
+    bone_indices = (c_ubyte * 4)(0,0,0,0)
+    normal = (c_float * 3)(0,0,0)
+    uvs0 = (c_float * 3)(0,0,0)
+    uvs1 = (c_float * 3)(0,0,0)
+    uvs2 = (c_float * 3)(0,0,0)
+    uvs3 = (c_float * 3)(0,0,0)
+    lighting_uv = (c_float * 3)(0,0,0)
+    vertex_color0 = (c_float * 3)(0,0,0)
+    vertex_color1 = (c_float * 3)(0,0,0)
+    blend_shape = (c_float * 3)(0,0,0)
+    vertex_id = (c_float * 2)(0,0)
+    
+    def __init__(self, mesh: bpy.types.Mesh, vert_index: int):
+        vert = mesh.vertices[vert_index]
+        self.position = (c_float * 3)(*vert.co.to_tuple())
+        self.normal = (c_float * 3)(*vert.normal.to_tuple())
+        lighting_uv_layer = mesh.uv_layers.get("lighting")
+        if lighting_uv_layer:
+            self.lighting_uv = (c_float * 3)(*lighting_uv_layer.data[vert_index].uv.to_tuple())
+        uv_layers = [uv_layer for uv_layer in mesh.uv_layers if uv_layer != lighting_uv_layer]
+        for idx, layer in enumerate(uv_layers):
+            if idx > 3: break
+            setattr(self, f"uvs{str(idx)}", (c_float * 3)(*layer.data[vert_index].uv.to_tuple()))
+            
+        vertex_colors = [color_layer for color_layer in mesh.vertex_colors]
+        for idx, layer in enumerate(vertex_colors):
+            if idx > 1: break
+            color = layer.data[vert_index].color
+            setattr(self, f"vertex_color{str(idx)}", (c_float * 3)(color[0], color[1], color[2]))
     
 class VertexData:
-    vertices: tuple[Vertex]
+    vertices: list[Vertex]
+    
+    def __init__(self, mesh: bpy.types.Mesh):
+        self.vertices = []
+        for i in range(len(mesh.vertices)):
+            self.vertices.append(Vertex(mesh, i))
     
 class Group:
     material_index: int

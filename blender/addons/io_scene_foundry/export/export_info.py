@@ -3,9 +3,7 @@ from enum import Enum, auto
 from getpass import getuser
 import re
 from socket import gethostname
-from datetime import today
-
-import bpy
+from datetime import datetime
 
 pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
@@ -15,12 +13,12 @@ def snake(text: str) -> str:
 class BungieEnum(Enum):
     @classmethod
     def names(cls):
-        text = str(list(map(lambda c: f'"_connected_geometry_{snake(cls.__name__)}_{c.name}"', cls)))
-        return f'#({text})'
+        text = str(list(map(lambda c: f"_connected_geometry_{snake(cls.__name__)}_{c.name}", cls)))
+        return f"#({text.strip('[]')})".encode()
     @classmethod
     def values(cls):
         text = str(list(map(lambda c: c.value, cls)))
-        return f'#({text})'
+        return f"#({text.strip('[]')})".encode()
 
 class ObjectType(BungieEnum):
     none = 0
@@ -55,24 +53,34 @@ class MeshType(BungieEnum):
 class MarkerType(BungieEnum): ...
     
 class ExportInfo:
-    def __init__(self):
+    def __init__(self, regions, global_materials):
         self.export_user = getuser()
         self.export_machine = gethostname()
         self.export_toolset = "Foundry"
-        self.export_date = today().strftime("%Y-%m-%d")
-        self.export_time = today().strftime("%H:%M:%S")
+        time = datetime.today()
+        self.export_date = time.strftime("%Y-%m-%d")
+        self.export_time = time.strftime("%H:%M:%S")
+        
         self.object_type = ObjectType
         self.mesh_type = MeshType
         
-    def create_node(self) -> bpy.types.Object:
-        node = bpy.data.objects.new("BungieExportInfo", None)
+        self.regions = regions
+        self.global_material = global_materials
+        
+    def create_info(self) -> dict:
+        info = {}
         for key, value in self.__dict__.items():
-            if type(value) == str:
-                node[f"bungie_{key}"] = value
+            if isinstance(value, str):
+                info[f"bungie_{key}"] = value.encode()
+            elif isinstance(value, list):
+                names_key = f"connected_geometry_{key}_table_enum_names"
+                values_key = f"connected_geometry_{key}_table_enum_values"
+                info[names_key] = f"#({str(value).strip('[]')})".encode()
+                info[values_key] = f"#({str(list(range(len(value)))).strip('[]')})".encode()
             else:
-                names_key = f"e_connected_geometry_{snake(key.__name__)}_enum_names"
-                values_key = f"e_connected_geometry_{snake(key.__name__)}_enum_values"
-                node[names_key] = value.names()
-                node[values_key] = value.values()
+                names_key = f"e_connected_geometry_{snake(key)}_enum_names"
+                values_key = f"e_connected_geometry_{snake(key)}_enum_values"
+                info[names_key] = value.names()
+                info[values_key] = value.values()
                 
-        return node
+        return info

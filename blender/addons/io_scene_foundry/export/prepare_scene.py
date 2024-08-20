@@ -1,16 +1,16 @@
 from collections import defaultdict
-from datetime import date
 import datetime
 import getpass
 from pathlib import Path
 import socket
-import time
 import bmesh
 import bpy
 import csv
 from math import degrees, radians
 from mathutils import Matrix, Vector
 from numpy import sign
+
+from .export_info import ExportInfo
 from ..tools.light_exporter import BlamLightDefinition, BlamLightInstance
 from ..managed_blam.render_model import RenderModelTag
 from ..managed_blam.animation import AnimationTag
@@ -94,6 +94,7 @@ class PrepareScene:
         self.skylights = {}
         self.physics_prims = set()
         self.default_shader_type = 'material' if corinth else 'shader'
+        self.export_info = None
         
         if self.supports_regions_and_perms:
             self.regions = [entry.name for entry in context.scene.nwo.regions_table]
@@ -1001,6 +1002,9 @@ class PrepareScene:
             self.skylights['sun_color'] = utils.color_3p_str(sun.data.color)
             
     def finalize(self):
+        # Create BungieExportInfo
+        self.global_materials = [i for i in self.global_materials if i is not None]
+        self.export_info = ExportInfo(self.regions, self.global_materials).create_info()
         if self.warning_hit:
             utils.print_warning(
                 "\nScene has issues that should be resolved for subsequent exports"
@@ -2649,18 +2653,7 @@ class PrepareScene:
                 ob["bungie_mesh_global_material"] = global_material
                 ob["bungie_mesh_poop_collision_override_global_material"] = "1"
             else:
-                ob["bungie_face_global_material"] = global_material
-                
-                
-    def write_bungie_export_info(self):
-        node = bpy.data.objects.new("BungieExportInfo", None)
-        node["bungie_export_user"] = getpass.getuser()
-        node["bungie_export_machine"] = socket.gethostname()
-        node["bungie_export_toolset"] = "Foundry"
-        node["bungie_export_date"] = datetime.today().strftime("%Y-%m-%d")
-        node["bungie_export_time"] = datetime.today().strftime("%H:%M:%S")
-        node["e_connected_geometry_object_type_enum_names"] = "'_connected_geometry_object_type_none','_connected_geometry_object_type_frame','_connected_geometry_object_type_marker','_connected_geometry_object_type_mesh'"
-        
+                ob["bungie_face_global_material"] = global_material     
 
 #####################################################################################
 #####################################################################################

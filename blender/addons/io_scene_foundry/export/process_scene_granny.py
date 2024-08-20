@@ -72,6 +72,7 @@ class ProcessSceneGR2:
         self.project_root = Path(get_tags_path()).parent
     
     def process_scene(self, context, sidecar_path, sidecar_path_full, asset, asset_path, asset_type, export_scene, scene_nwo_export, scene_nwo):
+        self.export_info = export_scene.export_info
         reports = []
         gr2_count = 0
         h4 = is_corinth(context)
@@ -842,10 +843,11 @@ class ProcessSceneGR2:
         granny = Granny(Path(self.project_root, "granny2_x64.dll"), gr2_path)
         granny.from_objects(export_objects)
         granny.create_materials()
-        granny.create_skeletons(export_info=None)
-        # granny.create_vertex_data()
+        granny.create_skeletons(export_info=self.export_info)
+        granny.create_vertex_data()
         # granny.create_triangles()
         # granny.create_meshes()
+        # granny.create_models()
         # granny.create_track_groups()
         # granny.create_animations()
         granny.save()

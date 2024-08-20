@@ -8,6 +8,39 @@ from .export_classes import *
 from .formats import *
 
 dll = None
+    
+vertex_names = (
+    b"Position",
+    b"BoneWeights",
+    b"BoneIndices",
+    b"Normal",
+    b"TextureCoordinates0",
+    b"TextureCoordinates1",
+    b"TextureCoordinates2",
+    b"TextureCoordinates3",
+    b"lighting",
+    b"colorSet1",
+    b"colorSet2",
+    b"blend_shape",
+    b"vertex_id"
+)
+
+vertex_type_info = [
+    GrannyDataTypeDefinition(10, b"Position", None, 3),
+    GrannyDataTypeDefinition(14, b"BoneWeights", None, 4),
+    GrannyDataTypeDefinition(12, b"BoneIndices", None, 4),
+    GrannyDataTypeDefinition(10, b"Normal", None, 3),
+    GrannyDataTypeDefinition(10, b"TextureCoordinates0", None, 3),
+    GrannyDataTypeDefinition(10, b"TextureCoordinates1", None, 3),
+    GrannyDataTypeDefinition(10, b"TextureCoordinates2", None, 3),
+    GrannyDataTypeDefinition(10, b"TextureCoordinates3", None, 3),
+    GrannyDataTypeDefinition(10, b"lighting", None, 3),
+    GrannyDataTypeDefinition(10, b"colorSet1", None, 3),
+    GrannyDataTypeDefinition(10, b"colorSet2", None, 3),
+    GrannyDataTypeDefinition(10, b"blend_shape", None, 3),
+    GrannyDataTypeDefinition(10, b"vertex_id", None, 2),
+    GrannyDataTypeDefinition(0, None, None, 0)  # End marker
+]
 
 def granny_get_log_message_type_string(message_type: c_int) -> c_char_p:
     """Granny logging function"""
@@ -76,15 +109,22 @@ class Granny:
         """Creates granny representations of blender objects"""
         materials = set()
         skeletons = set()
+        mesh_data = set()
+        meshes = set()
         for ob in objects:
             if not ob.parent:
                 skeletons.add(ob)
             if ob.type != 'MESH': continue
+            mesh_data.add(ob.data)
             for mat in ob.data.materials:
                 materials.add(mat)
+                
+        for data in mesh_data:
+            meshes.add(data)
                     
         self.export_materials = [Material(i) for i in materials]
         self.export_skeletons = [Skeleton(i) for i in skeletons]
+        self.export_vertex_datas = [VertexData(i) for i in meshes]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -93,46 +133,120 @@ class Granny:
                 self._end_file_data_tree_writing(data_tree_writer)
                 
     def create_materials(self):
-        length = len(self.export_materials)
-        granny_materials = [GrannyMaterial() for _ in range(length)]
-        array = (POINTER(GrannyMaterial) * length)()
-        # array = Array()
-        
-        for i, (granny_material, export_material) in enumerate(zip(granny_materials, self.export_materials)):
-            array[i] = pointer(granny_material)
-            granny_material.name = export_material.name
-            export_material.create_properties(granny_material)
-            
-        self.file_info.material_count = length
-        self.file_info.materials = array
+        num_materials = len(self.export_materials)
+        granny_materials = (POINTER(GrannyMaterial) * num_materials)()
+
+        for i, export_material in enumerate(self.export_materials):
+            granny_material = GrannyMaterial()
+            granny_materials[i] = pointer(granny_material)
+            self._populate_material(granny_material, export_material)
+
+        self.file_info.material_count = num_materials
+        self.file_info.materials = granny_materials
+
+    def _populate_material(self, granny_material, export_material):
+        granny_material.name = export_material.name
+        export_material.create_properties(granny_material)
+
         
     def create_skeletons(self, export_info):
-        length = len(self.export_skeletons)
-        skeletons = [GrannySkeleton() for _ in range(length)]
-        array = (POINTER(GrannySkeleton) * length)()
+        num_skeletons = len(self.export_skeletons) + int(bool(export_info))
+        skeletons = (POINTER(GrannySkeleton) * num_skeletons)()
+
+        for i, export_skeleton in enumerate(self.export_skeletons):
+            granny_skeleton = GrannySkeleton()
+            skeletons[i] = pointer(granny_skeleton)
+            self._populate_skeleton(granny_skeleton, export_skeleton)
+
+        if export_info:
+            granny_skeleton = GrannySkeleton()
+            skeletons[-1] = pointer(granny_skeleton)
+            self._populate_export_info_skeleton(granny_skeleton, export_info)
+
+        self.file_info.skeleton_count = num_skeletons
+        self.file_info.skeletons = skeletons
+
+    def _populate_skeleton(self, granny_skeleton, export_skeleton):
+        granny_skeleton.name = export_skeleton.name
+        granny_skeleton.lod_type = export_skeleton.lod
+
+        num_bones = len(export_skeleton.bones)
+        bones = (GrannyBone * num_bones)()
+
+        for j, export_bone in enumerate(export_skeleton.bones):
+            granny_bone = bones[j]
+            granny_bone.name = export_bone.name
+            granny_bone.parent_index = export_bone.parent_index
+            if export_bone.local_transform:
+                granny_bone.local_transform = export_bone.local_transform
+                granny_bone.inverse_world_4x4 = export_bone.inverse_transform
+
+            export_bone.create_properties(granny_bone)
+
+        granny_skeleton.bone_count = num_bones
+        granny_skeleton.bones = cast(bones, POINTER(GrannyBone))
+
+    def _populate_export_info_skeleton(self, granny_skeleton, export_info):
+        granny_skeleton.name = b"BungieExportInfo"
         
-        for i, (granny_skeleton, export_skeleton) in enumerate(zip(skeletons, self.export_skeletons)):
-            array[i] = pointer(granny_skeleton)
-            granny_skeleton.name = export_skeleton.name
-            granny_skeleton.lod_type = export_skeleton.lod
-            length_bones = len(export_skeleton.bones)
-            bones = [GrannyBone() for _ in range(length_bones)]
-            bone_array = (GrannyBone * length_bones)(*bones)
-            
-            for j, (granny_bone, export_bone) in enumerate(zip(bone_array, export_skeleton.bones)):
-                granny_bone.name = export_bone.name
-                granny_bone.parent_index = export_bone.parent_index
-                if export_bone.local_transform:
-                    granny_bone.local_transform = export_bone.local_transform
-                    granny_bone.inverse_world_4x4 = export_bone.inverse_transform
-                
-                export_bone.create_properties(granny_bone)
-            
-            granny_skeleton.bone_count = length_bones
-            granny_skeleton.bones = cast(bone_array, POINTER(GrannyBone))
+        bones = (GrannyBone * 1)()
+        granny_bone = bones[0]
+        granny_bone.name = b"BungieExportInfo"
+        granny_bone.parent_index = -1
         
-        self.file_info.skeleton_count = length
-        self.file_info.skeletons = array
+        props = Properties()
+        props.properties = export_info
+        props.create_properties(granny_bone)
+        
+        granny_skeleton.bone_count = 1
+        granny_skeleton.bones = cast(bones, POINTER(GrannyBone))
+        
+    def create_vertex_data(self):
+        num_vertex_datas = len(self.export_vertex_datas)
+        vertex_datas = (POINTER(GrannyVertexData) * num_vertex_datas)()
+
+        for i, export_vertex_data in enumerate(self.export_vertex_datas):
+            granny_vertex_data = GrannyVertexData()
+            self._populate_vertex_data(granny_vertex_data, export_vertex_data)
+            vertex_datas[i] = pointer(granny_vertex_data)
+
+        self.file_info.vertex_data_count = num_vertex_datas
+        self.file_info.vertex_datas = vertex_datas
+
+    def _populate_vertex_data(self, granny_vertex_data, export_vertex_data):
+        names_array = (c_char_p * len(vertex_names))(*vertex_names)
+        granny_vertex_data.vertex_component_names = cast(names_array, POINTER(c_char_p))
+        granny_vertex_data.vertex_component_name_count = len(vertex_names)
+
+        vertex_type_info_array = (GrannyDataTypeDefinition * len(vertex_type_info))(*vertex_type_info)
+        granny_vertex_data.vertex_type = cast(vertex_type_info_array, POINTER(GrannyDataTypeDefinition))
+
+        vertex_byte_array = self._convert_vertices_to_bytearray(export_vertex_data.vertices)
+
+        vertex_array = (c_ubyte * len(vertex_byte_array))(*vertex_byte_array)
+        granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
+        granny_vertex_data.vertex_count = len(export_vertex_data.vertices)
+
+    def _convert_vertices_to_bytearray(self, vertices):
+        vertex_byte_array = bytearray()
+
+        for export_vertex in vertices:
+            vertex_byte_array.extend(export_vertex.position)
+            vertex_byte_array.extend(export_vertex.bone_weights)
+            vertex_byte_array.extend(export_vertex.bone_indices)
+            vertex_byte_array.extend(export_vertex.normal)
+            vertex_byte_array.extend(export_vertex.uvs0)
+            vertex_byte_array.extend(export_vertex.uvs1)
+            vertex_byte_array.extend(export_vertex.uvs2)
+            vertex_byte_array.extend(export_vertex.uvs3)
+            vertex_byte_array.extend(export_vertex.lighting_uv)
+            vertex_byte_array.extend(export_vertex.vertex_color0)
+            vertex_byte_array.extend(export_vertex.vertex_color1)
+            vertex_byte_array.extend(export_vertex.blend_shape)
+            vertex_byte_array.extend(export_vertex.vertex_id)
+
+        return vertex_byte_array
+
 
     def get_version_string(self) -> str:
         """Returns the granny dll version as a string"""
@@ -171,7 +285,7 @@ class Granny:
         self.file_info = GrannyFileInfo()
         self.file_info.art_tool_info = pointer(self._create_art_tool_info())
         self.file_info.exporter_info = pointer(self._create_basic_exporter_tool_info())
-        self.file_info.file_name = self.filename.encode()
+        self.file_info.file_name = bpy.data.filepath.encode() if bpy.data.filepath else self.filename.encode()
         self.file_info.texture_count = 0
         self.file_info.textures = None
         self.file_info.material_count = 0
