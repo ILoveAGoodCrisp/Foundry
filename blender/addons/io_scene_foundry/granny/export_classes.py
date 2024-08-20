@@ -151,24 +151,33 @@ class Color:
     blue: float
     
 class Vertex:
-    position = (c_float * 3)(0,0,0)
-    bone_weights = (c_ubyte * 4)(0,0,0,0)
-    bone_indices = (c_ubyte * 4)(0,0,0,0)
-    normal = (c_float * 3)(0,0,0)
-    uvs0 = (c_float * 3)(0,0,0)
-    uvs1 = (c_float * 3)(0,0,0)
-    uvs2 = (c_float * 3)(0,0,0)
-    uvs3 = (c_float * 3)(0,0,0)
-    lighting_uv = (c_float * 3)(0,0,0)
-    vertex_color0 = (c_float * 3)(0,0,0)
-    vertex_color1 = (c_float * 3)(0,0,0)
-    blend_shape = (c_float * 3)(0,0,0)
-    vertex_id = (c_float * 2)(0,0)
-    
     def __init__(self, mesh: bpy.types.Mesh, vert_index: int):
         vert = mesh.vertices[vert_index]
         self.position = (c_float * 3)(*vert.co.to_tuple())
         self.normal = (c_float * 3)(*vert.normal.to_tuple())
+        
+        self.bone_weights = (c_ubyte * 4)(0,0,0,0)
+        self.bone_indices = (c_ubyte * 4)(0,0,0,0)
+        
+        # Bone data, need to limit this to the 4 highest weights and normalise
+        # v_groups = [(g.group, g.weight) for g in vert.groups]
+        # v_groups.sort(key=lambda x: x[1], reverse=True)
+        
+        # if len(groups) > 4:
+        #     groups = groups[:4]
+        
+        # UVs
+        
+        self.uvs0 = (c_float * 3)(0,0,0)
+        self.uvs1 = (c_float * 3)(0,0,0)
+        self.uvs2 = (c_float * 3)(0,0,0)
+        self.uvs3 = (c_float * 3)(0,0,0)
+        self.lighting_uv = (c_float * 3)(0,0,0)
+        self.vertex_color0 = (c_float * 3)(0,0,0)
+        self.vertex_color1 = (c_float * 3)(0,0,0)
+        self.blend_shape = (c_float * 3)(0,0,0)
+        self.vertex_id = (c_float * 2)(0,0)
+        
         lighting_uv_layer = mesh.uv_layers.get("lighting")
         if lighting_uv_layer:
             self.lighting_uv = (c_float * 3)(*lighting_uv_layer.data[vert_index].uv.to_tuple())
@@ -196,13 +205,47 @@ class Group:
     tri_start: int
     tri_count: int
     
+    def __init__(self, material_index, tri_start, tri_count):
+        self.material_index = material_index
+        self.tri_start = tri_start
+        self.tri_count = tri_count
+    
 class Triangle:
     material_index: int
     indices: tuple[int, int, int]
     
-class Indices:
-    group: tuple[Group]
-    indices: tuple[int, int, int]
+    def __init__(self, face: bpy.types.MeshPolygon):
+        self.material_index = face.material_index
+        self.indices = (face.vertices[0], face.vertices[1], face.vertices[2])
+    
+class TriTopology:
+    groups: list
+    triangles: list
+    
+    def __init__(self, mesh: bpy.types.Mesh):
+        self.groups = []
+        num_materials = len(mesh.materials)
+        max_material_index = num_materials - 1
+        self.triangles = [Triangle(face) for face in mesh.polygons]
+        
+        if num_materials > 1:
+            self.triangles.sort(key=lambda tri: tri.material_index)
+            
+            tri_index = 0
+            current_material_index = self.triangles[0].material_index
+            
+            for i, tri in enumerate(self.triangles):
+                if current_material_index == max_material_index: break
+                elif tri.material_index != current_material_index:
+                    self.groups.append(Group(current_material_index, tri_index, i - tri_index))
+                    current_material_index = tri.material_index
+                    tri_index = i
+                    
+            self.groups.append(Group(current_material_index, tri_index, len(self.triangles) - tri_index))
+                
+        else:
+            self.groups = [Group(0, 0, len(self.triangles))]
+        
     
 class BoneBinding:
     name: str

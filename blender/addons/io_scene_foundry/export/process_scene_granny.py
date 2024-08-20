@@ -845,7 +845,7 @@ class ProcessSceneGR2:
         granny.create_materials()
         granny.create_skeletons(export_info=self.export_info)
         granny.create_vertex_data()
-        # granny.create_triangles()
+        granny.create_tri_topologies()
         # granny.create_meshes()
         # granny.create_models()
         # granny.create_track_groups()

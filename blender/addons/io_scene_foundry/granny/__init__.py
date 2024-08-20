@@ -88,7 +88,7 @@ class Granny:
     export_materials: list[Material]
     export_skeletons: list[Skeleton]
     export_vertex_datas: list[VertexData]
-    export_triangles: list[Indices]
+    export_tri_topologies: list[TriTopology]
     export_meshes: list[Mesh]
     export_models: list[Model]
     export_track_groups: list[TrackGroup]
@@ -125,6 +125,7 @@ class Granny:
         self.export_materials = [Material(i) for i in materials]
         self.export_skeletons = [Skeleton(i) for i in skeletons]
         self.export_vertex_datas = [VertexData(i) for i in meshes]
+        self.export_tri_topologies = [TriTopology(i) for i in meshes]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -246,6 +247,43 @@ class Granny:
             vertex_byte_array.extend(export_vertex.vertex_id)
 
         return vertex_byte_array
+    
+    def create_tri_topologies(self):
+        num_tri_topologies = len(self.export_tri_topologies)
+        tri_topologies = (POINTER(GrannyTriTopology) * num_tri_topologies)()
+
+        for i, export_tri_topology in enumerate(self.export_tri_topologies):
+            granny_tri_topology = GrannyTriTopology()
+            self._populate_tri_topology(granny_tri_topology, export_tri_topology)
+            tri_topologies[i] = pointer(granny_tri_topology)
+
+        self.file_info.tri_topology_count = num_tri_topologies
+        self.file_info.tri_topologies = tri_topologies
+
+    def _populate_tri_topology(self, granny_tri_topology, export_tri_topology):
+        # Populate Groups
+        num_groups = len(export_tri_topology.groups)
+        groups = (GrannyTriMaterialGroup * num_groups)()
+
+        for j, export_group in enumerate(export_tri_topology.groups):
+            granny_group = groups[j]
+            granny_group.material_index = export_group.material_index
+            granny_group.tri_first = export_group.tri_start
+            granny_group.tri_count = export_group.tri_count
+
+        granny_tri_topology.group_count = num_groups
+        granny_tri_topology.groups = cast(groups, POINTER(GrannyTriMaterialGroup))
+        
+        # Populate Indices
+        indices = []
+        for tri in export_tri_topology.triangles:
+            for i in tri.indices:
+                indices.append(i)
+                
+        indices_array = (c_int * len(indices))(*indices)
+        
+        granny_tri_topology.index_count = len(indices)
+        granny_tri_topology.indices = cast(indices_array, POINTER(c_int))
 
 
     def get_version_string(self) -> str:
