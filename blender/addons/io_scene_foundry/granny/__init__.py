@@ -102,6 +102,7 @@ class Granny:
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
         self.old_callback = GrannyLogCallback()
         self.filename = str(filepath)
+        self.granny_export_info = None
         self._create_callback()
         self._create_file_info()
         
@@ -111,21 +112,32 @@ class Granny:
         skeletons = set()
         mesh_data = set()
         meshes = set()
+        mesh_objects_set = set()
         for ob in objects:
             if not ob.parent:
                 skeletons.add(ob)
             if ob.type != 'MESH': continue
             mesh_data.add(ob.data)
+            mesh_objects_set.add(ob)
             for mat in ob.data.materials:
                 materials.add(mat)
                 
         for data in mesh_data:
             meshes.add(data)
-                    
+            
+        meshes = list(meshes)
+        mesh_enum = Enum("mesh_enum", [m.name for m in meshes], start=0)
+        mesh_objects = list(mesh_objects_set)
+        ob_enum = Enum("ob_enum", [m.name for m in mesh_objects], start=0)
+        
         self.export_materials = [Material(i) for i in materials]
+        material_enum = Enum("material_enum", [m.name_str for m in self.export_materials], start=0)
+        
         self.export_skeletons = [Skeleton(i) for i in skeletons]
         self.export_vertex_datas = [VertexData(i) for i in meshes]
         self.export_tri_topologies = [TriTopology(i) for i in meshes]
+        self.export_meshes = [Mesh(i, mesh_enum[i.data.name].value, material_enum) for i in mesh_objects]
+        self.export_models = [Model(i, idx, ob_enum, mesh_objects_set) for idx, i in enumerate(skeletons)]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -140,6 +152,7 @@ class Granny:
         for i, export_material in enumerate(self.export_materials):
             granny_material = GrannyMaterial()
             granny_materials[i] = pointer(granny_material)
+            export_material.granny = granny_materials[i]
             self._populate_material(granny_material, export_material)
 
         self.file_info.material_count = num_materials
@@ -157,11 +170,13 @@ class Granny:
         for i, export_skeleton in enumerate(self.export_skeletons):
             granny_skeleton = GrannySkeleton()
             skeletons[i] = pointer(granny_skeleton)
+            export_skeleton.granny = skeletons[i]
             self._populate_skeleton(granny_skeleton, export_skeleton)
 
         if export_info:
             granny_skeleton = GrannySkeleton()
             skeletons[-1] = pointer(granny_skeleton)
+            self.granny_export_info = skeletons[-1]
             self._populate_export_info_skeleton(granny_skeleton, export_info)
 
         self.file_info.skeleton_count = num_skeletons
@@ -210,6 +225,7 @@ class Granny:
             granny_vertex_data = GrannyVertexData()
             self._populate_vertex_data(granny_vertex_data, export_vertex_data)
             vertex_datas[i] = pointer(granny_vertex_data)
+            export_vertex_data.granny = vertex_datas[i]
 
         self.file_info.vertex_data_count = num_vertex_datas
         self.file_info.vertex_datas = vertex_datas
@@ -256,6 +272,7 @@ class Granny:
             granny_tri_topology = GrannyTriTopology()
             self._populate_tri_topology(granny_tri_topology, export_tri_topology)
             tri_topologies[i] = pointer(granny_tri_topology)
+            export_tri_topology.granny = tri_topologies[i]
 
         self.file_info.tri_topology_count = num_tri_topologies
         self.file_info.tri_topologies = tri_topologies
@@ -284,7 +301,80 @@ class Granny:
         
         granny_tri_topology.index_count = len(indices)
         granny_tri_topology.indices = cast(indices_array, POINTER(c_int))
+        
+    def create_meshes(self):
+        num_meshes = len(self.export_meshes)
+        meshes = (POINTER(GrannyMesh) * num_meshes)()
 
+        for i, export_mesh in enumerate(self.export_meshes):
+            granny_mesh = GrannyMesh()
+            meshes[i] = pointer(granny_mesh)
+            export_mesh.granny = meshes[i]
+            self._populate_mesh(granny_mesh, export_mesh)
+
+        self.file_info.mesh_count = num_meshes
+        self.file_info.meshes = meshes
+
+    def _populate_mesh(self, granny_mesh, export_mesh: Mesh):
+        granny_mesh.name = export_mesh.name
+        export_mesh.create_properties(granny_mesh)
+        granny_mesh.primary_vertex_data = self.export_vertex_datas[export_mesh.primary_vertex_data_index].granny
+        granny_mesh.primary_topology = self.export_tri_topologies[export_mesh.primary_topology_index].granny
+        
+        num_material_bindings = len(export_mesh.material_bindings)
+        material_bindings = (GrannyMaterialBinding * num_material_bindings)()
+
+        for j, export_material_binding in enumerate(export_mesh.material_bindings):
+            granny_material_binding = material_bindings[j]
+            granny_material_binding.material = self.export_materials[export_material_binding].granny
+
+        granny_mesh.material_binding_count = num_material_bindings
+        granny_mesh.material_bindings = cast(material_bindings, POINTER(GrannyMaterialBinding))
+        
+        num_bone_bindings = len(export_mesh.bone_bindings)
+        bone_bindings = (GrannyBoneBinding * num_bone_bindings)()
+
+        for k, export_bone_binding in enumerate(export_mesh.bone_bindings):
+            granny_bone_binding = bone_bindings[k]
+            granny_bone_binding.bone_name = export_bone_binding.name
+            granny_bone_binding.obb_min = (c_float * 3)(-2, -2, -2)
+            granny_bone_binding.obb_max = (c_float * 3)(2, 2, 2)
+
+        granny_mesh.bone_bindings_count = num_bone_bindings
+        granny_mesh.bone_bindings = cast(bone_bindings, POINTER(GrannyBoneBinding))
+        
+    def create_models(self):
+        num_models = len(self.export_models) + int(bool(self.granny_export_info))
+        models = (POINTER(GrannyModel) * num_models)()
+
+        for i, export_model in enumerate(self.export_models):
+            granny_model = GrannyModel()
+            models[i] = pointer(granny_model)
+            self._populate_model(granny_model, export_model)
+            
+        if self.granny_export_info:
+            granny_model = GrannyModel()
+            models[-1] = pointer(granny_model)
+            granny_model.name = b"BungieExportInfo"
+            granny_model.skeleton = self.granny_export_info
+
+        self.file_info.model_count = num_models
+        self.file_info.models = models
+
+    def _populate_model(self, granny_model, export_model: Model):
+        granny_model.name = export_model.name
+        granny_model.skeleton = self.export_skeletons[export_model.skeleton_index].granny
+        granny_model.initial_placement = export_model.initial_placement
+        
+        num_mesh_bindings = len(export_model.mesh_bindings)
+        mesh_bindings = (GrannyModelMeshBinding * num_mesh_bindings)()
+
+        for j, export_mesh_binding in enumerate(export_model.mesh_bindings):
+            granny_mesh_binding = mesh_bindings[j]
+            granny_mesh_binding.mesh = self.export_meshes[export_mesh_binding].granny
+
+        granny_model.mesh_binding_count = num_mesh_bindings
+        granny_model.mesh_bindings = cast(mesh_bindings, POINTER(GrannyModelMeshBinding))
 
     def get_version_string(self) -> str:
         """Returns the granny dll version as a string"""
@@ -348,6 +438,9 @@ class Granny:
     def _create_art_tool_info(self) -> GrannyFileArtToolInfo:
         tool_info = GrannyFileArtToolInfo()
         tool_info.art_tool_name = b'Blender'
+        tool_info.art_tool_major_revision = 1
+        tool_info.art_tool_minor_revision = 0
+        tool_info.art_tool_pointer_size = 64
         tool_info.units_per_meter = 39.370079
         tool_info.origin[:] = [0, 0, 0]
         tool_info.right_vector[:] = [0, -1, 0]
