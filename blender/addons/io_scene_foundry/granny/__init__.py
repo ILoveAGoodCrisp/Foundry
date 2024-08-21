@@ -1,6 +1,7 @@
 from ctypes import CDLL, c_uint32, cast, cdll, create_string_buffer, pointer
 from pathlib import Path
 
+import bmesh
 import bpy
 from mathutils import Matrix
 
@@ -133,9 +134,51 @@ class Granny:
         self.export_materials = [Material(i) for i in materials]
         material_enum = Enum("material_enum", [m.name_str for m in self.export_materials], start=0)
         
+        mesh_dict = {} # Meshes are keys, bmeshes are values
+        
+        for mesh in meshes:
+            do_split = False
+            split_by_edge = False
+            match mesh.normals_domain:
+                case 'POINT':
+                    normal_source = mesh.vertex_normals
+                case 'FACE':
+                    normal_source = mesh.corner_normals
+                    do_split = True
+                case 'CORNER':
+                    normal_source = mesh.corner_normals
+                    do_split = True
+                    split_by_edge = True
+            
+
+            # Split up meshes for their normals
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            utils.save_loop_normals(bm, mesh)
+            if do_split:
+                if split_by_edge:
+                    # edges_to_split = set()
+                    # for face in bm.faces:
+                    #     if not face.smooth:
+                    #         edges_to_split.update(face.edges)
+                            
+                    # for edge in bm.edges:
+                    #     if edge.smooth == False:
+                    #         edges_to_split.add(edge)
+                    
+                    # bmesh.ops.split_edges(bm, edges=list(edges_to_split))
+                    bmesh.ops.split_edges(bm, edges=[edge for edge in bm.edges if not edge.smooth])
+                else:
+                    bmesh.ops.split_edges(bm, edges=bm.edges)
+            
+            bmesh.ops.triangulate(bm, faces=bm.faces)
+            bm.to_mesh(mesh)
+            utils.apply_loop_normals(mesh)
+            mesh_dict[mesh] = bm
+        
         self.export_skeletons = [Skeleton(i) for i in skeletons]
-        self.export_vertex_datas = [VertexData(i) for i in meshes]
-        self.export_tri_topologies = [TriTopology(i) for i in meshes]
+        self.export_vertex_datas = [VertexData(i) for i, j in mesh_dict.items()]
+        self.export_tri_topologies = [TriTopology(i) for i, j in mesh_dict.items()]
         self.export_meshes = [Mesh(i, mesh_enum[i.data.name].value, material_enum) for i in mesh_objects]
         self.export_models = [Model(i, idx, ob_enum, mesh_objects_set) for idx, i in enumerate(skeletons)]
         

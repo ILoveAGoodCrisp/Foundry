@@ -430,8 +430,8 @@ class PrepareScene:
                         nwo.mesh_type = '_connected_geometry_mesh_type_default'
                     if utils.type_valid(nwo.mesh_type, self.asset_type, self.game_version):
                         if self._setup_mesh_properties(ob, scenario_or_prefab):
-                            # if self.export_settings.triangulate:
-                            add_triangle_mod(ob)
+                            if self.export_settings.triangulate:
+                                add_triangle_mod(ob)
                         else:
                             utils.unlink(ob)
                             continue
@@ -1005,11 +1005,50 @@ class PrepareScene:
         # Create BungieExportInfo
         self.global_materials = [i for i in self.global_materials if i is not None]
         self.export_info = ExportInfo(self.regions, self.global_materials).create_info()
+        
+        # self.apply_shading()
+        
         if self.warning_hit:
             utils.print_warning(
                 "\nScene has issues that should be resolved for subsequent exports"
             )
             utils.print_warning("Please see above output for details")
+            
+    def apply_shading(self):
+        meshes = set()
+        for ob in self.context.view_layer.objects:
+            if ob.type == 'MESH': meshes.add(ob.data)
+            
+        for mesh in meshes:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            if mesh.has_custom_normals:
+                bm.normal_update()  # Update normals to ensure they reflect any changes
+                custom_loop_normals = [loop.normal for loop in mesh.loops]
+            edges_to_split = set()
+            for face in bm.faces:
+                if not face.smooth:
+                    edges_to_split.update(face.edges)
+                    
+            for edge in bm.edges:
+                if edge.smooth == False:
+                    edges_to_split.add(edge)
+            
+            result = bmesh.ops.split_edges(bm, edges=list(edges_to_split))
+            
+            if mesh.has_custom_normals:
+                # Map the old loops to the new loops after the split
+                old_loops = [elem for elem in result["geom_split"] if isinstance(elem, bmesh.types.BMLoop)]
+                
+                for old_loop, new_loop in zip(old_loops, result['geom_split']):
+                    if isinstance(new_loop, bmesh.types.BMLoop):
+                        # Assign the custom normal to the new loop
+                        new_loop.normal = custom_loop_normals[old_loop.index]
+            
+            bmesh.ops.triangulate(bm, faces=bm.faces)
+            bm.to_mesh(mesh)
+            bm.free()
+            
             
 ########################################################################################################################################
 # HELPER FUNCTIONS

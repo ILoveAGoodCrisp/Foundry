@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Literal
 import bpy
 from mathutils import Matrix, Quaternion, Vector
+import numpy as np
 
 from .formats import GrannyDataTypeDefinition, GrannyTransform
 
@@ -158,8 +159,10 @@ class Color:
     
 class Vertex:
     def __init__(self, mesh: bpy.types.Mesh, vert_index: int):
+        # corner_normals = mesh.vertex_normals
         vert = mesh.vertices[vert_index]
         self.position = (c_float * 3)(*vert.co.to_tuple())
+        # normal = corner_normals[vert_index].vector.to_tuple()
         normal = vert.normal.to_tuple()
         self.normal = (c_float * 3)(*normal)
         
