@@ -176,8 +176,10 @@ class Skeleton(Properties):
                     b.parent_index = 0
                 self.bones.append(b)
                 
-            for child in ob.children_recursive:
+            child_index = 0
+            for child in ob.children:
                 if child in all_objects:
+                    child_index += 1
                     b = Bone(child)
                     b.set_transform(child, ob)
                     if child.parent_type == 'BONE':
@@ -189,13 +191,22 @@ class Skeleton(Properties):
                         b.properties = utils.get_halo_props_for_granny(child)
                         
                     self.bones.append(b)
+                self.find_children(child, all_objects, child_index)
+                    
         else:
-            for child in ob.children_recursive:
-                if child in all_objects:
-                    b = Bone(child)
-                    b.set_transform(child, ob)
-                    b.parent_index = 0
-                    self.bones.append(b)
+            self.find_children(ob, all_objects)
+                    
+    def find_children(self, ob: bpy.types.Object, all_objects: list[bpy.types.Object], parent_index=0):
+        child_index = parent_index
+        for child in ob.children:
+            if child in all_objects:
+                child_index += 1
+                b = Bone(child)
+                b.set_transform(child, ob)
+                b.parent_index = parent_index
+                self.bones.append(b)
+                self.find_children(child, all_objects, child_index)
+        
     
 class Color:
     red: float
