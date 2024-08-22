@@ -1,41 +1,68 @@
 from ctypes import Structure, c_char_p, c_float, c_ubyte, c_uint8, c_void_p, cast, pointer
 from enum import Enum
+from math import pi, radians
 from typing import Literal
 import bpy
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
 
 from .formats import GrannyDataTypeDefinition, GrannyTransform
 
 from .. import utils
 
-def granny_transform_parts(bone: bpy.types.PoseBone | bpy.types.Object):
+granny_transform_default = GrannyTransform(flags=7, position=(c_float * 3)(0, 0, 0), orientation=(c_float * 4)(0, 0, 0, 1), scale_shear=(c_float * 3 * 3)((1, 0, 0), (0.0, 1, 0), (0.0, 0.0, 1)))
+granny_inverse_transform_default = (c_float * 4 * 4)(
+            (1, 0, 0, 0),
+            (0, 1, 0, 0),
+            (0, 0, 1, 0),
+            (0, 0, 0, 1),
+        )
+granny_inverse_transform_default_mesh = (c_float * 4 * 4)(
+            (0, -1, 0, 0),
+            (1, 0, 0, 0),
+            (0, 0, 1, 0),
+            (0, 0, 0, 1),
+        )
+
+rotation_matrix = Matrix.Rotation(radians(90), 4, 'Z')
+z_up_to_y_up = Matrix.Rotation(-radians(90), 4, 'X')
+
+def granny_transform_parts(bone: bpy.types.PoseBone | bpy.types.Object, parent: bpy.types.Object):
     if isinstance(bone, bpy.types.Object):
-        matrix = bone.matrix_local
+        world_matrix = bone.matrix_world.copy()
+        local_matrix = bone.matrix_local.copy()
     else:
-        matrix = bone.matrix
-    loc = matrix.to_translation()
+        if bone.parent:
+            local_matrix = bone.parent.matrix.inverted() @ bone.matrix
+        else:
+            local_matrix = bone.matrix.copy()
+
+        world_matrix = parent.matrix_world @ bone.matrix
+        
+    loc = local_matrix.to_translation()
     position = (c_float * 3)(loc[0], loc[1], loc[2])
-    quaternion = matrix.to_quaternion()
+    quaternion = local_matrix.to_quaternion()
     orientation = (c_float * 4)(quaternion[1], quaternion[2], quaternion[3], quaternion[0])
-    scale = matrix.to_scale()
-    normalized_matrix = matrix.normalized()
+    scale = local_matrix.to_scale()
+    normalized_matrix = local_matrix.normalized()
     for i in range(3):
         normalized_matrix[i][0] /= scale[0]
         normalized_matrix[i][1] /= scale[1]
         normalized_matrix[i][2] /= scale[2]
         
-    shear = (
-        normalized_matrix[1][0],
-        normalized_matrix[2][0],
-        normalized_matrix[2][1]
-    )
+    # shear = (
+    #     normalized_matrix[1][0],
+    #     normalized_matrix[2][0],
+    #     normalized_matrix[2][1]
+    # )
     
-    scale_shear = scale[0], shear[0], shear[1], 0.0, scale[1], shear[2], 0.0, 0.0, scale[2]
+    # scale_shear = scale[0], shear[0], shear[1], 0.0, scale[1], shear[2], 0.0, 0.0, scale[2]
     
-    scale_shear = (c_float * 3 * 3)((scale[0], shear[0], shear[1]), (0.0, scale[1], shear[2]), (0.0, 0.0, scale[2]))
+    scale_shear = scale[0], 0.0, 0.0, 0.0, scale[1], 0.0, 0.0, 0.0, 0.0
     
-    return position, orientation, scale_shear, matrix
+    scale_shear = (c_float * 3 * 3)((scale[0], 0.0, 0.0), (0.0, scale[1], 0.0), (0.0, 0.0, scale[2]))
+    
+    return position, orientation, scale_shear, world_matrix
     
 class Properties:
     properties = {}
@@ -104,22 +131,18 @@ class BoneType(Enum):
     LIGHT = 3
     
 class Bone(Properties):
-    name: bytes
-    parent_index: int
-    local_transform: None
-    inverse_transform: None
-    lod_error = 0.0
-    bone_type: BoneType
-    
     def __init__(self, bone: bpy.types.PoseBone | bpy.types.Object):
         self.name = bone.name.encode()
         self.parent_index = -1
+        self.lod_error = 0.0
+        self.local_transform = granny_transform_default
+        self.inverse_transform = granny_inverse_transform_default
         
-    def set_transform(self, bone: bpy.types.PoseBone | bpy.types.Object):
-        position, orientation, scale_shear, matrix = granny_transform_parts(bone)
+    def set_transform(self, bone: bpy.types.PoseBone | bpy.types.Object, parent: bpy.types.Object):
+        position, orientation, scale_shear, world_matrix = granny_transform_parts(bone, parent)
         self.local_transform = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         
-        inverted_matrix = matrix.inverted()
+        inverted_matrix = world_matrix.inverted()
         self.inverse_transform = (c_float * 4 * 4)(
             (inverted_matrix[0][0], inverted_matrix[0][1], inverted_matrix[0][2], inverted_matrix[0][3]),
             (inverted_matrix[1][0], inverted_matrix[1][1], inverted_matrix[1][2], inverted_matrix[1][3]),
@@ -132,25 +155,47 @@ class Skeleton(Properties):
     lod = 0
     bones: list[Bone]
     
-    def __init__(self, ob: bpy.types.Object):
+    def __init__(self, ob: bpy.types.Object, all_objects: list[bpy.types.Object]):
         super().__init__(ob)
         self.granny = None
         self.name = ob.name.encode()
-        self._get_bones(ob)
+        self._get_bones(ob, all_objects)
         
-    def _get_bones(self, ob):
-        self.bones = []
+    def _get_bones(self, ob, all_objects):
+        self.bones = [Bone(ob)]
         if ob.type == 'ARMATURE':
-            list_bones =  list(ob.pose.bones)
+            list_bones = [pbone.name for pbone in ob.pose.bones]
             for idx, bone in enumerate(ob.pose.bones):
                 b = Bone(bone)
-                b.set_transform(bone)
+                b.set_transform(bone, ob)
                 b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
                 if bone.parent:
-                    b.parent_index = list_bones.index(bone.parent)
+                    # Add one to this since the root is the armature
+                    b.parent_index = list_bones.index(bone.parent.name) + 1
+                else:
+                    b.parent_index = 0
                 self.bones.append(b)
+                
+            for child in ob.children_recursive:
+                if child in all_objects:
+                    b = Bone(child)
+                    b.set_transform(child, ob)
+                    if child.parent_type == 'BONE':
+                        b.parent_index = list_bones.index(child.parent_bone) + 1
+                    else:
+                        b.parent_index = 0
+                        
+                    if child.type == 'EMPTY' or child.type == 'LIGHT':
+                        b.properties = utils.get_halo_props_for_granny(child)
+                        
+                    self.bones.append(b)
         else:
-            self.bones.append(Bone(ob))
+            for child in ob.children_recursive:
+                if child in all_objects:
+                    b = Bone(child)
+                    b.set_transform(child, ob)
+                    b.parent_index = 0
+                    self.bones.append(b)
     
 class Color:
     red: float
@@ -158,7 +203,7 @@ class Color:
     blue: float
     
 class Vertex:
-    def __init__(self, mesh: bpy.types.Mesh, vert_index: int):
+    def __init__(self, mesh: bpy.types.Mesh, vert_index: int, vertex_uvs):
         # corner_normals = mesh.vertex_normals
         vert = mesh.vertices[vert_index]
         self.position = (c_float * 3)(*vert.co.to_tuple())
@@ -166,7 +211,7 @@ class Vertex:
         normal = vert.normal.to_tuple()
         self.normal = (c_float * 3)(*normal)
         
-        self.bone_weights = (c_ubyte * 4)(0,0,0,0)
+        self.bone_weights = (c_ubyte * 4)(255,0,0,0)
         self.bone_indices = (c_ubyte * 4)(0,0,0,0)
         
         # Bone data, need to limit this to the 4 highest weights and normalise
@@ -188,13 +233,22 @@ class Vertex:
         self.blend_shape = (c_float * 3)(0,0,0)
         self.vertex_id = (c_float * 2)(0,0)
         
-        lighting_uv_layer = mesh.uv_layers.get("lighting")
-        if lighting_uv_layer:
-            self.lighting_uv = (c_float * 3)(*lighting_uv_layer.data[vert_index].uv.to_tuple())
-        uv_layers = [uv_layer for uv_layer in mesh.uv_layers if uv_layer != lighting_uv_layer]
-        for idx, layer in enumerate(uv_layers):
-            if idx > 3: break
-            setattr(self, f"uvs{str(idx)}", (c_float * 3)(*layer.data[vert_index].uv.to_tuple()))
+        # lighting_uv_layer = mesh.uv_layers.get("lighting")
+        # if lighting_uv_layer:
+        #     self.lighting_uv = (c_float * 3)(*lighting_uv_layer.data[vert_index].uv.to_tuple())
+        # uv_layers = [uv_layer for uv_layer in mesh.uv_layers if uv_layer != lighting_uv_layer]
+        # for idx, layer in enumerate(uv_layers):
+        #     if idx > 3: break
+        #     for face in mesh.polygons:
+        #         for loop_index in face.loop_indices:
+        #             if mesh.loops[loop_index].vertex_index == vert_index:
+        #                 u, v = layer.data[loop_index].uv.to_tuple()
+        #                 setattr(self, f"uvs{str(idx)}", (c_float * 3)(u, v, 0))
+        
+        uv_set = vertex_uvs[vert_index]
+        for idx, uv in enumerate(uv_set):
+            u, v = uv[0], uv[1]
+            setattr(self, f"uvs{str(idx)}", (c_float * 3)(u, v, 0))
             
         vertex_colors = [color_layer for color_layer in mesh.vertex_colors]
         for idx, layer in enumerate(vertex_colors):
@@ -205,10 +259,12 @@ class Vertex:
 class VertexData:
     vertices: list[Vertex]
     
-    def __init__(self, mesh: bpy.types.Mesh):
+    def __init__(self, ob: bpy.types.Object, vertex_uvs):
         self.vertices = []
+        mesh = ob.data
+        mesh.transform(ob.matrix_world)
         for i in range(len(mesh.vertices)):
-            self.vertices.append(Vertex(mesh, i))
+            self.vertices.append(Vertex(mesh, i, vertex_uvs))
             
         self.granny = None
     
@@ -234,15 +290,16 @@ class TriTopology:
     groups: list
     triangles: list
     
-    def __init__(self, mesh: bpy.types.Mesh):
+    def __init__(self, ob: bpy.types.Object):
         self.groups = []
         self.granny = None
+        mesh = ob.data
         num_materials = len(mesh.materials)
         max_material_index = num_materials - 1
         self.triangles = [Triangle(face) for face in mesh.polygons]
         
         if num_materials > 1:
-            self.triangles.sort(key=lambda tri: tri.material_index)
+            # self.triangles.sort(key=lambda tri: tri.material_index)
             
             tri_index = 0
             current_material_index = self.triangles[0].material_index
@@ -282,24 +339,27 @@ class Mesh(Properties):
         for mat in ob.data.materials:
             self.material_bindings.append(material_names[mat.name].value)
         
-        if ob.parent and ob.parent_type == 'BONE':
-            self.bone_bindings = [BoneBinding(ob.parent_bone)]
-        elif ob.parent and ob.parent.type == 'ARMATURE':
-            armature = ob.parent
-            bone_names = [bone.name for bone in armature.data.bones]
-            vertex_groups = ob.vertex_groups
-            bones_with_weight = set()
-            # Loop through all vertices in the mesh
-            for vertex in ob.data.vertices:
-                for group in vertex.groups:
-                    # Get the vertex group name
-                    group_name = vertex_groups[group.group].name
-                    # Check if this vertex group corresponds to a bone in the armature
-                    if group_name in bone_names:
-                        bones_with_weight.add(group_name)
-                        
-            self.bone_bindings = [BoneBinding(bone) for bone in bones_with_weight]
-            
+        if ob.parent:
+            if ob.parent_type == 'BONE':
+                self.bone_bindings = [BoneBinding(ob.parent_bone)]
+            elif ob.parent.type == 'ARMATURE':
+                armature = ob.parent
+                bone_names = [bone.name for bone in armature.data.bones]
+                vertex_groups = ob.vertex_groups
+                bones_with_weight = set()
+                # Loop through all vertices in the mesh
+                for vertex in ob.data.vertices:
+                    for group in vertex.groups:
+                        # Get the vertex group name
+                        group_name = vertex_groups[group.group].name
+                        # Check if this vertex group corresponds to a bone in the armature
+                        if group_name in bone_names:
+                            bones_with_weight.add(group_name)
+                self.bone_bindings = [BoneBinding(bone) for bone in bones_with_weight]
+            else:
+                self.bone_bindings = [BoneBinding(ob.name)]
+        else:
+            self.bone_bindings = [BoneBinding(ob.name)]
 
 class Model:
     name: str
@@ -310,9 +370,11 @@ class Model:
     def __init__(self, ob: bpy.types.Object, skeleton_index: int, ob_names: Enum, objects: set):
         self.name = ob.name.encode()
         self.skeleton_index = skeleton_index
-        position, orientation, scale_shear, _ = granny_transform_parts(ob)
+        position, orientation, scale_shear, _ = granny_transform_parts(ob, ob)
         self.initial_placement = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         self.mesh_bindings = []
+        if ob.type == 'MESH':
+            self.mesh_bindings.append(ob_names[ob.name].value)
         for child in ob.children_recursive:
             if child not in objects: continue
             self.mesh_bindings.append(ob_names[child.name].value)

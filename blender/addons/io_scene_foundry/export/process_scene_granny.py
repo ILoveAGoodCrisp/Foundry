@@ -21,8 +21,6 @@ from ..managed_blam.model import ModelTag
 from ..managed_blam.scenario import ScenarioTag
 from .format_json import NWOJSON
 from ..utils import (
-    disable_prints,
-    enable_prints,
     get_animated_objects,
     get_data_path,
     get_tags_path,
@@ -32,11 +30,9 @@ from ..utils import (
     print_warning,
     relative_path,
     reset_to_basis,
-    run_tool,
     set_active_object,
     unmute_armature_mods,
     update_job,
-    update_job_count,
 )
 
 #####################################################################################
@@ -250,7 +246,6 @@ class ProcessSceneGR2:
 
                 if export_scene.model_armature and scene_nwo_export.export_skeleton:
                     export_obs = [export_scene.model_armature]
-                    print(gr2_path)
                     # update_job(job, 0)
                     self.export_gr2(gr2_path, export_obs)
                     # update_job(job, 1)
@@ -514,7 +509,7 @@ class ProcessSceneGR2:
                         print(
                             "-----------------------------------------------------------------------\n"
                         )
-                    job = f"--- {print_text} {gr2_path}"
+                    job = f"--- {print_text}"
                     update_job(job, 0)
                     self.export_gr2(gr2_path, export_obs)
                     update_job(job, 1)
@@ -564,9 +559,8 @@ class ProcessSceneGR2:
                             print_text = f"{bsp} {type_name}"
                         else:
                             print_text = f"{bsp} {perm} {type_name}"
-                        job = f"--- {print_text} {gr2_path}"
+                        job = f"--- {print_text}"
                         update_job(job, 0)
-                        print(gr2_path)
                         self.export_gr2(gr2_path, export_obs)
                         update_job(job, 1)
 
