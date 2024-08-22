@@ -1,7 +1,8 @@
-from ctypes import Structure, c_char_p, c_float, c_ubyte, c_uint8, c_void_p, cast, pointer
+from ctypes import Structure, c_char_p, c_float, c_int, c_ubyte, c_uint8, c_void_p, cast, pointer
 from enum import Enum
 from math import pi, radians
 from typing import Literal
+import bmesh
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
@@ -9,6 +10,7 @@ import numpy as np
 from .formats import GrannyDataTypeDefinition, GrannyTransform
 
 from .. import utils
+from ..export.export_info import *
 
 granny_transform_default = GrannyTransform(flags=7, position=(c_float * 3)(0, 0, 0), orientation=(c_float * 4)(0, 0, 0, 1), scale_shear=(c_float * 3 * 3)((1, 0, 0), (0.0, 1, 0), (0.0, 0.0, 1)))
 granny_inverse_transform_default = (c_float * 4 * 4)(
@@ -132,6 +134,7 @@ class BoneType(Enum):
     
 class Bone(Properties):
     def __init__(self, bone: bpy.types.PoseBone | bpy.types.Object):
+        # super().__init__(bone)
         self.name = bone.name.encode()
         self.parent_index = -1
         self.lod_error = 0.0
@@ -140,7 +143,7 @@ class Bone(Properties):
         
     def set_transform(self, bone: bpy.types.PoseBone | bpy.types.Object, parent: bpy.types.Object):
         position, orientation, scale_shear, world_matrix = granny_transform_parts(bone, parent)
-        self.local_transform = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
+        self.local_transform = GrannyTransform(flags=0, position=position, orientation=orientation, scale_shear=scale_shear)
         
         inverted_matrix = world_matrix.inverted()
         self.inverse_transform = (c_float * 4 * 4)(
@@ -149,20 +152,26 @@ class Bone(Properties):
             (inverted_matrix[2][0], inverted_matrix[2][1], inverted_matrix[2][2], inverted_matrix[2][3]),
             (inverted_matrix[3][0], inverted_matrix[3][1], inverted_matrix[3][2], inverted_matrix[3][3]),
         )
+        # self.local_transform = granny_transform_default
+        # self.inverse_transform = granny_inverse_transform_default_mesh
     
-class Skeleton(Properties):
+class Skeleton:
     name: bytes
     lod = 0
     bones: list[Bone]
     
     def __init__(self, ob: bpy.types.Object, all_objects: list[bpy.types.Object]):
-        super().__init__(ob)
         self.granny = None
         self.name = ob.name.encode()
         self._get_bones(ob, all_objects)
         
     def _get_bones(self, ob, all_objects):
-        self.bones = [Bone(ob)]
+        ob_bone = Bone(ob)
+        ob_bone.set_transform(ob, ob)
+        if ob.type != 'MESH':
+            ob_bone.properties = utils.get_halo_props_for_granny(ob)
+            
+        self.bones = [ob_bone]
         if ob.type == 'ARMATURE':
             list_bones = [pbone.name for pbone in ob.pose.bones]
             for idx, bone in enumerate(ob.pose.bones):
@@ -213,10 +222,11 @@ class Color:
     blue: float
     
 class Vertex:
-    def __init__(self, mesh: bpy.types.Mesh, vert_index: int, vertex_uvs):
+    def __init__(self, mesh: bpy.types.Mesh, vert_index: int, vertex_uvs, transform_matrix: Matrix):
         # corner_normals = mesh.vertex_normals
         vert = mesh.vertices[vert_index]
-        self.position = (c_float * 3)(*vert.co.to_tuple())
+        co = transform_matrix @ vert.co
+        self.position = (c_float * 3)(*co.to_tuple())
         # normal = corner_normals[vert_index].vector.to_tuple()
         normal = vert.normal.to_tuple()
         self.normal = (c_float * 3)(*normal)
@@ -255,10 +265,11 @@ class Vertex:
         #                 u, v = layer.data[loop_index].uv.to_tuple()
         #                 setattr(self, f"uvs{str(idx)}", (c_float * 3)(u, v, 0))
         
-        uv_set = vertex_uvs[vert_index]
-        for idx, uv in enumerate(uv_set):
-            u, v = uv[0], uv[1]
-            setattr(self, f"uvs{str(idx)}", (c_float * 3)(u, v, 0))
+        if vertex_uvs:
+            uv_set = vertex_uvs[vert_index]
+            for idx, uv in enumerate(uv_set):
+                u, v = uv[0], uv[1]
+                setattr(self, f"uvs{str(idx)}", (c_float * 3)(u, v, 0))
             
         vertex_colors = [color_layer for color_layer in mesh.vertex_colors]
         for idx, layer in enumerate(vertex_colors):
@@ -272,9 +283,9 @@ class VertexData:
     def __init__(self, ob: bpy.types.Object, vertex_uvs):
         self.vertices = []
         mesh = ob.data
-        mesh.transform(ob.matrix_world)
+        # mesh.transform(ob.matrix_world)
         for i in range(len(mesh.vertices)):
-            self.vertices.append(Vertex(mesh, i, vertex_uvs))
+            self.vertices.append(Vertex(mesh, i, vertex_uvs, ob.matrix_world))
             
         self.granny = None
     
@@ -295,6 +306,17 @@ class Triangle:
     def __init__(self, face: bpy.types.MeshPolygon):
         self.material_index = face.material_index
         self.indices = (face.vertices[0], face.vertices[1], face.vertices[2])
+        
+class TriAnnotationSet:
+    def __init__(self, bm: bmesh.types.BMesh, layer: bmesh.types.BMLayerItem, name: str, value: int | float, default: int | float):
+        self.name = name.encode()
+        num_faces = len(bm.faces)
+        annotations = [default] * num_faces
+        for idx, face in enumerate(bm.faces):
+            if face[layer]:
+                annotations[idx] = value
+                
+        self.tri_annotations = (c_int * num_faces)(*annotations)
     
 class TriTopology:
     groups: list
@@ -325,20 +347,25 @@ class TriTopology:
                 
         else:
             self.groups = [Group(0, 0, len(self.triangles))]
+            
+        self._setup_tri_annotations(mesh)
+            
+    def _setup_tri_annotations(self, mesh):
+        self.tri_annotation_sets = []
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        for prop in mesh.nwo.face_props:
+            if prop.face_two_sided:
+                layer = bm.faces.layers.int.get(prop.layer_name)
+                if layer:
+                    self.tri_annotation_sets.append(TriAnnotationSet(bm, layer, "bungie_face_sides", FaceSides.two_sided.value, 0))
         
-    
 class BoneBinding:
     name: bytes
     def __init__(self, name: str):
         self.name = name.encode()
     
 class Mesh(Properties):
-    name: bytes
-    primary_vertex_data_index: int
-    primary_topology_index: int
-    material_bindings: list[int]
-    bone_bindings: list[BoneBinding]
-    
     def __init__(self, ob: bpy.types.Object, data_index: int, material_names: Enum):
         super().__init__(ob)
         self.granny = None

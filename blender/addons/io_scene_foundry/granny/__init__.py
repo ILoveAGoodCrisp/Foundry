@@ -1,6 +1,7 @@
 from collections import defaultdict
-from ctypes import CDLL, c_uint32, cast, cdll, create_string_buffer, pointer
+from ctypes import CDLL, byref, c_uint32, cast, cdll, create_string_buffer, pointer, sizeof, string_at
 from pathlib import Path
+import struct
 
 import bmesh
 import bpy
@@ -41,6 +42,21 @@ vertex_type_info = [
     GrannyDataTypeDefinition(10, b"colorSet2", None, 3),
     GrannyDataTypeDefinition(10, b"blend_shape", None, 3),
     GrannyDataTypeDefinition(10, b"vertex_id", None, 2),
+    GrannyDataTypeDefinition(0, None, None, 0)  # End marker
+]
+
+tri_annotation_type_int = [
+    GrannyDataTypeDefinition(19, b"Int32", None, 1),
+    GrannyDataTypeDefinition(0, None, None, 0)  # End marker
+]
+
+tri_annotation_type_float = [
+    GrannyDataTypeDefinition(10, b"Real32", None, 1),
+    GrannyDataTypeDefinition(0, None, None, 0)  # End marker
+]
+
+tri_annotation_type_color = [
+    GrannyDataTypeDefinition(10, b"Real32", None, 3),
     GrannyDataTypeDefinition(0, None, None, 0)  # End marker
 ]
 
@@ -104,6 +120,15 @@ class Granny:
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
         self.old_callback = GrannyLogCallback()
         self.filename = str(filepath)
+        
+        # File Transforms
+        self.units_per_meter = 1
+        self.origin = (c_float * 3)(0, 0, 0)
+        self.right_vector = (c_float * 3)(1, 0, 0)
+        self.up_vector = (c_float * 3)(0, 0, 1)
+        self.back_vector = (c_float * 3)(0, 1, 0)
+        
+        # File Info
         self.granny_export_info = None
         self._create_callback()
         self._create_file_info()
@@ -136,7 +161,7 @@ class Granny:
         material_enum = Enum("material_enum", [m.name_str for m in self.export_materials], start=0)
         
         mesh_dict = {} # Meshes are keys, bmeshes are values
-        uvs = []
+        uvs = [None] * len(meshes)
         for mesh in meshes:
             do_split = False
             split_by_edge = False
@@ -187,7 +212,7 @@ class Granny:
                         uv_coords = layer.data[loop_index].uv.to_tuple()
                         vertex_uvs[vertex_index].append(uv_coords)
                         
-            uvs.append(vertex_uvs)
+                uvs.append(vertex_uvs)
         
         self.export_meshes = []
         self.export_vertex_datas = []
@@ -207,6 +232,41 @@ class Granny:
             if self._write_data_tree_to_file(data_tree_writer):
                 self._end_file_data_tree_writing(data_tree_writer)
                 
+    def transform(self):
+        '''Transforms the granny file to Halo (Big scale + X forward)'''
+        halo_units_per_meter = 1 / 0.03048
+        halo_origin = (c_float * 3)(0, 0, 0)
+        halo_right_vector = (c_float * 3)(1, 0, 0)
+        halo_up_vector = (c_float * 3)(0, 0, 1)
+        halo_back_vector = (c_float * 3)(0, 1, 0)
+        halo_right_vector = self.right_vector
+        halo_up_vector = self.up_vector
+        halo_back_vector = self.back_vector
+        affine3 = (c_float * 3)(0, 0, 0)
+        linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        inverse_linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        
+        self._compute_basis_conversion(self.file_info, 
+                                      halo_units_per_meter,
+                                      halo_origin,
+                                      halo_right_vector,
+                                      halo_up_vector,
+                                      halo_back_vector,
+                                      affine3,
+                                      linear3x3,
+                                      inverse_linear3x3,
+                                      )
+        
+        self._transform_file(
+            self.file_info,
+            affine3,
+            linear3x3,
+            inverse_linear3x3,
+            1e-5,
+            1e-5,
+            3, # 3 represents the flags GrannyRenormalizeNormals & GrannyReorderTriangleIndices
+        )
+                
     def create_materials(self):
         num_materials = len(self.export_materials)
         granny_materials = (POINTER(GrannyMaterial) * num_materials)()
@@ -223,7 +283,6 @@ class Granny:
     def _populate_material(self, granny_material, export_material):
         granny_material.name = export_material.name
         export_material.create_properties(granny_material)
-
         
     def create_skeletons(self, export_info=None):
         num_skeletons = len(self.export_skeletons) + int(bool(export_info))
@@ -366,6 +425,32 @@ class Granny:
         granny_tri_topology.index_count = len(indices)
         granny_tri_topology.indices = cast(indices_array, POINTER(c_int))
         
+        # Create Tri Annotation sets
+        if not export_tri_topology.tri_annotation_sets: return
+        
+        num_tri_annotation_sets = len(export_tri_topology.tri_annotation_sets)
+        tri_annotation_sets = (GrannyTriAnnotationSet * num_tri_annotation_sets)()
+        
+        for k, export_tri_annotation_set in enumerate(export_tri_topology.tri_annotation_sets):
+            granny_tri_annotation_set = tri_annotation_sets[k]
+            granny_tri_annotation_set.name = export_tri_annotation_set.name
+            granny_tri_annotation_set.indices_map_from_tri_to_annotation = 1
+            
+            tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_int))(*tri_annotation_type_int)
+            granny_tri_annotation_set.tri_annotation_type = cast(tri_annotation_type_array, POINTER(GrannyDataTypeDefinition))
+            
+            num_tri_annotations = len(export_tri_annotation_set.tri_annotations)
+            tri_annotations = export_tri_annotation_set.tri_annotations
+            
+            annotation_byte_array = bytearray(tri_annotations)
+            annotation_array = (c_ubyte * len(annotation_byte_array))(*annotation_byte_array)
+
+            granny_tri_annotation_set.tri_annotation_count = num_tri_annotations
+            granny_tri_annotation_set.tri_annotations = cast(annotation_array, POINTER(c_ubyte))
+            
+        granny_tri_topology.tri_annotation_set_count = num_tri_annotation_sets
+        granny_tri_topology.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
+        
     def create_meshes(self):
         num_meshes = len(self.export_meshes)
         meshes = (POINTER(GrannyMesh) * num_meshes)()
@@ -507,14 +592,14 @@ class Granny:
         tool_info.art_tool_major_revision = 1
         tool_info.art_tool_minor_revision = 0
         tool_info.art_tool_pointer_size = 64
-        tool_info.units_per_meter = 39.370079
-        tool_info.origin[:] = [0, 0, 0]
+        tool_info.units_per_meter = self.units_per_meter
+        tool_info.origin[:] = self.origin
         # tool_info.right_vector[:] = [1, 0, 0]
         # tool_info.up_vector[:] = [0, 0, 1]
         # tool_info.back_vector[:] = [0, -1, 0]
-        tool_info.right_vector[:] = [0, -1, 0]
-        tool_info.up_vector[:] = [0, 0, 1]
-        tool_info.back_vector[:] = [-1, 0, 0]
+        tool_info.right_vector[:] = self.right_vector
+        tool_info.up_vector[:] = self.up_vector
+        tool_info.back_vector[:] = self.back_vector
         tool_info.extended_data.type = None
         tool_info.extended_data.object = None
         return tool_info
@@ -576,4 +661,18 @@ class Granny:
         self.dll.GrannyGetLogMessageOriginString.argtypes=[c_int]
         self.dll.GrannyGetLogMessageOriginString.restype=c_char_p
         result = self.dll.GrannyGetLogMessageOriginString(origin)
+        return result
+    
+    def _set_transform_with_identity_check(self, result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
+        self.dll.GrannySetTransformWithIdentityCheck.argtypes=[POINTER(GrannyTransform),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
+        self.dll.GrannySetTransformWithIdentityCheck(result,position_3,orientation4,scale_shear_3x3)
+        
+    def _transform_file(self, file_info : GrannyFileInfo, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
+        self.dll.GrannyTransformFile.argtypes=[POINTER(GrannyFileInfo),POINTER(c_float),POINTER(c_float),POINTER(c_float),c_float,c_float,c_uint]
+        self.dll.GrannyTransformFile(file_info,affine_3,linear_3x3,inverse_linear_3x3,affine_tolerance,linear_tolerance,flags)
+        
+    def _compute_basis_conversion(self, file_info : GrannyFileInfo, desired_units_per_meter : c_float, desired_origin_3 : c_float, desired_right_3 : c_float, desired_up_3 : c_float, desired_back_3 : c_float, result_affine_3 : c_float, result_linear_3x3 : c_float, result_inverse_linear_3x3 : c_float) -> c_bool:
+        self.dll.GrannyComputeBasisConversion.argtypes=[POINTER(GrannyFileInfo),c_float,POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
+        self.dll.GrannyComputeBasisConversion.restype=c_bool
+        result = self.dll.GrannyComputeBasisConversion(file_info,desired_units_per_meter,desired_origin_3,desired_right_3,desired_up_3,desired_back_3,result_affine_3,result_linear_3x3,result_inverse_linear_3x3)
         return result

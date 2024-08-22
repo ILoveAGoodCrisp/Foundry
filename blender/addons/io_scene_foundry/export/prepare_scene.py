@@ -785,7 +785,7 @@ class PrepareScene:
         # remove meshes with zero faces
         [utils.unlink(ob) for ob in export_obs if ob.type == "MESH" and not ob.data.polygons]
         # Transform the scene if needed to Halo Scale and forward
-        self.scale_factor = transform_export_scene(self.context, self.scene_settings)
+        self.scale_factor = transform_export_scene(self.context, self.scene_settings, self.export_settings.granny_export)
         utils.update_view_layer(self.context)
         # for ob in export_obs:
         #     if ob.type == 'MESH':
@@ -2711,10 +2711,10 @@ def add_triangle_mod(ob: bpy.types.Object):
     tri_mod = mods.new('Triangulate', 'TRIANGULATE')
     tri_mod.quad_method = 'FIXED'
     
-def transform_export_scene(context, scene_nwo) -> float:
+def transform_export_scene(context, scene_nwo, granny_export) -> float:
     scale_factor = (1 / 0.03048) if scene_nwo.scale == 'blender' else 1
     rotation = utils.blender_halo_rotation_diff(scene_nwo.forward_direction)
-    if scale_factor != 1 or rotation:
+    if not granny_export and (scale_factor != 1 or rotation):
         job = "--- Transforming Scene"
         if scale_factor != 1:
             job += " [Blender Scale -> Halo Scale]"

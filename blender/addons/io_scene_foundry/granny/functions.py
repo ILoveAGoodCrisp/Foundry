@@ -175,3 +175,11 @@ def granny_get_mesh_vertices(mesh : GrannyMesh) -> c_void_p:
     GrannyDLL.GrannyGetMeshVertices.restype=c_void_p
     result = GrannyDLL.GrannyGetMeshVertices(mesh)
     return result
+
+def granny_set_transform_with_identity_check(result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
+    GrannyDLL.GrannySetTransformWithIdentityCheck.argtypes=[POINTER(GrannyTransform),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
+    GrannyDLL.GrannySetTransformWithIdentityCheck(result,position_3,orientation4,scale_shear_3x3)
+
+def granny_set_transform(result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
+    GrannyDLL.GrannySetTransform.argtypes=[POINTER(GrannyTransform),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
+    GrannyDLL.GrannySetTransform(result,position_3,orientation4,scale_shear_3x3)

@@ -844,6 +844,7 @@ class ProcessSceneGR2:
         granny.create_models()
         # granny.create_track_groups()
         # granny.create_animations()
+        granny.transform()
         granny.save()
         
         

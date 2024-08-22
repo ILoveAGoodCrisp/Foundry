@@ -51,6 +51,12 @@ class MeshType(BungieEnum):
     planar_fog_volume = 15
     
 class MarkerType(BungieEnum): ...
+
+class FaceSides(BungieEnum):
+    one_sided = 0
+    one_sided_transparent = 1
+    two_sided = 2
+    two_sided_transparent = 3
     
 class ExportInfo:
     def __init__(self, regions, global_materials):
@@ -63,6 +69,7 @@ class ExportInfo:
         
         self.object_type = ObjectType
         self.mesh_type = MeshType
+        self.face_sides = FaceSides
         
         self.regions = regions
         self.global_material = global_materials
