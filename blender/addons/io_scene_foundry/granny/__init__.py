@@ -189,15 +189,17 @@ class Granny:
                         
             uvs.append(vertex_uvs)
         
-        self.export_skeletons = [Skeleton(i, objects) for i in skeletons]
-        self.export_meshes = [Mesh(i, mesh_enum[i.data.name].value, material_enum) for i in mesh_objects]
-        self.export_models = [Model(i, idx, ob_enum, mesh_objects_set) for idx, i in enumerate(skeletons)]
+        self.export_meshes = []
         self.export_vertex_datas = []
         self.export_tri_topologies = []
-        for ob in mesh_objects:
+        for idx, ob in enumerate(mesh_objects):
             mesh_index = mesh_enum[ob.data.name].value
             self.export_vertex_datas.append(VertexData(ob, uvs[mesh_index]))
             self.export_tri_topologies.append(TriTopology(ob))
+            self.export_meshes.append(Mesh(ob, idx, material_enum))
+            
+        self.export_skeletons = [Skeleton(i, objects) for i in skeletons]
+        self.export_models = [Model(i, idx, ob_enum, mesh_objects_set) for idx, i in enumerate(skeletons)]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()

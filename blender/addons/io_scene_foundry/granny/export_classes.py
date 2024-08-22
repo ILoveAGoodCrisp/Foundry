@@ -206,7 +206,6 @@ class Skeleton(Properties):
                 b.parent_index = parent_index
                 self.bones.append(b)
                 self.find_children(child, all_objects, child_index)
-        
     
 class Color:
     red: float
