@@ -100,9 +100,9 @@ class VirtualMesh:
             changes = np.where(np.diff(material_indices, prepend=material_indices[0]))[0]
             lengths = np.diff(np.append(changes, len(material_indices)))
             for idx, mat in enumerate(mesh.materials):
-                self.materials[scene._get_material(mat.name)] = (changes[idx], lengths[idx])
+                self.materials[scene._get_material(mat)] = (changes[idx], lengths[idx])
         elif num_materials == 1:
-            self.materials[scene._get_material(mat.name)] = (0, num_polygons)
+            self.materials[scene._get_material(mesh.materials[0])] = (0, num_polygons)
         else:
             self.materials[scene.materials["invalid"]] = (0, num_polygons) # default material
         
@@ -243,9 +243,9 @@ class VirtualSkeleton:
         own_bone.matrix_world = own_bone.node.matrix_world
         own_bone.matrix_local = own_bone.node.matrix_local
         self.bones: list[VirtualBone] = [own_bone]
-        self._get_bones(ob)
+        self._get_bones(ob.original, scene)
         
-    def _get_bones(self, ob):
+    def _get_bones(self, ob, scene):
         if ob.type == 'ARMATURE':
             valid_bones = [pbone for pbone in ob.pose.bones if ob.data.bones[pbone.name].deform]
             list_bones = [pbone.name for pbone in valid_bones]
@@ -271,20 +271,23 @@ class VirtualSkeleton:
                     b.parent_index = 0
                     
                 self.bones.append(b)
-                self.find_children(child, child_index)
+                self.find_children(child, scene, child_index)
                     
         else:
-            self.find_children(ob)
+            self.find_children(ob, scene)
                     
-    def find_children(self, ob: bpy.types.Object, parent_index=0):
+    def find_children(self, ob: bpy.types.Object, scene, parent_index=0):
         child_index = parent_index
         for child in ob.children:
             child_index += 1
             b = VirtualBone(child)
             # b.set_transform(child, ob)
             b.parent_index = parent_index
+            b.node = scene.nodes.get(child.name)
+            b.matrix_world = b.node.matrix_world
+            b.matrix_local = b.node.matrix_local
             self.bones.append(b)
-            self.find_children(child, child_index)
+            self.find_children(child, scene, child_index)
     
 class VirtualModel:
     '''Describes a blender object which has no parent'''
@@ -328,15 +331,15 @@ class VirtualScene:
     def add_model(self, ob):
         self.models[ob.name] = VirtualModel(ob, self)
         
-    def _get_material(self, material_name: str):
-        mat = self.materials.get(material_name)
-        if mat: return mat
+    def _get_material(self, material: bpy.types.Material):
+        virtual_mat = self.materials.get(material.name)
+        if virtual_mat: return virtual_mat
         
-        shader_path = mat.nwo.shader_path
+        shader_path = material.nwo.shader_path
         relative = utils.relative_path(shader_path)
         virtual_mat = VirtualMaterial(relative)
-        virtual_mat.index = len(self.materials) - 1
-        self.materials[mat.name] = virtual_mat
+        virtual_mat.index = len(self.materials)
+        self.materials[virtual_mat.name] = virtual_mat
         return virtual_mat
                 
 def has_armature_deform_mod(ob: bpy.types.Object):

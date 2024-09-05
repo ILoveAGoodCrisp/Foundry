@@ -14,6 +14,8 @@ from .formats import GrannyDataTypeDefinition, GrannyTransform
 from .. import utils
 from ..export.export_info import *
 
+identity_matrix = Matrix.Identity(4)
+
 granny_transform_default = GrannyTransform(flags=7, position=(c_float * 3)(0, 0, 0), orientation=(c_float * 4)(0, 0, 0, 1), scale_shear=(c_float * 3 * 3)((1, 0, 0), (0.0, 1, 0), (0.0, 0.0, 1)))
 granny_inverse_transform_default = (c_float * 4 * 4)(
             (1, 0, 0, 0),
@@ -202,10 +204,13 @@ class VertexData:
     def __init__(self, node: VirtualNode):
         self.vertices = []
         mesh = node.mesh
-        transformed_positions = mesh.positions @ node.matrix_world.to_3x3()
-        transformed_normals = mesh.normals @ node.matrix_world.to_3x3()
-        # mesh.transform(ob.matrix_world)
-        self.vertices = [Vertex(i, mesh, transformed_positions, transformed_normals) for i in range(mesh.num_vertices)]
+        if node.matrix_world == identity_matrix:
+            self.vertices = [Vertex(i, mesh, mesh.positions, mesh.normals) for i in range(mesh.num_vertices)]
+        else:
+            transformed_positions = mesh.positions @ node.matrix_world.to_3x3()
+            transformed_normals = mesh.normals @ node.matrix_world.to_3x3()
+            self.vertices = [Vertex(i, mesh, transformed_positions, transformed_normals) for i in range(mesh.num_vertices)]
+            
         self.granny = None
     
 class Group:
@@ -265,7 +270,7 @@ class BoneBinding:
         self.name = name.encode()
     
 class Mesh(Properties):
-    def __init__(self, node: VirtualNode, data_index: int, material_names: dict):
+    def __init__(self, node: VirtualNode, data_index: int, materials: dict):
         super().__init__(node)
         self.granny = None
         self.name = node.name.encode()
