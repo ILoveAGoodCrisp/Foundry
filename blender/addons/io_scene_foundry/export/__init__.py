@@ -24,7 +24,7 @@ import logging
 
 from .process_scene_granny import ProcessSceneGR2
 
-from .prepare_scene_granny import ExportScene
+from .process import ExportScene
 
 from ..icons import get_icon_id, get_icon_id_in_directory
 from ..ui.bar import NWO_MT_ProjectChooserMenuDisallowNew
@@ -50,7 +50,7 @@ from ..utils import (
 from .. import managed_blam
 
 # export keywords
-export = {}
+process = {}
 
 # lightmapper_run_once = False
 sidecar_read = False
@@ -58,7 +58,7 @@ sidecar_read = False
 sidecar_path = ""
 
 def call_export():
-    bpy.ops.nwo.export(**export)
+    bpy.ops.nwo.export(**process)
 
 def toggle_output():
     bpy.context.scene.nwo_export.show_output = False
@@ -142,9 +142,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
         # Save the scene
         # bpy.ops.wm.save_mainfile()
         # save settings to global
-        global export
-        export = self.as_keywords()
-        bpy.ops.ed.undo_push()
+        global process
+        process = self.as_keywords()
+        if not context.scene.nwo_export.granny_export:
+            bpy.ops.ed.undo_push()
         # start the actual export operator
         bpy.app.timers.register(call_export)
 
@@ -453,11 +454,11 @@ class NWO_Export(NWO_Export_Scene):
         try:
             try:
                 process_results = None
-                # if scene_nwo_export.granny_export:
-                #     export_asset_granny(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
-                # else:
-                if fbx_installed:
-                    prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                if scene_nwo_export.granny_export:
+                    export_asset_granny(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                else:
+                    if fbx_installed:
+                        prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
             
             except Exception as e:
                 if isinstance(e, RuntimeError):
@@ -543,8 +544,9 @@ class NWO_Export(NWO_Export_Scene):
         except KeyboardInterrupt:
             print_warning("\n\nEXPORT CANCELLED BY USER")
 
-        bpy.ops.ed.undo_push()
-        bpy.ops.ed.undo()
+        if not scene_nwo_export.granny_export:
+            bpy.ops.ed.undo_push()
+            bpy.ops.ed.undo()
         context.scene.nwo.export_in_progress = False
         return {"FINISHED"}
 
@@ -653,5 +655,10 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
 
 def export_asset_granny(context, sidecar_path_full, asset_name, asset_path, scene_settings, export_settings, corinth):
     asset_type = scene_settings.asset_type
-    export_scene = ExportScene(context, asset_type, asset_name, corinth)
+    export_scene = ExportScene(context, asset_type, asset_name, asset_path, corinth, export_settings)
     export_scene.ready_scene()
+    export_scene.get_initial_export_objects()
+    export_scene.setup_skeleton()
+    export_scene.create_virtual_geometry()
+    export_scene.create_virtual_tree()
+    export_scene.export_files()

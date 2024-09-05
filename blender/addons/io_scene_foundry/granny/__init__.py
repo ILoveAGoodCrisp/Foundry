@@ -7,6 +7,8 @@ import bmesh
 import bpy
 from mathutils import Matrix
 
+from ..export.virtual_geometry import VirtualModel, VirtualNode, VirtualScene
+
 from .export_classes import *
 from .formats import *
 
@@ -132,6 +134,29 @@ class Granny:
         self.granny_export_info = None
         self._create_callback()
         self._create_file_info()
+        
+    def from_tree(self, scene: VirtualScene, nodes: dict[VirtualNode]):
+        self.export_materials = [Material(mat) for mat in scene.materials.values()]
+        self.export_meshes = []
+        self.export_models = []
+        self.export_skeletons = []
+        self.export_tri_topologies = []
+        self.export_vertex_datas = []
+        for model in scene.models.values():
+            model: VirtualModel
+            node = nodes.get(model.name)
+            if not node: continue
+            self.export_skeletons.append(Skeleton(model.skeleton, node, nodes))
+            mesh_binding_indexes = []
+            for bone in model.skeleton.bones:
+                if bone.node and nodes.get(bone.name) and bone.node.mesh:
+                    self.export_tri_topologies.append(TriTopology(bone.node.mesh))
+                    self.export_vertex_datas.append(VertexData(bone.node))
+                    self.export_meshes.append(Mesh(bone.node, len(self.export_vertex_datas) - 1, scene.materials))
+                    mesh_binding_indexes.append(len(self.export_meshes) - 1)
+                    
+            self.export_models.append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indexes))
+            
         
     def from_objects(self, objects: list[bpy.types.Object]):
         """Creates granny representations of blender objects"""
@@ -414,16 +439,8 @@ class Granny:
         granny_tri_topology.group_count = num_groups
         granny_tri_topology.groups = cast(groups, POINTER(GrannyTriMaterialGroup))
         
-        # Populate Indices
-        indices = []
-        for tri in export_tri_topology.triangles:
-            for i in tri.indices:
-                indices.append(i)
-                
-        indices_array = (c_int * len(indices))(*indices)
-        
-        granny_tri_topology.index_count = len(indices)
-        granny_tri_topology.indices = cast(indices_array, POINTER(c_int))
+        granny_tri_topology.index_count = len(export_tri_topology.indices)
+        granny_tri_topology.indices = cast(export_tri_topology.indices, POINTER(c_int))
         
         # Create Tri Annotation sets
         if not export_tri_topology.tri_annotation_sets: return

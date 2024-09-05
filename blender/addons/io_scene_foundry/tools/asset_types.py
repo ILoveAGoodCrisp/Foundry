@@ -56,3 +56,19 @@ class AssetType(Enum):
     CAMERA_TRACK_SET = 6
     RESOURCE = 7
     PREFAB = 8
+    
+    @property
+    def supports_permutations(self):
+        return self.value in (0, 1, 2, 8)
+    
+    @property
+    def supports_animations(self):
+        return self.value in (0, 5)
+    
+    @property
+    def supports_bsp(self):
+        return self.value in (1, 8)
+    
+    @property
+    def supports_global_materials(self):
+        return self.value in (0, 1, 8)
