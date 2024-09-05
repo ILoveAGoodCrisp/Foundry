@@ -181,16 +181,34 @@ class Vertex:
         #     groups = groups[:4]
         
         # UVs
-        
+        num_texcoord_layers = len(mesh.texcoords)
         self.uvs0 = (c_float * 3)(0,0,0)
         self.uvs1 = (c_float * 3)(0,0,0)
         self.uvs2 = (c_float * 3)(0,0,0)
         self.uvs3 = (c_float * 3)(0,0,0)
         self.lighting_uv = (c_float * 3)(0,0,0)
+        if num_texcoord_layers > 0:
+            self.uvs0 = (c_float * 3)(mesh.texcoords[0][index][0],mesh.texcoords[0][index][1],0)
+            if num_texcoord_layers > 1:
+                self.uvs1 = (c_float * 3)(mesh.texcoords[1][index][0],mesh.texcoords[1][index][1],0)
+                if num_texcoord_layers > 2:
+                    self.uvs2 = (c_float * 3)(mesh.texcoords[2][index][0],mesh.texcoords[2][index][1],0)
+                    if num_texcoord_layers > 3:
+                        self.uvs2 = (c_float * 3)(mesh.texcoords[3][index][0],mesh.texcoords[3][index][1],0)
+                        
+        if mesh.lighting_texcoords is not None:
+            self.lighting_uv = (c_float * 3)(mesh.lighting_texcoords[index][0],mesh.lighting_texcoords[index][1],0)
+
         self.vertex_color0 = (c_float * 3)(0,0,0)
         self.vertex_color1 = (c_float * 3)(0,0,0)
         self.blend_shape = (c_float * 3)(0,0,0)
         self.vertex_id = (c_float * 2)(0,0)
+        
+        # for idx, texcoord in enumerate(mesh.texcoords):
+        #     setattr(self, f"uvs{idx}", (c_float * 3)(*texcoord[index] + 0.0))
+            
+        # if mesh.lighting_texcoords:
+        #     self.lighting_uv = (c_float * 3)(*mesh.lighting_texcoords[index])
             
         # vertex_colors = [color_layer for color_layer in mesh.vertex_colors]
         # for idx, layer in enumerate(vertex_colors):

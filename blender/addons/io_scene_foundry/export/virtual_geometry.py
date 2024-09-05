@@ -76,6 +76,7 @@ class VirtualMesh:
         self.num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
         num_materials = len(mesh.materials)
+        num_loops = len(mesh.loops)
         positions = np.empty(self.num_vertices * 3, dtype=np.float32)
         normals = positions.copy()
         mesh.vertices.foreach_get("co", positions)
@@ -126,23 +127,36 @@ class VirtualMesh:
                     self.bone_weights[i, :len(top_weights)] = top_weights
                     self.bone_indices[i, :len(top_indices)] = top_indices 
         
-        loop_vertices = np.empty(len(mesh.loops) * 1, dtype=np.int32)
-        mesh.loops.foreach_get("vertex_index", self.indices)
+        loop_vertices = np.empty(num_loops, dtype=np.int32)
+        mesh.loops.foreach_get("vertex_index", loop_vertices)
         
         # Texcoords
-        # for layer in mesh.uv_layers:
-        #     if len(self.texcoords) >= 4:
-        #         break
-        #     vertex_uvs = np.empty(num_vertices * 2, dtype=np.float32)
-        #     layer.uv.foreach_get("uv", vertex_uvs)
-        #     # for i in range((len(mesh.loops))):
-        #     #     uv_coords = layer.data[i].uv.to_tuple()
-        #     #     vertex_uvs[loop_vertices[i]].append(uv_coords)
+        for layer in mesh.uv_layers:
+            if len(self.texcoords) >= 4:
+                break
             
-        #     if layer.name.lower() == "lighting":
-        #         self.lighting_texcoords = vertex_uvs
-        #     else:
-        #         self.texcoords.append(vertex_uvs)
+            loop_uvs = np.empty(num_loops * 2, dtype=np.float32)
+            layer.uv.foreach_get("vector", loop_uvs)
+            loop_uvs = np.reshape(loop_uvs, (-1, 2))
+
+            vertex_uvs = [[] for _ in range(self.num_vertices)]
+
+            for loop_idx, vert_idx in enumerate(loop_vertices):
+                vertex_uvs[vert_idx].append(loop_uvs[loop_idx])
+
+            averaged_vertex_uvs = np.zeros((self.num_vertices, 2), dtype=np.float32)
+
+            for vert_idx, uvs in enumerate(vertex_uvs):
+                if uvs:
+                    averaged_vertex_uvs[vert_idx] = np.mean(uvs, axis=0)
+                else:
+                    averaged_vertex_uvs[vert_idx] = [0, 0]
+
+            
+            if layer.name.lower() == "lighting":
+                self.lighting_texcoords = averaged_vertex_uvs
+            else:
+                self.texcoords.append(averaged_vertex_uvs)
                 
         # Vertex Colors
         for layer in mesh.color_attributes:
