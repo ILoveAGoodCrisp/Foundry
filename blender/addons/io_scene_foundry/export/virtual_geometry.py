@@ -137,7 +137,7 @@ class VirtualMesh:
             
             loop_uvs = np.empty(num_loops * 2, dtype=np.float32)
             layer.uv.foreach_get("vector", loop_uvs)
-            loop_uvs = np.reshape(loop_uvs, (-1, 2))
+            loop_uvs = loop_uvs.reshape(-1, 2)
 
             vertex_uvs = [[] for _ in range(self.num_vertices)]
 
@@ -162,9 +162,30 @@ class VirtualMesh:
         for layer in mesh.color_attributes:
             if len(self.vertex_colors) >= 2:
                 break
-            vertex_colors = np.empty(self.num_vertices * 3, dtype=np.float32)
-            layer.data.foreach_get("color", vertex_colors)
-            self.vertex_colors.append(vertex_colors)
+            point_colors =  layer.domain == 'POINT'
+            num_colors = self.num_vertices if point_colors else num_loops
+            colors = np.empty(num_colors * 4, dtype=np.float32)
+            layer.data.foreach_get("color", colors)
+            colors = colors.reshape(-1, 4)
+            
+            if point_colors:
+                self.vertex_colors.append(colors)
+                continue
+            
+            vertex_colors = [[] for _ in range(self.num_vertices)]
+
+            for loop_idx, vert_idx in enumerate(loop_vertices):
+                vertex_colors[vert_idx].append(colors[loop_idx])
+
+            averaged_vertex_colors = np.zeros((self.num_vertices, 4), dtype=np.float32)
+
+            for vert_idx, cols in enumerate(vertex_colors):
+                if cols:
+                    averaged_vertex_colors[vert_idx] = np.mean(cols, axis=0)
+                else:
+                    averaged_vertex_colors[vert_idx] = [0, 0, 0, 0]
+            
+            self.vertex_colors.append(averaged_vertex_colors)
             
 # class VirtualSkeleton:
 #     def __init__(self, ob: bpy.types.Object, node: 'VirtualNode', scene: 'VirtualScene'):

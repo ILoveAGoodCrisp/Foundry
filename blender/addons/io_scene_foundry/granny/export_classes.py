@@ -194,13 +194,21 @@ class Vertex:
                 if num_texcoord_layers > 2:
                     self.uvs2 = (c_float * 3)(mesh.texcoords[2][index][0],mesh.texcoords[2][index][1],0)
                     if num_texcoord_layers > 3:
-                        self.uvs2 = (c_float * 3)(mesh.texcoords[3][index][0],mesh.texcoords[3][index][1],0)
+                        self.uvs3 = (c_float * 3)(mesh.texcoords[3][index][0],mesh.texcoords[3][index][1],0)
                         
         if mesh.lighting_texcoords is not None:
             self.lighting_uv = (c_float * 3)(mesh.lighting_texcoords[index][0],mesh.lighting_texcoords[index][1],0)
 
         self.vertex_color0 = (c_float * 3)(0,0,0)
         self.vertex_color1 = (c_float * 3)(0,0,0)
+        
+        num_vertex_colors = len(mesh.vertex_colors)
+        
+        if num_vertex_colors > 0:
+            self.vertex_color0 = (c_float * 3)(*mesh.vertex_colors[0][index][:2])
+            if num_vertex_colors > 1:
+                self.vertex_color1 = (c_float * 3)(*mesh.vertex_colors[1][index][:2])
+        
         self.blend_shape = (c_float * 3)(0,0,0)
         self.vertex_id = (c_float * 2)(0,0)
         
