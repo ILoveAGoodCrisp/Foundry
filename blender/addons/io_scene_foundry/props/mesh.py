@@ -202,6 +202,12 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
             ),
         ],
     )
+    
+    # Face type
+    seam_sealer_override: bpy.props.BoolProperty(options={'HIDDEN'})
+    sky_override: bpy.props.BoolProperty(options={'HIDDEN'})
+    sky_permutation_index: bpy.props.IntProperty(options={'HIDDEN'})
+    
 
     #########
 

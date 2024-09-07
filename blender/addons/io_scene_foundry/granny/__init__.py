@@ -57,7 +57,7 @@ tri_annotation_type_float = [
     GrannyDataTypeDefinition(0, None, None, 0)  # End marker
 ]
 
-tri_annotation_type_color = [
+tri_annotation_type_float_vector = [
     GrannyDataTypeDefinition(10, b"Real32", None, 3),
     GrannyDataTypeDefinition(0, None, None, 0)  # End marker
 ]
@@ -453,7 +453,14 @@ class Granny:
             granny_tri_annotation_set.name = export_tri_annotation_set.name
             granny_tri_annotation_set.indices_map_from_tri_to_annotation = 1
             
-            tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_int))(*tri_annotation_type_int)
+            match export_tri_annotation_set.type:
+                case 0:
+                    tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_int))(*tri_annotation_type_int)
+                case 1:
+                    tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_float))(*tri_annotation_type_float)
+                case _:
+                    tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_float_vector))(*tri_annotation_type_float_vector)
+                    
             granny_tri_annotation_set.tri_annotation_type = cast(tri_annotation_type_array, POINTER(GrannyDataTypeDefinition))
             
             num_tri_annotations = len(export_tri_annotation_set.tri_annotations)

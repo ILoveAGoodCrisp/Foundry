@@ -258,15 +258,16 @@ class Group:
 #         self.indices = (face.vertices[0], face.vertices[1], face.vertices[2])
         
 class TriAnnotationSet:
-    def __init__(self, bm: bmesh.types.BMesh, layer: bmesh.types.BMLayerItem, name: str, value: int | float, default: int | float):
+    def __init__(self, name: str, array: np.ndarray):
         self.name = name.encode()
-        num_faces = len(bm.faces)
-        annotations = [default] * num_faces
-        for idx, face in enumerate(bm.faces):
-            if face[layer]:
-                annotations[idx] = value
-                
-        self.tri_annotations = (c_int * num_faces)(*annotations)
+        self.type = 0
+        c_type = c_int
+        if array.dtype == np.single:
+            self.type = 1
+            c_type = c_float
+            if array.shape[1] == 3:
+                self.type = 2
+        self.tri_annotations = (c_type * len(array))(*array)
     
 class TriTopology:
     groups: list
@@ -277,11 +278,9 @@ class TriTopology:
         self.granny = None
         self.indices = (c_int * len(mesh.indices))(*mesh.indices)
         self.groups = [Group(i, tri_start, tri_count) for i, (tri_start, tri_count) in enumerate(mesh.materials.values())]
+        self.tri_annotation_sets = [TriAnnotationSet(k, v) for k, v in mesh.face_properties.items()]
             
-        self._setup_tri_annotations(mesh)
             
-    def _setup_tri_annotations(self, mesh):
-        self.tri_annotation_sets = []
         # bm = bmesh.new()
         # bm.from_mesh(mesh)
         # for prop in mesh.nwo.face_props:

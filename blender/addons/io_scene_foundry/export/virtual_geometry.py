@@ -1,12 +1,16 @@
 '''Classes to store intermediate geometry data to be passed to granny files'''
 
+from collections import defaultdict
+from enum import Enum
 from pathlib import Path
 import bmesh
 import bpy
 from mathutils import Matrix
 import numpy as np
 
-from ..props.mesh import NWO_MeshPropertiesGroup
+from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType
+
+from ..props.mesh import NWO_FaceProperties_ListItems, NWO_MeshPropertiesGroup
 
 from .. import utils
 
@@ -41,7 +45,7 @@ class VirtualMesh:
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
         self.indices: np.ndarray = None
         self.materials: dict[VirtualMaterial: int] = {} # dict of materials and the face index they start at
-        self.face_properties: dict[str: list] = {}
+        self.face_properties: dict[str: np.ndarray] = {}
         self._setup(mesh, vertex_weighted, scene)
         
         # print("Positions", self.positions)
@@ -55,7 +59,7 @@ class VirtualMesh:
             print("has custom normals??")
             pass # Code for splitting mesh goes here
         else:
-            print(mesh.normals_domain)
+            # print(mesh.normals_domain)
             match mesh.normals_domain:
                 case 'FACE': # Using polygon normals, split all the edges
                     bmesh.ops.split_edges(bm, edges=bm.edges)
@@ -66,15 +70,17 @@ class VirtualMesh:
         bmesh.ops.triangulate(bm, faces=bm.faces) # granny only supports tris for faces
         bm.faces.sort(key=lambda face: face.material_index) # faces set sorted by material index, important for granny
         
-        # Gather face properties
-        if mesh.nwo.face_props:
-            gather_face_props(mesh.nwo, bm)
         
         bm.to_mesh(mesh)
-        bm.free()
-        
+            
         self.num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
+        
+        if mesh.nwo.face_props:
+            self.face_properties = gather_face_props(mesh.nwo, bm, num_polygons, scene)
+            
+        bm.free()
+        
         num_materials = len(mesh.materials)
         num_loops = len(mesh.loops)
         positions = np.empty(self.num_vertices * 3, dtype=np.float32)
@@ -333,7 +339,7 @@ class VirtualModel:
         self.node = scene.nodes.get(self.name)
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -341,10 +347,12 @@ class VirtualScene:
         self.root: VirtualNode = None
         self.asset_type = asset_type
         self.depsgraph = depsgraph
-        self.regions: set = set()
-        self.permutations: set = set()
-        self.global_materials: set = set()
+        self.regions: list = []
+        self.permutations: list = []
+        self.global_materials: list = []
         self.skeleton_node: VirtualNode = None
+        self.corinth = corinth
+        self.export_info: ExportInfo = None
         
     def add(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None):
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
@@ -384,11 +392,112 @@ def has_armature_deform_mod(ob: bpy.types.Object):
             
     return False
 
-def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, bm: bmesh.types.BMesh):
+class FaceSet:
+    def __init__(self, array: np.ndarray):
+        self.face_props: dict[NWO_FaceProperties_ListItems: bmesh.types.BMLayerItem] = {}
+        self.array = array
+        
+    def update(self, bm: bmesh.types.BMesh, layer_name: str, value: object):
+        layer = bm.faces.layers.int.get(layer_name)
+        if layer:
+            self.face_props[layer] = value
+
+def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, bm: bmesh.types.BMesh, num_faces: int, scene: VirtualScene) -> dict:
     face_properties = {}
     for face_prop in mesh_props.face_props:
-        pass
-        # if face_two_sided_override:
-        #     face_properties["bungie_face_sides"] = 
+        # Main face props
+        if not scene.corinth:
+            if face_prop.seam_sealer_override:
+                face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceType.seam_sealer.value)
+            elif face_prop.sky_override:
+                face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceType.sky.value)
+                face_properties.setdefault("bungie_sky_permutation_index", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, face_prop.sky_permutation_index)
+            
+        if face_prop.render_only_override:
+            face_properties.setdefault("bungie_face_mode", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceMode.render_only.value)
+        elif face_prop.collision_only_override:
+            face_properties.setdefault("bungie_face_mode", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceMode.collision_only.value)
+        elif face_prop.sphere_collision_only_override:
+            face_properties.setdefault("bungie_face_mode", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceMode.sphere_collision_only.value)
+        elif face_prop.breakable_override:
+            face_properties.setdefault("bungie_face_mode", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceMode.breakable.value)
+            
+        if face_prop.face_two_sided_override:
+            sides_value = FaceSides.two_sided.value
+            if scene.corinth:
+                match face_prop.face_two_sided_type:
+                    case "mirror":
+                        sides_value = FaceSides.mirror.value
+                    case "keep":
+                        sides_value = FaceSides.keep.value
+                
+            face_properties.setdefault("bungie_face_sides", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, sides_value)
+            
+        if face_prop.face_transparent_override:
+            face_properties.setdefault("bungie_face_sides", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceSides.one_sided_transparent.value)
+            
+        if face_prop.face_draw_distance_override:
+            match face_prop.face_draw_distance:
+                case '_connected_geometry_face_draw_distance_detail_mid':
+                    face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_mid.value)
+                case '_connected_geometry_face_draw_distance_detail_close':
+                    face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_close.value)
+                    
+        if face_prop.face_global_material_override:
+            face_properties.setdefault("bungie_face_global_material", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
+        if face_prop.region_name_override:
+            face_properties.setdefault("bungie_face_region", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, scene.regions.index(face_prop.region_name))
+            
+        if face_prop.ladder_override:
+            face_properties.setdefault("bungie_ladder", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+        if face_prop.slip_surface_override:
+            face_properties.setdefault("bungie_slip_surface", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+        if face_prop.decal_offset_override:
+            face_properties.setdefault("bungie_decal_offset", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+        if face_prop.no_shadow_override:
+            face_properties.setdefault("bungie_no_shadow", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+        if face_prop.no_pvs_override:
+            face_properties.setdefault("bungie_invisible_to_pvs", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+        if face_prop.no_lightmap_override:
+            face_properties.setdefault("bungie_no_lightmap", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+        if face_prop.precise_position_override:
+            face_properties.setdefault("bungie_precise_position", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+            
+        # Lightmap Props
+        # if face_prop.lightmap_additive_transparency_override:
+        #     face_properties["bungie_lightmap_additive_transparency"].append(face_prop)
+        # if face_prop.lightmap_resolution_scale_override:
+        #     face_properties["bungie_lightmap_ignore_default_resolution_scale"].append(face_prop)
+        #     face_properties["bungie_lightmap_resolution_scale"].append(face_prop)
+        # if face_prop.lightmap_type_override:
+        #     face_properties["bungie_lightmap_type"].append(face_prop)
+        # if face_prop.lightmap_translucency_tint_color_override:
+        #     face_properties["bungie_lightmap_translucency_tint_color"].append(face_prop)
+        # if face_prop.lightmap_lighting_from_both_sides_override:
+        #     face_properties["bungie_lightmap_lighting_from_both_sides"].append(face_prop)
+            
+        # Emissives
+        # if face_prop.emissive_override:
+        #     face_properties["bungie_lighting_attenuation_enabled"].append(face_prop)
+        #     face_properties["bungie_lighting_attenuation_cutoff"].append(face_prop)
+        #     face_properties["bungie_lighting_attenuation_falloff"].append(face_prop)
+        #     face_properties["bungie_lighting_emissive_focus"].append(face_prop)
+        #     face_properties["bungie_lighting_emissive_color"].append(face_prop)
+        #     face_properties["bungie_lighting_emissive_per_unit"].append(face_prop)
+        #     face_properties["bungie_lighting_emissive_power"].append(face_prop)
+        #     face_properties["bungie_lighting_emissive_quality"].append(face_prop)
+        #     face_properties["bungie_lighting_frustum_blend"].append(face_prop)
+        #     face_properties["bungie_lighting_frustum_cutoff"].append(face_prop)
+        #     face_properties["bungie_lighting_frustum_falloff"].append(face_prop)
+        #     face_properties["bungie_lighting_use_shader_gel"].append(face_prop)
+        #     face_properties["bungie_lighting_bounce_ratio"].append(face_prop)
+        #     face_properties["bungie_light_is_uber_light"].append(face_prop)
         
-    return face_properties
+    for idx, face in enumerate(bm.faces):
+        for v in face_properties.values():
+            for layer, value in v.face_props.items():
+                if face[layer]:          
+                    v.array[idx] = value
+                
+        
+    return {k: v.array for k, v in face_properties.items()}

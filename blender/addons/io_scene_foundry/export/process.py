@@ -7,6 +7,8 @@ import time
 import bpy
 from mathutils import Matrix
 
+from blender.addons.io_scene_foundry.export.build_sidecar_granny import SidecarGranny
+
 from .export_info import ExportInfo
 
 from ..props.mesh import NWO_MeshPropertiesGroup
@@ -46,25 +48,6 @@ class SidecarData:
         
 class ExportScene:
     '''Scene to hold all the export objects'''
-    context: bpy.types.Context
-    asset_type: AssetType
-    asset_name: str
-    asset_path: Path
-    corinth: bool
-    game_version: GameVersion
-    scene_settings: NWO_ScenePropertiesGroup
-    export_settings: NWO_HaloExportPropertiesGroup
-    tags_dir: Path
-    data_dir: Path
-    root_dir: Path
-    warning_hit: bool
-    bsps_with_structure: set
-    disabled_collections: set[bpy.types.Collection]
-    export_objects: list[bpy.types.Object]
-    permutations: list[str]
-    regions: list[str]
-    global_materials: list[str]
-    
     def __init__(self, context, asset_type, asset_name, asset_path, corinth, export_settings):
         self.context = context
         self.asset_type = AssetType[asset_type.upper()]
@@ -79,6 +62,14 @@ class ExportScene:
         self.no_parent_objects = []
         self.default_region = context.scene.nwo.regions_table[0].name
         self.default_permutation = context.scene.nwo.permutations_table[0].name
+        
+        self.regions = [i.name for i in context.scene.nwo.regions_table]
+        self.permutations = [i.name for i in context.scene.nwo.permutations_table]
+        self.global_materials = set()
+        self.global_materials_list = []
+        
+        self.reg_name = 'BSP' if self.asset_type.supports_bsp else 'region'
+        self.perm_name = 'layer' if self.asset_type.supports_bsp else 'permutation'
         
         self.game_version = 'corinth' if corinth else 'reach'
         self.export_settings = export_settings
@@ -101,7 +92,7 @@ class ExportScene:
         else:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
             
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth)
         
         # Create default material
         if self.corinth:
@@ -118,15 +109,27 @@ class ExportScene:
     
     def create_virtual_geometry(self):
         process = "--- Creating Virtual Geometry"
-        len_export_obs = len(self.export_objects)
+        ob_halo_data = {}
+        for idx, ob in enumerate(self.export_objects):
+            props, region, permutation = self.get_halo_props(ob)
+            if props is None:
+                continue
+            ob_halo_data[ob] = (props, region, permutation)
+        
+        self.global_materials_list = list(self.global_materials - {'default'})
+        self.global_materials_list.insert(0, 'default')
+        
+        self.export_info = ExportInfo(self.regions, self.global_materials_list).create_info()
+        self.virtual_scene.regions = self.regions
+        self.virtual_scene.global_materials = self.global_materials_list
+        
+        len_export_obs = len(ob_halo_data)
         with utils.Spinner():
             utils.update_job_count(process, "", 0, len_export_obs)
-            for idx, ob in enumerate(self.export_objects):
-                props, region, permutation = self.get_halo_props(ob)
-                if props is not None:
-                    self.virtual_scene.add(ob, props, region, permutation)
-                    if not ob.parent:
-                        self.no_parent_objects.append(ob)
+            for idx, (ob, (props, region, permutation)) in enumerate(ob_halo_data.items()):
+                self.virtual_scene.add(ob, props, region, permutation)
+                if not ob.parent:
+                    self.no_parent_objects.append(ob)
                 utils.update_job_count(process, "", idx, len_export_obs)
             utils.update_job_count(process, "", len_export_obs, len_export_obs)
             
@@ -142,14 +145,13 @@ class ExportScene:
         
         props["bungie_object_type"] = object_type
         is_light = ob.type == 'LIGHT'
+        is_mesh = ob.type == 'MESH'
         instanced_object = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
-        
         if self.asset_type.supports_permutations:
-            if not instanced_object and (is_light or self.asset_type.supports_bsp or nwo.marker_uses_regions):
+            if not instanced_object and (is_mesh or is_light or self.asset_type.supports_bsp or nwo.marker_uses_regions):
                 reg = utils.true_region(nwo)
                 if reg in self.regions:
-                    self.virtual_scene.regions.add(reg)
-                    region = utils.true_region(nwo)
+                    region = reg
                 else:
                     self.warning_hit = True
                     utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
@@ -157,8 +159,7 @@ class ExportScene:
             if (is_light or self.asset_type.supports_bsp) and not instanced_object:
                 perm = utils.true_permutation(nwo)
                 if perm in self.permutations:
-                    self.virtual_scene.permutations.add(perm)
-                    permutation = utils.true_permutation(nwo)
+                    permutation = perm
                 else:
                     self.warning_hit = True
                     utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
@@ -166,9 +167,7 @@ class ExportScene:
             elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
                 marker_perms = [item.name for item in nwo.marker_permutations]
                 for perm in marker_perms:
-                    if perm in self.permutations:
-                        self.virtual_scene.permutations.add(perm)
-                    else:
+                    if perm not in self.permutations:
                         self.warning_hit = True
                         utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not presented in the {self.perm_name}s table. Ignoring {self.perm_name}")
             
@@ -194,12 +193,22 @@ class ExportScene:
             else:
                 self.warning_hit = True
                 return utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
-        # add region/global_mat to sets
-        uses_global_mat = self.asset_type.supports_global_materials and (props.get("bungie_mesh_type") in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_default")
-        if uses_global_mat:
-            self.global_materials.add(props.get("bungie_face_global_material"))
         
         return props, region, permutation
+    
+    def _set_global_material_prop(self, ob: bpy.types.Object, props: dict, global_material=""):
+        if not global_material:
+            global_material = ob.data.nwo.face_global_material.strip().replace(' ', "_")
+        if global_material:
+            if self.corinth and props.get("bungie_mesh_type") in ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision'):
+                props["bungie_mesh_global_material"] = global_material
+                props["bungie_mesh_poop_collision_override_global_material"] = "1"
+            else:
+                props["bungie_face_global_material"] = global_material
+                
+            self.global_materials.add(global_material)
+
+        return global_material
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict):
         mesh_type = ob.data.nwo.mesh_type
@@ -231,6 +240,23 @@ class ExportScene:
             self._setup_poop_props(ob)
         elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == 'scenario':
             props["bungie_face_type"] = '_connected_geometry_face_type_sky'
+            
+        uses_global_mat = self.asset_type.supports_global_materials and (props.get("bungie_mesh_type") in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_default")
+        if uses_global_mat:
+            global_material = self._set_global_material_prop(ob, props)
+            if global_material:
+                self.global_materials.add(global_material)
+                
+        for idx, face_prop in enumerate(data_nwo.face_props):
+            if face_prop.region_name_override:
+                region = face_prop.region_name
+                if region not in self.regions:
+                    utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+            if uses_global_mat and face_prop.face_global_material_override:
+                mat = face_prop.face_global_material.strip().replace(' ', "_")
+                if mat:
+                    self.global_materials.add(mat)
+                
         
         return props
         
@@ -358,8 +384,6 @@ class ExportScene:
             if not self.animations_export_dir.exists():
                 self.animations_export_dir.mkdir(parents=True, exist_ok=True)
                 
-        self.export_info = ExportInfo(list(self.virtual_scene.regions), list(self.virtual_scene.global_materials)).create_info()
-                
         self._process_animations()
         self._process_models()
                 
@@ -475,3 +499,7 @@ class ExportScene:
         #             return Path(self.models_export_dir, f"{self.asset_name}_{tag_type.name.lower()}.gr2")
         #         else:
         #             return Path(self.models_export_dir, f"{self.asset_name}_{permutation.name}_{tag_type.name.lower()}.gr2")
+        
+    def write_sidecar(self):
+        sidecar = SidecarGranny(self.asset_path, self.asset_name, self.asset_type, self.context, self.sidecar_info, self.export_settings)
+        sidecar.build()

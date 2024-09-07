@@ -52,11 +52,38 @@ class MeshType(BungieEnum):
     
 class MarkerType(BungieEnum): ...
 
+class FaceType(BungieEnum):
+    normal = 0
+    seam_sealer = 1
+    sky = 2
+    
+class FaceMode(BungieEnum):
+    normal = 0
+    render_only = 1
+    collision_only = 2
+    sphere_collision_only = 3
+    shadow_only = 4
+    lightmap_only = 5
+    breakable = 6
+    
 class FaceSides(BungieEnum):
     one_sided = 0
     one_sided_transparent = 1
     two_sided = 2
     two_sided_transparent = 3
+    mirror = 4
+    mirror_transparent = 5
+    keep = 6
+    keep_transparent = 7
+    
+class FaceDrawDistance(BungieEnum):
+    normal = 0
+    detail_mid = 1
+    detail_close = 2
+
+class LightmapType(BungieEnum):
+    per_pixel = 0
+    per_vertex = 1
     
 class ExportInfo:
     def __init__(self, regions, global_materials):
@@ -67,9 +94,12 @@ class ExportInfo:
         self.export_date = time.strftime("%Y-%m-%d")
         self.export_time = time.strftime("%H:%M:%S")
         
-        self.object_type = ObjectType
-        self.mesh_type = MeshType
+        # self.object_type = ObjectType
+        # self.mesh_type = MeshType
+        self.face_mode = FaceMode
         self.face_sides = FaceSides
+        self.face_draw_distance = FaceDrawDistance
+        self.lightmap_type = LightmapType
         
         self.regions = regions
         self.global_material = global_materials

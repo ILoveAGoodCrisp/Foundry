@@ -662,3 +662,7 @@ def export_asset_granny(context, sidecar_path_full, asset_name, asset_path, scen
     export_scene.create_virtual_geometry()
     export_scene.create_virtual_tree()
     export_scene.export_files()
+    export_scene.preprocess_tags()
+    export_scene.write_sidecar()
+    export_scene.tag_import()
+    export_scene.postprocess_tags()

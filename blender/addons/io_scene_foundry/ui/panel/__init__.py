@@ -3068,7 +3068,7 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
         row = box.row(align=True, heading="Default Object Prefixes")
         row.prop(prefs, "apply_prefix", expand=True)
         row = box.row(align=True)
-        row.prop(prefs, "apply_materials", text="Apply Types Operator Updates Materials")
+        row.prop(prefs, "apply_materials", text="Update Materials on Object Type Change")
         row = box.row(align=True)
         row.prop(prefs, "apply_empty_display")
         row = box.row(align=True)
