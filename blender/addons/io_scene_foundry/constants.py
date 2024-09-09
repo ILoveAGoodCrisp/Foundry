@@ -2,6 +2,8 @@
 # Mesh types which support render properties
 from enum import Enum, auto
 
+from mathutils import Matrix
+
 RENDER_MESH_TYPES = ("_connected_geometry_mesh_type_structure", "_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_poop", '_connected_geometry_mesh_type_object_instance', '_connected_geometry_mesh_type_water_surface')
 COLLISION_MESH_TYPES = ("_connected_geometry_mesh_type_default", "_connected_geometry_mesh_type_collision")
 # Mesh types which support the two sided flag
@@ -13,6 +15,8 @@ VALID_MESHES = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT'}
 VALID_OBJECTS = {'MESH', 'CURVE', 'META', 'SURFACE', 'FONT', 'EMPTY', 'CAMERA', 'LIGHT', 'ARMATURE'}
 
 CG_PROP_PREFIX = "bungie_"
+
+IDENTITY_MATRIX = Matrix.Identity(4)
 
 class object_type(Enum):
     _connected_geometry_object_type_none = auto()

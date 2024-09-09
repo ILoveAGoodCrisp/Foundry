@@ -97,7 +97,6 @@ def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_expor
     lighting_infos = []
     if is_corinth():
         lighting_infos = save_lighting_infos(tags_dir, bsps, asset_path, asset_name)
-    faux_process = None
     failed = run_tool_sidecar(
         [
             "import",
@@ -123,21 +122,6 @@ def build_tags(asset_type, sidecar_path, asset_path, asset_name, scene_nwo_expor
     )
     if asset_type == "animation":
         cull_unused_tags(sidecar_path.rpartition("\\")[0], asset_name)
-
-    if faux_process is not None:
-        faux_process.wait()
-        scenario = f"{tag_path}.scenario"
-        bsp = f"{tag_path}.scenario_structure_bsp"
-        seams = f"{tag_path}.structure_seams"
-        try:
-            if os.path.exists(scenario):
-                os.remove(scenario)
-            if os.path.exists(bsp):
-                os.remove(bsp)
-            if os.path.exists(seams):
-                os.remove(seams)
-        except:
-            print_warning("Failed to remove unused lightmap tags")
 
     if lighting_infos:
         restore_lighting_infos(lighting_infos)

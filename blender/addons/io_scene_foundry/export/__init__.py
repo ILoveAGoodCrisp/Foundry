@@ -455,7 +455,7 @@ class NWO_Export(NWO_Export_Scene):
             try:
                 process_results = None
                 if scene_nwo_export.granny_export:
-                    export_asset_granny(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
+                    export_asset_granny(context, sidecar_path_full, sidecar_path, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
                 else:
                     if fbx_installed:
                         prep_results, process_results = export_asset(context, sidecar_path_full, self.asset_name, self.asset_path, scene_nwo, scene_nwo_export, is_corinth(context))
@@ -653,16 +653,16 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
         
     return export_scene, export_process
 
-def export_asset_granny(context, sidecar_path_full, asset_name, asset_path, scene_settings, export_settings, corinth):
+def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth):
     asset_type = scene_settings.asset_type
-    export_scene = ExportScene(context, asset_type, asset_name, asset_path, corinth, export_settings)
+    export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
     export_scene.ready_scene()
     export_scene.get_initial_export_objects()
     export_scene.setup_skeleton()
     export_scene.create_virtual_geometry()
     export_scene.create_virtual_tree()
     export_scene.export_files()
-    export_scene.preprocess_tags()
+    #export_scene.preprocess_tags()
     export_scene.write_sidecar()
-    export_scene.tag_import()
-    export_scene.postprocess_tags()
+    export_scene.invoke_tool_import()
+    #export_scene.postprocess_tags()

@@ -3734,3 +3734,9 @@ def get_halo_props_for_granny(id) -> dict:
         halo_props["bungie_object_ID"] = id.nwo.ObjectID.encode()
         
     return halo_props
+
+def get_bone_matrix_local(ob: bpy.types.Object, bone: bpy.types.PoseBone) -> Matrix:
+    if not bone.parent:
+        return bone.matrix.copy()
+    return bone.parent.matrix.inverted() @ bone.matrix
+    

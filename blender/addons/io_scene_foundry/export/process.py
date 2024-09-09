@@ -7,7 +7,11 @@ import time
 import bpy
 from mathutils import Matrix
 
-from blender.addons.io_scene_foundry.export.build_sidecar_granny import SidecarGranny
+from .import_sidecar import SidecarImport
+
+from .tag_builder import build_tags
+
+from .build_sidecar_granny import Sidecar
 
 from .export_info import ExportInfo
 
@@ -35,24 +39,15 @@ class ExportTagType(Enum):
     DECORATOR = 7
     STRUCTURE = 8
     STRUCTURE_DESIGN = 9
-    
-class SidecarData:
-    gr2_path: Path
-    blend_path: Path
-    permutation: str
-    
-    def __init__(self, gr2_path: Path, data_dir: Path, permutation: str):
-        self.gr2_path = gr2_path.relative_to(data_dir)
-        self.blend_path = Path(bpy.data.filepath).relative_to(data_dir)
-        self.permutation = permutation
         
 class ExportScene:
     '''Scene to hold all the export objects'''
-    def __init__(self, context, asset_type, asset_name, asset_path, corinth, export_settings):
+    def __init__(self, context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings):
         self.context = context
         self.asset_type = AssetType[asset_type.upper()]
         self.asset_name = asset_name
         self.asset_path = asset_path
+        self.sidecar_path = sidecar_path
         self.corinth = corinth
         self.tags_dir = Path(utils.get_tags_path())
         self.data_dir = Path(utils.get_data_path())
@@ -60,8 +55,8 @@ class ExportScene:
         self.depsgraph: bpy.types.Depsgraph = None
         self.virtual_scene: VirtualScene = None
         self.no_parent_objects = []
-        self.default_region = context.scene.nwo.regions_table[0].name
-        self.default_permutation = context.scene.nwo.permutations_table[0].name
+        self.default_region: str = context.scene.nwo.regions_table[0].name
+        self.default_permutation: str = context.scene.nwo.permutations_table[0].name
         
         self.regions = [i.name for i in context.scene.nwo.regions_table]
         self.permutations = [i.name for i in context.scene.nwo.permutations_table]
@@ -71,9 +66,15 @@ class ExportScene:
         self.reg_name = 'BSP' if self.asset_type.supports_bsp else 'region'
         self.perm_name = 'layer' if self.asset_type.supports_bsp else 'permutation'
         
+        self.bsps_with_structure = set()
+        
+        self.selected_bsps = set()
+        self.selected_permutations = set()
+        
         self.game_version = 'corinth' if corinth else 'reach'
         self.export_settings = export_settings
-        self.sidecar_info: list[SidecarData] = []
+        self.scene_settings = scene_settings
+        self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context)
         
         self.project_root = Path(utils.get_tags_path()).parent
         
@@ -92,13 +93,13 @@ class ExportScene:
         else:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
             
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir)
         
         # Create default material
         if self.corinth:
-            default_material = VirtualMaterial(r"shaders\invalid.material")
+            default_material = VirtualMaterial("invalid", r"shaders\invalid.material", self.virtual_scene)
         else:
-            default_material = VirtualMaterial(r"shaders\invalid.shader")
+            default_material = VirtualMaterial("invalid", r"shaders\invalid.shader", self.virtual_scene)
             
         self.virtual_scene.materials["invalid"] = default_material
             
@@ -175,7 +176,7 @@ class ExportScene:
             if nwo.mesh_type == '':
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
-                props = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props)
+                props = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region)
                 if props is None:
                     return
                 
@@ -210,7 +211,7 @@ class ExportScene:
 
         return global_material
     
-    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict):
+    def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str):
         mesh_type = ob.data.nwo.mesh_type
         mesh = ob.data
         data_nwo: NWO_MeshPropertiesGroup = mesh.nwo
@@ -220,7 +221,7 @@ class ExportScene:
             if mesh_type == '_connected_geometry_mesh_type_default':
                 mesh_type = '_connected_geometry_mesh_type_poop'
             elif mesh_type == '_connected_geometry_mesh_type_structure':
-                self.bsps_with_structure.add(props.get("bungie_region_name"))
+                self.bsps_with_structure.add(region)
                 mesh_type = '_connected_geometry_mesh_type_default'
                 if not self.corinth:
                     if data_nwo.render_only:
@@ -365,6 +366,23 @@ class ExportScene:
         #         ob_node.parent = parent
         #     elif self.virtual_scene.skeleton_node: # No valid parent found in export objects, parent this to the root skeleton if there is one
         #         ob_node.parent = self.virtual_scene.skeleton_node
+        
+    def get_selected_sets(self):
+        '''
+        Get selected bsps/permutations from the objects selected at export
+        '''
+        sel_perms = self.export_settings.export_all_perms == "selected"
+        sel_bsps = self.export_settings.export_all_bsps == "selected"
+        if not (sel_bsps or sel_perms):
+            return
+        current_selection = {node for node in self.virtual_scene.nodes if node.selected}
+        if not current_selection:
+            return
+        for node in current_selection:
+            if sel_bsps:
+                self.selected_bsps.add(node.region)
+            if sel_perms:
+                self.selected_permutations.add(node.permutation)
             
     
     def export_files(self):
@@ -409,7 +427,8 @@ class ExportScene:
         for name, nodes in self.groups.items():
             granny_path = self._get_export_path(name)
             perm = nodes[0].permutation
-            self.sidecar_info.append(SidecarData(granny_path, self.data_dir, nodes[0].permutation))
+            tag_type = nodes[0].tag_type
+            self.sidecar.add_file_data(tag_type, perm, granny_path, bpy.data.filepath)
             # if not self.export_settings.selected_perms or perm in self.export_settings.selected_perms:
             job = f"--- {name}"
             utils.update_job(job, 0)
@@ -501,5 +520,21 @@ class ExportScene:
         #             return Path(self.models_export_dir, f"{self.asset_name}_{permutation.name}_{tag_type.name.lower()}.gr2")
         
     def write_sidecar(self):
-        sidecar = SidecarGranny(self.asset_path, self.asset_name, self.asset_type, self.context, self.sidecar_info, self.export_settings)
-        sidecar.build()
+        self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
+        self.sidecar.regions = self.regions
+        self.sidecar.global_materials = self.global_materials_list
+        self.sidecar.build()
+        
+    def preprocess_tags(self): ...
+    
+    def invoke_tool_import(self):
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth)
+        if self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
+            sidecar_importer.save_lighting_infos()
+        sidecar_importer.run()
+        if sidecar_importer.lighting_infos:
+            sidecar_importer.restore_lighting_infos()
+        if self.asset_type == AssetType.ANIMATION:
+            sidecar_importer.cull_unused_tags()
+            
+    def postprocess_tags(self): ...

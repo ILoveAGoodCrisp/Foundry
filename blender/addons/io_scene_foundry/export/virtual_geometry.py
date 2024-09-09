@@ -1,6 +1,7 @@
 '''Classes to store intermediate geometry data to be passed to granny files'''
 
 from collections import defaultdict
+import csv
 from enum import Enum
 from pathlib import Path
 import bmesh
@@ -16,16 +17,46 @@ from .. import utils
 
 from ..tools.asset_types import AssetType
 
-from ..constants import VALID_MESHES
+from ..constants import IDENTITY_MATRIX, VALID_MESHES
+
+DESIGN_MESH_TYPES = {
+    "_connected_geometry_mesh_type_planar_fog_volume",
+    "_connected_geometry_mesh_type_boundary_surface",
+    "_connected_geometry_mesh_type_water_physics_volume",
+    "_connected_geometry_mesh_type_poop_rain_blocker",
+    "_connected_geometry_mesh_type_poop_vertical_rain_sheet",
+}
+
+def read_frame_id_list() -> list:
+    filepath = Path(utils.addon_root(), "export", "frameidlist.csv")
+    frame_ids = []
+    with filepath.open(mode="r") as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=",")
+        frame_ids = [row for row in csv_reader]
+
+    return frame_ids
 
 class VirtualMaterial:  
-    def __init__(self, shader_path: str | Path):
-        path = Path(shader_path)
-        self.name: str = path.with_suffix("").name
+    def __init__(self, name, shader_path: str | Path, scene: 'VirtualScene'):
+        self.name: str = name
         self.index = 0
+        if not str(shader_path).strip() or str(shader_path) == '.':
+            return self.set_invalid(scene)
+        
+        path = Path(shader_path)
+        full_path = Path(scene.tags_dir, shader_path)
+        if not (full_path.exists() and full_path.is_file()):
+            return self.set_invalid(scene)
+        
         self.props = {
           "bungie_shader_type": path.suffix[1:],
           "bungie_shader_path": str(path.with_suffix(""))
+        }
+        
+    def set_invalid(self, scene: 'VirtualScene'):
+        self.props = {
+          "bungie_shader_type": "material" if scene.corinth else "shader",
+          "bungie_shader_path": r"shaders\invalid"
         }
         
     def props_encoded(self):
@@ -34,7 +65,7 @@ class VirtualMaterial:
         return encoded_props
     
 class VirtualMesh:
-    def __init__(self, mesh: bpy.types.Mesh, vertex_weighted: bool, scene: 'VirtualScene'):
+    def __init__(self, mesh: bpy.types.Mesh, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object):
         self.name = mesh.name
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
@@ -44,13 +75,18 @@ class VirtualMesh:
         self.lighting_texcoords: np.ndarray = None
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
         self.indices: np.ndarray = None
-        self.materials: dict[VirtualMaterial: int] = {} # dict of materials and the face index they start at
+        self.materials: list[VirtualMaterial: int] = [] # dict of materials and the face index they start at
         self.face_properties: dict[str: np.ndarray] = {}
-        self._setup(mesh, vertex_weighted, scene)
+        self.bone_bindings = bone_bindings
+        self.vertex_weighted = vertex_weighted
+        self._setup(mesh, scene, ob)
         
         # print("Positions", self.positions)
         
-    def _setup(self, mesh: bpy.types.Mesh, vertex_weighted: bool, scene: 'VirtualScene'):
+    def _setup(self, mesh: bpy.types.Mesh, scene: 'VirtualScene', ob: bpy.types.Object):
+        
+        unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
+        
         bm = bmesh.new()
         bm.from_mesh(mesh)
         # bmesh stuff goes here
@@ -69,7 +105,6 @@ class VirtualMesh:
         
         bmesh.ops.triangulate(bm, faces=bm.faces) # granny only supports tris for faces
         bm.faces.sort(key=lambda face: face.material_index) # faces set sorted by material index, important for granny
-        
         
         bm.to_mesh(mesh)
             
@@ -104,34 +139,57 @@ class VirtualMesh:
         if num_materials > 1:
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
-            changes = np.where(np.diff(material_indices, prepend=material_indices[0]))[0]
-            lengths = np.diff(np.append(changes, len(material_indices)))
+            unique_indices = np.concatenate(([0], np.where(np.diff(material_indices) != 0)[0] + 1))
+            counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
+            mat_index_counts = list(zip(unique_indices, counts))
             for idx, mat in enumerate(mesh.materials):
-                self.materials[scene._get_material(mat)] = (changes[idx], lengths[idx])
+                self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
         elif num_materials == 1:
-            self.materials[scene._get_material(mesh.materials[0])] = (0, num_polygons)
+            self.materials.append((scene._get_material(mesh.materials[0], scene), 0, (0, num_polygons)))
         else:
-            self.materials[scene.materials["invalid"]] = (0, num_polygons) # default material
+            self.materials.append((scene.materials["invalid"], 0, (0, num_polygons))) # default material
         
         # Bone Weights & Indices
-        self.bone_weights = np.zeros((self.num_vertices * 4), dtype=np.float32)
-        self.bone_indices = np.zeros((self.num_vertices * 4), dtype=np.byte)
+        self.bone_weights = np.zeros((self.num_vertices * 4, 4), dtype=np.byte)
+        self.bone_indices = np.zeros((self.num_vertices * 4, 4), dtype=np.byte)
         
-        if vertex_weighted:
+        if self.vertex_weighted:
+            unique_bone_indices = set()
+            invalid_indices = set()
+            vertex_group_names = []
+            for idx, vgroup in enumerate(ob.vertex_groups):
+                name = vgroup.name
+                if name in scene.valid_bones:
+                    vertex_group_names.append(name)
+                else:
+                    invalid_indices.add(idx)
+                    
             for i in range(self.num_vertices):
                 groups = mesh.vertices[i].groups
-                weights = np.array([g.weight for g in groups])
-                indices = np.array([g.group for g in groups])
+                num_groups = len(groups)
+                weights = np.empty(num_groups, dtype=np.single)
+                indices = np.empty(num_groups, dtype=np.int32)
+                groups.foreach_get("weight", weights)
+                groups.foreach_get("group", indices)
                 
                 if len(weights) > 0:
                     sorted_indices = np.argsort(-weights)
                     top_weights = weights[sorted_indices[:4]]
                     top_indices = indices[sorted_indices[:4]]
+                    unique_bone_indices.update(top_indices)
                     
                     top_weights /= top_weights.sum()
+                    
+                    if len(top_weights) < 4:
+                        top_weights = np.pad(top_weights, (0, 4 - len(top_weights)), 'constant', constant_values=0)
+                        top_indices = np.pad(top_indices, (0, 4 - len(top_indices)), 'constant', constant_values=0)
 
-                    self.bone_weights[i, :len(top_weights)] = top_weights
-                    self.bone_indices[i, :len(top_indices)] = top_indices 
+                    self.bone_weights[i] = [int(w * 255.0) for w in top_weights]
+                    self.bone_indices[i] = top_indices
+            
+            self.bone_bindings.clear()
+            for index in unique_bone_indices:
+                self.bone_bindings.append(vertex_group_names[index])
         
         loop_vertices = np.empty(num_loops, dtype=np.int32)
         mesh.loops.foreach_get("vertex_index", loop_vertices)
@@ -220,35 +278,43 @@ class VirtualMesh:
     
 class VirtualNode:
     def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, scene: 'VirtualScene' = None):
-        self.name: str
-        self.matrix_world: Matrix
-        self.matrix_local: Matrix
-        self.mesh: VirtualMesh | None
+        self.name: str = "object"
+        self.matrix_world: Matrix = IDENTITY_MATRIX
+        self.matrix_local: Matrix = IDENTITY_MATRIX
+        self.mesh: VirtualMesh | None = None
         self.new_mesh = False
-        self.skeleton = VirtualSkeleton
+        self.skeleton: VirtualSkeleton = None
         self.region = region
         self.permutation = permutation
         self.props = props
-        self.group = self._get_group()
+        self.group: str = "default"
+        self.tag_type: str = "render"
+        self._set_group(scene)
         self.parent: VirtualNode = None
+        self.selected = False
+        self.bone_bindings: list[str] = []
         
         self._setup(id, scene)
         
     def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene'):
         self.name = id.name
         if isinstance(id, bpy.types.Object):
+            self.selected = id.original.select_get()
             self.matrix_world = id.matrix_world.copy()
             self.matrix_local = id.matrix_local.copy()
             if id.type in VALID_MESHES:
+                default_bone_bindings = [self.name]
                 existing_mesh = scene.meshes.get(id.data.name)
                 if existing_mesh:
                     self.mesh = existing_mesh
+                    self.bone_bindings = existing_mesh.bone_bindings
                 else:
-                    vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(id.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph), vertex_weighted, scene)
+                    vertex_weighted = scene.skeleton_node and id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
+                    mesh = VirtualMesh(id.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph), vertex_weighted, scene, default_bone_bindings, id)
                     self.mesh = mesh
                     id.to_mesh_clear()
                     self.new_mesh = True
+                    self.bone_bindings = mesh.bone_bindings
                     
             #     if not scene.skeleton_node and not id.parent:
             #         self.skeleton = VirtualSkeleton(id, self)
@@ -258,8 +324,51 @@ class VirtualNode:
             # elif id.type == 'EMPTY' and not scene.skeleton_node and not id.parent:
             #     self.skeleton = VirtualSkeleton(id, self)
             
-    def _get_group(self):
-        return "default"
+    def _set_group(self, scene: 'VirtualScene'):
+        match scene.asset_type:
+            case AssetType.MODEL:
+                mesh_type = self.props.get("bungie_mesh_type")
+                if mesh_type:
+                    match mesh_type:
+                        case '_connected_geometry_mesh_type_default' | '_connected_geometry_mesh_type_object_instance':
+                            self.tag_type = 'render'
+                        case '_connected_geometry_mesh_type_collision':
+                            self.tag_type = 'collision'
+                        case '_connected_geometry_mesh_type_physics':
+                            self.tag_type = 'physics'
+                    
+                    self.group = f'{self.tag_type}_{self.permutation}'
+                    
+                else:
+                    object_type = self.props.get("bungie_object_type")
+                    if not object_type:
+                        return print("Node has no object type: ", self.name)
+                    
+                    match object_type:
+                        case '_connected_geometry_object_type_marker':
+                            self.tag_type = 'markers'
+                        case '_connected_geometry_object_type_frame':
+                            self.tag_type = 'skeleton'
+                            
+                    self.group = self.tag_type
+            
+            case AssetType.SCENARIO:
+                design = self.props.get("bungie_mesh_type") in DESIGN_MESH_TYPES
+                if design:
+                    self.tag_type = 'design'
+                else:
+                    self.tag_type = 'structure'
+                    
+                self.group = f'{self.tag_type}_{self.region}_{self.permutation}'
+                
+            case AssetType.PREFAB:
+                self.tag_type = 'structure'
+                self.group = f'{self.tag_type}_{self.permutation}'
+                
+            case _:
+                self.tag_type = 'render'
+                self.group = 'default'
+                
     
     def props_encoded(self):
         '''Returns a dict of encoded properties'''
@@ -272,8 +381,15 @@ class VirtualBone:
         self.name: str = id.name
         self.parent_index: int = -1
         self.node: VirtualNode = None
-        self.matrix_local: Matrix = None
-        self.matrix_world: Matrix = None
+        self.matrix_local: Matrix = IDENTITY_MATRIX
+        self.matrix_world: Matrix = IDENTITY_MATRIX
+        self.props = {}
+        
+    def create_bone_props(self, bone, frame_ids):
+        self.props["bungie_frame_ID1"] = frame_ids[0]
+        self.props["bungie_frame_ID2"] = frame_ids[1]
+        self.props["bungie_object_animates"] = "1"
+        self.props["bungie_object_type"] = "_connected_geometry_object_type_frame"
         
 class VirtualSkeleton:
     '''Describes a list of bones'''
@@ -288,24 +404,36 @@ class VirtualSkeleton:
         
     def _get_bones(self, ob, scene):
         if ob.type == 'ARMATURE':
-            valid_bones = [pbone for pbone in ob.pose.bones if ob.data.bones[pbone.name].deform]
+            self.bones[0].props = {
+                    "bungie_frame_world": "1",
+                    "bungie_frame_ID1": "8078",
+                    "bungie_frame_ID2": "378163771",
+                    "bungie_object_type": "_connected_geometry_object_type_frame",
+                }
+            valid_bones = [pbone for pbone in ob.pose.bones if ob.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
-            for bone in valid_bones:
+            for idx, bone in enumerate(valid_bones):
+                bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
-                # b.set_transform(bone, ob)
+                b.create_bone_props(bone, scene.frame_ids[idx])
+                b.matrix_world = bone.matrix.copy()
                 # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
                 if bone.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = list_bones.index(bone.parent.name) + 1
+                    b.matrix_local = utils.get_bone_matrix_local(ob, bone)
                 else:
                     b.parent_index = 0
+                    b.matrix_local = bone.matrix.copy()
                 self.bones.append(b)
                 
             child_index = 0
             for child in ob.children:
                 child_index += 1
                 b = VirtualBone(child)
-                # b.set_transform(child, ob)
+                b.node = scene.nodes.get(child.name)
+                b.matrix_world = child.matrix_world.copy()
+                b.matrix_local = child.matrix_local.copy()
                 if child.parent_type == 'BONE':
                     b.parent_index = list_bones.index(child.parent_bone) + 1
                 else:
@@ -322,7 +450,6 @@ class VirtualSkeleton:
         for child in ob.children:
             child_index += 1
             b = VirtualBone(child)
-            # b.set_transform(child, ob)
             b.parent_index = parent_index
             b.node = scene.nodes.get(child.name)
             b.matrix_world = b.node.matrix_world
@@ -339,7 +466,7 @@ class VirtualModel:
         self.node = scene.nodes.get(self.name)
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -347,12 +474,15 @@ class VirtualScene:
         self.root: VirtualNode = None
         self.asset_type = asset_type
         self.depsgraph = depsgraph
+        self.tags_dir = tags_dir
         self.regions: list = []
         self.permutations: list = []
         self.global_materials: list = []
         self.skeleton_node: VirtualNode = None
         self.corinth = corinth
         self.export_info: ExportInfo = None
+        self.valid_bones = []
+        self.frame_ids = read_frame_id_list()
         
     def add(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None):
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
@@ -363,24 +493,22 @@ class VirtualScene:
             
     def set_skeleton(self, ob):
         '''Creates a new skeleton node from this object and sets this as the skeleton node for the scene'''
-        props = {
-            "bungie_frame_world": "1",
-            "bungie_frame_ID1": "8078",
-            "bungie_frame_ID2": "378163771",
-            "bungie_object_type": "_connected_geometry_object_type_frame",
-        }
-        self.skeleton_node = VirtualNode(ob, props)
+        self.skeleton_node = VirtualNode(ob, {}, scene=self)
+        self.valid_bones = [pbone.name for pbone in ob.pose.bones if ob.data.bones[pbone.name].use_deform]
         
     def add_model(self, ob):
         self.models[ob.name] = VirtualModel(ob, self)
         
-    def _get_material(self, material: bpy.types.Material):
+    def _get_material(self, material: bpy.types.Material, scene):
         virtual_mat = self.materials.get(material.name)
         if virtual_mat: return virtual_mat
         
         shader_path = material.nwo.shader_path
-        relative = utils.relative_path(shader_path)
-        virtual_mat = VirtualMaterial(relative)
+        if not shader_path.strip():
+            virtual_mat = VirtualMaterial(material.name, "", scene)
+        else:
+            relative = utils.relative_path(shader_path)
+            virtual_mat = VirtualMaterial(material.name, relative, scene)
         virtual_mat.index = len(self.materials)
         self.materials[virtual_mat.name] = virtual_mat
         return virtual_mat

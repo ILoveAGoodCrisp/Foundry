@@ -127,7 +127,7 @@ class BoneType(Enum):
     
 class Bone(Properties):
     def __init__(self, bone: VirtualBone):
-        # super().__init__(bone)
+        super().__init__(bone)
         self.name = bone.name.encode()
         self.parent_index = bone.parent_index
         self.lod_error = 0.0
@@ -172,6 +172,10 @@ class Vertex:
         
         self.bone_weights = (c_ubyte * 4)(255,0,0,0)
         self.bone_indices = (c_ubyte * 4)(0,0,0,0)
+        
+        if mesh.vertex_weighted:
+            self.bone_weights = (c_ubyte * 4)(*mesh.bone_weights[index])
+            self.bone_indices = (c_ubyte * 4)(*mesh.bone_indices[index])
         
         # Bone data, need to limit this to the 4 highest weights and normalise
         # v_groups = [(g.group, g.weight) for g in vert.groups]
@@ -277,7 +281,7 @@ class TriTopology:
         self.groups = []
         self.granny = None
         self.indices = (c_int * len(mesh.indices))(*mesh.indices)
-        self.groups = [Group(i, tri_start, tri_count) for i, (tri_start, tri_count) in enumerate(mesh.materials.values())]
+        self.groups = [Group(material_index, tri_start, tri_count) for _, material_index, (tri_start, tri_count) in mesh.materials]
         self.tri_annotation_sets = [TriAnnotationSet(k, v) for k, v in mesh.face_properties.items()]
             
             
@@ -302,29 +306,8 @@ class Mesh(Properties):
         self.primary_vertex_data_index = data_index
         self.primary_topology_index = data_index
         mesh = node.mesh
-        self.material_bindings = [mat.index for mat in mesh.materials]
-        self.bone_bindings = []
-        # if ob.parent:
-        #     if ob.parent_type == 'BONE':
-        #         self.bone_bindings = [BoneBinding(ob.parent_bone)]
-        #     elif ob.parent.type == 'ARMATURE':
-        #         armature = ob.parent
-        #         bone_names = [bone.name for bone in armature.data.bones]
-        #         vertex_groups = ob.vertex_groups
-        #         bones_with_weight = set()
-        #         # Loop through all vertices in the mesh
-        #         for vertex in ob.data.vertices:
-        #             for group in vertex.groups:
-        #                 # Get the vertex group name
-        #                 group_name = vertex_groups[group.group].name
-        #                 # Check if this vertex group corresponds to a bone in the armature
-        #                 if group_name in bone_names:
-        #                     bones_with_weight.add(group_name)
-        #         self.bone_bindings = [BoneBinding(bone) for bone in bones_with_weight]
-        #     else:
-        #         self.bone_bindings = [BoneBinding(ob.name)]
-        # else:
-        #     self.bone_bindings = [BoneBinding(ob.name)]
+        self.material_bindings = list({mat[0].index for mat in mesh.materials})
+        self.bone_bindings = [BoneBinding(name) for name in node.bone_bindings]
 
 class Model:
     name: str

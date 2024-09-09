@@ -40,8 +40,8 @@ vertex_type_info = [
     GrannyDataTypeDefinition(10, b"TextureCoordinates2", None, 3),
     GrannyDataTypeDefinition(10, b"TextureCoordinates3", None, 3),
     GrannyDataTypeDefinition(10, b"lighting", None, 3),
-    GrannyDataTypeDefinition(10, b"colorSet1", None, 3),
-    GrannyDataTypeDefinition(10, b"colorSet2", None, 3),
+    GrannyDataTypeDefinition(10, b"DiffuseColor0", None, 3),
+    GrannyDataTypeDefinition(10, b"DiffuseColor1", None, 3),
     GrannyDataTypeDefinition(10, b"blend_shape", None, 3),
     GrannyDataTypeDefinition(10, b"vertex_id", None, 2),
     GrannyDataTypeDefinition(0, None, None, 0)  # End marker
@@ -87,12 +87,6 @@ def new_callback_function(Type, Origin, SourceFile, SourceLine, Message, UserDat
         Message)
     )
     
-class MaterialExtendedData(Structure):
-    """ Halo material type, ditto """
-    _pack_ = 1
-    _fields_ = [('bungie_shader_path', c_char_p),
-                ('bungie_shader_type',c_char_p),]
-    
 GrannyCallbackType = CFUNCTYPE(
     None,
     c_int,
@@ -104,16 +98,6 @@ GrannyCallbackType = CFUNCTYPE(
 )
 
 class Granny:
-    dll: CDLL
-    export_materials: list[Material]
-    export_skeletons: list[Skeleton]
-    export_vertex_datas: list[VertexData]
-    export_tri_topologies: list[TriTopology]
-    export_meshes: list[Mesh]
-    export_models: list[Model]
-    export_track_groups: list[TrackGroup]
-    export_animations: list[Animation]
-    
     def __init__(self, granny_dll_path: str | Path, filepath: Path):
         self.dll = cdll.LoadLibrary(str(granny_dll_path))
         global dll
@@ -126,9 +110,9 @@ class Granny:
         # File Transforms
         self.units_per_meter = 1
         self.origin = (c_float * 3)(0, 0, 0)
-        self.right_vector = (c_float * 3)(1, 0, 0)
+        self.right_vector = (c_float * 3)(-1, 0, 0)
         self.up_vector = (c_float * 3)(0, 0, 1)
-        self.back_vector = (c_float * 3)(0, 1, 0)
+        self.back_vector = (c_float * 3)(0, -1, 0)
         
         # File Info
         self.granny_export_info = None
@@ -156,100 +140,6 @@ class Granny:
                     mesh_binding_indexes.append(len(self.export_meshes) - 1)
                     
             self.export_models.append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indexes))
-            
-        
-    def from_objects(self, objects: list[bpy.types.Object]):
-        """Creates granny representations of blender objects"""
-        materials = set()
-        skeletons = set()
-        mesh_data = set()
-        meshes = set()
-        mesh_objects_set = set()
-        for ob in objects:
-            if not ob.parent:
-                skeletons.add(ob)
-            if ob.type != 'MESH': continue
-            mesh_data.add(ob.data)
-            mesh_objects_set.add(ob)
-            for mat in ob.data.materials:
-                materials.add(mat)
-                
-        for data in mesh_data:
-            meshes.add(data)
-            
-        meshes = list(meshes)
-        mesh_enum = Enum("mesh_enum", [m.name for m in meshes], start=0)
-        mesh_objects = list(mesh_objects_set)
-        ob_enum = Enum("ob_enum", [m.name for m in mesh_objects], start=0)
-        
-        self.export_materials = [Material(i) for i in materials]
-        material_enum = Enum("material_enum", [m.name_str for m in self.export_materials], start=0)
-        
-        mesh_dict = {} # Meshes are keys, bmeshes are values
-        uvs = [None] * len(meshes)
-        for mesh in meshes:
-            do_split = False
-            split_by_edge = False
-            match mesh.normals_domain:
-                case 'POINT':
-                    normal_source = mesh.vertex_normals
-                case 'FACE':
-                    normal_source = mesh.corner_normals
-                    do_split = True
-                case 'CORNER':
-                    normal_source = mesh.corner_normals
-                    do_split = True
-                    split_by_edge = True
-            
-
-            # Split up meshes for their normals
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
-            utils.save_loop_normals(bm, mesh)
-            if do_split:
-                if split_by_edge:
-                    # edges_to_split = set()
-                    # for face in bm.faces:
-                    #     if not face.smooth:
-                    #         edges_to_split.update(face.edges)
-                            
-                    # for edge in bm.edges:
-                    #     if edge.smooth == False:
-                    #         edges_to_split.add(edge)
-                    
-                    # bmesh.ops.split_edges(bm, edges=list(edges_to_split))
-                    bmesh.ops.split_edges(bm, edges=[edge for edge in bm.edges if not edge.smooth])
-                else:
-                    bmesh.ops.split_edges(bm, edges=bm.edges)
-            
-            bmesh.ops.triangulate(bm, faces=bm.faces)
-            if len(mesh.materials) > 1:
-                bm.faces.sort(key=lambda face: face.material_index)
-            bm.to_mesh(mesh)
-            utils.apply_loop_normals(mesh)
-            mesh_dict[mesh] = bm
-            
-            for layer in mesh.uv_layers:
-                vertex_uvs = defaultdict(list)
-                for poly in mesh.polygons:
-                    for loop_index in poly.loop_indices:
-                        vertex_index = mesh.loops[loop_index].vertex_index
-                        uv_coords = layer.data[loop_index].uv.to_tuple()
-                        vertex_uvs[vertex_index].append(uv_coords)
-                        
-                uvs.append(vertex_uvs)
-        
-        self.export_meshes = []
-        self.export_vertex_datas = []
-        self.export_tri_topologies = []
-        for idx, ob in enumerate(mesh_objects):
-            mesh_index = mesh_enum[ob.data.name].value
-            self.export_vertex_datas.append(VertexData(ob, uvs[mesh_index]))
-            self.export_tri_topologies.append(TriTopology(ob))
-            self.export_meshes.append(Mesh(ob, idx, material_enum))
-            
-        self.export_skeletons = [Skeleton(i, objects) for i in skeletons]
-        self.export_models = [Model(i, idx, ob_enum, mesh_objects_set) for idx, i in enumerate(skeletons)]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -261,12 +151,9 @@ class Granny:
         '''Transforms the granny file to Halo (Big scale + X forward)'''
         halo_units_per_meter = 1 / 0.03048
         halo_origin = (c_float * 3)(0, 0, 0)
-        halo_right_vector = (c_float * 3)(1, 0, 0)
+        halo_right_vector = (c_float * 3)(0, 1, 0)
         halo_up_vector = (c_float * 3)(0, 0, 1)
-        halo_back_vector = (c_float * 3)(0, 1, 0)
-        halo_right_vector = self.right_vector
-        halo_up_vector = self.up_vector
-        halo_back_vector = self.back_vector
+        halo_back_vector = (c_float * 3)(1, 0, 0)
         affine3 = (c_float * 3)(0, 0, 0)
         linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
         inverse_linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
