@@ -107,9 +107,9 @@ class NWO_OT_ConvertScene(bpy.types.Operator):
     
     def execute(self, context):
         if self.selected_only:
-            objects_in_scope = context.selected_objects
+            objects_in_scope = context.selected_objects[:]
         else:
-            objects_in_scope = bpy.data.objects
+            objects_in_scope = bpy.data.objects[:]
             
         with utils.ExportManager():
             os.system("cls")
@@ -1239,6 +1239,7 @@ class NWOImporter:
                     bm.from_mesh(ob.data)
                     utils.save_loop_normals(bm, ob.data)
                     for idx, perm_region in enumerate(ob.region_list):
+                        bm_tmp = bm.copy()
                         parts = perm_region.name.split(' ')
                         if len(parts) == 1:
                             region = parts[0]
@@ -1257,10 +1258,12 @@ class NWOImporter:
                         new_ob.data = ob.data.copy()
                         if self.existing_scene:
                             for coll in ob.users_collection: coll.objects.link(new_ob)
-                        region_layer = bm.faces.layers.int.get("Region Assignment")
-                        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[region_layer] != idx + 1], context='FACES')
-                        bm.to_mesh(new_ob.data)
+                        region_layer = bm_tmp.faces.layers.int.get("Region Assignment")
+                        bmesh.ops.delete(bm_tmp, geom=[f for f in bm_tmp.faces if f[region_layer] != idx + 1], context='FACES')
+                        bm_tmp.to_mesh(new_ob.data)
+                        bm_tmp.free()
                         utils.apply_loop_normals(new_ob.data)
+                        utils.loop_normal_magic(new_ob.data)
                         utils.clean_materials(new_ob)
                         objects.append(new_ob)
 
@@ -1411,7 +1414,7 @@ class NWOImporter:
                     elif hint_subtype in ('step', 'crouch', 'stand'):
                         marker.nwo.marker_hint_height = hint_subtype
                 
-        self.jms_file_marker_objects.append(marker)
+        self.jms_marker_objects.append(marker)
         
     def setup_jms_mesh(self, original_ob, is_model):
         new_objects = self.convert_material_props(original_ob)
@@ -1488,7 +1491,7 @@ class NWOImporter:
             elif ob.nwo.mesh_type == '_connected_geometry_mesh_type_seam':
                 ob.nwo.seam_back_manual = True
                 
-            self.jms_file_mesh_objects.append(ob)
+            self.jms_mesh_objects.append(ob)
             
     def set_poop_policies(self, ob):
         for char in ob.name[1:]:
@@ -1597,6 +1600,7 @@ class NWOImporter:
                 bm.to_mesh(new_ob.data)
                 bm.free()
                 utils.apply_loop_normals(new_ob.data)
+                utils.loop_normal_magic(new_ob.data)
                 utils.clean_materials(new_ob)
                     
                 new_ob.nwo.mesh_type_temp = jms_mat.mesh_type
@@ -1616,6 +1620,7 @@ class NWOImporter:
                 bpy.data.objects.remove(ob)
             else:
                 utils.apply_loop_normals(ob.data)
+                utils.loop_normal_magic(ob.data)
                 utils.clean_materials(ob)
             
         for ob in objects_to_setup:
