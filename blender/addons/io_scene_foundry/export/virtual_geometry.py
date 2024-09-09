@@ -65,8 +65,8 @@ class VirtualMaterial:
         return encoded_props
     
 class VirtualMesh:
-    def __init__(self, mesh: bpy.types.Mesh, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object):
-        self.name = mesh.name
+    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object):
+        self.name = "default"
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
         self.bone_weights: np.ndarray = None
@@ -79,100 +79,126 @@ class VirtualMesh:
         self.face_properties: dict[str: np.ndarray] = {}
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
-        self._setup(mesh, scene, ob)
+        self.num_loops = 0
+        self._setup(ob, scene)
         
         # print("Positions", self.positions)
         
-    def _setup(self, mesh: bpy.types.Mesh, scene: 'VirtualScene', ob: bpy.types.Object):
-        
-        unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
-        
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        # bmesh stuff goes here
-        
-        if mesh.has_custom_normals:
-            print("has custom normals??")
-            pass # Code for splitting mesh goes here
-        else:
-            # print(mesh.normals_domain)
-            match mesh.normals_domain:
-                case 'FACE': # Using polygon normals, split all the edges
-                    bmesh.ops.split_edges(bm, edges=bm.edges)
-                case 'CORNER': # Split edges only if they are sharp
-                    bmesh.ops.split_edges(bm, edges=[edge for edge in bm.edges if not edge.smooth])
-                # Last option is vertex normals (smooth shading), don't need to edge split
-        
-        bmesh.ops.triangulate(bm, faces=bm.faces) # granny only supports tris for faces
-        bm.faces.sort(key=lambda face: face.material_index) # faces set sorted by material index, important for granny
-        
-        bm.to_mesh(mesh)
+    def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene'):
+        def add_triangle_mod(ob: bpy.types.Object):
+            mods = ob.modifiers
+            for m in mods:
+                if m.type == 'TRIANGULATE': return
+                
+            tri_mod = mods.new('Triangulate', 'TRIANGULATE')
+            tri_mod.quad_method = 'FIXED'
             
-        self.num_vertices = len(mesh.vertices)
+        add_triangle_mod(ob)
+        mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+        self.name = mesh.name
+        unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
+        num_materials = len(mesh.materials)
+        
+        num_loops = len(mesh.loops)
+        num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
         
-        if mesh.nwo.face_props:
-            self.face_properties = gather_face_props(mesh.nwo, bm, num_polygons, scene)
-            
-        bm.free()
+        vertex_positions = np.empty(num_vertices * 3, dtype=np.single)
+        loop_vertex_indices = np.empty(num_loops, dtype=np.int32)
         
-        num_materials = len(mesh.materials)
-        num_loops = len(mesh.loops)
-        positions = np.empty(self.num_vertices * 3, dtype=np.float32)
-        normals = positions.copy()
-        mesh.vertices.foreach_get("co", positions)
-        self.positions = positions.reshape(-1, 3)
+        mesh.vertices.foreach_get("co", vertex_positions)
+        mesh.loops.foreach_get("vertex_index", loop_vertex_indices)
         
-        # Get normals - for granny these are always vertex normals
-        mesh.vertices.foreach_get("normal", normals)
-        self.normals = normals.reshape(-1, 3)
-        # match mesh.normals_domain:
-        #     case 'FACE':
-        #         normals = mesh.polygon_normals
-        #     case 'POINT':
-        #         mesh.vertex_normals.foreach_get("vector", normals)
-        #     case _:
-        #         normals = mesh.corner_normals
+        vertex_positions = vertex_positions.reshape((num_vertices, 3))
         
-        self.indices = np.empty(num_polygons * 3, dtype=np.int32)
-        mesh.polygons.foreach_get("vertices", self.indices)
+        self.positions = vertex_positions[loop_vertex_indices]
+        
+        self.normals = np.empty(num_loops * 3, dtype=np.single)
+        mesh.corner_normals.foreach_get("vector", self.normals)
+        self.normals = self.normals.reshape(-1, 3)
+        
+        loop_starts = np.empty(num_polygons, dtype=np.int32)
+        loop_totals = np.empty(num_polygons, dtype=np.int32)
+        
+        mesh.polygons.foreach_get("loop_start", loop_starts)
+        mesh.polygons.foreach_get("loop_total", loop_totals)
+        self.indices = np.empty(loop_totals.sum(), dtype=np.int32)
+        current_index = 0
+        for start, total in zip(loop_starts, loop_totals):
+            self.indices[current_index:current_index + total] = np.arange(start, start + total)
+            current_index += total
         if num_materials > 1:
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
-            unique_indices = np.concatenate(([0], np.where(np.diff(material_indices) != 0)[0] + 1))
-            counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
+            polygons = self.indices.reshape((-1, 3))
+            sorted_order = np.argsort(material_indices)
+            sorted_polygons = polygons[sorted_order]
+            sorted_material_indices = material_indices[sorted_order]
+            self.indices = sorted_polygons.flatten()
+            unique_indices = np.concatenate(([0], np.where(np.diff(sorted_material_indices) != 0)[0] + 1))
+            counts = np.diff(np.concatenate((unique_indices, [len(sorted_material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
-            for idx, mat in enumerate(mesh.materials):
+            print(mat_index_counts)
+            for idx, mat in enumerate(unique_materials):
                 self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
-        elif num_materials == 1:
-            self.materials.append((scene._get_material(mesh.materials[0], scene), 0, (0, num_polygons)))
         else:
-            self.materials.append((scene.materials["invalid"], 0, (0, num_polygons))) # default material
+            if num_materials == 1:
+                self.materials.append((scene._get_material(mesh.materials[0], scene), 0, (0, num_polygons)))
+            else:
+                self.materials.append((scene.materials["invalid"], 0, (0, num_polygons))) # default material
         
+        for layer in mesh.uv_layers:
+            if len(self.texcoords) >= 4:
+                break
+            
+            loop_uvs = np.empty(num_loops * 2, dtype=np.single)
+            layer.uv.foreach_get("vector", loop_uvs)
+            loop_uvs = loop_uvs.reshape(-1, 2)
+            
+            if layer.name.lower() == "lighting":
+                self.lighting_texcoords = loop_uvs
+            else:
+                self.texcoords.append(loop_uvs)
+                
+        for layer in mesh.color_attributes:
+            if len(self.vertex_colors) >= 2:
+                break
+            colors = np.empty(num_loops * 4, dtype=np.single)
+            layer.data.foreach_get("color", colors)
+            self.vertex_colors.append(colors.reshape(-1, 4))
+            
         # Bone Weights & Indices
-        self.bone_weights = np.zeros((self.num_vertices * 4, 4), dtype=np.byte)
-        self.bone_indices = np.zeros((self.num_vertices * 4, 4), dtype=np.byte)
+        self.bone_weights = np.zeros((num_vertices * 4, 4), dtype=np.byte)
+        self.bone_indices = np.zeros((num_vertices * 4, 4), dtype=np.byte)
         
         if self.vertex_weighted:
             unique_bone_indices = set()
             invalid_indices = set()
             vertex_group_names = []
+
             for idx, vgroup in enumerate(ob.vertex_groups):
                 name = vgroup.name
                 if name in scene.valid_bones:
                     vertex_group_names.append(name)
                 else:
                     invalid_indices.add(idx)
-                    
-            for i in range(self.num_vertices):
-                groups = mesh.vertices[i].groups
+
+            num_loops = len(mesh.loops)
+            bone_weights = np.zeros((num_loops, 4), dtype=np.uint8)
+            bone_indices = np.zeros((num_loops, 4), dtype=np.int32)
+
+            for loop_index, loop in enumerate(mesh.loops):
+                vertex_index = loop.vertex_index
+                vertex = mesh.vertices[vertex_index]
+                groups = vertex.groups
                 num_groups = len(groups)
-                weights = np.empty(num_groups, dtype=np.single)
-                indices = np.empty(num_groups, dtype=np.int32)
-                groups.foreach_get("weight", weights)
-                groups.foreach_get("group", indices)
                 
-                if len(weights) > 0:
+                if num_groups > 0:
+                    weights = np.empty(num_groups, dtype=np.single)
+                    indices = np.empty(num_groups, dtype=np.int32)
+                    groups.foreach_get("weight", weights)
+                    groups.foreach_get("group", indices)
+                    
                     sorted_indices = np.argsort(-weights)
                     top_weights = weights[sorted_indices[:4]]
                     top_indices = indices[sorted_indices[:4]]
@@ -183,73 +209,187 @@ class VirtualMesh:
                     if len(top_weights) < 4:
                         top_weights = np.pad(top_weights, (0, 4 - len(top_weights)), 'constant', constant_values=0)
                         top_indices = np.pad(top_indices, (0, 4 - len(top_indices)), 'constant', constant_values=0)
+                    
+                    bone_weights[loop_index] = [int(w * 255.0) for w in top_weights]
+                    bone_indices[loop_index] = top_indices
 
-                    self.bone_weights[i] = [int(w * 255.0) for w in top_weights]
-                    self.bone_indices[i] = top_indices
+            self.bone_weights = bone_weights
+            self.bone_indices = bone_indices
             
             self.bone_bindings.clear()
             for index in unique_bone_indices:
                 self.bone_bindings.append(vertex_group_names[index])
-        
-        loop_vertices = np.empty(num_loops, dtype=np.int32)
-        mesh.loops.foreach_get("vertex_index", loop_vertices)
-        
-        # Texcoords
-        for layer in mesh.uv_layers:
-            if len(self.texcoords) >= 4:
-                break
-            
-            loop_uvs = np.empty(num_loops * 2, dtype=np.float32)
-            layer.uv.foreach_get("vector", loop_uvs)
-            loop_uvs = loop_uvs.reshape(-1, 2)
-
-            vertex_uvs = [[] for _ in range(self.num_vertices)]
-
-            for loop_idx, vert_idx in enumerate(loop_vertices):
-                vertex_uvs[vert_idx].append(loop_uvs[loop_idx])
-
-            averaged_vertex_uvs = np.zeros((self.num_vertices, 2), dtype=np.float32)
-
-            for vert_idx, uvs in enumerate(vertex_uvs):
-                if uvs:
-                    averaged_vertex_uvs[vert_idx] = np.mean(uvs, axis=0)
-                else:
-                    averaged_vertex_uvs[vert_idx] = [0, 0]
-
-            
-            if layer.name.lower() == "lighting":
-                self.lighting_texcoords = averaged_vertex_uvs
-            else:
-                self.texcoords.append(averaged_vertex_uvs)
                 
-        # Vertex Colors
-        for layer in mesh.color_attributes:
-            if len(self.vertex_colors) >= 2:
-                break
-            point_colors =  layer.domain == 'POINT'
-            num_colors = self.num_vertices if point_colors else num_loops
-            colors = np.empty(num_colors * 4, dtype=np.float32)
-            layer.data.foreach_get("color", colors)
-            colors = colors.reshape(-1, 4)
+        self.num_loops = num_loops
+        
+        
+    # def _setup(self, mesh: bpy.types.Mesh, scene: 'VirtualScene', ob: bpy.types.Object):
+        
+    #     unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
+        
+    #     bm = bmesh.new()
+    #     bm.from_mesh(mesh)
+    #     # bmesh stuff goes here
+        
+    #     if mesh.has_custom_normals:
+    #         print("has custom normals??")
+    #         pass # Code for splitting mesh goes here
+    #     else:
+    #         # print(mesh.normals_domain)
+    #         match mesh.normals_domain:
+    #             case 'FACE': # Using polygon normals, split all the edges
+    #                 bmesh.ops.split_edges(bm, edges=bm.edges)
+    #             case 'CORNER': # Split edges only if they are sharp
+    #                 bmesh.ops.split_edges(bm, edges=[edge for edge in bm.edges if not edge.smooth])
+    #             # Last option is vertex normals (smooth shading), don't need to edge split
+        
+    #     bmesh.ops.triangulate(bm, faces=bm.faces) # granny only supports tris for faces
+    #     bm.faces.sort(key=lambda face: face.material_index) # faces set sorted by material index, important for granny
+        
+    #     bm.to_mesh(mesh)
             
-            if point_colors:
-                self.vertex_colors.append(colors)
-                continue
+    #     self.num_vertices = len(mesh.vertices)
+    #     num_polygons = len(mesh.polygons)
+        
+    #     if mesh.nwo.face_props:
+    #         self.face_properties = gather_face_props(mesh.nwo, bm, num_polygons, scene)
             
-            vertex_colors = [[] for _ in range(self.num_vertices)]
+    #     bm.free()
+        
+    #     num_materials = len(mesh.materials)
+    #     num_loops = len(mesh.loops)
+    #     positions = np.empty(self.num_vertices * 3, dtype=np.float32)
+    #     normals = positions.copy()
+    #     mesh.vertices.foreach_get("co", positions)
+    #     self.positions = positions.reshape(-1, 3)
+        
+    #     # Get normals - for granny these are always vertex normals
+    #     mesh.vertices.foreach_get("normal", normals)
+    #     self.normals = normals.reshape(-1, 3)
+    #     # match mesh.normals_domain:
+    #     #     case 'FACE':
+    #     #         normals = mesh.polygon_normals
+    #     #     case 'POINT':
+    #     #         mesh.vertex_normals.foreach_get("vector", normals)
+    #     #     case _:
+    #     #         normals = mesh.corner_normals
+        
+    #     self.indices = np.empty(num_polygons * 3, dtype=np.int32)
+    #     mesh.polygons.foreach_get("vertices", self.indices)
+    #     if num_materials > 1:
+    #         material_indices = np.empty(num_polygons, dtype=np.int32)
+    #         mesh.polygons.foreach_get("material_index", material_indices)
+    #         unique_indices = np.concatenate(([0], np.where(np.diff(material_indices) != 0)[0] + 1))
+    #         counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
+    #         mat_index_counts = list(zip(unique_indices, counts))
+    #         for idx, mat in enumerate(mesh.materials):
+    #             self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
+    #     elif num_materials == 1:
+    #         self.materials.append((scene._get_material(mesh.materials[0], scene), 0, (0, num_polygons)))
+    #     else:
+    #         self.materials.append((scene.materials["invalid"], 0, (0, num_polygons))) # default material
+        
+    #     # Bone Weights & Indices
+    #     self.bone_weights = np.zeros((self.num_vertices * 4, 4), dtype=np.byte)
+    #     self.bone_indices = np.zeros((self.num_vertices * 4, 4), dtype=np.byte)
+        
+    #     if self.vertex_weighted:
+    #         unique_bone_indices = set()
+    #         invalid_indices = set()
+    #         vertex_group_names = []
+    #         for idx, vgroup in enumerate(ob.vertex_groups):
+    #             name = vgroup.name
+    #             if name in scene.valid_bones:
+    #                 vertex_group_names.append(name)
+    #             else:
+    #                 invalid_indices.add(idx)
+                    
+    #         for i in range(self.num_vertices):
+    #             groups = mesh.vertices[i].groups
+    #             num_groups = len(groups)
+    #             weights = np.empty(num_groups, dtype=np.single)
+    #             indices = np.empty(num_groups, dtype=np.int32)
+    #             groups.foreach_get("weight", weights)
+    #             groups.foreach_get("group", indices)
+                
+    #             if len(weights) > 0:
+    #                 sorted_indices = np.argsort(-weights)
+    #                 top_weights = weights[sorted_indices[:4]]
+    #                 top_indices = indices[sorted_indices[:4]]
+    #                 unique_bone_indices.update(top_indices)
+                    
+    #                 top_weights /= top_weights.sum()
+                    
+    #                 if len(top_weights) < 4:
+    #                     top_weights = np.pad(top_weights, (0, 4 - len(top_weights)), 'constant', constant_values=0)
+    #                     top_indices = np.pad(top_indices, (0, 4 - len(top_indices)), 'constant', constant_values=0)
 
-            for loop_idx, vert_idx in enumerate(loop_vertices):
-                vertex_colors[vert_idx].append(colors[loop_idx])
-
-            averaged_vertex_colors = np.zeros((self.num_vertices, 4), dtype=np.float32)
-
-            for vert_idx, cols in enumerate(vertex_colors):
-                if cols:
-                    averaged_vertex_colors[vert_idx] = np.mean(cols, axis=0)
-                else:
-                    averaged_vertex_colors[vert_idx] = [0, 0, 0, 0]
+    #                 self.bone_weights[i] = [int(w * 255.0) for w in top_weights]
+    #                 self.bone_indices[i] = top_indices
             
-            self.vertex_colors.append(averaged_vertex_colors)
+    #         self.bone_bindings.clear()
+    #         for index in unique_bone_indices:
+    #             self.bone_bindings.append(vertex_group_names[index])
+        
+    #     loop_vertices = np.empty(num_loops, dtype=np.int32)
+    #     mesh.loops.foreach_get("vertex_index", loop_vertices)
+        
+    #     # Texcoords
+    #     for layer in mesh.uv_layers:
+    #         if len(self.texcoords) >= 4:
+    #             break
+            
+    #         loop_uvs = np.empty(num_loops * 2, dtype=np.float32)
+    #         layer.uv.foreach_get("vector", loop_uvs)
+    #         loop_uvs = loop_uvs.reshape(-1, 2)
+
+    #         vertex_uvs = [[] for _ in range(self.num_vertices)]
+
+    #         for loop_idx, vert_idx in enumerate(loop_vertices):
+    #             vertex_uvs[vert_idx].append(loop_uvs[loop_idx])
+
+    #         averaged_vertex_uvs = np.zeros((self.num_vertices, 2), dtype=np.float32)
+
+    #         for vert_idx, uvs in enumerate(vertex_uvs):
+    #             if uvs:
+    #                 averaged_vertex_uvs[vert_idx] = np.mean(uvs, axis=0)
+    #             else:
+    #                 averaged_vertex_uvs[vert_idx] = [0, 0]
+
+            
+    #         if layer.name.lower() == "lighting":
+    #             self.lighting_texcoords = averaged_vertex_uvs
+    #         else:
+    #             self.texcoords.append(averaged_vertex_uvs)
+                
+    #     # Vertex Colors
+    #     for layer in mesh.color_attributes:
+    #         if len(self.vertex_colors) >= 2:
+    #             break
+    #         point_colors =  layer.domain == 'POINT'
+    #         num_colors = self.num_vertices if point_colors else num_loops
+    #         colors = np.empty(num_colors * 4, dtype=np.float32)
+    #         layer.data.foreach_get("color", colors)
+    #         colors = colors.reshape(-1, 4)
+            
+    #         if point_colors:
+    #             self.vertex_colors.append(colors)
+    #             continue
+            
+    #         vertex_colors = [[] for _ in range(self.num_vertices)]
+
+    #         for loop_idx, vert_idx in enumerate(loop_vertices):
+    #             vertex_colors[vert_idx].append(colors[loop_idx])
+
+    #         averaged_vertex_colors = np.zeros((self.num_vertices, 4), dtype=np.float32)
+
+    #         for vert_idx, cols in enumerate(vertex_colors):
+    #             if cols:
+    #                 averaged_vertex_colors[vert_idx] = np.mean(cols, axis=0)
+    #             else:
+    #                 averaged_vertex_colors[vert_idx] = [0, 0, 0, 0]
+            
+    #         self.vertex_colors.append(averaged_vertex_colors)
             
 # class VirtualSkeleton:
 #     def __init__(self, ob: bpy.types.Object, node: 'VirtualNode', scene: 'VirtualScene'):
@@ -310,7 +450,7 @@ class VirtualNode:
                     self.bone_bindings = existing_mesh.bone_bindings
                 else:
                     vertex_weighted = scene.skeleton_node and id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(id.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph), vertex_weighted, scene, default_bone_bindings, id)
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id)
                     self.mesh = mesh
                     id.to_mesh_clear()
                     self.new_mesh = True
