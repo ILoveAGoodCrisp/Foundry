@@ -209,9 +209,9 @@ class Vertex:
         num_vertex_colors = len(mesh.vertex_colors)
         
         if num_vertex_colors > 0:
-            self.vertex_color0 = (c_float * 3)(*mesh.vertex_colors[0][index][:2])
+            self.vertex_color0 = (c_float * 3)(*mesh.vertex_colors[0][index])
             if num_vertex_colors > 1:
-                self.vertex_color1 = (c_float * 3)(*mesh.vertex_colors[1][index][:2])
+                self.vertex_color1 = (c_float * 3)(*mesh.vertex_colors[1][index])
         
         self.blend_shape = (c_float * 3)(0,0,0)
         self.vertex_id = (c_float * 2)(0,0)

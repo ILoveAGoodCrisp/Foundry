@@ -3,13 +3,14 @@
 from collections import defaultdict
 import csv
 from enum import Enum
+from math import degrees
 from pathlib import Path
 import bmesh
 import bpy
 from mathutils import Matrix
 import numpy as np
 
-from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType
+from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType
 
 from ..props.mesh import NWO_FaceProperties_ListItems, NWO_MeshPropertiesGroup
 
@@ -139,7 +140,6 @@ class VirtualMesh:
             unique_indices = np.concatenate(([0], np.where(np.diff(sorted_material_indices) != 0)[0] + 1))
             counts = np.diff(np.concatenate((unique_indices, [len(sorted_material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
-            print(mat_index_counts)
             for idx, mat in enumerate(mesh.materials):
                 self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
         else:
@@ -164,9 +164,20 @@ class VirtualMesh:
         for layer in mesh.color_attributes:
             if len(self.vertex_colors) >= 2:
                 break
-            colors = np.empty(num_loops * 4, dtype=np.single)
-            layer.data.foreach_get("color", colors)
-            self.vertex_colors.append(colors.reshape(-1, 4))
+            layer: bpy.types.ByteColorAttribute
+            if layer.domain == 'POINT':
+                colors = np.empty(num_vertices * 4, dtype=np.single)
+                layer.data.foreach_get("color", colors)
+                colors = colors.reshape((-1, 4))
+                colors = colors[:, :3]
+                colors = colors[loop_vertex_indices]
+            else:
+                colors = np.empty(num_loops * 4, dtype=np.single)
+                layer.data.foreach_get("color", colors)
+                colors = colors.reshape((-1, 4))
+                colors = colors[:, :3]
+                
+            self.vertex_colors.append(colors)
             
         # Bone Weights & Indices
         self.bone_weights = np.zeros((num_vertices * 4, 4), dtype=np.byte)
@@ -222,7 +233,6 @@ class VirtualMesh:
                 self.bone_bindings.append(vertex_group_names[index])
                 
         self.num_loops = num_loops
-        print(self.name, "has face props", bool(mesh.nwo.face_props))
         if ob.original.data.nwo.face_props:
             self.face_properties = gather_face_props(ob.original.data.nwo, mesh, num_polygons, scene, sorted_order)
         
@@ -543,17 +553,20 @@ class VirtualSkeleton:
         own_bone.node = scene.nodes.get(ob.name)
         own_bone.matrix_world = own_bone.node.matrix_world
         own_bone.matrix_local = own_bone.node.matrix_local
-        self.bones: list[VirtualBone] = [own_bone]
-        self._get_bones(ob.original, scene)
-        
-    def _get_bones(self, ob, scene):
         if ob.type == 'ARMATURE':
-            self.bones[0].props = {
+            own_bone.props = {
                     "bungie_frame_world": "1",
                     "bungie_frame_ID1": "8078",
                     "bungie_frame_ID2": "378163771",
                     "bungie_object_type": "_connected_geometry_object_type_frame",
                 }
+        elif own_bone.node:
+            own_bone.props = own_bone.node.props
+        self.bones: list[VirtualBone] = [own_bone]
+        self._get_bones(ob.original, scene)
+        
+    def _get_bones(self, ob, scene):
+        if ob.type == 'ARMATURE':
             valid_bones = [pbone for pbone in ob.pose.bones if ob.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
             for idx, bone in enumerate(valid_bones):
@@ -576,6 +589,8 @@ class VirtualSkeleton:
                 child_index += 1
                 b = VirtualBone(child)
                 b.node = scene.nodes.get(child.name)
+                if b.node:
+                    b.props = b.node.props
                 b.matrix_world = child.matrix_world.copy()
                 b.matrix_local = child.matrix_local.copy()
                 if child.parent_type == 'BONE':
@@ -596,6 +611,8 @@ class VirtualSkeleton:
             b = VirtualBone(child)
             b.parent_index = parent_index
             b.node = scene.nodes.get(child.name)
+            if b.node:
+                b.props = b.node.props
             b.matrix_world = b.node.matrix_world
             b.matrix_local = b.node.matrix_local
             self.bones.append(b)
@@ -739,34 +756,41 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             face_properties.setdefault("bungie_precise_position", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
             
         # Lightmap Props
-        # if face_prop.lightmap_additive_transparency_override:
-        #     face_properties["bungie_lightmap_additive_transparency"].append(face_prop)
-        # if face_prop.lightmap_resolution_scale_override:
-        #     face_properties["bungie_lightmap_ignore_default_resolution_scale"].append(face_prop)
-        #     face_properties["bungie_lightmap_resolution_scale"].append(face_prop)
-        # if face_prop.lightmap_type_override:
-        #     face_properties["bungie_lightmap_type"].append(face_prop)
-        # if face_prop.lightmap_translucency_tint_color_override:
-        #     face_properties["bungie_lightmap_translucency_tint_color"].append(face_prop)
-        # if face_prop.lightmap_lighting_from_both_sides_override:
-        #     face_properties["bungie_lightmap_lighting_from_both_sides"].append(face_prop)
+        if face_prop.lightmap_additive_transparency_override:
+            face_properties.setdefault("bungie_lightmap_additive_transparency", FaceSet(np.zeros((num_faces, 4), np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_additive_transparency))
+        if face_prop.lightmap_resolution_scale_override:
+            face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, 3, np.int32))).update(bm, face_prop.layer_name, face_prop.lightmap_resolution_scale)
+        if face_prop.lightmap_type_override:
+            if face_prop.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
+                face_properties.setdefault("bungie_lightmap_type", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, LightmapType.per_vertex.value)
+            else:
+                face_properties.setdefault("bungie_lightmap_type", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, LightmapType.per_pixel.value)
+        if face_prop.lightmap_translucency_tint_color_override:
+            face_properties["bungie_lightmap_translucency_tint_color"].append(face_prop)
+            face_properties.setdefault("bungie_lightmap_translucency_tint_color", FaceSet(np.zeros((num_faces, 4), np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_translucency_tint_color))
+        if face_prop.lightmap_lighting_from_both_sides_override:
+            face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
             
         # Emissives
-        # if face_prop.emissive_override:
-        #     face_properties["bungie_lighting_attenuation_enabled"].append(face_prop)
-        #     face_properties["bungie_lighting_attenuation_cutoff"].append(face_prop)
-        #     face_properties["bungie_lighting_attenuation_falloff"].append(face_prop)
-        #     face_properties["bungie_lighting_emissive_focus"].append(face_prop)
-        #     face_properties["bungie_lighting_emissive_color"].append(face_prop)
-        #     face_properties["bungie_lighting_emissive_per_unit"].append(face_prop)
-        #     face_properties["bungie_lighting_emissive_power"].append(face_prop)
-        #     face_properties["bungie_lighting_emissive_quality"].append(face_prop)
-        #     face_properties["bungie_lighting_frustum_blend"].append(face_prop)
-        #     face_properties["bungie_lighting_frustum_cutoff"].append(face_prop)
-        #     face_properties["bungie_lighting_frustum_falloff"].append(face_prop)
-        #     face_properties["bungie_lighting_use_shader_gel"].append(face_prop)
-        #     face_properties["bungie_lighting_bounce_ratio"].append(face_prop)
-        #     face_properties["bungie_light_is_uber_light"].append(face_prop)
+        if face_prop.emissive_override:
+            face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_power)
+            if face_prop.material_lighting_emissive_power > 0:
+                face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.zeros((num_faces, 4), np.single))).update(bm, face_prop.layer_name, utils.color_3p(face_prop.material_lighting_emissive_color))
+                if face_prop.lighting_emissive_per_unit:
+                    face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+                if face_prop.material_lighting_emissive_quality > 0:
+                    face_properties.setdefault("bungie_lighting_emissive_quality", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_quality)
+                if face_prop.material_lighting_use_shader_gel:
+                    face_properties.setdefault("bungie_lighting_use_shader_gel", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+                if face_properties.material_lighting_bounce_ratio > 0:
+                    face_properties.setdefault("bungie_lighting_bounce_ratio", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_bounce_ratio)
+                if face_prop.lighting_attenuation_cutoff > 0:
+                    face_properties.setdefault("bungie_lighting_attenuation_enabled", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+                    face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_cutoff)
+                    face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff)
+                if face_prop.lighting_emissive_focus > 0:
+                    face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, degrees(face_prop.material_lighting_emissive_focus) / 180)
         
     for idx, face in enumerate(bm.faces):
         for v in face_properties.values():

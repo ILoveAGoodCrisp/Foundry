@@ -290,54 +290,18 @@ class Sidecar:
         if self.has_armature:
             self._write_animation_content(content)
 
-    def _write_network_files_bsp(self, object, path, asset_name, bsp):
-        perm = path[3]
-        if perm == "default":
-            network = ET.SubElement(
-                object, "ContentNetwork", Name=f"{asset_name}_{bsp}", Type=""
-            )
+    def _write_network_files_bsp(self, content_object, file_data: SidecarFileData):
+        if file_data.permutation == 'default':
+            network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}', Type="")
         else:
-            network = ET.SubElement(
-                object,
-                "ContentNetwork",
-                Name=f"{asset_name}_{bsp}_{path[3]}",
-                Type="",
-            )
+            network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}_{file_data.permutation}', Type="")
+        ET.SubElement(network, "InputFile").text = file_data.blend_path
+        ET.SubElement(network, "IntermediateFile").text = file_data.gr2_path
 
-        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-        # ET.SubElement(network, "ComponentFile").text = path[1]
-        ET.SubElement(network, "IntermediateFile").text = path[2]
-
-    def _write_model_scenario_contents(self, metadata, sidecar_paths):
-        contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(contents, "Content", Name=f"{self.asset_name}", Type="bsp")
-        object = ET.SubElement(
-            content,
-            "ContentObject",
-            Name="",
-            Type="scenario_structure_bsp",
-        )
-        lighting_path = sidecar_paths.get("lighting")[0]
-        network = ET.SubElement(object, "ContentNetwork", Name=f"{self.asset_name}", Type="")
-
-        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else self.asset_path
-        # ET.SubElement(network, "ComponentFile").text = lighting_path[1]
-        ET.SubElement(network, "IntermediateFile").text = lighting_path[2]
-
-        output = ET.SubElement(object, "OutputTagCollection")
-        ET.SubElement(
-            output, "OutputTag", Type="scenario_structure_bsp"
-        ).text = f"{self.tag_path}"
-        ET.SubElement(
-            output, "OutputTag", Type="scenario_structure_lighting_info"
-        ).text = f"{self.tag_path}"
-
-    def _write_scenario_contents(
-        self, export_scene, metadata, sidecar_paths, design_paths
-    ):
+    def _write_scenario_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
-        scene_bsps = [b for b in export_scene.structure_bsps if b != "shared"]
+        scene_bsps = [b for b in self.structure_bsps if b != "shared"]
         shared = len(scene_bsps) != len(export_scene.regions)
         for bsp in scene_bsps:
             content = ET.SubElement(
@@ -356,7 +320,7 @@ class Sidecar:
             if shared:
                 shared_paths = sidecar_paths.get('shared')
                 for path in shared_paths:
-                    self.write_network_files_bsp(object, path, self.asset_name, "shared")
+                    self._write_network_files_bsp(object, path, self.asset_name, "shared")
 
             output = ET.SubElement(object, "OutputTagCollection")
             ET.SubElement(
@@ -393,18 +357,18 @@ class Sidecar:
     def _write_sky_contents(self, metadata, sidecar_paths):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
-        object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
+        content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
 
         path = sidecar_paths.get("sky")[0]
 
-        network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
+        network = ET.SubElement(content_object, "ContentNetwork", Name="default", Type="")
         ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
         # ET.SubElement(network, "ComponentFile").text = path[1]
         ET.SubElement(network, "IntermediateFile").text = path[2]
         
         if "markers" in sidecar_paths.keys():
             object = ET.SubElement(content, "ContentObject", Name="", Type="markers")
-            network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
+            network = ET.SubElement(content_object, "ContentNetwork", Name="default", Type="")
 
             path = sidecar_paths.get("markers")[0]
 

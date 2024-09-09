@@ -1,5 +1,6 @@
 from collections import defaultdict
 from enum import Enum
+from math import degrees
 import os
 from pathlib import Path
 import tempfile
@@ -67,6 +68,8 @@ class ExportScene:
         self.perm_name = 'layer' if self.asset_type.supports_bsp else 'permutation'
         
         self.bsps_with_structure = set()
+        self.structure = set()
+        self.design = set()
         
         self.selected_bsps = set()
         self.selected_permutations = set()
@@ -112,9 +115,10 @@ class ExportScene:
         process = "--- Creating Virtual Geometry"
         ob_halo_data = {}
         for idx, ob in enumerate(self.export_objects):
-            props, region, permutation = self.get_halo_props(ob)
-            if props is None:
+            result = self.get_halo_props(ob)
+            if result is None:
                 continue
+            props, region, permutation = result
             ob_halo_data[ob] = (props, region, permutation)
         
         self.global_materials_list = list(self.global_materials - {'default'})
@@ -188,7 +192,7 @@ class ExportScene:
             if nwo.marker_type == '':
                 nwo.marker_type = '_connected_geometry_marker_type_model'
             if utils.type_valid(nwo.marker_type, self.asset_type.name.lower(), self.game_version):
-                props = self._setup_marker_properties(ob, ob.nwo, props)
+                props = self._setup_marker_properties(ob, ob.nwo, props, region)
                 if props is None:
                     return
             else:
@@ -222,6 +226,7 @@ class ExportScene:
                 mesh_type = '_connected_geometry_mesh_type_poop'
             elif mesh_type == '_connected_geometry_mesh_type_structure':
                 self.bsps_with_structure.add(region)
+                self.structure.add(region)
                 mesh_type = '_connected_geometry_mesh_type_default'
                 if not self.corinth:
                     if data_nwo.render_only:
@@ -236,11 +241,103 @@ class ExportScene:
         if mesh_type == "_connected_geometry_mesh_type_physics":
             props = self._setup_physics_props(ob, nwo, props)
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
-            props = self._setup_instanced_object_props(ob, nwo, props)
+            props = self._setup_instanced_object_props(ob, nwo, props, region)
         elif mesh_type == '_connected_geometry_mesh_type_poop':
             self._setup_poop_props(ob)
         elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == 'scenario':
             props["bungie_face_type"] = '_connected_geometry_face_type_sky'
+        elif mesh_type == '_connected_geometry_mesh_type_seam':
+            props["bungie_mesh_seam_associated_bsp"] = (f"{self.asset_name}_{region}")
+        elif mesh_type == "_connected_geometry_mesh_type_portal":
+            props["bungie_mesh_portal_type"] = nwo.portal_type
+            if nwo.portal_ai_deafening:
+                props["bungie_mesh_portal_ai_deafening"] = "1"
+            if nwo.portal_blocks_sounds:
+                props["bungie_mesh_portal_blocks_sound"] = "1"
+            if nwo.portal_is_door:
+                props["bungie_mesh_portal_is_door"] = "1"
+        elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
+            self.design.add(region)
+            # ob["bungie_mesh_tessellation_density"] = nwo.mesh_tessellation_density
+            props["bungie_mesh_water_volume_depth"] = utils.jstr(nwo.water_volume_depth)
+            props["bungie_mesh_water_volume_flow_direction"] = utils.jstr(degrees(nwo.water_volume_flow_direction))
+            props["bungie_mesh_water_volume_flow_velocity"] = utils.jstr(nwo.water_volume_flow_velocity)
+            props["bungie_mesh_water_volume_fog_murkiness"] = utils.jstr(nwo.water_volume_fog_murkiness)
+            if self.corinth:
+                props["bungie_mesh_water_volume_fog_color"] = utils.color_rgba_str(nwo.water_volume_fog_color)
+            else:
+                props["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color)
+            
+        elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
+            self.design.add(region)
+            props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
+            
+        elif mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
+            self.design.add(region)
+            props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
+            props["bungie_mesh_fog_volume_depth"] = utils.jstr(nwo.fog_volume_depth)
+            
+        elif mesh_type == "_connected_geometry_mesh_type_soft_ceiling":
+            self.design.add(region)
+            props["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
+            props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_ceiling'
+            props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
+            
+        elif mesh_type == "_connected_geometry_mesh_type_soft_kill":
+            self.design.add(region)
+            props["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
+            props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_kill'
+            props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
+            
+        elif mesh_type == "_connected_geometry_mesh_type_slip_surface":
+            self.design.add(region)
+            props["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
+            props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_slip_surface'
+            props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
+            
+        elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
+            nwo.lightmap_resolution_scale_active = False
+            props["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
+            self._setup_poop_props(ob)
+            if data_nwo.no_shadow:
+                props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
+            else:
+                props["bungie_face_mode"] = '_connected_geometry_face_mode_lightmap_only'
+            props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
+            props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_none"
+            
+        elif mesh_type == "_connected_geometry_mesh_type_lightmap_exclude":
+            props["bungie_mesh_type"] = "_connected_geometry_mesh_type_obb_volume"
+            props["bungie_mesh_obb_type"] = "_connected_geometry_mesh_obb_volume_type_lightmapexclusionvolume"
+            
+        elif mesh_type == "_connected_geometry_mesh_type_streaming":
+            props["bungie_mesh_type"] = "_connected_geometry_mesh_type_obb_volume"
+            props["bungie_mesh_obb_type"] = "_connected_geometry_mesh_obb_volume_type_streamingvolume"
+            
+        elif mesh_type == '_connected_geometry_mesh_type_collision' and self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
+            if self.corinth:
+                props["bungie_mesh_type"] = '_connected_geometry_mesh_type_poop_collision'
+                props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
+            elif ob.parent and ob.parent.type in VALID_MESHES and ob.parent.data.nwo.mesh_type == '_connected_geometry_mesh_type_default':
+                props["bungie_mesh_type"] = '_connected_geometry_mesh_type_poop_collision'
+            else:
+                props["bungie_mesh_type"] = '_connected_geometry_mesh_type_poop'
+                props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
+                props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_cutout"
+                props["bungie_mesh_poop_imposter_policy"] = "_connected_poop_instance_imposter_policy_never"
+                nwo.reach_poop_collision = True
+                if data_nwo.sphere_collision_only:
+                    props["bungie_face_mode"] = '_connected_geometry_face_mode_sphere_collision_only'
+                else:
+                    props["bungie_face_mode"] = '_connected_geometry_face_mode_collision_only'
+        
+        elif self.asset_type == AssetType.PREFAB:
+            props["bungie_mesh_type"] = '_connected_geometry_mesh_type_poop'
+            self._setup_poop_props(ob)
+            
+        elif self.asset_type == AssetType.DECORATOR_SET:
+            props["bungie_mesh_type"] = '_connected_geometry_mesh_type_decorator'
+            props["bungie_mesh_decorator_lod"] = str(decorator_int(ob))
             
         uses_global_mat = self.asset_type.supports_global_materials and (props.get("bungie_mesh_type") in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_default")
         if uses_global_mat:
@@ -257,32 +354,30 @@ class ExportScene:
                 mat = face_prop.face_global_material.strip().replace(' ', "_")
                 if mat:
                     self.global_materials.add(mat)
-                
-        
+
         return props
         
     def _setup_physics_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict):
         prim_type = nwo.mesh_primitive_type
         props["bungie_mesh_primitive_type"] = prim_type
         if prim_type != '_connected_geometry_primitive_type_none':
-            self.physics_prims.add(ob)
+            # self.physics_prims.add(ob)
+            pass
         elif self.corinth and nwo.mopp_physics:
             props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
             props["bungie_havok_isshape"] = "1"
             
         return props
     
-    def _setup_instanced_object_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict):
+    def _setup_instanced_object_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
         props["bungie_marker_all_regions"] = utils.bool_str(not nwo.marker_uses_regions)
         if nwo.marker_uses_regions:
-            props["bungie_marker_region"] = ob.nwo.region_name
-            props["bungie_face_region"] = utils.true_region(nwo)
-            self.validated_regions.add(nwo.region_name)
+            props["bungie_marker_region"] = region
+            props["bungie_face_region"] = region
             m_perms = nwo.marker_permutations
             if m_perms:
                 m_perm_set = set()
                 for perm in m_perms:
-                    self.validated_permutations.add(perm.name)
                     m_perm_set.add(perm.name)
                 m_perm_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
                 if nwo.marker_permutation_type == "exclude":
@@ -342,7 +437,196 @@ class ExportScene:
                 
         return props
         
-    def _setup_marker_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict):
+    def _setup_marker_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
+        marker_type = nwo.marker_type
+        props["bungie_marker_type"] = marker_type
+        props["bungie_marker_model_group"] = nwo.marker_model_group
+        if self.asset_type in ('model', 'sky'):
+            props["bungie_marker_all_regions"] = utils.bool_str(not nwo.marker_uses_regions)
+            if nwo.marker_uses_regions:
+                props["bungie_marker_region"] = region
+                m_perms = nwo.marker_permutations
+                if m_perms:
+                    m_perm_set = set()
+                    for perm in m_perms:
+                        m_perm_set.add(perm.name)
+                    m_perm_json_value = f'''#({', '.join('"' + p + '"' for p in m_perm_set)})'''
+                    if nwo.marker_permutation_type == "exclude":
+                        props["bungie_marker_exclude_from_permutations"] = m_perm_json_value
+                    else:
+                        props["bungie_marker_include_in_permutations"] = m_perm_json_value
+                        
+            if marker_type == "_connected_geometry_marker_type_hint":
+                if self.corinth:
+                    scale = ob.matrix_world.to_scale()
+                    max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
+                    props["bungie_marker_hint_length"] = utils.jstr(ob.empty_display_size * 2 * max_abs_scale)
+
+                ob.name = "hint_"
+                if nwo.marker_hint_type == "bunker":
+                    ob.name += "bunker"
+                elif nwo.marker_hint_type == "corner":
+                    ob.name += "corner_"
+                    if nwo.marker_hint_side == "right":
+                        ob.name += "right"
+                    else:
+                        ob.name += "left"
+
+                else:
+                    if nwo.marker_hint_type == "vault":
+                        ob.name += "vault_"
+                    elif nwo.marker_hint_type == "mount":
+                        ob.name += "mount_"
+                    else:
+                        ob.name += "hoist_"
+
+                    if nwo.marker_hint_height == "step":
+                        ob.name += "step"
+                    elif nwo.marker_hint_height == "crouch":
+                        ob.name += "crouch"
+                    else:
+                        ob.name += "stand"
+                        
+            elif marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
+                props["bungie_mesh_primitive_sphere_radius"] = get_marker_sphere_size(ob)
+                props["bungie_marker_pathfinding_sphere_vehicle_only"] = utils.bool_str(nwo.marker_pathfinding_sphere_vehicle)
+                props["bungie_marker_pathfinding_sphere_remains_when_open"] = utils.bool_str(nwo.pathfinding_sphere_remains_when_open)
+                props["bungie_marker_pathfinding_sphere_with_sectors"] = utils.bool_str(nwo.pathfinding_sphere_with_sectors)
+                
+            elif marker_type == "_connected_geometry_marker_type_physics_constraint":
+                props["bungie_marker_type"] = nwo.physics_constraint_type
+                parent = nwo.physics_constraint_parent
+                if (
+                    parent is not None
+                    and parent.type == "ARMATURE"
+                    and nwo.physics_constraint_parent_bone != ""
+                ):
+                    props["bungie_physics_constraint_parent"] = (
+                        nwo.physics_constraint_parent_bone
+                    )
+
+                elif parent is not None:
+                    props["bungie_physics_constraint_parent"] = str(
+                        nwo.physics_constraint_parent.parent_bone
+                    )
+                child = nwo.physics_constraint_child
+                if (
+                    child is not None
+                    and child.type == "ARMATURE"
+                    and nwo.physics_constraint_child_bone != ""
+                ):
+                    props["bungie_physics_constraint_child"] = (
+                        nwo.physics_constraint_child_bone
+                    )
+
+                elif child is not None:
+                    props["bungie_physics_constraint_child"] = str(
+                        nwo.physics_constraint_child.parent_bone
+                    )
+                props["bungie_physics_constraint_use_limits"] = utils.bool_str(
+                    nwo.physics_constraint_uses_limits
+                )
+                if nwo.physics_constraint_uses_limits:
+                    if nwo.physics_constraint_type == "_connected_geometry_marker_type_physics_hinge_constraint":
+                        props["bungie_physics_constraint_hinge_min"] = utils.jstr(degrees(nwo.hinge_constraint_minimum))
+                        props["bungie_physics_constraint_hinge_max"] = utils.jstr(degrees(nwo.hinge_constraint_maximum))
+                    else:
+                        props["bungie_physics_constraint_cone_angle"] = utils.jstr(degrees(nwo.cone_angle))
+                        props["bungie_physics_constraint_plane_min"] = utils.jstr(degrees(nwo.plane_constraint_minimum))
+                        props["bungie_physics_constraint_plane_max"] = utils.jstr(degrees(nwo.plane_constraint_maximum))
+                        props["bungie_physics_constraint_twist_start"] = utils.jstr(degrees(nwo.twist_constraint_start))
+                        props["bungie_physics_constraint_twist_end"] = utils.jstr(degrees(nwo.twist_constraint_end))
+                
+            elif marker_type == "_connected_geometry_marker_type_target":
+                props["bungie_mesh_primitive_sphere_radius"] = get_marker_sphere_size(ob, nwo)
+                
+            elif marker_type == "_connected_geometry_marker_type_effects":
+                props["bungie_marker_type"] = "_connected_geometry_marker_type_model"
+                if not ob.name.startswith("fx_"):
+                    ob.name = "fx_" + ob.name
+                    
+            elif marker_type == "_connected_geometry_marker_type_garbage":
+                if not self.corinth:
+                    props["bungie_marker_type"] = "_connected_geometry_marker_type_model"
+                props["bungie_marker_velocity"] = utils.vector_str(nwo.marker_velocity)
+        
+        elif self.asset_type in ("scenario", "prefab"):
+            if marker_type == "_connected_geometry_marker_type_game_instance":
+                tag_name = nwo.marker_game_instance_tag_name.lower()
+                props["bungie_marker_game_instance_tag_name"] = tag_name
+                if self.corinth and tag_name.endswith(
+                    ".prefab"
+                ):
+                    props["bungie_marker_type"] = "_connected_geometry_marker_type_prefab"
+                    if nwo.prefab_pathfinding != "no_override":
+                        props["bungie_mesh_poop_pathfinding"] = nwo.prefab_pathfinding
+                    if nwo.prefab_lightmap_res > 0:
+                        props["bungie_mesh_poop_lightmap_resolution_scale"] = str(nwo.prefab_lightmap_res)
+                    if nwo.prefab_lighting != "no_override":
+                        props["bungie_mesh_poop_lighting"] = nwo.prefab_lighting
+                    if nwo.prefab_imposter_policy != "no_override":
+                        props["bungie_mesh_poop_imposter_policy"] = nwo.prefab_imposter_policy
+                        if nwo.prefab_imposter_policy != "_connected_poop_instance_imposter_policy_never":
+                            if nwo.prefab_imposter_brightness > 0:
+                                props["bungie_mesh_poop_imposter_brightness"] = utils.jstr(nwo.prefab_imposter_brightness)
+                            if not nwo.prefab_imposter_transition_distance_auto:
+                                props["bungie_mesh_poop_imposter_transition_distance"] = utils.jstr(nwo.prefab_imposter_transition_distance_auto)
+                                
+                    if nwo.prefab_streaming_priority != "no_override":
+                        props["bungie_mesh_poop_streamingpriority"] = nwo.prefab_streaming_priority
+                    
+                    if nwo.prefab_cinematic_properties == '_connected_geometry_poop_cinema_only':
+                        props["bungie_mesh_poop_cinema_only"] = "1"
+                    elif nwo.prefab_cinematic_properties == '_connected_geometry_poop_cinema_exclude':
+                        props["bungie_mesh_poop_exclude_from_cinema"] = "1"
+                        
+                    if nwo.prefab_render_only:
+                        props["bungie_mesh_poop_is_render_only"] = "1"
+                    if nwo.prefab_does_not_block_aoe:
+                        props["bungie_mesh_poop_does_not_block_aoe"] = "1"
+                    if nwo.prefab_excluded_from_lightprobe:
+                        props["bungie_mesh_poop_excluded_from_lightprobe"] = "1"
+                    if nwo.prefab_decal_spacing:
+                        props["bungie_mesh_poop_decal_spacing"] = "1"
+                    if nwo.prefab_remove_from_shadow_geometry:
+                        props["bungie_mesh_poop_remove_from_shadow_geometry"] = "1"
+                    if nwo.prefab_disallow_lighting_samples:
+                        props["bungie_mesh_poop_disallow_object_lighting_samples"] = "1"       
+                        
+                elif (
+                    self.corinth
+                    and tag_name.endswith(
+                        ".cheap_light"
+                    )
+                ):
+                    props["bungie_marker_type"] = "_connected_geometry_marker_type_cheap_light"
+                elif (
+                    self.corinth
+                    and tag_name.endswith(".light")
+                ):
+                    props["bungie_marker_type"] = "_connected_geometry_marker_type_light"
+                elif (
+                    self.corinth
+                    and tag_name.endswith(".leaf")
+                ):
+                    props["bungie_marker_type"] = "_connected_geometry_marker_type_falling_leaf"
+                else:
+                    props["bungie_marker_game_instance_variant_name"] = nwo.marker_game_instance_tag_variant_name
+                    if self.corinth:
+                        props["bungie_marker_always_run_scripts"] = utils.bool_str(nwo.marker_always_run_scripts)
+            
+            elif marker_type == "_connected_geometry_marker_type_envfx":
+                props["bungie_marker_looping_effect"] = nwo.marker_looping_effect
+                
+            elif marker_type == "_connected_geometry_marker_type_lightCone":
+                props["bungie_marker_light_tag"] = nwo.marker_light_cone_tag
+                props["bungie_marker_light_color"] = utils.color_3p_str(nwo.marker_light_cone_color)
+                props["bungie_marker_light_cone_width"] = utils.jstr(nwo.marker_light_cone_alpha)
+                props["bungie_marker_light_cone_length"] = utils.jstr(nwo.marker_light_cone_width)
+                props["bungie_marker_light_color_alpha"] = utils.jstr(nwo.marker_light_cone_length)
+                props["bungie_marker_light_cone_intensity"] = utils.jstr(nwo.marker_light_cone_intensity)
+                props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
+                
         return props
             
     def create_virtual_tree(self):
@@ -538,3 +822,19 @@ class ExportScene:
             sidecar_importer.cull_unused_tags()
             
     def postprocess_tags(self): ...
+    
+def get_marker_sphere_size(ob):
+    scale = ob.matrix_world.to_scale()
+    max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
+    return utils.jstr(ob.empty_display_size * max_abs_scale)
+
+def decorator_int(ob):
+    match ob.nwo.decorator_lod:
+        case "high":
+            return 1
+        case "medium":
+            return 2
+        case "low":
+            return 3
+        case _:
+            return 4

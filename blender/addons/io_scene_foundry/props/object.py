@@ -518,7 +518,7 @@ class NWO_ObjectPropertiesGroup(bpy.types.PropertyGroup):
             if not stripped_name.startswith('garbage_'):
                 return "garbage_" + stripped_name
                 
-        return stripped_name
+        return stripped_name.lower()
     
     marker_model_group: bpy.props.StringProperty(
         name="Marker Group",
