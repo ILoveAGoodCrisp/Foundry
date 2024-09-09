@@ -98,6 +98,7 @@ class VirtualMesh:
         self.name = mesh.name
         unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
         num_materials = len(mesh.materials)
+        sorted_order = None
         
         num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
@@ -139,7 +140,7 @@ class VirtualMesh:
             counts = np.diff(np.concatenate((unique_indices, [len(sorted_material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
             print(mat_index_counts)
-            for idx, mat in enumerate(unique_materials):
+            for idx, mat in enumerate(mesh.materials):
                 self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
         else:
             if num_materials == 1:
@@ -221,6 +222,9 @@ class VirtualMesh:
                 self.bone_bindings.append(vertex_group_names[index])
                 
         self.num_loops = num_loops
+        print(self.name, "has face props", bool(mesh.nwo.face_props))
+        if ob.original.data.nwo.face_props:
+            self.face_properties = gather_face_props(ob.original.data.nwo, mesh, num_polygons, scene, sorted_order)
         
         
     # def _setup(self, mesh: bpy.types.Mesh, scene: 'VirtualScene', ob: bpy.types.Object):
@@ -670,7 +674,10 @@ class FaceSet:
         if layer:
             self.face_props[layer] = value
 
-def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, bm: bmesh.types.BMesh, num_faces: int, scene: VirtualScene) -> dict:
+def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order) -> dict:
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    
     face_properties = {}
     for face_prop in mesh_props.face_props:
         # Main face props
@@ -766,6 +773,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, bm: bmesh.types.BMesh
             for layer, value in v.face_props.items():
                 if face[layer]:          
                     v.array[idx] = value
-                
-        
-    return {k: v.array for k, v in face_properties.items()}
+                    
+    bm.free()
+    if sorted_order is None:
+        return {k: v.array for k, v in face_properties.items()}
+    else:
+        return {k: v.array[sorted_order] for k, v in face_properties.items()}
