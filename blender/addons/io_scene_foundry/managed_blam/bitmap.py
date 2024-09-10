@@ -24,11 +24,15 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from math import sqrt
 import os
 import clr
 from pathlib import Path
+
+from mathutils import Vector
 from ..managed_blam import Tag
 from ..utils import print_warning
+from .. import utils
 
 class BitmapTag(Tag):
     tag_ext = 'bitmap'
@@ -124,46 +128,77 @@ class BitmapTag(Tag):
         self.tag_has_changes = True
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
-        try:
-            clr.AddReference('System.Drawing')
-            from System import Array, Byte # type: ignore
-            from System.Runtime.InteropServices import Marshal # type: ignore
-            from System.Drawing import Rectangle # type: ignore
-            from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
-            game_bitmap = self._GameBitmap()
-            bitmap = game_bitmap.GetBitmap()
-            game_bitmap.Dispose()
-            if blue_channel_fix:
-                if bitmap.PixelFormat == PixelFormat.Format32bppArgb:
-                    bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
-                    total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
-                    rgbValues = Array.CreateInstance(Byte, total_bytes)
-                    Marshal.Copy(bitmap_data.Scan0, rgbValues, 0, total_bytes)
+        def lerp(a, b, t):
+            return a + (b - a) * t
 
-                    for i in range(0, total_bytes, 4):
-                        rgbValues[i] = 255
+        def calculate_z_vector(r, g):
+            x = lerp(-1.0, 1.0, r)
+            y = lerp(-1.0, 1.0, g)
+            z = sqrt(max(0, 1 - x * x - y * y))
 
-                    Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
-                    bitmap.UnlockBits(bitmap_data)
+            return (z + 1) / 2
+        # try:
+        clr.AddReference('System.Drawing')
+        from System import Array, Byte # type: ignore
+        from System.Runtime.InteropServices import Marshal # type: ignore
+        from System.Drawing import Rectangle # type: ignore
+        from System.Drawing.Imaging import ImageLockMode, ImageFormat, PixelFormat # type: ignore
+        game_bitmap = self._GameBitmap()
+        bitmap = game_bitmap.GetBitmap()
+        game_bitmap.Dispose()
+        gamma = self.get_gamma_name()
+        if bitmap.PixelFormat == PixelFormat.Format32bppArgb and (blue_channel_fix or gamma != 'xrgb'):
+            # Correct for gamma space + add blue channel to normal maps
+            # GameBitmap always outputs a bitmap in xrgb colorspace (gamma 2.0)
+            bitmap_data = bitmap.LockBits(Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
+            total_bytes = abs(bitmap_data.Stride) * bitmap_data.Height
+            rgbValues = Array.CreateInstance(Byte, total_bytes)
+            Marshal.Copy(bitmap_data.Scan0, rgbValues, 0, total_bytes)
+
+            for i in range(0, total_bytes, 4):
+                red = rgbValues[i + 2] / 255.0
+                green = rgbValues[i + 1] / 255.0
+                if gamma == 'linear':
+                    red = red ** 2.0
+                    green = green ** 2.0
+                else:
+                    red = utils.linear_to_srgb(red ** 2.0)
+                    green = utils.linear_to_srgb(green ** 2.0)
+                if blue_channel_fix:
+                    blue = calculate_z_vector(red, green)
+                else:
+                    blue = rgbValues[i] / 255.0
+                    if gamma == 'linear':
+                        blue = blue ** 2.0
+                    else:
+                        blue = utils.linear_to_srgb(blue ** 2.0)
                         
-            tiff_path = str(Path(self.data_dir, self.tag.Path.RelativePath).with_suffix('.tiff'))
-            tiff_dir = os.path.dirname(tiff_path)
-            if not os.path.exists(tiff_dir):
-                os.makedirs(tiff_dir, exist_ok=True)
-            match format:
-                case 'bmp':
-                    bitmap.Save(tiff_path, ImageFormat.Bmp)
-                case 'png':
-                    bitmap.Save(tiff_path, ImageFormat.Png)
-                case 'jpeg':
-                    bitmap.Save(tiff_path, ImageFormat.Jpeg)
-                case 'tiff':
-                    bitmap.Save(tiff_path, ImageFormat.Tiff)
+                
+                rgbValues[i + 2] = int(red * 255)
+                rgbValues[i + 1] = int(green * 255)
+                rgbValues[i] = int(blue * 255)
+
+            Marshal.Copy(rgbValues, 0, bitmap_data.Scan0, total_bytes)
+            bitmap.UnlockBits(bitmap_data)
                     
-            bitmap.Dispose()
-        except:
-            print_warning(f"Failed to Extract Bitmap from {self.tag_path.RelativePathWithExtension}")
-            return
+        tiff_path = str(Path(self.data_dir, self.tag.Path.RelativePath).with_suffix('.tiff'))
+        tiff_dir = os.path.dirname(tiff_path)
+        if not os.path.exists(tiff_dir):
+            os.makedirs(tiff_dir, exist_ok=True)
+        match format:
+            case 'bmp':
+                bitmap.Save(tiff_path, ImageFormat.Bmp)
+            case 'png':
+                bitmap.Save(tiff_path, ImageFormat.Png)
+            case 'jpeg':
+                bitmap.Save(tiff_path, ImageFormat.Jpeg)
+            case 'tiff':
+                bitmap.Save(tiff_path, ImageFormat.Tiff)
+                
+        bitmap.Dispose()
+        # except:
+        #     print_warning(f"Failed to Extract Bitmap from {self.tag_path.RelativePathWithExtension}")
+        #     return
         return tiff_path
     
     def normal_type(self):
@@ -179,6 +214,16 @@ class BitmapTag(Tag):
     def used_as_normal_map(self):
         bm = self.block_bitmaps.Elements[0]
         return bm.SelectField('format').Value == 38
+    
+    def get_gamma_name(self) -> str:
+        bm = self.block_bitmaps.Elements[0]
+        match bm.SelectField('curve').Value:
+            case 3:
+                return 'linear'
+            case 5:
+                return 'srgb'
+            case _:
+                return 'xrgb'
     
     def _source_gamma_from_color_space(self, color_space: str):
         match color_space:
