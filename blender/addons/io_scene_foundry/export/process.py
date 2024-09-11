@@ -119,35 +119,35 @@ class ExportScene:
     
     def create_virtual_geometry(self):
         start = time.perf_counter()
-        process = "--- Creating Virtual Geometry"
+        process = "--- Mapping Halo Properties"
         ob_halo_data = {}
-        print("get halo props start")
-        num = len(self.export_objects)
-        print("parent mapping start")
+        num_export_objects = len(self.export_objects)
         self.collection_map = create_parent_mapping(self.depsgraph)
-        print("parent mapping end")
-        for idx, ob in enumerate(self.export_objects):
-            print(idx, num)
-            result = self.get_halo_props(ob)
-            if result is None:
-                continue
-            props, region, permutation = result
-            ob_halo_data[ob] = (props, region, permutation)
-        print("get halo props end")
+        with utils.Spinner():
+            utils.update_job_count(process, "", 0, num_export_objects)
+            for idx, ob in enumerate(self.export_objects):
+                result = self.get_halo_props(ob)
+                if result is None:
+                    continue
+                props, region, permutation = result
+                ob_halo_data[ob] = (props, region, permutation)
+                if not ob.parent:
+                    self.no_parent_objects.append(ob)
+                utils.update_job_count(process, "", idx, num_export_objects)
+            utils.update_job_count(process, "", num_export_objects, num_export_objects)
+            
         self.global_materials_list = list(self.global_materials - {'default'})
         self.global_materials_list.insert(0, 'default')
         
         self.export_info = ExportInfo(self.regions, self.global_materials_list).create_info()
         self.virtual_scene.regions = self.regions
         self.virtual_scene.global_materials = self.global_materials_list
-        
+        process = "--- Building Virtual Geometry"
         len_export_obs = len(ob_halo_data)
         with utils.Spinner():
             utils.update_job_count(process, "", 0, len_export_obs)
             for idx, (ob, (props, region, permutation)) in enumerate(ob_halo_data.items()):
                 self.virtual_scene.add(ob, props, region, permutation)
-                if not ob.parent:
-                    self.no_parent_objects.append(ob)
                 utils.update_job_count(process, "", idx, len_export_obs)
             utils.update_job_count(process, "", len_export_obs, len_export_obs)
             
@@ -646,25 +646,14 @@ class ExportScene:
             
     def create_virtual_tree(self):
         '''Creates a tree of object relations'''
-        for ob in self.no_parent_objects:
-            self.virtual_scene.add_model(ob)
-                
-        # for ob in self.export_objects:
-        #     if not ob.parent: continue
-        #     ob_node = self.virtual_scene.nodes.get(ob.name)
-        #     if not ob_node:
-        #         self.export_objects.remove(ob)
-        #         continue
-                
-        #     if ob.parent_type == 'BONE' and ob.parent_bone:
-        #         parent = self.virtual_scene.nodes.get(ob.parent_bone)
-        #     else:
-        #         parent = self.virtual_scene.nodes.get(ob.parent.name)
-            
-        #     if parent:
-        #         ob_node.parent = parent
-        #     elif self.virtual_scene.skeleton_node: # No valid parent found in export objects, parent this to the root skeleton if there is one
-        #         ob_node.parent = self.virtual_scene.skeleton_node
+        process = "--- Creating Geometry Tree"
+        num_no_parents = len(self.no_parent_objects)
+        with utils.Spinner():
+            utils.update_job_count(process, "", 0, num_no_parents)
+            for idx, ob in enumerate(self.no_parent_objects):
+                self.virtual_scene.add_model(ob)
+                utils.update_job_count(process, "", idx, num_no_parents)
+            utils.update_job_count(process, "", num_no_parents, num_no_parents)
         
     def get_selected_sets(self):
         '''
@@ -760,29 +749,29 @@ class ExportScene:
             
     def _export_granny_model(self, filepath: Path, virtual_objects: dict[VirtualNode]):
         self.granny.new(filepath)
-        start = time.perf_counter()
-        tree_start = time.perf_counter()
-        print("from tree start")
+        #start = time.perf_counter()
+        #tree_start = time.perf_counter()
+        #print("from tree start")
         self.granny.from_tree(self.virtual_scene, virtual_objects)
-        print("from tree", time.perf_counter() - tree_start)
-        creation_start = time.perf_counter()
-        print("creation start")
+        #print("from tree", time.perf_counter() - tree_start)
+        #creation_start = time.perf_counter()
+        #print("creation start")
         self.granny.create_materials()
         self.granny.create_skeletons(export_info=self.export_info)
         self.granny.create_vertex_data()
         self.granny.create_tri_topologies()
         self.granny.create_meshes()
         self.granny.create_models()
-        print("creation", time.perf_counter() - creation_start)
-        print("transform")
+        #print("creation", time.perf_counter() - creation_start)
+        #print("transform")
         self.granny.transform()
-        print("save")
+        #print("save")
         self.granny.save()
-        print("done")
-        end = time.perf_counter()
-        print("granny time: ", end - start)
-        if filepath.exists():
-            os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
+        #print("done")
+        #end = time.perf_counter()
+        #print("granny time: ", end - start)
+        # if filepath.exists():
+        #     os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
         
     def _export_granny_animation(self, filepath: Path, virtual_objects: list[VirtualNode]):
         granny = Granny(Path(self.project_root, "granny2_x64.dll"), filepath)
@@ -843,24 +832,6 @@ class ExportScene:
             
     def postprocess_tags(self):
         pass
-    
-    # Function to get properties from a collection based on valid type
-    def get_region_perm_from_collection(self, ob: bpy.types.Object):
-        region, permutation = ob.nwo.region_name.lower(), ob.nwo.permutation_name.lower()
-        collections = ob.users_collection
-        if collections and collections[0] != bpy.context.scene.collection:
-            collection_list = get_collection_parents_fast(collections[0], self.collection_map)
-
-            for c in collection_list:
-                c_type = c.nwo.type
-                match c_type:
-                    case 'region':
-                        region = c.nwo.region
-                    case 'permutation':
-                        permutation = c.nwo.permutation
-
-        return region, permutation
-        
     
 def get_marker_sphere_size(ob):
     scale = ob.matrix_world.to_scale()

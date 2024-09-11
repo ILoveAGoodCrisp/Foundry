@@ -654,14 +654,21 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
     return export_scene, export_process
 
 def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth):
+    start = time.perf_counter()
     asset_type = scene_settings.asset_type
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
     export_scene.ready_scene()
     export_scene.get_initial_export_objects()
     export_scene.setup_skeleton()
     export_scene.create_virtual_geometry()
+    tree_start = time.perf_counter()
     export_scene.create_virtual_tree()
+    print("Virtual Tree Time: ", time.perf_counter() - tree_start)
+    print("Virtual time: ", time.perf_counter() - start)
+    gr2_start = time.perf_counter()
     export_scene.export_files()
+    print("GR2s Saved in: ", time.perf_counter() - gr2_start)
+    print("Full File Build Complete in: ", time.perf_counter() - start)
     #export_scene.preprocess_tags()
     export_scene.write_sidecar()
     export_scene.invoke_tool_import()

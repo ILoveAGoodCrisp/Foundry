@@ -241,7 +241,8 @@ class VirtualMesh:
             unique_indices = np.concatenate(([0], np.where(np.diff(sorted_material_indices) != 0)[0] + 1))
             counts = np.diff(np.concatenate((unique_indices, [len(sorted_material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
-            for idx, mat in enumerate(mesh.materials):
+            used_materials = [m for idx, m in enumerate(mesh.materials) if idx in material_indices]
+            for idx, mat in enumerate(used_materials):
                 self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
         else:
             if num_materials == 1:
@@ -705,7 +706,7 @@ class VirtualSkeleton:
         elif own_bone.node:
             own_bone.props = own_bone.node.props
         self.bones: list[VirtualBone] = [own_bone]
-        self._get_bones(ob.original, scene)
+        self._get_bones(ob, scene)
         
     def _get_bones(self, ob, scene):
         if ob.type == 'ARMATURE':
@@ -727,12 +728,14 @@ class VirtualSkeleton:
                 self.bones.append(b)
                 
             child_index = 0
-            for child in ob.children:
+            for child in scene.get_immediate_children(ob):
+                node = scene.nodes.get(child.name)
+                if not node: continue
                 child_index += 1
+                if not node: continue
                 b = VirtualBone(child)
-                b.node = scene.nodes.get(child.name)
-                if b.node:
-                    b.props = b.node.props
+                b.node = node
+                b.props = b.node.props
                 b.matrix_world = child.matrix_world.copy()
                 b.matrix_local = child.matrix_local.copy()
                 if child.parent_type == 'BONE':
@@ -748,13 +751,14 @@ class VirtualSkeleton:
                     
     def find_children(self, ob: bpy.types.Object, scene, parent_index=0):
         child_index = parent_index
-        for child in ob.children:
+        for child in scene.get_immediate_children(ob):
+            node = scene.nodes.get(child.name)
+            if not node: continue
             child_index += 1
             b = VirtualBone(child)
             b.parent_index = parent_index
-            b.node = scene.nodes.get(child.name)
-            if b.node:
-                b.props = b.node.props
+            b.node = node
+            b.props = b.node.props
             b.matrix_world = b.node.matrix_world
             b.matrix_local = b.node.matrix_local
             self.bones.append(b)
@@ -791,12 +795,19 @@ class VirtualScene:
         self.design = set()
         self.bsps_with_structure = set()
         
-    def add(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None):
+        self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
+        
+    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None):
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
         node = VirtualNode(id, props, region, permutation, self)
         self.nodes[node.name] = node
+        self.object_parent_dict[id] = id.parent if id.parent else None
         if node.new_mesh:
             self.meshes[node.mesh.name] = node.mesh
+            
+    def get_immediate_children(self, parent):
+        children = [ob for ob, ob_parent in self.object_parent_dict.items() if ob_parent == parent]
+        return children
             
     def set_skeleton(self, ob):
         '''Creates a new skeleton node from this object and sets this as the skeleton node for the scene'''
