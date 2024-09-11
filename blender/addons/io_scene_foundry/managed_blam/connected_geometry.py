@@ -1082,13 +1082,13 @@ class BSP:
             if split_material and self.uses_materials:
                 material_indices = [blender_materials_map[mat] for mat in map_material]
             for idx, face in enumerate(bm.faces):
-                if split_negated and map_negated[idx]:
-                    to_remove.append(face)
-                    continue
+                # if split_negated and map_negated[idx]:
+                #     to_remove.append(face)
+                #     continue
                 if split_material and self.uses_materials:
                     face.material_index = material_indices[idx]
-                if layer_two_sided:
-                    face[layer_two_sided] = map_two_sided[idx]
+                # if layer_two_sided:
+                #     face[layer_two_sided] = map_two_sided[idx]
                 if layer_ladder:
                     face[layer_ladder] = map_ladder[idx]
                 if layer_breakable:
@@ -1108,6 +1108,8 @@ class BSP:
                 key = tuple(sorted(v.index for v in face.verts))
                 if key in face_map:
                     duplicates.append(face)
+                    if split_two_sided:
+                        face_map[key][layer_two_sided] = 1
                 else:
                     face_map[key] = face
         

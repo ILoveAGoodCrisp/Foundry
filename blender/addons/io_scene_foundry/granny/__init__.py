@@ -333,69 +333,6 @@ class Granny:
         tri_topologies = (POINTER(GrannyTriTopology) * num_tri_topologies)(*self.export_tri_topologies)
         self.file_info.tri_topology_count = num_tri_topologies
         self.file_info.tri_topologies = tri_topologies
-    
-    # def create_tri_topologies(self):
-    #     num_tri_topologies = len(self.export_tri_topologies)
-    #     tri_topologies = (POINTER(GrannyTriTopology) * num_tri_topologies)()
-
-    #     for i, export_tri_topology in enumerate(self.export_tri_topologies):
-    #         granny_tri_topology = GrannyTriTopology()
-    #         self._populate_tri_topology(granny_tri_topology, export_tri_topology)
-    #         tri_topologies[i] = pointer(granny_tri_topology)
-    #         export_tri_topology.granny = tri_topologies[i]
-
-    #     self.file_info.tri_topology_count = num_tri_topologies
-    #     self.file_info.tri_topologies = tri_topologies
-
-    def _populate_tri_topology(self, granny_tri_topology, export_tri_topology):
-        # Populate Groups
-        num_groups = len(export_tri_topology.groups)
-        groups = (GrannyTriMaterialGroup * num_groups)()
-
-        for j, export_group in enumerate(export_tri_topology.groups):
-            granny_group = groups[j]
-            granny_group.material_index = export_group.material_index
-            granny_group.tri_first = export_group.tri_start
-            granny_group.tri_count = export_group.tri_count
-
-        granny_tri_topology.group_count = num_groups
-        granny_tri_topology.groups = cast(groups, POINTER(GrannyTriMaterialGroup))
-        
-        granny_tri_topology.index_count = len(export_tri_topology.indices)
-        granny_tri_topology.indices = cast(export_tri_topology.indices, POINTER(c_int))
-        
-        # Create Tri Annotation sets
-        if not export_tri_topology.tri_annotation_sets: return
-        
-        num_tri_annotation_sets = len(export_tri_topology.tri_annotation_sets)
-        tri_annotation_sets = (GrannyTriAnnotationSet * num_tri_annotation_sets)()
-        
-        for k, export_tri_annotation_set in enumerate(export_tri_topology.tri_annotation_sets):
-            granny_tri_annotation_set = tri_annotation_sets[k]
-            granny_tri_annotation_set.name = export_tri_annotation_set.name
-            granny_tri_annotation_set.indices_map_from_tri_to_annotation = 1
-            
-            match export_tri_annotation_set.type:
-                case 0:
-                    tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_int))(*tri_annotation_type_int)
-                case 1:
-                    tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_float))(*tri_annotation_type_float)
-                case _:
-                    tri_annotation_type_array = (GrannyDataTypeDefinition * len(tri_annotation_type_float_vector))(*tri_annotation_type_float_vector)
-                    
-            granny_tri_annotation_set.tri_annotation_type = cast(tri_annotation_type_array, POINTER(GrannyDataTypeDefinition))
-            
-            num_tri_annotations = len(export_tri_annotation_set.tri_annotations)
-            tri_annotations = export_tri_annotation_set.tri_annotations
-            
-            annotation_byte_array = bytearray(tri_annotations)
-            annotation_array = (c_ubyte * len(annotation_byte_array))(*annotation_byte_array)
-
-            granny_tri_annotation_set.tri_annotation_count = num_tri_annotations
-            granny_tri_annotation_set.tri_annotations = cast(annotation_array, POINTER(c_ubyte))
-            
-        granny_tri_topology.tri_annotation_set_count = num_tri_annotation_sets
-        granny_tri_topology.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
         
     def create_meshes(self):
         num_meshes = len(self.export_meshes)
