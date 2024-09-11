@@ -362,14 +362,16 @@ def jstr(number):
     return format(round(number, 6), 'f')
 
 def true_region(halo):
-    if halo.region_name_locked:
-        return halo.region_name_locked.lower()
+    locked = halo.region_name_locked
+    if locked:
+        return locked.lower()
     else:
         return halo.region_name.lower()
 
 def true_permutation(halo):
-    if halo.permutation_name_locked:
-        return halo.permutation_name_locked.lower()
+    locked = halo.permutation_name_locked
+    if locked:
+        return locked.lower()
     else:
         return halo.permutation_name.lower()
 

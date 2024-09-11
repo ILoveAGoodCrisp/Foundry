@@ -82,19 +82,23 @@ class ExportScene:
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))
         
     def ready_scene(self):
+        print("scene ready start")
         utils.exit_local_view(self.context)
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
+        print("scene ready end")
         
     def get_initial_export_objects(self):
+        print("initial obs")
         self.depsgraph = self.context.evaluated_depsgraph_get()
         if self.asset_type == AssetType.ANIMATION:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type == "ARMATURE"}
         else:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
-            
+        
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny)
+        
         
         # Create default material
         if self.corinth:
@@ -103,22 +107,33 @@ class ExportScene:
             default_material = VirtualMaterial("invalid", r"shaders\invalid.shader", self.virtual_scene)
             
         self.virtual_scene.materials["invalid"] = default_material
+        print("initial end")
             
     def setup_skeleton(self):
+        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}: return
+        print("skeleton start")
         armature = utils.get_rig(self.context)
         if armature:
             self.virtual_scene.set_skeleton(armature)
+        print("skeleton end")
     
     def create_virtual_geometry(self):
+        start = time.perf_counter()
         process = "--- Creating Virtual Geometry"
         ob_halo_data = {}
+        print("get halo props start")
+        num = len(self.export_objects)
+        print("parent mapping start")
+        self.collection_map = create_parent_mapping(self.depsgraph)
+        print("parent mapping end")
         for idx, ob in enumerate(self.export_objects):
+            print(idx, num)
             result = self.get_halo_props(ob)
             if result is None:
                 continue
             props, region, permutation = result
             ob_halo_data[ob] = (props, region, permutation)
-        
+        print("get halo props end")
         self.global_materials_list = list(self.global_materials - {'default'})
         self.global_materials_list.insert(0, 'default')
         
@@ -136,7 +151,9 @@ class ExportScene:
                 utils.update_job_count(process, "", idx, len_export_obs)
             utils.update_job_count(process, "", len_export_obs, len_export_obs)
             
-    def get_halo_props(self, ob):
+        print("virtual geo time: ", time.perf_counter() - start)
+            
+    def get_halo_props(self, ob: bpy.types.Object):
         props = {}
         region = self.default_region
         permutation = self.default_permutation
@@ -150,29 +167,37 @@ class ExportScene:
         is_light = ob.type == 'LIGHT'
         is_mesh = ob.type == 'MESH'
         instanced_object = (object_type == '_connected_geometry_object_type_mesh' and nwo.mesh_type == '_connected_geometry_mesh_type_object_instance')
+        tmp_region, tmp_permutation = str(region), str(permutation)
+        collection = bpy.data.collections.get(ob.nwo.export_collection)
+        if collection and collection != self.context.scene.collection:
+            export_coll = self.collection_map[collection]
+            coll_region, coll_permutation = export_coll.region, export_coll.permutation
+            if coll_region:
+                tmp_region = coll_region
+            if coll_permutation:
+                tmp_region = coll_permutation
+            
         if self.asset_type.supports_permutations:
             if not instanced_object and (is_mesh or is_light or self.asset_type.supports_bsp or nwo.marker_uses_regions):
-                reg = utils.true_region(nwo)
-                if reg in self.regions:
-                    region = reg
+                if tmp_region in self.regions:
+                    region = tmp_region
                 else:
                     self.warning_hit = True
-                    utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{reg}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                    utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                     
             if (is_light or self.asset_type.supports_bsp) and not instanced_object:
-                perm = utils.true_permutation(nwo)
-                if perm in self.permutations:
-                    permutation = perm
+                if tmp_permutation in self.permutations:
+                    permutation = tmp_permutation
                 else:
                     self.warning_hit = True
-                    utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] which is not presented in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
+                    utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{tmp_permutation}] which is not present in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
                     
             elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
                 marker_perms = [item.name for item in nwo.marker_permutations]
                 for perm in marker_perms:
                     if perm not in self.permutations:
                         self.warning_hit = True
-                        utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not presented in the {self.perm_name}s table. Ignoring {self.perm_name}")
+                        utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
             
         if object_type == '_connected_geometry_object_type_mesh':
             if nwo.mesh_type == '':
@@ -818,6 +843,23 @@ class ExportScene:
             
     def postprocess_tags(self):
         pass
+    
+    # Function to get properties from a collection based on valid type
+    def get_region_perm_from_collection(self, ob: bpy.types.Object):
+        region, permutation = ob.nwo.region_name.lower(), ob.nwo.permutation_name.lower()
+        collections = ob.users_collection
+        if collections and collections[0] != bpy.context.scene.collection:
+            collection_list = get_collection_parents_fast(collections[0], self.collection_map)
+
+            for c in collection_list:
+                c_type = c.nwo.type
+                match c_type:
+                    case 'region':
+                        region = c.nwo.region
+                    case 'permutation':
+                        permutation = c.nwo.permutation
+
+        return region, permutation
         
     
 def get_marker_sphere_size(ob):
@@ -835,3 +877,40 @@ def decorator_int(ob):
             return 3
         case _:
             return 4
+        
+class ExportCollection:
+    def __init__(self, collection: bpy.types.Collection, depsgraph: bpy.types.Depsgraph):
+        self.region, self.permutation = coll_region_perm(collection)
+        for ob in collection.objects:
+            eval_ob = ob.evaluated_get(depsgraph)
+            eval_ob.nwo.export_collection = collection.name
+        
+def coll_region_perm(coll) -> tuple[str, str]:
+    r, p = '', ''
+    colltype = coll.nwo.type
+    match colltype:
+        case 'region':
+            r = coll.nwo.region
+        case 'permutation':
+            p = coll.nwo.permutation
+            
+    return r, p
+
+def create_parent_mapping(depsgraph: bpy.types.Depsgraph):
+    collection_map: dict[bpy.types.Collection: ExportCollection] = {}
+    for collection in bpy.data.collections:
+        export_coll = ExportCollection(collection, depsgraph)
+        collection_map[collection] = export_coll
+        for child in collection.children_recursive:
+            export_child = collection_map.get(child)
+            if not export_child:
+                export_child = ExportCollection(child, depsgraph)
+                collection_map[collection] = export_child
+                
+            parent_region, parent_permutation = export_coll.region, export_coll.permutation
+            if parent_region:
+                export_child.region = parent_region
+            if parent_permutation:
+                export_child.permutation = parent_permutation
+            
+    return collection_map
