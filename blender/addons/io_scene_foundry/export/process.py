@@ -123,6 +123,7 @@ class ExportScene:
         ob_halo_data = {}
         num_export_objects = len(self.export_objects)
         self.collection_map = create_parent_mapping(self.depsgraph)
+        object_parent_dict = {}
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
@@ -131,8 +132,12 @@ class ExportScene:
                     continue
                 props, region, permutation = result
                 ob_halo_data[ob] = (props, region, permutation)
-                if not ob.parent:
+                parent = ob.parent
+                if parent:
+                    object_parent_dict[ob] = parent
+                else:
                     self.no_parent_objects.append(ob)
+                    
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
             
@@ -142,16 +147,20 @@ class ExportScene:
         self.export_info = ExportInfo(self.regions, self.global_materials_list).create_info()
         self.virtual_scene.regions = self.regions
         self.virtual_scene.global_materials = self.global_materials_list
-        process = "--- Building Virtual Geometry"
-        len_export_obs = len(ob_halo_data)
-        with utils.Spinner():
-            utils.update_job_count(process, "", 0, len_export_obs)
-            for idx, (ob, (props, region, permutation)) in enumerate(ob_halo_data.items()):
-                self.virtual_scene.add(ob, props, region, permutation)
-                utils.update_job_count(process, "", idx, len_export_obs)
-            utils.update_job_count(process, "", len_export_obs, len_export_obs)
+        
+        self.virtual_scene.object_parent_dict = object_parent_dict
+        self.virtual_scene.object_halo_data = ob_halo_data
+        
+        # process = "--- Building Virtual Geometry"
+        # len_export_obs = len(ob_halo_data)
+        # with utils.Spinner():
+        #     utils.update_job_count(process, "", 0, len_export_obs)
+        #     for idx, (ob, (props, region, permutation)) in enumerate(ob_halo_data.items()):
+        #         self.virtual_scene.add(ob, props, region, permutation)
+        #         utils.update_job_count(process, "", idx, len_export_obs)
+        #     utils.update_job_count(process, "", len_export_obs, len_export_obs)
             
-        print("virtual geo time: ", time.perf_counter() - start)
+        # print("virtual geo time: ", time.perf_counter() - start)
             
     def get_halo_props(self, ob: bpy.types.Object):
         props = {}
@@ -646,7 +655,7 @@ class ExportScene:
             
     def create_virtual_tree(self):
         '''Creates a tree of object relations'''
-        process = "--- Creating Geometry Tree"
+        process = "--- Building Geometry Tree"
         num_no_parents = len(self.no_parent_objects)
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_no_parents)

@@ -690,10 +690,10 @@ class VirtualBone:
         
 class VirtualSkeleton:
     '''Describes a list of bones'''
-    def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene'):
+    def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode):
         self.name: str = ob.name
         own_bone = VirtualBone(ob)
-        own_bone.node = scene.nodes.get(ob.name)
+        own_bone.node = node
         own_bone.matrix_world = own_bone.node.matrix_world
         own_bone.matrix_local = IDENTITY_MATRIX
         if ob.type == 'ARMATURE':
@@ -708,7 +708,7 @@ class VirtualSkeleton:
         self.bones: list[VirtualBone] = [own_bone]
         self._get_bones(ob, scene)
         
-    def _get_bones(self, ob, scene):
+    def _get_bones(self, ob, scene: 'VirtualScene'):
         if ob.type == 'ARMATURE':
             valid_bones = [pbone for pbone in ob.pose.bones if ob.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
@@ -729,7 +729,7 @@ class VirtualSkeleton:
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
-                node = scene.nodes.get(child.name)
+                node = scene.add(child, *scene.object_halo_data[child])
                 if not node: continue
                 child_index += 1
                 if not node: continue
@@ -752,7 +752,7 @@ class VirtualSkeleton:
     def find_children(self, ob: bpy.types.Object, scene, parent_index=0):
         child_index = parent_index
         for child in scene.get_immediate_children(ob):
-            node = scene.nodes.get(child.name)
+            node = scene.add(child, *scene.object_halo_data[child])
             if not node: continue
             child_index += 1
             b = VirtualBone(child)
@@ -768,9 +768,9 @@ class VirtualModel:
     '''Describes a blender object which has no parent'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene'):
         self.name: str = ob.name
-        self.skeleton: VirtualSkeleton = VirtualSkeleton(ob, scene)
+        self.node = scene.add(ob, *scene.object_halo_data[ob])
+        self.skeleton: VirtualSkeleton = VirtualSkeleton(ob, scene, self.node)
         self.matrix: Matrix = ob.matrix_world.copy()
-        self.node = scene.nodes.get(self.name)
             
 class VirtualScene:
     def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny):
@@ -796,14 +796,17 @@ class VirtualScene:
         self.bsps_with_structure = set()
         
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
+        self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str]] = {}
         
     def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None):
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
         node = VirtualNode(id, props, region, permutation, self)
         self.nodes[node.name] = node
-        self.object_parent_dict[id] = id.parent if id.parent else None
+        # self.object_parent_dict[id] = id.parent if id.parent else None
         if node.new_mesh:
             self.meshes[node.mesh.name] = node.mesh
+            
+        return node
             
     def get_immediate_children(self, parent):
         children = [ob for ob, ob_parent in self.object_parent_dict.items() if ob_parent == parent]
