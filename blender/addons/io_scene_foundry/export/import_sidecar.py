@@ -27,7 +27,7 @@ default_templates = [
 ]
 
 class SidecarImport:
-    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool):
+    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set):
         self.asset_path = asset_path
         self.relative_asset_path = utils.relative_path(asset_path)
         self.asset_name = asset_name
@@ -36,6 +36,7 @@ class SidecarImport:
         self.scene_settings = scene_settings
         self.export_settings = export_settings
         self.selected_bsps = selected_bsps
+        self.bsps = bsps
         self.corinth = corinth
         self.lighting_infos = {}
         self.import_failed = False

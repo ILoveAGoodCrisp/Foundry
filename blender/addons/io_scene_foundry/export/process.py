@@ -67,10 +67,6 @@ class ExportScene:
         self.reg_name = 'BSP' if self.asset_type.supports_bsp else 'region'
         self.perm_name = 'layer' if self.asset_type.supports_bsp else 'permutation'
         
-        self.bsps_with_structure = set()
-        self.structure = set()
-        self.design = set()
-        
         self.selected_bsps = set()
         self.selected_permutations = set()
         
@@ -82,6 +78,8 @@ class ExportScene:
         self.project_root = Path(utils.get_tags_path()).parent
         
         os.chdir(tempfile.gettempdir())
+        
+        self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))
         
     def ready_scene(self):
         utils.exit_local_view(self.context)
@@ -96,7 +94,7 @@ class ExportScene:
         else:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
             
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny)
         
         # Create default material
         if self.corinth:
@@ -225,8 +223,6 @@ class ExportScene:
             if mesh_type == '_connected_geometry_mesh_type_default':
                 mesh_type = '_connected_geometry_mesh_type_poop'
             elif mesh_type == '_connected_geometry_mesh_type_structure':
-                self.bsps_with_structure.add(region)
-                self.structure.add(region)
                 mesh_type = '_connected_geometry_mesh_type_default'
                 if not self.corinth:
                     if data_nwo.render_only:
@@ -243,7 +239,7 @@ class ExportScene:
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
             props = self._setup_instanced_object_props(ob, nwo, props, region)
         elif mesh_type == '_connected_geometry_mesh_type_poop':
-            self._setup_poop_props(ob)
+            props = self._setup_poop_props(ob, nwo, data_nwo, props)
         elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == 'scenario':
             props["bungie_face_type"] = '_connected_geometry_face_type_sky'
         elif mesh_type == '_connected_geometry_mesh_type_seam':
@@ -257,7 +253,6 @@ class ExportScene:
             if nwo.portal_is_door:
                 props["bungie_mesh_portal_is_door"] = "1"
         elif mesh_type == "_connected_geometry_mesh_type_water_physics_volume":
-            self.design.add(region)
             # ob["bungie_mesh_tessellation_density"] = nwo.mesh_tessellation_density
             props["bungie_mesh_water_volume_depth"] = utils.jstr(nwo.water_volume_depth)
             props["bungie_mesh_water_volume_flow_direction"] = utils.jstr(degrees(nwo.water_volume_flow_direction))
@@ -269,28 +264,23 @@ class ExportScene:
                 props["bungie_mesh_water_volume_fog_color"] = utils.color_argb_str(nwo.water_volume_fog_color)
             
         elif mesh_type in ("_connected_geometry_mesh_type_poop_vertical_rain_sheet", "_connected_geometry_mesh_type_poop_rain_blocker"):
-            self.design.add(region)
             props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
             
         elif mesh_type == "_connected_geometry_mesh_type_planar_fog_volume":
-            self.design.add(region)
             props["bungie_mesh_fog_appearance_tag"] = utils.relative_path(nwo.fog_appearance_tag)
             props["bungie_mesh_fog_volume_depth"] = utils.jstr(nwo.fog_volume_depth)
             
         elif mesh_type == "_connected_geometry_mesh_type_soft_ceiling":
-            self.design.add(region)
             props["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_ceiling'
             props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_soft_kill":
-            self.design.add(region)
             props["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_soft_kill'
             props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
             
         elif mesh_type == "_connected_geometry_mesh_type_slip_surface":
-            self.design.add(region)
             props["bungie_mesh_type"] = "_connected_geometry_mesh_type_boundary_surface"
             props["bungie_mesh_boundary_surface_type"] = '_connected_geometry_boundary_surface_type_slip_surface'
             props["bungie_mesh_boundary_surface_name"] = utils.dot_partition(ob.name)
@@ -711,8 +701,9 @@ class ExportScene:
         for name, nodes in self.groups.items():
             granny_path = self._get_export_path(name)
             perm = nodes[0].permutation
+            region = nodes[0].region
             tag_type = nodes[0].tag_type
-            self.sidecar.add_file_data(tag_type, perm, granny_path, bpy.data.filepath)
+            self.sidecar.add_file_data(tag_type, perm, region, granny_path, bpy.data.filepath)
             # if not self.export_settings.selected_perms or perm in self.export_settings.selected_perms:
             job = f"--- {name}"
             utils.update_job(job, 0)
@@ -743,28 +734,30 @@ class ExportScene:
         #                 export_obs = [ob for ob in objects]
             
     def _export_granny_model(self, filepath: Path, virtual_objects: dict[VirtualNode]):
-        granny = Granny(Path(self.project_root, "granny2_x64.dll"), filepath)
+        self.granny.new(filepath)
         start = time.perf_counter()
         tree_start = time.perf_counter()
         print("from tree start")
-        granny.from_tree(self.virtual_scene, virtual_objects)
+        self.granny.from_tree(self.virtual_scene, virtual_objects)
         print("from tree", time.perf_counter() - tree_start)
         creation_start = time.perf_counter()
         print("creation start")
-        granny.create_materials()
-        granny.create_skeletons(export_info=self.export_info)
-        granny.create_vertex_data()
-        granny.create_tri_topologies()
-        granny.create_meshes()
-        granny.create_models()
+        self.granny.create_materials()
+        self.granny.create_skeletons(export_info=self.export_info)
+        self.granny.create_vertex_data()
+        self.granny.create_tri_topologies()
+        self.granny.create_meshes()
+        self.granny.create_models()
         print("creation", time.perf_counter() - creation_start)
         print("transform")
-        granny.transform()
+        self.granny.transform()
         print("save")
-        granny.save()
+        self.granny.save()
         print("done")
         end = time.perf_counter()
         print("granny time: ", end - start)
+        if filepath.exists():
+            os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
         
     def _export_granny_animation(self, filepath: Path, virtual_objects: list[VirtualNode]):
         granny = Granny(Path(self.project_root, "granny2_x64.dll"), filepath)
@@ -807,21 +800,25 @@ class ExportScene:
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
         self.sidecar.regions = self.regions
         self.sidecar.global_materials = self.global_materials_list
+        self.sidecar.structure = self.virtual_scene.structure
+        self.sidecar.design = self.virtual_scene.design
         self.sidecar.build()
         
     def preprocess_tags(self): ...
     
     def invoke_tool_import(self):
-        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth)
-        if self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
-            sidecar_importer.save_lighting_infos()
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, self.virtual_scene.structure)
+        # if self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
+        #     sidecar_importer.save_lighting_infos()
         sidecar_importer.run()
-        if sidecar_importer.lighting_infos:
-            sidecar_importer.restore_lighting_infos()
+        # if sidecar_importer.lighting_infos:
+        #     sidecar_importer.restore_lighting_infos()
         if self.asset_type == AssetType.ANIMATION:
             sidecar_importer.cull_unused_tags()
             
-    def postprocess_tags(self): ...
+    def postprocess_tags(self):
+        pass
+        
     
 def get_marker_sphere_size(ob):
     scale = ob.matrix_world.to_scale()

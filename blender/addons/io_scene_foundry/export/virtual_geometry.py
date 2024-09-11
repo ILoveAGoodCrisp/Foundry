@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 import csv
+from ctypes import Array, c_char_p, c_float, c_int, POINTER, c_ubyte, cast, memmove, pointer
 from enum import Enum
 from math import degrees
 from pathlib import Path
@@ -9,6 +10,9 @@ import bmesh
 import bpy
 from mathutils import Matrix
 import numpy as np
+
+from ..granny.formats import GrannyDataTypeDefinition, GrannyMemberType, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
+from ..granny import Granny
 
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType
 
@@ -76,14 +80,111 @@ class VirtualMesh:
         self.lighting_texcoords: np.ndarray = None
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
         self.indices: np.ndarray = None
+        self.num_indices = 0
         self.materials: list[VirtualMaterial: int] = [] # dict of materials and the face index they start at
-        self.face_properties: dict[str: np.ndarray] = {}
+        self.face_properties: dict = {}
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
         self.num_loops = 0
         self._setup(ob, scene)
+        self.to_granny_data()
+        
         
         # print("Positions", self.positions)
+        
+    def to_granny_data(self):
+        self._granny_tri_topology()
+        self._granny_vertex_data()
+        
+    def _granny_tri_topology(self):
+        indices = (c_int * self.num_indices)(*self.indices)
+        granny_tri_topology = GrannyTriTopology()
+        num_groups = len(self.materials)
+        groups = (GrannyTriMaterialGroup * num_groups)()
+        for i, material in enumerate(self.materials):
+            granny_group = groups[i]
+            granny_group.material_index = material[1]
+            granny_group.tri_first = material[2][0]
+            granny_group.tri_count = material[2][1]
+            
+        granny_tri_topology.group_count = num_groups
+        granny_tri_topology.groups = cast(groups, POINTER(GrannyTriMaterialGroup))
+        
+        granny_tri_topology.index_count = self.num_indices
+        granny_tri_topology.indices = cast(indices, POINTER(c_int))
+        
+        # Create Tri Annotation sets
+        if self.face_properties:
+            num_tri_annotation_sets = len(self.face_properties)
+            tri_annotation_sets = (GrannyTriAnnotationSet * num_tri_annotation_sets)()
+            
+            for i, (name, face_set) in enumerate(self.face_properties.items()):
+                granny_tri_annotation_set = tri_annotation_sets[i]
+                granny_tri_annotation_set.name = name.encode()
+                granny_tri_annotation_set.indices_map_from_tri_to_annotation = 1
+                        
+                granny_tri_annotation_set.tri_annotation_type = face_set.annotation_type
+                
+                num_tri_annotations = len(face_set.array)
+                annotation_byte_array = bytearray(face_set.array)
+                annotation_array = (c_ubyte * len(annotation_byte_array))(*annotation_byte_array)
+
+                granny_tri_annotation_set.tri_annotation_count = num_tri_annotations
+                granny_tri_annotation_set.tri_annotations = cast(annotation_array, POINTER(c_ubyte))
+                
+            granny_tri_topology.tri_annotation_set_count = num_tri_annotation_sets
+            granny_tri_topology.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
+            
+        self.granny_tri_topology = pointer(granny_tri_topology)
+        
+    def _granny_vertex_data(self):
+        data = [self.positions, self.normals]
+        types = [
+            (GrannyMemberType.granny_real32_member.value, b"Position", None, 3),
+            (GrannyMemberType.granny_real32_member.value, b"Normal", None, 3),
+            ]
+        type_names = [
+            b"Position",
+            b"Normal",
+        ]
+        if self.bone_weights:
+            data.append(self.bone_weights)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneWeights", None, 4))
+            type_names.append(b"BoneWeights")
+            data.append(self.bone_indices)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneIndices", None, 4))
+            type_names.append(b"BoneIndices")
+        
+        for idx, uvs in enumerate(self.texcoords):
+            name = f"TextureCoordinates{idx}".encode()
+            data.append(uvs)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name, None, 3))
+            type_names.append(name)
+            
+        if self.lighting_texcoords:
+            data.append(self.lighting_texcoords)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"TextureCoordinateslighting", None, 3))
+            type_names.append(b"lighting")
+            
+        for idx, vcolors in enumerate(self.vertex_colors):
+            name = f"DiffuseColor{idx}".encode()
+            data.append(vcolors)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name, None, 3))
+            type_names.append(name)
+
+        types.append((GrannyMemberType.granny_end_member.value, None, None, 0))
+        
+        num_types = len(type_names)
+        names_array = (c_char_p * num_types)(*type_names)
+        self.vertex_component_names = cast(names_array, POINTER(c_char_p))
+        self.vertex_component_name_count = num_types
+        type_info_array = (GrannyDataTypeDefinition * (num_types + 1))(*types)
+        self.vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
+
+        vertex_byte_array = np.hstack(data).tobytes()
+        self.len_vertex_array = len(vertex_byte_array)
+        self.vertex_array = (c_ubyte * self.len_vertex_array)(*vertex_byte_array)
+
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene'):
         def add_triangle_mod(ob: bpy.types.Object):
@@ -148,20 +249,26 @@ class VirtualMesh:
             else:
                 self.materials.append((scene.materials["invalid"], 0, (0, num_polygons))) # default material
         
-        for layer in mesh.uv_layers:
+        self.num_indices = len(self.indices)
+        
+        self.lighting_texcoords = None
+        self.texcoords = []
+        for idx, layer in enumerate(mesh.uv_layers):
             if len(self.texcoords) >= 4:
                 break
             
             loop_uvs = np.empty(num_loops * 2, dtype=np.single)
             layer.uv.foreach_get("vector", loop_uvs)
             loop_uvs = loop_uvs.reshape(-1, 2)
+            zeros_column = np.zeros((loop_uvs.shape[0], 1), dtype=np.single)
             
             if layer.name.lower() == "lighting":
-                self.lighting_texcoords = loop_uvs
+                self.lighting_texcoords = np.append(np.hstack((loop_uvs, zeros_column)))
             else:
-                self.texcoords.append(loop_uvs)
+                self.texcoords.append(np.hstack((loop_uvs, zeros_column)))
                 
-        for layer in mesh.color_attributes:
+        self.vertex_colors = []
+        for idx, layer in enumerate(mesh.color_attributes):
             if len(self.vertex_colors) >= 2:
                 break
             layer: bpy.types.ByteColorAttribute
@@ -180,8 +287,8 @@ class VirtualMesh:
             self.vertex_colors.append(colors)
             
         # Bone Weights & Indices
-        self.bone_weights = np.zeros((num_vertices * 4, 4), dtype=np.byte)
-        self.bone_indices = np.zeros((num_vertices * 4, 4), dtype=np.byte)
+        self.bone_weights = None
+        self.bone_indices = None
         
         if self.vertex_weighted:
             unique_bone_indices = set()
@@ -231,6 +338,9 @@ class VirtualMesh:
             self.bone_bindings.clear()
             for index in unique_bone_indices:
                 self.bone_bindings.append(vertex_group_names[index])
+                
+        self.blend_shapes = None
+        self.vertex_ids = None
                 
         self.num_loops = num_loops
         if ob.original.data.nwo.face_props:
@@ -447,6 +557,7 @@ class VirtualNode:
         self.parent: VirtualNode = None
         self.selected = False
         self.bone_bindings: list[str] = []
+        self.granny_vertex_data = None
         
         self._setup(id, scene)
         
@@ -454,8 +565,8 @@ class VirtualNode:
         self.name = id.name
         if isinstance(id, bpy.types.Object):
             self.selected = id.original.select_get()
-            self.matrix_world = id.matrix_world.copy()
-            self.matrix_local = id.matrix_local.copy()
+            self.matrix_world = id.original.matrix_world.copy()
+            self.matrix_local = id.original.matrix_local.copy()
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
                 existing_mesh = scene.meshes.get(id.data.name)
@@ -469,6 +580,31 @@ class VirtualNode:
                     id.to_mesh_clear()
                     self.new_mesh = True
                     self.bone_bindings = mesh.bone_bindings
+
+                self.granny_vertex_data = GrannyVertexData()
+                self.granny_vertex_data.vertex_component_names = self.mesh.vertex_component_names
+                self.granny_vertex_data.vertex_component_name_count = self.mesh.vertex_component_name_count
+                self.granny_vertex_data.vertex_type = self.mesh.vertex_type
+                vertex_array = (c_ubyte * self.mesh.len_vertex_array)()
+                if self.matrix_world == IDENTITY_MATRIX:
+                    vertex_array = self.mesh.vertex_array
+                else:
+                    vertex_array = (c_ubyte * self.mesh.len_vertex_array)()
+                    memmove(vertex_array, self.mesh.vertex_array, self.mesh.len_vertex_array)
+                    affine3, linear3x3, inverse_linear3x3 = calc_transforms(self.matrix_world)
+                    scene.granny._transform_vertices(self.mesh.num_loops,
+                                                    self.granny_vertex_data.vertex_type,
+                                                    vertex_array,
+                                                    affine3,
+                                                    linear3x3,
+                                                    inverse_linear3x3,
+                                                    True,
+                                                    False,
+                                                    )
+                
+                self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
+                self.granny_vertex_data.vertex_count = self.mesh.num_loops
+                self.granny_vertex_data = pointer(self.granny_vertex_data)
                     
             #     if not scene.skeleton_node and not id.parent:
             #         self.skeleton = VirtualSkeleton(id, self)
@@ -507,11 +643,17 @@ class VirtualNode:
                     self.group = self.tag_type
             
             case AssetType.SCENARIO:
-                design = self.props.get("bungie_mesh_type") in DESIGN_MESH_TYPES
-                if design:
+                mesh_type = self.props.get("bungie_mesh_type")
+                if mesh_type in DESIGN_MESH_TYPES:
                     self.tag_type = 'design'
+                    scene.design.add(self.region)
+                elif self.region == 'shared':
+                    self.tag_type = 'shared'
                 else:
                     self.tag_type = 'structure'
+                    scene.structure.add(self.region)
+                    if mesh_type == '_connected_geometry_mesh_type_default':
+                        scene.bsps_with_structure.add(self.region)
                     
                 self.group = f'{self.tag_type}_{self.region}_{self.permutation}'
                 
@@ -552,7 +694,7 @@ class VirtualSkeleton:
         own_bone = VirtualBone(ob)
         own_bone.node = scene.nodes.get(ob.name)
         own_bone.matrix_world = own_bone.node.matrix_world
-        own_bone.matrix_local = own_bone.node.matrix_local
+        own_bone.matrix_local = IDENTITY_MATRIX
         if ob.type == 'ARMATURE':
             own_bone.props = {
                     "bungie_frame_world": "1",
@@ -627,7 +769,7 @@ class VirtualModel:
         self.node = scene.nodes.get(self.name)
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -636,6 +778,7 @@ class VirtualScene:
         self.asset_type = asset_type
         self.depsgraph = depsgraph
         self.tags_dir = tags_dir
+        self.granny = granny
         self.regions: list = []
         self.permutations: list = []
         self.global_materials: list = []
@@ -644,6 +787,9 @@ class VirtualScene:
         self.export_info: ExportInfo = None
         self.valid_bones = []
         self.frame_ids = read_frame_id_list()
+        self.structure = set()
+        self.design = set()
+        self.bsps_with_structure = set()
         
     def add(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None):
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
@@ -685,11 +831,29 @@ class FaceSet:
     def __init__(self, array: np.ndarray):
         self.face_props: dict[NWO_FaceProperties_ListItems: bmesh.types.BMLayerItem] = {}
         self.array = array
+        self.annotation_type = None
+        self._set_tri_annotation_type()
         
     def update(self, bm: bmesh.types.BMesh, layer_name: str, value: object):
         layer = bm.faces.layers.int.get(layer_name)
         if layer:
             self.face_props[layer] = value
+            
+    def _set_tri_annotation_type(self):
+        annotation_type = []
+        match self.array.dtype:
+            case np.single:
+                annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Real32", None, self.array.shape[-1]))
+            case np.int32:
+                annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"Int32", None, 1))
+            case _:
+                raise(f"Unimplemented numpy data type: {self.array.dtype}")
+            
+        annotation_type.append(GrannyDataTypeDefinition(0, None, None, 0))
+        
+        type_info_array = (GrannyDataTypeDefinition * 2)(*annotation_type)
+        self.annotation_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
+            
 
 def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh, num_faces: int, scene: VirtualScene, sorted_order) -> dict:
     bm = bmesh.new()
@@ -799,7 +963,29 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     v.array[idx] = value
                     
     bm.free()
-    if sorted_order is None:
-        return {k: v.array for k, v in face_properties.items()}
+    if sorted_order is not None:
+        for v in face_properties.values():
+            v.array = v.array[sorted_order]
+    
+    return face_properties
+    
+def calc_transforms(matrix: Matrix) -> tuple[Array, Array, Array]:
+    '''Gets the affine3, linear3x3, and inverse_linear3x3 from a matrix'''
+    matrix3x3 = matrix.to_3x3()
+    affine3 = (c_float * 3)(*matrix.translation.to_tuple())
+    linear3x3 = (c_float * 9)(*[f for row in matrix3x3 for f in row])
+    
+    determinant3x3 = matrix3x3.determinant()
+    if determinant3x3 != 0.0:
+        adjugate3x3 = matrix3x3.adjugated()
+        inverse = [[adjugate3x3[row][col] / determinant3x3 for col in range(3)] for row in range(3)]
     else:
-        return {k: v.array[sorted_order] for k, v in face_properties.items()}
+        inverse = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+        
+    inverse_linear3x3 = (c_float * 9)(
+        inverse[0][0], inverse[0][1], inverse[0][2],
+        inverse[1][0], inverse[1][1], inverse[1][2],
+        inverse[2][0], inverse[2][1], inverse[2][2]
+    )
+    
+    return affine3, linear3x3, inverse_linear3x3

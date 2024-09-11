@@ -23,10 +23,11 @@ class SidecarFileData:
     blend_path: Path
     permutation: str
     
-    def __init__(self, gr2_path: Path, blend_path: Path, permutation: str):
+    def __init__(self, gr2_path: Path, blend_path: Path, permutation: str, region: str):
         self.gr2_path = gr2_path
         self.blend_path = blend_path
         self.permutation = permutation
+        self.region = region
 
 class Sidecar:
     def __init__(self, sidecar_path_full: Path, sidecar_path: Path, asset_path: Path, asset_name: str, asset_type: AssetType, scene_settings: NWO_ScenePropertiesGroup, corinth: bool, context: bpy.types.Context):
@@ -44,13 +45,15 @@ class Sidecar:
         self.corinth = corinth
         self.context = context
         
+        self.structure = set()
+        self.design = set()
         self.has_armature = False
         self.regions = []
         self.global_materials = []
         self.file_data: dict[list[SidecarFileData]] = defaultdict(list)
         
-    def add_file_data(self, tag_type: str, permutation: str, gr2_path: Path, blend_path: Path):
-        self.file_data[tag_type].append(SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path), permutation))
+    def add_file_data(self, tag_type: str, permutation: str, region: str, gr2_path: Path, blend_path: Path):
+        self.file_data[tag_type].append(SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path), permutation, region))
 
     def build(self):
         m_encoding = "utf-8"
@@ -290,69 +293,46 @@ class Sidecar:
         if self.has_armature:
             self._write_animation_content(content)
 
-    def _write_network_files_bsp(self, content_object, file_data: SidecarFileData):
+    def _write_network_files_bsp(self, content_object, file_data: SidecarFileData, shared=False):
         if file_data.permutation == 'default':
             network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}', Type="")
         else:
             network = ET.SubElement(content_object, "ContentNetwork", Name=f'{self.asset_name}_{file_data.region}_{file_data.permutation}', Type="")
+        if shared:
+            network.attrib["Name"] += "_shared"
         ET.SubElement(network, "InputFile").text = file_data.blend_path
         ET.SubElement(network, "IntermediateFile").text = file_data.gr2_path
 
     def _write_scenario_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         ##### STRUCTURE #####
-        scene_bsps = [b for b in self.structure_bsps if b != "shared"]
-        shared = len(scene_bsps) != len(export_scene.regions)
-        for bsp in scene_bsps:
-            content = ET.SubElement(
-                contents, "Content", Name=f"{self.asset_name}_{bsp}", Type="bsp"
-            )
-            object = ET.SubElement(
-                content,
-                "ContentObject",
-                Name="",
-                Type="scenario_structure_bsp",
-            )
-            bsp_paths = sidecar_paths.get(bsp)
-            for path in bsp_paths:
-                self.write_network_files_bsp(object, path, self.asset_name, bsp)
+        shared_data = self.file_data.get("shared")
+        for bsp in self.structure:
+            content = ET.SubElement(contents, "Content", Name=f"{self.asset_name}_{bsp}", Type="bsp")
+            content_object = ET.SubElement(content, "ContentObject", Name="", Type="scenario_structure_bsp")
+            bsp_data = self.file_data.get("structure")
+            for data in bsp_data:
+                self._write_network_files_bsp(content_object, data)
+            if shared_data:
+                for data in shared_data:
+                    self._write_network_files_bsp(content_object, data, True)
 
-            if shared:
-                shared_paths = sidecar_paths.get('shared')
-                for path in shared_paths:
-                    self._write_network_files_bsp(object, path, self.asset_name, "shared")
-
-            output = ET.SubElement(object, "OutputTagCollection")
-            ET.SubElement(
-                output, "OutputTag", Type="scenario_structure_bsp"
-            ).text = f"{self.tag_path}_{bsp}"
-            ET.SubElement(
-                output, "OutputTag", Type="scenario_structure_lighting_info"
-            ).text = f"{self.tag_path}_{bsp}"
+            output = ET.SubElement(content_object, "OutputTagCollection")
+            ET.SubElement(output, "OutputTag", Type="scenario_structure_bsp").text = f"{self.tag_path}_{bsp}"
+            ET.SubElement(output, "OutputTag", Type="scenario_structure_lighting_info").text = f"{self.tag_path}_{bsp}"
 
         ##### STRUCTURE DESIGN #####
-        scene_design = export_scene.design_bsps
+        for bsp in self.design:
+            design_data = self.file_data.get("design")
+            content = ET.SubElement(contents, "Content", Name=f"{self.asset_name}_{bsp}_structure_design", Type="design")
+            content_object = ET.SubElement(content, "ContentObject", Name="", Type="structure_design")
 
-        for bsp in scene_design:
-            bsp_paths = design_paths.get(bsp)
-            content = ET.SubElement(
-                contents,
-                "Content",
-                Name=f"{self.asset_name}_{bsp}_structure_design",
-                Type="design",
-            )
-            object = ET.SubElement(
-                content, "ContentObject", Name="", Type="structure_design"
-            )
+            if not design_data: continue
+            for data in design_data:
+                self._write_network_files_bsp(content_object, data)
 
-            if not bsp_paths: continue
-            for path in bsp_paths:
-                self.write_network_files_bsp(object, path, self.asset_name, bsp)
-
-            output = ET.SubElement(object, "OutputTagCollection")
-            ET.SubElement(
-                output, "OutputTag", Type="structure_design"
-            ).text = f"{self.tag_path}_{bsp}_structure_design"
+            output = ET.SubElement(content_object, "OutputTagCollection")
+            ET.SubElement(output, "OutputTag", Type="structure_design").text = f"{self.tag_path}_{bsp}_structure_design"
 
     def _write_sky_contents(self, metadata, sidecar_paths):
         contents = ET.SubElement(metadata, "Contents")

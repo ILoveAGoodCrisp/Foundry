@@ -1,4 +1,4 @@
-from ctypes import Structure, c_char_p, c_float, c_int, c_ubyte, c_uint8, c_void_p, cast, pointer
+from ctypes import Structure, c_char_p, c_float, c_int, c_ubyte, c_uint8, c_void_p, cast, memmove, pointer
 from enum import Enum
 from math import pi, radians
 from typing import Literal
@@ -6,8 +6,6 @@ import bmesh
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
-
-from ..export.virtual_geometry import VirtualBone, VirtualMaterial, VirtualMesh, VirtualModel, VirtualNode, VirtualSkeleton
 
 from .formats import GrannyDataTypeDefinition, GrannyTransform
 
@@ -20,12 +18,6 @@ granny_transform_default = GrannyTransform(flags=7, position=(c_float * 3)(0, 0,
 granny_inverse_transform_default = (c_float * 4 * 4)(
             (1, 0, 0, 0),
             (0, 1, 0, 0),
-            (0, 0, 1, 0),
-            (0, 0, 0, 1),
-        )
-granny_inverse_transform_default_mesh = (c_float * 4 * 4)(
-            (0, -1, 0, 0),
-            (1, 0, 0, 0),
             (0, 0, 1, 0),
             (0, 0, 0, 1),
         )
@@ -61,7 +53,7 @@ def granny_transform_parts(matrix_local: Matrix):
     
 class Properties:
     properties = {}
-    def __init__(self, virtual_id: VirtualNode | VirtualMaterial = None):
+    def __init__(self, virtual_id = None):
         if virtual_id: self.properties = utils.get_halo_props_for_granny(virtual_id.props)
         
     def create_properties(self, granny):
@@ -93,7 +85,7 @@ class Properties:
 
 class Material(Properties):
     name: bytes
-    def __init__(self, material: VirtualMaterial):
+    def __init__(self, material):
         super().__init__(material)
         self.name = material.name.encode()
         self.name_str = material.name
@@ -126,7 +118,7 @@ class BoneType(Enum):
     LIGHT = 3
     
 class Bone(Properties):
-    def __init__(self, bone: VirtualBone):
+    def __init__(self, bone):
         super().__init__(bone)
         self.name = bone.name.encode()
         self.parent_index = bone.parent_index
@@ -140,22 +132,28 @@ class Bone(Properties):
         self.local_transform = GrannyTransform(flags=0, position=position, orientation=orientation, scale_shear=scale_shear)
         
         inverted_matrix = matrix_world.inverted()
+        # self.inverse_transform = (c_float * 4 * 4)(
+        #     (inverted_matrix[0][0], inverted_matrix[0][1], inverted_matrix[0][2], inverted_matrix[0][3]),
+        #     (inverted_matrix[1][0], inverted_matrix[1][1], inverted_matrix[1][2], inverted_matrix[1][3]),
+        #     (inverted_matrix[2][0], inverted_matrix[2][1], inverted_matrix[2][2], inverted_matrix[2][3]),
+        #     (inverted_matrix[3][0], inverted_matrix[3][1], inverted_matrix[3][2], inverted_matrix[3][3]),
+        # )
         self.inverse_transform = (c_float * 4 * 4)(
-            (inverted_matrix[0][0], inverted_matrix[0][1], inverted_matrix[0][2], inverted_matrix[0][3]),
-            (inverted_matrix[1][0], inverted_matrix[1][1], inverted_matrix[1][2], inverted_matrix[1][3]),
-            (inverted_matrix[2][0], inverted_matrix[2][1], inverted_matrix[2][2], inverted_matrix[2][3]),
-            (inverted_matrix[3][0], inverted_matrix[3][1], inverted_matrix[3][2], inverted_matrix[3][3]),
+            (inverted_matrix[0][0], inverted_matrix[1][0], inverted_matrix[2][0], inverted_matrix[3][0]),
+            (inverted_matrix[0][1], inverted_matrix[1][1], inverted_matrix[2][1], inverted_matrix[3][1]),
+            (inverted_matrix[0][2], inverted_matrix[1][2], inverted_matrix[2][2], inverted_matrix[3][2]),
+            (inverted_matrix[0][3], inverted_matrix[1][3], inverted_matrix[2][3], inverted_matrix[3][3]),
         )
     
 class Skeleton:
-    def __init__(self, skeleton: VirtualSkeleton, skeleton_node, all_nodes: dict[VirtualNode]):
+    def __init__(self, skeleton, skeleton_node, all_nodes: dict):
         self.granny = None
         self.lod = 0
         self.name = skeleton_node.name.encode()
         self.bones: list[Bone] = []
         self._get_bones(skeleton, all_nodes)
         
-    def _get_bones(self, skeleton: VirtualSkeleton, all_nodes):
+    def _get_bones(self, skeleton, all_nodes):
         # if a virtual bone has no node then it comes from a blender bone. If it does have a node then it came from
         # an object and we need to check its in scope for this export
         self.bones = [Bone(bone) for bone in skeleton.bones if not bone.node or all_nodes.get(bone.name)]
@@ -166,7 +164,7 @@ class Color:
     blue: float
     
 class Vertex:
-    def __init__(self, index: int, mesh: VirtualMesh, transformed_positions: np.ndarray, transformed_normals: np.ndarray):
+    def __init__(self, index: int, mesh, transformed_positions: np.ndarray, transformed_normals: np.ndarray):
         self.position = (c_float * 3)(*transformed_positions[index])
         self.normal = (c_float * 3)(*transformed_normals[index])
         
@@ -231,9 +229,58 @@ class Vertex:
 class VertexData:
     vertices: list[Vertex]
     
-    def __init__(self, node: VirtualNode):
+    def __init__(self, node):
         self.vertices = []
         mesh = node.mesh
+        self.affine3 = (c_float * 3)(0, 0, 0)
+        self.linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        self.inverse_linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        matrix = node.matrix_world
+        self.affine3 = (c_float * 3)(matrix[0][3], matrix[1][3], matrix[2][3])
+        self.linear3x3 = (c_float * 9)(
+            matrix[0][0], matrix[0][1], matrix[0][2],
+            matrix[1][0], matrix[1][1], matrix[1][2],
+            matrix[2][0], matrix[2][1], matrix[2][2]
+        )
+        
+        # Extracting the 3x3 submatrix
+        R = [
+            [matrix[0][0], matrix[0][1], matrix[0][2]],
+            [matrix[1][0], matrix[1][1], matrix[1][2]],
+            [matrix[2][0], matrix[2][1], matrix[2][2]]
+        ]
+
+        # Helper function to calculate the determinant of a 3x3 matrix
+        def determinant_3x3(m):
+            return (
+                m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+                m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+            )
+
+        # Helper function to calculate the adjugate of a 3x3 matrix
+        def adjugate_3x3(m):
+            return [
+                [(m[1][1] * m[2][2] - m[1][2] * m[2][1]), -(m[0][1] * m[2][2] - m[0][2] * m[2][1]), (m[0][1] * m[1][2] - m[0][2] * m[1][1])],
+                [-(m[1][0] * m[2][2] - m[1][2] * m[2][0]), (m[0][0] * m[2][2] - m[0][2] * m[2][0]), -(m[0][0] * m[1][2] - m[0][2] * m[1][0])],
+                [(m[1][0] * m[2][1] - m[1][1] * m[2][0]), -(m[0][0] * m[2][1] - m[0][1] * m[2][0]), (m[0][0] * m[1][1] - m[0][1] * m[1][0])]
+            ]
+
+        # Calculate the inverse if the determinant is not zero
+        det = determinant_3x3(R)
+        if det != 0:
+            adj = adjugate_3x3(R)
+            inv_R = [[adj[row][col] / det for col in range(3)] for row in range(3)]
+        else:
+            inv_R = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]  # Handle singular matrix case
+
+        # Flatten the inverse matrix into a 1D array suitable for c_float * 9
+        self.inverse_linear3x3 = (c_float * 9)(
+            inv_R[0][0], inv_R[0][1], inv_R[0][2],
+            inv_R[1][0], inv_R[1][1], inv_R[1][2],
+            inv_R[2][0], inv_R[2][1], inv_R[2][2]
+        )
+
         if node.matrix_world == identity_matrix:
             self.vertices = [Vertex(i, mesh, mesh.positions, mesh.normals) for i in range(mesh.num_loops)]
         else:
@@ -277,7 +324,7 @@ class TriTopology:
     groups: list
     indices: c_int
     
-    def __init__(self, mesh: VirtualMesh):
+    def __init__(self, mesh):
         self.groups = []
         self.granny = None
         self.indices = (c_int * len(mesh.indices))(*mesh.indices)
@@ -299,13 +346,13 @@ class BoneBinding:
         self.name = name.encode()
     
 class Mesh(Properties):
-    def __init__(self, node: VirtualNode, data_index: int, materials: dict):
+    def __init__(self, node, data_index: int, materials: dict):
         super().__init__(node)
         self.granny = None
         self.name = node.name.encode()
-        self.primary_vertex_data_index = data_index
-        self.primary_topology_index = data_index
         mesh = node.mesh
+        self.primary_vertex_data = node.granny_vertex_data
+        self.primary_topology = mesh.granny_tri_topology
         self.material_bindings = list({mat[0].index for mat in mesh.materials})
         self.bone_bindings = [BoneBinding(name) for name in node.bone_bindings]
 
@@ -315,7 +362,7 @@ class Model:
     initial_placement: GrannyTransform
     mesh_bindings: tuple[int]
     
-    def __init__(self, model: VirtualModel, skeleton_index: int, mesh_binding_indexes: list[int]):
+    def __init__(self, model, skeleton_index: int, mesh_binding_indexes: list[int]):
         self.name = model.name.encode()
         node = model.node
         self.skeleton_index = skeleton_index
