@@ -87,14 +87,14 @@ class VirtualMesh:
         self.vertex_weighted = vertex_weighted
         self.num_loops = 0
         self._setup(ob, scene)
-        self.to_granny_data()
+        self.to_granny_data(scene)
         
         
         # print("Positions", self.positions)
         
-    def to_granny_data(self):
+    def to_granny_data(self, scene):
         self._granny_tri_topology()
-        self._granny_vertex_data()
+        self._granny_vertex_data(scene)
         
     def _granny_tri_topology(self):
         indices = (c_int * self.num_indices)(*self.indices)
@@ -137,7 +137,7 @@ class VirtualMesh:
             
         self.granny_tri_topology = pointer(granny_tri_topology)
         
-    def _granny_vertex_data(self):
+    def _granny_vertex_data(self, scene: 'VirtualScene'):
         data = [self.positions, self.normals]
         types = [
             (GrannyMemberType.granny_real32_member.value, b"Position", None, 3),
@@ -147,7 +147,7 @@ class VirtualMesh:
             b"Position",
             b"Normal",
         ]
-        if self.bone_weights:
+        if self.bone_weights is not None:
             data.append(self.bone_weights)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneWeights", None, 4))
             type_names.append(b"BoneWeights")
@@ -161,13 +161,16 @@ class VirtualMesh:
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name, None, 3))
             type_names.append(name)
             
-        if self.lighting_texcoords:
+        if self.lighting_texcoords is not None:
             data.append(self.lighting_texcoords)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"TextureCoordinateslighting", None, 3))
             type_names.append(b"lighting")
             
         for idx, vcolors in enumerate(self.vertex_colors):
-            name = f"DiffuseColor{idx}".encode()
+            if scene.corinth:
+                name = f"colorSet{idx + 1}".encode()
+            else:
+                name = f"DiffuseColor{idx}".encode()
             data.append(vcolors)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name, None, 3))
             type_names.append(name)
@@ -264,7 +267,7 @@ class VirtualMesh:
             zeros_column = np.zeros((loop_uvs.shape[0], 1), dtype=np.single)
             
             if layer.name.lower() == "lighting":
-                self.lighting_texcoords = np.append(np.hstack((loop_uvs, zeros_column)))
+                self.lighting_texcoords = np.hstack((loop_uvs, zeros_column))
             else:
                 self.texcoords.append(np.hstack((loop_uvs, zeros_column)))
                 
@@ -855,11 +858,15 @@ class FaceSet:
             
     def _set_tri_annotation_type(self):
         annotation_type = []
+        if len(self.array.shape) == 1:
+            size = 1
+        else:
+            size = self.array.shape[1]
         match self.array.dtype:
             case np.single:
-                annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Real32", None, self.array.shape[-1]))
+                annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Real32", None, size))
             case np.int32:
-                annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"Int32", None, 1))
+                annotation_type.append(GrannyDataTypeDefinition(GrannyMemberType.granny_int32_member.value, b"Int32", None, size))
             case _:
                 raise(f"Unimplemented numpy data type: {self.array.dtype}")
             
@@ -937,7 +944,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
         if face_prop.lightmap_additive_transparency_override:
             face_properties.setdefault("bungie_lightmap_additive_transparency", FaceSet(np.zeros((num_faces, 4), np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_additive_transparency))
         if face_prop.lightmap_resolution_scale_override:
-            face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
+            # face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
             face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, 3, np.int32))).update(bm, face_prop.layer_name, face_prop.lightmap_resolution_scale)
         if face_prop.lightmap_type_override:
             if face_prop.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
@@ -954,20 +961,20 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
         if face_prop.emissive_override:
             face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_power)
             if face_prop.material_lighting_emissive_power > 0:
-                face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.zeros((num_faces, 4), np.single))).update(bm, face_prop.layer_name, utils.color_3p(face_prop.material_lighting_emissive_color))
-                if face_prop.lighting_emissive_per_unit:
+                face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.zeros((num_faces, 3), np.single))).update(bm, face_prop.layer_name, utils.color_3p(face_prop.material_lighting_emissive_color))
+                if face_prop.material_lighting_emissive_per_unit:
                     face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
                 if face_prop.material_lighting_emissive_quality > 0:
                     face_properties.setdefault("bungie_lighting_emissive_quality", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_quality)
                 if face_prop.material_lighting_use_shader_gel:
                     face_properties.setdefault("bungie_lighting_use_shader_gel", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
-                if face_properties.material_lighting_bounce_ratio > 0:
+                if face_prop.material_lighting_bounce_ratio > 0:
                     face_properties.setdefault("bungie_lighting_bounce_ratio", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_bounce_ratio)
-                if face_prop.lighting_attenuation_cutoff > 0:
+                if face_prop.material_lighting_attenuation_cutoff > 0:
                     face_properties.setdefault("bungie_lighting_attenuation_enabled", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
                     face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_cutoff)
                     face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff)
-                if face_prop.lighting_emissive_focus > 0:
+                if face_prop.material_lighting_emissive_focus > 0:
                     face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, degrees(face_prop.material_lighting_emissive_focus) / 180)
         
     for idx, face in enumerate(bm.faces):
