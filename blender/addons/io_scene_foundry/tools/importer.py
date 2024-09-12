@@ -2001,7 +2001,7 @@ class NWOImporter:
         anim_name = path.with_suffix("").name
         print(f"--- {anim_name}")
         with utils.MutePrints():
-            bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
+            bpy.ops.import_scene.jma(filepath=str(path), fix_rotations=legacy_fix_rotations)
         if bpy.data.actions:
             new_animations = [a for a in bpy.data.actions if a not in existing_animations]
             if not new_animations:

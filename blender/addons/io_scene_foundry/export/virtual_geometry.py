@@ -881,20 +881,20 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                             
                 side_layers[two_sided_layer] = sides_value
                     
-                face_properties.setdefault("bungie_face_sides", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, -sides_value)
+                face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, fp_defaults["bungie_face_sides"], np.uint8))).update(bm, face_prop.layer_name, -sides_value)
             
         if face_prop.face_transparent_override:
             transparent_layer = bm.faces.layers.int(face_prop.layer_name)
             if transparent_layer:
                 side_layers[transparent_layer] = 1
-                face_properties.setdefault("bungie_face_sides", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, -FaceSides.one_sided_transparent.value)
+                face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, fp_defaults["bungie_face_sides"], np.uint8))).update(bm, face_prop.layer_name, -FaceSides.one_sided_transparent.value)
             
         if face_prop.face_draw_distance_override:
             match face_prop.face_draw_distance:
                 case '_connected_geometry_face_draw_distance_detail_mid':
-                    face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_mid.value)
+                    face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.full(num_faces, fp_defaults["bungie_face_draw_distance"], np.uint8))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_mid.value)
                 case '_connected_geometry_face_draw_distance_detail_close':
-                    face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_close.value)
+                    face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.full(num_faces, fp_defaults["bungie_face_draw_distance"], np.uint8))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_close.value)
                     
         if face_prop.face_global_material_override:
             face_properties.setdefault("bungie_face_global_material", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
