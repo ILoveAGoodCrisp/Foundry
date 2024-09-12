@@ -112,12 +112,13 @@ class NWO_MaterialPropertiesGroup(PropertyGroup):
         get=get_render_material,
     )
     
-    # Export Material props
+    # MATERIAL PROPERTIES
     
+    has_material_properties: bpy.props.BoolProperty(
+        name="Has Material Properties",
+        description="Material will apply the specified game properties to the meshes it is assigned to"
+    )
     
-    # LE MATERIAL PROPERTIES
-    
-            
     # def update_lighting_attenuation_falloff(self, context):
     #     if not context.scene.nwo.transforming:
     #         if self.material_lighting_attenuation_falloff > self.material_lighting_attenuation_cutoff:

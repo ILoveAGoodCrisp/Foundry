@@ -13,7 +13,7 @@ def snake(text: str) -> str:
 class BungieEnum(Enum):
     @classmethod
     def names(cls):
-        text = str(list(map(lambda c: f"_connected_geometry_{snake(cls.__name__)}_{c.name}", cls)))
+        text = str(list(map(lambda c: f"_connected_geometry_{snake(cls.__name__)}_{c.name.strip('_')}", cls)))
         return f"#({text.strip('[]')})".encode()
     @classmethod
     def values(cls):
@@ -85,6 +85,12 @@ class LightmapType(BungieEnum):
     per_pixel = 0
     per_vertex = 1
     
+class MeshTessellationDensity(BungieEnum):
+    none = 0
+    _4x = 1
+    _9x = 2
+    _36x = 3
+    
 class ExportInfo:
     def __init__(self, regions, global_materials):
         self.export_user = getuser()
@@ -96,10 +102,12 @@ class ExportInfo:
         
         # self.object_type = ObjectType
         # self.mesh_type = MeshType
+        self.face_type = FaceType
         self.face_mode = FaceMode
         self.face_sides = FaceSides
         self.face_draw_distance = FaceDrawDistance
         self.lightmap_type = LightmapType
+        self.mesh_tessellation_density = MeshTessellationDensity
         
         self.regions = regions
         self.global_material = global_materials

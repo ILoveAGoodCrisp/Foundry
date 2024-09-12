@@ -14,7 +14,7 @@ from .tag_builder import build_tags
 
 from .build_sidecar_granny import Sidecar
 
-from .export_info import ExportInfo
+from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, MeshTessellationDensity
 
 from ..props.mesh import NWO_MeshPropertiesGroup
 
@@ -28,6 +28,35 @@ from ..ui.bar import NWO_HaloExportPropertiesGroup
 from ..props.scene import NWO_ScenePropertiesGroup
 from ..constants import GameVersion, VALID_MESHES, VALID_OBJECTS
 from ..tools.asset_types import AssetType
+
+face_prop_defaults = {
+    "bungie_face_type": 0,
+    "bungie_face_mode": 0,
+    "bungie_face_sides": 0,
+    "bungie_face_draw_distance": 0,
+    "bungie_ladder": 0,
+    "bungie_slip_surface": 0,
+    "bungie_decal_offset": 0,
+    "bungie_no_shadow": 0,
+    "bungie_invisible_to_pvs": 0,
+    "bungie_no_lightmap": 0,
+    "bungie_precise_position": 0,
+    "bungie_mesh_tessellation_density": 0,
+    "bungie_lightmap_additive_transparency": (0.0, 0.0, 0.0, 0.0),
+    "bungie_lightmap_resolution_scale": 3,
+    "bungie_lightmap_type": 0,
+    "bungie_lightmap_translucency_tint_color": (0.0, 0.0, 0.0, 0.0),
+    "bungie_lightmap_lighting_from_both_sides": 0,
+    "bungie_lighting_emissive_power": 0.0,
+    "bungie_lighting_emissive_per_unit": 0,
+    "bungie_lighting_emissive_quality": 0.0,
+    "bungie_lighting_use_shader_gel": 0,
+    "bungie_lighting_bounce_ratio": 0.0,
+    "bungie_lighting_attenuation_enabled": 0,
+    "bungie_lighting_attenuation_cutoff": 0.0,
+    "bungie_lighting_attenuation_falloff": 0.0,
+    "bungie_lighting_emissive_focus": 0.0,
+}
 
 class ExportTagType(Enum):
     RENDER = 0
@@ -82,15 +111,14 @@ class ExportScene:
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))
         
     def ready_scene(self):
-        print("scene ready start")
+        print("\n\nProcessing Scene")
+        print("-----------------------------------------------------------------------\n")
         utils.exit_local_view(self.context)
         self.context.view_layer.update()
         utils.set_object_mode(self.context)
         self.disabled_collections = utils.disable_excluded_collections(self.context)
-        print("scene ready end")
         
     def get_initial_export_objects(self):
-        print("initial obs")
         self.depsgraph = self.context.evaluated_depsgraph_get()
         if self.asset_type == AssetType.ANIMATION:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type == "ARMATURE"}
@@ -107,18 +135,8 @@ class ExportScene:
             default_material = VirtualMaterial("invalid", r"shaders\invalid.shader", self.virtual_scene)
             
         self.virtual_scene.materials["invalid"] = default_material
-        print("initial end")
-            
-    def setup_skeleton(self):
-        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}: return
-        print("skeleton start")
-        armature = utils.get_rig(self.context)
-        if armature:
-            self.virtual_scene.set_skeleton(armature)
-        print("skeleton end")
     
-    def create_virtual_geometry(self):
-        start = time.perf_counter()
+    def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
         ob_halo_data = {}
         num_export_objects = len(self.export_objects)
@@ -130,8 +148,8 @@ class ExportScene:
                 result = self.get_halo_props(ob)
                 if result is None:
                     continue
-                props, region, permutation = result
-                ob_halo_data[ob] = (props, region, permutation)
+                props, region, permutation, fp_defaults = result
+                ob_halo_data[ob] = (props, region, permutation, fp_defaults)
                 parent = ob.parent
                 if parent:
                     object_parent_dict[ob] = parent
@@ -150,22 +168,12 @@ class ExportScene:
         
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = ob_halo_data
-        
-        # process = "--- Building Virtual Geometry"
-        # len_export_obs = len(ob_halo_data)
-        # with utils.Spinner():
-        #     utils.update_job_count(process, "", 0, len_export_obs)
-        #     for idx, (ob, (props, region, permutation)) in enumerate(ob_halo_data.items()):
-        #         self.virtual_scene.add(ob, props, region, permutation)
-        #         utils.update_job_count(process, "", idx, len_export_obs)
-        #     utils.update_job_count(process, "", len_export_obs, len_export_obs)
-            
-        # print("virtual geo time: ", time.perf_counter() - start)
             
     def get_halo_props(self, ob: bpy.types.Object):
         props = {}
         region = self.default_region
         permutation = self.default_permutation
+        fp_defaults = {}
         nwo = ob.nwo
         object_type = utils.get_object_type(ob)
         
@@ -212,7 +220,7 @@ class ExportScene:
             if nwo.mesh_type == '':
                 nwo.mesh_type = '_connected_geometry_mesh_type_default'
             if utils.type_valid(nwo.mesh_type, self.asset_type.name.lower(), self.game_version):
-                props = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region)
+                props, fp_defaults = self._setup_mesh_properties(ob, ob.nwo, self.asset_type.supports_bsp, props, region)
                 if props is None:
                     return
                 
@@ -231,21 +239,7 @@ class ExportScene:
                 self.warning_hit = True
                 return utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
         
-        return props, region, permutation
-    
-    def _set_global_material_prop(self, ob: bpy.types.Object, props: dict, global_material=""):
-        if not global_material:
-            global_material = ob.data.nwo.face_global_material.strip().replace(' ', "_")
-        if global_material:
-            if self.corinth and props.get("bungie_mesh_type") in ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision'):
-                props["bungie_mesh_global_material"] = global_material
-                props["bungie_mesh_poop_collision_override_global_material"] = "1"
-            else:
-                props["bungie_face_global_material"] = global_material
-                
-            self.global_materials.add(global_material)
-
-        return global_material
+        return props, region, permutation, fp_defaults
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str):
         mesh_type = ob.data.nwo.mesh_type
@@ -362,24 +356,10 @@ class ExportScene:
         elif self.asset_type == AssetType.DECORATOR_SET:
             props["bungie_mesh_type"] = '_connected_geometry_mesh_type_decorator'
             props["bungie_mesh_decorator_lod"] = str(decorator_int(ob))
-            
-        uses_global_mat = self.asset_type.supports_global_materials and (props.get("bungie_mesh_type") in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_default")
-        if uses_global_mat:
-            global_material = self._set_global_material_prop(ob, props)
-            if global_material:
-                self.global_materials.add(global_material)
-                
-        for idx, face_prop in enumerate(data_nwo.face_props):
-            if face_prop.region_name_override:
-                region = face_prop.region_name
-                if region not in self.regions:
-                    utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
-            if uses_global_mat and face_prop.face_global_material_override:
-                mat = face_prop.face_global_material.strip().replace(' ', "_")
-                if mat:
-                    self.global_materials.add(mat)
+                    
+        fp_defaults = self._setup_mesh_level_props(data_nwo, props)
 
-        return props
+        return props, fp_defaults
         
     def _setup_physics_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict):
         prim_type = nwo.mesh_primitive_type
@@ -397,7 +377,6 @@ class ExportScene:
         props["bungie_marker_all_regions"] = utils.bool_str(not nwo.marker_uses_regions)
         if nwo.marker_uses_regions:
             props["bungie_marker_region"] = region
-            props["bungie_face_region"] = region
             m_perms = nwo.marker_permutations
             if m_perms:
                 m_perm_set = set()
@@ -652,7 +631,184 @@ class ExportScene:
                 props["bungie_marker_light_cone_curve"] = nwo.marker_light_cone_curve
                 
         return props
+    
+    def _setup_mesh_level_props(self, ob: bpy.types.Object, props: dict, region: str):
+        data_nwo: NWO_MeshPropertiesGroup = ob.data.nwo
+        face_props = data_nwo.face_props
+        fp_defaults = face_prop_defaults.copy()
+        
+        uses_global_mat = self.asset_type.supports_global_materials and (props.get("bungie_mesh_type") in ("_connected_geometry_mesh_type_collision", "_connected_geometry_mesh_type_physics", "_connected_geometry_mesh_type_poop", "_connected_geometry_mesh_type_poop_collision") or self.asset_type == 'scenario' and not self.corinth and ob.get("bungie_mesh_type") == "_connected_geometry_mesh_type_default")
+        if uses_global_mat:
+            global_material = ob.data.nwo.face_global_material.strip().replace(' ', "_")
+            if global_material:
+                if self.corinth and props.get("bungie_mesh_type") in ('_connected_geometry_mesh_type_poop', '_connected_geometry_mesh_type_poop_collision'):
+                    props["bungie_mesh_global_material"] = global_material
+                    props["bungie_mesh_poop_collision_override_global_material"] = "1"
+                self.global_materials.add(global_material)
+                if not test_face_prop(face_props, "face_global_material_override"):
+                    props["bungie_face_global_material"] = global_material
+                    
+        if not test_face_prop(face_props, "region_name_override"):
+            props["bungie_face_region"] = region
             
+        for idx, face_prop in enumerate(data_nwo.face_props):
+            if face_prop.region_name_override:
+                region = face_prop.region_name
+                if region not in self.regions:
+                    utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+            if uses_global_mat and face_prop.face_global_material_override:
+                mat = face_prop.face_global_material.strip().replace(' ', "_")
+                if mat:
+                    self.global_materials.add(mat)
+        
+        two_sided, transparent, face_two_sided, face_transparent = False, False, False, False
+        if data_nwo.face_two_sided:
+            two_sided = True
+            if test_face_prop(face_props, "face_two_sided_override"):
+                face_two_sided = True
+                
+        if data_nwo.face_transparent:
+            transparent = True
+            if test_face_prop(face_props, "face_transparent_override"):
+                face_transparent = True
+        
+        if two_sided or transparent:
+            if face_two_sided or face_transparent:
+                if face_two_sided and face_transparent:
+                    if self.corinth:
+                        match data_nwo.face_two_sided_type:
+                            case 'mirror':
+                                fp_defaults["bungie_face_sides"] = FaceSides.mirror_transparent
+                            case 'keep':
+                                fp_defaults["bungie_face_sides"] = FaceSides.keep_transparent
+                            case _:
+                                fp_defaults["bungie_face_sides"] = FaceSides.two_sided_transparent
+                    else:
+                        fp_defaults["bungie_face_sides"] = FaceSides.two_sided_transparent
+                    
+                elif face_two_sided:
+                    if self.corinth:
+                        match data_nwo.face_two_sided_type:
+                            case 'mirror':
+                                fp_defaults["bungie_face_sides"] = FaceSides.mirror
+                            case 'keep':
+                                fp_defaults["bungie_face_sides"] = FaceSides.keep
+                            case _:
+                                fp_defaults["bungie_face_sides"] = FaceSides.two_sided
+                    else:
+                        fp_defaults["bungie_face_sides"] = FaceSides.two_sided
+                else:
+                    fp_defaults["bungie_face_sides"] = FaceSides.one_sided_transparent
+                    
+            else:
+                face_sides_value = "_connected_geometry_face_sides_"
+                if data_nwo.face_two_sided:
+                    if not self.corinth:
+                        face_sides_value += "two_sided"
+                    else:
+                        face_sides_value += data_nwo.face_two_sided_type
+                        
+                    if transparent:
+                        face_sides_value += "_transparent"
+                    props["bungie_face_sides"] = face_sides_value
+                    
+                elif transparent:
+                    face_sides_value += "one_sided_transparent"
+                    props["bungie_face_sides"] = face_sides_value
+                    
+        
+        if data_nwo.render_only:
+            if test_face_prop(face_props, "render_only_override"):
+                fp_defaults["bungie_face_mode"] = FaceMode.render_only
+            else:
+                props["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
+        elif data_nwo.collision_only:
+            if test_face_prop(face_props, "collision_only_override"):
+                fp_defaults["bungie_face_mode"] = FaceMode.collision_only
+            else:
+                props["bungie_face_mode"] = "_connected_geometry_face_mode_collision_only"
+        elif data_nwo.sphere_collision_only:
+            if test_face_prop(face_props, "sphere_collision_only_override"):
+                fp_defaults["bungie_face_mode"] = FaceMode.sphere_collision_only
+            else:
+                props["bungie_face_mode"] = "_connected_geometry_face_mode_sphere_collision_only"
+        elif data_nwo.breakable:
+            if test_face_prop(face_props, "breakable_override"):
+                fp_defaults["bungie_face_mode"] = FaceMode.breakable
+            else:
+                props["bungie_face_mode"] = "_connected_geometry_face_mode_breakable"
+                
+        if data_nwo.face_draw_distance != "_connected_geometry_face_draw_distance_none":
+            if test_face_prop(face_props, "face_draw_distance_override"):
+                match data_nwo.face_draw_distance:
+                    case '_connected_geometry_face_draw_distance_detail_mid':
+                        fp_defaults["bungie_face_draw_distance"] = FaceDrawDistance.detail_mid
+                    case '_connected_geometry_face_draw_distance_detail_close':
+                        fp_defaults["bungie_face_draw_distance"] = FaceDrawDistance.detail_close
+            else:
+                props["bungie_face_draw_distance"] = data_nwo.face_draw_distance
+            
+        if data_nwo.ladder:
+            if test_face_prop(face_props, "ladder_override"):
+                fp_defaults["bungie_ladder"] = 1
+            else:
+                props["bungie_ladder"] = "1"
+        if data_nwo.slip_surface:
+            if test_face_prop(face_props, "slip_surface_override"):
+                fp_defaults["bungie_slip_surface"] = 1
+            else:
+                props["bungie_slip_surface"] = "1"
+        if data_nwo.decal_offset:
+            if test_face_prop(face_props, "decal_offset_override"):
+                fp_defaults["bungie_decal_offset"] = 1
+            else:
+                props["bungie_decal_offset"] = "1"
+        if data_nwo.no_shadow:
+            if test_face_prop(face_props, "no_shadow_override"):
+                fp_defaults["bungie_no_shadow"] = 1
+            else:
+                props["bungie_no_shadow"] = "1"
+        if data_nwo.no_pvs:
+            if test_face_prop(face_props, "no_pvs_override"):
+                fp_defaults["bungie_invisible_to_pvs"] = 1
+            else:
+                props["bungie_invisible_to_pvs"] = "1"
+        if data_nwo.no_lightmap:
+            if test_face_prop(face_props, "no_lightmap_override"):
+                fp_defaults["bungie_no_lightmap"] = 1
+            else:
+                props["bungie_no_lightmap"] = "1"
+        if data_nwo.precise_position:
+            if test_face_prop(face_props, "precise_position_override"):
+                fp_defaults["bungie_precise_position"] = 1
+            else:
+                props["bungie_precise_position"] = "1"
+        if data_nwo.mesh_tessellation_density != "_connected_geometry_mesh_tessellation_density_none":
+            if test_face_prop(face_props, "mesh_tessellation_density_override"):
+                match data_nwo.mesh_tessellation_density:
+                    case '_connected_geometry_mesh_tessellation_density_4x':
+                        fp_defaults["bungie_mesh_tessellation_density"] = MeshTessellationDensity._4x
+                    case '_connected_geometry_mesh_tessellation_density_9x':
+                        fp_defaults["bungie_mesh_tessellation_density"] = MeshTessellationDensity._9x
+                    case '_connected_geometry_mesh_tessellation_density_36x':
+                        fp_defaults["bungie_mesh_tessellation_density"] = MeshTessellationDensity._36x
+            else:
+                props["bungie_mesh_tessellation_density"] = data_nwo.mesh_tessellation_density
+                
+        if data_nwo.lightmap_additive_transparency_active:
+            if test_face_prop(face_props, "lightmap_additive_transparency_override"):
+                fp_defaults["bungie_lightmap_additive_transparency"] = utils.color_4p(data_nwo.lightmap_additive_transparency)
+            else:
+                props["bungie_lightmap_additive_transparency"] = utils.color_4p_str(data_nwo.lightmap_additive_transparency)
+                
+        if data_nwo.lightmap_resolution_scale_active:
+            if test_face_prop(face_props, "lightmap_resolution_scale_override"):
+                fp_defaults["bungie_lightmap_resolution_scale"] = data_nwo.lightmap_resolution_scale
+            else:
+                props["bungie_lightmap_resolution_scale"] = str(data_nwo.lightmap_resolution_scale)
+                
+        return fp_defaults
+         
     def create_virtual_tree(self):
         '''Creates a tree of object relations'''
         process = "--- Building Geometry Tree"
@@ -717,10 +873,8 @@ class ExportScene:
     def _export_models(self):
         if not self.groups: return
         
-        print("\n\nStarting Models Export")
-        print(
-            "-----------------------------------------------------------------------\n"
-        )
+        print("\n\nExporting Geometry")
+        print("-----------------------------------------------------------------------\n")
         for name, nodes in self.groups.items():
             granny_path = self._get_export_path(name)
             perm = nodes[0].permutation
@@ -758,28 +912,15 @@ class ExportScene:
             
     def _export_granny_model(self, filepath: Path, virtual_objects: dict[VirtualNode]):
         self.granny.new(filepath)
-        #start = time.perf_counter()
-        #tree_start = time.perf_counter()
-        #print("from tree start")
         self.granny.from_tree(self.virtual_scene, virtual_objects)
-        #print("from tree", time.perf_counter() - tree_start)
-        creation_start = time.perf_counter()
         self.granny.create_materials()
         self.granny.create_skeletons(export_info=self.export_info)
         self.granny.create_vertex_data()
         self.granny.create_tri_topologies()
         self.granny.create_meshes()
         self.granny.create_models()
-        print("creation", time.perf_counter() - creation_start)
-        transform_start = time.perf_counter()
         #self.granny.transform()
-        print("transform", time.perf_counter() - transform_start)
-        save_start = time.perf_counter()
         self.granny.save()
-        print("save", time.perf_counter() - save_start)
-        #print("done")
-        #end = time.perf_counter()
-        #print("granny time: ", end - start)
         if filepath.exists():
             os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
         
@@ -821,6 +962,8 @@ class ExportScene:
         #             return Path(self.models_export_dir, f"{self.asset_name}_{permutation.name}_{tag_type.name.lower()}.gr2")
         
     def write_sidecar(self):
+        print("\n\nWriting Tags")
+        print("-----------------------------------------------------------------------\n")
         self.sidecar.has_armature = bool(self.virtual_scene.skeleton_node)
         self.sidecar.regions = self.regions
         self.sidecar.global_materials = self.global_materials_list
@@ -895,3 +1038,10 @@ def create_parent_mapping(depsgraph: bpy.types.Depsgraph):
                 export_child.permutation = parent_permutation
             
     return collection_map
+
+def test_face_prop(face_props: NWO_MeshPropertiesGroup, attribute: str):
+    for item in face_props:
+        if getattr(item, attribute):
+            return True
+        
+    return False

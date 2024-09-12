@@ -112,7 +112,6 @@ class Granny:
         
         
     def from_tree(self, scene, nodes):
-        from_tree_start = time.perf_counter()
         self.export_materials = [Material(mat) for mat in scene.materials.values()]
         self.export_meshes = []
         self.export_models = []
@@ -136,8 +135,6 @@ class Granny:
             
         if meshes:
             self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
-            
-        print("from tree ", time.perf_counter() - from_tree_start)
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()

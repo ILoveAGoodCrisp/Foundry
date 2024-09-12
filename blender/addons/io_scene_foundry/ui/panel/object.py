@@ -403,6 +403,7 @@ class NWO_OT_FaceLayerAdd(bpy.types.Operator):
 
         layer_name, face_count = self.add_face_layer(ob.data, self.fm_name)
         item = nwo.face_props.add()
+        nwo.face_props_active_index = len(nwo.face_props) - 1
 
         toggle_override(self.options, True, item)
 
