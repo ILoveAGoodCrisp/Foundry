@@ -2,6 +2,7 @@ from collections import defaultdict
 from ctypes import CDLL, byref, c_uint32, cast, cdll, create_string_buffer, pointer, sizeof, string_at
 from pathlib import Path
 import struct
+import time
 
 import bmesh
 import bpy
@@ -111,6 +112,7 @@ class Granny:
         
         
     def from_tree(self, scene, nodes):
+        from_tree_start = time.perf_counter()
         self.export_materials = [Material(mat) for mat in scene.materials.values()]
         self.export_meshes = []
         self.export_models = []
@@ -134,6 +136,8 @@ class Granny:
             
         if meshes:
             self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
+            
+        print("from tree ", time.perf_counter() - from_tree_start)
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -254,79 +258,6 @@ class Granny:
         vertex_datas = (POINTER(GrannyVertexData) * num_vertex_datas)(*self.export_vertex_datas)
         self.file_info.vertex_data_count = num_vertex_datas
         self.file_info.vertex_datas = vertex_datas
-        
-    # def create_vertex_data(self):
-    #     num_vertex_datas = len(self.export_vertex_datas)
-    #     vertex_datas = (POINTER(GrannyVertexData) * num_vertex_datas)()
-
-    #     for i, export_vertex_data in enumerate(self.export_vertex_datas):
-    #         granny_vertex_data = GrannyVertexData()
-    #         self._populate_vertex_data(granny_vertex_data, export_vertex_data)
-    #         vertex_datas[i] = pointer(granny_vertex_data)
-    #         export_vertex_data.granny = vertex_datas[i]
-
-    #     self.file_info.vertex_data_count = num_vertex_datas
-    #     self.file_info.vertex_datas = vertex_datas
-        
-    # # def create_vertex_data(self):
-    # #     num_vertex_datas = len(self.export_meshes)
-    # #     vertex_datas = (POINTER(GrannyVertexData) * num_vertex_datas)()
-
-    # #     for i, export_mesh in enumerate(self.export_meshes):
-    # #         granny_vertex_data = GrannyVertexData()
-    # #         self._populate_vertex_data(granny_vertex_data, export_mesh)
-    # #         vertex_datas[i] = pointer(granny_vertex_data)
-    # #         # export_vertex_data.granny = vertex_datas[i]
-
-    # #     self.file_info.vertex_data_count = num_vertex_datas
-    # #     self.file_info.vertex_datas = vertex_datas
-
-    # # def _populate_vertex_data(self, granny_vertex_data, export_mesh):
-    # #     names_array = (c_char_p * len(vertex_names))(*vertex_names)
-    # #     granny_vertex_data.vertex_component_names = cast(names_array, POINTER(c_char_p))
-    # #     granny_vertex_data.vertex_component_name_count = len(vertex_names)
-
-    # #     vertex_type_info_array = (GrannyDataTypeDefinition * len(vertex_type_info))(*vertex_type_info)
-    # #     granny_vertex_data.vertex_type = cast(vertex_type_info_array, POINTER(GrannyDataTypeDefinition))
-
-    # #     self._transform_vertices(len(export_mesh.vertices), granny_vertex_data.vertex_type, export_mesh.vertices, export_mesh.affine3, export_mesh.linear3x3, export_mesh.inverse_linear3x3, True, False)
-    # #     granny_vertex_data.vertices = cast(export_mesh.vertices, POINTER(c_ubyte))
-    # #     granny_vertex_data.vertex_count = len(export_mesh.vertices)
-        
-    # def _populate_vertex_data(self, granny_vertex_data, export_mesh):
-    #     names_array = (c_char_p * len(vertex_names))(*vertex_names)
-    #     granny_vertex_data.vertex_component_names = cast(names_array, POINTER(c_char_p))
-    #     granny_vertex_data.vertex_component_name_count = len(vertex_names)
-
-    #     vertex_type_info_array = (GrannyDataTypeDefinition * len(vertex_type_info))(*vertex_type_info)
-    #     granny_vertex_data.vertex_type = cast(vertex_type_info_array, POINTER(GrannyDataTypeDefinition))
-
-    #     vertex_byte_array = self._convert_vertices_to_bytearray(export_mesh.vertices)
-
-    #     vertex_array = (c_ubyte * len(vertex_byte_array))(*vertex_byte_array)
-    #     self._transform_vertices(len(export_mesh.vertices), granny_vertex_data.vertex_type, vertex_array, export_mesh.affine3, export_mesh.linear3x3, export_mesh.inverse_linear3x3, True, False)
-    #     granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
-    #     granny_vertex_data.vertex_count = len(export_mesh.vertices)
-
-    # def _convert_vertices_to_bytearray(self, vertices):
-    #     vertex_byte_array = bytearray()
-
-    #     for export_vertex in vertices:
-    #         vertex_byte_array.extend(export_vertex.position)
-    #         vertex_byte_array.extend(export_vertex.bone_weights)
-    #         vertex_byte_array.extend(export_vertex.bone_indices)
-    #         vertex_byte_array.extend(export_vertex.normal)
-    #         vertex_byte_array.extend(export_vertex.uvs0)
-    #         vertex_byte_array.extend(export_vertex.uvs1)
-    #         vertex_byte_array.extend(export_vertex.uvs2)
-    #         vertex_byte_array.extend(export_vertex.uvs3)
-    #         vertex_byte_array.extend(export_vertex.lighting_uv)
-    #         vertex_byte_array.extend(export_vertex.vertex_color0)
-    #         vertex_byte_array.extend(export_vertex.vertex_color1)
-    #         vertex_byte_array.extend(export_vertex.blend_shape)
-    #         vertex_byte_array.extend(export_vertex.vertex_id)
-
-    #     return vertex_byte_array
     
     def create_tri_topologies(self):
         num_tri_topologies = len(self.export_tri_topologies)

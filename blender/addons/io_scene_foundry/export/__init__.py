@@ -670,6 +670,6 @@ def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, as
     print("GR2s Saved in: ", time.perf_counter() - gr2_start)
     print("Full File Build Complete in: ", time.perf_counter() - start)
     #export_scene.preprocess_tags()
-    export_scene.write_sidecar()
-    export_scene.invoke_tool_import()
+    #export_scene.write_sidecar()
+    #export_scene.invoke_tool_import()
     export_scene.postprocess_tags()

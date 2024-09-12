@@ -6,6 +6,7 @@ from ctypes import Array, c_char_p, c_float, c_int, POINTER, c_ubyte, cast, memm
 from enum import Enum
 from math import degrees
 from pathlib import Path
+import time
 import bmesh
 import bpy
 from mathutils import Matrix
@@ -71,6 +72,8 @@ class VirtualMaterial:
     
 class VirtualMesh:
     def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object):
+        print(f"{ob.name} mesh start")
+        start = time.perf_counter()
         self.name = "default"
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
@@ -86,74 +89,91 @@ class VirtualMesh:
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
         self.num_loops = 0
+        setup_start = time.perf_counter()
         self._setup(ob, scene)
+        print("setup complete", time.perf_counter() - setup_start)
+        granny_start = time.perf_counter()
         self.to_granny_data(scene)
+        print("granny complete", time.perf_counter() - granny_start)
+        
+        del self.positions
+        del self.normals
+        del self.bone_weights
+        del self.bone_indices
+        del self.texcoords
+        del self.lighting_texcoords
+        del self.vertex_colors
+        del self.indices
+        print(f"{ob.name} mesh end ", time.perf_counter() - start)
         
         
         # print("Positions", self.positions)
         
     def to_granny_data(self, scene):
+        tri_start = time.perf_counter()
         self._granny_tri_topology()
+        print("tri topo: ", time.perf_counter() - tri_start)
+        vertex_data_start = time.perf_counter()
         self._granny_vertex_data(scene)
+        print("vertex_data: ", time.perf_counter() - vertex_data_start)
         
     def _granny_tri_topology(self):
-        indices = (c_int * self.num_indices)(*self.indices)
+        indices = (c_int * self.num_indices).from_buffer_copy(self.indices.astype(np.int32).tobytes())
+
         granny_tri_topology = GrannyTriTopology()
+
         num_groups = len(self.materials)
         groups = (GrannyTriMaterialGroup * num_groups)()
-        for i, material in enumerate(self.materials):
-            granny_group = groups[i]
-            granny_group.material_index = material[1]
-            granny_group.tri_first = material[2][0]
-            granny_group.tri_count = material[2][1]
-            
+
+        material_data = [(material[1], material[2][0], material[2][1]) for material in self.materials]
+        for i, (material_index, tri_first, tri_count) in enumerate(material_data):
+            groups[i].material_index = material_index
+            groups[i].tri_first = tri_first
+            groups[i].tri_count = tri_count
+
         granny_tri_topology.group_count = num_groups
         granny_tri_topology.groups = cast(groups, POINTER(GrannyTriMaterialGroup))
-        
         granny_tri_topology.index_count = self.num_indices
         granny_tri_topology.indices = cast(indices, POINTER(c_int))
-        
-        # Create Tri Annotation sets
+
+        # Handle Tri Annotation Sets
         if self.face_properties:
             num_tri_annotation_sets = len(self.face_properties)
             tri_annotation_sets = (GrannyTriAnnotationSet * num_tri_annotation_sets)()
-            
-            for i, (name, face_set) in enumerate(self.face_properties.items()):
-                granny_tri_annotation_set = tri_annotation_sets[i]
-                granny_tri_annotation_set.name = name.encode()
-                granny_tri_annotation_set.indices_map_from_tri_to_annotation = 1
-                        
-                granny_tri_annotation_set.tri_annotation_type = face_set.annotation_type
-                
-                num_tri_annotations = len(face_set.array)
-                annotation_byte_array = bytearray(face_set.array)
-                annotation_array = (c_ubyte * len(annotation_byte_array))(*annotation_byte_array)
 
-                granny_tri_annotation_set.tri_annotation_count = num_tri_annotations
-                granny_tri_annotation_set.tri_annotations = cast(annotation_array, POINTER(c_ubyte))
-                
+            for i, (name, face_set) in enumerate(self.face_properties.items()):
+                annotation_set = tri_annotation_sets[i]
+                annotation_set.name = name.encode()
+                annotation_set.indices_map_from_tri_to_annotation = 1
+                annotation_set.tri_annotation_type = face_set.annotation_type
+
+                annotation_array = np.frombuffer(face_set.array, dtype=np.uint8)
+                annotation_count = len(annotation_array)
+                c_annotation_array = (c_ubyte * annotation_count).from_buffer_copy(annotation_array.tobytes())
+
+                annotation_set.tri_annotation_count = annotation_count
+                annotation_set.tri_annotations = cast(c_annotation_array, POINTER(c_ubyte))
+
             granny_tri_topology.tri_annotation_set_count = num_tri_annotation_sets
             granny_tri_topology.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
-            
+
         self.granny_tri_topology = pointer(granny_tri_topology)
         
     def _granny_vertex_data(self, scene: 'VirtualScene'):
         data = [self.positions, self.normals]
         types = [
-            (GrannyMemberType.granny_real32_member.value, b"Position", None, 3),
-            (GrannyMemberType.granny_real32_member.value, b"Normal", None, 3),
-            ]
-        type_names = [
-            b"Position",
-            b"Normal",
+            GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Position", None, 3),
+            GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Normal", None, 3)
         ]
+        type_names = [b"Position", b"Normal"]
+        
         if self.bone_weights is not None:
-            data.append(self.bone_weights)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneWeights", None, 4))
-            type_names.append(b"BoneWeights")
-            data.append(self.bone_indices)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneIndices", None, 4))
-            type_names.append(b"BoneIndices")
+            data.extend([self.bone_weights, self.bone_indices])
+            types.extend([
+                GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneWeights", None, 4),
+                GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneIndices", None, 4)
+            ])
+            type_names.extend([b"BoneWeights", b"BoneIndices"])
         
         for idx, uvs in enumerate(self.texcoords):
             name = f"TextureCoordinates{idx}".encode()
@@ -167,10 +187,7 @@ class VirtualMesh:
             type_names.append(b"lighting")
             
         for idx, vcolors in enumerate(self.vertex_colors):
-            if scene.corinth:
-                name = f"colorSet{idx + 1}".encode()
-            else:
-                name = f"DiffuseColor{idx}".encode()
+            name = f"colorSet{idx + 1}".encode() if scene.corinth else f"DiffuseColor{idx}".encode()
             data.append(vcolors)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name, None, 3))
             type_names.append(name)
@@ -181,13 +198,15 @@ class VirtualMesh:
         names_array = (c_char_p * num_types)(*type_names)
         self.vertex_component_names = cast(names_array, POINTER(c_char_p))
         self.vertex_component_name_count = num_types
+        
         type_info_array = (GrannyDataTypeDefinition * (num_types + 1))(*types)
         self.vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
+        
+        contiguous_data = [np.ascontiguousarray(arr) for arr in data]
+        vertex_byte_array = np.hstack(contiguous_data).tobytes()
 
-        vertex_byte_array = np.hstack(data).tobytes()
         self.len_vertex_array = len(vertex_byte_array)
-        self.vertex_array = (c_ubyte * self.len_vertex_array)(*vertex_byte_array)
-
+        self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
         
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene'):
         def add_triangle_mod(ob: bpy.types.Object):
@@ -199,7 +218,10 @@ class VirtualMesh:
             tri_mod.quad_method = 'FIXED'
             
         add_triangle_mod(ob)
+        to_mesh_start = time.perf_counter()
         mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
+        print("to_mesh time ", time.perf_counter() - to_mesh_start)
+        
         self.name = mesh.name
         unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
         num_materials = len(mesh.materials)
@@ -209,42 +231,38 @@ class VirtualMesh:
         num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
         
-        vertex_positions = np.empty(num_vertices * 3, dtype=np.single)
+        vertex_positions = np.empty((num_vertices, 3), dtype=np.single)
         loop_vertex_indices = np.empty(num_loops, dtype=np.int32)
         
-        mesh.vertices.foreach_get("co", vertex_positions)
+        mesh.vertices.foreach_get("co", vertex_positions.ravel())
         mesh.loops.foreach_get("vertex_index", loop_vertex_indices)
         
-        vertex_positions = vertex_positions.reshape((num_vertices, 3))
-        
         self.positions = vertex_positions[loop_vertex_indices]
+        foreach_start = time.perf_counter()
+        self.normals = np.empty((num_loops, 3), dtype=np.single)
+        mesh.corner_normals.foreach_get("vector", self.normals.ravel())
+        print("foreeach pos/norm ", time.perf_counter() - foreach_start)
         
-        self.normals = np.empty(num_loops * 3, dtype=np.single)
-        mesh.corner_normals.foreach_get("vector", self.normals)
-        self.normals = self.normals.reshape(-1, 3)
-        
+        indices_start = time.perf_counter()
         loop_starts = np.empty(num_polygons, dtype=np.int32)
         loop_totals = np.empty(num_polygons, dtype=np.int32)
         
         mesh.polygons.foreach_get("loop_start", loop_starts)
         mesh.polygons.foreach_get("loop_total", loop_totals)
-        self.indices = np.empty(loop_totals.sum(), dtype=np.int32)
-        current_index = 0
-        for start, total in zip(loop_starts, loop_totals):
-            self.indices[current_index:current_index + total] = np.arange(start, start + total)
-            current_index += total
+        self.indices = np.add.outer(loop_starts, np.arange(loop_totals.max())).flatten()[:loop_totals.sum()]
+
+        print("indices ", time.perf_counter() - indices_start)
+        materials_start = time.perf_counter()
         if num_materials > 1:
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
-            polygons = self.indices.reshape((-1, 3))
             sorted_order = np.argsort(material_indices)
-            sorted_polygons = polygons[sorted_order]
-            sorted_material_indices = material_indices[sorted_order]
-            self.indices = sorted_polygons.flatten()
-            unique_indices = np.concatenate(([0], np.where(np.diff(sorted_material_indices) != 0)[0] + 1))
-            counts = np.diff(np.concatenate((unique_indices, [len(sorted_material_indices)])))
+            sorted_polygons = self.indices.reshape((-1, 3))[sorted_order]
+            self.indices = sorted_polygons.ravel()
+            unique_indices = np.concatenate(([0], np.where(np.diff(material_indices[sorted_order]) != 0)[0] + 1))
+            counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
-            used_materials = [m for idx, m in enumerate(mesh.materials) if idx in material_indices]
+            used_materials = [mesh.materials[i] for i in np.unique(material_indices)]
             for idx, mat in enumerate(used_materials):
                 self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
         else:
@@ -253,6 +271,8 @@ class VirtualMesh:
             else:
                 self.materials.append((scene.materials["invalid"], 0, (0, num_polygons))) # default material
         
+        print("materials ", time.perf_counter() - materials_start)
+        rest_start = time.perf_counter()
         self.num_indices = len(self.indices)
         
         self.lighting_texcoords = None
@@ -261,33 +281,26 @@ class VirtualMesh:
             if len(self.texcoords) >= 4:
                 break
             
-            loop_uvs = np.empty(num_loops * 2, dtype=np.single)
-            layer.uv.foreach_get("vector", loop_uvs)
-            loop_uvs = loop_uvs.reshape(-1, 2)
-            zeros_column = np.zeros((loop_uvs.shape[0], 1), dtype=np.single)
-            
+            loop_uvs = np.empty((num_loops, 2), dtype=np.single)
+            layer.uv.foreach_get("vector", loop_uvs.ravel())
+            zeros_column = np.zeros((num_loops, 1), dtype=np.single)
+            combined_uvs = np.hstack((loop_uvs, zeros_column))
             if layer.name.lower() == "lighting":
-                self.lighting_texcoords = np.hstack((loop_uvs, zeros_column))
+                self.lighting_texcoords = combined_uvs
             else:
-                self.texcoords.append(np.hstack((loop_uvs, zeros_column)))
+                self.texcoords.append(combined_uvs)
                 
         self.vertex_colors = []
         for idx, layer in enumerate(mesh.color_attributes):
             if len(self.vertex_colors) >= 2:
                 break
-            layer: bpy.types.ByteColorAttribute
+            
+            colors = np.empty((num_vertices, 4) if layer.domain == 'POINT' else (num_loops, 4), dtype=np.single)
+            layer.data.foreach_get("color", colors.ravel())
+            colors = colors[:, :3]
             if layer.domain == 'POINT':
-                colors = np.empty(num_vertices * 4, dtype=np.single)
-                layer.data.foreach_get("color", colors)
-                colors = colors.reshape((-1, 4))
-                colors = colors[:, :3]
                 colors = colors[loop_vertex_indices]
-            else:
-                colors = np.empty(num_loops * 4, dtype=np.single)
-                layer.data.foreach_get("color", colors)
-                colors = colors.reshape((-1, 4))
-                colors = colors[:, :3]
-                
+ 
             self.vertex_colors.append(colors)
             
         # Bone Weights & Indices
@@ -296,52 +309,36 @@ class VirtualMesh:
         
         if self.vertex_weighted:
             unique_bone_indices = set()
-            invalid_indices = set()
-            vertex_group_names = []
-
-            for idx, vgroup in enumerate(ob.vertex_groups):
-                name = vgroup.name
-                if name in scene.valid_bones:
-                    vertex_group_names.append(name)
-                else:
-                    invalid_indices.add(idx)
-
-            num_loops = len(mesh.loops)
             bone_weights = np.zeros((num_loops, 4), dtype=np.uint8)
-            bone_indices = np.zeros((num_loops, 4), dtype=np.int32)
+            bone_indices = np.zeros((num_loops, 4), dtype=np.uint8)
 
+            # Use NumPy for faster weight and index extraction
             for loop_index, loop in enumerate(mesh.loops):
                 vertex_index = loop.vertex_index
                 vertex = mesh.vertices[vertex_index]
                 groups = vertex.groups
-                num_groups = len(groups)
-                
-                if num_groups > 0:
-                    weights = np.empty(num_groups, dtype=np.single)
-                    indices = np.empty(num_groups, dtype=np.int32)
+
+                if groups:
+                    weights = np.empty(len(groups), dtype=np.single)
+                    indices = np.empty(len(groups), dtype=np.int32)
                     groups.foreach_get("weight", weights)
                     groups.foreach_get("group", indices)
-                    
-                    sorted_indices = np.argsort(-weights)
-                    top_weights = weights[sorted_indices[:4]]
-                    top_indices = indices[sorted_indices[:4]]
-                    unique_bone_indices.update(top_indices)
-                    
+
+                    # Extract top 4 weights and indices
+                    top_indices = np.argsort(-weights)[:4]
+                    top_weights = weights[top_indices]
+                    top_bone_indices = indices[top_indices]
+
                     top_weights /= top_weights.sum()
-                    
-                    if len(top_weights) < 4:
-                        top_weights = np.pad(top_weights, (0, 4 - len(top_weights)), 'constant', constant_values=0)
-                        top_indices = np.pad(top_indices, (0, 4 - len(top_indices)), 'constant', constant_values=0)
-                    
-                    bone_weights[loop_index] = [int(w * 255.0) for w in top_weights]
-                    bone_indices[loop_index] = top_indices
+                    bone_weights[loop_index] = np.pad(top_weights.astype(np.uint8), (0, 4 - len(top_weights)))
+                    bone_indices[loop_index] = np.pad(top_bone_indices.astype(np.uint8), (0, 4 - len(top_bone_indices)))
+
+                    unique_bone_indices.update(top_bone_indices)
 
             self.bone_weights = bone_weights
             self.bone_indices = bone_indices
-            
-            self.bone_bindings.clear()
-            for index in unique_bone_indices:
-                self.bone_bindings.append(vertex_group_names[index])
+            self.bone_bindings = [scene.valid_bones[idx] for idx in unique_bone_indices]
+
                 
         self.blend_shapes = None
         self.vertex_ids = None
@@ -349,6 +346,8 @@ class VirtualMesh:
         self.num_loops = num_loops
         if ob.original.data.nwo.face_props:
             self.face_properties = gather_face_props(ob.original.data.nwo, mesh, num_polygons, scene, sorted_order)
+            
+        print("rest time ", time.perf_counter() - rest_start)
         
         
     # def _setup(self, mesh: bpy.types.Mesh, scene: 'VirtualScene', ob: bpy.types.Object):
