@@ -953,7 +953,7 @@ class ProcessScene:
                 rnd = random.Random()
                 rnd.seed(proxy_target.name)
                 proxy_target_id = str(rnd.randint(0, 2147483647))
-                proxy_target["bungie_animation_event_ik_proxy_target_id"] = proxy_target_id
+                event_ob["bungie_animation_event_ik_proxy_target_id"] = proxy_target_id
                 proxy_target["bungie_object_type"] = '_connected_geometry_object_type_animation_control'
                 proxy_target["bungie_animation_control_id"] = proxy_target_id
                 proxy_target["bungie_animation_control_type"] = '_connected_geometry_animation_control_type_target_proxy'

@@ -372,7 +372,7 @@ class NWO_OT_RegisterIcons(bpy.types.Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context):
-        from . import icons
+        from ... import icons
         if icons.icons_active:
             icons.unregister()
         icons.register()

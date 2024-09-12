@@ -22,7 +22,10 @@ class Sidecar:
         self.asset_path = asset_path
         self.asset_name = asset_name
         self.asset_type = asset_type
-        self.relative_blend = str(Path(bpy.data.filepath).relative_to(get_data_path()))
+        if bpy.data.filepath and Path(bpy.data.filepath).is_relative_to(get_data_path()):
+            self.relative_blend = str(Path(bpy.data.filepath).relative_to(get_data_path()))
+        else:
+            self.relative_blend = ""
         self.external_blend = self.relative_blend == bpy.data.filepath
         self.context = context
         self.message = f"{str.title(asset_type)} Sidecar Export Complete"
