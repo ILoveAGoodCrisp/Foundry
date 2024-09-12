@@ -1995,8 +1995,11 @@ class NWOImporter:
             
         
     def import_legacy_animation(self, path, legacy_fix_rotations):
+        path = Path(path)
         existing_animations = bpy.data.actions[:]
-        print(f"--- {utils.dot_partition(os.path.basename(path))}")
+        extension = path.suffix.strip('.')
+        anim_name = path.with_suffix("").name
+        print(f"--- {anim_name}")
         with utils.MutePrints():
             bpy.ops.import_scene.jma(filepath=path, fix_rotations=legacy_fix_rotations)
         if bpy.data.actions:
@@ -2006,13 +2009,11 @@ class NWOImporter:
                 
             anim = new_animations[0]
             self.animations.append(anim)
-            filename = os.path.basename(path)
-            anim_name, extension = filename.split('.')
             nwo = anim.nwo
             if anim:
                 anim.use_fake_user = True
                 anim.use_frame_range = True
-                if len(filename) > 64:
+                if len(anim_name) > 64:
                     nwo.name_override = anim_name
                 match extension.lower():
                     case 'jmm':
