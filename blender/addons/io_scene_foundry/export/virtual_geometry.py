@@ -869,7 +869,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.breakable.value)
             
         if face_prop.face_two_sided_override:
-            two_sided_layer = bm.faces.layers.int(face_prop.layer_name)
+            two_sided_layer = bm.faces.layers.int.get(face_prop.layer_name)
             if two_sided_layer:
                 sides_value = FaceSides.two_sided.value
                 if scene.corinth:
@@ -884,7 +884,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                 face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, fp_defaults["bungie_face_sides"], np.uint8))).update(bm, face_prop.layer_name, -sides_value)
             
         if face_prop.face_transparent_override:
-            transparent_layer = bm.faces.layers.int(face_prop.layer_name)
+            transparent_layer = bm.faces.layers.int.get(face_prop.layer_name)
             if transparent_layer:
                 side_layers[transparent_layer] = 1
                 face_properties.setdefault("bungie_face_sides", FaceSet(np.full(num_faces, fp_defaults["bungie_face_sides"], np.uint8))).update(bm, face_prop.layer_name, -FaceSides.one_sided_transparent.value)
@@ -897,50 +897,59 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     face_properties.setdefault("bungie_face_draw_distance", FaceSet(np.full(num_faces, fp_defaults["bungie_face_draw_distance"], np.uint8))).update(bm, face_prop.layer_name, FaceDrawDistance.detail_close.value)
                     
         if face_prop.face_global_material_override:
-            face_properties.setdefault("bungie_face_global_material", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
+            gmv = 0
+            default_global_material = fp_defaults["bungie_face_global_material"]
+            if default_global_material in scene.global_materials_set:
+                gmv = scene.global_materials.index(fp_defaults["bungie_face_global_material"])
+            face_properties.setdefault("bungie_face_global_material", FaceSet(np.full(num_faces, gmv, np.uint8))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
         if face_prop.region_name_override:
-            face_properties.setdefault("bungie_face_region", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, scene.regions.index(face_prop.region_name))
+            rv = 0
+            default_region = fp_defaults["bungie_face_region"]
+            if default_region in scene.regions_set:
+                rv = scene.global_materials.index(fp_defaults["bungie_face_region"])
+            face_properties.setdefault("bungie_face_region", FaceSet(np.full(num_faces, rv, np.uint8))).update(bm, face_prop.layer_name, scene.regions.index(face_prop.region_name))
             
         if face_prop.ladder_override:
-            face_properties.setdefault("bungie_ladder", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_ladder", FaceSet(np.full(num_faces, fp_defaults["bungie_ladder"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.slip_surface_override:
-            face_properties.setdefault("bungie_slip_surface", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_slip_surface", FaceSet(np.full(num_faces, fp_defaults["bungie_slip_surface"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.decal_offset_override:
-            face_properties.setdefault("bungie_decal_offset", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_decal_offset", FaceSet(np.full(num_faces, fp_defaults["bungie_decal_offset"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.no_shadow_override:
-            face_properties.setdefault("bungie_no_shadow", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_no_shadow", FaceSet(np.full(num_faces, fp_defaults["bungie_no_shadow"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.no_pvs_override:
-            face_properties.setdefault("bungie_invisible_to_pvs", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_invisible_to_pvs", FaceSet(np.full(num_faces, fp_defaults["bungie_invisible_to_pvs"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.no_lightmap_override:
-            face_properties.setdefault("bungie_no_lightmap", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_no_lightmap", FaceSet(np.full(num_faces, fp_defaults["bungie_no_lightmap"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.precise_position_override:
-            face_properties.setdefault("bungie_precise_position", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_precise_position", FaceSet(np.full(num_faces, fp_defaults["bungie_precise_position"], np.uint8))).update(bm, face_prop.layer_name, 1)
         if face_prop.mesh_tessellation_density_override:
             match face_prop.mesh_tessellation_density:
                 case '_connected_geometry_mesh_tessellation_density_4x':
-                    face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
+                    face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.full(num_faces, fp_defaults["bungie_mesh_tessellation_density"], np.uint8))).update(bm, face_prop.layer_name, 1)
                 case '_connected_geometry_mesh_tessellation_density_9x':
-                    face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 2)
+                    face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.full(num_faces, fp_defaults["bungie_mesh_tessellation_density"], np.uint8))).update(bm, face_prop.layer_name, 2)
                 case '_connected_geometry_mesh_tessellation_density_36x':
-                    face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 3)
+                    face_properties.setdefault("bungie_mesh_tessellation_density", FaceSet(np.full(num_faces, fp_defaults["bungie_mesh_tessellation_density"], np.uint8))).update(bm, face_prop.layer_name, 3)
             
         # Lightmap Props
         if face_prop.lightmap_additive_transparency_override:
-            face_properties.setdefault("bungie_lightmap_additive_transparency", FaceSet(np.zeros((num_faces, 4), np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_additive_transparency))
+            face_properties.setdefault("bungie_lightmap_additive_transparency", FaceSet(np.full((num_faces, 4), fp_defaults["bungie_lightmap_additive_transparency"], np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_additive_transparency))
         if face_prop.lightmap_resolution_scale_override:
-            # face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1)
-            face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, 3, np.uint8))).update(bm, face_prop.layer_name, face_prop.lightmap_resolution_scale)
+            # face_properties.setdefault("bungie_lightmap_ignore_default_resolution_scale", FaceSet(np.zeros(num_faces, np.int32))).update(bm, face_prop.layer_name, 1) # TODO needs to be own settable prop
+            face_properties.setdefault("bungie_lightmap_resolution_scale", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_resolution_scale"], np.uint8))).update(bm, face_prop.layer_name, face_prop.lightmap_resolution_scale)
         if face_prop.lightmap_type_override:
             if face_prop.lightmap_type == '_connected_geometry_lightmap_type_per_vertex':
-                face_properties.setdefault("bungie_lightmap_type", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, LightmapType.per_vertex.value)
+                face_properties.setdefault("bungie_lightmap_type", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_type"], np.uint8))).update(bm, face_prop.layer_name, LightmapType.per_vertex.value)
             else:
-                face_properties.setdefault("bungie_lightmap_type", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, LightmapType.per_pixel.value)
+                face_properties.setdefault("bungie_lightmap_type", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_type"], np.uint8))).update(bm, face_prop.layer_name, LightmapType.per_pixel.value)
         if face_prop.lightmap_translucency_tint_color_override:
-            face_properties["bungie_lightmap_translucency_tint_color"].append(face_prop)
-            face_properties.setdefault("bungie_lightmap_translucency_tint_color", FaceSet(np.zeros((num_faces, 4), np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_translucency_tint_color))
+            face_properties.setdefault("bungie_lightmap_translucency_tint_color", FaceSet(np.full((num_faces, 4), fp_defaults["bungie_lightmap_translucency_tint_color"], np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.lightmap_translucency_tint_color))
         if face_prop.lightmap_lighting_from_both_sides_override:
-            face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
-            
+            face_properties.setdefault("bungie_lightmap_lighting_from_both_sides", FaceSet(np.full(num_faces, fp_defaults["bungie_lightmap_lighting_from_both_sides"], np.uint8))).update(bm, face_prop.layer_name, 1)
+        
+        # TODO fp_defaults for emissives here + in process.py
+        
         # Emissives
         if face_prop.emissive_override:
             face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_power)
@@ -984,9 +993,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                     if face[key]:
                         if value < 0: # for handling face_sides
                             value = abs(value)
-                            for k, v in side_layers.items():
-                                if k != key and abs(v) != value and face[k]:
-                                    value += abs(v)
+                            for l, va in side_layers.items():
+                                if l != key and abs(va) != value and face[l]:
+                                    value += abs(va)
                                     break
                                     
                         v.array[idx] = value

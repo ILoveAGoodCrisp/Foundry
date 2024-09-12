@@ -30,6 +30,8 @@ from ..constants import GameVersion, VALID_MESHES, VALID_OBJECTS
 from ..tools.asset_types import AssetType
 
 face_prop_defaults = {
+    "bungie_face_region": "default",
+    "bungie_face_global_material": "default",
     "bungie_face_type": 0,
     "bungie_face_mode": 0,
     "bungie_face_sides": 0,
@@ -357,7 +359,7 @@ class ExportScene:
             props["bungie_mesh_type"] = '_connected_geometry_mesh_type_decorator'
             props["bungie_mesh_decorator_lod"] = str(decorator_int(ob))
                     
-        fp_defaults = self._setup_mesh_level_props(data_nwo, props)
+        fp_defaults = self._setup_mesh_level_props(ob, props, region)
 
         return props, fp_defaults
         
@@ -971,7 +973,8 @@ class ExportScene:
         self.sidecar.design = self.virtual_scene.design
         self.sidecar.build()
         
-    def preprocess_tags(self): ...
+    def preprocess_tags(self):
+        pass
     
     def invoke_tool_import(self):
         sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, self.virtual_scene.structure)
