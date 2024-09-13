@@ -1346,7 +1346,7 @@ class PrepareScene:
             ob["bungie_lighting_emissive_focus"] = utils.jstr(degrees(face_props.material_lighting_emissive_focus) / 180)
             ob["bungie_lighting_emissive_color"] = utils.color_4p_str(face_props.material_lighting_emissive_color)
             ob["bungie_lighting_emissive_per_unit"] =  utils.bool_str(face_props.material_lighting_emissive_per_unit)
-            ob["material_lighting_emissive_quality"] =  utils.bool_str(face_props.material_lighting_emissive_quality)
+            ob["material_lighting_emissive_quality"] =  utils.jstr(face_props.material_lighting_emissive_quality)
             ob["material_lighting_use_shader_gel"] =  utils.bool_str(face_props.material_lighting_use_shader_gel)
             ob["bungie_lighting_bounce_ratio"] = utils.jstr(face_props.material_lighting_bounce_ratio)
 
@@ -1835,7 +1835,7 @@ class PrepareScene:
                     ob["bungie_lighting_emissive_focus"] = utils.jstr(degrees(nwo_data.material_lighting_emissive_focus) / 180)
                     ob["bungie_lighting_emissive_color"] = utils.color_4p_str(nwo_data.material_lighting_emissive_color)
                     ob["bungie_lighting_emissive_per_unit"] =  utils.bool_str(nwo_data.material_lighting_emissive_per_unit)
-                    ob["material_lighting_emissive_quality"] =  utils.bool_str(nwo_data.material_lighting_emissive_quality)
+                    ob["material_lighting_emissive_quality"] =  utils.jstr(nwo_data.material_lighting_emissive_quality)
                     ob["material_lighting_use_shader_gel"] =  utils.bool_str(nwo_data.material_lighting_use_shader_gel)
                     ob["bungie_lighting_bounce_ratio"] = utils.jstr(nwo_data.material_lighting_bounce_ratio)
                     

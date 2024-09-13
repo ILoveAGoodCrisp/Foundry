@@ -760,8 +760,10 @@ class VirtualScene:
         self.tags_dir = tags_dir
         self.granny = granny
         self.regions: list = []
+        self.regions_set: set()
         self.permutations: list = []
         self.global_materials: list = []
+        self.global_materials_set: set()
         self.skeleton_node: VirtualNode = None
         self.corinth = corinth
         self.export_info: ExportInfo = None
@@ -901,13 +903,13 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             default_global_material = fp_defaults["bungie_face_global_material"]
             if default_global_material in scene.global_materials_set:
                 gmv = scene.global_materials.index(fp_defaults["bungie_face_global_material"])
-            face_properties.setdefault("bungie_face_global_material", FaceSet(np.full(num_faces, gmv, np.uint8))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
+            face_properties.setdefault("bungie_face_global_material", FaceSet(np.full(num_faces, gmv, np.int32))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
         if face_prop.region_name_override:
             rv = 0
             default_region = fp_defaults["bungie_face_region"]
             if default_region in scene.regions_set:
-                rv = scene.global_materials.index(fp_defaults["bungie_face_region"])
-            face_properties.setdefault("bungie_face_region", FaceSet(np.full(num_faces, rv, np.uint8))).update(bm, face_prop.layer_name, scene.regions.index(face_prop.region_name))
+                rv = scene.regions.index(fp_defaults["bungie_face_region"])
+            face_properties.setdefault("bungie_face_region", FaceSet(np.full(num_faces, rv, np.int32))).update(bm, face_prop.layer_name, scene.regions.index(face_prop.region_name))
             
         if face_prop.ladder_override:
             face_properties.setdefault("bungie_ladder", FaceSet(np.full(num_faces, fp_defaults["bungie_ladder"], np.uint8))).update(bm, face_prop.layer_name, 1)
@@ -952,24 +954,17 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
         
         # Emissives
         if face_prop.emissive_override:
-            face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_power)
-            if face_prop.material_lighting_emissive_power > 0:
-                face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.zeros((num_faces, 3), np.single))).update(bm, face_prop.layer_name, utils.color_3p(face_prop.material_lighting_emissive_color))
-                if face_prop.material_lighting_emissive_per_unit:
-                    face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
-                if face_prop.material_lighting_emissive_quality > 0:
-                    face_properties.setdefault("bungie_lighting_emissive_quality", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_quality)
-                if face_prop.material_lighting_use_shader_gel:
-                    face_properties.setdefault("bungie_lighting_use_shader_gel", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
-                if face_prop.material_lighting_bounce_ratio > 0:
-                    face_properties.setdefault("bungie_lighting_bounce_ratio", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_bounce_ratio)
-                if face_prop.material_lighting_attenuation_cutoff > 0:
-                    face_properties.setdefault("bungie_lighting_attenuation_enabled", FaceSet(np.zeros(num_faces, np.uint8))).update(bm, face_prop.layer_name, 1)
-                    face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_cutoff)
-                    face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff)
-                if face_prop.material_lighting_emissive_focus > 0:
-                    face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.zeros(num_faces, np.single))).update(bm, face_prop.layer_name, degrees(face_prop.material_lighting_emissive_focus) / 180)
-                    
+            face_properties.setdefault("bungie_lighting_emissive_power", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_power"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_power)
+            face_properties.setdefault("bungie_lighting_emissive_color", FaceSet(np.full((num_faces, 4), fp_defaults["bungie_lighting_emissive_color"], np.single))).update(bm, face_prop.layer_name, utils.color_4p(face_prop.material_lighting_emissive_color))
+            face_properties.setdefault("bungie_lighting_emissive_per_unit", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_per_unit"], np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_lighting_emissive_quality", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_quality"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_emissive_quality)
+            face_properties.setdefault("bungie_lighting_use_shader_gel", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_use_shader_gel"], np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_lighting_bounce_ratio", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_bounce_ratio"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_bounce_ratio)
+            face_properties.setdefault("bungie_lighting_attenuation_enabled", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_enabled"], np.uint8))).update(bm, face_prop.layer_name, 1)
+            face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_cutoff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_cutoff)
+            face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_falloff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff)
+            face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_focus"], np.single))).update(bm, face_prop.layer_name, degrees(face_prop.material_lighting_emissive_focus) / 180)
+            
     for material, material_indexes in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer'):
             face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, FaceType.seam_sealer.value)
