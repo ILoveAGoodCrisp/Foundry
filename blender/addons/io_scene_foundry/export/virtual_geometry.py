@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 import csv
-from ctypes import Array, c_char_p, c_float, c_int, POINTER, c_ubyte, cast, memmove, pointer
+from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, memmove, pointer
 from enum import Enum
 import logging
 from math import degrees
@@ -13,7 +13,7 @@ import bpy
 from mathutils import Matrix
 import numpy as np
 
-from ..granny.formats import GrannyDataTypeDefinition, GrannyMemberType, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
+from ..granny.formats import GrannyDataTypeDefinition, GrannyMaterial, GrannyMemberType, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny
 
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType
@@ -24,7 +24,7 @@ from .. import utils
 
 from ..tools.asset_types import AssetType
 
-from ..constants import IDENTITY_MATRIX, VALID_MESHES
+from ..constants import IDENTITY_MATRIX, RENDER_MESH_TYPES, VALID_MESHES
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -45,36 +45,44 @@ def read_frame_id_list() -> list:
 
     return frame_ids
 
+class MaterialExtendedData(Structure):
+    _pack_ = 1
+    _fields_ = [('shader_path', c_char_p), ('shader_type', c_char_p)]
+
 class VirtualMaterial:  
-    def __init__(self, name, shader_path: str | Path, scene: 'VirtualScene'):
+    def __init__(self, name, scene: 'VirtualScene', shader_path: str | Path | None = None):
         self.name: str = name
-        self.index = 0
-        if not str(shader_path).strip() or str(shader_path) == '.':
-            return self.set_invalid(scene)
+        self.granny_material = None
+        self.shader_path = "override"
+        self.shader_type = "override"
+        if shader_path is not None:
+            if not str(shader_path).strip() or str(shader_path) == '.':
+                return self.set_invalid(scene)
         
-        path = Path(shader_path)
-        full_path = Path(scene.tags_dir, shader_path)
-        if not (full_path.exists() and full_path.is_file()):
-            return self.set_invalid(scene)
+            path = Path(shader_path)
+            full_path = Path(scene.tags_dir, shader_path)
+            if not (full_path.exists() and full_path.is_file()):
+                return self.set_invalid(scene)
         
-        self.props = {
-          "bungie_shader_type": path.suffix[1:],
-          "bungie_shader_path": str(path.with_suffix(""))
-        }
+        self.shader_path = str(path.with_suffix(""))
+        self.shader_type = path.suffix[1:]
+        
+        self.to_granny_data(scene)
         
     def set_invalid(self, scene: 'VirtualScene'):
-        self.props = {
-          "bungie_shader_type": "material" if scene.corinth else "shader",
-          "bungie_shader_path": r"shaders\invalid"
-        }
-        
-    def props_encoded(self):
-        '''Returns a dict of encoded properties'''
-        encoded_props = {key: value.encode() for key, value in self.props.items()}
-        return encoded_props
+        self.shader_path = r"shaders\invalid"
+        self.shader_type = "material" if scene.corinth else "shader"
+    
+    def to_granny_data(self, scene):
+        self.granny_material = GrannyMaterial()
+        self.granny_material.name = self.name.encode()
+        data = MaterialExtendedData(shader_path=self.shader_path.encode(), shader_type=self.shader_type.encode())
+        self.granny_material.extended_data.object = cast(pointer(data), c_void_p)
+        self.granny_material.extended_data.type = scene.material_extended_data_type
+        self.granny_material = pointer(self.granny_material)
     
 class VirtualMesh:
-    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict):
+    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool):
         self.name = "default"
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
@@ -85,13 +93,14 @@ class VirtualMesh:
         self.vertex_colors: list[np.ndarray] = [] # Up to two sets of vert colors
         self.indices: np.ndarray = None
         self.num_indices = 0
-        self.materials: list[VirtualMaterial: int] = [] # dict of materials and the face index they start at
+        self.groups: list[VirtualMaterial, int, int] = []
+        self.materials = set()
         self.face_properties: dict = {}
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
         self.num_loops = 0
         self.invalid = False
-        self._setup(ob, scene, fp_defaults)
+        self._setup(ob, scene, fp_defaults, render_mesh)
         if not self.invalid:
             self.to_granny_data(scene)
             
@@ -109,14 +118,14 @@ class VirtualMesh:
         self._granny_vertex_data(scene)
         
     def _granny_tri_topology(self):
-        indices = (c_int * self.num_indices).from_buffer_copy(self.indices.astype(np.int32).tobytes())
+        indices = (c_int * self.num_indices).from_buffer_copy(self.indices.tobytes())
 
         granny_tri_topology = GrannyTriTopology()
 
-        num_groups = len(self.materials)
+        num_groups = len(self.groups)
         groups = (GrannyTriMaterialGroup * num_groups)()
 
-        material_data = [(material[1], material[2][0], material[2][1]) for material in self.materials]
+        material_data = [(material[1], material[2][0], material[2][1]) for material in self.groups]
         for i, (material_index, tri_first, tri_count) in enumerate(material_data):
             groups[i].material_index = material_index
             groups[i].tri_first = tri_first
@@ -200,7 +209,7 @@ class VirtualMesh:
         self.len_vertex_array = len(vertex_byte_array)
         self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
         
-    def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict):
+    def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict, render_mesh: bool):
         def add_triangle_mod(ob: bpy.types.Object):
             mods = ob.modifiers
             for m in mods:
@@ -257,45 +266,20 @@ class VirtualMesh:
             mat_index_counts = list(zip(unique_indices, counts))
             used_materials = [mesh.materials[i] for i in np.unique(material_indices)]
             for idx, mat in enumerate(used_materials):
-                self.materials.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
+                virtual_mat = scene._get_material(mat, scene)
+                self.materials.add(virtual_mat)
+                self.groups.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
         else:
             if num_materials == 1:
-                self.materials.append((scene._get_material(mesh.materials[0], scene), 0, (0, num_polygons)))
+                virtual_mat = scene._get_material(mesh.materials[0], scene)
+                self.materials.add(virtual_mat)
+                self.groups.append((virtual_mat, 0, (0, num_polygons)))
             else:
-                self.materials.append((scene.materials["invalid"], 0, (0, num_polygons))) # default material
+                virtual_mat = scene.materials["invalid"]
+                self.materials.add(virtual_mat)
+                self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
         
         self.num_indices = len(self.indices)
-        
-        self.lighting_texcoords = None
-        self.texcoords = []
-        for idx, layer in enumerate(mesh.uv_layers):
-            if len(self.texcoords) >= 4:
-                break
-            
-            loop_uvs = np.empty((num_loops, 2), dtype=np.single)
-            layer.uv.foreach_get("vector", loop_uvs.ravel())
-            zeros_column = np.zeros((num_loops, 1), dtype=np.single)
-            combined_uvs = np.hstack((loop_uvs, zeros_column))
-            if layer.name.lower() == "lighting":
-                self.lighting_texcoords = combined_uvs
-            else:
-                self.texcoords.append(combined_uvs)
-                
-        self.vertex_colors = []
-        for idx, layer in enumerate(mesh.color_attributes):
-            if len(self.vertex_colors) >= 2:
-                break
-            
-            colors = np.empty((num_vertices, 4) if layer.domain == 'POINT' else (num_loops, 4), dtype=np.single)
-            layer.data.foreach_get("color", colors.ravel())
-            colors = colors[:, :3]
-            if layer.domain == 'POINT':
-                colors = colors[loop_vertex_indices]
- 
-            self.vertex_colors.append(colors)
-            
-        self.bone_weights = None
-        self.bone_indices = None
         
         if self.vertex_weighted:
             unique_bone_indices = set()
@@ -326,10 +310,33 @@ class VirtualMesh:
             self.bone_weights = bone_weights
             self.bone_indices = bone_indices
             self.bone_bindings = [scene.valid_bones[idx] for idx in unique_bone_indices]
-
+        
+        if render_mesh:
+            # We only care about writing this data if the in game mesh will have a render definition
+            for idx, layer in enumerate(mesh.uv_layers):
+                if len(self.texcoords) >= 4:
+                    break
                 
-        self.blend_shapes = None
-        self.vertex_ids = None
+                loop_uvs = np.empty((num_loops, 2), dtype=np.single)
+                layer.uv.foreach_get("vector", loop_uvs.ravel())
+                zeros_column = np.zeros((num_loops, 1), dtype=np.single)
+                combined_uvs = np.hstack((loop_uvs, zeros_column))
+                if layer.name.lower() == "lighting":
+                    self.lighting_texcoords = combined_uvs
+                else:
+                    self.texcoords.append(combined_uvs)
+                    
+            for idx, layer in enumerate(mesh.color_attributes):
+                if len(self.vertex_colors) >= 2:
+                    break
+                
+                colors = np.empty((num_vertices, 4) if layer.domain == 'POINT' else (num_loops, 4), dtype=np.single)
+                layer.data.foreach_get("color", colors.ravel())
+                colors = colors[:, :3]
+                if layer.domain == 'POINT':
+                    colors = colors[loop_vertex_indices]
+    
+                self.vertex_colors.append(colors)
                 
         self.num_loops = num_loops
         if ob.original.data.nwo.face_props or special_mats_dict:
@@ -565,7 +572,7 @@ class VirtualNode:
                     self.bone_bindings = existing_mesh.bone_bindings
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults)
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props))
                     id.to_mesh_clear()
                     self.mesh = mesh
                     self.new_mesh = True
@@ -797,6 +804,25 @@ class VirtualScene:
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
         self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str]] = {}
         
+        self.material_extended_data_type = self._create_material_extended_data_type()
+        
+        # Create default material
+        if corinth:
+            default_material = VirtualMaterial("invalid", self, r"shaders\invalid.material")
+        else:
+            default_material = VirtualMaterial("invalid", self, r"shaders\invalid.shader")
+            
+        self.materials["invalid"] = default_material
+        
+    def _create_material_extended_data_type(self):
+        material_extended_data_type = (GrannyDataTypeDefinition * 3)()
+        material_extended_data_type[0] = GrannyDataTypeDefinition(member_type=GrannyMemberType.granny_string_member, name=b"bungie_shader_path")
+        material_extended_data_type[1] = GrannyDataTypeDefinition(member_type=GrannyMemberType.granny_string_member, name=b"bungie_shader_type")
+        material_extended_data_type[2] = GrannyDataTypeDefinition(GrannyMemberType.granny_end_member.value)
+        
+        return material_extended_data_type
+        
+        
     def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None):
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
         node = VirtualNode(id, props, region, permutation, fp_defaults, self)
@@ -821,14 +847,17 @@ class VirtualScene:
     def _get_material(self, material: bpy.types.Material, scene):
         virtual_mat = self.materials.get(material.name)
         if virtual_mat: return virtual_mat
-        
-        shader_path = material.nwo.shader_path
-        if not shader_path.strip():
-            virtual_mat = VirtualMaterial(material.name, "", scene)
+        mat_name = material.name
+        if mat_name[0] == "+":
+            virtual_mat = VirtualMaterial(material.name, scene)
         else:
-            relative = utils.relative_path(shader_path)
-            virtual_mat = VirtualMaterial(material.name, relative, scene)
-        virtual_mat.index = len(self.materials)
+            shader_path = material.nwo.shader_path
+            if not shader_path.strip():
+                virtual_mat = VirtualMaterial(material.name, scene, "")
+            else:
+                relative = utils.relative_path(shader_path)
+                virtual_mat = VirtualMaterial(material.name, scene, relative)
+                
         self.materials[virtual_mat.name] = virtual_mat
         return virtual_mat
                 
@@ -929,7 +958,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             if default_global_material in scene.global_materials_set:
                 gmv = scene.global_materials.index(fp_defaults["bungie_face_global_material"])
             face_properties.setdefault("bungie_face_global_material", FaceSet(np.full(num_faces, gmv, np.int32))).update(bm, face_prop.layer_name, scene.global_materials.index(face_prop.face_global_material.strip().replace(' ', "_")))
-        if face_prop.region_name_override:
+        if scene.asset_type.supports_regions and face_prop.region_name_override:
             rv = 0
             default_region = fp_defaults["bungie_face_region"]
             if default_region in scene.regions_set:
@@ -1047,3 +1076,11 @@ def calc_transforms(matrix: Matrix) -> tuple[Array, Array, Array]:
     )
     
     return affine3, linear3x3, inverse_linear3x3
+
+def is_rendered(props: dict) -> bool:
+    mesh_type = props.get("bungie_mesh_type", None)
+    if mesh_type is None:
+        # returning true since the absence of a mesh type means the game will use the default mesh type - _connected_geometry_mesh_type_default
+        return True 
+    
+    return mesh_type in RENDER_MESH_TYPES

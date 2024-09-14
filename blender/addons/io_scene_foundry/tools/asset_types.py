@@ -59,16 +59,20 @@ class AssetType(Enum):
     
     @property
     def supports_permutations(self):
-        return self.value in (0, 1, 2, 8)
+        return self.value in {0, 1, 2, 8}
     
     @property
     def supports_animations(self):
-        return self.value in (0, 5)
+        return self.value in {0, 5}
     
     @property
     def supports_bsp(self):
-        return self.value in (1, 8)
+        return self.value in {1, 8}
     
     @property
     def supports_global_materials(self):
-        return self.value in (0, 1, 8)
+        return self.value in {0, 1, 8}
+    
+    @property
+    def supports_regions(self):
+        return self.value in (0, 2)

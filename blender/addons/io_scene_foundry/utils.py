@@ -3753,7 +3753,7 @@ def cut_out_mesh(ob: bpy.types.Object, cutter: bpy.types.Object):
     bm.free()
     
 def get_halo_props_for_granny(id) -> dict:
-    halo_props = {k: v.encode() for k, v in id.items() if type(k) == str and k.startswith('bungie_')}
+    halo_props = {k: v.encode() for k, v in id.items() if type(k) == str}
     if isinstance(id, bpy.types.Object):
         halo_props["bungie_object_ID"] = id.nwo.ObjectID.encode()
         

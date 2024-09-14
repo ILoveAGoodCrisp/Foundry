@@ -4,52 +4,10 @@ from pathlib import Path
 import struct
 import time
 
-import bmesh
 import bpy
-from mathutils import Matrix
 
 from .export_classes import *
 from .formats import *
-
-dll = None
-    
-vertex_names = (
-    b"Position",
-    b"BoneWeights",
-    b"BoneIndices",
-    b"Normal",
-    b"TextureCoordinates0",
-    b"TextureCoordinates1",
-    b"TextureCoordinates2",
-    b"TextureCoordinates3",
-    b"lighting",
-    b"colorSet1",
-    b"colorSet2",
-    b"blend_shape",
-    b"vertex_id"
-)
-
-def map_type_granny_member_type(data_type):
-    match data_type:
-        case c_int:
-            return GrannyMemberType.granny_real32_member
-
-# vertex_type_info = [
-#     GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Position", None, 3),
-#     GrannyDataTypeDefinition(14, b"BoneWeights", None, 4),
-#     GrannyDataTypeDefinition(12, b"BoneIndices", None, 4),
-#     GrannyDataTypeDefinition(10, b"Normal", None, 3),
-#     GrannyDataTypeDefinition(10, b"TextureCoordinates0", None, 3),
-#     GrannyDataTypeDefinition(10, b"TextureCoordinates1", None, 3),
-#     GrannyDataTypeDefinition(10, b"TextureCoordinates2", None, 3),
-#     GrannyDataTypeDefinition(10, b"TextureCoordinates3", None, 3),
-#     GrannyDataTypeDefinition(10, b"lighting", None, 3),
-#     GrannyDataTypeDefinition(10, b"DiffuseColor0", None, 3),
-#     GrannyDataTypeDefinition(10, b"DiffuseColor1", None, 3),
-#     GrannyDataTypeDefinition(10, b"blend_shape", None, 3),
-#     GrannyDataTypeDefinition(10, b"vertex_id", None, 2),
-#     GrannyDataTypeDefinition(0, None, None, 0)  # End marker
-# ]
 
 def granny_get_log_message_type_string(message_type: c_int) -> c_char_p:
     """Granny logging function"""
@@ -112,13 +70,14 @@ class Granny:
         
         
     def from_tree(self, scene, nodes):
-        self.export_materials = [Material(mat) for mat in scene.materials.values()]
+        self.export_materials = []
         self.export_meshes = []
         self.export_models = []
         self.export_skeletons = []
         self.export_tri_topologies = []
         self.export_vertex_datas = []
         meshes = set()
+        materials = set()
         for model in scene.models.values():
             node = nodes.get(model.name)
             if not node: continue
@@ -127,7 +86,8 @@ class Granny:
             for bone in model.skeleton.bones:
                 if bone.node and nodes.get(bone.name) and bone.node.mesh:
                     self.export_vertex_datas.append(bone.node.granny_vertex_data)
-                    self.export_meshes.append(Mesh(bone.node, len(self.export_vertex_datas) - 1, scene.materials))
+                    self.export_meshes.append(Mesh(bone.node))
+                    materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
                     mesh_binding_indexes.append(len(self.export_meshes) - 1)
                     
@@ -135,6 +95,7 @@ class Granny:
             
         if meshes:
             self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
+            self.export_materials = [mat.granny_material for mat in materials]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -179,21 +140,10 @@ class Granny:
                 
     def create_materials(self):
         num_materials = len(self.export_materials)
-        granny_materials = (POINTER(GrannyMaterial) * num_materials)()
-
-        for i, export_material in enumerate(self.export_materials):
-            granny_material = GrannyMaterial()
-            granny_materials[i] = pointer(granny_material)
-            export_material.granny = granny_materials[i]
-            self._populate_material(granny_material, export_material)
-
+        materials = (POINTER(GrannyMaterial) * num_materials)(*self.export_materials)
         self.file_info.material_count = num_materials
-        self.file_info.materials = granny_materials
+        self.file_info.materials = materials
 
-    def _populate_material(self, granny_material, export_material):
-        granny_material.name = export_material.name
-        export_material.create_properties(granny_material)
-        
     def create_skeletons(self, export_info=None):
         num_skeletons = len(self.export_skeletons) + int(bool(export_info))
         skeletons = (POINTER(GrannySkeleton) * num_skeletons)()
@@ -281,13 +231,13 @@ class Granny:
         granny_mesh.primary_vertex_data = export_mesh.primary_vertex_data
         granny_mesh.primary_topology = export_mesh.primary_topology
         
-        num_material_bindings = len(export_mesh.material_bindings)
+        num_material_bindings = len(export_mesh.materials)
         material_bindings = (GrannyMaterialBinding * num_material_bindings)()
 
-        for j, export_material_binding in enumerate(export_mesh.material_bindings):
+        for j, export_material in enumerate(export_mesh.materials):
             granny_material_binding = material_bindings[j]
-            granny_material_binding.material = self.export_materials[export_material_binding].granny
-
+            granny_material_binding.material = export_material
+            
         granny_mesh.material_binding_count = num_material_bindings
         granny_mesh.material_bindings = cast(material_bindings, POINTER(GrannyMaterialBinding))
         
@@ -351,15 +301,13 @@ class Granny:
     def _begin_file_data_tree_writing(self):
         self.dll.GrannyBeginFileDataTreeWriting.argtypes=[POINTER(GrannyDataTypeDefinition), c_void_p, c_int32, c_int32]
         self.dll.GrannyBeginFileDataTreeWriting.restype=c_void_p
-        result = self.dll.GrannyBeginFileDataTreeWriting(self.file_info_type, pointer(self.file_info), 0, 0)
-        return result
+        return self.dll.GrannyBeginFileDataTreeWriting(self.file_info_type, pointer(self.file_info), 0, 0)
     
     def _write_data_tree_to_file(self, writer):
         file_name_bytes = self.filename.encode()
         self.dll.GrannyWriteDataTreeToFile.argtypes=[c_void_p, c_uint32, POINTER(GrannyFileMagic), c_char_p, c_int32]
         self.dll.GrannyWriteDataTreeToFile.restype=c_bool
-        result = self.dll.GrannyWriteDataTreeToFile(writer, 0x80000037, self.magic_value, file_name_bytes, 1)
-        return result
+        return self.dll.GrannyWriteDataTreeToFile(writer, 0x80000037, self.magic_value, file_name_bytes, 1)
     
     def _end_file_data_tree_writing(self, writer):
         self.dll.GrannyEndFileDataTreeWriting.argtypes=[c_void_p]

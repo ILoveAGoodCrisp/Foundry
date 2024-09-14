@@ -111,7 +111,7 @@ class ExportScene:
         
         self.project_root = Path(utils.get_tags_path()).parent
         self.warnings = []
-        os.chdir(tempfile.gettempdir())
+        os.chdir(self.project_root)
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))
         
     def ready_scene(self):
@@ -128,17 +128,9 @@ class ExportScene:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type == "ARMATURE"}
         else:
             self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
+            # print([i for i in self.export_objects])
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny)
-        
-        
-        # Create default material
-        if self.corinth:
-            default_material = VirtualMaterial("invalid", r"shaders\invalid.material", self.virtual_scene)
-        else:
-            default_material = VirtualMaterial("invalid", r"shaders\invalid.shader", self.virtual_scene)
-            
-        self.virtual_scene.materials["invalid"] = default_material
     
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
@@ -166,7 +158,7 @@ class ExportScene:
         self.global_materials_list = list(self.global_materials - {'default'})
         self.global_materials_list.insert(0, 'default')
         
-        self.export_info = ExportInfo(self.regions, self.global_materials_list).create_info()
+        self.export_info = ExportInfo(self.regions if self.asset_type.supports_regions else None, self.global_materials_list if self.asset_type.supports_global_materials else None).create_info()
         self.virtual_scene.regions = self.regions
         self.virtual_scene.regions_set = set(self.regions)
         self.virtual_scene.global_materials = self.global_materials_list
@@ -655,11 +647,12 @@ class ExportScene:
                     fp_defaults["bungie_face_global_material"] = global_material
                 else:
                     props["bungie_face_global_material"] = global_material
-                    
-        if test_face_prop(face_props, "region_name_override"):
-            fp_defaults["bungie_face_region"] = region
-        else:
-            props["bungie_face_region"] = region
+        
+        if self.asset_type.supports_regions:
+            if test_face_prop(face_props, "region_name_override"):
+                fp_defaults["bungie_face_region"] = region
+            else:
+                props["bungie_face_region"] = region
             
         for idx, face_prop in enumerate(data_nwo.face_props):
             if face_prop.region_name_override:

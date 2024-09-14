@@ -108,9 +108,10 @@ class ExportInfo:
         self.face_draw_distance = FaceDrawDistance
         self.lightmap_type = LightmapType
         self.mesh_tessellation_density = MeshTessellationDensity
-        
-        self.regions = regions
-        self.global_material = global_materials
+        if regions:
+            self.regions = regions
+        if global_materials:
+            self.global_material = global_materials
         
     def create_info(self) -> dict:
         info = {}

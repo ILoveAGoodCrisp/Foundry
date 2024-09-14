@@ -10,13 +10,11 @@ class CtypesEnum(IntEnum):
         return int(obj)
 
 class GrannyRef(Structure):
-    """ granny reference """
     _pack_ = 1
     _fields_ = [('section_index', c_uint),
                 ('offset',c_uint)]
 
 class GrannyFileHeader(Structure):
-    """ granny file header structure """
     _pack_ = 1
     _fields_ = [('version', c_uint),
                 ('total_size',c_uint),
@@ -31,7 +29,6 @@ class GrannyFileHeader(Structure):
                 ('reserved_unused', c_uint * 3),]
 
 class GrannyFileMagic(Structure):
-    """ granny file magic structure """
     _pack_ = 1
     _fields_ = [('magic_value', c_uint * 4),
                 ('header_size',c_uint),
@@ -39,13 +36,12 @@ class GrannyFileMagic(Structure):
                 ('reserved', c_uint * 2)]
 
 class GrannyFile(Structure):
-    """ granny file structure """
     _pack_ = 1
     _fields_ = [('is_byte_reversed', c_int),
-                ('header',POINTER(GrannyFileHeader)), #GrannyFileHeader
-                ('source_magic_value',POINTER(GrannyFileMagic)), #GrannyFileMagic
-                ('section_count',c_int), # int
-                ('sections',POINTER(c_void_p)), #void **
+                ('header',POINTER(GrannyFileHeader)),
+                ('source_magic_value',POINTER(GrannyFileMagic)),
+                ('section_count',c_int),
+                ('sections',POINTER(c_void_p)),
                 ('marshalled',POINTER(c_bool)),
                 ('is_user_memory',POINTER(c_bool)),
                 ('conversion_buffer',POINTER(c_bool)),]
@@ -78,10 +74,10 @@ class GrannyMemberType(CtypesEnum):
     granny_bool32_member = granny_int32_member
     granny_member_type_force_int = int(0x7fffffff)
 
-#https://docs.python.org/3.5/library/ctypes.html#incomplete-types :puke:
 class GrannyDataTypeDefinition(Structure):
     """ granny data type info """
     pass
+
 GrannyDataTypeDefinition._pack_ = 1
 GrannyDataTypeDefinition._fields_ = [
                 ('member_type',c_int), # GrannyMemberType
@@ -92,14 +88,12 @@ GrannyDataTypeDefinition._fields_ = [
                 ('unused_or_ignored',c_ulonglong)]
 
 class GrannyVariant(Structure):
-    """ granny variant data """
     _pack_ = 1
     _fields_ = [
                 ('type',POINTER(GrannyDataTypeDefinition)),
                 ('object',c_void_p)]
 
 class GrannyFileArtToolInfo(Structure):
-    """ granny file art tool information """
     _pack_ = 1
     _fields_ = [
                 ('art_tool_name',c_char_p),
@@ -114,7 +108,6 @@ class GrannyFileArtToolInfo(Structure):
                 ('extended_data',GrannyVariant)]
 
 class GrannyFileExporterInfo(Structure):
-    """ granny file export information """
     _pack_ = 1
     _fields_ = [
                 ('exporter_name',c_char_p),
@@ -125,7 +118,6 @@ class GrannyFileExporterInfo(Structure):
                 ('extended_data',GrannyVariant)]
 
 class GrannyTextureMipLevel(Structure):
-    """ texture mip information """
     _pack_ = 1
     _fields_ = [
                 ('stride',c_int),
@@ -133,14 +125,12 @@ class GrannyTextureMipLevel(Structure):
                 ('pixel_bytes',c_void_p)]     
 
 class GrannyTextureImage(Structure):
-    """ texture mip information """
     _pack_ = 1
     _fields_ = [
                 ('mip_level_count',c_int),
                 ('mip_levels',POINTER(GrannyTextureMipLevel))]     
 
 class GrannyPixelLayout(Structure):
-    """ pixel layout data """
     _pack_ = 1
     _fields_ = [
                 ('bytes_per_pixel',c_int),
@@ -148,7 +138,6 @@ class GrannyPixelLayout(Structure):
                 ('bits_for_component',c_int * 4)]     
 
 class GrannyTexture(Structure):
-    """ texture data """
     _pack_ = 1
     _fields_ = [
                 ('file_name',c_char_p),
@@ -163,27 +152,24 @@ class GrannyTexture(Structure):
                 ('extended_data',GrannyVariant)]
 
 class GrannyMaterialMap(Structure):
-    """ material data """
     pass
 GrannyMaterialMap._pack_ = 1
 
 
 class GrannyMaterial(Structure):
-    """ material data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
                 ('map_count',c_int),
-                ('maps',POINTER(GrannyMaterialMap)),
-                ('texture',POINTER(GrannyTextureImage)),
-                ('extended_data',GrannyVariant)]     
+                ('maps', POINTER(GrannyMaterialMap)),
+                ('texture', POINTER(GrannyTextureImage)),
+                ('extended_data', GrannyVariant)]     
 
 GrannyMaterialMap._fields_ = [
-                ('usage',c_char_p),
-                ('maps',POINTER(GrannyMaterial))]     
+                ('usage', c_char_p),
+                ('maps', POINTER(GrannyMaterial))]     
 
 class GrannyTransform(Structure):
-    """ transform data """
     _pack_ = 1
     _fields_ = [
                 ('flags',c_uint),
@@ -192,7 +178,6 @@ class GrannyTransform(Structure):
                 ('scale_shear',c_float * 3 * 3)]     
 
 class GrannyBone(Structure):
-    """ bone data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -203,7 +188,6 @@ class GrannyBone(Structure):
                 ('extended_data',GrannyVariant)]     
 
 class GrannySkeleton(Structure):
-    """ skeleton data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -213,7 +197,6 @@ class GrannySkeleton(Structure):
                 ('extended_data',GrannyVariant)]     
 
 class GrannyVertexAnnotationSet(Structure):
-    """ vertex data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -225,7 +208,6 @@ class GrannyVertexAnnotationSet(Structure):
                 ('vertex_annotation_indices',POINTER(c_int))]    
 
 class GrannyVertexData(Structure):
-    """ vertex data """
     _pack_ = 1
     _fields_ = [
                 ('vertex_type',POINTER(GrannyDataTypeDefinition)),
@@ -237,7 +219,6 @@ class GrannyVertexData(Structure):
                 ('vertex_annotation_sets',POINTER(GrannyVertexAnnotationSet))]     
 
 class GrannyTriAnnotationSet(Structure):
-    """ triangle annotation data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -249,7 +230,6 @@ class GrannyTriAnnotationSet(Structure):
                 ('tri_annotation_indices',POINTER(c_int))]     
 
 class GrannyTriMaterialGroup(Structure):
-    """ triangle data relating to the attached material """
     _pack_ = 1
     _fields_ = [
                 ('material_index',c_int),
@@ -257,7 +237,6 @@ class GrannyTriMaterialGroup(Structure):
                 ('tri_count',c_int)]    
 
 class GrannyTriTopology(Structure):
-    """ triangle topology data """
     _pack_ = 1
     _fields_ = [
                 ('group_count',c_int),
@@ -280,7 +259,6 @@ class GrannyTriTopology(Structure):
                 ('tri_annotation_sets',POINTER(GrannyTriAnnotationSet))]    
 
 class GrannyMorphTarget(Structure):
-    """ morph target data """
     _pack_ = 1
     _fields_ = [
                 ('scalar_name',c_char_p),
@@ -288,13 +266,11 @@ class GrannyMorphTarget(Structure):
                 ('data_is_deltas',c_int)]  
 
 class GrannyMaterialBinding(Structure):
-    """ material binding data """
     _pack_ = 1
     _fields_ = [
                 ('material',POINTER(GrannyMaterial))]  
 
 class GrannyBoneBinding(Structure):
-    """ bone binding data """
     _pack_ = 1
     _fields_ = [
                 ('bone_name',c_char_p),
@@ -304,7 +280,6 @@ class GrannyBoneBinding(Structure):
                 ('triangle_indices',POINTER(c_int))]  
 
 class GrannyMesh(Structure):
-    """ mesh data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -319,13 +294,11 @@ class GrannyMesh(Structure):
                 ('extended_data',GrannyVariant)]  
 
 class GrannyModelMeshBinding(Structure):
-    """ model mesh binding data """
     _pack_ = 1
     _fields_ = [
                 ('mesh',POINTER(GrannyMesh))]  
 
 class GrannyModel(Structure):
-    """ model data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -336,15 +309,7 @@ class GrannyModel(Structure):
                 ('extended_data',GrannyVariant)]  
 
 
-#Cant implement this struct thanks to cpython bug: https://github.com/python/cpython/issues/100980
-# If someone really needs this, make an issue, thanks.
-# class GrannyModelControlBinding(Structure):
-#     """ model control binding data """
-#     _pack_ = 1
-#     pass
-
 class GrannyModelInstance(Structure):
-    """ model instance data """
     _pack_ = 1
     pass
 
@@ -373,13 +338,11 @@ GrannyModelInstance._fields_ = [
 #     ('binding_type',c_longlong)]  #GrannyModelControlBindingType
     
 class GrannyCurve2(Structure):
-    """ vertex curve animation data """
     _pack_ = 1
     _fields_ = [
                 ('curve_data',GrannyVariant)]  
 
 class GrannyVectorTrack(Structure):
-    """ vector animation data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -388,7 +351,6 @@ class GrannyVectorTrack(Structure):
                 ('value_curve',GrannyCurve2)]  
 
 class GrannyTransformTrack(Structure):
-    """ transform animation data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -398,7 +360,6 @@ class GrannyTransformTrack(Structure):
                 ('scale_shear_curve',GrannyCurve2)]  
 
 class GrannyTextTrackEntry(Structure):
-    """ text animation data entry """
     _pack_ = 1
     _fields_ = [
                 ('timestamp',c_float),
@@ -413,7 +374,6 @@ class GrannyTextTrack(Structure):
                 ('entries',POINTER(GrannyTextTrackEntry)),]  
 
 class GrannyPeriodicLoop(Structure):
-    """ periodic loop data """
     _pack_ = 1
     _fields_ = [
                 ('radius',c_float),
@@ -424,7 +384,6 @@ class GrannyPeriodicLoop(Structure):
                 ('axis',c_float * 3),]  
 
 class GrannyTrackGroup(Structure):
-    """ track group data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -443,7 +402,6 @@ class GrannyTrackGroup(Structure):
                 ('extended_data',GrannyVariant)]  
 
 class GrannyAnimation(Structure):
-    """ animation data """
     _pack_ = 1
     _fields_ = [
                 ('name',c_char_p),
@@ -458,7 +416,6 @@ class GrannyAnimation(Structure):
 
 
 class GrannyFileInfo(Structure):
-    """ granny file information """
     _pack_ = 1
     _fields_ = [
                 ('art_tool_info',POINTER(GrannyFileArtToolInfo)),
@@ -486,7 +443,6 @@ class GrannyFileInfo(Structure):
 
 
 class GrannyGRNSection(Structure):
-    """ granny file section """
     _pack_ = 1
     _fields_ = [
                 ('format',c_uint),
@@ -502,14 +458,12 @@ class GrannyGRNSection(Structure):
                 ('mixed_marshalling_fixup_array_count',c_uint)]
 
 class GrannyLogCallback(Structure):
-    """ granny file section """
     _pack_ = 1
     _fields_ = [
                 ('function',CFUNCTYPE(None, c_int,c_int,c_char_p,c_int,c_char_p,c_void_p)),
                 ('user_data',c_void_p)]
 
 class GrannyStringTreeEntry(Structure):
-    """ granny string stuff """
     _pack_ = 1
     pass
 
@@ -519,7 +473,6 @@ GrannyStringTreeEntry._fields_ = [
                 ('right',POINTER(GrannyStringTreeEntry))]
 
 class GrannyStringTree(Structure):
-    """ granny string stuff """
     _pack_ = 1
     _fields_ = [
                 ('unused',POINTER(GrannyStringTreeEntry)),
@@ -529,7 +482,6 @@ class GrannyStringTree(Structure):
                 ('container_buffers_member',c_void_p)]
 
 class GrannyMemoryArena(Structure):
-    """ granny memory stuff """
     _pack_ = 1
     pass
 
@@ -548,7 +500,6 @@ GrannyStringTableBlock._fields_ = [
                 ('last',POINTER(GrannyStringTableBlock))]
 
 class GrannyStringTable(Structure):
-    """ granny string stuff """
     _pack_ = 1
     _fields_ = [
                 ('tree',GrannyStringTree),
@@ -557,7 +508,6 @@ class GrannyStringTable(Structure):
                 ('arena',POINTER(GrannyMemoryArena))]
 
 class GrannyVariantMemberBuilder(Structure):
-    """ granny variant stuff """
     _pack_ = 1
     pass
 
@@ -567,7 +517,6 @@ GrannyVariantMemberBuilder._fields_ = [
                 ('next',POINTER(GrannyVariantMemberBuilder))]
 
 class GrannyVariantBuilder(Structure):
-    """ granny variant stuff """
     _pack_ = 1
     _fields_ = [
                 ('strings',POINTER(GrannyStringTable)),
@@ -577,7 +526,6 @@ class GrannyVariantBuilder(Structure):
                 ('last_member',POINTER(GrannyVariantMemberBuilder))]
 
 class GrannyWrittenType(Structure):
-    """ granny memory stuff """
     _pack_ = 1
     pass
 
@@ -590,7 +538,6 @@ GrannyWrittenType._fields_ = [
         ('previous',POINTER(GrannyWrittenType))]
 
 class GrannyWrittenTypeRegistry(Structure):
-    """ granny memory stuff """
     _pack_ = 1
     _fields_ = [
         ('unused',POINTER(GrannyWrittenType)),
@@ -600,7 +547,6 @@ class GrannyWrittenTypeRegistry(Structure):
         ('container_buffers_member',c_void_p),]
 
 class GrannyHashEntry(Structure):
-    """ granny memory stuff """
     _pack_ = 1
     pass
 
@@ -611,7 +557,6 @@ GrannyHashEntry._fields_ = [
         ('right',POINTER(GrannyHashEntry))]
 
 class GrannyPointerHash(Structure):
-    """ granny memory stuff """
     _pack_ = 1
     _fields_ = [
         ('unused',POINTER(GrannyHashEntry)),
@@ -621,7 +566,6 @@ class GrannyPointerHash(Structure):
         ('container_buffers_member',c_void_p),]
 
 class GrannyAllocatedBlock(Structure):
-    """ granny memory stuff """
     _pack_ = 1
     pass
 
@@ -632,7 +576,6 @@ GrannyAllocatedBlock._fields_ = [
         ('previous',POINTER(GrannyAllocatedBlock))]
 
 class GrannyStackAllocator(Structure):
-    """ granny memory stuff """
     _pack_ = 1
     _fields_ = [
         ('unit_size',c_int),
@@ -645,7 +588,6 @@ class GrannyStackAllocator(Structure):
         ('block_directory',POINTER(POINTER(GrannyAllocatedBlock)))]
 
 class GrannyFileDataTreeWriter(Structure):
-    """ granny file data stuff """
     _pack_ = 1
     _fields_ = [
         ('root_object_type_definition',POINTER(GrannyDataTypeDefinition)),
