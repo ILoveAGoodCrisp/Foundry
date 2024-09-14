@@ -52,7 +52,9 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
 
     def execute(self, context):
         self.old_sel = context.selected_objects.copy()
-
+        self.linked_objects = []
+        self.x_ray_state = False
+        self.shading_attr = None
         self.exit_local_view(context)
 
         set_object_mode(context)
@@ -62,14 +64,42 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         self.parent = context.object
         self.proxy_ob = bpy.data.objects[self.proxy]
         self.scene_coll = context.scene.collection.objects
-        self.scene_coll.link(self.proxy_ob)
-        self.proxy_ob.select_set(True)
-        self.proxy_ob.matrix_world = self.parent.matrix_world
+        data_nwo = self.parent.data.nwo
+        if data_nwo.proxy_collision is not None:
+            self.linked_objects.append(data_nwo.proxy_collision)
+            self.scene_coll.link(data_nwo.proxy_collision)
+            data_nwo.proxy_collision.hide_set(False)
+            data_nwo.proxy_collision.select_set(True)
+            data_nwo.proxy_collision.matrix_world = self.parent.matrix_world
+        if data_nwo.proxy_cookie_cutter is not None:
+            self.linked_objects.append(data_nwo.proxy_cookie_cutter)
+            self.scene_coll.link(data_nwo.proxy_cookie_cutter)
+            data_nwo.proxy_cookie_cutter.hide_set(False)
+            data_nwo.proxy_cookie_cutter.select_set(True)
+            data_nwo.proxy_cookie_cutter.matrix_world = self.parent.matrix_world
+        for i in range(10):
+            phys = getattr(data_nwo, f"proxy_physics{i}", None)
+            if phys is not None:
+                self.linked_objects.append(phys)
+                self.scene_coll.link(phys)
+                phys.hide_set(False)
+                phys.select_set(True)
+                phys.matrix_world = self.parent.matrix_world
+                
         bpy.ops.view3d.localview()
         deselect_all_objects()
         self.proxy_ob.select_set(True)
         set_active_object(self.proxy_ob)
         bpy.ops.object.editmode_toggle()
+        bpy.ops.mesh.select_all(action='SELECT')
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        self.x_ray_state = space.shading.show_xray
+                        self.shading_attr = space.shading
+                        space.shading.show_xray = True
+                            
         context.scene.nwo.instance_proxy_running = True
         
         return {'RUNNING_MODAL'}
@@ -84,9 +114,12 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
                 bpy.ops.object.editmode_toggle()
 
             self.exit_local_view(context)
+            if self.shading_attr is not None:
+                self.shading_attr.show_xray = self.x_ray_state
             try:
                 self.proxy_ob.select_set(False)
-                unlink(self.proxy_ob)
+                for ob in self.linked_objects:
+                    self.scene_coll.unlink(ob)
                 for sel_ob in self.old_sel:
                     sel_ob.select_set(True)
                 set_active_object(self.parent)
@@ -113,8 +146,10 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         nwo = context.object.data.nwo
         if not nwo.proxy_collision:
             items.append(("collision", "Collision", ""))
-        if not nwo.proxy_physics:
-            items.append(("physics", "Physics", ""))
+        for i in range(10):
+            if not getattr(nwo, f"proxy_physics{i}"):
+                items.append(("physics", "Physics", ""))
+                break
         if not is_corinth(context) and not nwo.proxy_cookie_cutter:
             items.append(("cookie_cutter", "Cookie Cutter", ""))
 
@@ -244,7 +279,16 @@ class NWO_ProxyInstanceNew(bpy.types.Operator):
         ob.nwo.proxy_type = proxy_type
         proxy_scene = get_foundry_storage_scene()
         proxy_scene.collection.objects.link(ob)
-        setattr(self.parent.data.nwo, f"proxy_{proxy_type}", ob)
+        if proxy_type == "physics":
+            for i in range(10):
+                if getattr(self.parent.data.nwo, f"proxy_physics{i}", None) is None:
+                    print("setting for ", f"proxy_physics{i}")
+                    setattr(self.parent.data.nwo, f"proxy_physics{i}", ob)
+                    break
+            else:
+                setattr(self.parent.data.nwo, "proxy_physics0", ob)
+        else:
+            setattr(self.parent.data.nwo, f"proxy_{proxy_type}", ob)
         if proxy_type == "collision":
             ob.data.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
             if self.parent.data.materials:

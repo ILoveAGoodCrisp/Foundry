@@ -64,8 +64,8 @@ class VirtualMaterial:
             if not (full_path.exists() and full_path.is_file()):
                 return self.set_invalid(scene)
         
-        self.shader_path = str(path.with_suffix(""))
-        self.shader_type = path.suffix[1:]
+            self.shader_path = str(path.with_suffix(""))
+            self.shader_type = path.suffix[1:]
         
         self.to_granny_data(scene)
         
@@ -82,8 +82,9 @@ class VirtualMaterial:
         self.granny_material = pointer(self.granny_material)
     
 class VirtualMesh:
-    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool):
+    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list):
         self.name = "default"
+        self.proxies = proxies
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
         self.bone_weights: np.ndarray = None
@@ -537,7 +538,7 @@ class VirtualMesh:
 #         return props
     
 class VirtualNode:
-    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None):
+    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None):
         self.name: str = "object"
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -556,14 +557,18 @@ class VirtualNode:
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
         if not self.invalid:
-            self._setup(id, scene, fp_defaults)
+            self._setup(id, scene, fp_defaults, proxies, template_node)
         
-    def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict):
+    def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode'):
         self.name = id.name
         if isinstance(id, bpy.types.Object):
             self.selected = id.original.select_get()
-            self.matrix_world = id.original.matrix_world.copy()
-            self.matrix_local = id.original.matrix_local.copy()
+            if template_node is None:
+                self.matrix_world = id.original.matrix_world.copy()
+                self.matrix_local = id.original.matrix_local.copy()
+            else:
+                self.matrix_world = template_node.matrix_world
+                self.matrix_local = template_node.matrix_local
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
                 existing_mesh = scene.meshes.get(id.data.name)
@@ -572,7 +577,7 @@ class VirtualNode:
                     self.bone_bindings = existing_mesh.bone_bindings
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props))
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies)
                     id.to_mesh_clear()
                     self.mesh = mesh
                     self.new_mesh = True
@@ -687,6 +692,7 @@ class VirtualSkeleton:
     '''Describes a list of bones'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene', node: VirtualNode):
         self.name: str = ob.name
+        self.node = node
         own_bone = VirtualBone(ob)
         own_bone.node = node
         own_bone.matrix_world = own_bone.node.matrix_world
@@ -745,7 +751,7 @@ class VirtualSkeleton:
         else:
             self.find_children(ob, scene)
                     
-    def find_children(self, ob: bpy.types.Object, scene, parent_index=0):
+    def find_children(self, ob: bpy.types.Object, scene: 'VirtualScene', parent_index=0):
         child_index = parent_index
         for child in scene.get_immediate_children(ob):
             node = scene.add(child, *scene.object_halo_data[child])
@@ -760,6 +766,17 @@ class VirtualSkeleton:
             b.matrix_local = b.node.matrix_local
             self.bones.append(b)
             self.find_children(child, scene, child_index)
+            
+        if self.node.mesh:
+            for proxy in self.node.mesh.proxies:
+                node = scene.add(proxy, *scene.object_halo_data[proxy], self.node)
+                if not node or node.invalid: continue
+                b = VirtualBone(proxy)
+                b.parent_index = parent_index
+                b.node = node
+                b.matrix_world = b.node.matrix_world
+                b.matrix_local = b.node.matrix_local
+                self.bones.append(b)
     
 class VirtualModel:
     '''Describes a blender object which has no parent'''
@@ -802,7 +819,7 @@ class VirtualScene:
         self.warnings = []
         
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
-        self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str]] = {}
+        self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str, list]] = {}
         
         self.material_extended_data_type = self._create_material_extended_data_type()
         
@@ -823,9 +840,9 @@ class VirtualScene:
         return material_extended_data_type
         
         
-    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None):
+    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = None, template_node: VirtualNode = None) -> VirtualNode:
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
-        node = VirtualNode(id, props, region, permutation, fp_defaults, self)
+        node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node)
         if not node.invalid:
             self.nodes[node.name] = node
             if node.new_mesh:
@@ -860,6 +877,12 @@ class VirtualScene:
                 
         self.materials[virtual_mat.name] = virtual_mat
         return virtual_mat
+    
+    def has_instance_proxy(self, node: VirtualNode):
+        return (self.asset_type.supports_bsp and 
+                node and 
+                node.mesh and 
+                node.props.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop")
                 
 def has_armature_deform_mod(ob: bpy.types.Object):
     for mod in ob.modifiers:

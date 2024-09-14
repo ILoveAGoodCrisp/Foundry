@@ -1421,7 +1421,7 @@ class PrepareScene:
                 if self.corinth:
                     proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_collision"
                     proxy_physics["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_play_collision"
-                    split_physics = self._proxy_face_split(proxy_physics)
+                    # split_physics = self._proxy_face_split(proxy_physics)
                 else:
                     # Physics gets split by parts
                     proxy_physics["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_physics"

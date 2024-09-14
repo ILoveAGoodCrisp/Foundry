@@ -404,8 +404,17 @@ class NWO_FaceProperties_ListItems(bpy.types.PropertyGroup):
 
 class NWO_MeshPropertiesGroup(bpy.types.PropertyGroup):
     proxy_collision: bpy.props.PointerProperty(type=bpy.types.Object)
-    proxy_physics: bpy.props.PointerProperty(type=bpy.types.Object)
     proxy_cookie_cutter: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics0: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics1: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics2: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics3: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics4: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics5: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics6: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics7: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics8: bpy.props.PointerProperty(type=bpy.types.Object)
+    proxy_physics9: bpy.props.PointerProperty(type=bpy.types.Object)
     
     mesh_type: bpy.props.StringProperty(
         name="Mesh Type",

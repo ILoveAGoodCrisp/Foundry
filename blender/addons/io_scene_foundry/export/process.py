@@ -78,6 +78,7 @@ class ExportScene:
     def __init__(self, context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings):
         self.context = context
         self.asset_type = AssetType[asset_type.upper()]
+        self.supports_bsp = self.asset_type.supports_bsp
         self.asset_name = asset_name
         self.asset_path = asset_path
         self.sidecar_path = sidecar_path
@@ -103,6 +104,7 @@ class ExportScene:
         self.selected_permutations = set()
         
         self.processed_meshes = {}
+        self.processed_poop_meshes = set()
         
         self.game_version = 'corinth' if corinth else 'reach'
         self.export_settings = export_settings
@@ -130,6 +132,75 @@ class ExportScene:
             self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny)
+        
+    def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
+        self.processed_poop_meshes.add(ob.data)
+        data_nwo = ob.data.nwo
+        proxy_physics_list = [getattr(data_nwo, f"proxy_physics{i}", None) for i in range(10) if getattr(data_nwo, f"proxy_physics{i}") is not None]
+        proxy_collision = data_nwo.proxy_collision
+        proxy_cookie_cutter = data_nwo.proxy_cookie_cutter
+        
+        has_coll = proxy_collision is not None
+        has_phys = bool(proxy_physics_list)
+        has_cookie = proxy_cookie_cutter is not None and not self.corinth
+        
+        proxies = []
+        
+        if has_coll:
+            proxy_collision = proxy_collision.evaluated_get(self.depsgraph)
+            coll_props = {}
+            coll_props["bungie_object_type"] = "_connected_geometry_object_type_mesh"
+            coll_props["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_collision"
+            if self.corinth:
+                if has_phys:
+                    coll_props["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_bullet_collision"
+                else:
+                    coll_props["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_default"
+                    
+            fp_defaults, mesh_props = self.processed_meshes.get(proxy_collision.data, (None, None))
+            if mesh_props is None:
+                fp_defaults, mesh_props = self._setup_mesh_level_props(proxy_collision, "default")
+                self.processed_meshes[proxy_collision.data] = (fp_defaults, mesh_props)
+            
+            coll_props.update(mesh_props)
+            ob_halo_data[proxy_collision] = (coll_props, region, permutation, fp_defaults, tuple())
+            proxies.append(proxy_collision)
+            
+        if has_phys:
+            for proxy_physics in proxy_physics_list:
+                proxy_physics = proxy_physics.evaluated_get(self.depsgraph)
+                phys_props = {}
+                phys_props["bungie_object_type"] = "_connected_geometry_object_type_mesh"
+                if self.corinth:
+                    phys_props["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_collision"
+                    phys_props["bungie_mesh_poop_collision_type"] = "_connected_geometry_poop_collision_type_play_collision"
+                else:
+                    phys_props["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop_physics"
+                        
+                fp_defaults, mesh_props = self.processed_meshes.get(proxy_physics.data, (None, None))
+                if mesh_props is None:
+                    fp_defaults, mesh_props = self._setup_mesh_level_props(proxy_physics, "default")
+                    self.processed_meshes[proxy_physics.data] = (fp_defaults, mesh_props)
+                
+                phys_props.update(mesh_props)
+                ob_halo_data[proxy_physics] = (phys_props, region, permutation, fp_defaults, tuple())
+                proxies.append(proxy_physics)
+            
+        if has_cookie:
+            proxy_cookie_cutter = proxy_cookie_cutter.evaluated_get(self.depsgraph)
+            cookie_props = {}
+            cookie_props["bungie_object_type"] = "_connected_geometry_object_type_mesh"
+            cookie_props["bungie_mesh_type"] = "_connected_geometry_mesh_type_cookie_cutter"
+            fp_defaults, mesh_props = self.processed_meshes.get(proxy_cookie_cutter.data, (None, None))
+            if mesh_props is None:
+                fp_defaults, mesh_props = self._setup_mesh_level_props(proxy_cookie_cutter, "default")
+                self.processed_meshes[proxy_cookie_cutter.data] = (fp_defaults, mesh_props)
+            
+            cookie_props.update(mesh_props)
+            ob_halo_data[proxy_cookie_cutter] = (cookie_props, region, permutation, fp_defaults, tuple())
+            proxies.append(proxy_cookie_cutter)
+        
+        return ob_halo_data, proxies
     
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
@@ -144,12 +215,17 @@ class ExportScene:
                 if result is None:
                     continue
                 props, region, permutation, fp_defaults = result
-                ob_halo_data[ob] = (props, region, permutation, fp_defaults)
                 parent = ob.parent
+                proxies = tuple()
                 if parent:
                     object_parent_dict[ob] = parent
                 else:
                     self.no_parent_objects.append(ob)
+                    
+                if self.supports_bsp and props.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop' and ob.data not in self.processed_poop_meshes:
+                    ob_halo_data, proxies = self.create_instance_proxies(ob, ob_halo_data, region, permutation)
+                    
+                ob_halo_data[ob] = (props, region, permutation, fp_defaults, proxies)
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
@@ -162,7 +238,6 @@ class ExportScene:
         self.virtual_scene.regions_set = set(self.regions)
         self.virtual_scene.global_materials = self.global_materials_list
         self.virtual_scene.global_materials_set = set(self.global_materials_list)
-        
         self.virtual_scene.object_parent_dict = object_parent_dict
         self.virtual_scene.object_halo_data = ob_halo_data
             
