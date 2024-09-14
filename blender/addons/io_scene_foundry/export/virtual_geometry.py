@@ -90,8 +90,11 @@ class VirtualMesh:
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
         self.num_loops = 0
+        self.invalid = False
         self._setup(ob, scene, fp_defaults)
-        self.to_granny_data(scene)
+        if not self.invalid:
+            self.to_granny_data(scene)
+            
         del self.positions
         del self.normals
         del self.bone_weights
@@ -208,8 +211,12 @@ class VirtualMesh:
             
         add_triangle_mod(ob)
         mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
-        
         self.name = mesh.name
+        if not mesh.polygons:
+            scene.warnings.append(f"Mesh data [{self.name}] of object [{ob.name}] has no faces. {ob.name} removed from geometry tree")
+            self.invalid = True
+            return
+        
         unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
         num_materials = len(mesh.materials)
         special_mats_dict = defaultdict(list)
@@ -535,13 +542,14 @@ class VirtualNode:
         self.props = props
         self.group: str = "default"
         self.tag_type: str = "render"
+        self.invalid = False
         self._set_group(scene)
         self.parent: VirtualNode = None
         self.selected = False
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
-        
-        self._setup(id, scene, fp_defaults)
+        if not self.invalid:
+            self._setup(id, scene, fp_defaults)
         
     def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict):
         self.name = id.name
@@ -558,11 +566,15 @@ class VirtualNode:
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults)
-                    self.mesh = mesh
                     id.to_mesh_clear()
+                    self.mesh = mesh
                     self.new_mesh = True
                     self.bone_bindings = mesh.bone_bindings
-
+                    
+                if self.mesh.invalid:
+                    self.invalid = True
+                    return
+                    
                 self.granny_vertex_data = GrannyVertexData()
                 self.granny_vertex_data.vertex_component_names = self.mesh.vertex_component_names
                 self.granny_vertex_data.vertex_component_name_count = self.mesh.vertex_component_name_count
@@ -587,6 +599,7 @@ class VirtualNode:
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_loops
                 self.granny_vertex_data = pointer(self.granny_vertex_data)
+                    
             
     def _set_group(self, scene: 'VirtualScene'):
         match scene.asset_type:
@@ -606,7 +619,9 @@ class VirtualNode:
                 else:
                     object_type = self.props.get("bungie_object_type")
                     if not object_type:
-                        return print("Node has no object type: ", self.name)
+                        self.invalid = True
+                        scene.warnings.append(f"Object [{self.name}] has no Halo object type")
+                        return
                     
                     match object_type:
                         case '_connected_geometry_object_type_marker':
@@ -705,7 +720,7 @@ class VirtualSkeleton:
                 node = scene.add(child, *scene.object_halo_data[child])
                 if not node: continue
                 child_index += 1
-                if not node: continue
+                if not node or node.invalid: continue
                 b = VirtualBone(child)
                 b.node = node
                 if child.type != 'MESH':
@@ -727,7 +742,7 @@ class VirtualSkeleton:
         child_index = parent_index
         for child in scene.get_immediate_children(ob):
             node = scene.add(child, *scene.object_halo_data[child])
-            if not node: continue
+            if not node or node.invalid: continue
             child_index += 1
             b = VirtualBone(child)
             b.parent_index = parent_index
@@ -743,12 +758,15 @@ class VirtualModel:
     '''Describes a blender object which has no parent'''
     def __init__(self, ob: bpy.types.Object, scene: 'VirtualScene'):
         self.name: str = ob.name
-        self.node = scene.add(ob, *scene.object_halo_data[ob])
-        self.skeleton: VirtualSkeleton = VirtualSkeleton(ob, scene, self.node)
-        self.matrix: Matrix = ob.matrix_world.copy()
-        if ob.type == 'ARMATURE':
-            if not scene.skeleton_node:
-                scene.skeleton_node = self.node
+        self.node = None
+        node = scene.add(ob, *scene.object_halo_data[ob])
+        if node and not node.invalid:
+            self.node = node
+            self.skeleton: VirtualSkeleton = VirtualSkeleton(ob, scene, self.node)
+            self.matrix: Matrix = ob.matrix_world.copy()
+            if ob.type == 'ARMATURE':
+                if not scene.skeleton_node:
+                    scene.skeleton_node = self.node
             
 class VirtualScene:
     def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny):
@@ -774,6 +792,7 @@ class VirtualScene:
         self.structure = set()
         self.design = set()
         self.bsps_with_structure = set()
+        self.warnings = []
         
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
         self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str]] = {}
@@ -781,10 +800,10 @@ class VirtualScene:
     def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None):
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
         node = VirtualNode(id, props, region, permutation, fp_defaults, self)
-        self.nodes[node.name] = node
-        # self.object_parent_dict[id] = id.parent if id.parent else None
-        if node.new_mesh:
-            self.meshes[node.mesh.name] = node.mesh
+        if not node.invalid:
+            self.nodes[node.name] = node
+            if node.new_mesh:
+                self.meshes[node.mesh.name] = node.mesh
             
         return node
             
@@ -793,7 +812,11 @@ class VirtualScene:
         return children
         
     def add_model(self, ob):
-        self.models[ob.name] = VirtualModel(ob, self)
+        model = VirtualModel(ob, self)
+        if model.node:
+            self.models[ob.name] = model
+        else:
+            del model
         
     def _get_material(self, material: bpy.types.Material, scene):
         virtual_mat = self.materials.get(material.name)

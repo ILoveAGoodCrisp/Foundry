@@ -110,9 +110,8 @@ class ExportScene:
         self.sidecar = Sidecar(sidecar_path_full, sidecar_path, asset_path, asset_name, self.asset_type, scene_settings, corinth, context)
         
         self.project_root = Path(utils.get_tags_path()).parent
-        
+        self.warnings = []
         os.chdir(tempfile.gettempdir())
-        
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))
         
     def ready_scene(self):
@@ -206,22 +205,19 @@ class ExportScene:
                 if tmp_region in self.regions:
                     region = tmp_region
                 else:
-                    self.warning_hit = True
-                    utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                    self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                     
             if (is_light or self.asset_type.supports_bsp) and not instanced_object:
                 if tmp_permutation in self.permutations:
                     permutation = tmp_permutation
                 else:
-                    self.warning_hit = True
-                    utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{tmp_permutation}] which is not present in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
+                    self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{tmp_permutation}] which is not present in the {self.perm_name}s table. Setting {self.perm_name} to: {self.default_permutation}")
                     
             elif nwo.marker_uses_regions and nwo.marker_permutation_type == 'include' and nwo.marker_permutations:
                 marker_perms = [item.name for item in nwo.marker_permutations]
                 for perm in marker_perms:
                     if perm not in self.permutations:
-                        self.warning_hit = True
-                        utils.print_warning(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
+                        self.warnings.append(f"Object [{ob.name}] has {self.perm_name} [{perm}] in its include list which is not present in the {self.perm_name}s table. Ignoring {self.perm_name}")
             
         if object_type == '_connected_geometry_object_type_mesh':
             if nwo.mesh_type == '':
@@ -232,8 +228,7 @@ class ExportScene:
                     return
                 
             else:
-                self.warning_hit = True
-                return utils.print_warning(f"{ob.name} has invalid mesh type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
+                return self.warnings.append(f"{ob.name} has invalid mesh type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
                 
         elif object_type == '_connected_geometry_object_type_marker':
             if nwo.marker_type == '':
@@ -243,8 +238,7 @@ class ExportScene:
                 if props is None:
                     return
             else:
-                self.warning_hit = True
-                return utils.print_warning(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
+                return self.warnings.append(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
         
         return props, region, permutation, fp_defaults
     
@@ -671,7 +665,7 @@ class ExportScene:
             if face_prop.region_name_override:
                 region = face_prop.region_name
                 if region not in self.regions:
-                    utils.print_warning(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
+                    self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{region}] on face property index {idx} which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
             if uses_global_mat and face_prop.face_global_material_override:
                 mat = face_prop.face_global_material.strip().replace(' ', "_")
                 if mat:
@@ -874,6 +868,24 @@ class ExportScene:
                 self.virtual_scene.add_model(ob)
                 utils.update_job_count(process, "", idx, num_no_parents)
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
+            
+    def report_warnings(self):
+        if not (self.virtual_scene.warnings or self.warnings):
+            return
+        
+        print("\n\nError Log")
+        print("-----------------------------------------------------------------------")
+        
+        if self.warnings:
+            print("\n--- Object Property Errors")
+            for warning in self.warnings:
+                utils.print_warning(warning)
+                
+        if self.virtual_scene.warnings:
+            print("\n--- Geometry Errors")
+            for warning in self.virtual_scene.warnings:
+                utils.print_warning(warning)
+        
         
     def get_selected_sets(self):
         '''

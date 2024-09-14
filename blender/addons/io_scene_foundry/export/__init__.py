@@ -660,6 +660,7 @@ def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, as
     export_scene.get_initial_export_objects()
     export_scene.map_halo_properties()
     export_scene.create_virtual_tree()
+    export_scene.report_warnings()
     export_scene.export_files()
     export_scene.preprocess_tags()
     export_scene.write_sidecar()
