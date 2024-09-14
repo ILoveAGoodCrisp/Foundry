@@ -1602,16 +1602,18 @@ class NWOImporter:
                 utils.apply_loop_normals(new_ob.data)
                 utils.loop_normal_magic(new_ob.data)
                 utils.clean_materials(new_ob)
-                    
-                new_ob.nwo.mesh_type_temp = jms_mat.mesh_type
-                objects_to_setup.append(new_ob)
-                self.new_coll.objects.link(new_ob)
-                for obj in linked_objects:
-                    new_ob_copy = new_ob.copy()
-                    new_ob_copy.parent = obj.parent
-                    new_ob_copy.parent_type = obj.parent_type
-                    new_ob_copy.parent_bone = obj.parent_bone
-                    new_ob_copy.matrix_world = obj.matrix_world
+                if new_ob.data.polygons:
+                    new_ob.nwo.mesh_type_temp = jms_mat.mesh_type
+                    objects_to_setup.append(new_ob)
+                    self.new_coll.objects.link(new_ob)
+                    for obj in linked_objects:
+                        new_ob_copy = new_ob.copy()
+                        new_ob_copy.parent = obj.parent
+                        new_ob_copy.parent_type = obj.parent_type
+                        new_ob_copy.parent_bone = obj.parent_bone
+                        new_ob_copy.matrix_world = obj.matrix_world
+                else:
+                    bpy.data.objects.remove(new_ob)
                 
             bm_original.to_mesh(ob.data)
             bm_original.free()

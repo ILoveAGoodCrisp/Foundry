@@ -708,7 +708,8 @@ class VirtualSkeleton:
                 if not node: continue
                 b = VirtualBone(child)
                 b.node = node
-                b.props = b.node.props
+                if child.type != 'MESH':
+                    b.props = b.node.props
                 b.matrix_world = child.matrix_world.copy()
                 b.matrix_local = child.matrix_local.copy()
                 if child.parent_type == 'BONE':
@@ -731,7 +732,8 @@ class VirtualSkeleton:
             b = VirtualBone(child)
             b.parent_index = parent_index
             b.node = node
-            b.props = b.node.props
+            if child.type != 'MESH':
+                b.props = b.node.props
             b.matrix_world = b.node.matrix_world
             b.matrix_local = b.node.matrix_local
             self.bones.append(b)
@@ -986,7 +988,7 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                         v.array[idx] = value
                 else:
                     if face[key]:
-                        if value < 0: # for handling face_sides
+                        if isinstance(value, int) and value < 0: # for handling face_sides
                             value = abs(value)
                             for l, va in side_layers.items():
                                 if l != key and abs(va) != value and face[l]:

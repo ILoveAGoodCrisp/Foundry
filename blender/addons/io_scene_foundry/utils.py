@@ -3047,13 +3047,14 @@ def apply_loop_normals(mesh: bpy.types.Mesh):
     bm = bmesh.new()
     try:
         bm.from_mesh(mesh)
-        loop_normals = list(yield_loop_normals(bm))
-        remove_face_layers(bm)
-        bm.to_mesh(mesh)
-        if len(mesh.loops) > len(loop_normals):
-            diff = len(mesh.loops) - len(loop_normals)
-            loop_normals.extend([[0.0,0.0,0.0]]*diff)
-        mesh.normals_split_custom_set(loop_normals)
+        if bm.faces:
+            loop_normals = list(yield_loop_normals(bm))
+            remove_face_layers(bm)
+            bm.to_mesh(mesh)
+            if len(mesh.loops) > len(loop_normals):
+                diff = len(mesh.loops) - len(loop_normals)
+                loop_normals.extend([[0.0,0.0,0.0]]*diff)
+            mesh.normals_split_custom_set(loop_normals)
     finally:
         bm.free()
     
@@ -3064,13 +3065,16 @@ def loop_normal_magic(mesh: bpy.types.Mesh, distance=0.01):
         bm.from_mesh(mesh)
         save_loop_normals(bm, mesh)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=distance)
-        loop_normals = list(yield_loop_normals(bm))
-        remove_face_layers(bm)
-        bm.to_mesh(mesh)
-        if len(mesh.loops) > len(loop_normals):
-            diff = len(mesh.loops) - len(loop_normals)
-            loop_normals.extend([0,0,0]*diff)
-        mesh.normals_split_custom_set(loop_normals)
+        if bm.faces:
+            loop_normals = list(yield_loop_normals(bm))
+            remove_face_layers(bm)
+            bm.to_mesh(mesh)
+            if len(mesh.loops) > len(loop_normals):
+                diff = len(mesh.loops) - len(loop_normals)
+                loop_normals.extend([0,0,0]*diff)
+            mesh.normals_split_custom_set(loop_normals)
+        else:
+            bm.to_mesh(mesh)
     finally:
         bm.free()
     

@@ -323,7 +323,7 @@ class ExportScene:
         elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
             nwo.lightmap_resolution_scale_active = False
             props["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
-            self._setup_poop_props(ob)
+            self._setup_poop_props(ob, nwo, data_nwo, props)
             if data_nwo.no_shadow:
                 props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
             else:
@@ -358,16 +358,16 @@ class ExportScene:
         
         elif self.asset_type == AssetType.PREFAB:
             props["bungie_mesh_type"] = '_connected_geometry_mesh_type_poop'
-            self._setup_poop_props(ob)
+            self._setup_poop_props(ob, nwo, data_nwo, props)
             
         elif self.asset_type == AssetType.DECORATOR_SET:
             props["bungie_mesh_type"] = '_connected_geometry_mesh_type_decorator'
             props["bungie_mesh_decorator_lod"] = str(decorator_int(ob))
         
-        mesh_props = self.processed_meshes.get(ob.data, None)
+        fp_defaults, mesh_props = self.processed_meshes.get(ob.data, (None, None))
         if mesh_props is None:
             fp_defaults, mesh_props = self._setup_mesh_level_props(ob, region)
-            self.processed_meshes[ob.data] = mesh_props
+            self.processed_meshes[ob.data] = (fp_defaults, mesh_props)
         
         props.update(mesh_props)
 
@@ -974,7 +974,7 @@ class ExportScene:
         self.granny.create_tri_topologies()
         self.granny.create_meshes()
         self.granny.create_models()
-        #self.granny.transform()
+        self.granny.transform()
         self.granny.save()
         if filepath.exists():
             os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
