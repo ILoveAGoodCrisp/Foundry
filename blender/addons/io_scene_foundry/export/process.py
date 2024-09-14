@@ -125,10 +125,9 @@ class ExportScene:
     def get_initial_export_objects(self):
         self.depsgraph = self.context.evaluated_depsgraph_get()
         if self.asset_type == AssetType.ANIMATION:
-            self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type == "ARMATURE"}
+            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE"}
         else:
-            self.export_objects = {ob for ob in self.depsgraph.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
-            # print([i for i in self.export_objects])
+            self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
         
         self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny)
     
