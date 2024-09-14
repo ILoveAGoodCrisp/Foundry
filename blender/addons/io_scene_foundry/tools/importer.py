@@ -355,7 +355,7 @@ class NWO_Import(bpy.types.Operator):
                         utils.transform_scene(context, scale_factor, from_x_rot, 'x', context.scene.nwo.forward_direction, objects=imported_bsp_objects, actions=[])
                         
                     imported_objects.extend(imported_bsp_objects)
-                
+
                 new_materials = [mat for mat in bpy.data.materials if mat not in starting_materials]
                 # Clear duplicate materials
                 missing_some_shader_paths = False

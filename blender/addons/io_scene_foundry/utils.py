@@ -464,6 +464,12 @@ def run_tool_sidecar(tool_args: list, asset_path):
                 # This is just incorrect and outputs when a mesh is a valid type for uncompressed
                 # Export logic prevents uncompressed from being applied to invalid types
                 continue
+            elif "which only makes sense on two-sided (or one sided transparent) geometry" in line:
+                # Annonying and outputs on things like collision geometry when it does not matter
+                continue
+            elif "Do you really want this?" in line:
+                # No but don't whine about shaders on imported geometry
+                continue
             elif "Failed to find any animated nodes" and "idle" in line:
                 # Skip because we often want the idle to not have animation e.g. for vehicles
                 continue

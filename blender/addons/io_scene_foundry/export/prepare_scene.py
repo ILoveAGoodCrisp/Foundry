@@ -1403,7 +1403,7 @@ class PrepareScene:
 
     def _setup_instance_proxies(self, data, linked_objects):
         if self.asset_type in ("scenario", "prefab"):
-            proxy_physics = data.nwo.proxy_physics
+            proxy_physics = None #data.nwo.proxy_physics # NOTE temp whilst new pipeline is built
             proxy_collision = data.nwo.proxy_collision
             proxy_cookie_cutter = data.nwo.proxy_cookie_cutter
             

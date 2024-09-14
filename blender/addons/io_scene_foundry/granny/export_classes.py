@@ -150,13 +150,13 @@ class Skeleton:
         self.granny = None
         self.lod = 0
         self.name = skeleton_node.name.encode()
-        self.bones: list[Bone] = []
+        self.bones = []
         self._get_bones(skeleton, all_nodes)
         
     def _get_bones(self, skeleton, all_nodes):
         # if a virtual bone has no node then it comes from a blender bone. If it does have a node then it came from
-        # an object and we need to check its in scope for this export
-        self.bones = [Bone(bone) for bone in skeleton.bones if not bone.node or all_nodes.get(bone.name)]
+        # an object and we need to check if its in scope for this export
+        self.bones = [bone.granny_bone for bone in skeleton.bones if not bone.node or all_nodes.get(bone.name)]
     
 class Color:
     red: float

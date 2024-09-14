@@ -109,7 +109,7 @@ class NWO_ProxyInstanceEdit(bpy.types.Operator):
         active = scene_nwo.instance_proxy_running
         edit_mode = context.mode == 'EDIT_MESH'
         
-        if event.type == 'TIMER' and not (active and edit_mode):
+        if event.type == 'TIMER' and not active:
             if context.mode == 'EDIT_MESH':
                 bpy.ops.object.editmode_toggle()
 

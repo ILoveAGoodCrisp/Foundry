@@ -322,7 +322,7 @@ class NWO_OT_NewAsset(bpy.types.Operator):
         
         # Update blend data
         if self.selected_only:
-            objects_to_remove = [ob for ob in bpy.data.objects if ob not in context.selected_objects]
+            objects_to_remove = [ob for ob in context.scene.objects if ob not in context.selected_objects]
             for ob in objects_to_remove:
                 bpy.data.objects.remove(ob)
                 
