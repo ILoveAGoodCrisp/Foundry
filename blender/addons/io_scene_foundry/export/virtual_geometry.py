@@ -96,7 +96,7 @@ class VirtualMesh:
         self.indices: np.ndarray = None
         self.num_indices = 0
         self.groups: list[VirtualMaterial, int, int] = []
-        self.materials = []
+        self.materials = {}
         self.face_properties: dict = {}
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
@@ -230,8 +230,9 @@ class VirtualMesh:
         
         num_materials = len(mesh.materials)
         special_mats_dict = defaultdict(list)
-        for idx, mat in enumerate([m for m in mesh.materials if m.nwo.has_material_properties or m.name[0] == "+"]):
-            special_mats_dict[mat].append(idx)
+        for idx, mat in enumerate(mesh.materials):
+            if mat.nwo.has_material_properties or mat.name[0] == "+":
+                special_mats_dict[mat].append(idx)
                 
         sorted_order = None
         
@@ -269,17 +270,16 @@ class VirtualMesh:
             unique_materials = list(dict.fromkeys([m for m in used_materials]))
             for idx, mat in enumerate(used_materials):
                 virtual_mat = scene._get_material(mat, scene)
-                self.materials.append(virtual_mat)
+                self.materials[virtual_mat] = None
                 self.groups.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
+        elif num_materials == 1:
+            virtual_mat = scene._get_material(mesh.materials[0], scene)
+            self.materials[virtual_mat] = None
+            self.groups.append((virtual_mat, 0, (0, num_polygons)))
         else:
-            if num_materials == 1:
-                virtual_mat = scene._get_material(mesh.materials[0], scene)
-                self.materials.append(virtual_mat)
-                self.groups.append((virtual_mat, 0, (0, num_polygons)))
-            else:
-                virtual_mat = scene.materials["invalid"]
-                self.materials.append(virtual_mat)
-                self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
+            virtual_mat = scene.materials["invalid"]
+            self.materials[virtual_mat] = None
+            self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
         
         self.num_indices = len(self.indices)
         
@@ -1100,12 +1100,14 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
             face_properties.setdefault("bungie_lighting_attenuation_cutoff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_cutoff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_cutoff)
             face_properties.setdefault("bungie_lighting_attenuation_falloff", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_attenuation_falloff"], np.single))).update(bm, face_prop.layer_name, face_prop.material_lighting_attenuation_falloff)
             face_properties.setdefault("bungie_lighting_emissive_focus", FaceSet(np.full(num_faces, fp_defaults["bungie_lighting_emissive_focus"], np.single))).update(bm, face_prop.layer_name, degrees(face_prop.material_lighting_emissive_focus) / 180)
-            
+
     for material, material_indexes in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
+            print("indexes with seamsealer = ", material_indexes)
             face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, FaceType.seam_sealer.value)
         elif material.name.lower().startswith('+sky'):
             if props.get("bungie_face_type") is None:
+                print("indexes with sky = ", material_indexes)
                 face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, FaceType.sky.value)
             if len(material.name) > 4 and material.name[4].isdigit():
                 sky_index = int(material.name[4])

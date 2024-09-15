@@ -2212,6 +2212,7 @@ class PrepareScene:
                 self.warning_hit = True
         
         elif self.asset_type == 'animation' and (fp_model or gun_model):
+            # TODO implement standalone animation type
             if gun_model:
                 if Path(self.tags_dir, gun_model).exists():
                     with RenderModelTag(path=gun_model, hide_prints=True) as render_model:
