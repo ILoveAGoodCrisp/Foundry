@@ -72,6 +72,7 @@ class VirtualMaterial:
     def set_invalid(self, scene: 'VirtualScene'):
         self.shader_path = r"shaders\invalid"
         self.shader_type = "material" if scene.corinth else "shader"
+        self.to_granny_data(scene)
     
     def to_granny_data(self, scene):
         self.granny_material = GrannyMaterial()
