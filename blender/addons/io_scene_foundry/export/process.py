@@ -387,7 +387,7 @@ class ExportScene:
         elif mesh_type == "_connected_geometry_mesh_type_lightmap_only":
             nwo.lightmap_resolution_scale_active = False
             props["bungie_mesh_type"] = "_connected_geometry_mesh_type_poop"
-            self._setup_poop_props(ob, nwo, data_nwo, props)
+            props, mesh_props = self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
             if data_nwo.no_shadow:
                 mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
             else:

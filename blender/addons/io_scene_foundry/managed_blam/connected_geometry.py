@@ -180,16 +180,17 @@ class InstanceDefinition:
         if not utils.is_corinth():
             if self.has_collision:
                 self.blender_collision = self.collision_info.to_object()
-                if self.blender_render.type == 'MESH' and not self.blender_collision.data.nwo.breakable:
-                    self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
-                    self.blender_collision.nwo.proxy_parent = self.blender_render.data
-                    self.blender_collision.nwo.proxy_type = "collision"
-                    self.blender_render.data.nwo.proxy_collision = self.blender_collision
-                elif self.blender_collision.data.nwo.breakable:
+                if self.blender_render.type == 'MESH':
+                    if self.blender_collision.data.nwo.breakable:
                     # Proxy collision can't be breakable, so wing it and use the render as the collision
-                    self.blender_collision = None
-                    if self.blender_render:
-                        self.blender_render.data.nwo.breakable = True
+                        self.blender_collision = None
+                        if self.blender_render:
+                            self.blender_render.data.nwo.breakable = True
+                    else:
+                        self.blender_collision.name = f"{self.blender_render.name}_proxy_collision"
+                        self.blender_collision.nwo.proxy_parent = self.blender_render.data
+                        self.blender_collision.nwo.proxy_type = "collision"
+                        self.blender_render.data.nwo.proxy_collision = self.blender_collision
                 else:
                     self.blender_collision.data.nwo.mesh_type = "_connected_geometry_mesh_type_collision"
                     
@@ -1123,11 +1124,12 @@ class BSP:
             bm.faces.ensure_lookup_table()
             
         # Remove any degenerate faces
-        bmesh.ops.dissolve_degenerate(bm, dist=0.2, edges=bm.edges)
-        # bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.2)
+        bmesh.ops.dissolve_degenerate(bm, dist=0.1, edges=bm.edges)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
         # edges_to_dissolve = set()
         # for edge in bm.edges:
-        #     if edge.length < 0.1:
+        #     edge: bmesh.types.BMEdge
+        #     if edge.calc_length() < 0.1:
         #         edges_to_dissolve.add(edge)
                 
         # bmesh.ops.dissolve_edges(bm, edges=list(edges_to_dissolve), use_face_split=True, use_verts=True)

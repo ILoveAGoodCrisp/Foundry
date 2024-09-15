@@ -95,7 +95,7 @@ class VirtualMesh:
         self.indices: np.ndarray = None
         self.num_indices = 0
         self.groups: list[VirtualMaterial, int, int] = []
-        self.materials = set()
+        self.materials = []
         self.face_properties: dict = {}
         self.bone_bindings = bone_bindings
         self.vertex_weighted = vertex_weighted
@@ -227,7 +227,6 @@ class VirtualMesh:
             self.invalid = True
             return
         
-        unique_materials = list(dict.fromkeys([m for m in mesh.materials]))
         num_materials = len(mesh.materials)
         special_mats_dict = defaultdict(list)
         for idx, mat in enumerate([m for m in mesh.materials if m.nwo.has_material_properties or m.name[0] == "+"]):
@@ -266,18 +265,19 @@ class VirtualMesh:
             counts = np.diff(np.concatenate((unique_indices, [len(material_indices)])))
             mat_index_counts = list(zip(unique_indices, counts))
             used_materials = [mesh.materials[i] for i in np.unique(material_indices)]
+            unique_materials = list(dict.fromkeys([m for m in used_materials]))
             for idx, mat in enumerate(used_materials):
                 virtual_mat = scene._get_material(mat, scene)
-                self.materials.add(virtual_mat)
+                self.materials.append(virtual_mat)
                 self.groups.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
         else:
             if num_materials == 1:
                 virtual_mat = scene._get_material(mesh.materials[0], scene)
-                self.materials.add(virtual_mat)
+                self.materials.append(virtual_mat)
                 self.groups.append((virtual_mat, 0, (0, num_polygons)))
             else:
                 virtual_mat = scene.materials["invalid"]
-                self.materials.add(virtual_mat)
+                self.materials.append(virtual_mat)
                 self.groups.append((virtual_mat, 0, (0, num_polygons))) # default material
         
         self.num_indices = len(self.indices)
@@ -1001,6 +1001,8 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.collision_only.value)
             elif face_prop.sphere_collision_only_override:
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.sphere_collision_only.value)
+            elif face_prop.lightmap_only_override:
+                face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.lightmap_only.value)
             elif face_prop.breakable_override:
                 face_properties.setdefault("bungie_face_mode", FaceSet(np.full(num_faces, fp_defaults["bungie_face_mode"], np.uint8))).update(bm, face_prop.layer_name, FaceMode.breakable.value)
         
