@@ -78,14 +78,15 @@ class Granny:
         self.export_vertex_datas = []
         meshes = set()
         materials = set()
-        for model in scene.models.values():
+        for model in sorted(scene.models.values(), key=lambda model: model.name):
             node = nodes.get(model.name)
             if not node: continue
             self.export_skeletons.append(Skeleton(model.skeleton, node, nodes))
             mesh_binding_indexes = []
-            for bone in model.skeleton.bones:
+            for bone in sorted(model.skeleton.bones, key=lambda bone: bone.name):
                 if bone.node and nodes.get(bone.name) and bone.node.mesh:
                     self.export_vertex_datas.append(bone.node.granny_vertex_data)
+                    self.export_tri_topologies.append(bone.node.granny_tri_topology)
                     self.export_meshes.append(Mesh(bone.node))
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
@@ -94,8 +95,8 @@ class Granny:
             self.export_models.append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indexes))
             
         if meshes:
-            self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
-            self.export_materials = [mat.granny_material for mat in materials]
+            # self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
+            self.export_materials = [mat.granny_material for mat in sorted(materials, key=lambda mat: mat.name)]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -432,3 +433,7 @@ class Granny:
     def _transform_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, renormalise: bool, treat_as_deltas: bool):
         self.dll.GrannyTransformVertices.argtypes=[c_int, POINTER(GrannyDataTypeDefinition), c_void_p, POINTER(c_float), POINTER(c_float), POINTER(c_float), c_bool, c_bool]
         self.dll.GrannyTransformVertices(vertex_count, layout, vertices, affine_3, linear_3x3, inverse_linear_3x3, renormalise, treat_as_deltas)
+        
+    def invert_tri_topology_winding(self, tri_topology: GrannyTriTopology):
+        self.dll.GrannyInvertTriTopologyWinding.argtypes=[POINTER(GrannyTriTopology)]
+        self.dll.GrannyInvertTriTopologyWinding(tri_topology)

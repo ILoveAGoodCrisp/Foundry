@@ -3,7 +3,6 @@
 from collections import defaultdict
 import csv
 from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, memmove, pointer
-from enum import Enum
 import logging
 from math import degrees
 from pathlib import Path
@@ -106,14 +105,14 @@ class VirtualMesh:
         if not self.invalid:
             self.to_granny_data(scene)
             
-        del self.positions
-        del self.normals
-        del self.bone_weights
-        del self.bone_indices
-        del self.texcoords
-        del self.lighting_texcoords
-        del self.vertex_colors
-        del self.indices
+        # del self.positions
+        # del self.normals
+        # del self.bone_weights
+        # del self.bone_indices
+        # del self.texcoords
+        # del self.lighting_texcoords
+        # del self.vertex_colors
+        # del self.indices
         
     def to_granny_data(self, scene):
         self._granny_tri_topology()
@@ -160,7 +159,7 @@ class VirtualMesh:
             granny_tri_topology.tri_annotation_set_count = num_tri_annotation_sets
             granny_tri_topology.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
 
-        self.granny_tri_topology = pointer(granny_tri_topology)
+        self.granny_tri_topology = granny_tri_topology
         
     def _granny_vertex_data(self, scene: 'VirtualScene'):
         data = [self.positions, self.normals]
@@ -569,6 +568,7 @@ class VirtualNode:
                 self.matrix_local = id.original.matrix_local.copy()
             else:
                 self.matrix_world = template_node.matrix_world.copy()
+                self.transform_matrix = template_node.transform_matrix
                 # self.matrix_local = IDENTITY_MATRIX
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
@@ -612,6 +612,10 @@ class VirtualNode:
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_loops
                 self.granny_vertex_data = pointer(self.granny_vertex_data)
+                
+                self.granny_tri_topology = pointer(self.mesh.granny_tri_topology)
+                if self.matrix_world.is_negative:
+                    scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
                     
             
     def _set_group(self, scene: 'VirtualScene'):
@@ -1103,11 +1107,9 @@ def gather_face_props(mesh_props: NWO_MeshPropertiesGroup, mesh: bpy.types.Mesh,
 
     for material, material_indexes in special_mats_dict.items():
         if material.name.lower().startswith('+seamsealer') and props.get("bungie_face_type") is None:
-            print("indexes with seamsealer = ", material_indexes)
             face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, FaceType.seam_sealer.value)
         elif material.name.lower().startswith('+sky'):
             if props.get("bungie_face_type") is None:
-                print("indexes with sky = ", material_indexes)
                 face_properties.setdefault("bungie_face_type", FaceSet(np.zeros(num_faces, np.uint8))).update_from_material(bm, material_indexes, FaceType.sky.value)
             if len(material.name) > 4 and material.name[4].isdigit():
                 sky_index = int(material.name[4])

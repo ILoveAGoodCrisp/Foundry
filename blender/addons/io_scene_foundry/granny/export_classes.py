@@ -352,7 +352,7 @@ class Mesh(Properties):
         self.name = node.name.encode()
         mesh = node.mesh
         self.primary_vertex_data = node.granny_vertex_data
-        self.primary_topology = mesh.granny_tri_topology
+        self.primary_topology = node.granny_tri_topology
         self.materials = [mat.granny_material for mat in mesh.materials.keys()]
         self.bone_bindings = [BoneBinding(name) for name in node.bone_bindings]
 
