@@ -207,6 +207,12 @@ class NWO_FoundryPanelProps(bpy.types.Panel):
                 row.prop(nwo, "gun_model_path", text="Gun Render Model", icon_value=get_icon_id("tags"))
                 row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "gun_model_path"
                 row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'gun_model_path'
+            else:
+                row = col.row(align=True)
+                row.prop(nwo, "render_model_path", text="Render Model", icon_value=get_icon_id("tags"))
+                row.operator("nwo.get_tags_list", icon="VIEWZOOM", text="").list_type = "render_model_path"
+                row.operator("nwo.tag_explore", text="", icon="FILE_FOLDER").prop = 'render_model_path'
+                
             self.draw_expandable_box(self.box.box(), nwo, 'animation_graph')
             self.draw_rig_ui(self.context, nwo)
             

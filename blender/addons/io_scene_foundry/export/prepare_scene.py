@@ -2192,6 +2192,7 @@ class PrepareScene:
             
         fp_model = self.scene_settings.fp_model_path
         gun_model = self.scene_settings.gun_model_path
+        render_model_path = self.scene_settings.render_model_path
         if self.asset_type == 'model' and node_order_source:
             if Path(self.tags_dir, node_order_source).exists():
                 if node_order_source_is_model:
@@ -2200,9 +2201,10 @@ class PrepareScene:
                 else:
                     with AnimationTag(path=node_order_source, hide_prints=True) as animation:
                         nodes = animation.get_nodes()
-                        
-                nodes_order = {v: i for i, v in enumerate(nodes)}
-                bone_list = sorted(bone_list, key=sorting_key)
+                
+                if nodes is not None:
+                    nodes_order = {v: i for i, v in enumerate(nodes)}
+                    bone_list = sorted(bone_list, key=sorting_key)
             else:
                 if node_order_source_is_model:
                     utils.print_warning("Render Model path supplied but file does not exist")
@@ -2211,30 +2213,39 @@ class PrepareScene:
                     
                 self.warning_hit = True
         
-        elif self.asset_type == 'animation' and (fp_model or gun_model):
-            # TODO implement standalone animation type
-            if gun_model:
-                if Path(self.tags_dir, gun_model).exists():
-                    with RenderModelTag(path=gun_model, hide_prints=True) as render_model:
+        elif self.asset_type == 'animation':
+            if self.scene_settings.asset_animation_type == 'first_person':
+                if gun_model:
+                    if Path(self.tags_dir, gun_model).exists():
+                        with RenderModelTag(path=gun_model, hide_prints=True) as render_model:
+                            nodes = render_model.get_nodes()
+                        # add a 1000 to each index to ensure gun bones sorted last
+                        nodes_order_gun = {v: i + 1000 for i, v in enumerate(nodes)}
+                    else:
+                        utils.print_warning("Gun Render Model supplied but tag path does not exist")
+                        self.warning_hit = True
+                if fp_model:
+                    if Path(self.tags_dir, fp_model).exists():
+                        with RenderModelTag(path=fp_model, hide_prints=True) as render_model:
+                            nodes = render_model.get_nodes()
+                        nodes_order_fp = {v: i for i, v in enumerate(nodes)}
+                    else:
+                        utils.print_warning("FP Render Model supplied but tag path does not exist")
+                        self.warning_hit = True
+                        
+                if nodes is not None:
+                    nodes_order.update(nodes_order_fp)
+                    nodes_order.update(nodes_order_gun)
+                    bone_list = sorted(bone_list, key=sorting_key)
+                    
+            else:
+                if render_model_path:
+                    with RenderModelTag(path=render_model_path, hide_prints=False) as render_model:
                         nodes = render_model.get_nodes()
-                    # add a 1000 to each index to ensure gun bones sorted last
-                    nodes_order_gun = {v: i + 1000 for i, v in enumerate(nodes)}
-                else:
-                    utils.print_warning("Gun Render Model supplied but tag path does not exist")
-                    self.warning_hit = True
-            if fp_model:
-                if Path(self.tags_dir, fp_model).exists():
-                    with RenderModelTag(path=fp_model, hide_prints=True) as render_model:
-                        nodes = render_model.get_nodes()
-                    nodes_order_fp = {v: i for i, v in enumerate(nodes)}
-                else:
-                    utils.print_warning("FP Render Model supplied but tag path does not exist")
-                    self.warning_hit = True
-            
-            if nodes is not None:
-                nodes_order.update(nodes_order_fp)
-                nodes_order.update(nodes_order_gun)
-                bone_list = sorted(bone_list, key=sorting_key)
+                        
+                if nodes is not None:
+                    nodes_order = {v: i for i, v in enumerate(nodes)}
+                    bone_list = sorted(bone_list, key=sorting_key)
             
         if nodes is None:
             # Fine, I'll order it myself

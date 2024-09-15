@@ -871,6 +871,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             self["gun_model_path"],
             "render_model"
         ).strip('"')
+    def render_model_clean_tag_path(self, context):
+        self["render_model_path"] = utils.clean_tag_path(
+            self["render_model_path"],
+            "render_model"
+        ).strip('"')
 
     # render_model_from_blend : bpy.props.BoolProperty(name="Render Model built from Blend", default=True)
     template_render_model : bpy.props.StringProperty(
@@ -915,6 +920,13 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
         name="Gun Render Model Path",
         description="Path to the gun render model used by this animation. Ensures bone order matches the specified gun model",
         update=gun_model_clean_tag_path,
+        options=set(),
+        )
+    
+    render_model_path : bpy.props.StringProperty(
+        name="Render Model Path",
+        description="Path to the render model used by this animation. Ensures bone order matches the specified model",
+        update=render_model_clean_tag_path,
         options=set(),
         )
     

@@ -30,8 +30,8 @@ import os
 from ..utils import get_project_path, get_tags_path, is_corinth, os_sep_partition
 
 global_items = {}
-scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'template_model',
-               'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
+scene_props = ('template_render_model', 'template_collision_model', 'template_physics_model', 'template_model_animation_graph', 'parent_animation_graph', 'fp_model_path', 'gun_model_path', 'render_model_path', 
+               'template_model', 'template_biped', 'template_crate', 'template_creature', 'template_device_control', 'template_device_dispenser', 'template_device_machine',
                'template_device_terminal', 'template_effect_scenery', 'template_equipment', 'template_giant', 'template_scenery', 'template_vehicle', 'template_weapon')
 
 class NWO_GetTagsList(bpy.types.Operator):
@@ -116,6 +116,8 @@ def extensions_from_type(list_type):
         case 'fp_model_path':
             return (".render_model")
         case 'gun_model_path':
+            return (".render_model")
+        case 'render_model_path':
             return (".render_model")
         case 'shader_path':
             return (".material", '.shader', '.shader_cortana', '.shader_custom', '.shader_decal', '.shader_foliage', '.shader_fur', '.shader_fur_stencil', '.shader_glass', '.shader_halogram', '.shader_mux', '.shader_mux_material', '.shader_screen', '.shader_skin', '.shader_terrain', 'shader_water')
@@ -246,6 +248,8 @@ def get_glob_from_prop(prop):
         case 'fp_model_path':
             return "*.render_model"
         case 'gun_model_path':
+            return "*.render_model"
+        case 'render_model_path':
             return "*.render_model"
         case 'shader_path':
             return "*.material;*.shade*"
