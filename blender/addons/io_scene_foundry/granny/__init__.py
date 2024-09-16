@@ -25,7 +25,6 @@ class Granny:
         self._define_granny_functions()
         self.file_info_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyFileInfoType")
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
-        self.old_callback = GrannyLogCallback()
         self._create_callback()
         self.filename = ""
         
@@ -251,49 +250,11 @@ class Granny:
 
         granny_model.mesh_binding_count = num_mesh_bindings
         granny_model.mesh_bindings = cast(mesh_bindings, POINTER(GrannyModelMeshBinding))
-
-    def get_version_string(self) -> str:
-        """Returns the granny dll version as a string"""
-        self.dll.GrannyGetVersionString.restype=c_char_p
-        return self.dll.GrannyGetVersionString().decode('UTF-8')
-    
-    def get_version(self, major_version: c_int32, minor_version: c_int32, build_number: c_int32, customization: c_int32):
-        """Returns the granny dll version as pointers"""
-        self.dll.GrannyGetVersion.argtypes=[POINTER(c_int32),POINTER(c_int32),POINTER(c_int32),POINTER(c_int32)]
-        return self.dll.GrannyGetVersion()
-    
-    def _begin_file_data_tree_writing(self):
-        self.dll.GrannyBeginFileDataTreeWriting.argtypes=[POINTER(GrannyDataTypeDefinition), c_void_p, c_int32, c_int32]
-        self.dll.GrannyBeginFileDataTreeWriting.restype=c_void_p
-        return self.dll.GrannyBeginFileDataTreeWriting(self.file_info_type, pointer(self.file_info), 0, 0)
-    
-    def _write_data_tree_to_file(self, writer):
-        file_name_bytes = self.filename.encode()
-        self.dll.GrannyWriteDataTreeToFile.argtypes=[c_void_p, c_uint32, POINTER(GrannyFileMagic), c_char_p, c_int32]
-        self.dll.GrannyWriteDataTreeToFile.restype=c_bool
-        return self.dll.GrannyWriteDataTreeToFile(writer, 0x80000037, self.magic_value, file_name_bytes, 1)
-    
-    def _end_file_data_tree_writing(self, writer):
-        self.dll.GrannyEndFileDataTreeWriting.argtypes=[c_void_p]
-        self.dll.GrannyEndFileDataTreeWriting(writer)
         
     def _create_callback(self):
-        new_callback = self.old_callback
-        new_callback.function = GrannyCallbackType(self._new_callback_function)
-        new_callback.user_data = None
-        self._set_log_callback(new_callback)
-
-    def _new_callback_function(self, callback_type, callback_origin, source_file, source_line, message, user_data):
-        self._output_error(
-            "Error(Granny): type %s from subsystem %s: %s" %
-            (self._granny_get_log_message_type_string(callback_type),
-            self._granny_get_log_message_origin_string(callback_origin),
-            Message)
-        )
-
-    @staticmethod
-    def _output_error(format_string, *args):
-        print(format_string % args)
+        callback = GrannyLogCallback()
+        callback.function = GrannyCallbackType(self._new_callback_function)
+        self._set_log_callback(callback)
         
     def _create_file_info(self):
         self.file_info = GrannyFileInfo()
@@ -349,6 +310,35 @@ class Granny:
         exporter_info.extended_data.object = None
         return exporter_info
     
+    def _new_callback_function(self, callback_type, callback_origin, source_file, source_line, message, user_data):
+        utils.print_warning(
+            f"Granny Traceback\n" 
+            f"Type: {self._granny_get_log_message_type_string(callback_type)}\n"
+            f"Origin: {self._granny_get_log_message_origin_string(callback_origin)}\n"
+            f"File: {source_file}\n"
+            f"Line: {source_line}\n"
+            f"Message: {message}\n"
+            f"User Data: {user_data}"
+        )
+    
+    ### DLL FUNCTIONS
+    
+    def get_version_string(self) -> str:
+        """Returns the granny dll version as a string"""
+        return self.dll.GrannyGetVersionString().decode()
+    
+    def _begin_file_data_tree_writing(self):
+        "Starts writing the gr2 data"
+        return self.dll.GrannyBeginFileDataTreeWriting(self.file_info_type, pointer(self.file_info), 0, 0)
+    
+    def _write_data_tree_to_file(self, writer):
+        "Write the gr2 to a system file"
+        return self.dll.GrannyWriteDataTreeToFile(writer, 0x80000037, self.magic_value, self.filename.encode(), 1)
+    
+    def _end_file_data_tree_writing(self, writer):
+        "Ends gr2 data writing"
+        self.dll.GrannyEndFileDataTreeWriting(writer)
+    
     def _set_log_file_name(self, file_name: str, clear: c_bool) -> c_bool:
         return self.dll.GrannySetLogFileName(file_name.encode(), clear)
     
@@ -356,7 +346,7 @@ class Granny:
         self.dll.GrannyGetLogCallback(callback)
         
     def _set_log_callback(self, callback: GrannyLogCallback):
-        self.dll.GrannySetLogCallback(result)
+        self.dll.GrannySetLogCallback(callback)
         
     def _get_log_message_type_string(self, message_type: c_int) -> c_char_p:
         return self.dll.GrannyGetLogMessageTypeString(message_type)
@@ -396,6 +386,16 @@ class Granny:
         self.dll.GrannyInvertTriTopologyWinding(tri_topology)
 
     def _define_granny_functions(self):
+        # Get version
+        self.dll.GrannyGetVersionString.restype=c_char_p
+        # Begin writing Data Tree
+        self.dll.GrannyBeginFileDataTreeWriting.argtypes=[POINTER(GrannyDataTypeDefinition), c_void_p, c_int32, c_int32]
+        self.dll.GrannyBeginFileDataTreeWriting.restype=c_void_p
+        # Write data tree to file
+        self.dll.GrannyWriteDataTreeToFile.argtypes=[c_void_p, c_uint32, POINTER(GrannyFileMagic), c_char_p, c_int32]
+        self.dll.GrannyWriteDataTreeToFile.restype=c_bool
+        # End data writing
+        self.dll.GrannyEndFileDataTreeWriting.argtypes=[c_void_p]
         # Set log filename
         self.dll.GrannySetLogFileName.argtypes=[c_char_p, c_bool]
         self.dll.GrannySetLogFileName.restype=c_bool
