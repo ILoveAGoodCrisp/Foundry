@@ -8,31 +8,6 @@ import bpy
 
 from .export_classes import *
 from .formats import *
-
-def granny_get_log_message_type_string(message_type: c_int) -> c_char_p:
-    """Granny logging function"""
-    dll.GrannyGetLogMessageTypeString.argtypes=[c_int]
-    dll.GrannyGetLogMessageTypeString.restype=c_char_p
-    result = dll.GrannyGetLogMessageTypeString(message_type)
-    return result
-
-def granny_get_log_message_origin_string(origin: c_int) -> c_char_p:
-    """Granny logging function"""
-    dll.GrannyGetLogMessageOriginString.argtypes=[c_int]
-    dll.GrannyGetLogMessageOriginString.restype=c_char_p
-    result = dll.GrannyGetLogMessageOriginString(origin)
-    return result
-    
-def output_error(format_string, *args):
-    print(format_string % args)
-    
-def new_callback_function(Type, Origin, SourceFile, SourceLine, Message, UserData):
-    output_error(
-        "Error(Granny): type %s from subsystem %s: %s" %
-        (granny_get_log_message_type_string(Type),
-        granny_get_log_message_origin_string(Origin),
-        Message)
-    )
     
 GrannyCallbackType = CFUNCTYPE(
     None,
@@ -47,8 +22,7 @@ GrannyCallbackType = CFUNCTYPE(
 class Granny:
     def __init__(self, granny_dll_path: str | Path):
         self.dll = cdll.LoadLibrary(str(granny_dll_path))
-        global dll
-        dll = self.dll
+        self._define_granny_functions()
         self.file_info_type = POINTER(GrannyDataTypeDefinition).in_dll(self.dll, "GrannyFileInfoType")
         self.magic_value = POINTER(GrannyFileMagic).in_dll(self.dll, "GrannyGRNFileMV_ThisPlatform")
         self.old_callback = GrannyLogCallback()
@@ -305,9 +279,21 @@ class Granny:
         
     def _create_callback(self):
         new_callback = self.old_callback
-        new_callback.function = GrannyCallbackType(new_callback_function)
+        new_callback.function = GrannyCallbackType(self._new_callback_function)
         new_callback.user_data = None
         self._set_log_callback(new_callback)
+
+    def _new_callback_function(self, callback_type, callback_origin, source_file, source_line, message, user_data):
+        self._output_error(
+            "Error(Granny): type %s from subsystem %s: %s" %
+            (self._granny_get_log_message_type_string(callback_type),
+            self._granny_get_log_message_origin_string(callback_origin),
+            Message)
+        )
+
+    @staticmethod
+    def _output_error(format_string, *args):
+        print(format_string % args)
         
     def _create_file_info(self):
         self.file_info = GrannyFileInfo()
@@ -363,77 +349,76 @@ class Granny:
         exporter_info.extended_data.object = None
         return exporter_info
     
-    def _set_log_file_name(self, file_name : str, clear : c_bool) -> c_bool:
-        """Sets a file for the granny dll to log to.
-        granny_set_log_file_name("c:/blargh.txt", true);
-        to turn off: granny_set_log_file_name(0, false);
-        """
-        file_name_bytes = file_name.encode()
-        self.dll.GrannySetLogFileName.argtypes=[c_char_p, c_bool]
-        self.dll.GrannySetLogFileName.restype=c_bool
-        result = self.dll.GrannySetLogFileName(file_name_bytes, clear)
-        return result
+    def _set_log_file_name(self, file_name: str, clear: c_bool) -> c_bool:
+        return self.dll.GrannySetLogFileName(file_name.encode(), clear)
     
-    def _get_log_callback(self, result : GrannyLogCallback):
-        """Granny logging function"""
-        self.dll.GrannyGetLogCallback.argtypes=[POINTER(GrannyLogCallback)]
-        self.dll.GrannyGetLogCallback(result)
+    def _get_log_callback(self, callback: GrannyLogCallback):
+        self.dll.GrannyGetLogCallback(callback)
         
-    def _set_log_callback(self, result : GrannyLogCallback):
-        """Granny logging function"""
-        self.dll.GrannySetLogCallback.argtypes=[POINTER(GrannyLogCallback)]
+    def _set_log_callback(self, callback: GrannyLogCallback):
         self.dll.GrannySetLogCallback(result)
         
     def _get_log_message_type_string(self, message_type: c_int) -> c_char_p:
-        """Granny logging function"""
-        self.dll.GrannyGetLogMessageTypeString.argtypes=[c_int]
-        self.dll.GrannyGetLogMessageTypeString.restype=c_char_p
-        result = self.dll.GrannyGetLogMessageTypeString(message_type)
-        return result
+        return self.dll.GrannyGetLogMessageTypeString(message_type)
 
     def _get_log_message_origin_string(self, origin: c_int) -> c_char_p:
-        """Granny logging function"""
-        self.dll.GrannyGetLogMessageOriginString.argtypes=[c_int]
-        self.dll.GrannyGetLogMessageOriginString.restype=c_char_p
-        result = self.dll.GrannyGetLogMessageOriginString(origin)
-        return result
+        return self.dll.GrannyGetLogMessageOriginString(origin)
     
     def _get_log_message_type_string(self, message_type: c_int) -> c_char_p:
-        """Granny logging function"""
-        self.dll.GrannyGetLogMessageTypeString.argtypes=[c_int]
-        self.dll.GrannyGetLogMessageTypeString.restype=c_char_p
-        result = self.dll.GrannyGetLogMessageTypeString(message_type)
-        return result
+        return self.dll.GrannyGetLogMessageTypeString(message_type)
 
     def _get_log_message_origin_string(self, origin: c_int) -> c_char_p:
-        """Granny logging function"""
-        self.dll.GrannyGetLogMessageOriginString.argtypes=[c_int]
-        self.dll.GrannyGetLogMessageOriginString.restype=c_char_p
         result = self.dll.GrannyGetLogMessageOriginString(origin)
         return result
     
     def _set_transform_with_identity_check(self, result: GrannyTransform, position_3: c_float, orientation4: c_float, scale_shear_3x3: c_float):
-        self.dll.GrannySetTransformWithIdentityCheck.argtypes=[POINTER(GrannyTransform),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
+        "Sets the value of the given granny_transform and updates its identity flags"
         self.dll.GrannySetTransformWithIdentityCheck(result,position_3,orientation4,scale_shear_3x3)
         
     def _transform_file(self, file_info : GrannyFileInfo, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
-        self.dll.GrannyTransformFile.argtypes=[POINTER(GrannyFileInfo),POINTER(c_float),POINTER(c_float),POINTER(c_float),c_float,c_float,c_uint]
+        "Transforms the entire file. Flags: 1 = renormalise normals, 2 = reorder triangle indices"
         self.dll.GrannyTransformFile(file_info, affine_3, linear_3x3, inverse_linear_3x3, affine_tolerance, linear_tolerance, flags)
         
     def _compute_basis_conversion(self, file_info : GrannyFileInfo, desired_units_per_meter : c_float, desired_origin_3 : c_float, desired_right_3 : c_float, desired_up_3 : c_float, desired_back_3 : c_float, result_affine_3 : c_float, result_linear_3x3 : c_float, result_inverse_linear_3x3 : c_float) -> c_bool:
-        self.dll.GrannyComputeBasisConversion.argtypes=[POINTER(GrannyFileInfo),c_float,POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
-        self.dll.GrannyComputeBasisConversion.restype=c_bool
-        result = self.dll.GrannyComputeBasisConversion(file_info,desired_units_per_meter,desired_origin_3,desired_right_3,desired_up_3,desired_back_3,result_affine_3,result_linear_3x3,result_inverse_linear_3x3)
-        return result
+        "Computes the given affine, linear and inverse linear values to those required to transform the file from the current coordinates to the given coordinates. The results are written directly to the given affine, linear and inverse linear values"
+        return self.dll.GrannyComputeBasisConversion(file_info,desired_units_per_meter,desired_origin_3,desired_right_3,desired_up_3,desired_back_3,result_affine_3,result_linear_3x3,result_inverse_linear_3x3)
     
     def _transform_mesh(self, mesh: GrannyMesh, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, affine_tolerance : c_float, linear_tolerance : c_float, flags : c_uint):
-        self.dll.GrannyTransformMesh.argtypes=[POINTER(GrannyMesh), POINTER(c_float), POINTER(c_float), POINTER(c_float), c_float, c_float, c_uint]
+        "Transforms a mesh"
         self.dll.GrannyTransformFile(mesh, affine_3, linear_3x3, inverse_linear_3x3, affine_tolerance, linear_tolerance, flags)
         
     def _transform_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices, affine_3 : c_float, linear_3x3 : c_float, inverse_linear_3x3 : c_float, renormalise: bool, treat_as_deltas: bool):
-        self.dll.GrannyTransformVertices.argtypes=[c_int, POINTER(GrannyDataTypeDefinition), c_void_p, POINTER(c_float), POINTER(c_float), POINTER(c_float), c_bool, c_bool]
+        "Transforms vertices. Flags: 1 = renormalise normals, 2 = treat as deltas"
         self.dll.GrannyTransformVertices(vertex_count, layout, vertices, affine_3, linear_3x3, inverse_linear_3x3, renormalise, treat_as_deltas)
         
     def invert_tri_topology_winding(self, tri_topology: GrannyTriTopology):
-        self.dll.GrannyInvertTriTopologyWinding.argtypes=[POINTER(GrannyTriTopology)]
+        "Inverts face winding of the given tri_topology"
         self.dll.GrannyInvertTriTopologyWinding(tri_topology)
+
+    def _define_granny_functions(self):
+        # Set log filename
+        self.dll.GrannySetLogFileName.argtypes=[c_char_p, c_bool]
+        self.dll.GrannySetLogFileName.restype=c_bool
+        # Get log callback
+        self.dll.GrannyGetLogCallback.argtypes=[POINTER(GrannyLogCallback)]
+        # Set log callback
+        self.dll.GrannySetLogCallback.argtypes=[POINTER(GrannyLogCallback)]
+        # Get log message as string
+        self.dll.GrannyGetLogMessageTypeString.argtypes=[c_int]
+        self.dll.GrannyGetLogMessageTypeString.restype=c_char_p
+        # Get log message origin as string
+        self.dll.GrannyGetLogMessageOriginString.argtypes=[c_int]
+        self.dll.GrannyGetLogMessageOriginString.restype=c_char_p
+        # Set transform with identity check
+        self.dll.GrannySetTransformWithIdentityCheck.argtypes=[POINTER(GrannyTransform),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
+        # Transform file
+        self.dll.GrannyTransformFile.argtypes=[POINTER(GrannyFileInfo),POINTER(c_float),POINTER(c_float),POINTER(c_float),c_float,c_float,c_uint]
+        # Compute basis conversion
+        self.dll.GrannyComputeBasisConversion.argtypes=[POINTER(GrannyFileInfo),c_float,POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float),POINTER(c_float)]
+        self.dll.GrannyComputeBasisConversion.restype=c_bool
+        # Transform mesh
+        self.dll.GrannyTransformMesh.argtypes=[POINTER(GrannyMesh), POINTER(c_float), POINTER(c_float), POINTER(c_float), c_float, c_float, c_uint]
+        # Transform vertices
+        self.dll.GrannyTransformVertices.argtypes=[c_int, POINTER(GrannyDataTypeDefinition), c_void_p, POINTER(c_float), POINTER(c_float), POINTER(c_float), c_bool, c_bool]
+        # Invert tri topology winding
+        self.dll.GrannyInvertTriTopologyWinding.argtypes=[POINTER(GrannyTriTopology)]
