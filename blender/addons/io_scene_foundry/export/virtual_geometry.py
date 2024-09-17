@@ -211,7 +211,7 @@ class VirtualMesh:
             dtypes.append((f'TextureCoordinateslighting{idx}', np.float32, (3,)))
             
         for idx, vcolors in enumerate(self.vertex_colors):
-            name = f"colorSet{idx + 1}".encode() if scene.corinth else f"DiffuseColor{idx}".encode()
+            name = f"colorSet{idx + 1}" if scene.corinth else f"DiffuseColor{idx}"
             name_encoded = name.encode()
             data.append(vcolors)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name_encoded, None, 3))
@@ -387,6 +387,7 @@ class VirtualMesh:
                 
                 loop_uvs = np.zeros((num_loops, 2), dtype=np.single)
                 layer.uv.foreach_get("vector", loop_uvs.ravel())
+                loop_uvs[:, 1] = 1-loop_uvs[:, 1]
                 zeros_column = np.zeros((num_loops, 1), dtype=np.single)
                 combined_uvs = np.hstack((loop_uvs, zeros_column))
                 if layer.name.lower() == "lighting":

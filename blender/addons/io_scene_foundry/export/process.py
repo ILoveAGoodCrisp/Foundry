@@ -281,7 +281,7 @@ class ExportScene:
                 tmp_region = coll_region
             if coll_permutation:
                 tmp_region = coll_permutation
-            
+                
         if self.asset_type.supports_permutations:
             if not instanced_object and (is_mesh or is_light or self.asset_type.supports_bsp or nwo.marker_uses_regions):
                 if tmp_region in self.regions:
@@ -289,7 +289,7 @@ class ExportScene:
                 else:
                     self.warnings.append(f"Object [{ob.name}] has {self.reg_name} [{tmp_region}] which is not present in the {self.reg_name}s table. Setting {self.reg_name} to: {self.default_region}")
                     
-            if (is_light or self.asset_type.supports_bsp) and not instanced_object:
+            if self.asset_type.supports_permutations and not instanced_object:
                 if tmp_permutation in self.permutations:
                     permutation = tmp_permutation
                 else:
@@ -321,7 +321,7 @@ class ExportScene:
                     return
             else:
                 return self.warnings.append(f"{ob.name} has invalid marker type [{nwo.mesh_type}] for asset [{self.asset_type}]. Skipped")
-        
+
         return props, region, permutation, fp_defaults, mesh_props
     
     def _setup_mesh_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, supports_bsp: bool, props: dict, region: str, mesh_props: dict):
