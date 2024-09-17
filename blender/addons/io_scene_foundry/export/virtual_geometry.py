@@ -644,14 +644,17 @@ class VirtualNode:
                     
                 if existing_mesh:
                     self.mesh = existing_mesh
-                    self.bone_bindings = existing_mesh.bone_bindings
+                    
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
                     mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
                     id.to_mesh_clear()
                     self.mesh = mesh
                     self.new_mesh = True
-                    self.bone_bindings = mesh.bone_bindings
+                    
+                self.bone_bindings = self.mesh.bone_bindings
+                if self.mesh.vertex_weighted:
+                    self.matrix_local = IDENTITY_MATRIX
                     
                 if self.mesh.invalid:
                     self.invalid = True
