@@ -82,7 +82,7 @@ class VirtualMaterial:
         self.granny_material = pointer(self.granny_material)
     
 class VirtualMesh:
-    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool):
+    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool, bones: list[str]):
         self.name = ob.data.name
         self.proxies = proxies
         self.positions: np.ndarray = None
@@ -114,7 +114,7 @@ class VirtualMesh:
             self.granny_tri_topology = deep_copy_granny_tri_topology(existing_mesh.granny_tri_topology)
             scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
         else:
-            self._setup(ob, scene, fp_defaults, render_mesh, props)
+            self._setup(ob, scene, fp_defaults, render_mesh, props, bones)
             
             if not self.invalid:
                 self.to_granny_data(scene)
@@ -184,31 +184,39 @@ class VirtualMesh:
             GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"Normal", None, 3)
         ]
         type_names = [b"Position", b"Normal"]
+        dtypes = [('Position', np.single, (3,)), ('Normal', np.single, (3,))]
         
         if self.bone_weights is not None:
             data.extend([self.bone_weights, self.bone_indices])
             types.extend([
-                GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneWeights", None, 4),
+                GrannyDataTypeDefinition(GrannyMemberType.granny_normal_u_int8_member.value, b"BoneWeights", None, 4),
                 GrannyDataTypeDefinition(GrannyMemberType.granny_uint8_member.value, b"BoneIndices", None, 4)
             ])
             type_names.extend([b"BoneWeights", b"BoneIndices"])
+            dtypes.append(('BoneWeights', np.byte, (4,)))
+            dtypes.append(('BoneIndices', np.byte, (4,)))
         
         for idx, uvs in enumerate(self.texcoords):
-            name = f"TextureCoordinates{idx}".encode()
+            name = f"TextureCoordinates{idx}"
+            name_encoded = name.encode()
             data.append(uvs)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name, None, 3))
-            type_names.append(name)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name_encoded, None, 3))
+            type_names.append(name_encoded)
+            dtypes.append((name, np.float32, (3,)))
             
         if self.lighting_texcoords is not None:
             data.append(self.lighting_texcoords)
             types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, b"TextureCoordinateslighting", None, 3))
             type_names.append(b"lighting")
+            dtypes.append((f'TextureCoordinateslighting{idx}', np.float32, (3,)))
             
         for idx, vcolors in enumerate(self.vertex_colors):
             name = f"colorSet{idx + 1}".encode() if scene.corinth else f"DiffuseColor{idx}".encode()
+            name_encoded = name.encode()
             data.append(vcolors)
-            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name, None, 3))
-            type_names.append(name)
+            types.append(GrannyDataTypeDefinition(GrannyMemberType.granny_real32_member.value, name_encoded, None, 3))
+            type_names.append(name_encoded)
+            dtypes.append((name, np.float32, (3,)))
 
         types.append((GrannyMemberType.granny_end_member.value, None, None, 0))
         
@@ -220,13 +228,17 @@ class VirtualMesh:
         type_info_array = (GrannyDataTypeDefinition * (num_types + 1))(*types)
         self.vertex_type = cast(type_info_array, POINTER(GrannyDataTypeDefinition))
         
-        contiguous_data = [np.ascontiguousarray(arr) for arr in data]
-        vertex_byte_array = np.hstack(contiguous_data).tobytes()
+        vertex_array = np.zeros(self.num_loops, dtype=dtypes)
+        for array, data_type in zip(data, dtypes):
+            vertex_array[data_type[0]] = array
+
+        vertex_byte_array = vertex_array.tobytes()
 
         self.len_vertex_array = len(vertex_byte_array)
         self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
         
-    def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict, render_mesh: bool, props: dict):
+        
+    def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict, render_mesh: bool, props: dict, bones: list[str]):
         def add_triangle_mod(ob: bpy.types.Object):
             mods = ob.modifiers
             for m in mods:
@@ -309,10 +321,23 @@ class VirtualMesh:
         
         self.num_indices = len(self.indices)
         
+        def remap(i):
+            return vgroup_remap.get(i, 0)
+        
         if self.vertex_weighted:
             unique_bone_indices = set()
-            bone_weights = np.zeros((num_loops, 4), dtype=np.int32)
+            vgroup_bone_names = {}
+            for idx, vg in enumerate(ob.vertex_groups):
+                vgroup_bone_names[vg.name] = idx
+            bone_weights = np.zeros((num_loops, 4), dtype=np.single)
             bone_indices = np.zeros((num_loops, 4), dtype=np.int32)
+            vgroup_remap = {}
+            for idx, bone in enumerate(bones):
+                vg_bone_index = vgroup_bone_names.get(bone)
+                if vg_bone_index is not None:
+                    vgroup_remap[vg_bone_index] = idx
+                    
+            # print(bones, vgroup_bone_names, vgroup_remap)
 
             for loop_index, loop in enumerate(mesh.loops):
                 vertex_index = loop.vertex_index
@@ -324,20 +349,35 @@ class VirtualMesh:
                     indices = np.empty(len(groups), dtype=np.int32)
                     groups.foreach_get("weight", weights)
                     groups.foreach_get("group", indices)
+                        
+                    indices = np.vectorize(remap)(indices)
 
                     top_indices = np.argsort(-weights)[:4]
                     top_weights = weights[top_indices]
                     top_bone_indices = indices[top_indices]
 
-                    top_weights /= top_weights.sum()
-                    bone_weights[loop_index] = np.pad((top_weights * 255).astype(np.int32), (0, 4 - len(top_weights)))
+                    if top_weights.sum() > 0:
+                        top_weights /= top_weights.sum()
+
+                    top_bone_indices[top_weights == 0] = 0
+                    
+                    bone_weights[loop_index] = np.pad((top_weights * 255), (0, 4 - len(top_weights)))
                     bone_indices[loop_index] = np.pad(top_bone_indices, (0, 4 - len(top_bone_indices)))
 
                     unique_bone_indices.update(top_bone_indices)
+                    
+                
+            self.bone_bindings = [bones[idx] for idx in vgroup_remap.values()]
+            
+            max_index = max(vgroup_remap.values()) + 1
+            mapping_array = np.full(max_index, -1, dtype=np.int32)
+            for new_idx, old_idx in enumerate(vgroup_remap.values()):
+                mapping_array[old_idx] = new_idx
 
-            self.bone_weights = bone_weights
-            self.bone_indices = bone_indices
-            self.bone_bindings = [scene.valid_bones[idx] for idx in unique_bone_indices]
+            bone_indices = np.clip(mapping_array[bone_indices], 0, max_index - 1)
+
+            self.bone_weights = bone_weights.astype(np.byte)
+            self.bone_indices = bone_indices.astype(np.byte)
         
         if render_mesh:
             # We only care about writing this data if the in game mesh will have a render definition
@@ -346,7 +386,7 @@ class VirtualMesh:
                     break
                 
                 loop_uvs = np.zeros((num_loops, 2), dtype=np.single)
-                #layer.uv.foreach_get("vector", loop_uvs.ravel())
+                layer.uv.foreach_get("vector", loop_uvs.ravel())
                 zeros_column = np.zeros((num_loops, 1), dtype=np.single)
                 combined_uvs = np.hstack((loop_uvs, zeros_column))
                 if layer.name.lower() == "lighting":
@@ -565,7 +605,7 @@ class VirtualMesh:
 #         return props
     
 class VirtualNode:
-    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None):
+    def __init__(self, id: bpy.types.Object | bpy.types.PoseBone, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, scene: 'VirtualScene' = None, proxies = [], template_node: 'VirtualNode' = None, bones: list[str] = []):
         self.name: str = "object"
         self.matrix_world: Matrix = IDENTITY_MATRIX
         self.matrix_local: Matrix = IDENTITY_MATRIX
@@ -584,9 +624,9 @@ class VirtualNode:
         self.bone_bindings: list[str] = []
         self.granny_vertex_data = None
         if not self.invalid:
-            self._setup(id, scene, fp_defaults, proxies, template_node)
+            self._setup(id, scene, fp_defaults, proxies, template_node, bones)
         
-    def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode'):
+    def _setup(self, id: bpy.types.Object | bpy.types.PoseBone, scene: 'VirtualScene', fp_defaults: dict, proxies: list, template_node: 'VirtualNode', bones: list[str]):
         self.name = id.name
         if isinstance(id, bpy.types.Object):
             self.selected = id.original.select_get()
@@ -606,7 +646,7 @@ class VirtualNode:
                     self.bone_bindings = existing_mesh.bone_bindings
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling)
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling, bones)
                     id.to_mesh_clear()
                     self.mesh = mesh
                     self.new_mesh = True
@@ -796,6 +836,7 @@ class VirtualSkeleton:
         if ob.type == 'ARMATURE':
             valid_bones = [pbone for pbone in ob.pose.bones if ob.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
+            granny_bones = []
             for idx, bone in enumerate(valid_bones):
                 bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
@@ -811,10 +852,11 @@ class VirtualSkeleton:
                     b.matrix_local = bone.matrix.copy()
                 b.to_granny_data()
                 self.bones.append(b)
+                granny_bones.append(b)
                 
             child_index = 0
             for child in scene.get_immediate_children(ob):
-                node = scene.add(child, *scene.object_halo_data[child])
+                node = scene.add(child, *scene.object_halo_data[child], bones=list_bones)
                 if not node: continue
                 child_index += 1
                 if not node or node.invalid: continue
@@ -927,9 +969,9 @@ class VirtualScene:
         return material_extended_data_type
         
         
-    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = None, template_node: VirtualNode = None) -> VirtualNode:
+    def add(self, id: bpy.types.Object, props: dict, region: str = None, permutation: str = None, fp_defaults: dict = None, proxies: list = None, template_node: VirtualNode = None, bones: list[str] = []) -> VirtualNode:
         '''Creates a new node with the given parameters and appends it to the virtual scene'''
-        node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node)
+        node = VirtualNode(id, props, region, permutation, fp_defaults, self, proxies, template_node, bones)
         if not node.invalid:
             self.nodes[node.name] = node
             if node.new_mesh:
