@@ -95,7 +95,7 @@ class ExportInfo:
     def __init__(self, regions, global_materials):
         self.export_user = getuser()
         self.export_machine = gethostname()
-        self.export_toolset = "Foundry"
+        self.export_toolset = "bungie"
         time = datetime.today()
         self.export_date = time.strftime("%Y-%m-%d")
         self.export_time = time.strftime("%H:%M:%S")

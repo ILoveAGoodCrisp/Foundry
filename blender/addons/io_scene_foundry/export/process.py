@@ -116,6 +116,10 @@ class ExportScene:
         os.chdir(self.project_root)
         self.granny = Granny(Path(self.project_root, "granny2_x64.dll"))
         
+        self.forward = scene_settings.forward_direction
+        self.scale = 1 if scene_settings.scale == 'max' else 0.03048
+        self.mirror = scene_settings.mirror
+        
     def ready_scene(self):
         print("\n\nProcessing Scene")
         print("-----------------------------------------------------------------------\n")
@@ -1051,7 +1055,7 @@ class ExportScene:
         #                 export_obs = [ob for ob in objects]
             
     def _export_granny_model(self, filepath: Path, virtual_objects: dict[VirtualNode]):
-        self.granny.new(filepath)
+        self.granny.new(filepath, self.forward, self.scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
         self.granny.create_materials()
         self.granny.create_skeletons(export_info=self.export_info)

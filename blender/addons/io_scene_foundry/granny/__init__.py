@@ -28,14 +28,27 @@ class Granny:
         self._create_callback()
         self.filename = ""
         
-    def new(self, filepath: Path):
+    def new(self, filepath: Path, forward: str, scale: float, mirror: bool):
         self.filename = str(filepath)
         # File Transforms
-        self.units_per_meter = 1
+        self.units_per_meter = scale
         self.origin = (c_float * 3)(0, 0, 0)
-        self.right_vector = (c_float * 3)(0, -1, 0)
         self.up_vector = (c_float * 3)(0, 0, 1)
-        self.back_vector = (c_float * 3)(-1, 0, 0)
+        match forward:
+            case 'y-':
+                self.back_vector = (c_float * 3)(0, 1, 0)
+                self.right_vector = (c_float * 3)(1 if mirror else -1, 0, 0)
+            case 'y':
+                self.back_vector = (c_float * 3)(0, -1, 0)
+                self.right_vector = (c_float * 3)(-1 if mirror else 1, 0, 0)
+            case 'x-':
+                self.back_vector = (c_float * 3)(1, 0, 0)
+                self.right_vector = (c_float * 3)(0, -1 if mirror else 1, 0)
+            case 'x':
+                self.back_vector = (c_float * 3)(-1, 0, 0)
+                self.right_vector = (c_float * 3)(0, 1 if mirror else -1, 0)
+            case _:
+                raise(f"Invalid forward provided: {forward}")
         
         # File Info
         self.granny_export_info = None
@@ -79,14 +92,11 @@ class Granny:
                 
     def transform(self):
         '''Transforms the granny file to Halo (Big scale + X forward)'''
-        halo_units_per_meter = 1 / 0.03048
+        halo_units_per_meter = 1
         halo_origin = (c_float * 3)(0, 0, 0)
-        halo_right_vector = (c_float * 3)(0, 1, 0)
+        halo_right_vector = (c_float * 3)(0, -1, 0)
         halo_up_vector = (c_float * 3)(0, 0, 1)
-        halo_back_vector = (c_float * 3)(1, 0, 0)
-        halo_right_vector = self.right_vector
-        halo_up_vector = self.up_vector
-        halo_back_vector = self.back_vector
+        halo_back_vector = (c_float * 3)(-1, 0, 0)
         affine3 = (c_float * 3)(0, 0, 0)
         linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
         inverse_linear3x3 = (c_float * 9)(0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -284,7 +294,7 @@ class Granny:
         
     def _create_art_tool_info(self) -> GrannyFileArtToolInfo:
         tool_info = GrannyFileArtToolInfo()
-        tool_info.art_tool_name = b'FBX converter'
+        tool_info.art_tool_name = b'Blender'
         tool_info.art_tool_major_revision = 1
         tool_info.art_tool_minor_revision = 0
         tool_info.art_tool_pointer_size = 64

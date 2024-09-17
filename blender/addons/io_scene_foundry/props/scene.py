@@ -511,6 +511,11 @@ class NWO_ScenePropertiesGroup(PropertyGroup):
             ("x", "X", "Model is facing X positive"),   
         ],
     )
+    
+    mirror: bpy.props.BoolProperty(
+        name="Mirror",
+        description="Exported scene becomes a mirror of the blender scene"
+    )
 
     output_biped: bpy.props.BoolProperty(
         name="Biped",
