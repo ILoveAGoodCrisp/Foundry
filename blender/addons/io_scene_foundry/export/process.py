@@ -209,9 +209,10 @@ class ExportScene:
     
     def map_halo_properties(self):
         process = "--- Mapping Halo Properties"
-        ob_halo_data = {}
+        self.ob_halo_data = {}
         num_export_objects = len(self.export_objects)
         self.collection_map = create_parent_mapping(self.depsgraph)
+        self.forced_render_only = {}
         object_parent_dict = {}
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
@@ -228,14 +229,14 @@ class ExportScene:
                     self.no_parent_objects.append(ob)
                     
                 if self.supports_bsp and props.get("bungie_mesh_type") == '_connected_geometry_mesh_type_poop' and ob.data not in self.processed_poop_meshes:
-                    ob_halo_data, proxies, has_collision_proxy = self.create_instance_proxies(ob, ob_halo_data, region, permutation)
+                    self.ob_halo_data, proxies, has_collision_proxy = self.create_instance_proxies(ob, self.ob_halo_data, region, permutation)
                     if has_collision_proxy:
                         current_face_mode = mesh_props.get("bungie_face_mode")
                         if not current_face_mode or current_face_mode not in {'_connected_geometry_face_mode_render_only', '_connected_geometry_face_mode_lightmap_only', '_connected_geometry_face_mode_shadow_only'}:
                             mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
                 
                 props.update(mesh_props)
-                ob_halo_data[ob] = (props, region, permutation, fp_defaults, proxies)
+                self.ob_halo_data[ob] = (props, region, permutation, fp_defaults, proxies)
                     
                 utils.update_job_count(process, "", idx, num_export_objects)
             utils.update_job_count(process, "", num_export_objects, num_export_objects)
@@ -249,7 +250,7 @@ class ExportScene:
         self.virtual_scene.global_materials = self.global_materials_list
         self.virtual_scene.global_materials_set = set(self.global_materials_list)
         self.virtual_scene.object_parent_dict = object_parent_dict
-        self.virtual_scene.object_halo_data = ob_halo_data
+        self.virtual_scene.object_halo_data = self.ob_halo_data
             
     def get_halo_props(self, ob: bpy.types.Object):
         props = {}
@@ -409,12 +410,19 @@ class ExportScene:
                 props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
             elif ob.parent and ob.parent.type in VALID_MESHES and ob.parent.data.nwo.mesh_type == '_connected_geometry_mesh_type_default':
                 props["bungie_mesh_type"] = '_connected_geometry_mesh_type_poop_collision'
+                props["bungie_poop_parent"] = '_connected_geometry_mesh_type_poop_collision'
+                parent_halo_data = self.ob_halo_data.get(ob.parent)
+                if parent_halo_data:
+                    # if parent_halo_data[0].get("bungie_face_mode") not in 
+                    parent_halo_data[0]["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
+                else:
+                    self.forced_render_only[ob.parent] = None
             else:
                 props["bungie_mesh_type"] = '_connected_geometry_mesh_type_poop'
                 props["bungie_mesh_poop_lighting"] = "_connected_geometry_poop_lighting_single_probe"
                 props["bungie_mesh_poop_pathfinding"] = "_connected_poop_instance_pathfinding_policy_cutout"
                 props["bungie_mesh_poop_imposter_policy"] = "_connected_poop_instance_imposter_policy_never"
-                nwo.reach_poop_collision = True
+                # nwo.reach_poop_collision = True
                 if data_nwo.sphere_collision_only:
                     mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_sphere_collision_only'
                 else:
@@ -478,20 +486,13 @@ class ExportScene:
                 props["bungie_mesh_poop_imposter_transition_distance"] = utils.jstr(nwo.poop_imposter_transition_distance)
             if self.corinth:
                 nwo["bungie_mesh_poop_imposter_brightness"] = utils.jstr(nwo.poop_imposter_brightness)
-        if data_nwo.render_only:
-            mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_render_only'
-            if self.corinth:
-                props["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
-            else:
-                props["bungie_mesh_poop_is_render_only"] = "1"
-        elif nwo.poop_render_only:
+
+        if nwo.poop_render_only:
             if self.corinth:
                 props["bungie_mesh_poop_collision_type"] = '_connected_geometry_poop_collision_type_none'
             else:
                 props["bungie_mesh_poop_is_render_only"] = "1"
                 
-        elif not self.corinth and data_nwo.sphere_collision_only:
-            mesh_props["bungie_face_mode"] = '_connected_geometry_face_mode_sphere_collision_only'
         elif self.corinth:
             props["bungie_mesh_poop_collision_type"] = data_nwo.poop_collision_type
         if nwo.poop_does_not_block_aoe:
@@ -513,7 +514,10 @@ class ExportScene:
                 props["bungie_mesh_poop_remove_from_shadow_geometry"] = "1"
             if nwo.poop_disallow_lighting_samples:
                 props["bungie_mesh_poop_disallow_object_lighting_samples"] = "1"
-                
+        
+        if self.forced_render_only.get(ob):
+            props["bungie_face_mode"] = "_connected_geometry_face_mode_render_only"
+
         return props, mesh_props
         
     def _setup_marker_properties(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
