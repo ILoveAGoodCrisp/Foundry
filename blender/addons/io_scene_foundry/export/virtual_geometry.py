@@ -2,14 +2,14 @@
 
 from collections import defaultdict
 import csv
-from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, memmove, pointer
+from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte, c_void_p, cast, create_string_buffer, memmove, pointer, sizeof
 import logging
 from math import degrees
 from pathlib import Path
 import time
 import bmesh
 import bpy
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 import numpy as np
 
 from ..granny.formats import GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMemberType, GrannyTransform, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
@@ -24,7 +24,7 @@ from .. import utils
 from ..tools.asset_types import AssetType
 
 from ..constants import IDENTITY_MATRIX, RENDER_MESH_TYPES, VALID_MESHES
-
+NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.ERROR)
 
 DESIGN_MESH_TYPES = {
@@ -82,8 +82,8 @@ class VirtualMaterial:
         self.granny_material = pointer(self.granny_material)
     
 class VirtualMesh:
-    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict):
-        self.name = "default"
+    def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool):
+        self.name = ob.data.name
         self.proxies = proxies
         self.positions: np.ndarray = None
         self.normals: np.ndarray = None
@@ -101,24 +101,40 @@ class VirtualMesh:
         self.vertex_weighted = vertex_weighted
         self.num_loops = 0
         self.invalid = False
-        self._setup(ob, scene, fp_defaults, render_mesh, props)
-        if not self.invalid:
-            self.to_granny_data(scene)
+        # Check if a mesh already exists so we can copy its data (this will be the case in instances of shared mesh data but negative scale)
+        # Transforms to account for negative scaling are done at granny level so the blender data can stay the same
+        existing_mesh = scene.meshes.get((self.name, not negative_scaling))
+        if existing_mesh and not existing_mesh.invalid:
+            self.num_loops = existing_mesh.num_loops
+            self.vertex_component_names = existing_mesh.vertex_component_names
+            self.vertex_component_name_count = existing_mesh.vertex_component_name_count
+            self.vertex_type = existing_mesh.vertex_type
+            self.vertex_array = existing_mesh.vertex_array
+            self.len_vertex_array = existing_mesh.len_vertex_array
+            self.granny_tri_topology = deep_copy_granny_tri_topology(existing_mesh.granny_tri_topology)
+            scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
+        else:
+            self._setup(ob, scene, fp_defaults, render_mesh, props)
             
-        # del self.positions
-        # del self.normals
-        # del self.bone_weights
-        # del self.bone_indices
-        # del self.texcoords
-        # del self.lighting_texcoords
-        # del self.vertex_colors
-        # del self.indices
+            if not self.invalid:
+                self.to_granny_data(scene)
+                if negative_scaling:
+                    scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
+            
+        del self.positions
+        del self.normals
+        del self.bone_weights
+        del self.bone_indices
+        del self.texcoords
+        del self.lighting_texcoords
+        del self.vertex_colors
+        del self.indices
         
-    def to_granny_data(self, scene):
-        self._granny_tri_topology()
+    def to_granny_data(self, scene: 'VirtualScene'):
+        self._granny_tri_topology(scene)
         self._granny_vertex_data(scene)
         
-    def _granny_tri_topology(self):
+    def _granny_tri_topology(self, scene: 'VirtualScene'):
         indices = (c_int * self.num_indices).from_buffer_copy(self.indices.tobytes())
 
         granny_tri_topology = GrannyTriTopology()
@@ -159,7 +175,7 @@ class VirtualMesh:
             granny_tri_topology.tri_annotation_set_count = num_tri_annotation_sets
             granny_tri_topology.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
 
-        self.granny_tri_topology = granny_tri_topology
+        self.granny_tri_topology = pointer(granny_tri_topology)
         
     def _granny_vertex_data(self, scene: 'VirtualScene'):
         data = [self.positions, self.normals]
@@ -227,15 +243,27 @@ class VirtualMesh:
             self.invalid = True
             return
         
+        num_loops = len(mesh.loops)
+        num_vertices = len(mesh.vertices)
+        num_polygons = len(mesh.polygons)
+        
+        self.normals = np.empty((num_loops, 3), dtype=np.single)
+        mesh.corner_normals.foreach_get("vector", self.normals.ravel())
+        
+        loop_starts = np.empty(num_polygons, dtype=np.int32)
+        loop_totals = np.empty(num_polygons, dtype=np.int32)
+        
+        mesh.polygons.foreach_get("loop_start", loop_starts)
+        mesh.polygons.foreach_get("loop_total", loop_totals)     
+        
         num_materials = len(mesh.materials)
         special_mats_dict = defaultdict(list)
         for idx, mat in enumerate(mesh.materials):
-            if mat.nwo.has_material_properties or mat.name[0] == "+":
+            if mat is not None and (mat.nwo.has_material_properties or mat.name[0] == "+"):
                 special_mats_dict[mat].append(idx)
                 
         sorted_order = None
         
-        num_loops = len(mesh.loops)
         num_vertices = len(mesh.vertices)
         num_polygons = len(mesh.polygons)
         
@@ -246,16 +274,15 @@ class VirtualMesh:
         mesh.loops.foreach_get("vertex_index", loop_vertex_indices)
         
         self.positions = vertex_positions[loop_vertex_indices]
-        self.normals = np.empty((num_loops, 3), dtype=np.single)
-        mesh.corner_normals.foreach_get("vector", self.normals.ravel())
         
         loop_starts = np.empty(num_polygons, dtype=np.int32)
         loop_totals = np.empty(num_polygons, dtype=np.int32)
         
         mesh.polygons.foreach_get("loop_start", loop_starts)
         mesh.polygons.foreach_get("loop_total", loop_totals)
+        
         self.indices = np.add.outer(loop_starts, np.arange(loop_totals.max())).flatten()[:loop_totals.sum()]
-
+            
         if num_materials > 1:
             material_indices = np.empty(num_polygons, dtype=np.int32)
             mesh.polygons.foreach_get("material_index", material_indices)
@@ -270,7 +297,7 @@ class VirtualMesh:
             for idx, mat in enumerate(used_materials):
                 virtual_mat = scene._get_material(mat, scene)
                 self.materials[virtual_mat] = None
-                self.groups.append((scene._get_material(mat, scene), unique_materials.index(mat), mat_index_counts[idx]))
+                self.groups.append((virtual_mat, unique_materials.index(mat), mat_index_counts[idx]))
         elif num_materials == 1:
             virtual_mat = scene._get_material(mesh.materials[0], scene)
             self.materials[virtual_mat] = None
@@ -318,8 +345,8 @@ class VirtualMesh:
                 if len(self.texcoords) >= 4:
                     break
                 
-                loop_uvs = np.empty((num_loops, 2), dtype=np.single)
-                layer.uv.foreach_get("vector", loop_uvs.ravel())
+                loop_uvs = np.zeros((num_loops, 2), dtype=np.single)
+                #layer.uv.foreach_get("vector", loop_uvs.ravel())
                 zeros_column = np.zeros((num_loops, 1), dtype=np.single)
                 combined_uvs = np.hstack((loop_uvs, zeros_column))
                 if layer.name.lower() == "lighting":
@@ -568,17 +595,18 @@ class VirtualNode:
                 self.matrix_local = id.original.matrix_local.copy()
             else:
                 self.matrix_world = template_node.matrix_world.copy()
-                self.transform_matrix = template_node.transform_matrix
                 # self.matrix_local = IDENTITY_MATRIX
             if id.type in VALID_MESHES:
                 default_bone_bindings = [self.name]
-                existing_mesh = scene.meshes.get(id.data.name)
+                negative_scaling = id.matrix_world.is_negative
+                existing_mesh = scene.meshes.get((id.data.name, negative_scaling))
+                    
                 if existing_mesh:
                     self.mesh = existing_mesh
                     self.bone_bindings = existing_mesh.bone_bindings
                 else:
                     vertex_weighted = id.vertex_groups and id.parent and id.parent.type == 'ARMATURE' and id.parent_type != "BONE" and has_armature_deform_mod(id)
-                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props)
+                    mesh = VirtualMesh(vertex_weighted, scene, default_bone_bindings, id, fp_defaults, is_rendered(self.props), proxies, self.props, negative_scaling)
                     id.to_mesh_clear()
                     self.mesh = mesh
                     self.new_mesh = True
@@ -612,10 +640,6 @@ class VirtualNode:
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_loops
                 self.granny_vertex_data = pointer(self.granny_vertex_data)
-                
-                self.granny_tri_topology = pointer(self.mesh.granny_tri_topology)
-                if self.matrix_world.is_negative:
-                    scene.granny.invert_tri_topology_winding(self.granny_tri_topology)
                     
             
     def _set_group(self, scene: 'VirtualScene'):
@@ -736,7 +760,7 @@ class VirtualBone:
     def to_granny_data(self):
         self.granny_bone.name = self.name.encode()
         self.granny_bone.parent_index = self.parent_index
-        self.granny_bone.local_transform = GrannyTransform(0, *granny_transform_parts(self.matrix_local))
+        self.granny_bone.local_transform = GrannyTransform(7, *granny_transform_parts(self.matrix_local))
         self.granny_bone.inverse_world_4x4 = self._granny_world_transform()
         if self.props:
             create_extended_data(self.props, self.granny_bone)
@@ -882,6 +906,7 @@ class VirtualScene:
         
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
         self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str, list]] = {}
+        self.mesh_object_map: dict[tuple[bpy.types.Mesh, bool]: list[bpy.types.Object]] = {}
         
         self.material_extended_data_type = self._create_material_extended_data_type()
         
@@ -908,7 +933,8 @@ class VirtualScene:
         if not node.invalid:
             self.nodes[node.name] = node
             if node.new_mesh:
-                self.meshes[node.mesh.name] = node.mesh
+                # This is a tuple containing whether the object has a negative scale. This because we need to create seperate mesh data for negatively scaled objects
+                self.meshes[(node.mesh.name, id.matrix_world.is_negative)] = node.mesh
             
         return node
             
@@ -923,7 +949,9 @@ class VirtualScene:
         else:
             del model
         
-    def _get_material(self, material: bpy.types.Material, scene):
+    def _get_material(self, material: bpy.types.Material, scene: 'VirtualScene'):
+        if material is None:
+            return scene.materials['invalid']
         virtual_mat = self.materials.get(material.name)
         if virtual_mat: return virtual_mat
         mat_name = material.name
@@ -1148,19 +1176,7 @@ def calc_transforms(matrix: Matrix) -> tuple[Array, Array, Array]:
     matrix3x3 = matrix.to_3x3()
     affine3 = (c_float * 3)(*matrix.translation.to_tuple())
     linear3x3 = (c_float * 9)(*[f for row in matrix3x3 for f in row])
-    
-    determinant3x3 = matrix3x3.determinant()
-    if determinant3x3 != 0.0:
-        adjugate3x3 = matrix3x3.adjugated()
-        inverse = [[adjugate3x3[row][col] / determinant3x3 for col in range(3)] for row in range(3)]
-    else:
-        inverse = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-        
-    inverse_linear3x3 = (c_float * 9)(
-        inverse[0][0], inverse[0][1], inverse[0][2],
-        inverse[1][0], inverse[1][1], inverse[1][2],
-        inverse[2][0], inverse[2][1], inverse[2][2]
-    )
+    inverse_linear3x3 = (c_float * 9)(*[f for row in matrix3x3.inverted(Matrix.Identity(4).to_3x3()) for f in row])
     
     return affine3, linear3x3, inverse_linear3x3
 
@@ -1171,3 +1187,39 @@ def is_rendered(props: dict) -> bool:
         return True 
     
     return mesh_type in RENDER_MESH_TYPES
+
+def deep_copy_granny_tri_topology(original):
+    copy = GrannyTriTopology()
+    copy.group_count = original.contents.group_count
+    copy.index_count = original.contents.index_count
+    copy.tri_annotation_set_count = original.contents.tri_annotation_set_count
+
+    if original.contents.groups:
+        num_groups = original.contents.group_count
+        groups = (GrannyTriMaterialGroup * num_groups)()
+        memmove(groups, original.contents.groups, sizeof(GrannyTriMaterialGroup) * num_groups)
+        copy.groups = cast(groups, POINTER(GrannyTriMaterialGroup))
+
+    if original.contents.indices:
+        indices = (c_int * original.contents.index_count)()
+        memmove(indices, original.contents.indices, sizeof(c_int) * original.contents.index_count)
+        copy.indices = cast(indices, POINTER(c_int))
+
+    if original.contents.tri_annotation_sets:
+        num_sets = original.contents.tri_annotation_set_count
+        tri_annotation_sets = (GrannyTriAnnotationSet * num_sets)()
+        
+        for i in range(num_sets):
+            tri_annotation_sets[i].name = create_string_buffer(original.contents.tri_annotation_sets[i].name).raw
+            tri_annotation_sets[i].indices_map_from_tri_to_annotation = original.contents.tri_annotation_sets[i].indices_map_from_tri_to_annotation
+            tri_annotation_sets[i].tri_annotation_type = original.contents.tri_annotation_sets[i].tri_annotation_type
+            tri_annotation_sets[i].tri_annotation_count = original.contents.tri_annotation_sets[i].tri_annotation_count
+
+            annotation_size = original.contents.tri_annotation_sets[i].tri_annotation_count
+            annotations = (c_ubyte * annotation_size)()
+            memmove(annotations, original.contents.tri_annotation_sets[i].tri_annotations, sizeof(c_ubyte) * annotation_size)
+            tri_annotation_sets[i].tri_annotations = cast(annotations, POINTER(c_ubyte))
+        
+        copy.tri_annotation_sets = cast(tri_annotation_sets, POINTER(GrannyTriAnnotationSet))
+
+    return pointer(copy)

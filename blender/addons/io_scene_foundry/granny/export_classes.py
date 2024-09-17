@@ -129,7 +129,7 @@ class Bone(Properties):
         
     def set_transform(self, matrix_world: Matrix, matrix_local: Matrix):
         position, orientation, scale_shear = granny_transform_parts(matrix_local)
-        self.local_transform = GrannyTransform(flags=0, position=position, orientation=orientation, scale_shear=scale_shear)
+        self.local_transform = GrannyTransform(flags=7, position=position, orientation=orientation, scale_shear=scale_shear)
         
         inverted_matrix = matrix_world.inverted()
         # self.inverse_transform = (c_float * 4 * 4)(
@@ -352,7 +352,7 @@ class Mesh(Properties):
         self.name = node.name.encode()
         mesh = node.mesh
         self.primary_vertex_data = node.granny_vertex_data
-        self.primary_topology = node.granny_tri_topology
+        self.primary_topology = node.mesh.granny_tri_topology
         self.materials = [mat.granny_material for mat in mesh.materials.keys()]
         self.bone_bindings = [BoneBinding(name) for name in node.bone_bindings]
 

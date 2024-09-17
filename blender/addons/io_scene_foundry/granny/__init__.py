@@ -59,7 +59,7 @@ class Granny:
             for bone in sorted(model.skeleton.bones, key=lambda bone: bone.name):
                 if bone.node and nodes.get(bone.name) and bone.node.mesh:
                     self.export_vertex_datas.append(bone.node.granny_vertex_data)
-                    self.export_tri_topologies.append(bone.node.granny_tri_topology)
+                    # self.export_tri_topologies.append(bone.node.granny_tri_topology)
                     self.export_meshes.append(Mesh(bone.node))
                     materials.update(bone.node.mesh.materials)
                     meshes.add(bone.node.mesh)
@@ -68,7 +68,7 @@ class Granny:
             self.export_models.append(Model(model, len(self.export_skeletons) - 1, mesh_binding_indexes))
             
         if meshes:
-            # self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
+            self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
             self.export_materials = [mat.granny_material for mat in sorted(materials, key=lambda mat: mat.name)]
         
     def save(self):
@@ -384,6 +384,9 @@ class Granny:
     def invert_tri_topology_winding(self, tri_topology: GrannyTriTopology):
         "Inverts face winding of the given tri_topology"
         self.dll.GrannyInvertTriTopologyWinding(tri_topology)
+        
+    def _normalise_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices):
+        self.dll.GrannyNormalizeVertices(vertex_count, layout, vertices)
 
     def _define_granny_functions(self):
         # Get version
@@ -422,3 +425,5 @@ class Granny:
         self.dll.GrannyTransformVertices.argtypes=[c_int, POINTER(GrannyDataTypeDefinition), c_void_p, POINTER(c_float), POINTER(c_float), POINTER(c_float), c_bool, c_bool]
         # Invert tri topology winding
         self.dll.GrannyInvertTriTopologyWinding.argtypes=[POINTER(GrannyTriTopology)]
+        # Normalise vertices
+        self.dll.GrannyNormalizeVertices.argtypes=[c_int, POINTER(GrannyDataTypeDefinition), c_void_p]
