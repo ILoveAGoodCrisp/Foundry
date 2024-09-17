@@ -341,7 +341,7 @@ class ExportScene:
         if mesh_type == "_connected_geometry_mesh_type_physics":
             props = self._setup_physics_props(ob, nwo, props)
         elif mesh_type == '_connected_geometry_mesh_type_object_instance':
-            props = self._setup_instanced_object_props(ob, nwo, props, region)
+            props = self._setup_instanced_object_props(nwo, props, region)
         elif mesh_type == '_connected_geometry_mesh_type_poop':
             props, mesh_props = self._setup_poop_props(ob, nwo, data_nwo, props, mesh_props)
         elif mesh_type == '_connected_geometry_mesh_type_default' and self.corinth and self.asset_type == 'scenario':
@@ -453,15 +453,14 @@ class ExportScene:
         prim_type = nwo.mesh_primitive_type
         props["bungie_mesh_primitive_type"] = prim_type
         if prim_type != '_connected_geometry_primitive_type_none':
-            # self.physics_prims.add(ob)
-            pass
+            props = self._set_primitive_props(ob, prim_type, props)
         elif self.corinth and nwo.mopp_physics:
             props["bungie_mesh_primitive_type"] = "_connected_geometry_primitive_type_mopp"
             props["bungie_havok_isshape"] = "1"
             
         return props
     
-    def _setup_instanced_object_props(self, ob: bpy.types.Object, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
+    def _setup_instanced_object_props(self, nwo: NWO_ObjectPropertiesGroup, props: dict, region: str):
         props["bungie_marker_all_regions"] = utils.bool_str(not nwo.marker_uses_regions)
         if nwo.marker_uses_regions:
             props["bungie_marker_region"] = region
@@ -528,7 +527,7 @@ class ExportScene:
         marker_type = nwo.marker_type
         props["bungie_marker_type"] = marker_type
         props["bungie_marker_model_group"] = nwo.marker_model_group
-        if self.asset_type in ('model', 'sky'):
+        if self.asset_type in {AssetType.MODEL, AssetType.SKY}:
             props["bungie_marker_all_regions"] = utils.bool_str(not nwo.marker_uses_regions)
             if nwo.marker_uses_regions:
                 props["bungie_marker_region"] = region
@@ -549,33 +548,34 @@ class ExportScene:
                     max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
                     props["bungie_marker_hint_length"] = utils.jstr(ob.empty_display_size * 2 * max_abs_scale)
 
-                ob.name = "hint_"
-                if nwo.marker_hint_type == "bunker":
-                    ob.name += "bunker"
-                elif nwo.marker_hint_type == "corner":
-                    ob.name += "corner_"
-                    if nwo.marker_hint_side == "right":
-                        ob.name += "right"
-                    else:
-                        ob.name += "left"
+                # TODO Move all this code to update the name while editing in Blender
+                # ob.name = "hint_"
+                # if nwo.marker_hint_type == "bunker":
+                #     ob.name += "bunker"
+                # elif nwo.marker_hint_type == "corner":
+                #     ob.name += "corner_"
+                #     if nwo.marker_hint_side == "right":
+                #         ob.name += "right"
+                #     else:
+                #         ob.name += "left"
 
-                else:
-                    if nwo.marker_hint_type == "vault":
-                        ob.name += "vault_"
-                    elif nwo.marker_hint_type == "mount":
-                        ob.name += "mount_"
-                    else:
-                        ob.name += "hoist_"
+                # else:
+                #     if nwo.marker_hint_type == "vault":
+                #         ob.name += "vault_"
+                #     elif nwo.marker_hint_type == "mount":
+                #         ob.name += "mount_"
+                #     else:
+                #         ob.name += "hoist_"
 
-                    if nwo.marker_hint_height == "step":
-                        ob.name += "step"
-                    elif nwo.marker_hint_height == "crouch":
-                        ob.name += "crouch"
-                    else:
-                        ob.name += "stand"
+                #     if nwo.marker_hint_height == "step":
+                #         ob.name += "step"
+                #     elif nwo.marker_hint_height == "crouch":
+                #         ob.name += "crouch"
+                #     else:
+                #         ob.name += "stand"
                         
             elif marker_type == "_connected_geometry_marker_type_pathfinding_sphere":
-                props["bungie_mesh_primitive_sphere_radius"] = get_marker_sphere_size(ob)
+                props["bungie_mesh_primitive_sphere_radius"] = self.get_marker_sphere_size(ob)
                 props["bungie_marker_pathfinding_sphere_vehicle_only"] = utils.bool_str(nwo.marker_pathfinding_sphere_vehicle)
                 props["bungie_marker_pathfinding_sphere_remains_when_open"] = utils.bool_str(nwo.pathfinding_sphere_remains_when_open)
                 props["bungie_marker_pathfinding_sphere_with_sectors"] = utils.bool_str(nwo.pathfinding_sphere_with_sectors)
@@ -625,7 +625,7 @@ class ExportScene:
                         props["bungie_physics_constraint_twist_end"] = utils.jstr(degrees(nwo.twist_constraint_end))
                 
             elif marker_type == "_connected_geometry_marker_type_target":
-                props["bungie_mesh_primitive_sphere_radius"] = get_marker_sphere_size(ob, nwo)
+                props["bungie_mesh_primitive_sphere_radius"] = self.get_marker_sphere_size(ob)
                 
             elif marker_type == "_connected_geometry_marker_type_effects":
                 props["bungie_marker_type"] = "_connected_geometry_marker_type_model"
@@ -637,7 +637,7 @@ class ExportScene:
                     props["bungie_marker_type"] = "_connected_geometry_marker_type_model"
                 props["bungie_marker_velocity"] = utils.vector_str(nwo.marker_velocity)
         
-        elif self.asset_type in ("scenario", "prefab"):
+        elif self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
             if marker_type == "_connected_geometry_marker_type_game_instance":
                 tag_name = nwo.marker_game_instance_tag_name.lower()
                 props["bungie_marker_game_instance_tag_name"] = tag_name
@@ -1131,10 +1131,24 @@ class ExportScene:
     def postprocess_tags(self):
         pass
     
-def get_marker_sphere_size(ob):
-    scale = ob.matrix_world.to_scale()
-    max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
-    return utils.jstr(ob.empty_display_size * max_abs_scale)
+    def get_marker_sphere_size(self, ob):
+        scale = ob.matrix_world.to_scale()
+        max_abs_scale = max(abs(scale.x), abs(scale.y), abs(scale.z))
+        return utils.jstr(ob.empty_display_size * max_abs_scale * (1 / self.scale))
+    
+    def _set_primitive_props(self, ob, prim_type, props):
+        match prim_type:
+            case '_connected_geometry_primitive_type_sphere':
+                props["bungie_mesh_primitive_sphere_radius"] = utils.radius_str(ob, scale=1/self.scale)
+            case '_connected_geometry_primitive_type_pill':
+                props["bungie_mesh_primitive_pill_radius"] = utils.radius_str(ob, True, scale=1/self.scale)
+                props["bungie_mesh_primitive_pill_height"] = utils.jstr(ob.dimensions.z * (1 / self.scale))
+            case '_connected_geometry_primitive_type_box':
+                props["bungie_mesh_primitive_box_width"] =  utils.jstr(ob.dimensions.x * (1 / self.scale))
+                props["bungie_mesh_primitive_box_length"] = utils.jstr(ob.dimensions.y * (1 / self.scale))
+                props["bungie_mesh_primitive_box_height"] = utils.jstr(ob.dimensions.z * (1 / self.scale))
+                
+        return props
 
 def decorator_int(ob):
     match ob.nwo.decorator_lod:
