@@ -6,13 +6,17 @@ from ctypes import Array, Structure, c_char_p, c_float, c_int, POINTER, c_ubyte,
 import logging
 from math import degrees
 from pathlib import Path
-import time
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix
 import numpy as np
+import clr
 
-from ..granny.formats import GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMemberType, GrannyTransform, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
+from ..managed_blam.shader import ShaderTag
+
+from ..managed_blam.bitmap import BitmapTag
+
+from ..granny.formats import GrannyBone, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTransform, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny
 
 from .export_info import ExportInfo, FaceDrawDistance, FaceMode, FaceSides, FaceType, LightmapType
@@ -54,6 +58,7 @@ class VirtualMaterial:
         self.granny_material = None
         self.shader_path = "override"
         self.shader_type = "override"
+        self.granny_texture = None
         if shader_path is not None:
             if not str(shader_path).strip() or str(shader_path) == '.':
                 return self.set_invalid(scene)
@@ -67,6 +72,7 @@ class VirtualMaterial:
             self.shader_type = path.suffix[1:]
         
         self.to_granny_data(scene)
+        self.make_granny_texture(scene)
         
     def set_invalid(self, scene: 'VirtualScene'):
         self.shader_path = r"shaders\invalid"
@@ -80,6 +86,87 @@ class VirtualMaterial:
         self.granny_material.extended_data.object = cast(pointer(data), c_void_p)
         self.granny_material.extended_data.type = scene.material_extended_data_type
         self.granny_material = pointer(self.granny_material)
+        
+    def make_granny_texture(self, scene: 'VirtualScene'):
+        clr.AddReference('System.Drawing')
+        from System import Array, Byte # type: ignore
+        from System.Runtime.InteropServices import Marshal # type: ignore
+        from System.Drawing import Rectangle # type: ignore
+        from System.Drawing.Imaging import ImageLockMode, PixelFormat # type: ignore
+        from System.Runtime.InteropServices import GCHandle, GCHandleType # type: ignore
+        bitmap = None
+        if self.shader_type == "override" or not self.shader_path:
+            return
+
+        shader_path = Path(self.shader_path).with_suffix("." + self.shader_type)
+        full_path = Path(scene.tags_dir, shader_path)
+        if not full_path.exists():
+            return
+        with ShaderTag(path=shader_path) as shader:
+            bitmap_info = shader.get_diffuse_bitmap_data_for_granny()
+            
+        if bitmap_info is None:
+            return
+        
+        bitmap, has_alpha = bitmap_info
+        
+        if bitmap.PixelFormat != PixelFormat.Format32bppArgb:
+            return None
+        
+        width = bitmap.Width
+        height = bitmap.Height
+
+        bitmap_data = bitmap.LockBits(Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
+        stride = bitmap_data.Stride
+        total_bytes = abs(stride) * height
+        rgba = Array.CreateInstance(Byte, total_bytes)
+        Marshal.Copy(bitmap_data.Scan0, rgba, 0, total_bytes)
+        bitmap.UnlockBits(bitmap_data)
+        
+        for i in range(0, total_bytes, 4):
+            if not has_alpha:
+                rgba[i + 3] = 255
+            blue = rgba[i]
+            red = rgba[i + 2]
+            
+            rgba[i] = red
+            rgba[i + 2] = blue
+                
+        
+        # Copy the modified pixel data back to the bitmap
+        
+        handle = GCHandle.Alloc(rgba, GCHandleType.Pinned)
+        try:
+            # Get a pointer to the RGBA data
+            rgba_ptr = handle.AddrOfPinnedObject()
+            rgba_ctypes_ptr = c_void_p(rgba_ptr.ToInt64())  # Convert to ctypes.c_void_p
+            
+            print("got bitmap data")
+            # Create a granny texture builder instance
+            builder = scene.granny._begin_texture_builder(width, height)
+            scene.granny._encode_image(builder, width, height, stride, 1, rgba_ctypes_ptr)
+            texture = scene.granny._end_texture(builder)
+            texture.contents.file_name = str(full_path).encode()
+            self.granny_texture = texture
+            self.granny_material.contents.texture = texture
+            print("added texture to material")
+            # scene.granny._free_texture(texture)
+        
+        finally:
+            # Free the handle to unpin the byte array
+            if handle.IsAllocated:
+                handle.Free()
+        
+        bitmap.Dispose()
+        
+        # Set up texture map
+        map = GrannyMaterialMap()
+        map.usage = b"diffuse"
+        map.material = self.granny_material
+        # self.granny_material.contents.maps = (POINTER(GrannyMaterialMap))(pointer(map))
+        self.granny_material.contents.maps = pointer(map)
+        self.granny_material.contents.map_count = 1
+
     
 class VirtualMesh:
     def __init__(self, vertex_weighted: bool, scene: 'VirtualScene', bone_bindings: list[str], ob: bpy.types.Object, fp_defaults: dict, render_mesh: bool, proxies: list, props: dict, negative_scaling: bool, bones: list[str]):
@@ -101,6 +188,7 @@ class VirtualMesh:
         self.vertex_weighted = vertex_weighted
         self.num_loops = 0
         self.invalid = False
+        self.granny_tri_topology = None
         # Check if a mesh already exists so we can copy its data (this will be the case in instances of shared mesh data but negative scale)
         # Transforms to account for negative scaling are done at granny level so the blender data can stay the same
         existing_mesh = scene.meshes.get((self.name, not negative_scaling))
@@ -237,7 +325,6 @@ class VirtualMesh:
         self.len_vertex_array = len(vertex_byte_array)
         self.vertex_array = (c_ubyte * self.len_vertex_array).from_buffer_copy(vertex_byte_array)
         
-        
     def _setup(self, ob: bpy.types.Object, scene: 'VirtualScene', fp_defaults: dict, render_mesh: bool, props: dict, bones: list[str]):
         def add_triangle_mod(ob: bpy.types.Object):
             mods = ob.modifiers
@@ -246,6 +333,7 @@ class VirtualMesh:
                 
             tri_mod = mods.new('Triangulate', 'TRIANGULATE')
             tri_mod.quad_method = 'FIXED'
+            tri_mod.ngon_method = 'CLIP'
             
         add_triangle_mod(ob)
         mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
@@ -683,8 +771,7 @@ class VirtualNode:
                 
                 self.granny_vertex_data.vertices = cast(vertex_array, POINTER(c_ubyte))
                 self.granny_vertex_data.vertex_count = self.mesh.num_loops
-                self.granny_vertex_data = pointer(self.granny_vertex_data)
-                    
+                self.granny_vertex_data = pointer(self.granny_vertex_data)         
             
     def _set_group(self, scene: 'VirtualScene'):
         match scene.asset_type:
@@ -1019,6 +1106,11 @@ class VirtualScene:
                 node and 
                 node.mesh and 
                 node.props.get("bungie_mesh_type") == "_connected_geometry_mesh_type_poop")
+        
+    def add_automatic_structure(self):
+        if self.structure == self.bsps_with_structure:
+            return
+        no_bsp_structure = self.structure.difference(self.bsps_with_structure)
                 
 def has_armature_deform_mod(ob: bpy.types.Object):
     for mod in ob.modifiers:

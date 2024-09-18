@@ -127,6 +127,13 @@ class BitmapTag(Tag):
             
         self.tag_has_changes = True
         
+    def get_granny_data(self) -> object | None:
+        game_bitmap = self._GameBitmap()
+        bitmap = game_bitmap.GetBitmap()
+        game_bitmap.Dispose()
+        return bitmap
+        
+        
     def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
         def lerp(a, b, t):
             return a + (b - a) * t

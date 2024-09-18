@@ -57,6 +57,7 @@ class Granny:
         
     def from_tree(self, scene, nodes):
         self.export_materials = []
+        self.export_textures = []
         self.export_meshes = []
         self.export_models = []
         self.export_skeletons = []
@@ -83,6 +84,7 @@ class Granny:
         if meshes:
             self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
             self.export_materials = [mat.granny_material for mat in sorted(materials, key=lambda mat: mat.name)]
+            self.export_textures = [mat.granny_texture for mat in sorted(materials, key=lambda mat: mat.name) if mat.granny_texture is not None]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()
@@ -127,6 +129,12 @@ class Granny:
         materials = (POINTER(GrannyMaterial) * num_materials)(*self.export_materials)
         self.file_info.material_count = num_materials
         self.file_info.materials = materials
+        
+    def create_textures(self):
+        num_textures = len(self.export_textures)
+        textures = (POINTER(GrannyTexture) * num_textures)(*self.export_textures)
+        self.file_info.texture_count = num_textures
+        self.file_info.textures = textures
 
     def create_skeletons(self, export_info=None):
         num_skeletons = len(self.export_skeletons) + int(bool(export_info))
@@ -397,6 +405,22 @@ class Granny:
         
     def _normalise_vertices(self, vertex_count: c_int, layout: GrannyDataTypeDefinition, vertices):
         self.dll.GrannyNormalizeVertices(vertex_count, layout, vertices)
+        
+    def _begin_texture_builder(self, width: c_int, height: c_int):
+        "Returns a granny texture builder instance"
+        return self.dll.GrannyBeginBestMatchS3TCTexture(width, height)
+    
+    def _encode_image(self, builder: POINTER(GrannyTextureBuilder), width: c_int, height: c_int, stride: c_int, mip_count: c_int, rgba_data: c_void_p):
+        "Encodes an image i.e makes it"
+        self.dll.GrannyEncodeImage(builder, width, height, stride, mip_count, rgba_data)
+    
+    def _end_texture(self, builder: POINTER(GrannyTextureBuilder)):
+        "returns a granny texture from a builder instance"
+        return self.dll.GrannyEndTexture(builder)
+    
+    def _free_texture(self, texture: c_void_p):
+        "Frees the texture from memory"
+        self.dll.GrannyFreeBuilderResult(texture)
 
     def _define_granny_functions(self):
         # Get version
@@ -437,3 +461,13 @@ class Granny:
         self.dll.GrannyInvertTriTopologyWinding.argtypes=[POINTER(GrannyTriTopology)]
         # Normalise vertices
         self.dll.GrannyNormalizeVertices.argtypes=[c_int, POINTER(GrannyDataTypeDefinition), c_void_p]
+        # Begin gexture builder, best matching s3tc texture
+        self.dll.GrannyBeginBestMatchS3TCTexture.argtypes=[c_int, c_int]
+        self.dll.GrannyBeginBestMatchS3TCTexture.restype=POINTER(GrannyTextureBuilder)
+        # Encode an image
+        self.dll.GrannyEncodeImage.argtypes=[POINTER(GrannyTextureBuilder), c_int, c_int, c_int, c_int, c_void_p]
+        # Get a texture from its builder
+        self.dll.GrannyEndTexture.argtypes=[POINTER(GrannyTextureBuilder)]
+        self.dll.GrannyEndTexture.restype=POINTER(GrannyTexture)
+        # Free texture builder
+        self.dll.GrannyFreeBuilderResult.argtypes=[c_void_p]

@@ -584,6 +584,19 @@ class ShaderTag(Tag):
             alpha.build(Vector((-600, 300)))
             
         self._set_alpha(alpha_type, blender_material)
+        
+        
+    def get_diffuse_bitmap_data_for_granny(self) -> None | tuple:
+        has_alpha = self.block_options.Elements[7].Fields[0].Data > 0
+        for element in self.block_parameters.Elements:
+            if element.Fields[0].GetStringData() == "base_map":
+                full_path = element.SelectField("bitmap").Path.Filename
+                if not os.path.exists(full_path):
+                    return None
+                
+                bitmap_path = element.SelectField("bitmap").Path.RelativePathWithExtension
+                with BitmapTag(path=bitmap_path) as bitmap:
+                    return bitmap.get_granny_data(), has_alpha
             
             
             

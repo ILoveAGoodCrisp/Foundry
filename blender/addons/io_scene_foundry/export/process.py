@@ -1057,6 +1057,7 @@ class ExportScene:
     def _export_granny_model(self, filepath: Path, virtual_objects: dict[VirtualNode]):
         self.granny.new(filepath, self.forward, self.scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
+        self.granny.create_textures()
         self.granny.create_materials()
         self.granny.create_skeletons(export_info=self.export_info)
         self.granny.create_vertex_data()
@@ -1065,8 +1066,8 @@ class ExportScene:
         self.granny.create_models()
         self.granny.transform()
         self.granny.save()
-        # if filepath.exists():
-        #     os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
+        if filepath.exists():
+            os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
         
     def _export_granny_animation(self, filepath: Path, virtual_objects: list[VirtualNode]):
         granny = Granny(Path(self.project_root, "granny2_x64.dll"), filepath)

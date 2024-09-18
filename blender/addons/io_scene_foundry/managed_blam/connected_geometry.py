@@ -1126,6 +1126,7 @@ class BSP:
         # Remove any degenerate faces
         bmesh.ops.dissolve_degenerate(bm, dist=0.1, edges=bm.edges)
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.1)
+        # bmesh.ops.triangulate(bm, faces=bm.faces)
         # edges_to_dissolve = set()
         # for edge in bm.edges:
         #     edge: bmesh.types.BMEdge

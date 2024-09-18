@@ -75,7 +75,9 @@ class GrannyMemberType(CtypesEnum):
     granny_member_type_force_int = int(0x7fffffff)
 
 class GrannyDataTypeDefinition(Structure):
-    """ granny data type info """
+    pass
+
+class GrannyTextureBuilder(Structure):
     pass
 
 GrannyDataTypeDefinition._pack_ = 1
@@ -162,12 +164,12 @@ class GrannyMaterial(Structure):
                 ('name',c_char_p),
                 ('map_count',c_int),
                 ('maps', POINTER(GrannyMaterialMap)),
-                ('texture', POINTER(GrannyTextureImage)),
+                ('texture', POINTER(GrannyTexture)),
                 ('extended_data', GrannyVariant)]     
 
 GrannyMaterialMap._fields_ = [
                 ('usage', c_char_p),
-                ('maps', POINTER(GrannyMaterial))]     
+                ('material', POINTER(GrannyMaterial))]     
 
 class GrannyTransform(Structure):
     _pack_ = 1
