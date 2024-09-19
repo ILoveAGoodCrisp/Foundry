@@ -301,10 +301,11 @@ class Granny:
         self.file_info.extended_data.object = None
         
     def _create_art_tool_info(self) -> GrannyFileArtToolInfo:
+        blender_version = bpy.app.version
         tool_info = GrannyFileArtToolInfo()
         tool_info.art_tool_name = b'Blender'
-        tool_info.art_tool_major_revision = 1
-        tool_info.art_tool_minor_revision = 0
+        tool_info.art_tool_major_revision = blender_version[0]
+        tool_info.art_tool_minor_revision = blender_version[1]
         tool_info.art_tool_pointer_size = 64
         tool_info.units_per_meter = self.units_per_meter
         tool_info.origin[:] = self.origin
@@ -321,9 +322,9 @@ class Granny:
     def _create_basic_exporter_tool_info(self) -> GrannyFileExporterInfo:
         exporter_info = GrannyFileExporterInfo()
         exporter_info.exporter_name = b'Foundry'
-        exporter_info.exporter_major_revision = 2
-        exporter_info.exporter_minor_revision = 8
-        exporter_info.exporter_build_number = 36
+        exporter_info.exporter_major_revision = 1
+        exporter_info.exporter_minor_revision = 0
+        exporter_info.exporter_build_number = 0
         exporter_info.extended_data.type = None
         exporter_info.extended_data.object = None
         return exporter_info
