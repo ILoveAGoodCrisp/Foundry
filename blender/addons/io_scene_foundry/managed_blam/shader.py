@@ -587,16 +587,28 @@ class ShaderTag(Tag):
         
         
     def get_diffuse_bitmap_data_for_granny(self) -> None | tuple:
-        has_alpha = self.block_options.Elements[7].Fields[0].Data > 0
+        fill_alpha = True
+        calc_blue = False
+        # has_normal = self.block_options.Elements[1].Fields[0].Data > 0
         for element in self.block_parameters.Elements:
-            if element.Fields[0].GetStringData() == "base_map":
-                full_path = element.SelectField("bitmap").Path.Filename
-                if not os.path.exists(full_path):
-                    return None
-                
-                bitmap_path = element.SelectField("bitmap").Path.RelativePathWithExtension
-                with BitmapTag(path=bitmap_path) as bitmap:
-                    return bitmap.get_granny_data(), has_alpha
+            match element.Fields[0].GetStringData():
+                case "base_map":
+                    fill_alpha = self.block_options.Elements[7].Fields[0].Data < 1
+                # case "bump_map":
+                #     if has_normal:
+                #         calc_blue = True
+                #     else: continue
+                case _:
+                    continue
+                    
+
+            full_path = element.SelectField("bitmap").Path.Filename
+            if not os.path.exists(full_path):
+                continue
+            
+            bitmap_path = element.SelectField("bitmap").Path.RelativePathWithExtension
+            with BitmapTag(path=bitmap_path) as bitmap:
+                return bitmap.get_granny_data(fill_alpha, calc_blue)
             
             
             

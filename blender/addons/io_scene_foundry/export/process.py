@@ -1064,7 +1064,7 @@ class ExportScene:
         self.granny.create_tri_topologies()
         self.granny.create_meshes()
         self.granny.create_models()
-        self.granny.transform()
+        # self.granny.transform()
         self.granny.save()
         if filepath.exists():
             os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))

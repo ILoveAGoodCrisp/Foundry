@@ -8,7 +8,7 @@ from math import degrees
 from pathlib import Path
 import bmesh
 import bpy
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 import numpy as np
 import clr
 
@@ -88,13 +88,6 @@ class VirtualMaterial:
         self.granny_material = pointer(self.granny_material)
         
     def make_granny_texture(self, scene: 'VirtualScene'):
-        clr.AddReference('System.Drawing')
-        from System import Array, Byte # type: ignore
-        from System.Runtime.InteropServices import Marshal # type: ignore
-        from System.Drawing import Rectangle # type: ignore
-        from System.Drawing.Imaging import ImageLockMode, PixelFormat # type: ignore
-        from System.Runtime.InteropServices import GCHandle, GCHandleType # type: ignore
-        bitmap = None
         if self.shader_type == "override" or not self.shader_path:
             return
 
@@ -103,67 +96,23 @@ class VirtualMaterial:
         if not full_path.exists():
             return
         with ShaderTag(path=shader_path) as shader:
-            bitmap_info = shader.get_diffuse_bitmap_data_for_granny()
+            bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
             
-        if bitmap_info is None:
+        if not bitmap_data:
             return
         
-        bitmap, has_alpha = bitmap_info
-        
-        if bitmap.PixelFormat != PixelFormat.Format32bppArgb:
-            return None
-        
-        width = bitmap.Width
-        height = bitmap.Height
-
-        bitmap_data = bitmap.LockBits(Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
-        stride = bitmap_data.Stride
-        total_bytes = abs(stride) * height
-        rgba = Array.CreateInstance(Byte, total_bytes)
-        Marshal.Copy(bitmap_data.Scan0, rgba, 0, total_bytes)
-        bitmap.UnlockBits(bitmap_data)
-        
-        for i in range(0, total_bytes, 4):
-            if not has_alpha:
-                rgba[i + 3] = 255
-            blue = rgba[i]
-            red = rgba[i + 2]
-            
-            rgba[i] = red
-            rgba[i + 2] = blue
-                
-        
-        # Copy the modified pixel data back to the bitmap
-        
-        handle = GCHandle.Alloc(rgba, GCHandleType.Pinned)
-        try:
-            # Get a pointer to the RGBA data
-            rgba_ptr = handle.AddrOfPinnedObject()
-            rgba_ctypes_ptr = c_void_p(rgba_ptr.ToInt64())  # Convert to ctypes.c_void_p
-            
-            print("got bitmap data")
-            # Create a granny texture builder instance
-            builder = scene.granny._begin_texture_builder(width, height)
-            scene.granny._encode_image(builder, width, height, stride, 1, rgba_ctypes_ptr)
-            texture = scene.granny._end_texture(builder)
-            texture.contents.file_name = str(full_path).encode()
-            self.granny_texture = texture
-            self.granny_material.contents.texture = texture
-            print("added texture to material")
-            # scene.granny._free_texture(texture)
-        
-        finally:
-            # Free the handle to unpin the byte array
-            if handle.IsAllocated:
-                handle.Free()
-        
-        bitmap.Dispose()
-        
+        # Create a granny texture builder instance
+        width, height, stride, rgba = bitmap_data
+        builder = scene.granny._begin_texture_builder(width, height)
+        scene.granny._encode_image(builder, width, height, stride, 1, rgba)
+        texture = scene.granny._end_texture(builder)
+        texture.contents.file_name = str(full_path).encode()
+        self.granny_texture = texture
+        self.granny_material.contents.texture = texture
         # Set up texture map
         map = GrannyMaterialMap()
         map.usage = b"diffuse"
         map.material = self.granny_material
-        # self.granny_material.contents.maps = (POINTER(GrannyMaterialMap))(pointer(map))
         self.granny_material.contents.maps = pointer(map)
         self.granny_material.contents.map_count = 1
 
@@ -909,7 +858,8 @@ class VirtualSkeleton:
         own_bone = VirtualBone(ob)
         own_bone.node = node
         own_bone.matrix_world = own_bone.node.matrix_world
-        own_bone.matrix_local = IDENTITY_MATRIX
+        own_bone.matrix_local = own_bone.node.matrix_local
+        self.skeleton_matrix_world = own_bone.matrix_world.copy()
         if ob.type == 'ARMATURE':
             own_bone.props = {
                     "bungie_frame_world": "1",
@@ -932,12 +882,12 @@ class VirtualSkeleton:
                 bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
                 b.create_bone_props(bone, scene.frame_ids[idx])
-                b.matrix_world = bone.matrix.copy()
+                b.matrix_world = self.skeleton_matrix_world @ bone.matrix
                 # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
                 if bone.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = list_bones.index(bone.parent.name) + 1
-                    b.matrix_local = utils.get_bone_matrix_local(ob, bone)
+                    b.matrix_local = utils.get_bone_matrix_local(bone)
                 else:
                     b.parent_index = 0
                     b.matrix_local = bone.matrix.copy()
@@ -955,11 +905,16 @@ class VirtualSkeleton:
                 b.node = node
                 if child.type != 'MESH':
                     b.props = b.node.props
-                b.matrix_world = child.matrix_world.copy()
-                b.matrix_local = child.matrix_local.copy()
+                b.matrix_world = node.matrix_world.copy()
                 if child.parent_type == 'BONE':
-                    b.parent_index = list_bones.index(child.parent_bone) + 1
+                    # Can't just use an objects matrix_local here as this gets a matrix relative to a bone's tail
+                    # the below gets the matrix relative to bone head
+                    bone_index = list_bones.index(child.parent_bone)
+                    bone = valid_bones[bone_index]
+                    b.matrix_local = (self.skeleton_matrix_world @ bone.matrix).inverted() @ b.matrix_world
+                    b.parent_index = bone_index + 1
                 else:
+                    b.matrix_local = node.matrix_local.copy()
                     b.parent_index = 0
                 b.to_granny_data()
                 self.bones.append(b)
@@ -979,8 +934,8 @@ class VirtualSkeleton:
             b.node = node
             if child.type != 'MESH':
                 b.props = b.node.props
-            b.matrix_world = b.node.matrix_world
-            b.matrix_local = b.node.matrix_local
+            b.matrix_world = node.matrix_world
+            b.matrix_local = node.matrix_local
             b.to_granny_data()
             self.bones.append(b)
             self.find_children(child, scene, child_index)

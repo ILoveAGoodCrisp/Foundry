@@ -31,7 +31,9 @@ class Granny:
     def new(self, filepath: Path, forward: str, scale: float, mirror: bool):
         self.filename = str(filepath)
         # File Transforms
-        self.units_per_meter = scale
+        print(scale)
+        self.units_per_meter = (1  / 0.03048) * scale
+        print(self.units_per_meter)
         self.origin = (c_float * 3)(0, 0, 0)
         self.up_vector = (c_float * 3)(0, 0, 1)
         match forward:
@@ -94,7 +96,7 @@ class Granny:
                 
     def transform(self):
         '''Transforms the granny file to Halo (Big scale + X forward)'''
-        halo_units_per_meter = 1
+        halo_units_per_meter = 1 / 0.03048
         halo_origin = (c_float * 3)(0, 0, 0)
         halo_right_vector = (c_float * 3)(0, -1, 0)
         halo_up_vector = (c_float * 3)(0, 0, 1)

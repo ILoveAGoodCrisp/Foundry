@@ -3765,7 +3765,7 @@ def get_halo_props_for_granny(id) -> dict:
         
     return halo_props
 
-def get_bone_matrix_local(ob: bpy.types.Object, bone: bpy.types.PoseBone) -> Matrix:
+def get_bone_matrix_local(bone: bpy.types.PoseBone) -> Matrix:
     if not bone.parent:
         return bone.matrix.copy()
     return bone.parent.matrix.inverted() @ bone.matrix

@@ -24,6 +24,7 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+from ctypes import c_void_p
 from math import sqrt
 import os
 import clr
@@ -127,23 +128,123 @@ class BitmapTag(Tag):
             
         self.tag_has_changes = True
         
-    def get_granny_data(self) -> object | None:
+    def get_granny_data(self, fill_alpha: bool, calc_blue_channel: bool) -> object | None:
+        clr.AddReference('System.Drawing')
+        from System import Array, Byte # type: ignore
+        from System.Runtime.InteropServices import Marshal # type: ignore
+        from System.Drawing import Rectangle # type: ignore
+        from System.Drawing.Imaging import ImageLockMode, PixelFormat # type: ignore
+        from System.Runtime.InteropServices import GCHandle, GCHandleType # type: ignore
         game_bitmap = self._GameBitmap()
         bitmap = game_bitmap.GetBitmap()
         game_bitmap.Dispose()
-        return bitmap
+        
+        if bitmap.PixelFormat != PixelFormat.Format32bppArgb:
+            return None
+        
+        gamma = self.get_gamma_name()
+        
+        width = bitmap.Width
+        height = bitmap.Height
+
+        bitmap_data = bitmap.LockBits(Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, bitmap.PixelFormat)
+        stride = bitmap_data.Stride
+        total_bytes = abs(stride) * height
+        bgra_array = Array.CreateInstance(Byte, total_bytes)
+        Marshal.Copy(bitmap_data.Scan0, bgra_array, 0, total_bytes)
+        bitmap.UnlockBits(bitmap_data)
+        
+        if calc_blue_channel:
+            rgba_array = self.bgra_to_rgba_with_calculated_blue(total_bytes, bgra_array, gamma)
+        elif fill_alpha:
+            rgba_array = self.bgra_to_rgba_solid_alpha(total_bytes, bgra_array, gamma)
+        else:
+            rgba_array = self.bgra_to_rgba(total_bytes, bgra_array, gamma)
+        
+        handle = GCHandle.Alloc(rgba_array, GCHandleType.Pinned)
+        rgba_ptr = None
+        try:
+            rgba_ptr = c_void_p(handle.AddrOfPinnedObject().ToInt64())
+        finally:
+            if handle.IsAllocated:
+                handle.Free()
+        
+        bitmap.Dispose()
+        
+        if rgba_ptr is None:
+            return None
+        
+        return width, height, stride, rgba_ptr
+    
+    @staticmethod
+    def bgra_to_rgba_solid_alpha(total_bytes, bgra_array, gamma):
+        for i in range(0, total_bytes, 4):
+            bgra_array[i + 3] = 255
+            red = bgra_array[i + 2] / 255.0
+            green = bgra_array[i + 1] / 255.0
+            blue = bgra_array[i] / 255.0
+            match gamma:
+                case 'linear':
+                    red = red ** 2.0
+                    green = green ** 2.0
+                    blue = blue ** 2.0
+                case 'srgb':
+                    red = utils.linear_to_srgb(red ** 2.0)
+                    green = utils.linear_to_srgb(green ** 2.0)
+                    blue = utils.linear_to_srgb(blue ** 2.0)
+                    
+            bgra_array[i] = int(red * 255)
+            bgra_array[i + 1] = int(green * 255)
+            bgra_array[i + 2] = int(blue * 255)
+            
+        return bgra_array
+    
+    @staticmethod
+    def bgra_to_rgba(total_bytes, bgra_array, gamma):
+        for i in range(0, total_bytes, 4):
+            red = bgra_array[i + 2] / 255.0
+            green = bgra_array[i + 1] / 255.0
+            blue = bgra_array[i] / 255.0
+            match gamma:
+                case 'linear':
+                    red = red ** 2.0
+                    green = green ** 2.0
+                    blue = blue ** 2.0
+                case 'srgb':
+                    red = utils.linear_to_srgb(red ** 2.0)
+                    green = utils.linear_to_srgb(green ** 2.0)
+                    blue = utils.linear_to_srgb(blue ** 2.0)
+                    
+            bgra_array[i] = int(red * 255)
+            bgra_array[i + 1] = int(green * 255)
+            bgra_array[i + 2] = int(blue * 255)
+            
+        return bgra_array
+    
+    @staticmethod
+    def bgra_to_rgba_with_calculated_blue(total_bytes, bgra_array, gamma):
+        for i in range(0, total_bytes, 4):
+            red = bgra_array[i + 2] / 255.0
+            green = bgra_array[i + 1] / 255.0
+            blue = calculate_z_vector(red, green)
+            match gamma:
+                case 'linear':
+                    red = red ** 2.0
+                    green = green ** 2.0
+                    blue = blue ** 2.0
+                case 'srgb':
+                    red = utils.linear_to_srgb(red ** 2.0)
+                    green = utils.linear_to_srgb(green ** 2.0)
+                    blue = utils.linear_to_srgb(blue ** 2.0)
+                    
+            bgra_array[i] = int(red * 255)
+            bgra_array[i + 1] = int(green * 255)
+            bgra_array[i + 2] = int(blue * 255)
+            
+        return bgra_array
         
         
     def save_to_tiff(self, blue_channel_fix=False, format='tiff'):
-        def lerp(a, b, t):
-            return a + (b - a) * t
-
-        def calculate_z_vector(r, g):
-            x = lerp(-1.0, 1.0, r)
-            y = lerp(-1.0, 1.0, g)
-            z = sqrt(max(0, 1 - x * x - y * y))
-
-            return (z + 1) / 2
         # try:
         clr.AddReference('System.Drawing')
         from System import Array, Byte # type: ignore
@@ -238,3 +339,13 @@ class BitmapTag(Tag):
                 return 2.2
             case 'Non-Color':
                 return 1.0
+            
+def lerp(a, b, t):
+    return a + (b - a) * t
+
+def calculate_z_vector(r, g):
+    x = lerp(-1.0, 1.0, r)
+    y = lerp(-1.0, 1.0, g)
+    z = sqrt(max(0, 1 - x * x - y * y))
+
+    return (z + 1) / 2
