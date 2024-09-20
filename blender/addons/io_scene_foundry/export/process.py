@@ -1110,8 +1110,8 @@ class ExportScene:
         self.granny.transform()
         self.granny.save()
         
-        if filepath.exists():
-            os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
+        # if filepath.exists():
+        #     os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
         
             
     def _get_export_path(self, name: str, animation=False):
@@ -1171,19 +1171,18 @@ class ExportScene:
         self._setup_model_overrides()
         
     def _setup_model_overrides(self):
-        model_override = self.asset_type == AssetType.MODEL and (
-            self.scene_settings.template_render_model or
-            self.scene_settings.template_collision_model or
-            self.scene_settings.template_physics_model or
+        model_override = self.asset_type == AssetType.MODEL and any((
+            self.scene_settings.template_render_model,
+            self.scene_settings.template_collision_model,
+            self.scene_settings.template_physics_model,
             self.scene_settings.template_model_animation_graph
-            )
-        
+            ))
         if model_override:
             with ModelTag() as model:
                 model.set_model_overrides(self.scene_settings.template_render_model,
                                           self.scene_settings.template_collision_model,
-                                          self.scene_settings.template_physics_model,
-                                          self.scene_settings.template_model_animation_graph)
+                                          self.scene_settings.template_model_animation_graph,
+                                          self.scene_settings.template_physics_model)
     
     def get_marker_sphere_size(self, ob):
         scale = ob.matrix_world.to_scale()

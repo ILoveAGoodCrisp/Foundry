@@ -52,18 +52,22 @@ class SidecarImport:
         
     def _set_template(self, tag_type: str):
         if tag_type.endswith('model') or tag_type == 'model_animation_graph' or getattr(self.scene_settings, 'output_' + tag_type):
-            relative_path = getattr(self.scene_settings, 'template_' + tag_type)
-            expected_asset_path = Path(self.asset_path, f'{self.asset_name}.{tag_type}')
-            if relative_path and expected_asset_path.exists():
-                asset_folder = expected_asset_path.parent
-                if not asset_folder.exists():
-                    asset_folder.mkdir(parents=True, exist_ok=True)
-                full_path = Path(self.tags_dir, relative_path)
-                if full_path.exists():
-                    utils.copy_file(full_path, expected_asset_path)
-                    print(f'- Loaded {tag_type} tag template')
-                else:
-                    utils.print_warning(f'Tried to set up template for {tag_type} tag but given template tag [{full_path}] does not exist')
+            template_path = getattr(self.scene_settings, 'template_' + tag_type)
+            if not template_path:
+                return
+            relative_template_path = utils.relative_path(template_path)
+            expected_asset_path = Path(self.tags_dir, self.relative_asset_path, f'{self.asset_name}.{tag_type}')
+            if expected_asset_path.exists():
+                return
+            asset_folder = expected_asset_path.parent
+            if not asset_folder.exists():
+                asset_folder.mkdir(parents=True, exist_ok=True)
+            full_path = Path(self.tags_dir, relative_template_path)
+            if full_path.exists():
+                utils.copy_file(full_path, expected_asset_path)
+                print(f'- Loaded {tag_type} tag template')
+            else:
+                utils.print_warning(f'Tried to set up template for {tag_type} tag but given template tag [{full_path}] does not exist')
     
     def save_lighting_infos(self):
         lighting_info_paths = [str(Path(self.tags_dir, self.relative_asset_path, f'{self.asset_name}_{b}.scenario_structure_lighting_info')) for b in self.bsps]
