@@ -8,6 +8,12 @@ import time
 import bpy
 from mathutils import Matrix
 
+from ..managed_blam.render_model import RenderModelTag
+
+from ..managed_blam.animation import AnimationTag
+
+from ..managed_blam.model import ModelTag
+
 from .import_sidecar import SidecarImport
 
 from .tag_builder import build_tags
@@ -935,6 +941,34 @@ class ExportScene:
                 
         return fp_defaults, mesh_props
          
+    def set_template_node_order(self):
+        nodes = []
+        if self.asset_type not in {AssetType.MODEL, AssetType.ANIMATION}:
+            return
+        if self.asset_type == AssetType.MODEL:
+            if self.scene_settings.template_model_animation_graph and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_model_animation_graph)).exists():
+                with AnimationTag(path=self.scene_settings.template_model_animation_graph) as animation:
+                    nodes = animation.get_nodes()
+            elif self.scene_settings.template_render_model and Path(self.tags_dir, utils.relative_path(self.scene_settings.template_render_model)).exists():
+                with RenderModelTag(path=self.scene_settings.template_render_model) as render_model:
+                    nodes = render_model.get_nodes()
+        else:
+            if self.scene_settings.animation_type == 'first_person':
+                if self.scene_settings.fp_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.fp_model_path)).exists():
+                    with RenderModelTag(path=self.scene_settings.fp_model_path) as render_model:
+                        nodes = render_model.get_nodes()
+                if self.scene_settings.gun_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.gun_model_path)).exists():
+                    with RenderModelTag(path=self.scene_settings.gun_model_path) as render_model:
+                        nodes.extend(render_model.get_nodes())
+                        
+            elif self.scene_settings.render_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.render_model_path)).exists():
+                with RenderModelTag(path=self.scene_settings.render_model_path) as render_model:
+                    nodes = render_model.get_nodes()
+                    
+        if nodes:
+            self.virtual_scene.template_node_order = {v: i for i, v in enumerate(nodes)}
+                    
+                    
     def create_virtual_tree(self):
         '''Creates a tree of object relations'''
         process = "--- Building Geometry Tree"
@@ -1117,20 +1151,39 @@ class ExportScene:
         self.sidecar.build()
         
     def preprocess_tags(self):
-        pass
+        """ManagedBlam tasks to run before tool import is called"""
+        
     
     def invoke_tool_import(self):
-        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, self.virtual_scene.structure)
-        # if self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
-        #     sidecar_importer.save_lighting_infos()
+        sidecar_importer = SidecarImport(self.asset_path, self.asset_name, self.asset_type, self.sidecar_path, self.scene_settings, self.export_settings, self.selected_bsps, self.corinth, self.virtual_scene.structure, self.tags_dir)
+        if self.asset_type in {AssetType.SCENARIO, AssetType.PREFAB}:
+            sidecar_importer.save_lighting_infos()
+        sidecar_importer.setup_templates()
         sidecar_importer.run()
-        # if sidecar_importer.lighting_infos:
-        #     sidecar_importer.restore_lighting_infos()
+        if sidecar_importer.lighting_infos:
+            sidecar_importer.restore_lighting_infos()
         if self.asset_type == AssetType.ANIMATION:
             sidecar_importer.cull_unused_tags()
             
     def postprocess_tags(self):
-        pass
+        """ManagedBlam tasks to run after tool import is called"""
+        print("--- Tags Post-Process")
+        self._setup_model_overrides()
+        
+    def _setup_model_overrides(self):
+        model_override = self.asset_type == AssetType.MODEL and (
+            self.scene_settings.template_render_model or
+            self.scene_settings.template_collision_model or
+            self.scene_settings.template_physics_model or
+            self.scene_settings.template_model_animation_graph
+            )
+        
+        if model_override:
+            with ModelTag() as model:
+                model.set_model_overrides(self.scene_settings.template_render_model,
+                                          self.scene_settings.template_collision_model,
+                                          self.scene_settings.template_physics_model,
+                                          self.scene_settings.template_model_animation_graph)
     
     def get_marker_sphere_size(self, ob):
         scale = ob.matrix_world.to_scale()

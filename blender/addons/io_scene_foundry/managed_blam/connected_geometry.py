@@ -1856,13 +1856,17 @@ class MarkerGroup:
                 if marker.linked_to and len(marker.linked_to) + 1 != len(marker.region.permutations):
                     # If not pick if this is include or exclude type depending on whichever means less permutation entries need to be added
                     # If a tie prefer exclude
-                    include_permutations = [m.permutation.name for m in marker.linked_to if m.permutation]
+                    include_permutations = [marker.permutation.name]
+                    include_permutations.extend([m.permutation.name for m in marker.linked_to if m.permutation]) 
                     exclude_permutations = [p.name for p in marker.region.permutations if p.name not in include_permutations]
                     if len(include_permutations) < len(exclude_permutations):
                         nwo.marker_permutation_type = "include"
                         utils.set_marker_permutations(ob, include_permutations)
                     else:
                         utils.set_marker_permutations(ob, exclude_permutations)
+                elif not marker.linked_to:
+                    nwo.marker_permutation_type = "include"
+                    utils.set_marker_permutations(ob, [marker.permutation.name])
                     
             
             ob.empty_display_type = "ARROWS"

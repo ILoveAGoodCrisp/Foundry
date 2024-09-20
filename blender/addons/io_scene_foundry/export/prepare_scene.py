@@ -429,10 +429,7 @@ class PrepareScene:
                     if nwo.mesh_type == '':
                         nwo.mesh_type = '_connected_geometry_mesh_type_default'
                     if utils.type_valid(nwo.mesh_type, self.asset_type, self.game_version):
-                        if self._setup_mesh_properties(ob, scenario_or_prefab):
-                            if self.export_settings.triangulate:
-                                add_triangle_mod(ob)
-                        else:
+                        if not self._setup_mesh_properties(ob, scenario_or_prefab):
                             utils.unlink(ob)
                             continue
                         

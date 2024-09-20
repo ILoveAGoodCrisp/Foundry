@@ -31,6 +31,26 @@ from ..constants import IDENTITY_MATRIX, RENDER_MESH_TYPES, VALID_MESHES
 NORMAL_FIX_MATRIX = Matrix(((1, 0, 0), (0, -1, 0), (0, 0, -1)))
 logging.basicConfig(level=logging.ERROR)
 
+# PEDESTAL_MATRIX_X_POSITIVE = Matrix(((1.0, 0.0, 0.0, 0.0),
+#                                 (0.0, 1.0, 0.0, 0.0),
+#                                 (0.0, 0.0, 1.0, 0.0),
+#                                 (0.0, 0.0, 0.0, 1.0)))
+
+# PEDESTAL_MATRIX_Y_NEGATIVE = Matrix(((0.0, 1.0, 0.0, 0.0),
+#                                     (-1.0, 0.0, 0.0, 0.0),
+#                                     (0.0, 0.0, 1.0, 0.0),
+#                                     (0.0, 0.0, 0.0, 1.0)))
+
+# PEDESTAL_MATRIX_Y_POSITIVE = Matrix(((0.0, -1.0, 0.0, 0.0),
+#                                     (1.0, 0.0, 0.0, 0.0),
+#                                     (0.0, 0.0, 1.0, 0.0),
+#                                     (0.0, 0.0, 0.0, 1.0)))
+
+# PEDESTAL_MATRIX_X_NEGATIVE = Matrix(((-1.0, 0.0, 0.0, 0.0),
+#                                     (0.0, -1.0, 0.0, 0.0),
+#                                     (0.0, 0.0, 1.0, 0.0),
+#                                     (0.0, 0.0, 0.0, 1.0)))
+
 DESIGN_MESH_TYPES = {
     "_connected_geometry_mesh_type_planar_fog_volume",
     "_connected_geometry_mesh_type_boundary_surface",
@@ -859,9 +879,6 @@ class VirtualSkeleton:
         self.node = node
         own_bone = VirtualBone(ob)
         own_bone.node = node
-        own_bone.matrix_world = own_bone.node.matrix_world
-        own_bone.matrix_local = own_bone.node.matrix_local
-        self.skeleton_matrix_world = own_bone.matrix_world.copy()
         if ob.type == 'ARMATURE':
             own_bone.props = {
                     "bungie_frame_world": "1",
@@ -871,6 +888,10 @@ class VirtualSkeleton:
                 }
         elif own_bone.node and not own_bone.node.mesh:
             own_bone.props = own_bone.node.props
+            
+        own_bone.matrix_world = own_bone.node.matrix_world
+        own_bone.matrix_local = own_bone.node.matrix_local
+        self.skeleton_matrix_world = own_bone.matrix_world.copy()
         own_bone.to_granny_data()
         self.bones: list[VirtualBone] = [own_bone]
         self._get_bones(ob, scene)
@@ -883,16 +904,20 @@ class VirtualSkeleton:
             for idx, bone in enumerate(valid_bones):
                 bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
-                b.create_bone_props(bone, scene.frame_ids[idx])
-                b.matrix_world = self.skeleton_matrix_world @ bone.matrix
+                frame_ids_index = scene.template_node_order.get(b.name)
+                if frame_ids_index is None:
+                    frame_ids_index = idx
+                b.create_bone_props(bone, scene.frame_ids[frame_ids_index])
                 # b.properties = utils.get_halo_props_for_granny(ob.data.bones[idx])
+                b.matrix_world = self.skeleton_matrix_world @ bone.matrix
                 if bone.parent:
                     # Add one to this since the root is the armature
                     b.parent_index = list_bones.index(bone.parent.name) + 1
                     b.matrix_local = utils.get_bone_matrix_local(bone)
                 else:
                     b.parent_index = 0
-                    b.matrix_local = bone.matrix.copy()
+                    b.matrix_local = bone.matrix
+                    
                 b.to_granny_data()
                 self.bones.append(b)
                 granny_bones.append(b)
@@ -1010,6 +1035,8 @@ class VirtualScene:
             default_material = VirtualMaterial("invalid", self, r"shaders\invalid.shader")
             
         self.materials["invalid"] = default_material
+
+        self.template_node_order = {}
         
     def _create_material_extended_data_type(self):
         material_extended_data_type = (GrannyDataTypeDefinition * 3)()
@@ -1035,8 +1062,8 @@ class VirtualScene:
         children = [ob for ob, ob_parent in self.object_parent_dict.items() if ob_parent == parent]
         return children
         
-    def add_model(self, ob, build_geometry):
-        model = VirtualModel(ob, self, build_geometry)
+    def add_model(self, ob):
+        model = VirtualModel(ob, self)
         if model.node:
             self.models[ob.name] = model
         else:

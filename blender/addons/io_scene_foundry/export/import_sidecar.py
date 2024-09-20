@@ -27,7 +27,7 @@ default_templates = [
 ]
 
 class SidecarImport:
-    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set):
+    def __init__(self, asset_path: str, asset_name: str, asset_type: AssetType, sidecar_path: Path, scene_settings: NWO_ScenePropertiesGroup, export_settings: NWO_HaloExportPropertiesGroup, selected_bsps: list[str], corinth: bool, bsps: set, tags_dir):
         self.asset_path = asset_path
         self.relative_asset_path = utils.relative_path(asset_path)
         self.asset_name = asset_name
@@ -41,8 +41,9 @@ class SidecarImport:
         self.lighting_infos = {}
         self.import_failed = False
         self.error = ""
+        self.tags_dir = tags_dir
     
-    def _setup_templates(self):
+    def setup_templates(self):
         templates = default_templates.copy()
         if self.corinth:
             templates.append('device_dispenser')
@@ -65,7 +66,7 @@ class SidecarImport:
                     utils.print_warning(f'Tried to set up template for {tag_type} tag but given template tag [{full_path}] does not exist')
     
     def save_lighting_infos(self):
-        lighting_info_paths = [str(Path(self.self.tags_dir, self.relative_asset_path, f'{self.asset_name}_{b}.scenario_structure_lighting_info')) for b in self.bsps]
+        lighting_info_paths = [str(Path(self.tags_dir, self.relative_asset_path, f'{self.asset_name}_{b}.scenario_structure_lighting_info')) for b in self.bsps]
         for file in lighting_info_paths:
             if Path(file).exists():
                 with open(file, 'r+b') as f:
