@@ -1035,8 +1035,8 @@ class VirtualScene:
         children = [ob for ob, ob_parent in self.object_parent_dict.items() if ob_parent == parent]
         return children
         
-    def add_model(self, ob):
-        model = VirtualModel(ob, self)
+    def add_model(self, ob, build_geometry):
+        model = VirtualModel(ob, self, build_geometry)
         if model.node:
             self.models[ob.name] = model
         else:

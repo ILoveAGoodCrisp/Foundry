@@ -450,8 +450,10 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col = flow.column()
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
-        col.prop(scene_nwo_export, "export_gr2s", text="Export Granny Files")
-        col.prop(scene_nwo_export, "export_tags", text="Generate Tags")
+        if scene_nwo_export.granny_export:
+            col.prop(scene_nwo_export, "export_mode")
+        else:
+            col.prop(scene_nwo_export, "export_gr2s", text="Export Tags")
         if asset_type == 'camera_track_set':
             return
         scenario = asset_type == "scenario"
@@ -487,7 +489,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'animation'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -544,7 +546,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -636,7 +638,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                 col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
                 
 class NWO_HaloExportGranny(bpy.types.Panel):
-    bl_label = "Granny"
+    bl_label = "Intermediate File Settings"
     bl_idname = "NWO_PT_HaloExportGranny"
     bl_space_type = "VIEW_3D"
     bl_parent_id = "NWO_PT_HaloExportSettings"
@@ -644,7 +646,7 @@ class NWO_HaloExportGranny(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -675,7 +677,7 @@ class NWO_HaloExportTriangulation(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+        return utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -737,13 +739,17 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         description="Enables the new Granny pipeline",
         options=set(),
     )
+    export_mode: bpy.props.EnumProperty(
+        name="Export Mode",
+        options=set(),
+        items=[
+            ("FULL", "Full Export", "Builds intermediate files and then uses these to generate tags"),
+            ("GRANNY", "Intermediate Files Only", "Builds intermediate files only"),
+            ("TAGS", "Tags Only", "Skips building intermediate files and attempts to build tags. This will not work if no intermediate files exist")
+        ]
+    )
     export_gr2s: bpy.props.BoolProperty(
         name="Export GR2 Files",
-        default=True,
-        options=set(),
-    )
-    export_tags: bpy.props.BoolProperty(
-        name="Generates tags using the exported GR2 files",
         default=True,
         options=set(),
     )
@@ -761,14 +767,14 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     # )
     export_all_bsps: bpy.props.EnumProperty(
         name="BSPs",
-        description="Specify whether to export all BSPs, or just those selected",
+        description="Specify whether to export all BSPs, or just those currently selected. Whether a BSP is considered selected is dependant on the object selection",
         default="all",
         items=[("all", "All", ""), ("selected", "Selected", "")],
         options=set(),
     )
     export_all_perms: bpy.props.EnumProperty(
         name="Perms",
-        description="Specify whether to export all permutations, or just those selected",
+        description="Specify whether to export all permutations, or just those selected. Whether a permutation is considered selected is dependant on the object selection",
         default="all",
         items=[("all", "All", ""), ("selected", "Selected", "")],
         options=set(),
@@ -920,9 +926,9 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
         description="",
         default="ALL",
         items=[
-            ("ALL", "All", ""),
-            ("ACTIVE", "Active", ""),
-            ("NONE", "None", ""),
+            ("ALL", "All", "All animations flagged for export will be included"),
+            ("ACTIVE", "Active", "Only the currently active animation will be exported"),
+            ("NONE", "None", "No animations will be exported"),
         ],
         options=set(),
     )

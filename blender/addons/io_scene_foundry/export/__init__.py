@@ -656,13 +656,15 @@ def export_asset(context, sidecar_path_full, asset_name, asset_path, scene_setti
 def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, asset_path, scene_settings, export_settings, corinth):
     asset_type = scene_settings.asset_type
     export_scene = ExportScene(context, sidecar_path_full, sidecar_path, asset_type, asset_name, asset_path, corinth, export_settings, scene_settings)
-    export_scene.ready_scene()
-    export_scene.get_initial_export_objects()
-    export_scene.map_halo_properties()
-    export_scene.create_virtual_tree()
-    export_scene.report_warnings()
-    export_scene.export_files()
-    # export_scene.preprocess_tags()
-    # export_scene.write_sidecar()
-    # export_scene.invoke_tool_import()
-    # export_scene.postprocess_tags()
+    if export_settings.export_mode in {'FULL', 'GRANNY'}:
+        export_scene.ready_scene()
+        export_scene.get_initial_export_objects()
+        export_scene.map_halo_properties()
+        export_scene.create_virtual_tree()
+        export_scene.report_warnings()
+        export_scene.export_files()
+    if export_settings.export_mode in {'FULL', 'TAGS'}:
+        export_scene.preprocess_tags()
+        export_scene.write_sidecar()
+        export_scene.invoke_tool_import()
+        export_scene.postprocess_tags()
