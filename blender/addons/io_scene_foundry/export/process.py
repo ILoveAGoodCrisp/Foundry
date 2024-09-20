@@ -118,7 +118,7 @@ class ExportScene:
         
         self.forward = scene_settings.forward_direction
         self.scale = 1 if scene_settings.scale == 'max' else 0.03048
-        self.mirror = scene_settings.mirror
+        self.mirror = export_settings.granny_mirror
         
     def ready_scene(self):
         print("\n\nProcessing Scene")
@@ -130,12 +130,12 @@ class ExportScene:
         
     def get_initial_export_objects(self):
         self.depsgraph = self.context.evaluated_depsgraph_get()
-        if self.asset_type == AssetType.ANIMATION:
+        if self.asset_type == AssetType.ANIMATION and not self.export_settings.granny_animations_mesh:
             self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type == "ARMATURE"}
         else:
             self.export_objects = {ob.evaluated_get(self.depsgraph) for ob in self.context.view_layer.objects if ob.nwo.export_this and ob.type in VALID_OBJECTS}
         
-        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny)
+        self.virtual_scene = VirtualScene(self.asset_type, self.depsgraph, self.corinth, self.tags_dir, self.granny, self.export_settings)
         
     def create_instance_proxies(self, ob: bpy.types.Object, ob_halo_data: dict, region: str, permutation: str):
         self.processed_poop_meshes.add(ob.data)
@@ -1032,7 +1032,7 @@ class ExportScene:
                 nodes_dict = {node.name: node for node in nodes + [self.virtual_scene.skeleton_node]}
             else:
                 nodes_dict = {node.name: node for node in nodes}
-            self._export_granny_model(granny_path, nodes_dict)
+            self._export_granny_file(granny_path, nodes_dict, False)
             utils.update_job(job, 1)
             
                 
@@ -1053,31 +1053,31 @@ class ExportScene:
         #                 export_obs = [ob for ob in objects if ob.nwo.permutation_name == perm]
         #             else:
         #                 export_obs = [ob for ob in objects]
-            
-    def _export_granny_model(self, filepath: Path, virtual_objects: dict[VirtualNode]):
+        
+    def _export_granny_file(self, filepath: Path, virtual_objects: list[VirtualNode], animation: bool):
         self.granny.new(filepath, self.forward, self.scale, self.mirror)
         self.granny.from_tree(self.virtual_scene, virtual_objects)
-        self.granny.create_textures()
-        self.granny.create_materials()
+        
+        if not animation or self.export_settings.granny_animations_mesh:
+            if self.export_settings.granny_textures:
+                self.granny.create_textures()
+            self.granny.create_materials()
+            self.granny.create_vertex_data()
+            self.granny.create_tri_topologies()
+            self.granny.create_meshes()
+            
         self.granny.create_skeletons(export_info=self.export_info)
-        self.granny.create_vertex_data()
-        self.granny.create_tri_topologies()
-        self.granny.create_meshes()
         self.granny.create_models()
-        # self.granny.transform()
+        
+        if animation: ...
+            # self.granny.create_track_groups()
+            # self.granny.create_animations()
+            
+        self.granny.transform()
         self.granny.save()
+        
         if filepath.exists():
             os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments=str(filepath))
-        
-    def _export_granny_animation(self, filepath: Path, virtual_objects: list[VirtualNode]):
-        granny = Granny(Path(self.project_root, "granny2_x64.dll"), filepath)
-        granny.from_tree(self.virtual_scene, virtual_objects)
-        granny.create_skeletons(export_info=self.export_info)
-        granny.create_models()
-        # granny.create_track_groups()
-        # granny.create_animations()
-        granny.transform()
-        granny.save()
         
             
     def _get_export_path(self, name: str, animation=False):

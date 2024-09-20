@@ -73,7 +73,7 @@ class ProcessScene:
         exported_actions = []
         if asset_type == 'camera_track_set':
             return build_camera_tracks(context, export_scene.camera, asset_path)
-        if scene_nwo_export.export_gr2_files:
+        if scene_nwo_export.export_gr2s:
             self.slow_gr2 = scene_nwo_export.slow_gr2
             # make necessary directories
             models_dir = os.path.join(asset_path, "models")
@@ -513,7 +513,7 @@ class ProcessScene:
                 if not scenario_path.exists():
                     setup_scenario = True
 
-            if scene_nwo_export.export_gr2_files and os.path.exists(sidecar_path_full):
+            if scene_nwo_export.export_gr2s and os.path.exists(sidecar_path_full):
                 print("\n\nBuilding Tags")
                 print("-----------------------------------------------------------------------\n")
                 self.managed_blam_pre_import_tasks(export_scene, scene_nwo_export.export_animations, context.scene.nwo, exported_actions, setup_scenario, relative_asset_path, asset, asset_type, h4)

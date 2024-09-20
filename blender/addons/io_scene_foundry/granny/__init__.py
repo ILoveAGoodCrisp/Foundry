@@ -31,9 +31,7 @@ class Granny:
     def new(self, filepath: Path, forward: str, scale: float, mirror: bool):
         self.filename = str(filepath)
         # File Transforms
-        print(scale)
         self.units_per_meter = (1  / 0.03048) * scale
-        print(self.units_per_meter)
         self.origin = (c_float * 3)(0, 0, 0)
         self.up_vector = (c_float * 3)(0, 0, 1)
         match forward:
@@ -86,7 +84,8 @@ class Granny:
         if meshes:
             self.export_tri_topologies = [mesh.granny_tri_topology for mesh in meshes]
             self.export_materials = [mat.granny_material for mat in sorted(materials, key=lambda mat: mat.name)]
-            self.export_textures = [mat.granny_texture for mat in sorted(materials, key=lambda mat: mat.name) if mat.granny_texture is not None]
+            if scene.uses_textures:
+                self.export_textures = [mat.granny_texture for mat in sorted(materials, key=lambda mat: mat.name) if mat.granny_texture is not None]
         
     def save(self):
         data_tree_writer = self._begin_file_data_tree_writing()

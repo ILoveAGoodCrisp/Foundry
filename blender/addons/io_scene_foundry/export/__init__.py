@@ -235,10 +235,10 @@ class NWO_Export_Scene(Operator, ExportHelper):
         box = layout.box()
         box.label(text="Export Scope")
         col = box.column()
-        col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
+        col.prop(scene_nwo_export, "export_gr2s", text="Export Tags")
         if scene_nwo.asset_type == 'camera_track_set':
             return
-        if scene_nwo_export.export_gr2_files and scene_nwo.asset_type in ('model', 'scenario', 'prefab', 'animation'):
+        if scene_nwo_export.export_gr2s and scene_nwo.asset_type in ('model', 'scenario', 'prefab', 'animation'):
             col.separator()
             sub = col.column(heading="Export")
             # sub.prop(self, "export_hidden")
@@ -266,7 +266,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
             elif scene_nwo.asset_type in ("scenario", "prefab"):
                 sub.prop(scene_nwo_export, "export_all_perms", expand=True, text='Layers')
         # SIDECAR SETTINGS #
-        if scene_nwo.asset_type == "model" and scene_nwo_export.export_gr2_files:
+        if scene_nwo.asset_type == "model" and scene_nwo_export.export_gr2s:
             box = layout.box()
             box.label(text="Model Settings")
             col = box.column()
@@ -290,7 +290,7 @@ class NWO_Export_Scene(Operator, ExportHelper):
                 sub.prop(scene_nwo, "output_weapon")
 
         # IMPORT SETTINGS #
-        if scene_nwo_export.export_gr2_files:
+        if scene_nwo_export.export_gr2s:
             box = layout.box()
             sub = box.column(heading="Export Flags")
             sub.prop(scene_nwo_export, 'triangulate', text="Triangulate")
@@ -441,7 +441,7 @@ class NWO_Export(NWO_Export_Scene):
         self.fail_explanation = ""
         
         if scene_nwo.asset_type == 'camera_track_set':
-            scene_nwo.export_gr2_files = False
+            scene_nwo.export_gr2s = False
             
         fbx_installed = fbx_addon_installed()  
         fbx_was_disabled = False          

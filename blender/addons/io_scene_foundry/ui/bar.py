@@ -431,6 +431,7 @@ class NWO_HaloExportSettings(bpy.types.Panel):
     bl_idname = "NWO_PT_HaloExportSettings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "HEADER"
+    bl_ui_units_x = 12
 
     def draw(self, context):
         layout = self.layout
@@ -449,7 +450,8 @@ class NWO_HaloExportSettings(bpy.types.Panel):
         col = flow.column()
         col.prop(scene_nwo_export, "export_quick", text="Quick Export")
         col.prop(scene_nwo_export, "show_output", text="Toggle Output")
-        col.prop(scene_nwo_export, "export_gr2_files", text="Export Tags")
+        col.prop(scene_nwo_export, "export_gr2s", text="Export Granny Files")
+        col.prop(scene_nwo_export, "export_tags", text="Generate Tags")
         if asset_type == 'camera_track_set':
             return
         scenario = asset_type == "scenario"
@@ -485,7 +487,7 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files and utils.poll_ui(('model', 'scenario', 'prefab', 'animation'))
+        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -493,36 +495,33 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
         scene_nwo_export = scene.nwo_export
         scene_nwo = scene.nwo
 
-        layout.use_property_split = True
+        layout.use_property_split = False
         flow = layout.grid_flow(
             row_major=True,
-            columns=0,
+            columns=2,
             even_columns=True,
             even_rows=False,
             align=False,
         )
-        col = flow.column()
-        col = layout.column(heading="Include")
-
         if scene_nwo.asset_type == "model":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            col.prop(scene_nwo_export, "export_render")
-            col.prop(scene_nwo_export, "export_collision")
-            col.prop(scene_nwo_export, "export_physics")
-            col.prop(scene_nwo_export, "export_markers")
-            col.prop(scene_nwo_export, "export_skeleton")
-            col.prop(scene_nwo_export, "export_animations", expand=True)
+            flow.prop(scene_nwo_export, "export_render", text="Render")
+            flow.prop(scene_nwo_export, "export_collision", text="Collision")
+            flow.prop(scene_nwo_export, "export_physics", text="Physics")
+            flow.prop(scene_nwo_export, "export_markers")
+            flow.prop(scene_nwo_export, "export_skeleton")
         elif scene_nwo.asset_type == "animation":
-            col.prop(scene_nwo_export, "export_skeleton")
-            col.prop(scene_nwo_export, "export_animations", expand=True)
+            flow.prop(scene_nwo_export, "export_skeleton")
         elif scene_nwo.asset_type == "scenario":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            col.prop(scene_nwo_export, "export_structure")
-            col.prop(scene_nwo_export, "export_design", text="Design")
+            flow.prop(scene_nwo_export, "export_structure")
+            flow.prop(scene_nwo_export, "export_design", text="Design")
         elif scene_nwo.asset_type != "prefab":
             # col.prop(scene_nwo_export, "export_hidden", text="Hidden")
-            col.prop(scene_nwo_export, "export_render")
+            flow.prop(scene_nwo_export, "export_render")
 
+        col = layout.column()
+        col.use_property_split = True
         if scene_nwo.asset_type == "scenario":
             col.prop(scene_nwo_export, "export_all_bsps", expand=True)
         if utils.poll_ui(("model", "scenario", "prefab")):
@@ -531,10 +530,13 @@ class NWO_HaloExportSettingsScope(bpy.types.Panel):
             else:
                 txt = "Layers"
             col.prop(scene_nwo_export, "export_all_perms", expand=True, text=txt)
+        
+        if scene_nwo.asset_type in {'animation', 'model'}:
+            col.prop(scene_nwo_export, "export_animations", expand=True)
 
 
 class NWO_HaloExportSettingsFlags(bpy.types.Panel):
-    bl_label = "Flags"
+    bl_label = "Import Flags"
     bl_idname = "NWO_PT_HaloExportSettingsFlags"
     bl_space_type = "VIEW_3D"
     bl_parent_id = "NWO_PT_HaloExportSettings"
@@ -542,7 +544,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
 
     @classmethod
     def poll(self, context):
-        return context.scene.nwo_export.export_gr2_files and utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
 
     def draw(self, context):
         layout = self.layout
@@ -562,9 +564,7 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
             align=False,
         )
         col = flow.column()
-        col.prop(scene_nwo_export, 'triangulate', text="Triangulate")
         col.prop(scene_nwo_export, 'slow_gr2')
-        col.prop(scene_nwo_export, 'granny_export')
         if h4:
             col.prop(scene_nwo_export, "import_force", text="Force full export")
             if scenario or prefab:
@@ -634,6 +634,64 @@ class NWO_HaloExportSettingsFlags(bpy.types.Panel):
                 )
             else:
                 col.prop(scene_nwo_export, "import_draft", text="Skip PRT generation")
+                
+class NWO_HaloExportGranny(bpy.types.Panel):
+    bl_label = "Granny"
+    bl_idname = "NWO_PT_HaloExportGranny"
+    bl_space_type = "VIEW_3D"
+    bl_parent_id = "NWO_PT_HaloExportSettings"
+    bl_region_type = "HEADER"
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        scene_nwo = scene.nwo
+        scene_nwo_export = scene.nwo_export
+        h4 = utils.is_corinth(context)
+        layout.use_property_split = False
+        flow = layout.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        col = flow.column()
+        col.prop(scene_nwo_export, 'granny_export')
+        col.prop(scene_nwo_export, 'granny_mirror')
+        col.prop(scene_nwo_export, 'granny_textures')
+        col.prop(scene_nwo_export, 'granny_animations_mesh')
+        
+class NWO_HaloExportTriangulation(bpy.types.Panel):
+    bl_label = "Triangulation"
+    bl_idname = "NWO_PT_HaloExportTriangulation"
+    bl_space_type = "VIEW_3D"
+    bl_parent_id = "NWO_PT_HaloExportSettings"
+    bl_region_type = "HEADER"
+
+    @classmethod
+    def poll(self, context):
+        return context.scene.nwo_export.export_gr2s and utils.poll_ui(('model', 'scenario', 'prefab', 'sky', 'particle_model', 'decorator_set', 'animation'))
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        scene_nwo_export = scene.nwo_export
+        layout.use_property_split = False
+        flow = layout.grid_flow(
+            row_major=True,
+            columns=0,
+            even_columns=True,
+            even_rows=False,
+            align=False,
+        )
+        col = flow.column()
+        col.prop(scene_nwo_export, 'triangulate_quad_method', text="Quad Method")
+        col.prop(scene_nwo_export, 'triangulate_ngon_method', text="N-gon Method")
 
 
 class NWO_HaloExport(bpy.types.Operator):
@@ -651,25 +709,41 @@ class NWO_HaloExport(bpy.types.Operator):
 
 
 class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
-    triangulate: bpy.props.BoolProperty(
-        name="Triangulate",
-        description="Applies a triangulation modifier to all objects at export if they do not already have one",
-        default=False,
+    triangulate_quad_method: bpy.props.EnumProperty(
+        name="Triangulate Quad Method",
+        description="The quad method to use when meshes are triangulated at export. This only applies to objects without an existing triangulation modifier",
         options=set(),
+        default='FIXED',
+        items=[
+            ("BEAUTY", "Beauty", "Split the quads in nice triangles, slower method"),
+            ("FIXED", "Fixed", "Split the quads on their first and third vertices"),
+            ("FIXED_ALTERNATE", "Fixed Alternate", "Split the quads on their second and fourth vertices"),
+            ("SHORTEST_DIAGONAL", "Shortest Diagonal", "Split the quads along their shortest diagonal"),
+            ("LONGEST_DIAGONAL", "Longest Diagonal", "Split the quads along their longest diagonal")
+        ]
+    )
+    triangulate_ngon_method: bpy.props.EnumProperty(
+        name="Triangulate N-gon Method",
+        description="The n-gon method to use when meshes are triangulated at export. This only applies to objects without an existing triangulation modifier",
+        options=set(),
+        default='CLIP',
+        items=[
+            ("BEAUTY", "Beauty", "Arrange the new triangles evenly (slow)"),
+            ("CLIP", "Clip", "Split the polygons with an ear clipping algorithm")
+        ]
     )
     granny_export: bpy.props.BoolProperty(
-        name="GR2 DEBUG",
-        description="Enables WIP GR2 exporting",
+        name="New Granny Pipeline (WIP)",
+        description="Enables the new Granny pipeline",
         options=set(),
     )
-    # fast_animation_export : bpy.props.BoolProperty(
-    #     name="Fast Animation Export",
-    #     description="Speeds up exports by ignoring everything but the armature during animation exports. Do not use if your animation relies on helper objects. You should ensure animations begin at frame 0 if using this option",
-    #     default=False,
-    #     options=set(),
-    # )
-    export_gr2_files: bpy.props.BoolProperty(
+    export_gr2s: bpy.props.BoolProperty(
         name="Export GR2 Files",
+        default=True,
+        options=set(),
+    )
+    export_tags: bpy.props.BoolProperty(
+        name="Generates tags using the exported GR2 files",
         default=True,
         options=set(),
     )
@@ -963,6 +1037,21 @@ class NWO_HaloExportPropertiesGroup(bpy.types.PropertyGroup):
     #     default=False,
     #     options=set(),
     # )
+    
+    granny_mirror: bpy.props.BoolProperty(
+        name="Mirror",
+        description="Exported GR2 files are mirrored"
+    )
+    
+    granny_textures: bpy.props.BoolProperty(
+        name="Textures",
+        description="Adds textures to export gr2 files using the shader/material tag paths set. This has no effect on the results of the imported model but can be useful for debugging issues. Please note this will increase both export time and filesize"
+    )
+    
+    granny_animations_mesh: bpy.props.BoolProperty(
+        name="Animations Store Mesh",
+        description="Exports meshes with animation exports. This has no effect on the results of the imported animations but can be useful for debugging animation issues"
+    )
 
     import_force: bpy.props.BoolProperty(
         name="Force",

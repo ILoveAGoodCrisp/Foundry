@@ -460,7 +460,7 @@ class PrepareScene:
                 if uses_global_mat:
                     self.global_materials.add(ob.get("bungie_face_global_material"))
 
-                if self.export_settings.export_gr2_files:
+                if self.export_settings.export_gr2s:
                     if is_mesh_loose:
                         # Add materials to all objects without one. No materials = unhappy Tool.exe
                         does_not_support_sky = ob.get("bungie_mesh_type") != '_connected_geometry_mesh_type_default' or self.asset_type != 'scenario'
@@ -897,7 +897,7 @@ class PrepareScene:
         utils.update_view_layer(self.context)
                 
     def animation_fixup(self):
-        if self.export_settings.export_gr2_files and self.model_armature:
+        if self.export_settings.export_gr2s and self.model_armature:
             self._force_fcurves_to_start_at_zero()
 
         if self.model_armature:

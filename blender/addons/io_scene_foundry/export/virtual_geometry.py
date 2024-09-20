@@ -72,7 +72,8 @@ class VirtualMaterial:
             self.shader_type = path.suffix[1:]
         
         self.to_granny_data(scene)
-        self.make_granny_texture(scene)
+        if scene.uses_textures:
+            self.make_granny_texture(scene)
         
     def set_invalid(self, scene: 'VirtualScene'):
         self.shader_path = r"shaders\invalid"
@@ -107,6 +108,7 @@ class VirtualMaterial:
         scene.granny._encode_image(builder, width, height, stride, 1, rgba)
         texture = scene.granny._end_texture(builder)
         texture.contents.file_name = str(full_path).encode()
+        texture.contents.texture_type = 2
         self.granny_texture = texture
         self.granny_material.contents.texture = texture
         # Set up texture map
@@ -281,8 +283,8 @@ class VirtualMesh:
                 if m.type == 'TRIANGULATE': return
                 
             tri_mod = mods.new('Triangulate', 'TRIANGULATE')
-            tri_mod.quad_method = 'FIXED'
-            tri_mod.ngon_method = 'CLIP'
+            tri_mod.quad_method = scene.quad_method
+            tri_mod.ngon_method = scene.ngon_method
             
         add_triangle_mod(ob)
         mesh = ob.to_mesh(preserve_all_data_layers=True, depsgraph=scene.depsgraph)
@@ -967,12 +969,15 @@ class VirtualModel:
                     scene.skeleton_node = self.node
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
         self.models: dict[VirtualModel] = {}
         self.root: VirtualNode = None
+        self.uses_textures = export_settings.granny_textures
+        self.quad_method = export_settings.triangulate_quad_method
+        self.ngon_method = export_settings.triangulate_ngon_method
         self.asset_type = asset_type
         self.depsgraph = depsgraph
         self.tags_dir = tags_dir

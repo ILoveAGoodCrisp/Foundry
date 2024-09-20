@@ -14,6 +14,8 @@ classes = [
     bar.NWO_HaloExportSettings,
     bar.NWO_HaloExportSettingsScope,
     bar.NWO_HaloExportSettingsFlags,
+    bar.NWO_HaloExportGranny,
+    bar.NWO_HaloExportTriangulation,
     bar.NWO_HaloExport,
     bar.NWO_HaloExportPropertiesGroup,
     bar.NWO_OT_StartFoundry,

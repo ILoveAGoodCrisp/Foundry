@@ -183,15 +183,15 @@ class BitmapTag(Tag):
             red = bgra_array[i + 2] / 255.0
             green = bgra_array[i + 1] / 255.0
             blue = bgra_array[i] / 255.0
-            match gamma:
-                case 'linear':
-                    red = red ** 2.0
-                    green = green ** 2.0
-                    blue = blue ** 2.0
-                case 'srgb':
-                    red = utils.linear_to_srgb(red ** 2.0)
-                    green = utils.linear_to_srgb(green ** 2.0)
-                    blue = utils.linear_to_srgb(blue ** 2.0)
+            # match gamma:
+            #     case 'linear':
+            #         red = red ** 2.0
+            #         green = green ** 2.0
+            #         blue = blue ** 2.0
+            #     case 'srgb':
+            #         red = utils.linear_to_srgb(red ** 2.0)
+            #         green = utils.linear_to_srgb(green ** 2.0)
+            #         blue = utils.linear_to_srgb(blue ** 2.0)
                     
             bgra_array[i] = int(red * 255)
             bgra_array[i + 1] = int(green * 255)
@@ -205,15 +205,15 @@ class BitmapTag(Tag):
             red = bgra_array[i + 2] / 255.0
             green = bgra_array[i + 1] / 255.0
             blue = bgra_array[i] / 255.0
-            match gamma:
-                case 'linear':
-                    red = red ** 2.0
-                    green = green ** 2.0
-                    blue = blue ** 2.0
-                case 'srgb':
-                    red = utils.linear_to_srgb(red ** 2.0)
-                    green = utils.linear_to_srgb(green ** 2.0)
-                    blue = utils.linear_to_srgb(blue ** 2.0)
+            # match gamma:
+            #     case 'linear':
+            #         red = red ** 2.0
+            #         green = green ** 2.0
+            #         blue = blue ** 2.0
+            #     case 'srgb':
+            #         red = utils.linear_to_srgb(red ** 2.0)
+            #         green = utils.linear_to_srgb(green ** 2.0)
+            #         blue = utils.linear_to_srgb(blue ** 2.0)
                     
             bgra_array[i] = int(red * 255)
             bgra_array[i + 1] = int(green * 255)
