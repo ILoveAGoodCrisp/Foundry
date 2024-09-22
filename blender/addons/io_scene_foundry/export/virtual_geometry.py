@@ -200,7 +200,7 @@ class VirtualAnimation:
                 if bone.parent:
                     loc, rot, sca = utils.get_bone_matrix_local(bone).decompose()
                 else:
-                    loc, rot, sca = bone.matrix.decompose()
+                    loc, rot, sca = (IDENTITY_MATRIX).decompose()
                 
                 i = round(rot[1], 7)
                 j = round(rot[2], 7)
@@ -1189,7 +1189,8 @@ class VirtualSkeleton:
                     b.matrix_local = utils.get_bone_matrix_local(bone)
                 else:
                     b.parent_index = 0
-                    b.matrix_local = bone.matrix
+                    b.matrix_local = IDENTITY_MATRIX
+                    b.matrix_world = IDENTITY_MATRIX
                     
                 b.to_granny_data()
                 self.bones.append(b)

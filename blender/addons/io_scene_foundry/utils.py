@@ -2147,7 +2147,7 @@ def halo_transform_matrix(matrix: Matrix):
     
     return Matrix.LocRotScale(loc, rot, sca)
 
-def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False):
+def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forward, new_forward, keep_marker_axis=None, objects=None, actions=None, apply_rotation=False, exclude_scale_models=False, skip_data=False):
     """Transform blender objects by the given scale factor and rotation. Optionally this can be scoped to a set of objects and animations rather than all"""
     with TransformManager():
         # armatures = [ob for ob in bpy.data.objects if ob.type == 'ARMATURE']
@@ -2157,11 +2157,12 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
         if exclude_scale_models:
             objects = [ob for ob in objects if not ob.nwo.scale_model]
             
-        curves = {ob.data for ob in objects if ob.type =='CURVE'}
-        metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
-        meshes = {ob.data for ob in objects if ob.type =='MESH'}
-        cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
-        lights = {ob.data for ob in objects if ob.type =='LIGHT'}
+        if not skip_data:
+            curves = {ob.data for ob in objects if ob.type =='CURVE'}
+            metaballs = {ob.data for ob in objects if ob.type =='METABALL'}
+            meshes = {ob.data for ob in objects if ob.type =='MESH'}
+            cameras = {ob.data for ob in objects if ob.type =='CAMERA'}
+            lights = {ob.data for ob in objects if ob.type =='LIGHT'}
             
         if actions is None:
             actions = bpy.data.actions
@@ -2231,123 +2232,124 @@ def transform_scene(context: bpy.types.Context, scale_factor, rotation, old_forw
             else:
                 ob.scale = old_scale
                 
-
-            for mod in ob.modifiers:
-                match mod.type:
-                    case 'BEVEL':
-                        mod.width *= scale_factor
-                    case 'DISPLACE':
-                        mod.strength *= scale_factor
-                    case 'CAST':
-                        mod.radius *= scale_factor
-                    case 'SHRINKWRAP':
-                        mod.offset *= scale_factor
-                        mod.project_limit *= scale_factor
-                    case 'WAVE':
-                        mod.offset *= scale_factor
-                        mod.height *= scale_factor
-                        mod.width *= scale_factor
-                        mod.falloff_radius *= scale_factor
-                        mod.narrowness *= scale_factor
-                        mod.start_position_x *= scale_factor
-                        mod.start_position_y *= scale_factor
-                    case 'OCEAN':
-                        mod.depth *= scale_factor
-                        mod.wave_scale_min *= scale_factor
-                        mod.wind_velocity *= scale_factor
-                    case 'ARRAY':
-                        mod.constant_offset_displace *= scale_factor
-                        mod.merge_threshold *= scale_factor
-                    case 'MIRROR':
-                        mod.merge_threshold *= scale_factor
-                        mod.bisect_threshold *= scale_factor
-                        if not keep_marker_axis and mod.mirror_object and is_marker(mod.mirror_object):
-                            fix_mirror_angles(mod, old_forward, new_forward)
-                    case 'REMESH':
-                        mod.voxel_size *= scale_factor
-                        mod.adaptivity *= scale_factor
-                    case 'SCREW':
-                        mod.screw_offset *= scale_factor
-                    case 'SOLIDIFY':
-                        mod.thickness *= scale_factor
-                    case 'WELD':
-                        mod.merge_threshold *= scale_factor
-                    case 'WIREFRAME':
-                        mod.thickness *= scale_factor
-                    case 'CAST':
-                        mod.radius *= scale_factor
-                    case 'HOOK':
-                        mod.falloff_radius *= scale_factor
-                    case 'WARP':
-                        mod.falloff_radius *= scale_factor
-                    case 'DATA_TRANSFER':
-                        mod.islands_precision *= scale_factor
-                        mod.max_distance *= scale_factor
-                        mod.ray_radius *= scale_factor
-                        
-            for con in ob.constraints:
-                match con.type:
-                    case 'LIMIT_DISTANCE':
-                        con.distance *= scale_factor
-                    case 'LIMIT_LOCATION':
-                        con.min_x *= scale_factor
-                        con.min_y *= scale_factor
-                        con.min_z *= scale_factor
-                        con.max_x *= scale_factor
-                        con.max_y *= scale_factor
-                        con.max_z *= scale_factor
-                    case 'STRETCH_TO':
-                        con.rest_length *= scale_factor
-                    case 'SHRINKWRAP':
-                        con.distance *= scale_factor
-                    case 'FOLLOW_PATH':
-                        if rotation:
-                            con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
-                    case 'CHILD_OF':
-                        con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
-                        if scale_factor != 1:
-                            con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
-                            con_loc *= scale_factor
-                            con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
-                
-        for curve in curves:
-            if hasattr(curve, 'size'):
-                curve.size *= scale_factor
-            if hasattr(curve, 'use_radius'):
-                curve.use_radius = False
-                
-            curve.transform(scale_matrix)
-            curve.nwo.material_lighting_attenuation_falloff *= scale_factor
-            curve.nwo.material_lighting_attenuation_cutoff *= scale_factor
-            
-        for metaball in metaballs:
-            metaball.transform(scale_matrix)
-            metaball.nwo.material_lighting_attenuation_falloff *= scale_factor
-            metaball.nwo.material_lighting_attenuation_cutoff *= scale_factor
-            
-        # for lattice in lattices:
-        #     lattice.transform(scale_matrix)
+            if not skip_data:
+                for mod in ob.modifiers:
+                    match mod.type:
+                        case 'BEVEL':
+                            mod.width *= scale_factor
+                        case 'DISPLACE':
+                            mod.strength *= scale_factor
+                        case 'CAST':
+                            mod.radius *= scale_factor
+                        case 'SHRINKWRAP':
+                            mod.offset *= scale_factor
+                            mod.project_limit *= scale_factor
+                        case 'WAVE':
+                            mod.offset *= scale_factor
+                            mod.height *= scale_factor
+                            mod.width *= scale_factor
+                            mod.falloff_radius *= scale_factor
+                            mod.narrowness *= scale_factor
+                            mod.start_position_x *= scale_factor
+                            mod.start_position_y *= scale_factor
+                        case 'OCEAN':
+                            mod.depth *= scale_factor
+                            mod.wave_scale_min *= scale_factor
+                            mod.wind_velocity *= scale_factor
+                        case 'ARRAY':
+                            mod.constant_offset_displace *= scale_factor
+                            mod.merge_threshold *= scale_factor
+                        case 'MIRROR':
+                            mod.merge_threshold *= scale_factor
+                            mod.bisect_threshold *= scale_factor
+                            if not keep_marker_axis and mod.mirror_object and is_marker(mod.mirror_object):
+                                fix_mirror_angles(mod, old_forward, new_forward)
+                        case 'REMESH':
+                            mod.voxel_size *= scale_factor
+                            mod.adaptivity *= scale_factor
+                        case 'SCREW':
+                            mod.screw_offset *= scale_factor
+                        case 'SOLIDIFY':
+                            mod.thickness *= scale_factor
+                        case 'WELD':
+                            mod.merge_threshold *= scale_factor
+                        case 'WIREFRAME':
+                            mod.thickness *= scale_factor
+                        case 'CAST':
+                            mod.radius *= scale_factor
+                        case 'HOOK':
+                            mod.falloff_radius *= scale_factor
+                        case 'WARP':
+                            mod.falloff_radius *= scale_factor
+                        case 'DATA_TRANSFER':
+                            mod.islands_precision *= scale_factor
+                            mod.max_distance *= scale_factor
+                            mod.ray_radius *= scale_factor
+                            
+                for con in ob.constraints:
+                    match con.type:
+                        case 'LIMIT_DISTANCE':
+                            con.distance *= scale_factor
+                        case 'LIMIT_LOCATION':
+                            con.min_x *= scale_factor
+                            con.min_y *= scale_factor
+                            con.min_z *= scale_factor
+                            con.max_x *= scale_factor
+                            con.max_y *= scale_factor
+                            con.max_z *= scale_factor
+                        case 'STRETCH_TO':
+                            con.rest_length *= scale_factor
+                        case 'SHRINKWRAP':
+                            con.distance *= scale_factor
+                        case 'FOLLOW_PATH':
+                            if rotation:
+                                con.forward_axis = rotate_follow_path_axis(con.forward_axis, old_forward, new_forward)
+                        case 'CHILD_OF':
+                            con.inverse_matrix = con.inverse_matrix @ rotation_matrix.inverted()
+                            if scale_factor != 1:
+                                con_loc, con_rot, con_sca = con.inverse_matrix.decompose()
+                                con_loc *= scale_factor
+                                con.inverse_matrix = Matrix.LocRotScale(con_loc, con_rot, con_sca)
         
-        for mesh in meshes:
-            mesh.transform(scale_matrix)
-            mesh.nwo.material_lighting_attenuation_falloff *= scale_factor
-            mesh.nwo.material_lighting_attenuation_cutoff *= scale_factor
-            for prop in mesh.nwo.face_props:
-                prop.material_lighting_attenuation_cutoff *= scale_factor
-                prop.material_lighting_attenuation_falloff *= scale_factor
+        if not skip_data:
+            for curve in curves:
+                if hasattr(curve, 'size'):
+                    curve.size *= scale_factor
+                if hasattr(curve, 'use_radius'):
+                    curve.use_radius = False
+                    
+                curve.transform(scale_matrix)
+                curve.nwo.material_lighting_attenuation_falloff *= scale_factor
+                curve.nwo.material_lighting_attenuation_cutoff *= scale_factor
+                
+            for metaball in metaballs:
+                metaball.transform(scale_matrix)
+                metaball.nwo.material_lighting_attenuation_falloff *= scale_factor
+                metaball.nwo.material_lighting_attenuation_cutoff *= scale_factor
+                
+            # for lattice in lattices:
+            #     lattice.transform(scale_matrix)
             
-        for camera in cameras:
-            camera.display_size *= scale_factor
-            
-        for light in lights:
-            if light.type != 'SUN':
-                light.energy *= scale_factor ** 2
-            light.nwo.light_far_attenuation_start *= scale_factor
-            light.nwo.light_far_attenuation_end *= scale_factor
-            light.nwo.light_near_attenuation_start *= scale_factor
-            light.nwo.light_near_attenuation_end *= scale_factor
-            light.nwo.light_fade_start_distance *= scale_factor
-            light.nwo.light_fade_end_distance *= scale_factor
+            for mesh in meshes:
+                mesh.transform(scale_matrix)
+                mesh.nwo.material_lighting_attenuation_falloff *= scale_factor
+                mesh.nwo.material_lighting_attenuation_cutoff *= scale_factor
+                for prop in mesh.nwo.face_props:
+                    prop.material_lighting_attenuation_cutoff *= scale_factor
+                    prop.material_lighting_attenuation_falloff *= scale_factor
+                
+            for camera in cameras:
+                camera.display_size *= scale_factor
+                
+            for light in lights:
+                if light.type != 'SUN':
+                    light.energy *= scale_factor ** 2
+                light.nwo.light_far_attenuation_start *= scale_factor
+                light.nwo.light_far_attenuation_end *= scale_factor
+                light.nwo.light_near_attenuation_start *= scale_factor
+                light.nwo.light_near_attenuation_end *= scale_factor
+                light.nwo.light_fade_start_distance *= scale_factor
+                light.nwo.light_fade_end_distance *= scale_factor
         
         arm_datas = set()
         for arm in armatures:
