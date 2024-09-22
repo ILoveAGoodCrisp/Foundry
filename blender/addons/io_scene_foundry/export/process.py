@@ -1152,8 +1152,8 @@ class ExportScene:
         self.granny.transform()
         self.granny.save()
         
-        if filepath.exists():
-            os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments='"' + str(filepath) + '"')
+        # if filepath.exists():
+        #     os.startfile(r"F:\Modding\granny\granny_common_2_9_12_0_release\bin\win32\gr2_viewer.exe", arguments='"' + str(filepath) + '"')
         
             
     def _get_export_path(self, name: str, animation=False):

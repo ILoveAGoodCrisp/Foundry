@@ -8,7 +8,7 @@ from math import degrees
 from pathlib import Path
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 import numpy as np
 import clr
 
@@ -96,12 +96,13 @@ class VirtualAnimation:
         self.space = nwo.animation_space
         self.pose_overlay = nwo.animation_is_pose
         
-        self.frame_count: int = int(action.frame_end) - int(action.frame_start)
+        self.frame_count: int = int(action.frame_end) - int(action.frame_start) + 1
         self.frame_range: tuple[int, int] = (int(action.frame_start), int(action.frame_end))
+        print(self.frame_range)
         self.granny_animation = None
         self.granny_track_group = None
         
-        self.track_group = self.create_track_group(scene.animated_bones, scene)
+        self.track_group = self.create_track_group(sorted(scene.animated_bones, key=lambda bone: bone.name), scene)
         # self.to_granny_track_group(scene)
         self.to_granny_animation(scene)
         return
@@ -192,7 +193,8 @@ class VirtualAnimation:
         orientations = defaultdict(list)
         scales = defaultdict(list)
         tracks = []
-        for frame_idx, frame in enumerate(range(*self.frame_range)):
+        yaw_index = 0
+        for frame_idx, frame in enumerate(range(self.frame_range[0], self.frame_range[1] + 1)):
             bpy.context.scene.frame_set(frame)
             for idx, bone in enumerate(bones):
                 bone: bpy.types.PoseBone
@@ -200,12 +202,15 @@ class VirtualAnimation:
                     loc, rot, sca = utils.get_bone_matrix_local(bone).decompose()
                 else:
                     loc, rot, sca = bone.matrix.decompose()
+                
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
                 orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
                 scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
                 scales[bone].extend(scale_shear)
+        
+        print([i for i in orientations[bones[yaw_index]]])
         
         for bone in bones:
             track = (c_float * (self.frame_count * 3))(*positions[bone])
@@ -217,7 +222,7 @@ class VirtualAnimation:
             track = (c_float * (self.frame_count * 9))(*scales[bone])
             tracks.append(track)
             
-        num_transform_tracks = int(len(tracks) / 3)
+        num_transform_tracks = len(bones)
         granny_transform_tracks = (GrannyTransformTrack * num_transform_tracks)()
         for bone_idx, i in enumerate(range(0, len(tracks), 3)):
             granny_transform_tracks[bone_idx].name = bones[bone_idx].name.encode()
@@ -243,6 +248,7 @@ class VirtualAnimation:
         granny_track_group.name = scene.skeleton_node.name.encode()
         granny_track_group.transform_track_count = num_transform_tracks
         granny_track_group.transform_tracks = granny_transform_tracks
+        granny_track_group.flags = 2
         self.granny_track_group = pointer(granny_track_group)
 
 
