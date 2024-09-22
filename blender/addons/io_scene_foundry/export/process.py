@@ -998,9 +998,12 @@ class ExportScene:
         for armature in self.armature_poses.keys():
             armature.pose_position = 'POSE'
         self.context.view_layer.update()
+        animated_objects = utils.get_animated_objects(self.context)
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_animations)
             for idx, action in enumerate(valid_actions):
+                for ob in animated_objects:
+                    ob.animation_data.action = action
                 self.virtual_scene.add_animation(action)
                 utils.update_job_count(process, "", idx, num_animations)
             utils.update_job_count(process, "", num_animations, num_animations)

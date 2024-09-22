@@ -98,7 +98,6 @@ class VirtualAnimation:
         
         self.frame_count: int = int(action.frame_end) - int(action.frame_start) + 1
         self.frame_range: tuple[int, int] = (int(action.frame_start), int(action.frame_end))
-        print(self.frame_range)
         self.granny_animation = None
         self.granny_track_group = None
         
@@ -203,14 +202,16 @@ class VirtualAnimation:
                 else:
                     loc, rot, sca = bone.matrix.decompose()
                 
+                i = round(rot[1], 7)
+                j = round(rot[2], 7)
+                k = round(rot[3], 7)
+                w = round(rot[0], 7)
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
-                orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
+                orientation = (c_float * 4)(i, j, k, w)
                 scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
                 positions[bone].extend(position)
                 orientations[bone].extend(orientation)
                 scales[bone].extend(scale_shear)
-        
-        print([i for i in orientations[bones[yaw_index]]])
         
         for bone in bones:
             track = (c_float * (self.frame_count * 3))(*positions[bone])
@@ -224,6 +225,9 @@ class VirtualAnimation:
             
         num_transform_tracks = len(bones)
         granny_transform_tracks = (GrannyTransformTrack * num_transform_tracks)()
+        
+        # group_builder = scene.granny._begin_track_group(self.name.encode(), 0, num_transform_tracks, 0)
+        
         for bone_idx, i in enumerate(range(0, len(tracks), 3)):
             granny_transform_tracks[bone_idx].name = bones[bone_idx].name.encode()
             
@@ -234,7 +238,6 @@ class VirtualAnimation:
             builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
             scene.granny._push_control_array(builder, tracks[i + 1])
             orientation_curve = scene.granny._end_curve(builder)
-            
             
             builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
             scene.granny._push_control_array(builder, tracks[i + 2])
@@ -250,6 +253,8 @@ class VirtualAnimation:
         granny_track_group.transform_tracks = granny_transform_tracks
         granny_track_group.flags = 2
         self.granny_track_group = pointer(granny_track_group)
+        # self.granny_track_group = scene.granny._end_track_group(group_builder)
+        
 
 
     def to_granny_track_group(self, scene: 'VirtualScene'):
@@ -324,7 +329,7 @@ class VirtualAnimation:
     def to_granny_animation(self, scene: 'VirtualScene'):
         granny_animation = GrannyAnimation()
         granny_animation.name = self.name.encode()
-        granny_animation.duration = scene.time_step * self.frame_count
+        granny_animation.duration = scene.time_step * (self.frame_count - 1)
         granny_animation.time_step = scene.time_step
         granny_animation.oversampling = 1
         granny_animation.track_group_count = 1
