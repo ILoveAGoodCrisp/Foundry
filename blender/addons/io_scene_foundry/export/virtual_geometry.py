@@ -12,9 +12,9 @@ from mathutils import Matrix, Vector
 import numpy as np
 import clr
 
-from ..managed_blam.shader import ShaderTag
+from ..managed_blam.material import MaterialTag
 
-from ..managed_blam.bitmap import BitmapTag
+from ..managed_blam.shader import ShaderTag
 
 from ..granny.formats import GrannyAnimation, GrannyBone, GrannyCompressCurveParameters, GrannyCurve2, GrannyCurveDataDaKeyframes32f, GrannyDataTypeDefinition, GrannyMaterial, GrannyMaterialMap, GrannyMemberType, GrannyTrackGroup, GrannyTransform, GrannyTransformTrack, GrannyTriAnnotationSet, GrannyTriMaterialGroup, GrannyTriTopology, GrannyVertexData
 from ..granny import Granny
@@ -85,7 +85,7 @@ class VirtualAnimation:
     def __init__(self, action: bpy.types.Action, scene: 'VirtualScene'):
         nwo = action.nwo
         self.name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
-        self.frame_count: int = int(action.frame_end) - int(action.frame_start) + 1
+        self.frame_count: int = int(action.frame_end) - int(action.frame_start)
         self.frame_range: tuple[int, int] = (int(action.frame_start), int(action.frame_end))
         self.granny_animation = None
         self.granny_track_group = None
@@ -185,7 +185,10 @@ class VirtualAnimation:
             bpy.context.scene.frame_set(frame)
             for idx, bone in enumerate(bones):
                 bone: bpy.types.PoseBone
-                loc, rot, sca = bone.matrix.decompose()
+                if bone.parent:
+                    loc, rot, sca = utils.get_bone_matrix_local(bone).decompose()
+                else:
+                    loc, rot, sca = bone.matrix.decompose()
                 position = (c_float * 3)(loc.x, loc.y, loc.z)
                 orientation = (c_float * 4)(rot.x, rot.y, rot.z, rot.w)
                 scale_shear = (c_float * 9)(sca.x, 0.0, 0.0, 0.0, sca.y, 0.0, 0.0, 0.0, sca.z)
@@ -208,31 +211,18 @@ class VirtualAnimation:
         for bone_idx, i in enumerate(range(0, len(tracks), 3)):
             granny_transform_tracks[bone_idx].name = bones[bone_idx].name.encode()
             
-            position_curve = GrannyCurve2()
             builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 3, self.frame_count)
             scene.granny._push_control_array(builder, tracks[i])
             position_curve = scene.granny._end_curve(builder)
-            # position_curve.curve_data.type = scene.granny.keyframe_type
-            # position_curve.curve_data.object = cast(pointer(tracks[i]), c_void_p)
             
-            orientation_curve = GrannyCurve2()
             builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 4, self.frame_count)
             scene.granny._push_control_array(builder, tracks[i + 1])
             orientation_curve = scene.granny._end_curve(builder)
-            # orientation_curve.curve_data.type = scene.granny.keyframe_type.contents
-            # orientation_curve.curve_data.object = cast(pointer(tracks[i + 1]), c_void_p)
             
             
-            scale_curve = GrannyCurve2()
             builder = scene.granny._begin_curve(scene.granny.keyframe_type, 0, 9, self.frame_count)
             scene.granny._push_control_array(builder, tracks[i + 2])
             scale_curve = scene.granny._end_curve(builder)
-            # scale_curve.curve_data.type = scene.granny.keyframe_type.contents
-            # scale_curve.curve_data.object = cast(pointer(tracks[i + 2]), c_void_p)
-            
-            # scene.granny._initialise_curve_format(position_curve)
-            # scene.granny._initialise_curve_format(orientation_curve)
-            # scene.granny._initialise_curve_format(scale_curve)
             
             granny_transform_tracks[bone_idx].position_curve = position_curve.contents
             granny_transform_tracks[bone_idx].orientation_curve = orientation_curve.contents
@@ -373,8 +363,12 @@ class VirtualMaterial:
         full_path = Path(scene.tags_dir, shader_path)
         if not full_path.exists():
             return
-        with ShaderTag(path=shader_path) as shader:
-            bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
+        if scene.corinth:
+            with MaterialTag(path=shader_path) as shader:
+                bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
+        else:
+            with ShaderTag(path=shader_path) as shader:
+                bitmap_data = shader.get_diffuse_bitmap_data_for_granny()
             
         if not bitmap_data:
             return
@@ -1157,6 +1151,7 @@ class VirtualSkeleton:
         if ob.type == 'ARMATURE':
             valid_bones = [pbone for pbone in ob.original.pose.bones if ob.original.data.bones[pbone.name].use_deform]
             list_bones = [pbone.name for pbone in valid_bones]
+            dict_bones = {v: i for i, v in enumerate(list_bones)}
             for idx, bone in enumerate(valid_bones):
                 bone: bpy.types.PoseBone
                 b = VirtualBone(bone)
@@ -1192,7 +1187,10 @@ class VirtualSkeleton:
                 if child.parent_type == 'BONE':
                     # Can't just use an objects matrix_local here as this gets a matrix relative to a bone's tail
                     # the below gets the matrix relative to bone head
-                    bone_index = list_bones.index(child.parent_bone)
+                    bone_index = dict_bones.get(child.parent_bone)
+                    if bone_index is None:
+                        scene.warnings.append(f"{child.name} is parented to non-existant bone: {child.parent_bone}. Parenting to {list_bones[0]}")
+                        bone_index = 0
                     bone = valid_bones[bone_index]
                     b.matrix_local = (self.skeleton_matrix_world @ bone.matrix).inverted() @ b.matrix_world
                     b.parent_index = bone_index + 1

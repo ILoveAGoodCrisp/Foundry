@@ -1149,7 +1149,7 @@ class ExportScene:
             self.granny.create_track_groups(animation.granny_track_group)
             self.granny.create_animations(animation.granny_animation)
             
-        # self.granny.transform()
+        self.granny.transform()
         self.granny.save()
         
         if filepath.exists():

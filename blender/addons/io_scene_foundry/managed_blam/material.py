@@ -24,10 +24,13 @@
 #
 # ##### END MIT LICENSE BLOCK #####
 
+import os
 from pathlib import Path
 from mathutils import Vector
-from ..managed_blam.material_shader import MaterialShaderTag
-from ..managed_blam.shader import BSDFParameter, ShaderTag
+
+from .bitmap import BitmapTag
+from .material_shader import MaterialShaderTag
+from .shader import BSDFParameter, ShaderTag
 from .. import utils
 import bpy
 
@@ -353,3 +356,22 @@ class MaterialTag(ShaderTag):
             alpha.build(Vector((-600, 300)))
             
         self._set_alpha(alpha_type, blender_material)
+        
+    def get_diffuse_bitmap_data_for_granny(self) -> None | tuple:
+        fill_alpha = True
+        calc_blue = False
+        for element in self.block_parameters.Elements:
+            match element.Fields[0].GetStringData():
+                case "color_map":
+                    fill_alpha = self.alpha_blend_mode.Value < 1
+                case _:
+                    continue
+                    
+
+            full_path = element.SelectField("bitmap").Path.Filename
+            if not os.path.exists(full_path):
+                continue
+            
+            bitmap_path = element.SelectField("bitmap").Path.RelativePathWithExtension
+            with BitmapTag(path=bitmap_path) as bitmap:
+                return bitmap.get_granny_data(fill_alpha, calc_blue)

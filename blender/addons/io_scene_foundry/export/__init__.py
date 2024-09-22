@@ -665,7 +665,7 @@ def export_asset_granny(context, sidecar_path_full, sidecar_path, asset_name, as
         export_scene.sample_animations()
         export_scene.report_warnings()
         export_scene.export_files()
-        # export_scene.write_sidecar()
+        export_scene.write_sidecar()
         export_scene.restore_scene()
     if export_settings.export_mode in {'FULL', 'TAGS'}:
         export_scene.preprocess_tags()
