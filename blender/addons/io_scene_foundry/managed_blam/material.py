@@ -368,7 +368,10 @@ class MaterialTag(ShaderTag):
                     continue
                     
 
-            full_path = element.SelectField("bitmap").Path.Filename
+            path = element.SelectField("bitmap").Path
+            if not path:
+                continue
+            full_path = path.Filename
             if not os.path.exists(full_path):
                 continue
             
