@@ -1668,7 +1668,7 @@ class Mesh:
                 face_layer.face_count = utils.layer_face_count(bm, bm.faces.layers.int.get(face_layer.layer_name))
             bm.free()
 
-        if mean(ob.dimensions.to_tuple()) < 20:
+        if not subpart and mean(ob.dimensions.to_tuple()) < 20:
             mesh.nwo.precise_position = True
 
         return ob
