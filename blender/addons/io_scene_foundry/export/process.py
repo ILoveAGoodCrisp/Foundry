@@ -226,6 +226,10 @@ class ExportScene:
         self.forced_render_only = {}
         self.armature_poses = {}
         object_parent_dict = {}
+        
+        if self.asset_type in (AssetType.MODEL, AssetType.ANIMATION) and self.scene_settings.main_armature and any((self.scene_settings.support_armature_a, self.scene_settings.support_armature_b, self.scene_settings.support_armature_c)):
+            self._consolidate_rig()
+        
         with utils.Spinner():
             utils.update_job_count(process, "", 0, num_export_objects)
             for idx, ob in enumerate(self.export_objects):
@@ -960,7 +964,7 @@ class ExportScene:
                 with RenderModelTag(path=self.scene_settings.template_render_model) as render_model:
                     nodes = render_model.get_nodes()
         else:
-            if self.scene_settings.animation_type == 'first_person':
+            if self.scene_settings.asset_animation_type == 'first_person':
                 if self.scene_settings.fp_model_path and Path(self.tags_dir, utils.relative_path(self.scene_settings.fp_model_path)).exists():
                     with RenderModelTag(path=self.scene_settings.fp_model_path) as render_model:
                         nodes = render_model.get_nodes()
@@ -991,6 +995,69 @@ class ExportScene:
                 self.virtual_scene.add_model(ob)
                 utils.update_job_count(process, "", idx, num_no_parents)
             utils.update_job_count(process, "", num_no_parents, num_no_parents)
+            
+    def _consolidate_rig(self):
+        context = self.context
+        scene_nwo = self.scene_settings
+        if scene_nwo.support_armature_a and context.scene.objects.get(scene_nwo.support_armature_a.name):
+            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_a, True)
+            if child_bone and scene_nwo.support_armature_a_parent_bone:
+                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_a, scene_nwo.support_armature_a_parent_bone, child_bone)
+            else:
+                utils.unlink(scene_nwo.support_armature_a)
+                if not scene_nwo.support_armature_a_parent_bone:
+                    self.warning_hit = True
+                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_a_parent_bone}. Ignoring support armature")
+                    
+                if not child_bone:
+                    self.warning_hit = True
+                    utils.print_warning(f"{scene_nwo.support_armature_a.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    
+        if scene_nwo.support_armature_b and context.scene.objects.get(scene_nwo.support_armature_b.name):
+            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_b, True)
+            if child_bone and scene_nwo.support_armature_b_parent_bone:
+                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_b, scene_nwo.support_armature_b_parent_bone, child_bone)
+            else:
+                utils.unlink(scene_nwo.support_armature_b)
+                if not scene_nwo.support_armature_b_parent_bone:
+                    self.warning_hit = True
+                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_b_parent_bone}. Ignoring support armature")
+                    
+                if not child_bone:
+                    self.warning_hit = True
+                    utils.print_warning(f"{scene_nwo.support_armature_b.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    
+        if scene_nwo.support_armature_c and context.scene.objects.get(scene_nwo.support_armature_c.name):
+            child_bone = utils.rig_root_deform_bone(scene_nwo.support_armature_c, True)
+            if child_bone and scene_nwo.support_armature_c_parent_bone:
+                self._join_armatures(context, scene_nwo.main_armature, scene_nwo.support_armature_c, scene_nwo.support_armature_c_parent_bone, child_bone)
+            else:
+                utils.unlink(scene_nwo.support_armature_c)
+                if not scene_nwo.support_armature_c_parent_bone:
+                    self.warning_hit = True
+                    utils.print_warning(f"No parent bone specified in Asset Editor panel for {scene_nwo.support_armature_c_parent_bone}. Ignoring support armature")
+                    
+                if not child_bone:
+                    self.warning_hit = True
+                    utils.print_warning(f"{scene_nwo.support_armature_c.name} has multiple root bones, could not join to {scene_nwo.main_armature.name}. Ignoring support armature")
+                    
+    def _join_armatures(self, context: bpy.types.Context, parent, child, parent_bone, child_bone):
+        with context.temp_override(selected_editable_objects=[parent, child], active_object=parent):
+            bpy.ops.object.join()
+        # Couldn't get context override working for accessing edit_bones
+        context.view_layer.objects.active = parent
+        bpy.ops.object.editmode_toggle()
+        edit_child = parent.data.edit_bones.get(child_bone, 0)
+        edit_parent = parent.data.edit_bones.get(parent_bone, 0)
+        if edit_child and edit_parent:
+            edit_child.parent = edit_parent
+        else:
+            self.warning_hit = True
+            utils.print_warning(f"Failed to join bones {parent_bone} and {child_bone} for {parent.name}")
+            
+        bpy.ops.object.editmode_toggle()
+        
+        context.view_layer.objects.active = None
             
     def sample_animations(self):
         if not self.asset_type in {AssetType.MODEL, AssetType.ANIMATION}:

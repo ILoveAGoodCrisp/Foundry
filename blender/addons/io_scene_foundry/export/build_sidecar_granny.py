@@ -89,11 +89,11 @@ class Sidecar:
             case AssetType.DECORATOR_SET:
                 self._get_object_output_types(metadata, "decorator_set", "decorator_set")
             case AssetType.PARTICLE_MODEL:
-                self.get_object_output_types(metadata, "particle_model", "particle_model")
+                self._get_object_output_types(metadata, "particle_model", "particle_model")
             case AssetType.PREFAB:
-                self.get_object_output_types(metadata, "prefab", "prefab")
+                self._get_object_output_types(metadata, "prefab", "prefab")
             case AssetType.ANIMATION:
-                self.get_object_output_types(metadata, "model")
+                self._get_object_output_types(metadata, "model")
 
         self._write_folders(metadata)
         self._write_face_collections(metadata)
