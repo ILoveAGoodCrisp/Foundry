@@ -85,6 +85,17 @@ class VirtualAnimation:
     def __init__(self, action: bpy.types.Action, scene: 'VirtualScene'):
         nwo = action.nwo
         self.name = nwo.name_override.strip() if nwo.name_override.strip() else action.name
+        
+        if scene.default_animation_compression != "Automatic" and nwo.compression == "Default":
+            self.compression = scene.default_animation_compression
+        else:
+            self.compression = nwo.compression
+            
+        self.animation_type = nwo.animation_type
+        self.movement = nwo.animation_movement_data
+        self.space = nwo.animation_space
+        self.pose_overlay = nwo.animation_is_pose
+        
         self.frame_count: int = int(action.frame_end) - int(action.frame_start)
         self.frame_range: tuple[int, int] = (int(action.frame_start), int(action.frame_end))
         self.granny_animation = None
@@ -1248,7 +1259,7 @@ class VirtualModel:
                     scene.skeleton_node = self.node
             
 class VirtualScene:
-    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int):
+    def __init__(self, asset_type: AssetType, depsgraph: bpy.types.Depsgraph, corinth: bool, tags_dir: Path, granny: Granny, export_settings, fps: int, animation_compression: str):
         self.nodes: dict[VirtualNode] = {}
         self.meshes: dict[VirtualMesh] = {}
         self.materials: dict[VirtualMaterial] = {}
@@ -1278,6 +1289,7 @@ class VirtualScene:
         self.warnings = []
         self.animated_bones = []
         self.animations = []
+        self.default_animation_compression = animation_compression
         
         self.object_parent_dict: dict[bpy.types.Object: bpy.types.Object] = {}
         self.object_halo_data: dict[bpy.types.Object: tuple[dict, str, str, list]] = {}

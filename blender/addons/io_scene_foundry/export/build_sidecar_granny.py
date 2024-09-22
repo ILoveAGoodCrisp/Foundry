@@ -23,11 +23,19 @@ class SidecarFileData:
     blend_path: Path
     permutation: str
     
-    def __init__(self, gr2_path: Path, blend_path: Path, permutation: str, region: str):
+    def __init__(self, gr2_path: Path, blend_path: Path, permutation: str = "default", region: str = "default"):
         self.gr2_path = gr2_path
         self.blend_path = blend_path
         self.permutation = permutation
         self.region = region
+        # Animation Only
+        self.name = "any idle"
+        self.compression = "Default"
+        self.animation_type = "base"
+        self.movement = "none"
+        self.space = "object"
+        self.pose_overlay = False
+        
 
 class Sidecar:
     def __init__(self, sidecar_path_full: Path, sidecar_path: Path, asset_path: Path, asset_name: str, asset_type: AssetType, scene_settings: NWO_ScenePropertiesGroup, corinth: bool, context: bpy.types.Context):
@@ -44,6 +52,7 @@ class Sidecar:
         self.scene_settings = scene_settings
         self.corinth = corinth
         self.context = context
+        self.lods = []
         
         self.structure = set()
         self.design = set()
@@ -54,6 +63,16 @@ class Sidecar:
         
     def add_file_data(self, tag_type: str, permutation: str, region: str, gr2_path: Path, blend_path: Path):
         self.file_data[tag_type].append(SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path), permutation, region))
+        
+    def add_animation_file_data(self, gr2_path: Path, blend_path: Path, name: str, compression: str, animation_type: str, movement: str, space: str, pose_overlay: bool):
+        data = SidecarFileData(utils.relative_path(gr2_path), utils.relative_path(blend_path))
+        data.name = name
+        data.compression = compression
+        data.animation_type = animation_type
+        data.movement = movement
+        data.space = space
+        data.pose_overlay = pose_overlay
+        self.file_data["animation"].append(data)
 
     def build(self):
         m_encoding = "utf-8"
@@ -334,111 +353,78 @@ class Sidecar:
             output = ET.SubElement(content_object, "OutputTagCollection")
             ET.SubElement(output, "OutputTag", Type="structure_design").text = f"{self.tag_path}_{bsp}_structure_design"
 
-    def _write_sky_contents(self, metadata, sidecar_paths):
+    def _write_sky_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
         content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
 
-        path = sidecar_paths.get("sky")[0]
-
-        network = ET.SubElement(content_object, "ContentNetwork", Name="default", Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-        # ET.SubElement(network, "ComponentFile").text = path[1]
-        ET.SubElement(network, "IntermediateFile").text = path[2]
-        
-        if "markers" in sidecar_paths.keys():
-            object = ET.SubElement(content, "ContentObject", Name="", Type="markers")
-            network = ET.SubElement(content_object, "ContentNetwork", Name="default", Type="")
-
-            path = sidecar_paths.get("markers")[0]
-
-            ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-            # ET.SubElement(network, "ComponentFile").text = path[1]
-            ET.SubElement(network, "IntermediateFile").text = path[2]
-
-            output = ET.SubElement(object, "OutputTagCollection")
-
-        output = ET.SubElement(object, "OutputTagCollection")
+        render_data = self.file_data.get("render")
+        for data in render_data:
+            self._write_network_files(content_object, data)
+            
+        output = ET.SubElement(content_object, "OutputTagCollection")
         ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
 
-    def _write_decorator_contents(self, metadata, sidecar_paths, lods):
+        if self.has_armature:
+            self._write_skeleton_content(content)
+        
+        ##### MARKERS #####
+        markers_data = self.file_data.get("markers")
+        if markers_data:
+            content_object = ET.SubElement(content, "ContentObject", Name="", Type="markers")
+            self._write_network_files(content_object, markers_data[0])
+            ET.SubElement(content_object, "OutputTagCollection")
+
+    def _write_decorator_contents(self, metadata):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(
-            contents, "Content", Name=self.asset_name, Type="decorator_set"
-        )
+        content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="decorator_set")
 
-        decorator_path = sidecar_paths.get("decorator")[0]
-        for lod in lods:
-            lod_str = str(lod - 1)
-            object = ET.SubElement(
-                content,
-                "ContentObject",
-                Name=lod_str,
-                Type="render_model",
-                LOD=lod_str,
-            )
-            network = ET.SubElement(object, "ContentNetwork", Name="default", Type="")
+        render_data = self.file_data.get("render")
+        if render_data:
+            for lod in self.lods:
+                lod_str = str(lod - 1)
+                content_object = ET.SubElement(content, "ContentObject", Name=lod_str, Type="render_model", LOD=lod_str)
+                for data in render_data:
+                    self._write_network_files(content_object, data)
 
-            ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else self.asset_path
-            # ET.SubElement(network, "ComponentFile").text = path[1]
-            ET.SubElement(network, "IntermediateFile").text = decorator_path[2]
-
-            output = ET.SubElement(object, "OutputTagCollection")
-            ET.SubElement(
-                output, "OutputTag", Type="render_model"
-            ).text = f"{self.tag_path}_lod{lod}"
-
-        output = ET.SubElement(object, "OutputTagCollection")
+                output = ET.SubElement(content_object, "OutputTagCollection")
+                ET.SubElement(output, "OutputTag", Type="render_model").text = f"{self.tag_path}_lod{lod}"
 
     def _write_particle_contents(self, metadata, sidecar_paths):
         contents = ET.SubElement(metadata, "Contents")
-        content = ET.SubElement(
-            contents, "Content", Name=self.asset_name, Type="particle_model"
-        )
-        object = ET.SubElement(content, "ContentObject", Name="", Type="particle_model")
+        content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="particle_model")
 
-        path = sidecar_paths.get("particle_model")[0]
+        render_data = self.file_data.get("render")
+        if render_data:
+            content_object = ET.SubElement(content, "ContentObject", Name="", Type="particle_model")
+            for data in render_data:
+                self._write_network_files(content_object, data)
 
-        network = ET.SubElement(object, "ContentNetwork", Name=self.asset_name, Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-        # ET.SubElement(network, "ComponentFile").text = path[1]
-        ET.SubElement(network, "IntermediateFile").text = path[2]
-
-        output = ET.SubElement(object, "OutputTagCollection")
-        if self.context.scene.nwo.particle_uses_custom_points:
-            ET.SubElement(output, "OutputTag", Type="particle_emitter_custom_points").text = self.tag_path
+            output = ET.SubElement(content_object, "OutputTagCollection")
+            if self.context.scene.nwo.particle_uses_custom_points:
+                ET.SubElement(output, "OutputTag", Type="particle_emitter_custom_points").text = self.tag_path
 
     def _write_prefab_contents(self, metadata, sidecar_paths):
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="prefab")
-        object = ET.SubElement(
-            content, "ContentObject", Name="", Type="scenario_structure_bsp"
-        )
+        bsp_data = self.file_data.get("structure")
+        if bsp_data:
+            content_object = ET.SubElement(content, "ContentObject", Name="", Type="scenario_structure_bsp")
+            for data in bsp_data:
+                self._write_network_files_bsp(content_object, data)
 
-        path = sidecar_paths.get("prefab")[0]
-
-        network = ET.SubElement(object, "ContentNetwork", Name=self.asset_name, Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-        # ET.SubElement(network, "ComponentFile").text = path[1]
-        ET.SubElement(network, "IntermediateFile").text = path[2]
-
-        output = ET.SubElement(object, "OutputTagCollection")
-        ET.SubElement(
-            output, "OutputTag", Type="scenario_structure_bsp"
-        ).text = self.tag_path
-        ET.SubElement(
-            output, "OutputTag", Type="scenario_structure_lighting_info"
-        ).text = self.tag_path
+            output = ET.SubElement(content_object, "OutputTagCollection")
+            ET.SubElement(output, "OutputTag", Type="scenario_structure_bsp").text = self.tag_path
+            ET.SubElement(output, "OutputTag", Type="scenario_structure_lighting_info").text = self.tag_path
 
     def _write_animation_contents(self, metadata):
         # NULL RENDER
         contents = ET.SubElement(metadata, "Contents")
         content = ET.SubElement(contents, "Content", Name=self.asset_name, Type="model")
         content_object = ET.SubElement(content, "ContentObject", Name="", Type="render_model")
-        path = sidecar_paths.get("render")[0]
-        network = ET.SubElement(content_object, "ContentNetwork", Name="default", Type="")
-        ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-        ET.SubElement(network, "IntermediateFile").text = path[2]
+        render_data = self.file_data.get("render")
+        for data in render_data:
+            self._write_network_files(content_object, data)
 
         output = ET.SubElement(content_object, "OutputTagCollection")
         ET.SubElement(output, "OutputTag", Type="render_model").text = self.tag_path
@@ -462,52 +448,48 @@ class Sidecar:
         if animation_data:
             content_object = ET.SubElement(content, "ContentObject", Name="", Type="model_animation_graph")
             for data in animation_data:
-                compression = path[8] if path[8] != "Default" else None
-                network_attribs = {"Name": path[3], "Type": "Base"}
-                a_type = path[4]
-                movement = path[5]
-                space = path[6]
-                pose_overlay = path[7]
-                if a_type == 'overlay':
+                compression = data.compression if data.compression != "Default" else None
+                network_attribs = {"Name": data.name, "Type": "Base"}
+                if data.animation_type == 'overlay':
                     network_attribs['Type'] = "Overlay"
                     network_attribs['ModelAnimationOverlayBlending'] = "Additive"
-                    if pose_overlay:
+                    if data.pose_overlay:
                         network_attribs['ModelAnimationOverlayType'] = "Pose"
-                        self.pose_overlays.add(path[3].replace(' ', ':'))
+                        self.pose_overlays.add(data.name.replace(' ', ':'))
                     else:
                         network_attribs['ModelAnimationOverlayType'] = "Keyframe"
-                elif a_type == 'world' and is_corinth():
+                elif data.animation_type == 'world' and is_corinth():
                     network_attribs['Type'] = "World"
                     network_attribs['ModelAnimationMovementData'] = "XYZAbsolute"
-                elif a_type == 'replacement':
+                elif data.animation_type == 'replacement':
                     network_attribs['Type'] = "Overlay"
                     network_attribs['ModelAnimationOverlayType'] = "Keyframe"
-                    if space == 'object':
+                    if data.space == 'object':
                         network_attribs['ModelAnimationOverlayBlending'] = "ReplacementObjectSpace"
                     else:
                         network_attribs['ModelAnimationOverlayBlending'] = "ReplacementLocalSpace"
                 else:
-                    if a_type == 'world':
-                        self.reach_world_animations.add(path[3].replace(' ', ':'))
-                    elif movement == 'none':
-                        network_attribs['ModelAnimationMovementData'] = "None"
-                    elif movement == 'xy':
-                        network_attribs['ModelAnimationMovementData'] = "XY"
-                    elif movement == 'xyyaw':
-                        network_attribs['ModelAnimationMovementData'] = "XYYaw"
-                    elif movement == 'xyzyaw':
-                        network_attribs['ModelAnimationMovementData'] = "XYZYaw"
-                    else:
-                        network_attribs['ModelAnimationMovementData'] = "XYZFullRotation"
+                    match data.movement:
+                        case 'world':
+                            self.reach_world_animations.add(data.name.replace(' ', ':'))
+                        case 'none':
+                            network_attribs['ModelAnimationMovementData'] = "None"
+                        case 'xy':
+                            network_attribs['ModelAnimationMovementData'] = "XY"
+                        case 'xyyaw':
+                            network_attribs['ModelAnimationMovementData'] = "XYYaw"
+                        case 'xyzyaw':
+                            network_attribs['ModelAnimationMovementData'] = "XYZYaw"
+                        case _:
+                            network_attribs['ModelAnimationMovementData'] = "XYZFullRotation"
                     
                 if compression is not None:
                     network_attribs['Compression'] = compression
 
-                network = ET.SubElement(object, "ContentNetwork", network_attribs)
+                network = ET.SubElement(content_object, "ContentNetwork", network_attribs)
 
-                ET.SubElement(network, "InputFile").text = self.relative_blend if not self.external_blend else path[0]
-                # ET.SubElement(network, "ComponentFile").text = path[1]
-                ET.SubElement(network, "IntermediateFile").text = path[2]
+                ET.SubElement(network, "InputFile").text = data.blend_path
+                ET.SubElement(network, "IntermediateFile").text = data.gr2_path
 
             for action in bpy.data.actions:
                 if not action.use_frame_range:
@@ -517,7 +499,7 @@ class Sidecar:
                 renames = nwo.animation_renames
                 for rename in renames:
                     network = ET.SubElement(
-                        object,
+                        content_object,
                         "ContentNetwork",
                         Name=rename.name,
                         Type="Rename",
@@ -526,7 +508,7 @@ class Sidecar:
                     
             for item in self.context.scene.nwo.animation_copies:
                 network = ET.SubElement(
-                    object,
+                    content_object,
                     "ContentNetwork",
                     Name=item.name,
                     Type="Copy",
@@ -535,24 +517,19 @@ class Sidecar:
 
             for item in self.context.scene.nwo.animation_composites:
                 network = ET.SubElement(
-                    object,
+                    content_object,
                     "ContentNetwork",
                     Name=item.name,
                     Type="CompositeOverlay" if item.overlay else "Composite",
                     NetworkReference=write_composite_xml(item),
                 )
                 
-            output = ET.SubElement(object, "OutputTagCollection")
-            ET.SubElement(
-                output, "OutputTag", Type="frame_event_list"
-            ).text = self.tag_path
-            if is_corinth():
-                ET.SubElement(
-                    output, "OutputTag", Type="pca_animation"
-                ).text = self.tag_path
-            ET.SubElement(
-                output, "OutputTag", Type="model_animation_graph"
-            ).text = self.tag_path
+            output = ET.SubElement(content_object, "OutputTagCollection")
+            ET.SubElement(output, "OutputTag", Type="frame_event_list").text = self.tag_path
+            if self.corinth:
+                ET.SubElement(output, "OutputTag", Type="pca_animation").text = self.tag_path
+                
+            ET.SubElement(output, "OutputTag", Type="model_animation_graph").text = self.tag_path
 
     def _region_active_state(self, region_name):
         region = self.context.scene.nwo.regions_table[region_name]
